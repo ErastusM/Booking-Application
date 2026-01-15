@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const {
-  getAllServices,
-  getServiceById,
-  createService,
-  updateService,
-  deleteService
+    getAllServices,
+    getServiceById,
+    createService,
+    updateService,
+    deleteService
 } = require('../controllers/serviceController');
 const { auth, authorize } = require('../middleware/auth');
 

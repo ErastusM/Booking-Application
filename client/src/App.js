@@ -12,35 +12,35 @@ import MyAppointments from './pages/MyAppointments';
 import './styles/index.css';
 
 function App() {
-  return (
-    <Router>
-      <AuthProvider>
-        <Navbar />
-        <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/login" element={<Login />} />
-          <Route path="/register" element={<Register />} />
-          <Route path="/services" element={<Services />} />
-          <Route
-            path="/book-appointment"
-            element={
-              <ProtectedRoute>
-                <BookAppointment />
-              </ProtectedRoute>
-            }
-          />
-          <Route
-            path="/appointments"
-            element={
-              <ProtectedRoute>
-                <MyAppointments />
-              </ProtectedRoute>
-            }
-          />
-        </Routes>
-      </AuthProvider>
-    </Router>
-  );
+    return (
+        <Router>
+            <AuthProvider>
+                <Navbar />
+                <Routes>
+                    <Route path="/" element={<Home />} />
+                    <Route path="/login" element={<Login />} />
+                    <Route path="/register" element={<Register />} />
+                    <Route path="/services" element={<Services />} />
+                    <Route
+                        path="/book-appointment"
+                        element={
+                            <ProtectedRoute>
+                                <BookAppointment />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/appointments"
+                        element={
+                            <ProtectedRoute>
+                                <MyAppointments />
+                            </ProtectedRoute>
+                        }
+                    />
+                </Routes>
+            </AuthProvider>
+        </Router>
+    );
 }
 
 export default App;

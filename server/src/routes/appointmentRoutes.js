@@ -1,11 +1,11 @@
 const express = require('express');
 const router = express.Router();
 const {
-  getAllAppointments,
-  getCustomerAppointments,
-  createAppointment,
-  updateAppointment,
-  cancelAppointment
+    getAllAppointments,
+    getCustomerAppointments,
+    createAppointment,
+    updateAppointment,
+    cancelAppointment
 } = require('../controllers/appointmentController');
 const { auth, authorize } = require('../middleware/auth');
 

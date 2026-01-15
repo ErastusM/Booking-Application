@@ -4,19 +4,19 @@ import { useAuth } from '../hooks/useAuth';
 const AuthContext = createContext();
 
 export const AuthProvider = ({ children }) => {
-  const authMethods = useAuth();
+    const authMethods = useAuth();
 
-  return (
-    <AuthContext.Provider value={authMethods}>
-      {children}
-    </AuthContext.Provider>
-  );
+    return (
+        <AuthContext.Provider value={authMethods}>
+            {children}
+        </AuthContext.Provider>
+    );
 };
 
 export const useAuthContext = () => {
-  const context = useContext(AuthContext);
-  if (!context) {
-    throw new Error('useAuthContext must be used within AuthProvider');
-  }
-  return context;
+    const context = useContext(AuthContext);
+    if (!context) {
+        throw new Error('useAuthContext must be used within AuthProvider');
+    }
+    return context;
 };
