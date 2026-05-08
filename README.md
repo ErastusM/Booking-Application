@@ -1,18 +1,184 @@
-# 💈 Barbershop Booking Application
+# � Multi-Booking Application
 
-A full-stack MERN application for managing barbershop appointments, services, and customers with a modern, responsive user interface.
+A full-stack MERN platform for booking multiple types of services across various categories. One unified account with multiple roles — customers can browse and book services, providers can manage their availability and bookings, and admins can oversee the entire ecosystem. Features a robust waiting list system, role-based dashboards, and seamless payment integration.
 
-## ✨ Features
+## ✨ Core Features
 
-- **🔐 User Authentication**: Secure login/registration with JWT tokens
-- **💇 Service Management**: Create, edit, and manage barbershop services
-- **📅 Appointment Booking**: Easy-to-use appointment scheduling system
-- **👨‍💼 Admin Dashboard**: Comprehensive management tools
-- **🎨 Responsive Design**: Works seamlessly on desktop, tablet, and mobile
-- **⚡ Real-time Updates**: Live availability and status updates
-- **🔒 Role-based Access**: Customer and admin roles with proper authorization
+### 🎯 Universal Features
+- **🔐 Single Login, Multiple Roles**: One account that works as Customer, Provider, and/or Admin with role switching
+- **🔍 Smart Service Discovery**: Search bar, service categories, featured & recently booked services
+- **📱 Onboarding Flow**: Welcome screen, app overview, optional location access
+- **🎨 Responsive Design**: Optimized for desktop, tablet, and mobile devices
 
-## 🛠️ Tech Stack
+### 👤 Customer Features
+- **📅 Easy Booking**: 12-step streamlined booking flow
+- **⏱️ Flexible Duration**: Adjustable hours/units with real-time price calculations
+- **💰 Multiple Payment Options**: Cash, card, wallet, mobile money
+- **🗺️ Location-Based Services**: Search nearby providers
+- **📍 Saved Addresses**: Manage multiple booking locations
+- **✅ Booking Management**: View, reschedule, or cancel appointments
+- **⭐ Reviews & Ratings**: Rate services and leave feedback
+- **🎯 Waiting List**: Join queues when preferred slots are full
+- **📊 Complete History**: Track all bookings and payment records
+
+### 🔧 Provider Features
+- **📋 Dashboard**: View today's bookings and full calendar
+- **✔️ Appointment Control**: Accept, decline, or mark as completed
+- **📅 Availability Management**: Set working hours and availability
+- **💵 Earnings Tracking**: Monitor income and payment history
+- **⭐ Profile & Ratings**: Build reputation through customer reviews
+- **🎯 Waiting List Management**: View and process waiting list requests
+- **📱 In-app Messaging**: Contact with customers about bookings
+
+### 🛡️ Admin Features
+- **👥 User Management**: Manage customers and providers
+- **💼 Service Management**: Create, edit, and manage service offerings
+- **📊 Complete Booking Visibility**: Monitor all bookings across the platform
+- **💰 Pricing Control**: Adjust pricing and service fees
+- **🎯 Waiting List Oversight**: Monitor and manage queue systems
+- **⚠️ Dispute Resolution**: Handle conflicts between customers and providers
+- **📈 Analytics Dashboard**: Track platform metrics and user activity
+
+## � User Roles & Role Switching
+
+### One Account, Multiple Roles
+
+A user creates a single account and can switch between different roles based on their needs:
+
+| Feature | Customer | Provider | Admin |
+|---------|----------|----------|-------|
+| Browse & Book Services | ✅ | ❌ | ✅ |
+| Manage Availability | ❌ | ✅ | ✅ |
+| View Bookings | ✅ | ✅ | ✅ |
+| Accept/Decline Jobs | ❌ | ✅ | ✅ |
+| Manage Users & Services | ❌ | ❌ | ✅ |
+| View Analytics | ❌ | ✅ | ✅ |
+| Process Payments | ✅ | ❌ | ✅ |
+
+### Adding Roles
+
+**Option A**: During sign-up, users select their primary role:
+- "What do you want to use the app for?"
+  - Book services
+  - Offer services
+  - Manage the platform
+
+**Option B** (Recommended): Users can add additional roles after signup via settings, allowing the same account to:
+- Book services today
+- Switch to provider mode tomorrow to accept bookings
+- Access admin features if granted permissions
+
+---
+
+## 📊 User Journey - 12-Step Booking Flow
+
+### **1. Onboarding**
+- Welcome screen with app overview
+- Explanation of available services
+- Optional location access request for nearby provider discovery
+
+### **2. Login / Sign Up**
+- **Sign-up**: Phone/email, password or OTP, full name, contact, email, location
+- **Login**: Quick authentication with JWT tokens
+- Option to continue as guest (limited functionality)
+
+### **3. Home / Dashboard**
+- **Search bar**: "What do you want to book?"
+- **Service categories**: Displayed as icon cards
+- **Featured services**: Popular or promoted offerings
+- **Recently booked**: Quick re-booking of previous services
+
+### **4. Service Selection**
+- Service name and description
+- Base price and pricing structure (per hour, per unit, etc.)
+- Provider rating and review count
+- Service images and detailed specifications
+
+### **5. Time & Duration Setup** ⭐ Enhanced
+- **Date picker**: Select any available date
+- **Start time**: Choose preferred time slot
+- **Adjustable duration**: 
+  - Increase/decrease hours or service units
+  - Real-time total price updates
+  - Visual breakdown showing: base + duration cost
+- **Add extras**: Additional services or special requests
+- **Notes field**: Special instructions for provider
+
+### **6. Provider Selection** (Optional)
+- **Auto-assign**: System suggests available provider
+- **Manual selection**: Browse available providers with:
+  - Ratings and reviews
+  - Years of experience
+  - Price differences (if applicable)
+  - Availability indicator
+
+### **7. Booking Summary**
+- Service name and description
+- Selected date, time, and duration
+- Location details
+- Assigned provider with rating
+- **Price breakdown**:
+  - Base service cost
+  - Duration/unit costs
+  - Extras or add-ons
+  - **Total amount**
+
+### **8. Confirm Booking**
+- Final review of all details
+- Accept terms & conditions
+- Option to modify or go back
+
+### **9. Payment & Confirmation**
+- **Payment methods**:
+  - 💵 Cash (pay at location)
+  - 💳 Card (debit/credit)
+  - 🏦 Wallet (in-app credits)
+  - 📱 Mobile money (local providers)
+- **Confirmation screen**:
+  - Booking ID (for tracking)
+  - Confirmation date, time, and location
+  - Provider details and contact
+  - SMS/email/in-app notification sent
+  - Receipt download option
+
+### **10. Active Booking Tracking**
+- Real-time status: Confirmed → In Progress → Completed
+- Provider location (if applicable)
+- Direct contact option with provider
+- **Cancellation/Reschedule**:
+  - Available within time limit
+  - Cancellation fees may apply
+  - Rescheduling to alternative slots
+
+### **11. Completion & Review**
+- Mark booking as completed
+- **Rate the service**: 1-5 star rating
+- **Write a review**: Detailed feedback
+- **Tip provider** (optional): Reward good service
+- Share experience on social media (optional)
+
+### **12. Profile & History**
+- **User profile**: Name, contact, email, preferences
+- **Saved addresses**: Multiple locations for quick booking
+- **Booking history**: All past and upcoming bookings
+- **Payment history**: Detailed transaction records
+- **Support & Help**: FAQs, contact support, report issues
+
+---
+
+## 🎯 Waiting List System
+
+When preferred time slots are unavailable:
+
+- **Join Queue**: Customer can add themselves to a waiting list
+- **Queue Position**: Shows current place in line
+- **Notifications**: 
+  - SMS/email when a slot becomes available
+  - In-app alerts for immediate notification
+  - Countdown if slot expires
+- **Provider View**: See waiting list requests and process them
+- **Admin Oversight**: Monitor queue volumes and system performance
+- **Flexible Confirmation**: Limited time to confirm before moving to next in queue
 
 ### Backend
 - **Node.js** - Runtime environment
