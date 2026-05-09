@@ -12,6 +12,7 @@ import MyAppointments from './pages/MyAppointments';
 import AdminDashboard from './pages/AdminDashboard';
 import Profile from './pages/Profile';
 import ProviderDashboard from './pages/ProviderDashboard';
+import MyWaitingList from './pages/MyWaitingList';
 
 function App() {
     return (
@@ -60,6 +61,14 @@ function App() {
                         element={
                             <ProtectedRoute>
                                 <ProviderDashboard />
+                    </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/waiting-list"
+                        element={
+                            <ProtectedRoute>
+                                <MyWaitingList />
                     </ProtectedRoute>
                         }
                     />

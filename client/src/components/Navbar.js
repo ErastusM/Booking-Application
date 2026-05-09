@@ -25,11 +25,19 @@ const Navbar = () => {
                     <Link to="/services" className="hover:text-yellow-400 transition">
                         Services
                     </Link>
+                    {user && user.role === 'customer' && (
+                    <Link to="/book-appointment" className="hover:text-yellow-400 transition">
+                        Book Appointment
+                    </Link>
+                    )}
 
                     {user ? (
                         <>
                             <Link to="/appointments" className="hover:text-yellow-400 transition">
                                 My Appointments
+                            </Link>
+                            <Link to="/waiting-list" className="hover:text-yellow-400 transition">
+                                Waiting List
                             </Link>
                             <Link to="/profile" className="hover:text-yellow-400 transition">
                                 My Profile

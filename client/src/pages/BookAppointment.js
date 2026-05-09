@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { appointmentService, serviceService } from '../services';
+import { appointmentService, serviceService, waitingListService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 
 const BookAppointment = () => {
@@ -8,7 +8,7 @@ const BookAppointment = () => {
     const navigate = useNavigate();
     const [services, setServices] = useState([]);
     const [formData, setFormData] = useState({
-        serviceId: '',
+        service: '',
         appointmentDate: '',
         startTime: '',
         endTime: '',
@@ -57,6 +57,26 @@ const BookAppointment = () => {
         }
     };
 
+    const handleJoinWaitingList = async () => {
+        if (!formData.service || !formData.appointmentDate || !formData.startTime) {
+            setError('Please fill in service, date and start time before joining the waiting list');
+            return;
+        }
+        setError('');
+        setSuccess('');
+        try {
+            await waitingListService.join({
+                service: formData.service,
+                appointmentDate: formData.appointmentDate,
+                startTime: formData.startTime,
+                endTime: formData.endTime,
+            });
+            setSuccess('You have been added to the waiting list! View your position in My Waiting List.');
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to join waiting list');
+        }
+    };
+
     return (
         <div className="container mx-auto px-4 py-12">
             <h1 className="text-4xl font-bold text-gray-800 mb-8">Book an Appointment</h1>
@@ -78,8 +98,8 @@ const BookAppointment = () => {
                     <div>
                         <label className="block text-gray-700 font-semibold mb-2">Service</label>
                         <select
-                            name="serviceId"
-                            value={formData.serviceId}
+                            name="service"
+                            value={formData.service}
                             onChange={handleChange}
                             required
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400"
@@ -101,6 +121,7 @@ const BookAppointment = () => {
                             value={formData.appointmentDate}
                             onChange={handleChange}
                             required
+                            min={new Date().toISOString().split('T')[0]}
                             className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400"
                         />
                     </div>
@@ -149,6 +170,14 @@ const BookAppointment = () => {
                         className="w-full bg-yellow-400 text-black font-bold py-2 rounded-lg hover:bg-yellow-500 transition disabled:opacity-50"
                     >
                         {loading ? 'Booking...' : 'Book Appointment'}
+                    </button>
+                    <button
+                        type="button"
+                        onClick={handleJoinWaitingList}
+                        disabled={loading}
+                        className="w-full mt-3 border-2 border-yellow-400 text-yellow-600 font-bold py-2 rounded-lg hover:bg-yellow-50 transition disabled:opacity-50"
+                    >
+                        Join Waiting List Instead
                     </button>
                 </form>
             </div>

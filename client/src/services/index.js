@@ -30,3 +30,10 @@ export const userService = {
     deleteUser: (id) => API.delete(`/users/${id}`),
     updateUserRole: (id, role) => API.put(`/users/${id}/role`, { role }),
 };
+
+export const waitingListService = {
+    join: (data) => API.post('/waitinglist', data),
+    getMyList: () => API.get('/waitinglist'),
+    leave: (id) => API.delete(`/waitinglist/${id}`),
+    getNotifications: () => API.get('/waitinglist/notifications'),
+};
