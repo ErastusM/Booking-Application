@@ -10,9 +10,9 @@ import Services from './pages/Services';
 import BookAppointment from './pages/BookAppointment';
 import MyAppointments from './pages/MyAppointments';
 import AdminDashboard from './pages/AdminDashboard';
-import Profile from './pages/Profile';
 import ProviderDashboard from './pages/ProviderDashboard';
 import MyWaitingList from './pages/MyWaitingList';
+import Profile from './pages/Profile';
 
 function App() {
     return (
@@ -20,58 +20,49 @@ function App() {
             <AuthProvider>
                 <Navbar />
                 <Routes>
+                    {/* Public routes */}
                     <Route path="/" element={<Home />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />
                     <Route path="/services" element={<Services />} />
-                    <Route
-                        path="/book-appointment"
-                        element={
-                            <ProtectedRoute>
-                                <BookAppointment />
-                            </ProtectedRoute>
-                        }
-                    />
-                    <Route
-                        path="/appointments"
-                        element={
-                            <ProtectedRoute>
-                                <MyAppointments />
-                            </ProtectedRoute>
-                        }
-                    />
-                    <Route
-                        path="/admin/dashboard"
-                        element={
-                            <ProtectedRoute adminOnly={true}>
-                                <AdminDashboard />
-                            </ProtectedRoute>
-                        }
-                    />
-                    <Route
-                        path="/profile"
-                        element={
-                            <ProtectedRoute>
-                                <Profile />
-                            </ProtectedRoute>
-                        }
-                    />
-                    <Route
-                        path="/provider/dashboard"
-                        element={
-                            <ProtectedRoute>
-                                <ProviderDashboard />
-                    </ProtectedRoute>
-                        }
-                    />
-                    <Route
-                        path="/waiting-list"
-                        element={
-                            <ProtectedRoute>
-                                <MyWaitingList />
-                    </ProtectedRoute>
-                        }
-                    />
+
+                    {/* Customer only */}
+                    <Route path="/book-appointment" element={
+                        <ProtectedRoute allowedRoles={['customer']}>
+                            <BookAppointment />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/appointments" element={
+                        <ProtectedRoute allowedRoles={['customer']}>
+                            <MyAppointments />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/waiting-list" element={
+                        <ProtectedRoute allowedRoles={['customer']}>
+                            <MyWaitingList />
+                        </ProtectedRoute>
+                    } />
+
+                    {/* Admin only */}
+                    <Route path="/admin/dashboard" element={
+                        <ProtectedRoute allowedRoles={['admin']}>
+                            <AdminDashboard />
+                        </ProtectedRoute>
+                    } />
+
+                    {/* Provider only */}
+                    <Route path="/provider/dashboard" element={
+                        <ProtectedRoute allowedRoles={['provider']}>
+                            <ProviderDashboard />
+                        </ProtectedRoute>
+                    } />
+
+                    {/* All authenticated users */}
+                    <Route path="/profile" element={
+                        <ProtectedRoute allowedRoles={['customer', 'admin', 'provider']}>
+                            <Profile />
+                        </ProtectedRoute>
+                    } />
                 </Routes>
             </AuthProvider>
         </Router>

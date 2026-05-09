@@ -10,6 +10,9 @@ const Navbar = () => {
     const [scrolled, setScrolled] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
 
+    const isHome = location.pathname === '/';
+    const isTransparent = isHome && !scrolled;
+
     useEffect(() => {
         const handleScroll = () => setScrolled(window.scrollY > 20);
         window.addEventListener('scroll', handleScroll);
@@ -31,7 +34,7 @@ const Navbar = () => {
         <Link
             to={to}
             style={{
-                color: isActive(to) ? 'var(--gold)' : 'inherit',
+                color: isActive(to) ? 'var(--gold)' : isTransparent ? 'white' : 'var(--text-primary)',
                 borderBottom: isActive(to) ? '2px solid var(--gold)' : '2px solid transparent',
                 paddingBottom: '2px',
                 fontWeight: isActive(to) ? '600' : '400',
@@ -43,7 +46,7 @@ const Navbar = () => {
                 if (!isActive(to)) e.target.style.color = 'var(--gold)';
             }}
             onMouseLeave={e => {
-                if (!isActive(to)) e.target.style.color = scrolled ? 'var(--text-primary)' : 'white';
+                if (!isActive(to)) e.target.style.color = isTransparent ? 'white' : 'var(--text-primary)';
             }}
         >
             {label}
@@ -57,11 +60,11 @@ const Navbar = () => {
         right: 0,
         zIndex: 1000,
         transition: 'all 0.3s ease',
-        background: scrolled ? 'rgba(255,255,255,0.97)' : 'transparent',
-        backdropFilter: scrolled ? 'blur(12px)' : 'none',
-        boxShadow: scrolled ? 'var(--shadow-sm)' : 'none',
-        borderBottom: scrolled ? '1px solid var(--border)' : 'none',
-        color: scrolled ? 'var(--text-primary)' : 'white',
+        background: isTransparent ? 'transparent' : 'rgba(255,255,255,0.97)',
+        backdropFilter: isTransparent ? 'none' : 'blur(12px)',
+        boxShadow: isTransparent ? 'none' : 'var(--shadow-sm)',
+        borderBottom: isTransparent ? 'none' : '1px solid var(--border)',
+        color: isTransparent ? 'white' : 'var(--text-primary)',
     };
 
     return (
@@ -77,7 +80,7 @@ const Navbar = () => {
                         color: 'var(--gold)',
                         letterSpacing: '-0.02em',
                     }}>
-                        Barber<span style={{ color: scrolled ? 'var(--charcoal)' : 'white' }}>Shop</span>
+                        Barber<span style={{ color: isTransparent ? 'white' : 'var(--charcoal)' }}>Shop</span>
                     </span>
                 </Link>
 
@@ -86,8 +89,8 @@ const Navbar = () => {
                     {navLink('/', 'Home')}
                     {navLink('/services', 'Services')}
                     {user?.role === 'customer' && navLink('/book-appointment', 'Book')}
-                    {user && navLink('/appointments', 'Appointments')}
-                    {user && navLink('/waiting-list', 'Waiting List')}
+                    {user?.role === 'customer' && navLink('/appointments', 'Appointments')}
+                    {user?.role === 'customer' && navLink('/waiting-list', 'Waiting List')}
                     {user?.role === 'provider' && navLink('/provider/dashboard', 'Dashboard')}
                     {user?.role === 'admin' && navLink('/admin/dashboard', 'Dashboard')}
                 </div>
@@ -96,13 +99,13 @@ const Navbar = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }} className="hidden-mobile">
                     {user ? (
                         <>
-                            <NotificationBell scrolled={scrolled} />
+                            <NotificationBell isTransparent={isTransparent} />
                             <Link to="/profile" style={{
                                 display: 'flex',
                                 alignItems: 'center',
                                 gap: '0.5rem',
                                 textDecoration: 'none',
-                                color: scrolled ? 'var(--text-primary)' : 'white',
+                                color: isTransparent ? 'white' : 'var(--text-primary)',
                                 fontSize: '0.9rem',
                                 fontWeight: '500',
                             }}>
@@ -127,8 +130,8 @@ const Navbar = () => {
                                 style={{
                                     background: 'transparent',
                                     border: '1.5px solid',
-                                    borderColor: scrolled ? 'var(--border)' : 'rgba(255,255,255,0.4)',
-                                    color: scrolled ? 'var(--text-secondary)' : 'white',
+                                    borderColor: isTransparent ? 'rgba(255,255,255,0.4)' : 'var(--border)',
+                                    color: isTransparent ? 'white' : 'var(--text-secondary)',
                                     padding: '0.4rem 1rem',
                                     borderRadius: 'var(--radius-sm)',
                                     cursor: 'pointer',
@@ -141,8 +144,8 @@ const Navbar = () => {
                                     e.target.style.color = '#ef4444';
                                 }}
                                 onMouseLeave={e => {
-                                    e.target.style.borderColor = scrolled ? 'var(--border)' : 'rgba(255,255,255,0.4)';
-                                    e.target.style.color = scrolled ? 'var(--text-secondary)' : 'white';
+                                    e.target.style.borderColor = isTransparent ? 'rgba(255,255,255,0.4)' : 'var(--border)';
+                                    e.target.style.color = isTransparent ? 'white' : 'var(--text-secondary)';
                                 }}
                             >
                                 Logout
@@ -151,7 +154,7 @@ const Navbar = () => {
                     ) : (
                         <>
                             <Link to="/login" style={{
-                                color: scrolled ? 'var(--text-primary)' : 'white',
+                                color: isTransparent ? 'white' : 'var(--text-primary)',
                                 textDecoration: 'none',
                                 fontSize: '0.9rem',
                                 fontWeight: '500',
@@ -174,7 +177,7 @@ const Navbar = () => {
                         background: 'none',
                         border: 'none',
                         cursor: 'pointer',
-                        color: scrolled ? 'var(--charcoal)' : 'white',
+                        color: isTransparent ? 'white' : 'var(--charcoal)',
                         padding: '0.5rem',
                     }}
                 >
@@ -200,14 +203,18 @@ const Navbar = () => {
                     <Link to="/" style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500' }}>Home</Link>
                     <Link to="/services" style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500' }}>Services</Link>
                     {user?.role === 'customer' && <Link to="/book-appointment" style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500' }}>Book Appointment</Link>}
-                    {user && <Link to="/appointments" style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500' }}>My Appointments</Link>}
-                    {user && <Link to="/waiting-list" style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500' }}>Waiting List</Link>}
+                    {user?.role === 'customer' && <Link to="/appointments" style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500' }}>My Appointments</Link>}
+                    {user?.role === 'customer' && <Link to="/waiting-list" style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500' }}>Waiting List</Link>}
                     {user?.role === 'provider' && <Link to="/provider/dashboard" style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500' }}>Provider Dashboard</Link>}
                     {user?.role === 'admin' && <Link to="/admin/dashboard" style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500' }}>Admin Dashboard</Link>}
                     {user ? (
                         <>
                             <Link to="/profile" style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500' }}>My Profile</Link>
-                            <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: '#ef4444', fontWeight: '600', cursor: 'pointer', textAlign: 'left', padding: 0, fontFamily: 'DM Sans, sans-serif', fontSize: '1rem' }}>Logout</button>
+                            <button onClick={handleLogout} style={{
+                                background: 'none', border: 'none', color: '#ef4444',
+                                fontWeight: '600', cursor: 'pointer', textAlign: 'left',
+                                padding: 0, fontFamily: 'DM Sans, sans-serif', fontSize: '1rem',
+                            }}>Logout</button>
                         </>
                     ) : (
                         <>
