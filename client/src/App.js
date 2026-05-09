@@ -9,7 +9,7 @@ import Register from './pages/Register';
 import Services from './pages/Services';
 import BookAppointment from './pages/BookAppointment';
 import MyAppointments from './pages/MyAppointments';
-import './styles/index.css';
+import AdminDashboard from './pages/AdminDashboard';
 
 function App() {
     return (
@@ -34,6 +34,14 @@ function App() {
                         element={
                             <ProtectedRoute>
                                 <MyAppointments />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/admin/dashboard"
+                        element={
+                            <ProtectedRoute adminOnly={true}>
+                                <AdminDashboard />
                             </ProtectedRoute>
                         }
                     />
