@@ -159,6 +159,18 @@ const AdminDashboard = () => {
 
             <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
 
+                <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
+                    <a href="/admin/analytics" style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+                        background: 'var(--charcoal)', color: 'white',
+                        padding: '0.6rem 1.25rem', borderRadius: 'var(--radius-sm)',
+                        textDecoration: 'none', fontSize: '0.875rem', fontWeight: '600',
+                        fontFamily: 'DM Sans, sans-serif',
+                    }}>
+                        📈 View Analytics
+                    </a>
+                </div>
+
                 {/* Stats */}
                 <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
                     {stats.map((s, i) => (

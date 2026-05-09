@@ -13,6 +13,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import ProviderDashboard from './pages/ProviderDashboard';
 import MyWaitingList from './pages/MyWaitingList';
 import Profile from './pages/Profile';
+import AnalyticsDashboard from './pages/AnalyticsDashboard';
 
 function App() {
     return (
@@ -63,6 +64,14 @@ function App() {
                             <Profile />
                         </ProtectedRoute>
                     } />
+                    <Route
+                        path="/admin/analytics"
+                        element={
+                            <ProtectedRoute allowedRoles={['admin']}>
+                                <AnalyticsDashboard />
+                            </ProtectedRoute>
+                        }
+                    />
                 </Routes>
             </AuthProvider>
         </Router>

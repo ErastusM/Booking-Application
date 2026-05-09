@@ -93,6 +93,7 @@ const Navbar = () => {
                     {user?.role === 'customer' && navLink('/waiting-list', 'Waiting List')}
                     {user?.role === 'provider' && navLink('/provider/dashboard', 'Dashboard')}
                     {user?.role === 'admin' && navLink('/admin/dashboard', 'Dashboard')}
+                    {user?.role === 'admin' && navLink('/admin/analytics', 'Analytics')}
                 </div>
 
                 {/* Right side */}

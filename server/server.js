@@ -14,6 +14,7 @@ const waitingListRoutes = require('./src/routes/waitingListRoutes');
 const reviewRoutes = require('./src/routes/reviewRoutes');
 const notificationRoutes = require('./src/routes/notificationRoutes');
 const paymentRoutes = require('./src/routes/paymentRoutes');
+const analyticsRoutes = require('./src/routes/analyticsRoutes');
 
 // Connect to database
 connectDB();
@@ -35,6 +36,7 @@ app.use('/api/waitinglist', waitingListRoutes);
 app.use('/api/reviews', reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/payments', paymentRoutes);
+app.use('/api/analytics', analyticsRoutes);
 
 
 // Health check
