@@ -1,25 +1,23 @@
 import React, { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 
 const Login = () => {
+    const { login } = useAuthContext();
+    const navigate = useNavigate();
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
-    const { login } = useAuthContext();
-    const navigate = useNavigate();
 
     const handleChange = (e) => {
-        const { name, value } = e.target;
-        setFormData(prev => ({ ...prev, [name]: value }));
+        setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
         setError('');
-
         try {
             const response = await authService.login(formData);
             login(response.data.data);
@@ -32,58 +30,168 @@ const Login = () => {
     };
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 flex items-center justify-center px-4">
-            <div className="bg-white rounded-lg shadow-xl w-full max-w-md p-8">
-                <h2 className="text-3xl font-bold text-gray-800 mb-6 text-center">Login</h2>
-
-                {error && (
-                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                        {error}
-                    </div>
-                )}
-
-                <form onSubmit={handleSubmit} className="space-y-4">
-                    <div>
-                        <label className="block text-gray-700 font-semibold mb-2">Email</label>
-                        <input
-                            type="email"
-                            name="email"
-                            value={formData.email}
-                            onChange={handleChange}
-                            required
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                            placeholder="your@email.com"
-                        />
-                    </div>
-
-                    <div>
-                        <label className="block text-gray-700 font-semibold mb-2">Password</label>
-                        <input
-                            type="password"
-                            name="password"
-                            value={formData.password}
-                            onChange={handleChange}
-                            required
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                            placeholder="Enter your password"
-                        />
-                    </div>
-
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full bg-yellow-400 text-black font-bold py-2 rounded-lg hover:bg-yellow-500 transition disabled:opacity-50"
-                    >
-                        {loading ? 'Logging in...' : 'Login'}
-                    </button>
-                </form>
-
-                <p className="text-center text-gray-600 mt-4">
-                    Don't have an account?{' '}
-                    <Link to="/register" className="text-yellow-400 font-semibold hover:underline">
-                        Sign up here
+        <div style={{
+            minHeight: '100vh',
+            display: 'grid',
+            gridTemplateColumns: '1fr 1fr',
+            background: 'var(--off-white)',
+        }}>
+            {/* Left panel */}
+            <div style={{
+                background: 'var(--charcoal)',
+                display: 'flex',
+                flexDirection: 'column',
+                justifyContent: 'center',
+                padding: '4rem',
+                position: 'relative',
+                overflow: 'hidden',
+            }}>
+                <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    backgroundImage: 'radial-gradient(ellipse at 30% 70%, rgba(201,168,76,0.12) 0%, transparent 60%)',
+                    pointerEvents: 'none',
+                }} />
+                <div style={{
+                    position: 'absolute',
+                    top: 0,
+                    right: 0,
+                    width: '3px',
+                    top: '20%',
+                    bottom: '20%',
+                    background: 'linear-gradient(to bottom, transparent, var(--gold), transparent)',
+                }} />
+                <div style={{ position: 'relative', zIndex: 1 }}>
+                    <Link to="/" style={{
+                        fontFamily: 'Playfair Display, serif',
+                        fontSize: '1.8rem',
+                        fontWeight: '700',
+                        color: 'var(--gold)',
+                        textDecoration: 'none',
+                        display: 'block',
+                        marginBottom: '4rem',
+                    }}>
+                        Barber<span style={{ color: 'white' }}>Shop</span>
                     </Link>
-                </p>
+                    <h2 style={{
+                        fontFamily: 'Playfair Display, serif',
+                        fontSize: 'clamp(2rem, 3vw, 2.8rem)',
+                        fontWeight: '700',
+                        color: 'white',
+                        lineHeight: 1.2,
+                        marginBottom: '1.5rem',
+                    }}>
+                        Welcome<br />
+                        <span style={{ color: 'var(--gold)', fontStyle: 'italic' }}>back.</span>
+                    </h2>
+                    <p style={{
+                        color: 'rgba(255,255,255,0.5)',
+                        fontSize: '1rem',
+                        lineHeight: 1.7,
+                        fontWeight: '300',
+                        maxWidth: '340px',
+                    }}>
+                        Sign in to manage your bookings, check your appointments, and keep looking sharp.
+                    </p>
+                    <div className="gold-divider" style={{ marginTop: '2rem' }} />
+                </div>
+            </div>
+
+            {/* Right panel — form */}
+            <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                padding: '4rem 3rem',
+            }}>
+                <div style={{ width: '100%', maxWidth: '400px' }} className="fade-up">
+                    <h1 style={{
+                        fontFamily: 'Playfair Display, serif',
+                        fontSize: '2rem',
+                        fontWeight: '700',
+                        color: 'var(--charcoal)',
+                        marginBottom: '0.5rem',
+                    }}>
+                        Sign In
+                    </h1>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '2rem' }}>
+                        Don't have an account?{' '}
+                        <Link to="/register" style={{ color: 'var(--gold)', fontWeight: '600', textDecoration: 'none' }}>
+                            Sign up here
+                        </Link>
+                    </p>
+
+                    {error && (
+                        <div style={{
+                            background: '#fee2e2',
+                            border: '1px solid #fca5a5',
+                            color: '#991b1b',
+                            padding: '0.75rem 1rem',
+                            borderRadius: 'var(--radius-sm)',
+                            marginBottom: '1.5rem',
+                            fontSize: '0.85rem',
+                        }}>
+                            {error}
+                        </div>
+                    )}
+
+                    <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                        <div>
+                            <label style={{
+                                display: 'block',
+                                fontSize: '0.8rem',
+                                fontWeight: '600',
+                                color: 'var(--text-secondary)',
+                                marginBottom: '0.5rem',
+                                letterSpacing: '0.05em',
+                                textTransform: 'uppercase',
+                            }}>
+                                Email Address
+                            </label>
+                            <input
+                                type="email"
+                                name="email"
+                                value={formData.email}
+                                onChange={handleChange}
+                                required
+                                placeholder="you@example.com"
+                                className="input"
+                            />
+                        </div>
+
+                        <div>
+                            <label style={{
+                                display: 'block',
+                                fontSize: '0.8rem',
+                                fontWeight: '600',
+                                color: 'var(--text-secondary)',
+                                marginBottom: '0.5rem',
+                                letterSpacing: '0.05em',
+                                textTransform: 'uppercase',
+                            }}>
+                                Password
+                            </label>
+                            <input
+                                type="password"
+                                name="password"
+                                value={formData.password}
+                                onChange={handleChange}
+                                required
+                                placeholder="••••••••"
+                                className="input"
+                            />
+                        </div>
+
+                        <button
+                            type="submit"
+                            disabled={loading}
+                            className="btn-primary"
+                            style={{ width: '100%', marginTop: '0.5rem', padding: '0.875rem' }}
+                        >
+                            {loading ? 'Signing in...' : 'Sign In →'}
+                        </button>
+                    </form>
+                </div>
             </div>
         </div>
     );

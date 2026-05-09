@@ -1,74 +1,378 @@
-import React from 'react';
+import React, { useEffect, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 
+const stats = [
+    { number: '500+', label: 'Happy Clients' },
+    { number: '15+', label: 'Expert Barbers' },
+    { number: '8', label: 'Years Experience' },
+    { number: '4.9★', label: 'Average Rating' },
+];
+
+const features = [
+    {
+        icon: '✦',
+        title: 'Expert Barbers',
+        description: 'Our skilled professionals bring years of experience and passion to every cut, trim and shave.',
+    },
+    {
+        icon: '◈',
+        title: 'Easy Scheduling',
+        description: 'Book your perfect time slot in seconds. No phone calls, no waiting — just seamless online booking.',
+    },
+    {
+        icon: '◇',
+        title: 'Flexible Hours',
+        description: 'Early mornings or late evenings, we work around your schedule so you never have to compromise.',
+    },
+    {
+        icon: '◉',
+        title: 'Instant Confirmation',
+        description: 'Get real-time booking confirmation and updates straight to your account the moment things change.',
+    },
+];
+
 const Home = () => {
     const { user } = useAuthContext();
+    const heroRef = useRef(null);
+
+    useEffect(() => {
+        // Parallax effect on hero
+        const handleScroll = () => {
+            if (heroRef.current) {
+                const scrolled = window.scrollY;
+                heroRef.current.style.transform = `translateY(${scrolled * 0.4}px)`;
+            }
+        };
+        window.addEventListener('scroll', handleScroll);
+        return () => window.removeEventListener('scroll', handleScroll);
+    }, []);
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-gray-900 to-gray-800 text-white">
-            <div className="container mx-auto px-4 py-20">
-                <div className="text-center mb-16">
-                    <h1 className="text-5xl font-bold mb-4 text-yellow-400">
-                        Welcome to BarberShop Booking
-                    </h1>
-                    <p className="text-xl text-gray-300 mb-8">
-                        Book your perfect haircut with our professional barbers
-                    </p>
+        <div style={{ background: 'var(--off-white)' }}>
 
-                    {!user && (
-                        <div className="flex gap-4 justify-center">
-                            <Link
-                                to="/login"
-                                className="bg-gray-700 hover:bg-gray-600 px-8 py-3 rounded-lg font-semibold transition"
-                            >
-                                Login
-                            </Link>
-                            <Link
-                                to="/register"
-                                className="bg-yellow-400 text-black hover:bg-yellow-500 px-8 py-3 rounded-lg font-semibold transition"
-                            >
-                                Sign Up
-                            </Link>
+            {/* Hero */}
+            <section style={{
+                position: 'relative',
+                minHeight: '100vh',
+                display: 'flex',
+                alignItems: 'center',
+                overflow: 'hidden',
+                background: 'var(--charcoal)',
+            }}>
+                {/* Background texture */}
+                <div ref={heroRef} style={{
+                    position: 'absolute',
+                    inset: '-20%',
+                    backgroundImage: `
+                        radial-gradient(ellipse at 20% 50%, rgba(201,168,76,0.15) 0%, transparent 60%),
+                        radial-gradient(ellipse at 80% 20%, rgba(201,168,76,0.08) 0%, transparent 50%),
+                        repeating-linear-gradient(
+                            45deg,
+                            transparent,
+                            transparent 60px,
+                            rgba(255,255,255,0.01) 60px,
+                            rgba(255,255,255,0.01) 61px
+                        )
+                    `,
+                    zIndex: 0,
+                }} />
+
+                {/* Gold accent line */}
+                <div style={{
+                    position: 'absolute',
+                    left: 0,
+                    top: '15%',
+                    bottom: '15%',
+                    width: '3px',
+                    background: 'linear-gradient(to bottom, transparent, var(--gold), transparent)',
+                    zIndex: 1,
+                }} />
+
+                <div className="container" style={{ position: 'relative', zIndex: 2, paddingTop: '6rem', paddingBottom: '6rem' }}>
+                    <div style={{ maxWidth: '680px' }}>
+
+                        {/* Eyebrow */}
+                        <div className="fade-up" style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '0.5rem',
+                            background: 'rgba(201,168,76,0.12)',
+                            border: '1px solid rgba(201,168,76,0.3)',
+                            borderRadius: '99px',
+                            padding: '0.35rem 1rem',
+                            marginBottom: '1.5rem',
+                        }}>
+                            <span style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
+                                Premium Grooming Studio
+                            </span>
                         </div>
-                    )}
 
-                    {user && (
-                        <Link
-                            to="/services"
-                            className="inline-block bg-yellow-400 text-black hover:bg-yellow-500 px-8 py-3 rounded-lg font-semibold transition"
-                        >
-                            Browse Services
-                        </Link>
-                    )}
+                        {/* Headline */}
+                        <h1 className="fade-up fade-up-delay-1" style={{
+                            fontFamily: 'Playfair Display, serif',
+                            fontSize: 'clamp(2.8rem, 6vw, 5rem)',
+                            fontWeight: '700',
+                            color: 'white',
+                            lineHeight: '1.1',
+                            marginBottom: '1.5rem',
+                        }}>
+                            Look Sharp,{' '}
+                            <span style={{
+                                color: 'var(--gold)',
+                                fontStyle: 'italic',
+                            }}>
+                                Feel Great
+                            </span>
+                        </h1>
+
+                        {/* Subtitle */}
+                        <p className="fade-up fade-up-delay-2" style={{
+                            color: 'rgba(255,255,255,0.65)',
+                            fontSize: '1.1rem',
+                            lineHeight: '1.7',
+                            marginBottom: '2.5rem',
+                            maxWidth: '520px',
+                            fontWeight: '300',
+                        }}>
+                            Book your perfect haircut with our professional barbers.
+                            No waiting rooms, no phone calls — just great grooming on your schedule.
+                        </p>
+
+                        {/* CTAs */}
+                        <div className="fade-up fade-up-delay-3" style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+                            {user ? (
+                                <Link to="/book-appointment" className="btn-primary" style={{ fontSize: '1rem', padding: '0.875rem 2rem' }}>
+                                    Book Appointment →
+                                </Link>
+                            ) : (
+                                <>
+                                    <Link to="/register" className="btn-primary" style={{ fontSize: '1rem', padding: '0.875rem 2rem' }}>
+                                        Get Started →
+                                    </Link>
+                                    <Link to="/services" style={{
+                                        display: 'inline-flex',
+                                        alignItems: 'center',
+                                        color: 'rgba(255,255,255,0.75)',
+                                        textDecoration: 'none',
+                                        fontSize: '1rem',
+                                        fontWeight: '500',
+                                        gap: '0.5rem',
+                                        padding: '0.875rem 0',
+                                        transition: 'color 0.2s',
+                                    }}
+                                    onMouseEnter={e => e.currentTarget.style.color = 'var(--gold)'}
+                                    onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.75)'}
+                                    >
+                                        View Services ↓
+                                    </Link>
+                                </>
+                            )}
+                        </div>
+                    </div>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-                    <div className="bg-gray-800 rounded-lg p-6 text-center">
-                        <div className="text-4xl mb-4">✂️</div>
-                        <h3 className="text-xl font-bold mb-2">Professional Barbers</h3>
-                        <p className="text-gray-400">
-                            Our experienced barbers provide top-quality haircuts and grooming services
-                        </p>
-                    </div>
+                {/* Scroll indicator */}
+                <div style={{
+                    position: 'absolute',
+                    bottom: '2rem',
+                    left: '50%',
+                    transform: 'translateX(-50%)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '0.5rem',
+                    color: 'rgba(255,255,255,0.3)',
+                    fontSize: '0.7rem',
+                    letterSpacing: '0.1em',
+                    textTransform: 'uppercase',
+                    animation: 'fadeUp 1s ease 1s forwards',
+                    opacity: 0,
+                }}>
+                    <span>Scroll</span>
+                    <div style={{
+                        width: '1px',
+                        height: '40px',
+                        background: 'linear-gradient(to bottom, rgba(201,168,76,0.6), transparent)',
+                        animation: 'pulse 2s ease infinite',
+                    }} />
+                </div>
+            </section>
 
-                    <div className="bg-gray-800 rounded-lg p-6 text-center">
-                        <div className="text-4xl mb-4">📅</div>
-                        <h3 className="text-xl font-bold mb-2">Easy Scheduling</h3>
-                        <p className="text-gray-400">
-                            Book your appointment online with just a few clicks
-                        </p>
-                    </div>
-
-                    <div className="bg-gray-800 rounded-lg p-6 text-center">
-                        <div className="text-4xl mb-4">⏰</div>
-                        <h3 className="text-xl font-bold mb-2">Flexible Hours</h3>
-                        <p className="text-gray-400">
-                            Find time slots that work best for your schedule
-                        </p>
+            {/* Stats bar */}
+            <section style={{
+                background: 'var(--gold)',
+                padding: '2rem 0',
+            }}>
+                <div className="container">
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(4, 1fr)',
+                        gap: '1rem',
+                        textAlign: 'center',
+                    }}>
+                        {stats.map((stat, i) => (
+                            <div key={i} style={{ padding: '0.5rem' }}>
+                                <div style={{
+                                    fontFamily: 'Playfair Display, serif',
+                                    fontSize: '2rem',
+                                    fontWeight: '700',
+                                    color: 'var(--charcoal)',
+                                    lineHeight: 1,
+                                }}>
+                                    {stat.number}
+                                </div>
+                                <div style={{
+                                    color: 'rgba(26,26,46,0.7)',
+                                    fontSize: '0.85rem',
+                                    fontWeight: '500',
+                                    marginTop: '0.25rem',
+                                }}>
+                                    {stat.label}
+                                </div>
+                            </div>
+                        ))}
                     </div>
                 </div>
-            </div>
+            </section>
+
+            {/* Features */}
+            <section className="section">
+                <div className="container">
+                    <div style={{ textAlign: 'center', marginBottom: '4rem' }}>
+                        <p style={{
+                            color: 'var(--gold)',
+                            fontSize: '0.8rem',
+                            fontWeight: '600',
+                            letterSpacing: '0.15em',
+                            textTransform: 'uppercase',
+                            marginBottom: '1rem',
+                        }}>
+                            Why Choose Us
+                        </p>
+                        <h2 style={{
+                            fontFamily: 'Playfair Display, serif',
+                            fontSize: 'clamp(1.8rem, 4vw, 3rem)',
+                            fontWeight: '700',
+                            color: 'var(--charcoal)',
+                            marginBottom: '1rem',
+                        }}>
+                            The Barbershop Experience,{' '}
+                            <span style={{ fontStyle: 'italic', color: 'var(--gold)' }}>Reimagined</span>
+                        </h2>
+                        <div className="gold-divider" style={{ margin: '0 auto' }} />
+                    </div>
+
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))',
+                        gap: '1.5rem',
+                    }}>
+                        {features.map((f, i) => (
+                            <div key={i} className="card" style={{ padding: '2rem' }}>
+                                <div style={{
+                                    width: '48px',
+                                    height: '48px',
+                                    borderRadius: '12px',
+                                    background: 'rgba(201,168,76,0.1)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '1.4rem',
+                                    color: 'var(--gold)',
+                                    marginBottom: '1.25rem',
+                                }}>
+                                    {f.icon}
+                                </div>
+                                <h3 style={{
+                                    fontFamily: 'Playfair Display, serif',
+                                    fontSize: '1.2rem',
+                                    fontWeight: '600',
+                                    color: 'var(--charcoal)',
+                                    marginBottom: '0.75rem',
+                                }}>
+                                    {f.title}
+                                </h3>
+                                <p style={{
+                                    color: 'var(--text-secondary)',
+                                    fontSize: '0.9rem',
+                                    lineHeight: '1.7',
+                                }}>
+                                    {f.description}
+                                </p>
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            </section>
+
+            {/* CTA Banner */}
+            <section style={{
+                background: 'var(--charcoal)',
+                padding: '5rem 0',
+                position: 'relative',
+                overflow: 'hidden',
+            }}>
+                <div style={{
+                    position: 'absolute',
+                    inset: 0,
+                    backgroundImage: 'radial-gradient(ellipse at 70% 50%, rgba(201,168,76,0.1) 0%, transparent 70%)',
+                    pointerEvents: 'none',
+                }} />
+                <div className="container" style={{ position: 'relative', textAlign: 'center' }}>
+                    <h2 style={{
+                        fontFamily: 'Playfair Display, serif',
+                        fontSize: 'clamp(1.8rem, 4vw, 2.8rem)',
+                        fontWeight: '700',
+                        color: 'white',
+                        marginBottom: '1rem',
+                    }}>
+                        Ready for Your Best Look?
+                    </h2>
+                    <p style={{
+                        color: 'rgba(255,255,255,0.6)',
+                        fontSize: '1rem',
+                        marginBottom: '2rem',
+                        fontWeight: '300',
+                    }}>
+                        Join hundreds of clients who trust us with their grooming.
+                    </p>
+                    <Link
+                        to={user ? '/book-appointment' : '/register'}
+                        className="btn-primary"
+                        style={{ fontSize: '1rem', padding: '0.875rem 2.5rem' }}
+                    >
+                        {user ? 'Book Now →' : 'Create Account →'}
+                    </Link>
+                </div>
+            </section>
+
+            {/* Footer */}
+            <footer style={{
+                background: '#111122',
+                padding: '2rem 0',
+                borderTop: '1px solid rgba(201,168,76,0.15)',
+            }}>
+                <div className="container" style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    flexWrap: 'wrap',
+                    gap: '1rem',
+                }}>
+                    <span style={{
+                        fontFamily: 'Playfair Display, serif',
+                        color: 'var(--gold)',
+                        fontSize: '1.2rem',
+                        fontWeight: '700',
+                    }}>
+                        BarberShop
+                    </span>
+                    <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.8rem' }}>
+                        © 2026 BarberShop. All rights reserved.
+                    </span>
+                </div>
+            </footer>
         </div>
     );
 };
