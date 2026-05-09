@@ -2,10 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { appointmentService, serviceService, waitingListService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
+import StripeWrapper from '../components/StripeWrapper';
+import PaymentForm from '../components/PaymentForm';
+import { paymentService } from '../services';
 
 const BookAppointment = () => {
     const { user } = useAuthContext();
     const navigate = useNavigate();
+    const [clientSecret, setClientSecret] = useState('');
+    const [paymentAmount, setPaymentAmount] = useState(0);
+    const [createdAppointmentId, setCreatedAppointmentId] = useState('');
+    const [showPayment, setShowPayment] = useState(false);
     const [services, setServices] = useState([]);
     const [selectedService, setSelectedService] = useState(null);
     const [formData, setFormData] = useState({
@@ -58,14 +65,32 @@ const BookAppointment = () => {
         setError('');
         setSuccess('');
         try {
-            await appointmentService.createAppointment(formData);
-            setSuccess('Appointment booked successfully!');
-            setTimeout(() => navigate('/appointments'), 2000);
+            // First create the appointment
+            const apptRes = await appointmentService.createAppointment(formData);
+            const appointmentId = apptRes.data.data._id;
+            setCreatedAppointmentId(appointmentId);
+
+            // Then create payment intent
+            const paymentRes = await paymentService.createPaymentIntent(formData.service);
+            setClientSecret(paymentRes.data.clientSecret);
+            setPaymentAmount(paymentRes.data.amount);
+            setShowPayment(true);
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to book appointment');
         } finally {
             setLoading(false);
         }
+    };
+
+    const handlePaymentSuccess = () => {
+        setShowPayment(false);
+        setSuccess('Payment successful! Your appointment is confirmed.');
+        setTimeout(() => navigate('/appointments'), 2000);
+    };
+
+    const handlePaymentCancel = () => {
+        setShowPayment(false);
+        setError('Payment cancelled. Your appointment slot has been held for 10 minutes.');
     };
 
     const handleJoinWaitingList = async () => {
@@ -504,6 +529,19 @@ const BookAppointment = () => {
                     </div>
                 </div>
             </div>
+
+            {showPayment && clientSecret && (
+                <StripeWrapper clientSecret={clientSecret}>
+                    <PaymentForm
+                        appointmentId={createdAppointmentId}
+                        amount={paymentAmount}
+                        serviceName={selectedService?.name}
+                        onSuccess={handlePaymentSuccess}
+                        onCancel={handlePaymentCancel}
+                    />
+                </StripeWrapper>
+            )}
+
         </div>
     );
 };

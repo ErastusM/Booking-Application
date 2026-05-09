@@ -40,7 +40,16 @@ const appointmentSchema = new mongoose.Schema(
         cancellationReason: {
             type: String,
             default: null
-        }
+        },
+        paymentStatus: {
+            type: String,
+            enum: ['unpaid', 'paid', 'refunded'],
+            default: 'unpaid',
+        },
+        paymentIntentId: {
+            type: String,
+            default: '',
+        },
     },
     {
         timestamps: true
