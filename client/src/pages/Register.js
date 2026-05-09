@@ -44,7 +44,7 @@ const Register = () => {
             background: 'var(--off-white)',
         }}>
             {/* Left panel */}
-            <div style={{
+            <div className="auth-left" style={{
                 background: 'var(--charcoal)',
                 display: 'flex',
                 flexDirection: 'column',
@@ -116,7 +116,7 @@ const Register = () => {
             </div>
 
             {/* Right panel — form */}
-            <div style={{
+            <div className="auth-right" style={{
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',

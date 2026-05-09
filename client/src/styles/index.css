@@ -217,3 +217,46 @@ h1, h2, h3, h4 {
 @media (min-width: 769px) {
   .show-mobile { display: none !important; }
 }
+
+/* ── Mobile responsive ── */
+@media (max-width: 768px) {
+  .container { padding: 0 1rem; }
+  body { overflow-x: hidden; }
+
+  /* Auth: hide dark left panel */
+  .auth-left { display: none !important; }
+  .auth-right { padding: 6rem 1.5rem 2rem !important; }
+
+  /* Book appointment: stack form + summary */
+  .booking-grid { grid-template-columns: 1fr !important; }
+  .booking-summary { position: relative !important; top: auto !important; }
+
+  /* Profile: stack avatar + form */
+  .profile-grid { grid-template-columns: 1fr !important; }
+  .profile-sticky { position: relative !important; top: auto !important; }
+
+  /* Appointments: wrap columns */
+  .appt-row { grid-template-columns: 1fr 1fr !important; gap: 0.75rem !important; }
+  .appt-row > div:last-child { grid-column: 1 / -1; flex-direction: row !important; justify-content: flex-start !important; gap: 0.75rem; }
+
+  /* Dashboard stats: 2 cols */
+  .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* Tables: scroll horizontally */
+  .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
+  .table-scroll table { min-width: 600px; }
+
+  /* Provider cards: stack */
+  .provider-card { grid-template-columns: 1fr !important; gap: 1rem !important; }
+
+  @media (max-width: 768px) {
+  /* existing rules... */
+  
+  /* Force auth pages to single column */
+  .auth-right {
+    grid-column: 1 / -1 !important;
+    padding: 5rem 1.5rem 2rem !important;
+    width: 100% !important;
+  }
+}
+}

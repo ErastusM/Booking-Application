@@ -77,7 +77,7 @@ const Profile = () => {
             </div>
 
             <div className="container" style={{ paddingTop: '3rem', paddingBottom: '5rem' }}>
-                <div style={{
+                <div className="profile-grid" style={{
                     display: 'grid',
                     gridTemplateColumns: '300px 1fr',
                     gap: '2rem',
@@ -85,7 +85,7 @@ const Profile = () => {
                 }}>
 
                     {/* Left — avatar card */}
-                    <div style={{
+                    <div className="profile-sticky" style={{
                         background: 'white',
                         borderRadius: 'var(--radius)',
                         border: '1px solid var(--border)',
@@ -95,36 +95,24 @@ const Profile = () => {
                         position: 'sticky',
                         top: '100px',
                     }}>
-                        {/* Avatar */}
                         <div style={{ marginBottom: '1.25rem' }}>
                             {formData.avatar ? (
                                 <img
                                     src={formData.avatar}
                                     alt="Avatar"
                                     style={{
-                                        width: '96px',
-                                        height: '96px',
-                                        borderRadius: '50%',
-                                        objectFit: 'cover',
-                                        border: '3px solid var(--gold)',
-                                        margin: '0 auto',
-                                        display: 'block',
+                                        width: '96px', height: '96px', borderRadius: '50%',
+                                        objectFit: 'cover', border: '3px solid var(--gold)',
+                                        margin: '0 auto', display: 'block',
                                     }}
                                     onError={e => { e.target.style.display = 'none'; }}
                                 />
                             ) : (
                                 <div style={{
-                                    width: '96px',
-                                    height: '96px',
-                                    borderRadius: '50%',
-                                    background: 'var(--gold)',
-                                    display: 'flex',
-                                    alignItems: 'center',
-                                    justifyContent: 'center',
-                                    fontSize: '2rem',
-                                    fontWeight: '700',
-                                    color: 'var(--charcoal)',
-                                    margin: '0 auto',
+                                    width: '96px', height: '96px', borderRadius: '50%',
+                                    background: 'var(--gold)', display: 'flex', alignItems: 'center',
+                                    justifyContent: 'center', fontSize: '2rem', fontWeight: '700',
+                                    color: 'var(--charcoal)', margin: '0 auto',
                                     fontFamily: 'Playfair Display, serif',
                                 }}>
                                     {getInitials(user?.name)}
@@ -133,64 +121,40 @@ const Profile = () => {
                         </div>
 
                         <h2 style={{
-                            fontFamily: 'Playfair Display, serif',
-                            fontSize: '1.3rem',
-                            fontWeight: '600',
-                            color: 'var(--charcoal)',
-                            marginBottom: '0.25rem',
+                            fontFamily: 'Playfair Display, serif', fontSize: '1.3rem',
+                            fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.25rem',
                         }}>
                             {user?.name}
                         </h2>
-                        <p style={{
-                            color: 'var(--text-muted)',
-                            fontSize: '0.85rem',
-                            marginBottom: '1rem',
-                        }}>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
                             {user?.email}
                         </p>
                         <span style={{
-                            display: 'inline-block',
-                            padding: '0.25rem 0.875rem',
-                            borderRadius: '99px',
-                            fontSize: '0.75rem',
-                            fontWeight: '600',
-                            textTransform: 'capitalize',
-                            background: roleStyle.bg,
-                            color: roleStyle.color,
+                            display: 'inline-block', padding: '0.25rem 0.875rem',
+                            borderRadius: '99px', fontSize: '0.75rem', fontWeight: '600',
+                            textTransform: 'capitalize', background: roleStyle.bg, color: roleStyle.color,
                         }}>
                             {user?.role}
                         </span>
 
-                        <div style={{
-                            marginTop: '1.5rem',
-                            paddingTop: '1.5rem',
-                            borderTop: '1px solid var(--border)',
-                        }}>
-                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                {user?.phone && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
-                                        <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>📞</span>
-                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{user.phone}</span>
-                                    </div>
-                                )}
+                        {user?.phone && (
+                            <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>📞</span>
+                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{user.phone}</span>
+                                </div>
                             </div>
-                        </div>
+                        )}
                     </div>
 
                     {/* Right — edit form */}
                     <div style={{
-                        background: 'white',
-                        borderRadius: 'var(--radius)',
-                        border: '1px solid var(--border)',
-                        boxShadow: 'var(--shadow-sm)',
-                        padding: '2rem',
+                        background: 'white', borderRadius: 'var(--radius)',
+                        border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '2rem',
                     }}>
                         <h2 style={{
-                            fontFamily: 'Playfair Display, serif',
-                            fontSize: '1.3rem',
-                            fontWeight: '600',
-                            color: 'var(--charcoal)',
-                            marginBottom: '0.5rem',
+                            fontFamily: 'Playfair Display, serif', fontSize: '1.3rem',
+                            fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem',
                         }}>
                             Edit Information
                         </h2>
@@ -199,100 +163,46 @@ const Profile = () => {
                         </p>
 
                         {success && (
-                            <div style={{
-                                background: '#d1fae5', border: '1px solid #6ee7b7',
-                                color: '#065f46', padding: '0.75rem 1rem',
-                                borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem',
-                            }}>
+                            <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
                                 {success}
                             </div>
                         )}
                         {error && (
-                            <div style={{
-                                background: '#fee2e2', border: '1px solid #fca5a5',
-                                color: '#991b1b', padding: '0.75rem 1rem',
-                                borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem',
-                            }}>
+                            <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
                                 {error}
                             </div>
                         )}
 
                         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                            <div>
-                                <label style={{
-                                    display: 'block', fontSize: '0.8rem', fontWeight: '600',
-                                    color: 'var(--text-secondary)', marginBottom: '0.5rem',
-                                    letterSpacing: '0.05em', textTransform: 'uppercase',
-                                }}>Full Name</label>
-                                <input
-                                    type="text"
-                                    name="name"
-                                    value={formData.name}
-                                    onChange={handleChange}
-                                    required
-                                    className="input"
-                                />
-                            </div>
-
-                            <div>
-                                <label style={{
-                                    display: 'block', fontSize: '0.8rem', fontWeight: '600',
-                                    color: 'var(--text-secondary)', marginBottom: '0.5rem',
-                                    letterSpacing: '0.05em', textTransform: 'uppercase',
-                                }}>Email Address</label>
-                                <input
-                                    type="email"
-                                    value={user?.email}
-                                    disabled
-                                    className="input"
-                                    style={{ background: 'var(--warm-gray)', color: 'var(--text-muted)', cursor: 'not-allowed' }}
-                                />
-                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
-                                    Email address cannot be changed.
-                                </p>
-                            </div>
-
-                            <div>
-                                <label style={{
-                                    display: 'block', fontSize: '0.8rem', fontWeight: '600',
-                                    color: 'var(--text-secondary)', marginBottom: '0.5rem',
-                                    letterSpacing: '0.05em', textTransform: 'uppercase',
-                                }}>Phone Number</label>
-                                <input
-                                    type="tel"
-                                    name="phone"
-                                    value={formData.phone}
-                                    onChange={handleChange}
-                                    className="input"
-                                />
-                            </div>
-
-                            <div>
-                                <label style={{
-                                    display: 'block', fontSize: '0.8rem', fontWeight: '600',
-                                    color: 'var(--text-secondary)', marginBottom: '0.5rem',
-                                    letterSpacing: '0.05em', textTransform: 'uppercase',
-                                }}>Avatar URL</label>
-                                <input
-                                    type="url"
-                                    name="avatar"
-                                    value={formData.avatar}
-                                    onChange={handleChange}
-                                    placeholder="https://example.com/photo.jpg"
-                                    className="input"
-                                />
-                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
-                                    Paste a link to your profile photo.
-                                </p>
-                            </div>
+                            {[
+                                { name: 'name', label: 'Full Name', type: 'text', disabled: false },
+                                { name: 'email', label: 'Email Address', type: 'email', disabled: true, hint: 'Email address cannot be changed.' },
+                                { name: 'phone', label: 'Phone Number', type: 'tel', disabled: false },
+                                { name: 'avatar', label: 'Avatar URL', type: 'url', disabled: false, placeholder: 'https://example.com/photo.jpg', hint: 'Paste a link to your profile photo.' },
+                            ].map(field => (
+                                <div key={field.name}>
+                                    <label style={{
+                                        display: 'block', fontSize: '0.8rem', fontWeight: '600',
+                                        color: 'var(--text-secondary)', marginBottom: '0.5rem',
+                                        letterSpacing: '0.05em', textTransform: 'uppercase',
+                                    }}>{field.label}</label>
+                                    <input
+                                        type={field.type}
+                                        name={field.name}
+                                        value={field.name === 'email' ? user?.email : formData[field.name]}
+                                        onChange={handleChange}
+                                        required={field.name === 'name'}
+                                        disabled={field.disabled}
+                                        placeholder={field.placeholder}
+                                        className="input"
+                                        style={field.disabled ? { background: 'var(--warm-gray)', color: 'var(--text-muted)', cursor: 'not-allowed' } : {}}
+                                    />
+                                    {field.hint && <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>{field.hint}</p>}
+                                </div>
+                            ))}
 
                             <div style={{ paddingTop: '0.5rem' }}>
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="btn-primary"
-                                    style={{ padding: '0.875rem 2.5rem' }}
-                                >
+                                <button type="submit" disabled={loading} className="btn-primary" style={{ padding: '0.875rem 2.5rem' }}>
                                     {loading ? 'Saving...' : 'Save Changes →'}
                                 </button>
                             </div>

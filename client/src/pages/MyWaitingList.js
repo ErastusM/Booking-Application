@@ -167,6 +167,7 @@ const MyWaitingList = () => {
                                     display: 'flex',
                                     alignItems: 'center',
                                     gap: '1.5rem',
+                                    flexWrap: 'wrap',
                                 }}
                             >
                                 {/* Position badge */}

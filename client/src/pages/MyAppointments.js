@@ -189,7 +189,7 @@ const MyAppointments = () => {
                             return (
                                 <div
                                     key={a._id}
-                                    className="fade-up"
+                                    className="fade-up appt-row"
                                     style={{
                                         animationDelay: `${i * 0.05}s`,
                                         opacity: 0,
