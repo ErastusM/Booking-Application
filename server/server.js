@@ -11,6 +11,7 @@ const serviceRoutes = require('./src/routes/serviceRoutes');
 const appointmentRoutes = require('./src/routes/appointmentRoutes');
 const userRoutes = require('./src/routes/userRoutes');
 const waitingListRoutes = require('./src/routes/waitingListRoutes');
+const reviewRoutes = require('./src/routes/reviewRoutes');
 
 // Connect to database
 connectDB();
@@ -29,6 +30,7 @@ app.use('/api/services', serviceRoutes);
 app.use('/api/appointments', appointmentRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/waitinglist', waitingListRoutes);
+app.use('/api/reviews', reviewRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

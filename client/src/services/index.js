@@ -37,3 +37,10 @@ export const waitingListService = {
     leave: (id) => API.delete(`/waitinglist/${id}`),
     getNotifications: () => API.get('/waitinglist/notifications'),
 };
+
+export const reviewService = {
+    createReview: (data) => API.post('/reviews', data),
+    getServiceReviews: (serviceId) => API.get(`/reviews/service/${serviceId}`),
+    getMyReviews: () => API.get('/reviews/my-reviews'),
+    deleteReview: (id) => API.delete(`/reviews/${id}`),
+};
