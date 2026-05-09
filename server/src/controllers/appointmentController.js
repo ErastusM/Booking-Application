@@ -3,20 +3,24 @@ const Service = require('../models/Service');
 
 exports.getAllAppointments = async (req, res) => {
     try {
-        const appointments = await Appointment.find()
-            .populate('customer', 'name email phone')
-            .populate('service', 'name price duration');
+        let query = {};
 
-        res.status(200).json({
-            success: true,
-            count: appointments.length,
-            data: appointments
-        });
+        if (req.user.role === 'customer') {
+            query = { customer: req.user._id };
+        } else if (req.user.role === 'provider') {
+            query = { provider: req.user._id };
+        }
+        // admin sees all — no query filter
+
+        const appointments = await Appointment.find(query)
+            .populate('customer', 'name email phone')
+            .populate('service', 'name price duration')
+            .populate('provider', 'name email')
+            .sort({ appointmentDate: -1 });
+
+        res.status(200).json({ success: true, count: appointments.length, data: appointments });
     } catch (error) {
-        res.status(500).json({
-            success: false,
-            message: error.message
-        });
+        res.status(500).json({ success: false, message: error.message });
     }
 };
 
@@ -177,5 +181,31 @@ exports.cancelAppointment = async (req, res) => {
             success: false,
             message: error.message
         });
+    }
+};
+
+exports.updateAppointmentStatus = async (req, res) => {
+    try {
+        const { status } = req.body;
+        const appointment = await Appointment.findById(req.params.id);
+
+        if (!appointment) {
+            return res.status(404).json({ success: false, message: 'Appointment not found' });
+        }
+
+        // Only the assigned provider or admin can update status
+        if (
+            req.user.role !== 'admin' &&
+            appointment.provider?.toString() !== req.user._id.toString()
+        ) {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+
+        appointment.status = status;
+        await appointment.save();
+
+        res.status(200).json({ success: true, data: appointment });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
     }
 };

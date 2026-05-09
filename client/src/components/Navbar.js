@@ -34,9 +34,14 @@ const Navbar = () => {
                             <Link to="/profile" className="hover:text-yellow-400 transition">
                                 My Profile
                             </Link>
+                            {user.role === 'provider' && (
+                                <Link to="/provider/dashboard" className="hover:text-yellow-400 transition">
+                                    Provider Dashboard
+                                </Link>
+                            )}
                             {user.role === 'admin' && (
                                 <Link to="/admin/dashboard" className="hover:text-yellow-400 transition">
-                                    Dashboard
+                                    Admin Dashboard
                                 </Link>
                             )}
                             <button

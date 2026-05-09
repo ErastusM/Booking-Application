@@ -11,6 +11,7 @@ import BookAppointment from './pages/BookAppointment';
 import MyAppointments from './pages/MyAppointments';
 import AdminDashboard from './pages/AdminDashboard';
 import Profile from './pages/Profile';
+import ProviderDashboard from './pages/ProviderDashboard';
 
 function App() {
     return (
@@ -52,6 +53,14 @@ function App() {
                             <ProtectedRoute>
                                 <Profile />
                             </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/provider/dashboard"
+                        element={
+                            <ProtectedRoute>
+                                <ProviderDashboard />
+                    </ProtectedRoute>
                         }
                     />
                 </Routes>

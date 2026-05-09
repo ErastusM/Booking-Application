@@ -21,7 +21,8 @@ export const appointmentService = {
     getCustomerAppointments: () => API.get('/appointments/my-appointments'),
     createAppointment: (data) => API.post('/appointments', data),
     updateAppointment: (id, data) => API.put(`/appointments/${id}`, data),
-    cancelAppointment: (id, reason) => API.post(`/appointments/${id}/cancel`, { cancellationReason: reason })
+    cancelAppointment: (id, reason) => API.post(`/appointments/${id}/cancel`, { cancellationReason: reason }),
+    updateAppointmentStatus: (id, status) => API.put(`/appointments/${id}/status`, { status }),
 };
 
 export const userService = {
