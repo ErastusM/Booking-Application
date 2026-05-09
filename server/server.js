@@ -12,6 +12,7 @@ const appointmentRoutes = require('./src/routes/appointmentRoutes');
 const userRoutes = require('./src/routes/userRoutes');
 const waitingListRoutes = require('./src/routes/waitingListRoutes');
 const reviewRoutes = require('./src/routes/reviewRoutes');
+const notificationRoutes = require('./src/routes/notificationRoutes');
 
 // Connect to database
 connectDB();
@@ -31,6 +32,7 @@ app.use('/api/appointments', appointmentRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/waitinglist', waitingListRoutes);
 app.use('/api/reviews', reviewRoutes);
+app.use('/api/notifications', notificationRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {

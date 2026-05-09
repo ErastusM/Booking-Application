@@ -1,5 +1,6 @@
 const Appointment = require('../models/Appointment');
 const Service = require('../models/Service');
+const { createNotification } = require('../utils/notificationHelper');
 
 exports.getAllAppointments = async (req, res) => {
     try {
@@ -35,7 +36,6 @@ exports.createAppointment = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Service not found' });
         }
 
-        // Check for existing appointment at same time slot
         const existingAppointment = await Appointment.findOne({
             service,
             appointmentDate: new Date(appointmentDate),
@@ -110,7 +110,6 @@ exports.cancelAppointment = async (req, res) => {
         appointment.cancellationReason = req.body.cancellationReason || '';
         await appointment.save();
 
-        // Trigger waiting list promotion
         const { promoteFromWaitingList } = require('../utils/waitingListHelper');
         await promoteFromWaitingList(
             appointment.service,
@@ -128,7 +127,9 @@ exports.cancelAppointment = async (req, res) => {
 exports.updateAppointmentStatus = async (req, res) => {
     try {
         const { status } = req.body;
-        const appointment = await Appointment.findById(req.params.id);
+        const appointment = await Appointment.findById(req.params.id)
+            .populate('customer', 'name')
+            .populate('service', 'name');
 
         if (!appointment) {
             return res.status(404).json({ success: false, message: 'Appointment not found' });
@@ -143,6 +144,21 @@ exports.updateAppointmentStatus = async (req, res) => {
 
         appointment.status = status;
         await appointment.save();
+
+        const messages = {
+            confirmed: `Your appointment for ${appointment.service?.name} has been confirmed!`,
+            completed: `Your appointment for ${appointment.service?.name} is marked as completed. Leave a review!`,
+            cancelled: `Your appointment for ${appointment.service?.name} has been cancelled.`,
+        };
+
+        if (messages[status]) {
+            await createNotification(
+                appointment.customer._id,
+                messages[status],
+                'appointment',
+                '/appointments'
+            );
+        }
 
         res.status(200).json({ success: true, data: appointment });
     } catch (error) {

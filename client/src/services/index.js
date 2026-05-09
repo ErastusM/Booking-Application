@@ -44,3 +44,10 @@ export const reviewService = {
     getMyReviews: () => API.get('/reviews/my-reviews'),
     deleteReview: (id) => API.delete(`/reviews/${id}`),
 };
+
+export const notificationService = {
+    getMyNotifications: () => API.get('/notifications'),
+    markAllRead: () => API.put('/notifications/mark-all-read'),
+    markOneRead: (id) => API.put(`/notifications/${id}/read`),
+    deleteNotification: (id) => API.delete(`/notifications/${id}`),
+};

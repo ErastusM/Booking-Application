@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
+import NotificationBell from './NotificationBell';
 
 const Navbar = () => {
     const { user, logout } = useAuthContext();
@@ -52,6 +53,7 @@ const Navbar = () => {
                                     Admin Dashboard
                                 </Link>
                             )}
+                            {user && <NotificationBell />}
                             <button
                                 onClick={handleLogout}
                                 className="bg-red-600 hover:bg-red-700 px-4 py-2 rounded transition"

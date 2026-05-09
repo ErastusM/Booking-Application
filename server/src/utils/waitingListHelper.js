@@ -1,6 +1,7 @@
 const WaitingList = require('../models/WaitingList');
 const Appointment = require('../models/Appointment');
 const Service = require('../models/Service');
+const { createNotification } = require('./notificationHelper');
 
 exports.promoteFromWaitingList = async (service, appointmentDate, startTime, endTime) => {
     try {
@@ -27,6 +28,12 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
         });
 
         next.status = 'promoted';
+        await createNotification(
+            next.customer._id,
+            `Good news! A slot opened up for ${svc?.name} on ${new Date(appointmentDate).toLocaleDateString()} at ${startTime}. You've been booked in!`,
+            'waiting_list',
+            '/appointments'
+        );
         next.notified = true;
         await next.save();
 

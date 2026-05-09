@@ -9,7 +9,6 @@ const AdminDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
 
-    // Service form state
     const [showServiceForm, setShowServiceForm] = useState(false);
     const [editingService, setEditingService] = useState(null);
     const [serviceForm, setServiceForm] = useState({ name: '', description: '', price: '', duration: '' });
@@ -39,7 +38,7 @@ const AdminDashboard = () => {
     // Appointments
     const handleUpdateStatus = async (id, status) => {
         try {
-            await appointmentService.updateAppointment(id, { status });
+            await appointmentService.updateAppointmentStatus(id, status);
             setAppointments(appointments.map(a => a._id === id ? { ...a, status } : a));
         } catch {
             setError('Failed to update appointment status');
@@ -299,6 +298,7 @@ const AdminDashboard = () => {
                                             className="text-xs border border-gray-300 rounded px-2 py-1"
                                         >
                                             <option value="customer">Customer</option>
+                                            <option value="provider">Provider</option>
                                             <option value="admin">Admin</option>
                                         </select>
                                     </td>
