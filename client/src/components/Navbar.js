@@ -31,6 +31,9 @@ const Navbar = () => {
                             <Link to="/appointments" className="hover:text-yellow-400 transition">
                                 My Appointments
                             </Link>
+                            <Link to="/profile" className="hover:text-yellow-400 transition">
+                                My Profile
+                            </Link>
                             {user.role === 'admin' && (
                                 <Link to="/admin/dashboard" className="hover:text-yellow-400 transition">
                                     Dashboard

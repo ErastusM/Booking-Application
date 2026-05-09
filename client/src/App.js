@@ -10,6 +10,7 @@ import Services from './pages/Services';
 import BookAppointment from './pages/BookAppointment';
 import MyAppointments from './pages/MyAppointments';
 import AdminDashboard from './pages/AdminDashboard';
+import Profile from './pages/Profile';
 
 function App() {
     return (
@@ -42,6 +43,14 @@ function App() {
                         element={
                             <ProtectedRoute adminOnly={true}>
                                 <AdminDashboard />
+                            </ProtectedRoute>
+                        }
+                    />
+                    <Route
+                        path="/profile"
+                        element={
+                            <ProtectedRoute>
+                                <Profile />
                             </ProtectedRoute>
                         }
                     />
