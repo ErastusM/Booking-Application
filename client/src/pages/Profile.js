@@ -34,107 +34,271 @@ const Profile = () => {
         }
     };
 
-    const getInitials = (name) => {
-        return name
-            ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-            : '?';
+    const getInitials = (name) => name
+        ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
+        : '?';
+
+    const roleColors = {
+        admin: { bg: '#fef3c7', color: '#92400e' },
+        provider: { bg: '#dbeafe', color: '#1e40af' },
+        customer: { bg: '#d1fae5', color: '#065f46' },
     };
+    const roleStyle = roleColors[user?.role] || roleColors.customer;
 
     return (
-        <div className="container mx-auto px-4 py-12 max-w-2xl">
-            <h1 className="text-3xl font-bold text-gray-800 mb-8">My Profile</h1>
+        <div style={{ background: 'var(--off-white)', minHeight: '100vh' }}>
 
-            {/* Avatar */}
-            <div className="flex items-center gap-6 mb-8">
-                {formData.avatar ? (
-                    <img
-                        src={formData.avatar}
-                        alt="Avatar"
-                        className="w-20 h-20 rounded-full object-cover border-4 border-yellow-400"
-                    />
-                ) : (
-                    <div className="w-20 h-20 rounded-full bg-yellow-400 flex items-center justify-center text-2xl font-bold text-black">
-                        {getInitials(user?.name)}
-                    </div>
-                )}
-                <div>
-                    <p className="text-xl font-bold text-gray-800">{user?.name}</p>
-                    <p className="text-gray-500">{user?.email}</p>
-                    <span className="inline-block mt-1 px-3 py-1 bg-yellow-100 text-yellow-700 text-xs font-semibold rounded-full capitalize">
-                        {user?.role}
-                    </span>
+            {/* Header */}
+            <div style={{
+                background: 'var(--charcoal)',
+                paddingTop: '9rem',
+                paddingBottom: '3rem',
+                position: 'relative',
+                overflow: 'hidden',
+            }}>
+                <div style={{
+                    position: 'absolute', inset: 0,
+                    backgroundImage: 'radial-gradient(ellipse at 30% 50%, rgba(201,168,76,0.1) 0%, transparent 60%)',
+                    pointerEvents: 'none',
+                }} />
+                <div className="container" style={{ position: 'relative' }}>
+                    <p style={{
+                        color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600',
+                        letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem',
+                    }}>Account</p>
+                    <h1 style={{
+                        fontFamily: 'Playfair Display, serif',
+                        fontSize: 'clamp(2rem, 4vw, 3rem)',
+                        fontWeight: '700', color: 'white',
+                    }}>
+                        My Profile
+                    </h1>
                 </div>
             </div>
 
-            {/* Form */}
-            <div className="bg-white rounded-lg shadow-lg p-8">
-                {success && (
-                    <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded mb-4">
-                        {success}
-                    </div>
-                )}
-                {error && (
-                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                        {error}
-                    </div>
-                )}
+            <div className="container" style={{ paddingTop: '3rem', paddingBottom: '5rem' }}>
+                <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '300px 1fr',
+                    gap: '2rem',
+                    alignItems: 'start',
+                }}>
 
-                <form onSubmit={handleSubmit} className="space-y-5">
-                    <div>
-                        <label className="block text-gray-700 font-semibold mb-2">Full Name</label>
-                        <input
-                            type="text"
-                            name="name"
-                            value={formData.name}
-                            onChange={handleChange}
-                            required
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                        />
+                    {/* Left — avatar card */}
+                    <div style={{
+                        background: 'white',
+                        borderRadius: 'var(--radius)',
+                        border: '1px solid var(--border)',
+                        boxShadow: 'var(--shadow-sm)',
+                        padding: '2rem',
+                        textAlign: 'center',
+                        position: 'sticky',
+                        top: '100px',
+                    }}>
+                        {/* Avatar */}
+                        <div style={{ marginBottom: '1.25rem' }}>
+                            {formData.avatar ? (
+                                <img
+                                    src={formData.avatar}
+                                    alt="Avatar"
+                                    style={{
+                                        width: '96px',
+                                        height: '96px',
+                                        borderRadius: '50%',
+                                        objectFit: 'cover',
+                                        border: '3px solid var(--gold)',
+                                        margin: '0 auto',
+                                        display: 'block',
+                                    }}
+                                    onError={e => { e.target.style.display = 'none'; }}
+                                />
+                            ) : (
+                                <div style={{
+                                    width: '96px',
+                                    height: '96px',
+                                    borderRadius: '50%',
+                                    background: 'var(--gold)',
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    fontSize: '2rem',
+                                    fontWeight: '700',
+                                    color: 'var(--charcoal)',
+                                    margin: '0 auto',
+                                    fontFamily: 'Playfair Display, serif',
+                                }}>
+                                    {getInitials(user?.name)}
+                                </div>
+                            )}
+                        </div>
+
+                        <h2 style={{
+                            fontFamily: 'Playfair Display, serif',
+                            fontSize: '1.3rem',
+                            fontWeight: '600',
+                            color: 'var(--charcoal)',
+                            marginBottom: '0.25rem',
+                        }}>
+                            {user?.name}
+                        </h2>
+                        <p style={{
+                            color: 'var(--text-muted)',
+                            fontSize: '0.85rem',
+                            marginBottom: '1rem',
+                        }}>
+                            {user?.email}
+                        </p>
+                        <span style={{
+                            display: 'inline-block',
+                            padding: '0.25rem 0.875rem',
+                            borderRadius: '99px',
+                            fontSize: '0.75rem',
+                            fontWeight: '600',
+                            textTransform: 'capitalize',
+                            background: roleStyle.bg,
+                            color: roleStyle.color,
+                        }}>
+                            {user?.role}
+                        </span>
+
+                        <div style={{
+                            marginTop: '1.5rem',
+                            paddingTop: '1.5rem',
+                            borderTop: '1px solid var(--border)',
+                        }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                {user?.phone && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
+                                        <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>📞</span>
+                                        <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{user.phone}</span>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
                     </div>
 
-                    <div>
-                        <label className="block text-gray-700 font-semibold mb-2">Email</label>
-                        <input
-                            type="email"
-                            value={user?.email}
-                            disabled
-                            className="w-full px-4 py-2 border border-gray-200 rounded-lg bg-gray-50 text-gray-400 cursor-not-allowed"
-                        />
-                        <p className="text-xs text-gray-400 mt-1">Email cannot be changed</p>
-                    </div>
+                    {/* Right — edit form */}
+                    <div style={{
+                        background: 'white',
+                        borderRadius: 'var(--radius)',
+                        border: '1px solid var(--border)',
+                        boxShadow: 'var(--shadow-sm)',
+                        padding: '2rem',
+                    }}>
+                        <h2 style={{
+                            fontFamily: 'Playfair Display, serif',
+                            fontSize: '1.3rem',
+                            fontWeight: '600',
+                            color: 'var(--charcoal)',
+                            marginBottom: '0.5rem',
+                        }}>
+                            Edit Information
+                        </h2>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem' }}>
+                            Update your personal details below.
+                        </p>
 
-                    <div>
-                        <label className="block text-gray-700 font-semibold mb-2">Phone</label>
-                        <input
-                            type="tel"
-                            name="phone"
-                            value={formData.phone}
-                            onChange={handleChange}
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                        />
-                    </div>
+                        {success && (
+                            <div style={{
+                                background: '#d1fae5', border: '1px solid #6ee7b7',
+                                color: '#065f46', padding: '0.75rem 1rem',
+                                borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem',
+                            }}>
+                                {success}
+                            </div>
+                        )}
+                        {error && (
+                            <div style={{
+                                background: '#fee2e2', border: '1px solid #fca5a5',
+                                color: '#991b1b', padding: '0.75rem 1rem',
+                                borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem',
+                            }}>
+                                {error}
+                            </div>
+                        )}
 
-                    <div>
-                        <label className="block text-gray-700 font-semibold mb-2">Avatar URL</label>
-                        <input
-                            type="url"
-                            name="avatar"
-                            value={formData.avatar}
-                            onChange={handleChange}
-                            placeholder="https://example.com/photo.jpg"
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400"
-                        />
-                        <p className="text-xs text-gray-400 mt-1">Paste a link to your profile photo</p>
-                    </div>
+                        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                            <div>
+                                <label style={{
+                                    display: 'block', fontSize: '0.8rem', fontWeight: '600',
+                                    color: 'var(--text-secondary)', marginBottom: '0.5rem',
+                                    letterSpacing: '0.05em', textTransform: 'uppercase',
+                                }}>Full Name</label>
+                                <input
+                                    type="text"
+                                    name="name"
+                                    value={formData.name}
+                                    onChange={handleChange}
+                                    required
+                                    className="input"
+                                />
+                            </div>
 
-                    <button
-                        type="submit"
-                        disabled={loading}
-                        className="w-full bg-yellow-400 text-black font-bold py-2 rounded-lg hover:bg-yellow-500 transition disabled:opacity-50"
-                    >
-                        {loading ? 'Saving...' : 'Save Changes'}
-                    </button>
-                </form>
+                            <div>
+                                <label style={{
+                                    display: 'block', fontSize: '0.8rem', fontWeight: '600',
+                                    color: 'var(--text-secondary)', marginBottom: '0.5rem',
+                                    letterSpacing: '0.05em', textTransform: 'uppercase',
+                                }}>Email Address</label>
+                                <input
+                                    type="email"
+                                    value={user?.email}
+                                    disabled
+                                    className="input"
+                                    style={{ background: 'var(--warm-gray)', color: 'var(--text-muted)', cursor: 'not-allowed' }}
+                                />
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                                    Email address cannot be changed.
+                                </p>
+                            </div>
+
+                            <div>
+                                <label style={{
+                                    display: 'block', fontSize: '0.8rem', fontWeight: '600',
+                                    color: 'var(--text-secondary)', marginBottom: '0.5rem',
+                                    letterSpacing: '0.05em', textTransform: 'uppercase',
+                                }}>Phone Number</label>
+                                <input
+                                    type="tel"
+                                    name="phone"
+                                    value={formData.phone}
+                                    onChange={handleChange}
+                                    className="input"
+                                />
+                            </div>
+
+                            <div>
+                                <label style={{
+                                    display: 'block', fontSize: '0.8rem', fontWeight: '600',
+                                    color: 'var(--text-secondary)', marginBottom: '0.5rem',
+                                    letterSpacing: '0.05em', textTransform: 'uppercase',
+                                }}>Avatar URL</label>
+                                <input
+                                    type="url"
+                                    name="avatar"
+                                    value={formData.avatar}
+                                    onChange={handleChange}
+                                    placeholder="https://example.com/photo.jpg"
+                                    className="input"
+                                />
+                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
+                                    Paste a link to your profile photo.
+                                </p>
+                            </div>
+
+                            <div style={{ paddingTop: '0.5rem' }}>
+                                <button
+                                    type="submit"
+                                    disabled={loading}
+                                    className="btn-primary"
+                                    style={{ padding: '0.875rem 2.5rem' }}
+                                >
+                                    {loading ? 'Saving...' : 'Save Changes →'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
             </div>
         </div>
     );
