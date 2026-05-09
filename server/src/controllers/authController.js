@@ -3,7 +3,7 @@ const { generateToken, generateRefreshToken } = require('../utils/helpers');
 
 exports.register = async (req, res) => {
     try {
-        const { name, email, password, phone } = req.body;
+        const { name, email, password, phone, role } = req.body;
 
         // Validate input
         if (!name || !email || !password || !phone) {
@@ -23,12 +23,16 @@ exports.register = async (req, res) => {
         }
 
         // Create user
+        // Only allow customer or provider at signup
+        const allowedRoles = ['customer', 'provider'];
+        const assignedRole = allowedRoles.includes(role) ? role : 'customer';
+
         user = await User.create({
             name,
             email,
             password,
             phone,
-            role: 'customer'
+            role: assignedRole,
         });
 
         const token = generateToken(user._id);

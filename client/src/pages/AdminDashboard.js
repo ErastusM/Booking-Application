@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { appointmentService, serviceService, userService } from '../services';
 
 const statusConfig = {
-    pending:   { label: 'Pending',   bg: '#fef3c7', color: '#92400e' },
+    pending: { label: 'Pending', bg: '#fef3c7', color: '#92400e' },
     confirmed: { label: 'Confirmed', bg: '#dbeafe', color: '#1e40af' },
     completed: { label: 'Completed', bg: '#d1fae5', color: '#065f46' },
     cancelled: { label: 'Cancelled', bg: '#fee2e2', color: '#991b1b' },
@@ -331,11 +331,30 @@ const AdminDashboard = () => {
                                         <td style={{ padding: '0.875rem 1rem', color: 'var(--text-muted)' }}>{u.email}</td>
                                         <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{u.phone || '—'}</td>
                                         <td style={{ padding: '0.875rem 1rem' }}>
-                                            <select value={u.role} onChange={e => handleRoleChange(u._id, e.target.value)} style={{ fontSize: '0.75rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.5rem', fontFamily: 'DM Sans, sans-serif', cursor: 'pointer', outline: 'none' }}>
-                                                <option value="customer">Customer</option>
-                                                <option value="provider">Provider</option>
-                                                <option value="admin">Admin</option>
-                                            </select>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                <span style={{
+                                                    display: 'inline-block', padding: '0.2rem 0.65rem',
+                                                    borderRadius: '99px', fontSize: '0.72rem', fontWeight: '600',
+                                                    background: u.role === 'admin' ? '#fef3c7' : u.role === 'provider' ? '#dbeafe' : '#d1fae5',
+                                                    color: u.role === 'admin' ? '#92400e' : u.role === 'provider' ? '#1e40af' : '#065f46',
+                                                    textTransform: 'capitalize',
+                                                }}>
+                                                    {u.role}
+                                                </span>
+                                                {u.role !== 'admin' && (
+                                                    <button
+                                                        onClick={() => handleRoleChange(u._id, 'admin')}
+                                                        style={{
+                                                            background: 'none', border: '1px solid var(--border)',
+                                                            color: 'var(--text-muted)', padding: '0.2rem 0.5rem',
+                                                            borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                                                            fontSize: '0.7rem', fontFamily: 'DM Sans, sans-serif',
+                                                        }}
+                                                    >
+                                                        Make Admin
+                                                    </button>
+                                                )}
+                                            </div>
                                         </td>
                                         <td style={{ padding: '0.875rem 1rem' }}>
                                             <button onClick={() => handleDeleteUser(u._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', fontFamily: 'DM Sans, sans-serif' }}>Delete</button>
