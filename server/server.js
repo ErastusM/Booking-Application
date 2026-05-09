@@ -9,6 +9,7 @@ const { errorHandler, notFound } = require('./src/middleware/errorHandler');
 const authRoutes = require('./src/routes/authRoutes');
 const serviceRoutes = require('./src/routes/serviceRoutes');
 const appointmentRoutes = require('./src/routes/appointmentRoutes');
+const userRoutes = require('./src/routes/userRoutes');
 
 // Connect to database
 connectDB();
@@ -25,6 +26,7 @@ app.use(express.urlencoded({ extended: true }));
 app.use('/api/auth', authRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/appointments', appointmentRoutes);
+app.use('/api/users', userRoutes);
 
 // Health check
 app.get('/api/health', (req, res) => {
