@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { appointmentService } from '../services';
+import { appointmentService, availabilityService } from '../services';
 
 const statusConfig = {
-    pending:   { label: 'Pending',   bg: '#fef3c7', color: '#92400e' },
+    pending: { label: 'Pending', bg: '#fef3c7', color: '#92400e' },
     confirmed: { label: 'Confirmed', bg: '#dbeafe', color: '#1e40af' },
     completed: { label: 'Completed', bg: '#d1fae5', color: '#065f46' },
     cancelled: { label: 'Cancelled', bg: '#fee2e2', color: '#991b1b' },
@@ -13,8 +13,14 @@ const ProviderDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState('pending');
+    const [availability, setAvailability] = useState(null);
+    const [savingAvailability, setSavingAvailability] = useState(false);
+    const [availabilitySuccess, setAvailabilitySuccess] = useState('');
 
-    useEffect(() => { fetchAppointments(); }, []);
+    useEffect(() => {
+        fetchAppointments();
+        fetchAvailability();
+    }, []);
 
     const fetchAppointments = async () => {
         setLoading(true);
@@ -28,6 +34,46 @@ const ProviderDashboard = () => {
         }
     };
 
+    const fetchAvailability = async () => {
+        try {
+            const res = await availabilityService.getMyAvailability();
+            setAvailability(res.data.data.schedule);
+        } catch {
+            // silently fail
+        }
+    };
+
+    const handleSaveAvailability = async () => {
+        setSavingAvailability(true);
+        setAvailabilitySuccess('');
+        try {
+            await availabilityService.updateMyAvailability(availability);
+            setAvailabilitySuccess('Availability saved successfully!');
+            setTimeout(() => setAvailabilitySuccess(''), 3000);
+        } catch {
+            setError('Failed to save availability');
+        } finally {
+            setSavingAvailability(false);
+        }
+    };
+
+    const handleDayToggle = (day) => {
+        setAvailability(prev => ({
+            ...prev,
+            [day]: { ...prev[day], enabled: !prev[day].enabled }
+        }));
+    };
+
+    const handleTimeChange = (day, field, value) => {
+        setAvailability(prev => ({
+            ...prev,
+            [day]: {
+                ...prev[day],
+                slots: [{ ...prev[day].slots[0], [field]: value }]
+            }
+        }));
+    };
+
     const handleStatusUpdate = async (id, status) => {
         try {
             await appointmentService.updateAppointmentStatus(id, status);
@@ -37,9 +83,9 @@ const ProviderDashboard = () => {
         }
     };
 
-    const tabs = ['pending', 'confirmed', 'completed', 'cancelled'];
+    const appointmentTabs = ['pending', 'confirmed', 'completed', 'cancelled'];
     const filtered = appointments.filter(a => a.status === activeTab);
-    const counts = tabs.reduce((acc, t) => {
+    const counts = appointmentTabs.reduce((acc, t) => {
         acc[t] = appointments.filter(a => a.status === t).length;
         return acc;
     }, {});
@@ -98,7 +144,7 @@ const ProviderDashboard = () => {
 
                 {/* Tabs */}
                 <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', overflowX: 'auto' }}>
-                    {tabs.map(tab => (
+                    {appointmentTabs.map(tab => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
                             padding: '0.75rem 1.5rem', background: 'none', border: 'none',
                             borderBottom: activeTab === tab ? '2px solid var(--gold)' : '2px solid transparent',
@@ -116,61 +162,152 @@ const ProviderDashboard = () => {
                             )}
                         </button>
                     ))}
+                    <div style={{ marginLeft: 'auto', display: 'flex' }}>
+                        {['availability', 'earnings'].map(tab => (
+                            <button key={tab} onClick={() => setActiveTab(tab)} style={{
+                                padding: '0.75rem 1.5rem', background: 'none', border: 'none',
+                                borderBottom: activeTab === tab ? '2px solid var(--gold)' : '2px solid transparent',
+                                color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-muted)',
+                                fontWeight: activeTab === tab ? '600' : '400', fontSize: '0.875rem',
+                                cursor: 'pointer', fontFamily: 'DM Sans, sans-serif',
+                                transition: 'all 0.2s', marginBottom: '-1px', whiteSpace: 'nowrap',
+                            }}>
+                                {tab === 'availability' ? '🗓 Availability' : '💵 Earnings'}
+                            </button>
+                        ))}
+                    </div>
                 </div>
 
-                {/* Appointments */}
-                {filtered.length === 0 ? (
-                    <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '4rem 2rem', textAlign: 'center' }}>
-                        <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📭</div>
-                        <p style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No {activeTab} appointments</p>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Check back later or switch tabs to see other bookings.</p>
-                    </div>
-                ) : (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                        {filtered.map((a, i) => {
-                            const s = statusConfig[a.status] || statusConfig.pending;
-                            return (
-                                <div key={a._id} className="fade-up provider-card" style={{
-                                    animationDelay: `${i * 0.05}s`, opacity: 0,
-                                    background: 'white', borderRadius: 'var(--radius)',
-                                    border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)',
-                                    padding: '1.5rem 2rem', display: 'grid',
-                                    gridTemplateColumns: '1fr 1fr 1fr auto',
-                                    alignItems: 'center', gap: '2rem',
-                                }}>
-                                    <div>
-                                        <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.35rem' }}>Customer</p>
-                                        <p style={{ fontFamily: 'Playfair Display, serif', fontWeight: '600', color: 'var(--charcoal)' }}>{a.customer?.name}</p>
-                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{a.customer?.email}</p>
-                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{a.customer?.phone}</p>
-                                    </div>
-                                    <div>
-                                        <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.35rem' }}>Service</p>
-                                        <p style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{a.service?.name}</p>
-                                        <p style={{ color: 'var(--gold-dark)', fontWeight: '600', fontSize: '0.875rem' }}>${a.service?.price} · {a.service?.duration} min</p>
-                                    </div>
-                                    <div>
-                                        <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.35rem' }}>Date & Time</p>
-                                        <p style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{new Date(a.appointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
-                                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{a.startTime} – {a.endTime}</p>
-                                    </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end' }}>
-                                        <span style={{ padding: '0.25rem 0.75rem', borderRadius: '99px', fontSize: '0.72rem', fontWeight: '600', background: s.bg, color: s.color, marginBottom: '0.5rem' }}>{s.label}</span>
-                                        {a.status === 'pending' && (
-                                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                                <button onClick={() => handleStatusUpdate(a._id, 'confirmed')} style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '0.4rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'DM Sans, sans-serif' }}>Accept</button>
-                                                <button onClick={() => handleStatusUpdate(a._id, 'cancelled')} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.4rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'DM Sans, sans-serif' }}>Decline</button>
+                {/* Appointments tabs */}
+                {appointmentTabs.includes(activeTab) && (
+                    <>
+                        {filtered.length === 0 ? (
+                            <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '4rem 2rem', textAlign: 'center' }}>
+                                <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📭</div>
+                                <p style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No {activeTab} appointments</p>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Check back later or switch tabs to see other bookings.</p>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                {filtered.map((a, i) => {
+                                    const s = statusConfig[a.status] || statusConfig.pending;
+                                    return (
+                                        <div key={a._id} className="fade-up provider-card" style={{
+                                            animationDelay: `${i * 0.05}s`, opacity: 0,
+                                            background: 'white', borderRadius: 'var(--radius)',
+                                            border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)',
+                                            padding: '1.5rem 2rem', display: 'grid',
+                                            gridTemplateColumns: '1fr 1fr 1fr auto',
+                                            alignItems: 'center', gap: '2rem',
+                                        }}>
+                                            <div>
+                                                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.35rem' }}>Customer</p>
+                                                <p style={{ fontFamily: 'Playfair Display, serif', fontWeight: '600', color: 'var(--charcoal)' }}>{a.customer?.name}</p>
+                                                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{a.customer?.email}</p>
+                                                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{a.customer?.phone}</p>
                                             </div>
-                                        )}
-                                        {a.status === 'confirmed' && (
-                                            <button onClick={() => handleStatusUpdate(a._id, 'completed')} style={{ background: '#dbeafe', border: '1px solid #93c5fd', color: '#1e40af', padding: '0.4rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'DM Sans, sans-serif' }}>Mark Complete</button>
+                                            <div>
+                                                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.35rem' }}>Service</p>
+                                                <p style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{a.service?.name}</p>
+                                                <p style={{ color: 'var(--gold-dark)', fontWeight: '600', fontSize: '0.875rem' }}>${a.service?.price} · {a.service?.duration} min</p>
+                                            </div>
+                                            <div>
+                                                <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.35rem' }}>Date & Time</p>
+                                                <p style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{new Date(a.appointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}</p>
+                                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{a.startTime} – {a.endTime}</p>
+                                            </div>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end' }}>
+                                                <span style={{ padding: '0.25rem 0.75rem', borderRadius: '99px', fontSize: '0.72rem', fontWeight: '600', background: s.bg, color: s.color, marginBottom: '0.5rem' }}>{s.label}</span>
+                                                {a.status === 'pending' && (
+                                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+                                                        <button onClick={() => handleStatusUpdate(a._id, 'confirmed')} style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '0.4rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'DM Sans, sans-serif' }}>Accept</button>
+                                                        <button onClick={() => handleStatusUpdate(a._id, 'cancelled')} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.4rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'DM Sans, sans-serif' }}>Decline</button>
+                                                    </div>
+                                                )}
+                                                {a.status === 'confirmed' && (
+                                                    <button onClick={() => handleStatusUpdate(a._id, 'completed')} style={{ background: '#dbeafe', border: '1px solid #93c5fd', color: '#1e40af', padding: '0.4rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'DM Sans, sans-serif' }}>Mark Complete</button>
+                                                )}
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                            </div>
+                        )}
+                    </>
+                )}
+
+                {/* Availability tab */}
+                {activeTab === 'availability' && (
+                    <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                            <div>
+                                <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>Working Hours</h2>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>Set the days and hours you are available for bookings</p>
+                            </div>
+                            <button onClick={handleSaveAvailability} disabled={savingAvailability} className="btn-primary" style={{ padding: '0.65rem 1.5rem', fontSize: '0.875rem' }}>
+                                {savingAvailability ? 'Saving...' : 'Save Changes'}
+                            </button>
+                        </div>
+
+                        {availabilitySuccess && (
+                            <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
+                                {availabilitySuccess}
+                            </div>
+                        )}
+
+                        {availability && (
+                            <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                                {Object.entries(availability).map(([day, config], i) => (
+                                    <div key={day} style={{
+                                        display: 'grid', gridTemplateColumns: '140px 80px 1fr',
+                                        alignItems: 'center', gap: '1.5rem',
+                                        padding: '1rem 1.5rem',
+                                        borderBottom: i < 6 ? '1px solid var(--border)' : 'none',
+                                        background: config.enabled ? 'white' : 'var(--warm-gray)',
+                                        transition: 'background 0.2s',
+                                    }}>
+                                        <span style={{ fontWeight: '600', color: config.enabled ? 'var(--charcoal)' : 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'capitalize' }}>
+                                            {day}
+                                        </span>
+                                        <div>
+                                            <button onClick={() => handleDayToggle(day)} style={{
+                                                width: '44px', height: '24px', borderRadius: '99px', border: 'none',
+                                                background: config.enabled ? 'var(--gold)' : '#d1d5db',
+                                                cursor: 'pointer', position: 'relative', transition: 'background 0.2s',
+                                            }}>
+                                                <div style={{
+                                                    width: '18px', height: '18px', borderRadius: '50%', background: 'white',
+                                                    position: 'absolute', top: '3px',
+                                                    left: config.enabled ? '23px' : '3px',
+                                                    transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)',
+                                                }} />
+                                            </button>
+                                        </div>
+                                        {config.enabled ? (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                <input type="time" value={config.slots[0]?.start || '09:00'} onChange={e => handleTimeChange(day, 'start', e.target.value)} className="input" style={{ maxWidth: '140px', padding: '0.4rem 0.75rem', fontSize: '0.875rem' }} />
+                                                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', flexShrink: 0 }}>to</span>
+                                                <input type="time" value={config.slots[0]?.end || '17:00'} onChange={e => handleTimeChange(day, 'end', e.target.value)} className="input" style={{ maxWidth: '140px', padding: '0.4rem 0.75rem', fontSize: '0.875rem' }} />
+                                            </div>
+                                        ) : (
+                                            <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontStyle: 'italic' }}>Not available</span>
                                         )}
                                     </div>
-                                </div>
-                            );
-                        })}
+                                ))}
+                            </div>
+                        )}
                     </div>
                 )}
+
+                {/* Earnings tab — coming next */}
+                {activeTab === 'earnings' && (
+                    <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '4rem 2rem', textAlign: 'center' }}>
+                        <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>💵</div>
+                        <p style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>Earnings</p>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Coming up next!</p>
+                    </div>
+                )}
+
             </div>
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>

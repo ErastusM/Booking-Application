@@ -60,3 +60,9 @@ export const paymentService = {
 export const analyticsService = {
     getAnalytics: () => API.get('/analytics'),
 };
+
+export const availabilityService = {
+    getMyAvailability: () => API.get('/availability/me'),
+    updateMyAvailability: (schedule) => API.put('/availability/me', { schedule }),
+    getProviderAvailability: (providerId) => API.get(`/availability/${providerId}`),
+};
