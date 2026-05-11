@@ -46,10 +46,10 @@ exports.createAppointment = async (req, res) => {
         if (existingAppointment) {
             return res.status(400).json({ success: false, message: 'This time slot is already booked. You can join the waiting list instead.' });
         }
-
         const appointment = await Appointment.create({
             customer: req.user._id,
             service,
+            provider: svc.provider || null,
             appointmentDate: new Date(appointmentDate),
             startTime,
             endTime,

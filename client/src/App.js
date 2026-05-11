@@ -14,6 +14,9 @@ import ProviderDashboard from './pages/ProviderDashboard';
 import MyWaitingList from './pages/MyWaitingList';
 import Profile from './pages/Profile';
 import AnalyticsDashboard from './pages/AnalyticsDashboard';
+import ProvidersPage from './pages/ProviderPage';
+import ProviderProfilePage from './pages/ProviderProfilePage';
+
 
 function App() {
     return (
@@ -25,7 +28,8 @@ function App() {
                     <Route path="/" element={<Home />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />
-                    <Route path="/services" element={<Services />} />
+                    <Route path="/services" element={<ProvidersPage />} />
+                    <Route path="/providers/:id" element={<ProviderProfilePage />} />
 
                     {/* Customer only */}
                     <Route path="/book-appointment" element={

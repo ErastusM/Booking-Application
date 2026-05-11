@@ -66,3 +66,26 @@ export const availabilityService = {
     updateMyAvailability: (schedule) => API.put('/availability/me', { schedule }),
     getProviderAvailability: (providerId) => API.get(`/availability/${providerId}`),
 };
+
+export const earningsService = {
+    getMyEarnings: () => API.get('/earnings'),
+};
+
+export const providerServiceService = {
+    getMyServices: () => API.get('/services/my-services'),
+    createMyService: (data) => API.post('/services/my-services', data),
+    updateMyService: (id, data) => API.put(`/services/${id}`, data),
+    deleteMyService: (id) => API.delete(`/services/${id}`),
+};
+
+export const providerMarketService = {
+    getAllProviders: () => API.get('/providers'),
+    getProviderProfile: (id) => API.get(`/providers/${id}`),
+};
+
+export const categoryService = {
+    getMyCategories: () => API.get('/categories/my-categories'),
+    createCategory: (name) => API.post('/categories', { name }),
+    updateCategory: (id, name) => API.put(`/categories/${id}`, { name }),
+    deleteCategory: (id) => API.delete(`/categories/${id}`),
+};

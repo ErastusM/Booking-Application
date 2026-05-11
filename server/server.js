@@ -16,6 +16,9 @@ const notificationRoutes = require('./src/routes/notificationRoutes');
 const paymentRoutes = require('./src/routes/paymentRoutes');
 const analyticsRoutes = require('./src/routes/analyticsRoutes');
 const availabilityRoutes = require('./src/routes/availabilityRoutes');
+const earningsRoutes = require('./src/routes/earningsRoutes');
+const categoryRoutes = require('./src/routes/categoryRoutes');
+const providerRoutes = require('./src/routes/providerRoutes');
 
 // Connect to database
 connectDB();
@@ -39,6 +42,9 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/payments', paymentRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/availability', availabilityRoutes);
+app.use('/api/earnings', earningsRoutes);
+app.use('/api/categories', categoryRoutes);
+app.use('/api/providers', providerRoutes);
 
 
 // Health check
