@@ -1,5 +1,7 @@
 const User = require('../models/User');
 const { generateToken, generateRefreshToken } = require('../utils/helpers');
+const crypto = require('crypto');
+const { sendVerificationEmail, sendWelcomeEmail } = require('../utils/emailService');
 
 /**
  * =========================
@@ -43,30 +45,40 @@ exports.register = async (req, res) => {
         const allowedRoles = ['customer', 'provider'];
         const assignedRole = allowedRoles.includes(role) ? role : 'customer';
 
+        const verificationToken = crypto.randomBytes(32).toString('hex');
+        const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
+
         const user = await User.create({
             name,
             email,
             password,
             phone,
             role: assignedRole,
-            provider: 'local'
+            provider: 'local',
+            isVerified: false,
+            verificationToken,
+            verificationTokenExpiry,
         });
+
+        // Send verification email
+        await sendVerificationEmail(email, name, verificationToken);
 
         const token = generateToken(user._id);
         const refreshToken = generateRefreshToken(user._id);
 
         res.status(201).json({
             success: true,
-            message: 'User registered successfully',
+            message: 'Registration successful! Please check your email to verify your account.',
             data: {
                 user: {
                     id: user._id,
                     name: user.name,
                     email: user.email,
-                    role: user.role
+                    role: user.role,
+                    isVerified: false,
                 },
                 token,
-                refreshToken
+                refreshToken,
             }
         });
     } catch (error) {
@@ -231,5 +243,36 @@ exports.updateProfile = async (req, res) => {
             success: false,
             message: error.message
         });
+    }
+};
+
+exports.verifyEmail = async (req, res) => {
+    try {
+        const { token } = req.query;
+
+        if (!token) {
+            return res.redirect(`${process.env.CLIENT_URL}/verify-email?status=invalid`);
+        }
+
+        const user = await User.findOne({
+            verificationToken: token,
+            verificationTokenExpiry: { $gt: new Date() },
+        });
+
+        if (!user) {
+            return res.redirect(`${process.env.CLIENT_URL}/verify-email?status=expired`);
+        }
+
+        user.isVerified = true;
+        user.verificationToken = null;
+        user.verificationTokenExpiry = null;
+        await user.save();
+
+        // Send welcome email
+        await sendWelcomeEmail(user.email, user.name);
+
+        return res.redirect(`${process.env.CLIENT_URL}/verify-email?status=success`);
+    } catch (error) {
+        return res.redirect(`${process.env.CLIENT_URL}/verify-email?status=error`);
     }
 };

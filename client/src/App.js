@@ -16,6 +16,8 @@ import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import ProvidersPage from './pages/ProviderPage';
 import ProviderProfilePage from './pages/ProviderProfilePage';
 import AuthCallback from './pages/AuthCallBack';
+import CompleteProfile from './pages/CompleteProfile';
+import VerifyEmail from './pages/VerifyEmail';
 
 function App() {
     return (
@@ -30,6 +32,7 @@ function App() {
                     <Route path="/services" element={<ProvidersPage />} />
                     <Route path="/providers/:id" element={<ProviderProfilePage />} />
                     <Route path="/auth/callback" element={<AuthCallback />} />
+                    <Route path="/verify-email" element={<VerifyEmail />} />
 
                     {/* Customer only */}
                     <Route path="/book-appointment" element={
@@ -73,6 +76,7 @@ function App() {
                             <Profile />
                         </ProtectedRoute>
                     } />
+                    <Route path="/complete-profile" element={<CompleteProfile />} />
                 </Routes>
             </AuthProvider>
         </Router>

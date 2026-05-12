@@ -37,9 +37,17 @@ const AuthCallback = () => {
 
             // Small delay to let auth state settle before redirecting
             setTimeout(() => {
-                if (role === 'admin') navigate('/admin/dashboard');
-                else if (role === 'provider') navigate('/dashboard');
-                else navigate('/');
+                const phoneValue = params.get('phone');
+                const needsPhone = !phoneValue || phoneValue === 'pending';
+                if (needsPhone) {
+                    navigate('/complete-profile');
+                } else if (role === 'admin') {
+                    navigate('/admin/dashboard');
+                } else if (role === 'provider') {
+                    navigate('/dashboard');
+                } else {
+                    navigate('/');
+                }
             }, 500);
         } else {
             navigate('/login?error=google_failed');

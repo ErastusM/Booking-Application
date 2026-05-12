@@ -28,6 +28,7 @@ passport.use(new GoogleStrategy({
                     phone: 'pending',
                     role: 'customer',
                     password: undefined, 
+                    isVerified: true,
                 });
             }
         }

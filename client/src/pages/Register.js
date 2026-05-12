@@ -52,9 +52,8 @@ const Register = () => {
         setLoading(true);
         setError('');
         try {
-            const response = await authService.register({ ...formData, role: selectedRole });
-            login(response.data.data);
-            navigate('/');
+            await authService.register({ ...formData, role: selectedRole });
+            setStep(3); // New step — check email
         } catch (err) {
             setError(err.response?.data?.message || 'Registration failed');
         } finally {
@@ -85,7 +84,7 @@ const Register = () => {
 
             {/* Step indicator */}
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem' }}>
-                {[1, 2].map(s => (
+                {[1, 2, 3].map(s => (
                     <div key={s} style={{
                         width: s === step ? '2rem' : '0.5rem',
                         height: '0.5rem',
@@ -172,6 +171,7 @@ const Register = () => {
                             </div>
                         )}
 
+
                         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                             {fields.map(field => (
                                 <div key={field.name}>
@@ -255,6 +255,30 @@ const Register = () => {
                         </form>
                     </div>
                 )}
+
+                                        {/* Step 3 — Check your email */}
+                        {step === 3 && (
+                            <div style={{ width: '100%', maxWidth: '440px', textAlign: 'center' }} className="fade-up">
+                                <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>📧</div>
+                                <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
+                                    Check your email!
+                                </h1>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.7, marginBottom: '2rem' }}>
+                                    We sent a verification link to <strong style={{ color: 'var(--charcoal)' }}>{formData.email}</strong>. Click the link in the email to activate your account.
+                                </p>
+                                <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '1.5rem', boxShadow: 'var(--shadow-sm)', marginBottom: '1.5rem' }}>
+                                    <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
+                                        📬 Didn't get the email? Check your spam folder or{' '}
+                                        <button onClick={() => setStep(2)} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontWeight: '600', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontSize: '0.85rem' }}>
+                                            try again
+                                        </button>
+                                    </p>
+                                </div>
+                                <Link to="/login" style={{ color: 'var(--text-muted)', fontSize: '0.875rem', textDecoration: 'none' }}>
+                                    Already verified? <span style={{ color: 'var(--gold)', fontWeight: '600' }}>Sign in →</span>
+                                </Link>
+                            </div>
+                        )}
             </div>
         </div >
     );

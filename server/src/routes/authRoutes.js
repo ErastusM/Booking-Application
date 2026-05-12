@@ -5,7 +5,8 @@ const {
     login,
     logout,
     getProfile,
-    updateProfile
+    updateProfile,
+    verifyEmail
 } = require('../controllers/authController');
 const { auth } = require('../middleware/auth');
 
@@ -14,6 +15,7 @@ router.post('/login', login);
 router.post('/logout', auth, logout);
 router.get('/profile', auth, getProfile);
 router.put('/profile', auth, updateProfile);
+router.get('/verify-email', verifyEmail);
 
 const passport = require('../config/passport');
 const { generateToken, generateRefreshToken } = require('../utils/helpers');
@@ -48,7 +50,8 @@ router.get('/google/callback',
                 `&role=${req.user.role}` +
                 `&name=${encodeURIComponent(req.user.name)}` +
                 `&email=${encodeURIComponent(req.user.email)}` +
-                `&avatar=${encodeURIComponent(req.user.avatar || '')}`;
+                `&avatar=${encodeURIComponent(req.user.avatar || '')}` +
+                `&phone=${encodeURIComponent(req.user.phone || '')}`
             console.log('✅ Redirecting to:', redirectUrl);
             res.redirect(redirectUrl);
         } catch (err) {
