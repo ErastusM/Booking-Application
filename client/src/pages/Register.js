@@ -26,6 +26,7 @@ const Register = () => {
     const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const [passwordFocused, setPasswordFocused] = useState(false);
 
     const handleChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
@@ -34,8 +35,20 @@ const Register = () => {
         setStep(2);
     };
 
+    const passwordChecks = [
+        { label: 'At least 8 characters', valid: formData.password.length >= 8 },
+        { label: 'One uppercase letter', valid: /[A-Z]/.test(formData.password) },
+        { label: 'One number', valid: /\d/.test(formData.password) },
+        { label: 'One special character', valid: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(formData.password) },
+    ];
+    const passwordValid = passwordChecks.every(c => c.valid);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (!passwordValid) {
+            setError('Please meet all password requirements');
+            return;
+        }
         setLoading(true);
         setError('');
         try {
@@ -59,9 +72,9 @@ const Register = () => {
     return (
         <div style={{ minHeight: '100vh', background: 'var(--off-white)', display: 'flex', flexDirection: 'column' }}>
 
-            {/* Navbar area */}
+            {/* Navbar */}
             <div style={{ padding: '1.5rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Link to="/" style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.5rem', fontWeight: '700', color: 'var(--gold)', textDecoration: 'none' }}>
+                <Link to="/" style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.5rem', fontWeight: '700', color: 'var(--gold)', textDecoration: 'none' }}>
                     Barber<span style={{ color: 'var(--charcoal)' }}>Shop</span>
                 </Link>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
@@ -89,7 +102,7 @@ const Register = () => {
                 {step === 1 && (
                     <div style={{ width: '100%', maxWidth: '560px' }} className="fade-up">
                         <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-                            <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
+                            <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
                                 What brings you here?
                             </h1>
                             <p style={{ color: 'var(--text-muted)', fontSize: '1rem' }}>
@@ -103,29 +116,17 @@ const Register = () => {
                                     key={role.value}
                                     onClick={() => handleRoleSelect(role.value)}
                                     style={{
-                                        padding: '2rem 1.5rem',
-                                        background: 'white',
-                                        border: '2px solid var(--border)',
-                                        borderRadius: 'var(--radius)',
-                                        cursor: 'pointer',
-                                        textAlign: 'left',
-                                        transition: 'all 0.2s ease',
-                                        boxShadow: 'var(--shadow-sm)',
-                                        fontFamily: 'DM Sans, sans-serif',
+                                        padding: '2rem 1.5rem', background: 'white',
+                                        border: '2px solid var(--border)', borderRadius: 'var(--radius)',
+                                        cursor: 'pointer', textAlign: 'left',
+                                        transition: 'all 0.2s ease', boxShadow: 'var(--shadow-sm)',
+                                        fontFamily: 'Outfit, sans-serif',
                                     }}
-                                    onMouseEnter={e => {
-                                        e.currentTarget.style.borderColor = 'var(--gold)';
-                                        e.currentTarget.style.boxShadow = 'var(--shadow-md)';
-                                        e.currentTarget.style.transform = 'translateY(-2px)';
-                                    }}
-                                    onMouseLeave={e => {
-                                        e.currentTarget.style.borderColor = 'var(--border)';
-                                        e.currentTarget.style.boxShadow = 'var(--shadow-sm)';
-                                        e.currentTarget.style.transform = 'translateY(0)';
-                                    }}
+                                    onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--gold)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
+                                    onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; e.currentTarget.style.transform = 'translateY(0)'; }}
                                 >
                                     <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>{role.icon}</div>
-                                    <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
+                                    <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                                         {role.title}
                                     </h3>
                                     <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.6 }}>
@@ -145,7 +146,7 @@ const Register = () => {
                     <div style={{ width: '100%', maxWidth: '440px' }} className="fade-up">
                         <button
                             onClick={() => setStep(1)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.875rem', fontFamily: 'DM Sans, sans-serif', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem', padding: 0 }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.875rem', fontFamily: 'Outfit, sans-serif', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem', padding: 0 }}
                         >
                             ← Back
                         </button>
@@ -158,7 +159,7 @@ const Register = () => {
                             </span>
                         </div>
 
-                        <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
+                        <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                             Create your account
                         </h1>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '2rem' }}>
@@ -185,20 +186,77 @@ const Register = () => {
                                         required
                                         placeholder={field.placeholder}
                                         className="input"
+                                        onFocus={() => field.name === 'password' && setPasswordFocused(true)}
+                                        onBlur={() => field.name === 'password' && setPasswordFocused(false)}
+                                        style={field.name === 'password' && formData.password ? {
+                                            borderColor: passwordValid ? '#10b981' : 'var(--border)',
+                                            boxShadow: passwordValid ? '0 0 0 3px rgba(16,185,129,0.1)' : 'none',
+                                        } : {}}
                                     />
+                                    {field.name === 'password' && (passwordFocused || formData.password) && (
+                                        <div style={{ marginTop: '0.75rem', padding: '0.75rem 1rem', background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                            {passwordChecks.map((check, i) => (
+                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: check.valid ? '#065f46' : 'var(--text-muted)', transition: 'color 0.2s' }}>
+                                                    <span style={{ fontSize: '0.9rem' }}>{check.valid ? '✅' : '○'}</span>
+                                                    {check.label}
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
                                 </div>
                             ))}
-                            <button type="submit" disabled={loading} className="btn-primary" style={{ width: '100%', marginTop: '0.5rem', padding: '0.875rem' }}>
+
+                            <button
+                                type="submit"
+                                disabled={loading || !passwordValid}
+                                className="btn-primary"
+                                style={{ width: '100%', marginTop: '0.5rem', padding: '0.875rem' }}
+                            >
                                 {loading ? 'Creating account...' : 'Create Account →'}
                             </button>
                             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.5 }}>
                                 By signing up you agree to our Terms of Service and Privacy Policy.
                             </p>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: '0.5rem 0' }}>
+                                <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>or continue with</span>
+                                <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+                            </div>
+
+                            <a
+                                href="http://localhost:5000/api/auth/google"
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'center',
+                                    justifyContent: 'center',
+                                    gap: '0.75rem',
+                                    width: '100%',
+                                    padding: '0.875rem',
+                                    border: '1.5px solid var(--border)',
+                                    borderRadius: 'var(--radius-sm)',
+                                    background: 'white',
+                                    color: 'var(--charcoal)',
+                                    fontWeight: '600',
+                                    fontSize: '0.9rem',
+                                    textDecoration: 'none',
+                                    fontFamily: 'Outfit, sans-serif',
+                                    transition: 'all 0.2s',
+                                }}
+                                onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--gold)'}
+                                onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                            >
+                                <img
+                                    src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                                    width="20"
+                                    alt="Google"
+                                />
+                                Continue with Google
+                            </a>
                         </form>
                     </div>
                 )}
             </div>
-        </div>
+        </div >
     );
 };
 

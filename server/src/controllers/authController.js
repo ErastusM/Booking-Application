@@ -1,6 +1,11 @@
 const User = require('../models/User');
 const { generateToken, generateRefreshToken } = require('../utils/helpers');
 
+/**
+ * =========================
+ * REGISTER (LOCAL ONLY)
+ * =========================
+ */
 exports.register = async (req, res) => {
     try {
         const { name, email, password, phone, role } = req.body;
@@ -14,25 +19,37 @@ exports.register = async (req, res) => {
         }
 
         // Check if user already exists
-        let user = await User.findOne({ email });
-        if (user) {
+        const existingUser = await User.findOne({ email });
+        if (existingUser) {
             return res.status(400).json({
                 success: false,
                 message: 'User already exists with that email'
             });
         }
 
-        // Create user
-        // Only allow customer or provider at signup
+        // Password complexity check
+        const passwordRegex =
+            /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
+
+        if (!passwordRegex.test(password)) {
+            return res.status(400).json({
+                success: false,
+                message:
+                    'Password must be at least 8 characters and include an uppercase letter, a number and a special character'
+            });
+        }
+
+        // Only allow safe roles
         const allowedRoles = ['customer', 'provider'];
         const assignedRole = allowedRoles.includes(role) ? role : 'customer';
 
-        user = await User.create({
+        const user = await User.create({
             name,
             email,
             password,
             phone,
             role: assignedRole,
+            provider: 'local'
         });
 
         const token = generateToken(user._id);
@@ -60,11 +77,15 @@ exports.register = async (req, res) => {
     }
 };
 
+/**
+ * =========================
+ * LOGIN (LOCAL ONLY)
+ * =========================
+ */
 exports.login = async (req, res) => {
     try {
         const { email, password } = req.body;
 
-        // Validate email & password
         if (!email || !password) {
             return res.status(400).json({
                 success: false,
@@ -72,7 +93,6 @@ exports.login = async (req, res) => {
             });
         }
 
-        // Check for user
         const user = await User.findOne({ email }).select('+password');
 
         if (!user) {
@@ -82,7 +102,6 @@ exports.login = async (req, res) => {
             });
         }
 
-        // Check if password matches
         const isMatch = await user.matchPassword(password);
 
         if (!isMatch) {
@@ -117,6 +136,39 @@ exports.login = async (req, res) => {
     }
 };
 
+/**
+ * =========================
+ * GOOGLE CALLBACK (NOT USED DIRECTLY HERE)
+ * =========================
+ * Passport handles this.
+ * This exists ONLY for clarity.
+ */
+exports.googleCallback = (req, res) => {
+    try {
+        const user = req.user;
+
+        const token = generateToken(user._id);
+        const refreshToken = generateRefreshToken(user._id);
+
+        return res.redirect(
+            `${process.env.CLIENT_URL}/auth/callback` +
+            `?token=${token}` +
+            `&refreshToken=${refreshToken}` +
+            `&role=${user.role}` +
+            `&name=${encodeURIComponent(user.name)}`
+        );
+    } catch (error) {
+        return res.redirect(
+            `${process.env.CLIENT_URL}/login?error=google_failed`
+        );
+    }
+};
+
+/**
+ * =========================
+ * LOGOUT
+ * =========================
+ */
 exports.logout = (req, res) => {
     res.status(200).json({
         success: true,
@@ -124,6 +176,11 @@ exports.logout = (req, res) => {
     });
 };
 
+/**
+ * =========================
+ * GET PROFILE
+ * =========================
+ */
 exports.getProfile = async (req, res) => {
     try {
         const user = await User.findById(req.user.id);
@@ -140,11 +197,16 @@ exports.getProfile = async (req, res) => {
     }
 };
 
+/**
+ * =========================
+ * UPDATE PROFILE
+ * =========================
+ */
 exports.updateProfile = async (req, res) => {
     try {
         const { name, phone, avatar } = req.body;
 
-        let user = await User.findById(req.user.id);
+        const user = await User.findById(req.user.id);
 
         if (!user) {
             return res.status(404).json({

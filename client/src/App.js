@@ -6,7 +6,6 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import Services from './pages/Services';
 import BookAppointment from './pages/BookAppointment';
 import MyAppointments from './pages/MyAppointments';
 import AdminDashboard from './pages/AdminDashboard';
@@ -16,7 +15,7 @@ import Profile from './pages/Profile';
 import AnalyticsDashboard from './pages/AnalyticsDashboard';
 import ProvidersPage from './pages/ProviderPage';
 import ProviderProfilePage from './pages/ProviderProfilePage';
-
+import AuthCallback from './pages/AuthCallBack';
 
 function App() {
     return (
@@ -30,6 +29,7 @@ function App() {
                     <Route path="/register" element={<Register />} />
                     <Route path="/services" element={<ProvidersPage />} />
                     <Route path="/providers/:id" element={<ProviderProfilePage />} />
+                    <Route path="/auth/callback" element={<AuthCallback />} />
 
                     {/* Customer only */}
                     <Route path="/book-appointment" element={
@@ -48,17 +48,22 @@ function App() {
                         </ProtectedRoute>
                     } />
 
+                    {/* Provider only */}
+                    <Route path="/dashboard" element={
+                        <ProtectedRoute allowedRoles={['provider']}>
+                            <ProviderDashboard />
+                        </ProtectedRoute>
+                    } />
+
                     {/* Admin only */}
                     <Route path="/admin/dashboard" element={
                         <ProtectedRoute allowedRoles={['admin']}>
                             <AdminDashboard />
                         </ProtectedRoute>
                     } />
-
-                    {/* Provider only */}
-                    <Route path="/provider/dashboard" element={
-                        <ProtectedRoute allowedRoles={['provider']}>
-                            <ProviderDashboard />
+                    <Route path="/admin/analytics" element={
+                        <ProtectedRoute allowedRoles={['admin']}>
+                            <AnalyticsDashboard />
                         </ProtectedRoute>
                     } />
 
@@ -68,14 +73,6 @@ function App() {
                             <Profile />
                         </ProtectedRoute>
                     } />
-                    <Route
-                        path="/admin/analytics"
-                        element={
-                            <ProtectedRoute allowedRoles={['admin']}>
-                                <AnalyticsDashboard />
-                            </ProtectedRoute>
-                        }
-                    />
                 </Routes>
             </AuthProvider>
         </Router>

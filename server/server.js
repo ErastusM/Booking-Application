@@ -19,6 +19,7 @@ const availabilityRoutes = require('./src/routes/availabilityRoutes');
 const earningsRoutes = require('./src/routes/earningsRoutes');
 const categoryRoutes = require('./src/routes/categoryRoutes');
 const providerRoutes = require('./src/routes/providerRoutes');
+const passport = require('./src/config/passport');
 
 // Connect to database
 connectDB();
@@ -32,6 +33,7 @@ app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
 // Routes
+app.use(passport.initialize());
 app.use('/api/auth', authRoutes);
 app.use('/api/services', serviceRoutes);
 app.use('/api/appointments', appointmentRoutes);

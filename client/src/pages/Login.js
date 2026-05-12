@@ -190,10 +190,45 @@ const Login = () => {
                         >
                             {loading ? 'Signing in...' : 'Sign In →'}
                         </button>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: '0.5rem 0' }}>
+                            <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>or continue with</span>
+                            <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
+                        </div>
+
+                        <a
+                            href="http://localhost:5000/api/auth/google"
+                            style={{
+                                display: 'flex',
+                                alignItems: 'center',
+                                justifyContent: 'center',
+                                gap: '0.75rem',
+                                width: '100%',
+                                padding: '0.875rem',
+                                border: '1.5px solid var(--border)',
+                                borderRadius: 'var(--radius-sm)',
+                                background: 'white',
+                                color: 'var(--charcoal)',
+                                fontWeight: '600',
+                                fontSize: '0.9rem',
+                                textDecoration: 'none',
+                                fontFamily: 'Outfit, sans-serif',
+                                transition: 'all 0.2s',
+                            }}
+                            onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--gold)'}
+                            onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
+                        >
+                            <img
+                                src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                                width="20"
+                                alt="Google"
+                            />
+                            Continue with Google
+                        </a>
                     </form>
                 </div>
             </div>
-        </div>
+        </div >
     );
 };
 
