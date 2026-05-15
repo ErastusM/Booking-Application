@@ -23,6 +23,7 @@ export const appointmentService = {
     updateAppointment: (id, data) => API.put(`/appointments/${id}`, data),
     cancelAppointment: (id, reason) => API.post(`/appointments/${id}/cancel`, { cancellationReason: reason }),
     updateAppointmentStatus: (id, status) => API.put(`/appointments/${id}/status`, { status }),
+    rescheduleAppointment: (id, data) => API.put(`/appointments/${id}/reschedule`, data),
 };
 
 export const userService = {
