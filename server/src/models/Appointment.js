@@ -12,6 +12,11 @@ const appointmentSchema = new mongoose.Schema(
             ref: 'Service',
             required: true
         },
+        provider: {
+            type: mongoose.Schema.ObjectId,
+            ref: 'User',
+            default: null
+        },
         appointmentDate: {
             type: Date,
             required: [true, 'Please select an appointment date']

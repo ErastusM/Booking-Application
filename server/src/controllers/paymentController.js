@@ -48,13 +48,25 @@ exports.confirmPayment = async (req, res) => {
         // Mark appointment as confirmed after successful payment
         const appointment = await Appointment.findByIdAndUpdate(
             appointmentId,
-            {
-                status: 'confirmed',
-                paymentStatus: 'paid',
-                paymentIntentId,
-            },
+            { status: 'confirmed', paymentStatus: 'paid', paymentIntentId },
             { new: true }
-        );
+        ).populate('customer', 'name email').populate('service', 'name');
+
+        // Send confirmation email
+        try {
+            const { sendAppointmentConfirmed } = require('../utils/emailService');
+            const date = new Date(appointment.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+            const time = `${appointment.startTime} – ${appointment.endTime}`;
+            await sendAppointmentConfirmed(
+                appointment.customer.email,
+                appointment.customer.name,
+                appointment.service.name,
+                date,
+                time
+            );
+        } catch (emailErr) {
+            console.error('Confirmation email failed:', emailErr.message);
+        }
 
         res.status(200).json({ success: true, data: appointment });
     } catch (error) {
