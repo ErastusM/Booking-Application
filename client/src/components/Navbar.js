@@ -9,6 +9,7 @@ const Navbar = () => {
     const location = useLocation();
     const [scrolled, setScrolled] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
+    const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
 
     const isHome = location.pathname === '/';
     const isTransparent = isHome && !scrolled;
@@ -20,6 +21,11 @@ const Navbar = () => {
     }, []);
 
     useEffect(() => { setMenuOpen(false); }, [location]);
+
+    useEffect(() => {
+        document.body.classList.toggle('dark-mode', darkMode);
+        localStorage.setItem('darkMode', darkMode);
+    }, [darkMode]);
 
     const handleLogout = () => { logout(); navigate('/'); };
     const isActive = (path) => location.pathname === path;
@@ -44,7 +50,7 @@ const Navbar = () => {
     const navStyles = {
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000,
         transition: 'all 0.3s ease',
-        background: isTransparent ? 'transparent' : 'rgba(255,255,255,0.97)',
+        background: isTransparent ? 'transparent' : darkMode ? 'rgba(15,15,26,0.97)' : 'rgba(255,255,255,0.97)',
         backdropFilter: isTransparent ? 'none' : 'blur(12px)',
         boxShadow: isTransparent ? 'none' : 'var(--shadow-sm)',
         borderBottom: isTransparent ? 'none' : '1px solid var(--border)',
@@ -61,7 +67,7 @@ const Navbar = () => {
 
                 {/* Logo */}
                 <Link to="/" style={{ textDecoration: 'none' }}>
-                    <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--gold)', letterSpacing: '-0.02em' }}>
+                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--gold)', letterSpacing: '-0.02em' }}>
                         Barber<span style={{ color: isTransparent ? 'white' : 'var(--charcoal)' }}>Shop</span>
                     </span>
                 </Link>
@@ -95,7 +101,7 @@ const Navbar = () => {
                                 color: isTransparent ? 'white' : 'var(--text-secondary)',
                                 padding: '0.4rem 1rem', borderRadius: 'var(--radius-sm)',
                                 cursor: 'pointer', fontSize: '0.85rem',
-                                fontFamily: 'Outfit, sans-serif', transition: 'all 0.2s ease',
+                                fontFamily: 'Inter, sans-serif', transition: 'all 0.2s ease',
                             }}
                                 onMouseEnter={e => { e.target.style.borderColor = '#ef4444'; e.target.style.color = '#ef4444'; }}
                                 onMouseLeave={e => { e.target.style.borderColor = isTransparent ? 'rgba(255,255,255,0.4)' : 'var(--border)'; e.target.style.color = isTransparent ? 'white' : 'var(--text-secondary)'; }}
@@ -136,7 +142,7 @@ const Navbar = () => {
                     {user ? (
                         <>
                             {mobileLink('/profile', 'My Profile')}
-                            <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: '#ef4444', fontWeight: '600', cursor: 'pointer', textAlign: 'left', padding: 0, fontFamily: 'Outfit, sans-serif', fontSize: '1rem' }}>
+                            <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: '#ef4444', fontWeight: '600', cursor: 'pointer', textAlign: 'left', padding: 0, fontFamily: 'Inter, sans-serif', fontSize: '1rem' }}>
                                 Logout
                             </button>
                         </>

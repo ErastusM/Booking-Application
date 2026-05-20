@@ -71,7 +71,7 @@ const ProvidersPage = () => {
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 50%, rgba(201,168,76,0.08) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Discover</p>
-                    <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: '700', color: 'white', marginBottom: '2rem' }}>
+                    <h1 style={{ fontFamily: 'Inter, sans-serif', fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: '700', color: 'white', marginBottom: '2rem' }}>
                         Find Your Barber
                     </h1>
 
@@ -87,7 +87,7 @@ const ProvidersPage = () => {
                                 style={{
                                     width: '100%', padding: '0.875rem 1rem 0.875rem 2.75rem',
                                     border: 'none', borderRadius: 'var(--radius-sm)',
-                                    fontSize: '0.95rem', fontFamily: 'DM Sans, sans-serif',
+                                    fontSize: '0.95rem', fontFamily: 'Inter, sans-serif',
                                     outline: 'none', background: 'white',
                                     boxShadow: 'var(--shadow-md)',
                                 }}
@@ -100,7 +100,7 @@ const ProvidersPage = () => {
                                 style={{
                                     width: '100%', padding: '0.875rem 1rem',
                                     border: 'none', borderRadius: 'var(--radius-sm)',
-                                    fontSize: '0.95rem', fontFamily: 'DM Sans, sans-serif',
+                                    fontSize: '0.95rem', fontFamily: 'Inter, sans-serif',
                                     outline: 'none', background: 'white',
                                     boxShadow: 'var(--shadow-md)', cursor: 'pointer',
                                     color: locationFilter ? 'var(--charcoal)' : 'var(--text-muted)',
@@ -128,7 +128,7 @@ const ProvidersPage = () => {
                 {filtered.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '5rem 2rem', background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
                         <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>💈</div>
-                        <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.3rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>No providers found</h3>
+                        <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.3rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>No providers found</h3>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Try adjusting your search or location filter</p>
                     </div>
                 ) : (
@@ -155,14 +155,14 @@ const ProvidersPage = () => {
                                         {provider.avatar ? (
                                             <img src={provider.avatar} alt={provider.name} style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', position: 'relative', zIndex: 1 }} />
                                         ) : (
-                                            <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Playfair Display, serif', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', border: '3px solid rgba(255,255,255,0.2)', position: 'relative', zIndex: 1 }}>
+                                            <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', border: '3px solid rgba(255,255,255,0.2)', position: 'relative', zIndex: 1 }}>
                                                 {getInitials(provider.name)}
                                             </div>
                                         )}
                                     </div>
 
                                     <div style={{ padding: '1.25rem' }}>
-                                        <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.15rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>{provider.name}</h3>
+                                        <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.15rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>{provider.name}</h3>
 
                                         {provider.location && (
                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.75rem' }}>

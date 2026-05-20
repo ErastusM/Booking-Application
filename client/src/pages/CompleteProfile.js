@@ -49,11 +49,11 @@ const CompleteProfile = () => {
                             {user?.avatar ? (
                                 <img src={user.avatar} alt={user.name} style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', margin: '0 auto', display: 'block', marginBottom: '1rem' }} />
                             ) : (
-                                <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Cormorant Garamond, serif', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 auto', marginBottom: '1rem' }}>
+                                <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 auto', marginBottom: '1rem' }}>
                                     {getInitials(user?.name)}
                                 </div>
                             )}
-                            <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.8rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>
+                            <h1 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.8rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>
                                 One last step!
                             </h1>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>

@@ -74,7 +74,7 @@ const ServiceCard = ({ service, user, navigate, index }) => {
                 {/* Service name & duration */}
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
                     <h3 style={{
-                        fontFamily: 'Playfair Display, serif',
+                        fontFamily: 'Inter, sans-serif',
                         fontSize: '1.25rem',
                         fontWeight: '600',
                         color: 'var(--charcoal)',
@@ -127,7 +127,7 @@ const ServiceCard = ({ service, user, navigate, index }) => {
                 }}>
                     <div>
                         <span style={{
-                            fontFamily: 'Playfair Display, serif',
+                            fontFamily: 'Inter, sans-serif',
                             fontSize: '1.6rem',
                             fontWeight: '700',
                             color: 'var(--charcoal)',
@@ -166,7 +166,7 @@ const ServiceCard = ({ service, user, navigate, index }) => {
                             color: 'var(--gold-dark)',
                             fontSize: '0.8rem',
                             fontWeight: '600',
-                            fontFamily: 'DM Sans, sans-serif',
+                            fontFamily: 'Inter, sans-serif',
                             padding: '0.75rem 0 0',
                             textAlign: 'left',
                             transition: 'color 0.2s',
@@ -295,7 +295,7 @@ const Services = () => {
                         What We Offer
                     </p>
                     <h1 style={{
-                        fontFamily: 'Playfair Display, serif',
+                        fontFamily: 'Inter, sans-serif',
                         fontSize: 'clamp(2rem, 5vw, 3.5rem)',
                         fontWeight: '700',
                         color: 'white',

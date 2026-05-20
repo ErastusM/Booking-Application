@@ -26,6 +26,9 @@ const ProviderDashboard = () => {
     const [categories, setCategories] = useState([]);
     const [newCategoryName, setNewCategoryName] = useState('');
     const [showCategoryForm, setShowCategoryForm] = useState(false);
+    const [currentDate, setCurrentDate] = useState(new Date());
+    const [calendarView, setCalendarView] = useState('month');
+    const [selectedDay, setSelectedDay] = useState(null);
 
     useEffect(() => {
         fetchAppointments();
@@ -177,6 +180,69 @@ const ProviderDashboard = () => {
         }
     };
 
+    const getDaysInMonth = (date) => {
+        const year = date.getFullYear();
+        const month = date.getMonth();
+        const firstDay = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const days = [];
+        for (let i = 0; i < firstDay; i++) days.push(null);
+        for (let i = 1; i <= daysInMonth; i++) days.push(i);
+        return days;
+    };
+
+    const getAppointmentsForDay = (day) => {
+        if (!day) return [];
+        return appointments.filter(a => {
+            const d = new Date(a.appointmentDate);
+            return (
+                d.getDate() === day &&
+                d.getMonth() === currentDate.getMonth() &&
+                d.getFullYear() === currentDate.getFullYear()
+            );
+        });
+    };
+
+    const getWeekDays = (date) => {
+        const start = new Date(date);
+        start.setDate(date.getDate() - date.getDay());
+        return Array.from({ length: 7 }, (_, i) => {
+            const d = new Date(start);
+            d.setDate(start.getDate() + i);
+            return d;
+        });
+    };
+
+    const getAppointmentsForDate = (date) => {
+        return appointments.filter(a => {
+            const d = new Date(a.appointmentDate);
+            return (
+                d.getDate() === date.getDate() &&
+                d.getMonth() === date.getMonth() &&
+                d.getFullYear() === date.getFullYear()
+            );
+        });
+    };
+
+    const statusCalendarColors = {
+        pending:   { bg: '#FAC775', text: '#633806' },
+        confirmed: { bg: '#B5D4F4', text: '#0C447C' },
+        completed: { bg: '#C0DD97', text: '#27500A' },
+        cancelled: { bg: '#F7C1C1', text: '#791F1F' },
+    };
+
+    const isOutsideWorkingHours = (date, hour) => {
+        if (!availability) return false;
+        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const daySchedule = availability[dayNames[date.getDay()]];
+        if (!daySchedule || !daySchedule.enabled) return true;
+        const slot = daySchedule.slots[0];
+        if (!slot) return true;
+        const startHour = parseInt(slot.start.split(':')[0]);
+        const endHour = parseInt(slot.end.split(':')[0]);
+        return hour < startHour || hour >= endHour;
+    };
+
     const appointmentTabs = ['pending', 'confirmed', 'completed', 'cancelled'];
     const filtered = appointments.filter(a => a.status === activeTab);
     const counts = appointmentTabs.reduce((acc, t) => {
@@ -211,7 +277,7 @@ const ProviderDashboard = () => {
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 70% 40%, rgba(201,168,76,0.1) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Your Bookings</p>
-                    <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'white' }}>Provider Dashboard</h1>
+                    <h1 style={{ fontFamily: 'Inter, sans-serif', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'white' }}>Provider Dashboard</h1>
                 </div>
             </div>
 
@@ -224,7 +290,7 @@ const ProviderDashboard = () => {
                             <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
                             <div>
                                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{s.label}</p>
-                                <p style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
+                                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
                             </div>
                         </div>
                     ))}
@@ -244,7 +310,7 @@ const ProviderDashboard = () => {
                             borderBottom: activeTab === tab ? '2px solid var(--gold)' : '2px solid transparent',
                             color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-muted)',
                             fontWeight: activeTab === tab ? '600' : '400', fontSize: '0.875rem',
-                            cursor: 'pointer', fontFamily: 'DM Sans, sans-serif',
+                            cursor: 'pointer', fontFamily: 'Inter, sans-serif',
                             textTransform: 'capitalize', transition: 'all 0.2s',
                             marginBottom: '-1px', whiteSpace: 'nowrap',
                         }}>
@@ -257,16 +323,16 @@ const ProviderDashboard = () => {
                         </button>
                     ))}
                     <div style={{ marginLeft: 'auto', display: 'flex' }}>
-                        {['services', 'availability', 'earnings'].map(tab => (
+                        {['calendar', 'services', 'availability', 'earnings'].map(tab => (
                             <button key={tab} onClick={() => setActiveTab(tab)} style={{
                                 padding: '0.75rem 1.5rem', background: 'none', border: 'none',
                                 borderBottom: activeTab === tab ? '2px solid var(--gold)' : '2px solid transparent',
                                 color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-muted)',
                                 fontWeight: activeTab === tab ? '600' : '400', fontSize: '0.875rem',
-                                cursor: 'pointer', fontFamily: 'DM Sans, sans-serif',
+                                cursor: 'pointer', fontFamily: 'Inter, sans-serif',
                                 transition: 'all 0.2s', marginBottom: '-1px', whiteSpace: 'nowrap',
                             }}>
-                                {tab === 'availability' ? '🗓 Availability' : tab === 'services' ? '✂️ My Services' : '💵 Earnings'}
+                                {tab === 'calendar' ? '📅 Calendar' : tab === 'availability' ? '🗓 Availability' : tab === 'services' ? '✂️ My Services' : '💵 Earnings'}
                             </button>
                         ))}
                     </div>
@@ -278,7 +344,7 @@ const ProviderDashboard = () => {
                         {filtered.length === 0 ? (
                             <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '4rem 2rem', textAlign: 'center' }}>
                                 <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📭</div>
-                                <p style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No {activeTab} appointments</p>
+                                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No {activeTab} appointments</p>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Check back later or switch tabs to see other bookings.</p>
                             </div>
                         ) : (
@@ -296,7 +362,7 @@ const ProviderDashboard = () => {
                                         }}>
                                             <div>
                                                 <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.35rem' }}>Customer</p>
-                                                <p style={{ fontFamily: 'Playfair Display, serif', fontWeight: '600', color: 'var(--charcoal)' }}>{a.customer?.name}</p>
+                                                <p style={{ fontFamily: 'Inter, sans-serif', fontWeight: '600', color: 'var(--charcoal)' }}>{a.customer?.name}</p>
                                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{a.customer?.email}</p>
                                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{a.customer?.phone}</p>
                                             </div>
@@ -314,12 +380,12 @@ const ProviderDashboard = () => {
                                                 <span style={{ padding: '0.25rem 0.75rem', borderRadius: '99px', fontSize: '0.72rem', fontWeight: '600', background: s.bg, color: s.color, marginBottom: '0.5rem' }}>{s.label}</span>
                                                 {a.status === 'pending' && (
                                                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
-                                                        <button onClick={() => handleStatusUpdate(a._id, 'confirmed')} style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '0.4rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'DM Sans, sans-serif' }}>Accept</button>
-                                                        <button onClick={() => handleStatusUpdate(a._id, 'cancelled')} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.4rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'DM Sans, sans-serif' }}>Decline</button>
+                                                        <button onClick={() => handleStatusUpdate(a._id, 'confirmed')} style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '0.4rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Accept</button>
+                                                        <button onClick={() => handleStatusUpdate(a._id, 'cancelled')} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.4rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Decline</button>
                                                     </div>
                                                 )}
                                                 {a.status === 'confirmed' && (
-                                                    <button onClick={() => handleStatusUpdate(a._id, 'completed')} style={{ background: '#dbeafe', border: '1px solid #93c5fd', color: '#1e40af', padding: '0.4rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'DM Sans, sans-serif' }}>Mark Complete</button>
+                                                    <button onClick={() => handleStatusUpdate(a._id, 'completed')} style={{ background: '#dbeafe', border: '1px solid #93c5fd', color: '#1e40af', padding: '0.4rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Mark Complete</button>
                                                 )}
                                             </div>
                                         </div>
@@ -335,7 +401,7 @@ const ProviderDashboard = () => {
                     <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                             <div>
-                                <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>My Services</h2>
+                                <h2 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>My Services</h2>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>Manage the services you offer to customers</p>
                             </div>
                             <button onClick={() => { setShowServiceForm(!showServiceForm); setEditingService(null); setServiceForm({ name: '', description: '', price: '', duration: '', location: '', address: '', category: '' }); }} className="btn-primary" style={{ padding: '0.65rem 1.25rem', fontSize: '0.875rem' }}>
@@ -389,7 +455,7 @@ const ProviderDashboard = () => {
                         {myServices.length === 0 ? (
                             <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '4rem 2rem', textAlign: 'center' }}>
                                 <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>✂️</div>
-                                <p style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No services yet</p>
+                                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No services yet</p>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Add your first service to start receiving bookings</p>
                             </div>
                         ) : (
@@ -399,7 +465,7 @@ const ProviderDashboard = () => {
                                         <div style={{ height: '4px', background: 'linear-gradient(to right, var(--gold-dark), var(--gold-light))' }} />
                                         <div style={{ padding: '1.5rem' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
-                                                <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)' }}>{s.name}</h3>
+                                                <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)' }}>{s.name}</h3>
                                                 <span style={{ background: 'var(--warm-gray)', color: 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '600', padding: '0.2rem 0.6rem', borderRadius: '99px', whiteSpace: 'nowrap', marginLeft: '0.5rem' }}>{s.duration} min</span>
                                             </div>
                                             {s.category && (
@@ -414,10 +480,10 @@ const ProviderDashboard = () => {
                                                 </p>
                                             )}
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
-                                                <span style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)' }}>${s.price}</span>
+                                                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)' }}>${s.price}</span>
                                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                    <button onClick={() => handleEditService(s)} style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'DM Sans, sans-serif' }}>Edit</button>
-                                                    <button onClick={() => handleDeleteService(s._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'DM Sans, sans-serif' }}>Delete</button>
+                                                    <button onClick={() => handleEditService(s)} style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Edit</button>
+                                                    <button onClick={() => handleDeleteService(s._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Delete</button>
                                                 </div>
                                             </div>
                                         </div>
@@ -429,8 +495,8 @@ const ProviderDashboard = () => {
                         {/* Categories management */}
                         <div style={{ marginTop: '2rem', paddingTop: '2rem', borderTop: '1px solid var(--border)' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
-                                <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)' }}>My Categories</h3>
-                                <button onClick={() => setShowCategoryForm(!showCategoryForm)} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-secondary)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'DM Sans, sans-serif' }}>
+                                <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)' }}>My Categories</h3>
+                                <button onClick={() => setShowCategoryForm(!showCategoryForm)} style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-secondary)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'Inter, sans-serif' }}>
                                     {showCategoryForm ? 'Cancel' : '+ Add Category'}
                                 </button>
                             </div>
@@ -465,7 +531,7 @@ const ProviderDashboard = () => {
                     <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                             <div>
-                                <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>Working Hours</h2>
+                                <h2 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>Working Hours</h2>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>Set the days and hours you are available for bookings</p>
                             </div>
                             <button onClick={handleSaveAvailability} disabled={savingAvailability} className="btn-primary" style={{ padding: '0.65rem 1.5rem', fontSize: '0.875rem' }}>
@@ -509,7 +575,7 @@ const ProviderDashboard = () => {
                 {activeTab === 'earnings' && (
                     <div>
                         <div style={{ marginBottom: '1.5rem' }}>
-                            <h2 style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>Earnings Overview</h2>
+                            <h2 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>Earnings Overview</h2>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>Track your income from completed appointments</p>
                         </div>
 
@@ -530,7 +596,7 @@ const ProviderDashboard = () => {
                                             <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
                                             <div>
                                                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{s.label}</p>
-                                                <p style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
+                                                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
                                                 {s.sub && <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{s.sub}</p>}
                                             </div>
                                         </div>
@@ -539,7 +605,7 @@ const ProviderDashboard = () => {
 
                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
                                     <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
-                                        <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>Earnings by Service</h3>
+                                        <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>Earnings by Service</h3>
                                         {earnings.earningsByService.length === 0 ? (
                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No completed paid appointments yet</p>
                                         ) : (
@@ -566,7 +632,7 @@ const ProviderDashboard = () => {
                                     </div>
 
                                     <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
-                                        <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>Monthly Comparison</h3>
+                                        <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>Monthly Comparison</h3>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                             {[
                                                 { label: 'This Month', value: earnings.thisMonthEarned, color: 'var(--gold)' },
@@ -596,7 +662,7 @@ const ProviderDashboard = () => {
 
                                 <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                                     <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
-                                        <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)' }}>Recent Transactions</h3>
+                                        <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)' }}>Recent Transactions</h3>
                                     </div>
                                     {earnings.recentTransactions.length === 0 ? (
                                         <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}><p>No transactions yet</p></div>
@@ -635,6 +701,260 @@ const ProviderDashboard = () => {
                                 <p>Failed to load earnings data</p>
                             </div>
                         )}
+                    </div>
+                )}
+
+                {/* Calendar tab */}
+                {activeTab === 'calendar' && (
+                    <div>
+                        {/* Toolbar */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                <button
+                                    onClick={() => {
+                                        const d = new Date(currentDate);
+                                        calendarView === 'month' ? d.setMonth(d.getMonth() - 1) : calendarView === 'week' ? d.setDate(d.getDate() - 7) : d.setDate(d.getDate() - 1);
+                                        setCurrentDate(d);
+                                        setSelectedDay(null);
+                                    }}
+                                    style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.4rem 0.75rem', cursor: 'pointer', fontSize: '1rem' }}
+                                >←</button>
+                                <h2 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>
+                                    {calendarView === 'month'
+                                        ? currentDate.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+                                        : calendarView === 'week'
+                                            ? `Week of ${getWeekDays(currentDate)[0].toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}`
+                                            : currentDate.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' })
+                                    }
+                                </h2>
+                                <button
+                                    onClick={() => {
+                                        const d = new Date(currentDate);
+                                        calendarView === 'month' ? d.setMonth(d.getMonth() + 1) : calendarView === 'week' ? d.setDate(d.getDate() + 7) : d.setDate(d.getDate() + 1);
+                                        setCurrentDate(d);
+                                        setSelectedDay(null);
+                                    }}
+                                    style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.4rem 0.75rem', cursor: 'pointer', fontSize: '1rem' }}
+                                >→</button>
+                                <button
+                                    onClick={() => { setCurrentDate(new Date()); setSelectedDay(null); }}
+                                    style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.4rem 0.875rem', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'Inter, sans-serif', color: 'var(--text-secondary)' }}
+                                >Today</button>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                {['month', 'week', 'day'].map(v => (
+                                    <button key={v} onClick={() => { setCalendarView(v); setSelectedDay(null); }} style={{
+                                        padding: '0.4rem 1rem', borderRadius: 'var(--radius-sm)', border: '1px solid',
+                                        borderColor: calendarView === v ? 'var(--gold)' : 'var(--border)',
+                                        background: calendarView === v ? 'rgba(201,168,76,0.1)' : 'white',
+                                        color: calendarView === v ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                                        fontSize: '0.8rem', fontWeight: calendarView === v ? '600' : '400',
+                                        cursor: 'pointer', fontFamily: 'Inter, sans-serif', textTransform: 'capitalize',
+                                    }}>{v}</button>
+                                ))}
+                            </div>
+                        </div>
+
+                        <div style={{ display: 'grid', gridTemplateColumns: selectedDay !== null ? '1fr 300px' : '1fr', gap: '1.5rem', alignItems: 'start' }}>
+
+                            {/* Month view */}
+                            {calendarView === 'month' && (
+                                <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                                    {/* Day headers */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', borderBottom: '1px solid var(--border)', background: 'var(--warm-gray)' }}>
+                                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                                            <div key={d} style={{ padding: '0.6rem', textAlign: 'center', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{d}</div>
+                                        ))}
+                                    </div>
+                                    {/* Day cells */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)' }}>
+                                        {getDaysInMonth(currentDate).map((day, i) => {
+                                            const dayAppts = getAppointmentsForDay(day);
+                                            const today = new Date();
+                                            const isToday = day && today.getDate() === day && today.getMonth() === currentDate.getMonth() && today.getFullYear() === currentDate.getFullYear();
+                                            const isSelected = selectedDay === day;
+                                            return (
+                                                <div
+                                                    key={i}
+                                                    onClick={() => day && setSelectedDay(isSelected ? null : day)}
+                                                    style={{
+                                                        minHeight: '90px', padding: '6px',
+                                                        borderRight: '1px solid var(--border)',
+                                                        borderBottom: '1px solid var(--border)',
+                                                        background: isSelected ? 'rgba(201,168,76,0.06)' : day ? 'white' : 'var(--warm-gray)',
+                                                        cursor: day ? 'pointer' : 'default',
+                                                        transition: 'background 0.15s',
+                                                    }}
+                                                    onMouseEnter={e => { if (day && !isSelected) e.currentTarget.style.background = 'var(--warm-gray)'; }}
+                                                    onMouseLeave={e => { if (day && !isSelected) e.currentTarget.style.background = 'white'; }}
+                                                >
+                                                    {day && (
+                                                        <>
+                                                            <div style={{
+                                                                width: '24px', height: '24px', borderRadius: '50%',
+                                                                background: isToday ? 'var(--gold)' : 'transparent',
+                                                                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                                fontSize: '0.78rem', fontWeight: isToday ? '700' : '400',
+                                                                color: isToday ? 'var(--charcoal)' : 'var(--text-secondary)',
+                                                                marginBottom: '4px',
+                                                            }}>{day}</div>
+                                                            {dayAppts.slice(0, 2).map((a, j) => {
+                                                                const c = statusCalendarColors[a.status] || statusCalendarColors.pending;
+                                                                return (
+                                                                    <div key={j} style={{ fontSize: '0.68rem', padding: '1px 5px', borderRadius: '3px', marginBottom: '2px', background: c.bg, color: c.text, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                                        {a.startTime} {a.service?.name}
+                                                                    </div>
+                                                                );
+                                                            })}
+                                                            {dayAppts.length > 2 && (
+                                                                <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', padding: '1px 5px' }}>+{dayAppts.length - 2} more</div>
+                                                            )}
+                                                        </>
+                                                    )}
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
+
+                            {/* Week view */}
+                            {calendarView === 'week' && (
+                                <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '60px repeat(7, 1fr)', borderBottom: '1px solid var(--border)', background: 'var(--warm-gray)' }}>
+                                        <div style={{ padding: '0.6rem' }} />
+                                        {getWeekDays(currentDate).map((d, i) => {
+                                            const today = new Date();
+                                            const isToday = d.toDateString() === today.toDateString();
+                                            return (
+                                                <div key={i} style={{ padding: '0.6rem', textAlign: 'center', borderLeft: '1px solid var(--border)' }}>
+                                                    <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                        {d.toLocaleDateString('en-US', { weekday: 'short' })}
+                                                    </div>
+                                                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: isToday ? 'var(--gold)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '2px auto 0', fontSize: '0.85rem', fontWeight: isToday ? '700' : '400', color: isToday ? 'var(--charcoal)' : 'var(--text-secondary)' }}>
+                                                        {d.getDate()}
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                    {/* Hour rows */}
+                                    {Array.from({ length: 24 }, (_, h) => h).map(hour => (
+                                        <div key={hour} style={{ display: 'grid', gridTemplateColumns: '60px repeat(7, 1fr)', borderBottom: '1px solid var(--border)', minHeight: '56px' }}>
+                                            <div style={{ padding: '4px 8px', fontSize: '0.7rem', color: 'var(--text-muted)', borderRight: '1px solid var(--border)', paddingTop: '6px' }}>
+                                                {hour === 0 ? '12 AM' : hour === 12 ? '12 PM' : hour < 12 ? `${hour} AM` : `${hour - 12} PM`}
+                                            </div>
+                                            {getWeekDays(currentDate).map((d, di) => {
+                                                const dayAppts = getAppointmentsForDate(d).filter(a => {
+                                                    const h = parseInt(a.startTime?.split(':')[0]);
+                                                    return h === hour;
+                                                });
+                                                return (
+                                                    <div key={di} style={{
+                                                        borderLeft: '1px solid var(--border)', padding: '2px', position: 'relative',
+                                                        backgroundColor: isOutsideWorkingHours(d, hour) ? 'var(--warm-gray)' : 'white',
+                                                        backgroundImage: isOutsideWorkingHours(d, hour) ? 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.04) 4px, rgba(0,0,0,0.04) 8px)' : 'none',
+                                                    }}>
+                                                        {dayAppts.map((a, ai) => {
+                                                            const c = statusCalendarColors[a.status] || statusCalendarColors.pending;
+                                                            return (
+                                                                <div key={ai} style={{ fontSize: '0.68rem', padding: '2px 5px', borderRadius: '3px', background: c.bg, color: c.text, marginBottom: '2px', overflow: 'hidden' }}>
+                                                                    <div style={{ fontWeight: '600' }}>{a.startTime}</div>
+                                                                    <div style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{a.service?.name}</div>
+                                                                </div>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
+                            {/* Day view */}
+                            {calendarView === 'day' && (
+                                <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                                    {Array.from({ length: 24 }, (_, h) => h).map(hour => {
+                                        const dayAppts = getAppointmentsForDate(currentDate).filter(a => {
+                                            const h = parseInt(a.startTime?.split(':')[0]);
+                                            return h === hour;
+                                        });
+                                        return (
+                                            <div key={hour} style={{ display: 'grid', gridTemplateColumns: '72px 1fr', borderBottom: '1px solid var(--border)', minHeight: '64px' }}>
+                                                <div style={{ padding: '8px 10px', fontSize: '0.7rem', color: 'var(--text-muted)', borderRight: '1px solid var(--border)', background: 'var(--warm-gray)', flexShrink: 0 }}>
+                                                    {hour === 0 ? '12 AM' : hour === 12 ? '12 PM' : hour < 12 ? `${hour} AM` : `${hour - 12} PM`}
+                                                </div>
+                                                <div style={{
+                                                    padding: '4px 8px', display: 'flex', flexDirection: 'column', gap: '4px',
+                                                    backgroundColor: isOutsideWorkingHours(currentDate, hour) ? 'var(--warm-gray)' : 'white',
+                                                    backgroundImage: isOutsideWorkingHours(currentDate, hour) ? 'repeating-linear-gradient(45deg, transparent, transparent 4px, rgba(0,0,0,0.04) 4px, rgba(0,0,0,0.04) 8px)' : 'none',
+                                                }}>
+                                                    {dayAppts.map((a, ai) => {
+                                                        const c = statusCalendarColors[a.status] || statusCalendarColors.pending;
+                                                        return (
+                                                            <div key={ai} style={{ background: c.bg, color: c.text, borderRadius: '4px', padding: '6px 10px', borderLeft: `3px solid ${c.text}` }}>
+                                                                <div style={{ fontWeight: '700', fontSize: '0.8rem' }}>{a.customer?.name}</div>
+                                                                <div style={{ fontSize: '0.78rem', fontWeight: '500' }}>{a.service?.name}</div>
+                                                                <div style={{ fontSize: '0.72rem', opacity: 0.8 }}>{a.startTime} – {a.endTime}</div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            )}
+
+                            {/* Day detail panel */}
+                            {selectedDay !== null && (
+                                <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', position: 'sticky', top: '100px' }}>
+                                    <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>
+                                            {new Date(currentDate.getFullYear(), currentDate.getMonth(), selectedDay).toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })}
+                                        </h3>
+                                        <button onClick={() => setSelectedDay(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.2rem', lineHeight: 1, padding: 0 }}>×</button>
+                                    </div>
+                                    <div style={{ padding: '1rem' }}>
+                                        {getAppointmentsForDay(selectedDay).length === 0 ? (
+                                            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', textAlign: 'center', padding: '1rem 0' }}>No appointments this day</p>
+                                        ) : (
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                                {getAppointmentsForDay(selectedDay)
+                                                    .sort((a, b) => a.startTime?.localeCompare(b.startTime))
+                                                    .map((a, i) => {
+                                                        const c = statusCalendarColors[a.status] || statusCalendarColors.pending;
+                                                        return (
+                                                            <div key={i} style={{ borderLeft: `3px solid ${c.bg}`, paddingLeft: '0.75rem', paddingTop: '0.25rem', paddingBottom: '0.25rem' }}>
+                                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                                                    <div>
+                                                                        <p style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.875rem', margin: '0 0 0.15rem' }}>{a.service?.name}</p>
+                                                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', margin: '0 0 0.15rem' }}>{a.customer?.name}</p>
+                                                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem', margin: 0 }}>{a.startTime} – {a.endTime}</p>
+                                                                    </div>
+                                                                    <span style={{ fontSize: '0.7rem', fontWeight: '600', padding: '0.15rem 0.5rem', borderRadius: '99px', background: c.bg, color: c.text, whiteSpace: 'nowrap' }}>
+                                                                        {a.status}
+                                                                    </span>
+                                                                </div>
+                                                            </div>
+                                                        );
+                                                    })}
+                                            </div>
+                                        )}
+                                    </div>
+                                    {/* Legend */}
+                                    <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--border)', display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                        {Object.entries(statusCalendarColors).map(([status, c]) => (
+                                            <div key={status} style={{ display: 'flex', alignItems: 'center', gap: '4px' }}>
+                                                <div style={{ width: '8px', height: '8px', borderRadius: '2px', background: c.bg }} />
+                                                <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'capitalize' }}>{status}</span>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 

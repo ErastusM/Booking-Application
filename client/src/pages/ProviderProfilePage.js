@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { providerMarketService } from '../services';
+import { providerMarketService, availabilityService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 
 const StarDisplay = ({ rating }) => (
@@ -18,6 +18,7 @@ const ProviderProfilePage = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeCategory, setActiveCategory] = useState('featured');
+    const [schedule, setSchedule] = useState(null);
 
     useEffect(() => {
         const fetch = async () => {
@@ -33,7 +34,40 @@ const ProviderProfilePage = () => {
         fetch();
     }, [id]);
 
+    useEffect(() => {
+        availabilityService.getProviderAvailability(id)
+            .then(res => setSchedule(res.data.data.schedule))
+            .catch(() => {});
+    }, [id]);
+
     const getInitials = (name) => name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?';
+
+    const formatSchedule = (sch) => {
+        const ordered = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+        const short = { monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun' };
+        const enabled = ordered.filter(d => sch[d]?.enabled);
+        if (!enabled.length) return [];
+        const groups = [];
+        let start = 0;
+        for (let i = 1; i <= enabled.length; i++) {
+            const prev = enabled[i - 1];
+            const curr = enabled[i];
+            const consecutive = curr && ordered.indexOf(curr) === ordered.indexOf(prev) + 1;
+            const sameHours = curr &&
+                sch[prev].slots[0]?.start === sch[curr].slots[0]?.start &&
+                sch[prev].slots[0]?.end === sch[curr].slots[0]?.end;
+            if (!consecutive || !sameHours) {
+                const group = enabled.slice(start, i);
+                const slot = sch[group[0]].slots[0];
+                groups.push({
+                    label: group.length === 1 ? short[group[0]] : `${short[group[0]]}–${short[group[group.length - 1]]}`,
+                    hours: slot ? `${slot.start}–${slot.end}` : '',
+                });
+                start = i;
+            }
+        }
+        return groups;
+    };
 
     if (loading) return (
         <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -55,7 +89,7 @@ const ProviderProfilePage = () => {
             <div style={{ background: 'var(--charcoal)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 30% 60%, rgba(201,168,76,0.1) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
-                    <button onClick={() => navigate('/services')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontFamily: 'DM Sans, sans-serif', marginBottom: '1.5rem', padding: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <button onClick={() => navigate('/services')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontFamily: 'Inter, sans-serif', marginBottom: '1.5rem', padding: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                         ← Back to Services
                     </button>
 
@@ -63,12 +97,12 @@ const ProviderProfilePage = () => {
                         {provider.avatar ? (
                             <img src={provider.avatar} alt={provider.name} style={{ width: '90px', height: '90px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', flexShrink: 0 }} />
                         ) : (
-                            <div style={{ width: '90px', height: '90px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Playfair Display, serif', fontSize: '2.2rem', fontWeight: '700', color: 'var(--charcoal)', flexShrink: 0 }}>
+                            <div style={{ width: '90px', height: '90px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif', fontSize: '2.2rem', fontWeight: '700', color: 'var(--charcoal)', flexShrink: 0 }}>
                                 {getInitials(provider.name)}
                             </div>
                         )}
                         <div>
-                            <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', fontWeight: '700', color: 'white', marginBottom: '0.5rem' }}>
+                            <h1 style={{ fontFamily: 'Inter, sans-serif', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', fontWeight: '700', color: 'white', marginBottom: '0.5rem' }}>
                                 {provider.name}
                             </h1>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
@@ -105,7 +139,7 @@ const ProviderProfilePage = () => {
                                         color: activeCategory === key ? 'var(--gold-dark)' : 'var(--text-muted)',
                                         fontWeight: activeCategory === key ? '600' : '400',
                                         fontSize: '0.875rem', cursor: 'pointer',
-                                        fontFamily: 'DM Sans, sans-serif', whiteSpace: 'nowrap',
+                                        fontFamily: 'Inter, sans-serif', whiteSpace: 'nowrap',
                                         transition: 'all 0.2s', marginBottom: '-1px',
                                     }}>
                                         {cat.name}
@@ -129,7 +163,7 @@ const ProviderProfilePage = () => {
                                 {activeServices.map(service => (
                                     <div key={service._id} style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
                                         <div style={{ flex: 1 }}>
-                                            <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>{service.name}</h3>
+                                            <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>{service.name}</h3>
                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '0.5rem' }}>{service.description}</p>
                                             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                                                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{service.duration} min</span>
@@ -137,7 +171,7 @@ const ProviderProfilePage = () => {
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.75rem', flexShrink: 0 }}>
-                                            <span style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.2rem', fontWeight: '700', color: 'var(--charcoal)' }}>${service.price}</span>
+                                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.2rem', fontWeight: '700', color: 'var(--charcoal)' }}>${service.price}</span>
                                             {user?.role === 'customer' && (
                                                 <button
                                                     onClick={() => navigate(`/book-appointment?serviceId=${service._id}&providerId=${provider._id}`)}
@@ -157,7 +191,7 @@ const ProviderProfilePage = () => {
                     {/* Right — provider info card */}
                     <div style={{ position: 'sticky', top: '100px' }}>
                         <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1rem' }}>
-                            <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem' }}>About</h3>
+                            <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem' }}>About</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                 {provider.avgRating && (
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -172,6 +206,23 @@ const ProviderProfilePage = () => {
                                     <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Services</span>
                                     <span style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>{provider.serviceCount}</span>
                                 </div>
+                                {schedule && (() => {
+                                    const groups = formatSchedule(schedule);
+                                    if (!groups.length) return null;
+                                    return (
+                                        <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
+                                            <p style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>Working Hours</p>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                                {groups.map((g, i) => (
+                                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                                                        <span style={{ color: 'var(--text-secondary)' }}>{g.label}</span>
+                                                        <span style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{g.hours}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                             </div>
 
                             {user?.role === 'customer' && (
@@ -188,7 +239,7 @@ const ProviderProfilePage = () => {
                         {/* Recent reviews */}
                         {reviews.length > 0 && (
                             <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
-                                <h3 style={{ fontFamily: 'Playfair Display, serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem' }}>Recent Reviews</h3>
+                                <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem' }}>Recent Reviews</h3>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                     {reviews.map(review => (
                                         <div key={review._id} style={{ paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>

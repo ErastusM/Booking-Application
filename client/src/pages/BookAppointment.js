@@ -3,7 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import StripeWrapper from '../components/StripeWrapper';
 import PaymentForm from '../components/PaymentForm';
-import { appointmentService, serviceService, waitingListService, paymentService, providerMarketService } from '../services';
+import { appointmentService, serviceService, waitingListService, paymentService, providerMarketService, availabilityService } from '../services';
 
 const BookAppointment = () => {
     const { user } = useAuthContext();
@@ -19,11 +19,51 @@ const BookAppointment = () => {
     const [paymentAmount, setPaymentAmount] = useState(0);
     const [createdAppointmentId, setCreatedAppointmentId] = useState('');
     const [showPayment, setShowPayment] = useState(false);
+    const [providerAvailability, setProviderAvailability] = useState(null);
+    const [availabilityError, setAvailabilityError] = useState('');
 
     const handleServiceSelect = (service) => {
         setSelectedService(service);
         setFormData(prev => ({ ...prev, service: service._id }));
     };
+
+    useEffect(() => {
+        const providerId = searchParams.get('providerId');
+        if (!providerId) return;
+        availabilityService.getProviderAvailability(providerId)
+            .then(res => setProviderAvailability(res.data.data.schedule))
+            .catch(() => {});
+    }, []);
+
+    useEffect(() => {
+        if (!providerAvailability || !formData.appointmentDate || !formData.startTime) {
+            setAvailabilityError('');
+            return;
+        }
+        const [y, m, d] = formData.appointmentDate.split('-').map(Number);
+        const dayIndex = new Date(y, m - 1, d).getDay();
+        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const dayName = dayNames[dayIndex];
+        const daySchedule = providerAvailability[dayName];
+
+        const allWorkingHours = Object.entries(providerAvailability)
+            .filter(([, v]) => v.enabled)
+            .map(([day, v]) => {
+                const slot = v.slots[0];
+                return `${day.charAt(0).toUpperCase() + day.slice(1, 3)}: ${slot?.start}–${slot?.end}`;
+            }).join(', ');
+
+        if (!daySchedule || !daySchedule.enabled) {
+            setAvailabilityError(`This provider is not available at this time. Working hours are ${allWorkingHours || 'not set'}`);
+            return;
+        }
+        const slot = daySchedule.slots[0];
+        if (slot && (formData.startTime < slot.start || formData.startTime >= slot.end)) {
+            setAvailabilityError(`This provider is not available at this time. Working hours are ${slot.start}–${slot.end}`);
+            return;
+        }
+        setAvailabilityError('');
+    }, [providerAvailability, formData.appointmentDate, formData.startTime]);
 
     useEffect(() => {
         if (!user) navigate('/login');
@@ -134,7 +174,7 @@ const BookAppointment = () => {
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 20% 50%, rgba(201,168,76,0.1) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Schedule Your Visit</p>
-                    <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'white' }}>Book an Appointment</h1>
+                    <h1 style={{ fontFamily: 'Inter, sans-serif', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'white' }}>Book an Appointment</h1>
                 </div>
             </div>
 
@@ -152,13 +192,13 @@ const BookAppointment = () => {
                         <div style={cardStyle}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
                                 {stepBadge(1)}
-                                <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)' }}>Choose a Service</h2>
+                                <h2 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)' }}>Choose a Service</h2>
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem' }}>
                                 {services.map(service => (
                                     <button key={service._id} type="button" onClick={() => handleServiceSelect(service)} style={{
                                         padding: '1rem', border: '2px solid', cursor: 'pointer', textAlign: 'left',
-                                        transition: 'all 0.2s ease', fontFamily: 'Outfit, sans-serif', borderRadius: 'var(--radius-sm)',
+                                        transition: 'all 0.2s ease', fontFamily: 'Inter, sans-serif', borderRadius: 'var(--radius-sm)',
                                         borderColor: selectedService?._id === service._id ? 'var(--gold)' : 'var(--border)',
                                         background: selectedService?._id === service._id ? 'rgba(201,168,76,0.06)' : 'white',
                                     }}>
@@ -176,7 +216,7 @@ const BookAppointment = () => {
                         <div style={cardStyle}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
                                 {stepBadge(2)}
-                                <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)' }}>Pick a Date & Time</h2>
+                                <h2 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)' }}>Pick a Date & Time</h2>
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <div style={{ gridColumn: '1 / -1' }}>
@@ -192,6 +232,11 @@ const BookAppointment = () => {
                                     <input type="time" name="endTime" value={formData.endTime} onChange={handleChange} required className="input" style={{ background: selectedService ? 'var(--warm-gray)' : 'white' }} readOnly={!!selectedService} />
                                     {selectedService && <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>Auto-calculated from duration</p>}
                                 </div>
+                                {availabilityError && (
+                                    <div style={{ gridColumn: '1 / -1', background: '#fef3c7', border: '1px solid #fcd34d', color: '#92400e', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem' }}>
+                                        {availabilityError}
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -199,8 +244,8 @@ const BookAppointment = () => {
                         <div style={cardStyle}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
                                 {stepBadge(3)}
-                                <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)' }}>
-                                    Special Requests <span style={{ fontFamily: 'Outfit, sans-serif', fontSize: '0.8rem', fontWeight: '400', color: 'var(--text-muted)' }}>(optional)</span>
+                                <h2 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)' }}>
+                                    Special Requests <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '0.8rem', fontWeight: '400', color: 'var(--text-muted)' }}>(optional)</span>
                                 </h2>
                             </div>
                             <textarea name="notes" value={formData.notes} onChange={handleChange} rows="3" placeholder="Any special requests or preferences..." className="input" style={{ resize: 'vertical' }} />
@@ -209,7 +254,7 @@ const BookAppointment = () => {
 
                     {/* Right — summary */}
                     <div className="booking-summary" style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '2rem', boxShadow: 'var(--shadow-sm)', position: 'sticky', top: '100px' }}>
-                        <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
+                        <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
                             Booking Summary
                         </h3>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
@@ -227,11 +272,11 @@ const BookAppointment = () => {
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem' }}>
                             <span style={{ fontWeight: '600', color: 'var(--charcoal)' }}>Total</span>
-                            <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.5rem', fontWeight: '700', color: 'var(--gold-dark)' }}>
+                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.5rem', fontWeight: '700', color: 'var(--gold-dark)' }}>
                                 {selectedService ? `$${selectedService.price}` : '—'}
                             </span>
                         </div>
-                        <button onClick={handleSubmit} disabled={loading || !formData.service || !formData.appointmentDate || !formData.startTime} className="btn-primary" style={{ width: '100%', padding: '0.875rem', marginBottom: '0.75rem' }}>
+                        <button onClick={handleSubmit} disabled={loading || !formData.service || !formData.appointmentDate || !formData.startTime || !!availabilityError} className="btn-primary" style={{ width: '100%', padding: '0.875rem', marginBottom: '0.75rem' }}>
                             {loading ? 'Booking...' : 'Confirm Booking →'}
                         </button>
                         <button onClick={handleJoinWaitingList} disabled={loading} className="btn-outline" style={{ width: '100%', padding: '0.875rem' }}>

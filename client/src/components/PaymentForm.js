@@ -55,7 +55,7 @@ const PaymentForm = ({ appointmentId, amount, serviceName, onSuccess, onCancel }
                 {/* Header */}
                 <div style={{ marginBottom: '1.5rem' }}>
                     <h2 style={{
-                        fontFamily: 'Playfair Display, serif',
+                        fontFamily: 'Inter, sans-serif',
                         fontSize: '1.5rem', fontWeight: '700',
                         color: 'var(--charcoal)', marginBottom: '0.5rem',
                     }}>
@@ -78,7 +78,7 @@ const PaymentForm = ({ appointmentId, amount, serviceName, onSuccess, onCancel }
                 }}>
                     <span style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>Total due today</span>
                     <span style={{
-                        fontFamily: 'Playfair Display, serif',
+                        fontFamily: 'Inter, sans-serif',
                         fontSize: '1.5rem', fontWeight: '700',
                         color: 'var(--gold-dark)',
                     }}>
@@ -122,7 +122,7 @@ const PaymentForm = ({ appointmentId, amount, serviceName, onSuccess, onCancel }
                                 flex: 1, padding: '0.875rem',
                                 background: 'none', border: '1.5px solid var(--border)',
                                 borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                                color: 'var(--text-secondary)', fontFamily: 'DM Sans, sans-serif',
+                                color: 'var(--text-secondary)', fontFamily: 'Inter, sans-serif',
                                 fontWeight: '600', fontSize: '0.9rem',
                             }}
                         >

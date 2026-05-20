@@ -67,7 +67,7 @@ const VerifyEmail = () => {
             <div style={{ width: '100%', maxWidth: '480px', textAlign: 'center' }} className="fade-up">
 
                 {/* Logo */}
-                <Link to="/" style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.8rem', fontWeight: '700', color: 'var(--gold)', textDecoration: 'none', display: 'block', marginBottom: '2.5rem' }}>
+                <Link to="/" style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.8rem', fontWeight: '700', color: 'var(--gold)', textDecoration: 'none', display: 'block', marginBottom: '2.5rem' }}>
                     Barber<span style={{ color: 'var(--charcoal)' }}>Shop</span>
                 </Link>
 
@@ -83,7 +83,7 @@ const VerifyEmail = () => {
                             <div style={{ fontSize: '3.5rem', marginBottom: '1.25rem' }}>{current.icon}</div>
                         )}
 
-                        <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.8rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
+                        <h1 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.8rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
                             {current.title}
                         </h1>
 

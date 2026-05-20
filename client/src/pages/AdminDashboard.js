@@ -113,7 +113,7 @@ const AdminDashboard = () => {
     const inputStyle = {
         width: '100%', padding: '0.65rem 0.875rem',
         border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)',
-        fontFamily: 'DM Sans, sans-serif', fontSize: '0.875rem',
+        fontFamily: 'Inter, sans-serif', fontSize: '0.875rem',
         color: 'var(--text-primary)', outline: 'none',
     };
 
@@ -153,7 +153,7 @@ const AdminDashboard = () => {
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 30%, rgba(201,168,76,0.1) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Management</p>
-                    <h1 style={{ fontFamily: 'Playfair Display, serif', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'white' }}>Admin Dashboard</h1>
+                    <h1 style={{ fontFamily: 'Inter, sans-serif', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'white' }}>Admin Dashboard</h1>
                 </div>
             </div>
 
@@ -165,7 +165,7 @@ const AdminDashboard = () => {
                         background: 'var(--charcoal)', color: 'white',
                         padding: '0.6rem 1.25rem', borderRadius: 'var(--radius-sm)',
                         textDecoration: 'none', fontSize: '0.875rem', fontWeight: '600',
-                        fontFamily: 'DM Sans, sans-serif',
+                        fontFamily: 'Inter, sans-serif',
                     }}>
                         📈 View Analytics
                     </a>
@@ -180,7 +180,7 @@ const AdminDashboard = () => {
                             </div>
                             <div>
                                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{s.label}</p>
-                                <p style={{ fontFamily: 'Playfair Display, serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
+                                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
                             </div>
                         </div>
                     ))}
@@ -200,7 +200,7 @@ const AdminDashboard = () => {
                             borderBottom: activeTab === tab ? '2px solid var(--gold)' : '2px solid transparent',
                             color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-muted)',
                             fontWeight: activeTab === tab ? '600' : '400', fontSize: '0.875rem',
-                            cursor: 'pointer', fontFamily: 'DM Sans, sans-serif',
+                            cursor: 'pointer', fontFamily: 'Inter, sans-serif',
                             textTransform: 'capitalize', transition: 'all 0.2s', marginBottom: '-1px', whiteSpace: 'nowrap',
                         }}>
                             {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -239,7 +239,7 @@ const AdminDashboard = () => {
                                                     <span style={{ padding: '0.2rem 0.65rem', borderRadius: '99px', fontSize: '0.72rem', fontWeight: '600', background: s.bg, color: s.color }}>{s.label}</span>
                                                 </td>
                                                 <td style={{ padding: '0.875rem 1rem' }}>
-                                                    <select value={a.status} onChange={e => handleUpdateStatus(a._id, e.target.value)} style={{ fontSize: '0.75rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.5rem', fontFamily: 'DM Sans, sans-serif', color: 'var(--text-secondary)', cursor: 'pointer', outline: 'none' }}>
+                                                    <select value={a.status} onChange={e => handleUpdateStatus(a._id, e.target.value)} style={{ fontSize: '0.75rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.5rem', fontFamily: 'Inter, sans-serif', color: 'var(--text-secondary)', cursor: 'pointer', outline: 'none' }}>
                                                         <option value="pending">Pending</option>
                                                         <option value="confirmed">Confirmed</option>
                                                         <option value="completed">Completed</option>
@@ -308,8 +308,8 @@ const AdminDashboard = () => {
                                             <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{s.duration} min</td>
                                             <td style={{ padding: '0.875rem 1rem' }}>
                                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                    <button onClick={() => handleEditService(s)} style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold-dark)', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', fontFamily: 'DM Sans, sans-serif' }}>Edit</button>
-                                                    <button onClick={() => handleDeleteService(s._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', fontFamily: 'DM Sans, sans-serif' }}>Delete</button>
+                                                    <button onClick={() => handleEditService(s)} style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold-dark)', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Edit</button>
+                                                    <button onClick={() => handleDeleteService(s._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Delete</button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -360,7 +360,7 @@ const AdminDashboard = () => {
                                                             background: 'none', border: '1px solid var(--border)',
                                                             color: 'var(--text-muted)', padding: '0.2rem 0.5rem',
                                                             borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                                                            fontSize: '0.7rem', fontFamily: 'DM Sans, sans-serif',
+                                                            fontSize: '0.7rem', fontFamily: 'Inter, sans-serif',
                                                         }}
                                                     >
                                                         Make Admin
@@ -369,7 +369,7 @@ const AdminDashboard = () => {
                                             </div>
                                         </td>
                                         <td style={{ padding: '0.875rem 1rem' }}>
-                                            <button onClick={() => handleDeleteUser(u._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', fontFamily: 'DM Sans, sans-serif' }}>Delete</button>
+                                            <button onClick={() => handleDeleteUser(u._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Delete</button>
                                         </td>
                                     </tr>
                                 ))}

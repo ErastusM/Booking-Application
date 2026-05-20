@@ -14,7 +14,7 @@ const StripeWrapper = ({ children, clientSecret }) => {
                 colorBackground: '#ffffff',
                 colorText: '#1a1a2e',
                 colorDanger: '#ef4444',
-                fontFamily: 'DM Sans, sans-serif',
+                fontFamily: 'Inter, sans-serif',
                 borderRadius: '8px',
             },
         },

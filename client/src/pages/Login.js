@@ -63,7 +63,7 @@ const Login = () => {
                 }} />
                 <div style={{ position: 'relative', zIndex: 1 }}>
                     <Link to="/" style={{
-                        fontFamily: 'Playfair Display, serif',
+                        fontFamily: 'Inter, sans-serif',
                         fontSize: '1.8rem',
                         fontWeight: '700',
                         color: 'var(--gold)',
@@ -74,7 +74,7 @@ const Login = () => {
                         Barber<span style={{ color: 'white' }}>Shop</span>
                     </Link>
                     <h2 style={{
-                        fontFamily: 'Playfair Display, serif',
+                        fontFamily: 'Inter, sans-serif',
                         fontSize: 'clamp(2rem, 3vw, 2.8rem)',
                         fontWeight: '700',
                         color: 'white',
@@ -106,7 +106,7 @@ const Login = () => {
             }}>
                 <div style={{ width: '100%', maxWidth: '400px' }} className="fade-up">
                     <h1 style={{
-                        fontFamily: 'Playfair Display, serif',
+                        fontFamily: 'Inter, sans-serif',
                         fontSize: '2rem',
                         fontWeight: '700',
                         color: 'var(--charcoal)',
@@ -212,7 +212,7 @@ const Login = () => {
                                 fontWeight: '600',
                                 fontSize: '0.9rem',
                                 textDecoration: 'none',
-                                fontFamily: 'Outfit, sans-serif',
+                                fontFamily: 'Inter, sans-serif',
                                 transition: 'all 0.2s',
                             }}
                             onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--gold)'}
