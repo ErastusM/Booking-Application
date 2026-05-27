@@ -98,3 +98,34 @@ export const blockedTimeService = {
     updateBlockedTime: (id, data) => API.put(`/blocked-times/${id}`, data),
     deleteBlockedTime: (id, data) => API.delete(`/blocked-times/${id}`, { data }),
 };
+
+export const messageService = {
+    getConversations: () => API.get('/messages/conversations'),
+    getMessages: (appointmentId) => API.get(`/messages/${appointmentId}`),
+    sendMessage: (appointmentId, content) => API.post(`/messages/${appointmentId}`, { content }),
+    getUnreadCount: () => API.get('/messages/unread-count'),
+};
+
+export const clientCRMService = {
+    getMyClients: () => API.get('/crm/clients'),
+    getClientDetail: (customerId) => API.get(`/crm/clients/${customerId}`),
+    upsertClientNote: (customerId, data) => API.put(`/crm/clients/${customerId}/notes`, data),
+};
+
+export const packageService = {
+    // Provider
+    getMyPackages: () => API.get('/packages/my-packages'),
+    createPackage: (data) => API.post('/packages/my-packages', data),
+    updatePackage: (id, data) => API.put(`/packages/my-packages/${id}`, data),
+    deletePackage: (id) => API.delete(`/packages/my-packages/${id}`),
+    getMyPackageClients: () => API.get('/packages/my-package-clients'),
+    // Customer
+    getProviderPackages: (providerId) => API.get(`/packages/provider/${providerId}`),
+    purchasePackage: (id) => API.post(`/packages/${id}/purchase`),
+    getMyClientPackages: () => API.get('/packages/my-client-packages'),
+    redeemSession: (id) => API.post(`/packages/my-client-packages/${id}/redeem`),
+};
+
+export const retentionService = {
+    getRetentionMetrics: () => API.get('/retention'),
+};

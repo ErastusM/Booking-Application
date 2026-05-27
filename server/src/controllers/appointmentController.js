@@ -7,6 +7,7 @@ const {
     sendAppointmentCompleted,
     sendAppointmentCancelled,
     sendAppointmentRescheduled,
+    sendRebookingPrompt,
 } = require('../utils/emailService');
 
 exports.getAllAppointments = async (req, res) => {
@@ -29,7 +30,7 @@ exports.getAllAppointments = async (req, res) => {
 
 exports.createAppointment = async (req, res) => {
     try {
-        const { service, appointmentDate, startTime, endTime, notes } = req.body;
+        const { service, appointmentDate, startTime, endTime, notes, selectedAddOns } = req.body;
         if (!service || !appointmentDate || !startTime || !endTime) {
             return res.status(400).json({ success: false, message: 'Please provide all required fields' });
         }
@@ -54,7 +55,8 @@ exports.createAppointment = async (req, res) => {
             startTime,
             endTime,
             notes: notes || '',
-            totalPrice: svc.price,
+            selectedAddOns: Array.isArray(selectedAddOns) ? selectedAddOns : [],
+            totalPrice: (svc.price || 0) + (Array.isArray(selectedAddOns) ? selectedAddOns.reduce((sum, a) => sum + (a.price || 0), 0) : 0),
             status: 'pending',
         });
         await appointment.populate('service', 'name price duration');
@@ -164,6 +166,12 @@ exports.updateAppointmentStatus = async (req, res) => {
                 await sendAppointmentConfirmed(customerEmail, customerName, serviceName, date, time);
             } else if (status === 'completed') {
                 await sendAppointmentCompleted(customerEmail, customerName, serviceName);
+                // Send rebooking prompt
+                try {
+                    const providerId = appointment.provider;
+                    const providerDoc = providerId ? await require('../models/User').findById(providerId).select('name') : null;
+                    await sendRebookingPrompt(customerEmail, customerName, serviceName, providerDoc?.name || 'your provider', providerId);
+                } catch (_) { /* non-critical */ }
             } else if (status === 'cancelled') {
                 await sendAppointmentCancelled(customerEmail, customerName, serviceName, date);
             }
