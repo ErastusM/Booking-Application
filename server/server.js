@@ -20,6 +20,11 @@ const earningsRoutes = require('./src/routes/earningsRoutes');
 const categoryRoutes = require('./src/routes/categoryRoutes');
 const providerRoutes = require('./src/routes/providerRoutes');
 const blockedTimeRoutes = require('./src/routes/blockedTimeRoutes');
+const messageRoutes = require('./src/routes/messageRoutes');
+const clientCRMRoutes = require('./src/routes/clientCRMRoutes');
+const packageRoutes = require('./src/routes/packageRoutes');
+const retentionRoutes = require('./src/routes/retentionRoutes');
+const startReminderJob = require('./src/utils/reminderService');
 const passport = require('./src/config/passport');
 
 // Connect to database
@@ -49,6 +54,10 @@ app.use('/api/earnings', earningsRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/providers', providerRoutes);
 app.use('/api/blocked-times', blockedTimeRoutes);
+app.use('/api/messages', messageRoutes);
+app.use('/api/crm', clientCRMRoutes);
+app.use('/api/packages', packageRoutes);
+app.use('/api/retention', retentionRoutes);
 
 
 // Health check
@@ -67,6 +76,7 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
+    startReminderJob();
 });
 
 module.exports = app;
