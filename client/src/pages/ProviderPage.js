@@ -72,7 +72,7 @@ const ProvidersPage = () => {
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Discover</p>
                     <h1 style={{ fontFamily: 'Inter, sans-serif', fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: '700', color: 'white', marginBottom: '2rem' }}>
-                        Find Your Barber
+                        Find Your Provider
                     </h1>
 
                     {/* Search bar */}
@@ -164,6 +164,11 @@ const ProvidersPage = () => {
                                     <div style={{ padding: '1.25rem' }}>
                                         <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.15rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>{provider.name}</h3>
 
+                                        {provider.providerCategory && (
+                                            <span style={{ display: 'inline-block', fontSize: '0.7rem', fontWeight: '600', padding: '0.2rem 0.6rem', borderRadius: '99px', background: 'rgba(201,168,76,0.1)', color: 'var(--gold-dark)', border: '1px solid rgba(201,168,76,0.3)', marginBottom: '0.5rem' }}>
+                                                {provider.providerCategory}
+                                            </span>
+                                        )}
                                         {provider.location && (
                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
                                                 📍 {provider.location}

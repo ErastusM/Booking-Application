@@ -1,7 +1,7 @@
 {
-    "name": "barbershop-booking-client",
+    "name": "bookplus-client",
     "version": "1.0.0",
-    "description": "Frontend for barbershop booking application",
+    "description": "Frontend for Bookplus multi-service booking application",
     "private": true,
     "dependencies": {
         "@stripe/react-stripe-js": "^6.3.0",
