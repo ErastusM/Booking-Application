@@ -1,0 +1,135 @@
+const Message = require('../models/Message');
+const Appointment = require('../models/Appointment');
+
+// Get all conversations for the logged-in user (grouped by appointment)
+exports.getMyConversations = async (req, res) => {
+    try {
+        const userId = req.user._id;
+
+        // Find all appointments the user is part of that have at least one message
+        const messages = await Message.find({
+            $or: [{ sender: userId }, { recipient: userId }],
+        })
+            .sort({ createdAt: -1 })
+            .populate('sender', 'name avatar')
+            .populate('recipient', 'name avatar')
+            .populate({
+                path: 'appointment',
+                populate: [
+                    { path: 'service', select: 'name' },
+                    { path: 'customer', select: 'name avatar' },
+                    { path: 'provider', select: 'name avatar' },
+                ],
+            });
+
+        // Deduplicate by appointment, keep latest message per conversation
+        const seen = new Set();
+        const conversations = [];
+        for (const msg of messages) {
+            const apptId = msg.appointment?._id?.toString();
+            if (!apptId || seen.has(apptId)) continue;
+            seen.add(apptId);
+
+            const otherId = msg.sender._id.toString() === userId.toString()
+                ? msg.recipient._id
+                : msg.sender._id;
+
+            const unread = await Message.countDocuments({
+                appointment: msg.appointment._id,
+                recipient: userId,
+                readBy: { $ne: userId },
+            });
+
+            conversations.push({
+                appointment: msg.appointment,
+                lastMessage: { content: msg.content, createdAt: msg.createdAt, sender: msg.sender },
+                otherId,
+                unread,
+            });
+        }
+
+        res.status(200).json({ success: true, data: conversations });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// Get all messages for a specific appointment
+exports.getMessages = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { appointmentId } = req.params;
+
+        // Verify user is part of this appointment
+        const appointment = await Appointment.findById(appointmentId);
+        if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
+        const isParty = appointment.customer.toString() === userId.toString() ||
+            appointment.provider?.toString() === userId.toString();
+        if (!isParty) return res.status(403).json({ success: false, message: 'Not authorized' });
+
+        const messages = await Message.find({ appointment: appointmentId })
+            .populate('sender', 'name avatar')
+            .sort({ createdAt: 1 });
+
+        // Mark unread messages as read
+        await Message.updateMany(
+            { appointment: appointmentId, recipient: userId, readBy: { $ne: userId } },
+            { $addToSet: { readBy: userId } }
+        );
+
+        res.status(200).json({ success: true, data: messages });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// Send a message in an appointment conversation
+exports.sendMessage = async (req, res) => {
+    try {
+        const userId = req.user._id;
+        const { appointmentId } = req.params;
+        const { content } = req.body;
+
+        if (!content?.trim()) return res.status(400).json({ success: false, message: 'Message content is required' });
+
+        const appointment = await Appointment.findById(appointmentId);
+        if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
+
+        const isParty = appointment.customer.toString() === userId.toString() ||
+            appointment.provider?.toString() === userId.toString();
+        if (!isParty) return res.status(403).json({ success: false, message: 'Not authorized' });
+
+        // Determine recipient
+        const recipientId = appointment.customer.toString() === userId.toString()
+            ? appointment.provider
+            : appointment.customer;
+
+        if (!recipientId) return res.status(400).json({ success: false, message: 'No recipient found for this appointment' });
+
+        const message = await Message.create({
+            sender: userId,
+            recipient: recipientId,
+            appointment: appointmentId,
+            content: content.trim(),
+            readBy: [userId],
+        });
+
+        await message.populate('sender', 'name avatar');
+        res.status(201).json({ success: true, data: message });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
+
+// Get unread message count
+exports.getUnreadCount = async (req, res) => {
+    try {
+        const count = await Message.countDocuments({
+            recipient: req.user._id,
+            readBy: { $ne: req.user._id },
+        });
+        res.status(200).json({ success: true, data: { count } });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
