@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { appointmentService, availabilityService, earningsService, providerServiceService, categoryService, blockedTimeService } from '../services';
+import { appointmentService, availabilityService, earningsService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, retentionService } from '../services';
 
 const statusConfig = {
     pending: { label: 'Pending', bg: '#fef3c7', color: '#92400e' },
@@ -37,6 +37,30 @@ const ProviderDashboard = () => {
     const [recurringActionModal, setRecurringActionModal] = useState(null);
     const [recurringMode, setRecurringMode] = useState('this');
 
+    // CRM / Messages / Packages / Retention
+    const [clients, setClients] = useState([]);
+    const [loadingClients, setLoadingClients] = useState(false);
+    const [selectedClient, setSelectedClient] = useState(null);
+    const [clientDetail, setClientDetail] = useState(null);
+    const [clientNoteForm, setClientNoteForm] = useState({ notes: '', allergies: '', conditions: '', internalNotes: '', tags: '', birthday: '' });
+    const [savingClientNote, setSavingClientNote] = useState(false);
+
+    const [conversations, setConversations] = useState([]);
+    const [loadingConversations, setLoadingConversations] = useState(false);
+    const [selectedConversation, setSelectedConversation] = useState(null);
+    const [conversationMessages, setConversationMessages] = useState([]);
+    const [newMessage, setNewMessage] = useState('');
+    const [sendingMessage, setSendingMessage] = useState(false);
+
+    const [myPackages, setMyPackages] = useState([]);
+    const [loadingPackages, setLoadingPackages] = useState(false);
+    const [showPackageForm, setShowPackageForm] = useState(false);
+    const [packageForm, setPackageForm] = useState({ name: '', description: '', totalSessions: '', price: '', validityDays: '365' });
+    const [savingPackage, setSavingPackage] = useState(false);
+
+    const [retentionData, setRetentionData] = useState(null);
+    const [loadingRetention, setLoadingRetention] = useState(false);
+
     useEffect(() => {
         fetchAppointments();
         fetchAvailability();
@@ -46,9 +70,11 @@ const ProviderDashboard = () => {
     }, []);
 
     useEffect(() => {
-        if (activeTab === 'earnings' && !earnings) {
-            fetchEarnings();
-        }
+        if (activeTab === 'earnings' && !earnings) fetchEarnings();
+        if (activeTab === 'clients' && clients.length === 0) fetchClients();
+        if (activeTab === 'messages' && conversations.length === 0) fetchConversations();
+        if (activeTab === 'packages' && myPackages.length === 0) fetchMyPackages();
+        if (activeTab === 'retention' && !retentionData) fetchRetention();
     }, [activeTab]);
 
     const fetchAppointments = async () => {
@@ -167,6 +193,92 @@ const ProviderDashboard = () => {
         } finally {
             setLoadingEarnings(false);
         }
+    };
+
+    const fetchClients = async () => {
+        setLoadingClients(true);
+        try {
+            const res = await clientCRMService.getMyClients();
+            setClients(res.data.data);
+        } catch { /* ignore */ } finally { setLoadingClients(false); }
+    };
+
+    const fetchClientDetail = async (customerId) => {
+        try {
+            const res = await clientCRMService.getClientDetail(customerId);
+            setClientDetail(res.data.data);
+            const note = res.data.data.note;
+            if (note) setClientNoteForm({ notes: note.notes || '', allergies: note.allergies || '', conditions: note.conditions || '', internalNotes: note.internalNotes || '', tags: (note.tags || []).join(', '), birthday: note.birthday || '' });
+            else setClientNoteForm({ notes: '', allergies: '', conditions: '', internalNotes: '', tags: '', birthday: '' });
+        } catch { /* ignore */ }
+    };
+
+    const saveClientNote = async () => {
+        if (!selectedClient) return;
+        setSavingClientNote(true);
+        try {
+            const payload = { ...clientNoteForm, tags: clientNoteForm.tags.split(',').map(t => t.trim()).filter(Boolean) };
+            await clientCRMService.upsertClientNote(selectedClient.customer._id, payload);
+        } catch { /* ignore */ } finally { setSavingClientNote(false); }
+    };
+
+    const fetchConversations = async () => {
+        setLoadingConversations(true);
+        try {
+            const res = await messageService.getConversations();
+            setConversations(res.data.data);
+        } catch { /* ignore */ } finally { setLoadingConversations(false); }
+    };
+
+    const openConversation = async (conv) => {
+        setSelectedConversation(conv);
+        try {
+            const res = await messageService.getMessages(conv.appointment._id);
+            setConversationMessages(res.data.data);
+        } catch { /* ignore */ }
+    };
+
+    const handleSendMessage = async () => {
+        if (!newMessage.trim() || !selectedConversation) return;
+        setSendingMessage(true);
+        try {
+            const res = await messageService.sendMessage(selectedConversation.appointment._id, newMessage.trim());
+            setConversationMessages(prev => [...prev, res.data.data]);
+            setNewMessage('');
+        } catch { /* ignore */ } finally { setSendingMessage(false); }
+    };
+
+    const fetchMyPackages = async () => {
+        setLoadingPackages(true);
+        try {
+            const res = await packageService.getMyPackages();
+            setMyPackages(res.data.data);
+        } catch { /* ignore */ } finally { setLoadingPackages(false); }
+    };
+
+    const handleCreatePackage = async () => {
+        setSavingPackage(true);
+        try {
+            const res = await packageService.createPackage({ ...packageForm, totalSessions: Number(packageForm.totalSessions), price: Number(packageForm.price), validityDays: Number(packageForm.validityDays) });
+            setMyPackages(prev => [res.data.data, ...prev]);
+            setShowPackageForm(false);
+            setPackageForm({ name: '', description: '', totalSessions: '', price: '', validityDays: '365' });
+        } catch { /* ignore */ } finally { setSavingPackage(false); }
+    };
+
+    const togglePackageActive = async (pkg) => {
+        try {
+            const res = await packageService.updatePackage(pkg._id, { isActive: !pkg.isActive });
+            setMyPackages(prev => prev.map(p => p._id === pkg._id ? res.data.data : p));
+        } catch { /* ignore */ }
+    };
+
+    const fetchRetention = async () => {
+        setLoadingRetention(true);
+        try {
+            const res = await retentionService.getRetentionMetrics();
+            setRetentionData(res.data.data);
+        } catch { /* ignore */ } finally { setLoadingRetention(false); }
     };
 
     const fetchMyServices = async () => {
@@ -418,7 +530,7 @@ const ProviderDashboard = () => {
                         </button>
                     ))}
                     <div style={{ marginLeft: 'auto', display: 'flex' }}>
-                        {['calendar', 'services', 'availability', 'earnings'].map(tab => (
+                        {['calendar', 'services', 'availability', 'earnings', 'clients', 'messages', 'packages'].map(tab => (
                             <button key={tab} onClick={() => setActiveTab(tab)} style={{
                                 padding: '0.75rem 1.5rem', background: 'none', border: 'none',
                                 borderBottom: activeTab === tab ? '2px solid var(--gold)' : '2px solid transparent',
@@ -427,7 +539,7 @@ const ProviderDashboard = () => {
                                 cursor: 'pointer', fontFamily: 'Inter, sans-serif',
                                 transition: 'all 0.2s', marginBottom: '-1px', whiteSpace: 'nowrap',
                             }}>
-                                {tab === 'calendar' ? '📅 Calendar' : tab === 'availability' ? '🗓 Availability' : tab === 'services' ? '✂️ My Services' : '💵 Earnings'}
+                                {tab === 'calendar' ? '📅 Calendar' : tab === 'availability' ? '🗓 Availability' : tab === 'services' ? '✂️ My Services' : tab === 'earnings' ? '💵 Earnings' : tab === 'clients' ? '👥 Clients' : tab === 'messages' ? '💬 Messages' : '🎁 Packages'}
                             </button>
                         ))}
                     </div>
@@ -1159,6 +1271,201 @@ const ProviderDashboard = () => {
                 )}
 
             </div>
+
+            </div>
+
+            {/* Clients tab */}
+            {activeTab === 'clients' && (
+                <div style={{ display: 'grid', gridTemplateColumns: selectedClient ? '1fr 380px' : '1fr', gap: '1.5rem', alignItems: 'start' }}>
+                    <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                        <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>My Clients</h2>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{clients.length} total</span>
+                        </div>
+                        {loadingClients ? <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div> : (
+                            <div style={{ overflowX: 'auto' }}>
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                                    <thead>
+                                        <tr style={{ background: 'var(--warm-gray)', textAlign: 'left' }}>
+                                            {['Client', 'Total Visits', 'Last Visit', 'Total Spend', ''].map(h => (
+                                                <th key={h} style={{ padding: '0.75rem 1rem', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {clients.map((c, i) => (
+                                            <tr key={i} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.1s' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--warm-gray)'} onMouseLeave={e => e.currentTarget.style.background = 'white'}>
+                                                <td style={{ padding: '0.875rem 1rem' }}>
+                                                    <div style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{c.customer?.name}</div>
+                                                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{c.customer?.email}</div>
+                                                </td>
+                                                <td style={{ padding: '0.875rem 1rem', color: 'var(--charcoal)', fontWeight: '500' }}>{c.visits}</td>
+                                                <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{c.lastVisit ? new Date(c.lastVisit).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</td>
+                                                <td style={{ padding: '0.875rem 1rem', color: 'var(--gold-dark)', fontWeight: '600' }}>${c.totalSpend.toFixed(2)}</td>
+                                                <td style={{ padding: '0.875rem 1rem' }}>
+                                                    <button onClick={() => { setSelectedClient(c); fetchClientDetail(c.customer._id); }} style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold-dark)', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600' }}>View</button>
+                                                </td>
+                                            </tr>
+                                        ))}
+                                    </tbody>
+                                </table>
+                                {clients.length === 0 && <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No clients yet. Clients will appear here once they book with you.</div>}
+                            </div>
+                        )}
+                    </div>
+                    {selectedClient && clientDetail && (
+                        <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', position: 'sticky', top: '100px' }}>
+                            <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>{selectedClient.customer?.name}</h3>
+                                <button onClick={() => { setSelectedClient(null); setClientDetail(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.2rem' }}>×</button>
+                            </div>
+                            <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '70vh', overflowY: 'auto' }}>
+                                <div>
+                                    <p style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Visit History</p>
+                                    {clientDetail.appointments?.slice(0, 5).map((a, i) => (
+                                        <div key={i} style={{ padding: '0.5rem 0', borderBottom: '1px solid var(--border)', fontSize: '0.82rem' }}>
+                                            <div style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{a.service?.name}</div>
+                                            <div style={{ color: 'var(--text-muted)' }}>{new Date(a.appointmentDate).toLocaleDateString()} · {a.startTime} · ${a.totalPrice}</div>
+                                            <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '4px', background: '#f3f4f6', color: 'var(--text-muted)' }}>{a.status}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                                <div>
+                                    <p style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Client Notes</p>
+                                    {[['Notes', 'notes'], ['Allergies', 'allergies'], ['Conditions', 'conditions'], ['Internal Notes', 'internalNotes']].map(([label, key]) => (
+                                        <div key={key} style={{ marginBottom: '0.75rem' }}>
+                                            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>{label}</label>
+                                            <textarea rows={2} value={clientNoteForm[key]} onChange={e => setClientNoteForm(prev => ({ ...prev, [key]: e.target.value }))} className="input" style={{ fontSize: '0.82rem', resize: 'none' }} />
+                                        </div>
+                                    ))}
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Tags (comma-separated)</label>
+                                            <input value={clientNoteForm.tags} onChange={e => setClientNoteForm(prev => ({ ...prev, tags: e.target.value }))} className="input" style={{ fontSize: '0.82rem' }} placeholder="vip, regular" />
+                                        </div>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Birthday (MM-DD)</label>
+                                            <input value={clientNoteForm.birthday} onChange={e => setClientNoteForm(prev => ({ ...prev, birthday: e.target.value }))} className="input" style={{ fontSize: '0.82rem' }} placeholder="03-15" />
+                                        </div>
+                                    </div>
+                                    <button onClick={saveClientNote} disabled={savingClientNote} className="btn-primary" style={{ width: '100%', padding: '0.65rem', fontSize: '0.85rem' }}>
+                                        {savingClientNote ? 'Saving...' : 'Save Notes'}
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Messages tab */}
+            {activeTab === 'messages' && (
+                <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '1.5rem', minHeight: '500px' }}>
+                    <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                        <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
+                            <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Conversations</h3>
+                        </div>
+                        {loadingConversations ? <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div> : (
+                            <div>
+                                {conversations.length === 0 && <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No messages yet</div>}
+                                {conversations.map((conv, i) => (
+                                    <div key={i} onClick={() => openConversation(conv)} style={{ padding: '0.875rem 1.25rem', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: selectedConversation?.appointment?._id === conv.appointment?._id ? 'rgba(201,168,76,0.06)' : 'white', transition: 'background 0.1s' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
+                                            <span style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.875rem' }}>{conv.appointment?.customer?.name || conv.lastMessage?.sender?.name}</span>
+                                            {conv.unread > 0 && <span style={{ background: 'var(--gold)', color: 'var(--charcoal)', fontSize: '0.68rem', fontWeight: '700', padding: '0.1rem 0.45rem', borderRadius: '99px' }}>{conv.unread}</span>}
+                                        </div>
+                                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conv.lastMessage?.content}</div>
+                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>{conv.appointment?.service?.name}</div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                    <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', display: 'flex', flexDirection: 'column' }}>
+                        {!selectedConversation ? (
+                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Select a conversation</div>
+                        ) : (
+                            <>
+                                <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
+                                    <span style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{selectedConversation.appointment?.customer?.name}</span>
+                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginLeft: '0.5rem' }}>· {selectedConversation.appointment?.service?.name}</span>
+                                </div>
+                                <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', minHeight: '300px', maxHeight: '420px' }}>
+                                    {conversationMessages.map((msg, i) => {
+                                        const isMe = msg.sender?._id === selectedConversation.appointment?.provider?._id || msg.sender?.name === selectedConversation.appointment?.provider?.name;
+                                        return (
+                                            <div key={i} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
+                                                <div style={{ maxWidth: '70%', padding: '0.5rem 0.875rem', borderRadius: '12px', background: isMe ? 'var(--gold)' : 'var(--warm-gray)', color: isMe ? 'var(--charcoal)' : 'var(--charcoal)', fontSize: '0.875rem' }}>
+                                                    {msg.content}
+                                                    <div style={{ fontSize: '0.65rem', color: isMe ? 'rgba(26,26,46,0.6)' : 'var(--text-muted)', marginTop: '0.25rem', textAlign: 'right' }}>
+                                                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                    </div>
+                                                </div>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                                <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border)', display: 'flex', gap: '0.75rem' }}>
+                                    <input value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSendMessage()} placeholder="Type a message..." className="input" style={{ flex: 1 }} />
+                                    <button onClick={handleSendMessage} disabled={sendingMessage || !newMessage.trim()} className="btn-primary" style={{ padding: '0.6rem 1.25rem' }}>Send</button>
+                                </div>
+                            </>
+                        )}
+                    </div>
+                </div>
+            )}
+
+            {/* Packages tab */}
+            {activeTab === 'packages' && (
+                <div>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                        <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.5rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Service Packages</h2>
+                        <button onClick={() => setShowPackageForm(true)} className="btn-primary" style={{ padding: '0.65rem 1.25rem', fontSize: '0.875rem' }}>+ Create Package</button>
+                    </div>
+                    {showPackageForm && (
+                        <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--gold)', padding: '1.5rem', marginBottom: '1.5rem', boxShadow: 'var(--shadow-sm)' }}>
+                            <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.1rem', fontWeight: '600', marginBottom: '1rem', color: 'var(--charcoal)' }}>New Package</h3>
+                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
+                                {[['Package Name', 'name', 'text', 'e.g. Monthly Grooming Plan'], ['Price ($)', 'price', 'number', '0'], ['Total Sessions', 'totalSessions', 'number', '5'], ['Validity (days)', 'validityDays', 'number', '365']].map(([label, key, type, ph]) => (
+                                    <div key={key}>
+                                        <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.35rem', textTransform: 'uppercase' }}>{label}</label>
+                                        <input type={type} value={packageForm[key]} onChange={e => setPackageForm(prev => ({ ...prev, [key]: e.target.value }))} placeholder={ph} className="input" />
+                                    </div>
+                                ))}
+                                <div style={{ gridColumn: '1 / -1' }}>
+                                    <label style={{ display: 'block', fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.35rem', textTransform: 'uppercase' }}>Description</label>
+                                    <textarea value={packageForm.description} onChange={e => setPackageForm(prev => ({ ...prev, description: e.target.value }))} rows={2} className="input" style={{ resize: 'none' }} placeholder="What's included..." />
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.75rem' }}>
+                                <button onClick={handleCreatePackage} disabled={savingPackage} className="btn-primary" style={{ padding: '0.65rem 1.5rem' }}>{savingPackage ? 'Creating...' : 'Create Package'}</button>
+                                <button onClick={() => setShowPackageForm(false)} className="btn-outline" style={{ padding: '0.65rem 1.25rem' }}>Cancel</button>
+                            </div>
+                        </div>
+                    )}
+                    {loadingPackages ? <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading...</div> : (
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
+                            {myPackages.map((pkg, i) => (
+                                <div key={i} style={{ background: 'white', borderRadius: 'var(--radius)', border: `1px solid ${pkg.isActive ? 'var(--border)' : '#e5e7eb'}`, padding: '1.5rem', boxShadow: 'var(--shadow-sm)', opacity: pkg.isActive ? 1 : 0.6 }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
+                                        <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>{pkg.name}</h3>
+                                        <button onClick={() => togglePackageActive(pkg)} style={{ fontSize: '0.72rem', padding: '0.2rem 0.6rem', borderRadius: '99px', border: '1px solid', cursor: 'pointer', borderColor: pkg.isActive ? '#6ee7b7' : '#d1d5db', background: pkg.isActive ? '#d1fae5' : '#f3f4f6', color: pkg.isActive ? '#065f46' : '#6b7280', fontWeight: '600' }}>
+                                            {pkg.isActive ? 'Active' : 'Inactive'}
+                                        </button>
+                                    </div>
+                                    {pkg.description && <p style={{ fontSize: '0.83rem', color: 'var(--text-secondary)', marginBottom: '1rem' }}>{pkg.description}</p>}
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', fontSize: '0.82rem', marginBottom: '0.75rem' }}>
+                                        <div><span style={{ color: 'var(--text-muted)' }}>Sessions:</span> <strong>{pkg.totalSessions}</strong></div>
+                                        <div><span style={{ color: 'var(--text-muted)' }}>Valid:</span> <strong>{pkg.validityDays}d</strong></div>
+                                        <div style={{ gridColumn: '1 / -1' }}><span style={{ color: 'var(--text-muted)' }}>Price:</span> <strong style={{ color: 'var(--gold-dark)', fontSize: '1rem' }}>${pkg.price}</strong></div>
+                                    </div>
+                                </div>
+                            ))}
+                            {myPackages.length === 0 && <div style={{ gridColumn: '1 / -1', textAlign: 'center', padding: '3rem', color: 'var(--text-muted)', background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>No packages yet. Create your first package to offer bundles to clients.</div>}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* Recurring blocked time action modal */}
             {recurringActionModal && (

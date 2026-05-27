@@ -11,6 +11,7 @@ const BookAppointment = () => {
     const [searchParams] = useSearchParams();
     const [services, setServices] = useState([]);
     const [selectedService, setSelectedService] = useState(null);
+    const [selectedAddOns, setSelectedAddOns] = useState([]);
     const [formData, setFormData] = useState({ service: '', appointmentDate: '', startTime: '', endTime: '', notes: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -24,8 +25,21 @@ const BookAppointment = () => {
 
     const handleServiceSelect = (service) => {
         setSelectedService(service);
+        setSelectedAddOns([]);
         setFormData(prev => ({ ...prev, service: service._id }));
     };
+
+    const toggleAddOn = (addOn) => {
+        setSelectedAddOns(prev =>
+            prev.some(a => a.name === addOn.name)
+                ? prev.filter(a => a.name !== addOn.name)
+                : [...prev, addOn]
+        );
+    };
+
+    const totalPrice = selectedService
+        ? selectedService.price + selectedAddOns.reduce((sum, a) => sum + a.price, 0)
+        : 0;
 
     useEffect(() => {
         const providerId = searchParams.get('providerId');
@@ -120,7 +134,7 @@ const BookAppointment = () => {
         e.preventDefault();
         setLoading(true); setError(''); setSuccess('');
         try {
-            const apptRes = await appointmentService.createAppointment(formData);
+            const apptRes = await appointmentService.createAppointment({ ...formData, selectedAddOns });
             const appointmentId = apptRes.data.data._id;
             setCreatedAppointmentId(appointmentId);
             const paymentRes = await paymentService.createPaymentIntent(formData.service);
@@ -212,7 +226,32 @@ const BookAppointment = () => {
                             </div>
                         </div>
 
-                        {/* Step 2 */}
+                        {/* Add-ons (shown when service has add-ons) */}
+                        {selectedService?.addOns?.length > 0 && (
+                            <div style={cardStyle}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                                    {stepBadge(2)}
+                                    <h2 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)' }}>Add-ons <span style={{ fontSize: '0.8rem', fontWeight: '400', color: 'var(--text-muted)' }}>(optional)</span></h2>
+                                </div>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                    {selectedService.addOns.map((addOn, i) => {
+                                        const checked = selectedAddOns.some(a => a.name === addOn.name);
+                                        return (
+                                            <label key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', border: `2px solid ${checked ? 'var(--gold)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: checked ? 'rgba(201,168,76,0.06)' : 'white', transition: 'all 0.15s' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                    <input type="checkbox" checked={checked} onChange={() => toggleAddOn(addOn)} style={{ accentColor: 'var(--gold)', width: '16px', height: '16px' }} />
+                                                    <span style={{ fontWeight: '500', color: 'var(--charcoal)', fontSize: '0.9rem' }}>{addOn.name}</span>
+                                                    {addOn.duration > 0 && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>+{addOn.duration} min</span>}
+                                                </div>
+                                                <span style={{ color: 'var(--gold-dark)', fontWeight: '700' }}>+${addOn.price}</span>
+                                            </label>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step 2 or 3 depending on add-ons */}
                         <div style={cardStyle}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
                                 {stepBadge(2)}
@@ -273,7 +312,7 @@ const BookAppointment = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem' }}>
                             <span style={{ fontWeight: '600', color: 'var(--charcoal)' }}>Total</span>
                             <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.5rem', fontWeight: '700', color: 'var(--gold-dark)' }}>
-                                {selectedService ? `$${selectedService.price}` : '—'}
+                            {selectedService ? `$${totalPrice}` : '—'}
                             </span>
                         </div>
                         <button onClick={handleSubmit} disabled={loading || !formData.service || !formData.appointmentDate || !formData.startTime || !!availabilityError} className="btn-primary" style={{ width: '100%', padding: '0.875rem', marginBottom: '0.75rem' }}>

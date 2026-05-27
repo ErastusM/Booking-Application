@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { appointmentService, reviewService, availabilityService } from '../services';
 import ReviewModal from '../components/ReviewModal';
 
@@ -10,6 +11,7 @@ const statusConfig = {
 };
 
 const MyAppointments = () => {
+    const navigate = useNavigate();
     const [appointments, setAppointments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -248,6 +250,22 @@ const MyAppointments = () => {
                                         )}
                                         {a.status === 'completed' && isReviewed && (
                                             <span style={{ fontSize: '0.8rem', color: '#065f46', fontWeight: '600' }}>✓ Reviewed</span>
+                                        )}
+                                        {a.status === 'completed' && (
+                                            <button
+                                                onClick={() => navigate(`/book-appointment?providerId=${a.service?.provider || ''}&serviceId=${a.service?._id || ''}`)}
+                                                style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}
+                                            >
+                                                Book Again →
+                                            </button>
+                                        )}
+                                        {(a.status === 'pending' || a.status === 'confirmed' || a.status === 'completed') && (
+                                            <button
+                                                onClick={() => navigate(`/appointments/${a._id}/messages`)}
+                                                style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-secondary)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'Inter, sans-serif' }}
+                                            >
+                                                💬 Message
+                                            </button>
                                         )}
                                     </div>
                                 </div>
