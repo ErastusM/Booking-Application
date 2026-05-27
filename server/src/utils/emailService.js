@@ -12,16 +12,16 @@ exports.sendVerificationEmail = async (email, name, token) => {
     const verificationUrl = `${process.env.SERVER_URL}/api/auth/verify-email?token=${token}`;
 
     const mailOptions = {
-        from: `"BarberShop" <${process.env.EMAIL_USER}>`,
+        from: `"Bookplus" <${process.env.EMAIL_USER}>`,
         to: email,
-        subject: 'Verify your BarberShop account',
+        subject: 'Verify your Bookplus account',
         html: `
         <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 560px; margin: 0 auto; background: #fafaf8;">
             
             <!-- Header -->
             <div style="background: #1a1a2e; padding: 2.5rem 2rem; text-align: center;">
                 <h1 style="font-family: Georgia, serif; color: #c9a84c; font-size: 2rem; margin: 0; letter-spacing: 0.05em;">
-                    Barber<span style="color: white;">Shop</span>
+                    Book<span style="color: white;">plus</span>
                 </h1>
             </div>
 
@@ -47,7 +47,7 @@ exports.sendVerificationEmail = async (email, name, token) => {
             <!-- Footer -->
             <div style="background: #f5f3ef; padding: 1.5rem 2rem; text-align: center; border: 1px solid #e8e6e1; border-top: none;">
                 <p style="color: #9b9baa; font-size: 0.75rem; margin: 0;">
-                    © 2026 BarberShop. All rights reserved.
+                    © 2026 Bookplus. All rights reserved.
                 </p>
             </div>
         </div>
@@ -59,26 +59,26 @@ exports.sendVerificationEmail = async (email, name, token) => {
 
 exports.sendWelcomeEmail = async (email, name) => {
     const mailOptions = {
-        from: `"BarberShop" <${process.env.EMAIL_USER}>`,
+        from: `"Bookplus" <${process.env.EMAIL_USER}>`,
         to: email,
-        subject: 'Your BarberShop account is verified!',
+        subject: 'Your Bookplus account is verified!',
         html: `
         <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 560px; margin: 0 auto; background: #fafaf8;">
             <div style="background: #1a1a2e; padding: 2.5rem 2rem; text-align: center;">
                 <h1 style="font-family: Georgia, serif; color: #c9a84c; font-size: 2rem; margin: 0;">
-                    Barber<span style="color: white;">Shop</span>
+                    Book<span style="color: white;">plus</span>
                 </h1>
             </div>
             <div style="padding: 2.5rem 2rem; background: white; border-left: 1px solid #e8e6e1; border-right: 1px solid #e8e6e1;">
                 <h2 style="font-family: Georgia, serif; color: #1a1a2e; font-size: 1.5rem; margin-bottom: 1rem;">
-                    You're all set, ${name}! ✂️
+                    You're all set, ${name}! ✅
                 </h2>
                 <p style="color: #6b6b80; font-size: 0.95rem; line-height: 1.7;">
-                    Your account has been verified. You can now book appointments with our expert barbers.
+                    Your account has been verified. You can now discover and book services on Bookplus.
                 </p>
             </div>
             <div style="background: #f5f3ef; padding: 1.5rem 2rem; text-align: center; border: 1px solid #e8e6e1; border-top: none;">
-                <p style="color: #9b9baa; font-size: 0.75rem; margin: 0;">© 2026 BarberShop. All rights reserved.</p>
+                <p style="color: #9b9baa; font-size: 0.75rem; margin: 0;">© 2026 Bookplus. All rights reserved.</p>
             </div>
         </div>
         `,
@@ -89,13 +89,13 @@ exports.sendWelcomeEmail = async (email, name) => {
 
 exports.sendAppointmentConfirmed = async (email, name, serviceName, date, time) => {
     await transporter.sendMail({
-        from: `"BarberShop" <${process.env.EMAIL_USER}>`,
+        from: `"Bookplus" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: '✅ Your appointment is confirmed!',
         html: `
         <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto;">
             <div style="background: #1a1a2e; padding: 2rem; text-align: center;">
-                <h1 style="font-family: Georgia, serif; color: #c9a84c; margin: 0;">BarberShop</h1>
+                <h1 style="font-family: Georgia, serif; color: #c9a84c; margin: 0;">Bookplus</h1>
             </div>
             <div style="padding: 2rem; background: white; border: 1px solid #e8e6e1;">
                 <h2 style="font-family: Georgia, serif; color: #1a1a2e;">Appointment Confirmed! ✂️</h2>
@@ -108,7 +108,7 @@ exports.sendAppointmentConfirmed = async (email, name, serviceName, date, time) 
                 <p style="color: #6b6b80; font-size: 0.85rem;">Please arrive 5 minutes early. See you soon!</p>
             </div>
             <div style="background: #f5f3ef; padding: 1rem; text-align: center; border: 1px solid #e8e6e1; border-top: none;">
-                <p style="color: #9b9baa; font-size: 0.75rem; margin: 0;">© 2026 BarberShop</p>
+                <p style="color: #9b9baa; font-size: 0.75rem; margin: 0;">© 2026 Bookplus</p>
             </div>
         </div>`,
     });
@@ -116,13 +116,13 @@ exports.sendAppointmentConfirmed = async (email, name, serviceName, date, time) 
 
 exports.sendAppointmentCompleted = async (email, name, serviceName) => {
     await transporter.sendMail({
-        from: `"BarberShop" <${process.env.EMAIL_USER}>`,
+        from: `"Bookplus" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: '🏆 How was your appointment?',
         html: `
         <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto;">
             <div style="background: #1a1a2e; padding: 2rem; text-align: center;">
-                <h1 style="font-family: Georgia, serif; color: #c9a84c; margin: 0;">BarberShop</h1>
+                <h1 style="font-family: Georgia, serif; color: #c9a84c; margin: 0;">Bookplus</h1>
             </div>
             <div style="padding: 2rem; background: white; border: 1px solid #e8e6e1;">
                 <h2 style="font-family: Georgia, serif; color: #1a1a2e;">Thanks for visiting! 🙏</h2>
@@ -133,7 +133,7 @@ exports.sendAppointmentCompleted = async (email, name, serviceName) => {
                 </div>
             </div>
             <div style="background: #f5f3ef; padding: 1rem; text-align: center; border: 1px solid #e8e6e1; border-top: none;">
-                <p style="color: #9b9baa; font-size: 0.75rem; margin: 0;">© 2026 BarberShop</p>
+                <p style="color: #9b9baa; font-size: 0.75rem; margin: 0;">© 2026 Bookplus</p>
             </div>
         </div>`,
     });
@@ -141,13 +141,13 @@ exports.sendAppointmentCompleted = async (email, name, serviceName) => {
 
 exports.sendAppointmentCancelled = async (email, name, serviceName, date) => {
     await transporter.sendMail({
-        from: `"BarberShop" <${process.env.EMAIL_USER}>`,
+        from: `"Bookplus" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: '❌ Appointment Cancelled',
         html: `
         <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto;">
             <div style="background: #1a1a2e; padding: 2rem; text-align: center;">
-                <h1 style="font-family: Georgia, serif; color: #c9a84c; margin: 0;">BarberShop</h1>
+                <h1 style="font-family: Georgia, serif; color: #c9a84c; margin: 0;">Bookplus</h1>
             </div>
             <div style="padding: 2rem; background: white; border: 1px solid #e8e6e1;">
                 <h2 style="font-family: Georgia, serif; color: #1a1a2e;">Appointment Cancelled</h2>
@@ -157,7 +157,7 @@ exports.sendAppointmentCancelled = async (email, name, serviceName, date) => {
                 </div>
             </div>
             <div style="background: #f5f3ef; padding: 1rem; text-align: center; border: 1px solid #e8e6e1; border-top: none;">
-                <p style="color: #9b9baa; font-size: 0.75rem; margin: 0;">© 2026 BarberShop</p>
+                <p style="color: #9b9baa; font-size: 0.75rem; margin: 0;">© 2026 Bookplus</p>
             </div>
         </div>`,
     });
@@ -165,13 +165,13 @@ exports.sendAppointmentCancelled = async (email, name, serviceName, date) => {
 
 exports.sendAppointmentRescheduled = async (email, providerName, customerName, serviceName, date, time) => {
     await transporter.sendMail({
-        from: `"BarberShop" <${process.env.EMAIL_USER}>`,
+        from: `"Bookplus" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: '🗓 Appointment Rescheduled',
         html: `
         <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto;">
             <div style="background: #1a1a2e; padding: 2rem; text-align: center;">
-                <h1 style="font-family: Georgia, serif; color: #c9a84c; margin: 0;">BarberShop</h1>
+                <h1 style="font-family: Georgia, serif; color: #c9a84c; margin: 0;">Bookplus</h1>
             </div>
             <div style="padding: 2rem; background: white; border: 1px solid #e8e6e1;">
                 <h2 style="font-family: Georgia, serif; color: #1a1a2e;">Appointment Rescheduled</h2>
@@ -184,7 +184,7 @@ exports.sendAppointmentRescheduled = async (email, providerName, customerName, s
                 <p style="color: #6b6b80; font-size: 0.85rem;">Please confirm or decline this appointment from your dashboard.</p>
             </div>
             <div style="background: #f5f3ef; padding: 1rem; text-align: center; border: 1px solid #e8e6e1; border-top: none;">
-                <p style="color: #9b9baa; font-size: 0.75rem; margin: 0;">© 2026 BarberShop</p>
+                <p style="color: #9b9baa; font-size: 0.75rem; margin: 0;">© 2026 Bookplus</p>
             </div>
         </div>`,
     });

@@ -19,8 +19,8 @@ const seed = async () => {
     // ── Create demo providers ──
     const providerData = [
         {
-            name: 'Marcus Barber',
-            email: 'marcus@barbershop.com',
+            name: 'Marcus N.',
+            email: 'marcus@bookplus.com',
             phone: '0811234567',
             password: 'Admin123!',
             role: 'provider',
@@ -30,7 +30,7 @@ const seed = async () => {
         },
         {
             name: 'James Styles',
-            email: 'james@barbershop.com',
+            email: 'james@bookplus.com',
             phone: '0812345678',
             password: 'Admin123!',
             role: 'provider',
@@ -40,7 +40,7 @@ const seed = async () => {
         },
         {
             name: 'David Cuts',
-            email: 'david@barbershop.com',
+            email: 'david@bookplus.com',
             phone: '0813456789',
             password: 'Admin123!',
             role: 'provider',
@@ -49,8 +49,8 @@ const seed = async () => {
             location: 'Katutura',
         },
         {
-            name: 'Sam The Barber',
-            email: 'sam@barbershop.com',
+            name: 'Sam K.',
+            email: 'sam@bookplus.com',
             phone: '0814567890',
             password: 'Admin123!',
             role: 'provider',

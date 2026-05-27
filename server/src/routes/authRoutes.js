@@ -51,7 +51,8 @@ router.get('/google/callback',
                 `&name=${encodeURIComponent(req.user.name)}` +
                 `&email=${encodeURIComponent(req.user.email)}` +
                 `&avatar=${encodeURIComponent(req.user.avatar || '')}` +
-                `&phone=${encodeURIComponent(req.user.phone || '')}`
+                `&phone=${encodeURIComponent(req.user.phone || '')}` +
+                `&providerCategory=${encodeURIComponent(req.user.providerCategory || '')}`
             console.log('✅ Redirecting to:', redirectUrl);
             res.redirect(redirectUrl);
         } catch (err) {
