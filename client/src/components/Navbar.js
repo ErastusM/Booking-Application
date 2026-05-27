@@ -68,7 +68,7 @@ const Navbar = () => {
                 {/* Logo */}
                 <Link to="/" style={{ textDecoration: 'none' }}>
                     <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--gold)', letterSpacing: '-0.02em' }}>
-                        Barber<span style={{ color: isTransparent ? 'white' : 'var(--charcoal)' }}>Shop</span>
+                        Book<span style={{ color: isTransparent ? 'white' : 'var(--charcoal)' }}>plus</span>
                     </span>
                 </Link>
 

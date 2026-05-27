@@ -85,8 +85,16 @@ export const providerMarketService = {
 };
 
 export const categoryService = {
+    getMainCategories: () => API.get('/categories/main'),
     getMyCategories: () => API.get('/categories/my-categories'),
     createCategory: (name) => API.post('/categories', { name }),
     updateCategory: (id, name) => API.put(`/categories/${id}`, { name }),
     deleteCategory: (id) => API.delete(`/categories/${id}`),
+};
+
+export const blockedTimeService = {
+    getMyBlockedTimes: () => API.get('/blocked-times'),
+    createBlockedTime: (data) => API.post('/blocked-times', data),
+    updateBlockedTime: (id, data) => API.put(`/blocked-times/${id}`, data),
+    deleteBlockedTime: (id, data) => API.delete(`/blocked-times/${id}`, { data }),
 };

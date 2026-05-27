@@ -1,29 +1,27 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { authService } from '../services';
-import { useAuthContext } from '../context/AuthContext';
+import MAIN_CATEGORIES from '../constants/mainCategories';
 
 const roles = [
     {
         value: 'customer',
-        icon: '✂️',
+        icon: '📅',
         title: 'Book Services',
-        description: 'I want to browse and book grooming appointments with professional barbers.',
+        description: 'I want to browse and book services from trusted professionals.',
     },
     {
         value: 'provider',
-        icon: '💈',
+        icon: '🧰',
         title: 'Offer Services',
-        description: 'I am a barber or grooming professional and want to receive bookings.',
+        description: 'I provide services and want to receive and manage bookings.',
     },
 ];
 
 const Register = () => {
-    const { login } = useAuthContext();
-    const navigate = useNavigate();
     const [step, setStep] = useState(1);
     const [selectedRole, setSelectedRole] = useState('');
-    const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '' });
+    const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '', providerCategory: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [passwordFocused, setPasswordFocused] = useState(false);
@@ -32,6 +30,10 @@ const Register = () => {
 
     const handleRoleSelect = (role) => {
         setSelectedRole(role);
+        setFormData(prev => ({
+            ...prev,
+            providerCategory: role === 'provider' ? prev.providerCategory : '',
+        }));
         setStep(2);
     };
 
@@ -39,12 +41,16 @@ const Register = () => {
         { label: 'At least 8 characters', valid: formData.password.length >= 8 },
         { label: 'One uppercase letter', valid: /[A-Z]/.test(formData.password) },
         { label: 'One number', valid: /\d/.test(formData.password) },
-        { label: 'One special character', valid: /[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]/.test(formData.password) },
+        { label: 'One special character', valid: /[^A-Za-z0-9]/.test(formData.password) },
     ];
     const passwordValid = passwordChecks.every(c => c.valid);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        if (selectedRole === 'provider' && !formData.providerCategory) {
+            setError('Please select your main service category');
+            return;
+        }
         if (!passwordValid) {
             setError('Please meet all password requirements');
             return;
@@ -74,7 +80,7 @@ const Register = () => {
             {/* Navbar */}
             <div style={{ padding: '1.5rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <Link to="/" style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.5rem', fontWeight: '700', color: 'var(--gold)', textDecoration: 'none' }}>
-                    Barber<span style={{ color: 'var(--charcoal)' }}>Shop</span>
+                    Book<span style={{ color: 'var(--charcoal)' }}>plus</span>
                 </Link>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
                     Already have an account?{' '}
@@ -105,7 +111,7 @@ const Register = () => {
                                 What brings you here?
                             </h1>
                             <p style={{ color: 'var(--text-muted)', fontSize: '1rem' }}>
-                                Choose how you want to use BarberShop
+                                Choose how you want to use Bookplus
                             </p>
                         </div>
 
@@ -205,6 +211,26 @@ const Register = () => {
                                     )}
                                 </div>
                             ))}
+
+                            {selectedRole === 'provider' && (
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                                        Main Category
+                                    </label>
+                                    <select
+                                        name="providerCategory"
+                                        value={formData.providerCategory}
+                                        onChange={handleChange}
+                                        required
+                                        className="input"
+                                    >
+                                        <option value="">Select your primary category</option>
+                                        {MAIN_CATEGORIES.map(category => (
+                                            <option key={category} value={category}>{category}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                            )}
 
                             <button
                                 type="submit"
