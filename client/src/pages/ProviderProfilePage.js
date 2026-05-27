@@ -105,6 +105,11 @@ const ProviderProfilePage = () => {
                             <h1 style={{ fontFamily: 'Inter, sans-serif', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', fontWeight: '700', color: 'white', marginBottom: '0.5rem' }}>
                                 {provider.name}
                             </h1>
+                            {provider.providerCategory && (
+                                <span style={{ display: 'inline-block', fontSize: '0.7rem', fontWeight: '600', padding: '0.2rem 0.7rem', borderRadius: '99px', background: 'rgba(201,168,76,0.15)', color: 'var(--gold)', border: '1px solid rgba(201,168,76,0.4)', marginBottom: '0.6rem' }}>
+                                    {provider.providerCategory}
+                                </span>
+                            )}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                                 {provider.avgRating && (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -193,6 +198,12 @@ const ProviderProfilePage = () => {
                         <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1rem' }}>
                             <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem' }}>About</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                {provider.providerCategory && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Category</span>
+                                        <span style={{ fontSize: '0.8rem', fontWeight: '600', padding: '0.15rem 0.6rem', borderRadius: '99px', background: 'rgba(201,168,76,0.1)', color: 'var(--gold-dark)', border: '1px solid rgba(201,168,76,0.25)' }}>{provider.providerCategory}</span>
+                                    </div>
+                                )}
                                 {provider.avgRating && (
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Rating</span>

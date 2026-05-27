@@ -1,7 +1,7 @@
 {
-    "name": "barbershop-booking-server",
+    "name": "bookplus-server",
     "version": "1.0.0",
-    "description": "Backend API for barbershop booking application",
+    "description": "Backend API for Bookplus multi-service booking application",
     "main": "server.js",
     "scripts": {
         "start": "node server.js",
@@ -9,7 +9,7 @@
         "test": "jest"
     },
     "keywords": [
-        "barbershop",
+        "bookplus",
         "booking",
         "api"
     ],

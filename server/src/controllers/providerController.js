@@ -14,7 +14,7 @@ exports.getAllProviders = async (req, res) => {
         const providers = await User.find({
             _id: { $in: providerIds },
             role: 'provider',
-        }).select('name email avatar');
+        }).select('name email avatar providerCategory');
 
         // Enrich each provider with stats
         const enriched = await Promise.all(providers.map(async (p) => {
@@ -36,6 +36,7 @@ exports.getAllProviders = async (req, res) => {
                 name: p.name,
                 email: p.email,
                 avatar: p.avatar,
+                providerCategory: p.providerCategory || null,
                 serviceCount: services.length,
                 reviewCount: reviews.length,
                 avgRating,
@@ -57,7 +58,7 @@ exports.getProviderProfile = async (req, res) => {
         const provider = await User.findOne({
             _id: req.params.id,
             role: 'provider',
-        }).select('name email avatar');
+        }).select('name email avatar providerCategory');
 
         if (!provider) {
             return res.status(404).json({ success: false, message: 'Provider not found' });
@@ -108,6 +109,7 @@ exports.getProviderProfile = async (req, res) => {
                     name: provider.name,
                     email: provider.email,
                     avatar: provider.avatar,
+                    providerCategory: provider.providerCategory || null,
                     avgRating,
                     reviewCount: reviews.length,
                     serviceCount: services.length,
