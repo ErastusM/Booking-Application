@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { appointmentService, availabilityService, earningsService, providerServiceService, categoryService } from '../services';
+import { appointmentService, availabilityService, earningsService, providerServiceService, categoryService, blockedTimeService } from '../services';
 
 const statusConfig = {
     pending: { label: 'Pending', bg: '#fef3c7', color: '#92400e' },
@@ -29,12 +29,20 @@ const ProviderDashboard = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [calendarView, setCalendarView] = useState('month');
     const [selectedDay, setSelectedDay] = useState(null);
+    const [blockedTimes, setBlockedTimes] = useState([]);
+    const [showBlockedTimeForm, setShowBlockedTimeForm] = useState(false);
+    const [editingBlockedTime, setEditingBlockedTime] = useState(null);
+    const [blockedTimeForm, setBlockedTimeForm] = useState({ date: '', startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '' });
+    const [savingBlockedTime, setSavingBlockedTime] = useState(false);
+    const [recurringActionModal, setRecurringActionModal] = useState(null);
+    const [recurringMode, setRecurringMode] = useState('this');
 
     useEffect(() => {
         fetchAppointments();
         fetchAvailability();
         fetchMyServices();
         fetchCategories();
+        fetchBlockedTimes();
     }, []);
 
     useEffect(() => {
@@ -60,6 +68,93 @@ const ProviderDashboard = () => {
             const res = await availabilityService.getMyAvailability();
             setAvailability(res.data.data.schedule);
         } catch { }
+    };
+
+    const fetchBlockedTimes = async () => {
+        try {
+            const res = await blockedTimeService.getMyBlockedTimes();
+            setBlockedTimes(res.data.data);
+        } catch { }
+    };
+
+    const openBlockedTimeForm = (item = null) => {
+        if (item) {
+            setEditingBlockedTime(item);
+            setBlockedTimeForm({
+                date: item.date,
+                startTime: item.startTime,
+                endTime: item.endTime,
+                reason: item.reason || '',
+                isRecurring: item.isRecurring,
+                recurrenceType: item.recurrenceType || 'weekly',
+                recurrenceEndDate: item.recurrenceEndDate || '',
+            });
+        } else {
+            setEditingBlockedTime(null);
+            setBlockedTimeForm({ date: '', startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '' });
+        }
+        setShowBlockedTimeForm(true);
+    };
+
+    const closeBlockedTimeForm = () => {
+        setShowBlockedTimeForm(false);
+        setEditingBlockedTime(null);
+    };
+
+    const handleBlockedTimeSubmit = async (e) => {
+        e.preventDefault();
+        if (editingBlockedTime && editingBlockedTime.isRecurring) {
+            setRecurringActionModal({ action: 'update', item: editingBlockedTime });
+            setRecurringMode('this');
+            return;
+        }
+        await saveBlockedTime('this');
+    };
+
+    const saveBlockedTime = async (mode) => {
+        setSavingBlockedTime(true);
+        try {
+            if (editingBlockedTime) {
+                await blockedTimeService.updateBlockedTime(editingBlockedTime._id, {
+                    startTime: blockedTimeForm.startTime,
+                    endTime: blockedTimeForm.endTime,
+                    reason: blockedTimeForm.reason,
+                    updateMode: mode,
+                });
+            } else {
+                await blockedTimeService.createBlockedTime(blockedTimeForm);
+            }
+            await fetchBlockedTimes();
+            closeBlockedTimeForm();
+            setRecurringActionModal(null);
+        } catch { }
+        setSavingBlockedTime(false);
+    };
+
+    const handleDeleteBlockedTime = (item) => {
+        if (item.isRecurring) {
+            setRecurringActionModal({ action: 'delete', item });
+            setRecurringMode('this');
+        } else {
+            doDeleteBlockedTime(item._id, 'this');
+        }
+    };
+
+    const doDeleteBlockedTime = async (id, mode) => {
+        try {
+            await blockedTimeService.deleteBlockedTime(id, { deleteMode: mode });
+            await fetchBlockedTimes();
+            setRecurringActionModal(null);
+        } catch { }
+    };
+
+    const confirmRecurringAction = () => {
+        if (!recurringActionModal) return;
+        if (recurringActionModal.action === 'update') {
+            saveBlockedTime(recurringMode);
+        } else {
+            doDeleteBlockedTime(recurringActionModal.item._id, recurringMode);
+        }
     };
 
     const fetchEarnings = async () => {
@@ -568,6 +663,111 @@ const ProviderDashboard = () => {
                                 ))}
                             </div>
                         )}
+
+                        {/* Blocked Times section */}
+                        <div style={{ marginTop: '2rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
+                                <div>
+                                    <h2 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)' }}>Blocked Times</h2>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.825rem', marginTop: '0.2rem' }}>Block off time when you're unavailable</p>
+                                </div>
+                                {!showBlockedTimeForm && (
+                                    <button onClick={() => openBlockedTimeForm()} className="btn-outline" style={{ padding: '0.55rem 1.1rem', fontSize: '0.825rem' }}>+ Add blocked time</button>
+                                )}
+                            </div>
+
+                            {/* Add / Edit form */}
+                            {showBlockedTimeForm && (
+                                <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1rem' }}>
+                                    <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '0.95rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1.25rem' }}>{editingBlockedTime ? 'Edit Blocked Time' : 'New Blocked Time'}</h3>
+                                    <form onSubmit={handleBlockedTimeSubmit}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '1rem' }}>
+                                            {!editingBlockedTime && (
+                                                <div>
+                                                    <label style={labelStyle}>Date</label>
+                                                    <input type="date" required className="input" value={blockedTimeForm.date} onChange={e => setBlockedTimeForm(p => ({ ...p, date: e.target.value }))} style={{ width: '100%' }} />
+                                                </div>
+                                            )}
+                                            <div>
+                                                <label style={labelStyle}>Start Time</label>
+                                                <input type="time" required className="input" value={blockedTimeForm.startTime} onChange={e => setBlockedTimeForm(p => ({ ...p, startTime: e.target.value }))} style={{ width: '100%' }} />
+                                            </div>
+                                            <div>
+                                                <label style={labelStyle}>End Time</label>
+                                                <input type="time" required className="input" value={blockedTimeForm.endTime} onChange={e => setBlockedTimeForm(p => ({ ...p, endTime: e.target.value }))} style={{ width: '100%' }} />
+                                            </div>
+                                            <div>
+                                                <label style={labelStyle}>Reason (optional)</label>
+                                                <input type="text" className="input" placeholder="e.g. Lunch break" value={blockedTimeForm.reason} onChange={e => setBlockedTimeForm(p => ({ ...p, reason: e.target.value }))} style={{ width: '100%' }} />
+                                            </div>
+                                        </div>
+
+                                        {!editingBlockedTime && (
+                                            <div style={{ marginBottom: '1rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                                                    <button type="button" onClick={() => setBlockedTimeForm(p => ({ ...p, isRecurring: !p.isRecurring }))} style={{ width: '44px', height: '24px', borderRadius: '99px', border: 'none', background: blockedTimeForm.isRecurring ? 'var(--gold)' : '#d1d5db', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                                                        <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'white', position: 'absolute', top: '3px', left: blockedTimeForm.isRecurring ? '23px' : '3px', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
+                                                    </button>
+                                                    <span style={{ fontSize: '0.875rem', color: 'var(--charcoal)', fontWeight: '500' }}>Recurring</span>
+                                                </div>
+                                                {blockedTimeForm.isRecurring && (
+                                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                                                        <div>
+                                                            <label style={labelStyle}>Repeat</label>
+                                                            <select className="input" value={blockedTimeForm.recurrenceType} onChange={e => setBlockedTimeForm(p => ({ ...p, recurrenceType: e.target.value }))} style={{ width: '100%' }}>
+                                                                <option value="daily">Daily</option>
+                                                                <option value="weekly">Weekly</option>
+                                                                <option value="monthly">Monthly</option>
+                                                            </select>
+                                                        </div>
+                                                        <div>
+                                                            <label style={labelStyle}>End Date (optional)</label>
+                                                            <input type="date" className="input" value={blockedTimeForm.recurrenceEndDate} onChange={e => setBlockedTimeForm(p => ({ ...p, recurrenceEndDate: e.target.value }))} style={{ width: '100%' }} />
+                                                        </div>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        )}
+
+                                        <div style={{ display: 'flex', gap: '0.75rem', justifyContent: 'flex-end' }}>
+                                            <button type="button" onClick={closeBlockedTimeForm} className="btn-outline" style={{ padding: '0.55rem 1.25rem', fontSize: '0.875rem' }}>Cancel</button>
+                                            <button type="submit" disabled={savingBlockedTime} className="btn-primary" style={{ padding: '0.55rem 1.25rem', fontSize: '0.875rem' }}>{savingBlockedTime ? 'Saving...' : editingBlockedTime ? 'Update' : 'Save'}</button>
+                                        </div>
+                                    </form>
+                                </div>
+                            )}
+
+                            {/* Blocked times list */}
+                            {blockedTimes.length === 0 ? (
+                                <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '2rem', textAlign: 'center' }}>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No blocked times yet. Add one to mark times when you're unavailable.</p>
+                                </div>
+                            ) : (
+                                <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                                    {blockedTimes.map((bt, i) => (
+                                        <div key={bt._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.875rem 1.25rem', borderBottom: i < blockedTimes.length - 1 ? '1px solid var(--border)' : 'none', gap: '1rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0 }}>
+                                                <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', flexShrink: 0 }}>🚫</div>
+                                                <div style={{ minWidth: 0 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                                        <span style={{ fontWeight: '600', fontSize: '0.875rem', color: 'var(--charcoal)' }}>{bt.date}</span>
+                                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-secondary)' }}>{bt.startTime} – {bt.endTime}</span>
+                                                        {bt.isRecurring && (
+                                                            <span style={{ fontSize: '0.68rem', fontWeight: '600', padding: '0.1rem 0.5rem', borderRadius: '99px', background: 'rgba(99,102,241,0.1)', color: '#4f46e5' }}>🔁 {bt.recurrenceType}</span>
+                                                        )}
+                                                    </div>
+                                                    {bt.reason && <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bt.reason}</p>}
+                                                </div>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                                                <button onClick={() => openBlockedTimeForm(bt)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.3rem 0.7rem', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Edit</button>
+                                                <button onClick={() => handleDeleteBlockedTime(bt)} style={{ background: 'none', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', padding: '0.3rem 0.7rem', cursor: 'pointer', fontSize: '0.78rem', color: '#dc2626' }}>Delete</button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
                     </div>
                 )}
 
@@ -959,6 +1159,37 @@ const ProviderDashboard = () => {
                 )}
 
             </div>
+
+            {/* Recurring blocked time action modal */}
+            {recurringActionModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setRecurringActionModal(null); }}>
+                    <div style={{ background: 'white', borderRadius: 'var(--radius) var(--radius) 0 0', padding: '2rem 1.5rem 2.5rem', width: '100%', maxWidth: '480px', position: 'relative' }}>
+                        <button onClick={() => setRecurringActionModal(null)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.4rem', color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
+                        <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
+                            {recurringActionModal.action === 'update' ? 'Update blocked time' : 'Delete blocked time'}
+                        </h3>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>This blocked time is a recurring blocked time.</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginBottom: '1.75rem' }}>
+                            {[
+                                { value: 'this', label: recurringActionModal.action === 'update' ? 'Update this blocked time only' : 'Delete this blocked time only' },
+                                { value: 'thisAndFuture', label: recurringActionModal.action === 'update' ? 'Update this and future blocked times' : 'Delete this and future blocked times' },
+                                { value: 'all', label: recurringActionModal.action === 'update' ? 'Update all blocked times' : 'Delete all blocked times' },
+                            ].map(opt => (
+                                <label key={opt.value} onClick={() => setRecurringMode(opt.value)} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', border: `1px solid ${recurringMode === opt.value ? 'var(--gold)' : 'var(--border)'}`, background: recurringMode === opt.value ? 'rgba(201,168,76,0.05)' : 'white', cursor: 'pointer', transition: 'all 0.15s' }}>
+                                    <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: `2px solid ${recurringMode === opt.value ? 'var(--gold)' : '#d1d5db'}`, background: recurringMode === opt.value ? 'var(--gold)' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
+                                        {recurringMode === opt.value && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'white' }} />}
+                                    </div>
+                                    <span style={{ fontSize: '0.9rem', color: 'var(--charcoal)', fontWeight: recurringMode === opt.value ? '600' : '400' }}>{opt.label}</span>
+                                </label>
+                            ))}
+                        </div>
+                        <button onClick={confirmRecurringAction} disabled={savingBlockedTime} className="btn-primary" style={{ width: '100%', padding: '0.9rem', fontSize: '0.95rem' }}>
+                            {savingBlockedTime ? 'Please wait...' : 'Confirm'}
+                        </button>
+                    </div>
+                </div>
+            )}
+
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
     );

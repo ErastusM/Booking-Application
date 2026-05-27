@@ -19,6 +19,7 @@ const availabilityRoutes = require('./src/routes/availabilityRoutes');
 const earningsRoutes = require('./src/routes/earningsRoutes');
 const categoryRoutes = require('./src/routes/categoryRoutes');
 const providerRoutes = require('./src/routes/providerRoutes');
+const blockedTimeRoutes = require('./src/routes/blockedTimeRoutes');
 const passport = require('./src/config/passport');
 
 // Connect to database
@@ -47,6 +48,7 @@ app.use('/api/availability', availabilityRoutes);
 app.use('/api/earnings', earningsRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/providers', providerRoutes);
+app.use('/api/blocked-times', blockedTimeRoutes);
 
 
 // Health check
