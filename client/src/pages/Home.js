@@ -4,7 +4,7 @@ import { useAuthContext } from '../context/AuthContext';
 
 const stats = [
     { number: '500+', label: 'Happy Clients' },
-    { number: '15+', label: 'Expert Barbers' },
+    { number: '15+', label: 'Top Providers' },
     { number: '8', label: 'Years Experience' },
     { number: '4.9★', label: 'Average Rating' },
 ];
@@ -12,8 +12,8 @@ const stats = [
 const features = [
     {
         icon: '✦',
-        title: 'Expert Barbers',
-        description: 'Our skilled professionals bring years of experience and passion to every cut, trim and shave.',
+        title: 'Trusted Professionals',
+        description: 'Discover top-rated service providers across beauty, wellness, automotive, education, and more.',
     },
     {
         icon: '◈',
@@ -104,7 +104,7 @@ const Home = () => {
                             marginBottom: '1.5rem',
                         }}>
                             <span style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.1em', textTransform: 'uppercase' }}>
-                                Premium Grooming Studio
+                                Multi-Service Booking Platform
                             </span>
                         </div>
 
@@ -117,12 +117,12 @@ const Home = () => {
                             lineHeight: '1.1',
                             marginBottom: '1.5rem',
                         }}>
-                            Look Sharp,{' '}
+                            Book Better,{' '}
                             <span style={{
                                 color: 'var(--gold)',
                                 fontStyle: 'italic',
                             }}>
-                                Feel Great
+                                Live Easier
                             </span>
                         </h1>
 
@@ -135,8 +135,8 @@ const Home = () => {
                             maxWidth: '520px',
                             fontWeight: '300',
                         }}>
-                            Book your perfect haircut with our professional barbers.
-                            No waiting rooms, no phone calls — just great grooming on your schedule.
+                            Book trusted providers for beauty, wellness, medical, events, training, and more.
+                            No waiting rooms, no phone calls - just smooth booking on your schedule.
                         </p>
 
                         {/* CTAs */}
@@ -257,7 +257,7 @@ const Home = () => {
                             color: 'var(--charcoal)',
                             marginBottom: '1rem',
                         }}>
-                            The Barbershop Experience,{' '}
+                            The Bookplus Experience,{' '}
                             <span style={{ fontStyle: 'italic', color: 'var(--gold)' }}>Reimagined</span>
                         </h2>
                         <div className="gold-divider" style={{ margin: '0 auto' }} />
@@ -327,7 +327,7 @@ const Home = () => {
                         color: 'white',
                         marginBottom: '1rem',
                     }}>
-                        Ready for Your Best Look?
+                        Ready to Book Anything?
                     </h2>
                     <p style={{
                         color: 'rgba(255,255,255,0.6)',
@@ -335,7 +335,7 @@ const Home = () => {
                         marginBottom: '2rem',
                         fontWeight: '300',
                     }}>
-                        Join hundreds of clients who trust us with their grooming.
+                        Join customers and providers using Bookplus to book and grow every day.
                     </p>
                     <Link
                         to={user ? '/book-appointment' : '/register'}
@@ -366,10 +366,10 @@ const Home = () => {
                         fontSize: '1.2rem',
                         fontWeight: '700',
                     }}>
-                        BarberShop
+                        Bookplus
                     </span>
                     <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '0.8rem' }}>
-                        © 2026 BarberShop. All rights reserved.
+                        © 2026 Bookplus. All rights reserved.
                     </span>
                 </div>
             </footer>

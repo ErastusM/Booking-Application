@@ -71,7 +71,7 @@ const Login = () => {
                         display: 'block',
                         marginBottom: '4rem',
                     }}>
-                        Barber<span style={{ color: 'white' }}>Shop</span>
+                        Book<span style={{ color: 'white' }}>plus</span>
                     </Link>
                     <h2 style={{
                         fontFamily: 'Inter, sans-serif',
@@ -91,7 +91,7 @@ const Login = () => {
                         fontWeight: '300',
                         maxWidth: '340px',
                     }}>
-                        Sign in to manage your bookings, check your appointments, and keep looking sharp.
+                        Sign in to manage your bookings, check your appointments, and stay in control.
                     </p>
                     <div className="gold-divider" style={{ marginTop: '2rem' }} />
                 </div>

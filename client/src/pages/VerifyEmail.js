@@ -68,7 +68,7 @@ const VerifyEmail = () => {
 
                 {/* Logo */}
                 <Link to="/" style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.8rem', fontWeight: '700', color: 'var(--gold)', textDecoration: 'none', display: 'block', marginBottom: '2.5rem' }}>
-                    Barber<span style={{ color: 'var(--charcoal)' }}>Shop</span>
+                    Book<span style={{ color: 'var(--charcoal)' }}>plus</span>
                 </Link>
 
                 <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)', overflow: 'hidden' }}>
