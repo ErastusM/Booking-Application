@@ -52,6 +52,14 @@ const serviceSchema = new mongoose.Schema(
             ref: 'Category',
             default: null,
         },
+        addOns: {
+            type: [{
+                name: { type: String, required: true },
+                price: { type: Number, required: true },
+                duration: { type: Number, default: 0 },
+            }],
+            default: [],
+        },
     },
     {
         timestamps: true
