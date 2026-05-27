@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
+const MAIN_CATEGORIES = require('../constants/mainCategories');
 
 const userSchema = new mongoose.Schema(
     {
@@ -33,6 +34,11 @@ const userSchema = new mongoose.Schema(
             type: String,
             enum: ['customer', 'provider', 'admin'],
             default: 'customer'
+        },
+        providerCategory: {
+            type: String,
+            enum: MAIN_CATEGORIES,
+            default: null,
         },
         provider: {
             type: String,
