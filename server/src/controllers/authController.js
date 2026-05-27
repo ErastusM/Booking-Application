@@ -1,7 +1,9 @@
 const User = require('../models/User');
+const Category = require('../models/Category');
 const { generateToken, generateRefreshToken } = require('../utils/helpers');
 const crypto = require('crypto');
 const { sendVerificationEmail, sendWelcomeEmail } = require('../utils/emailService');
+const MAIN_CATEGORIES = require('../constants/mainCategories');
 
 /**
  * =========================
@@ -10,7 +12,7 @@ const { sendVerificationEmail, sendWelcomeEmail } = require('../utils/emailServi
  */
 exports.register = async (req, res) => {
     try {
-        const { name, email, password, phone, role } = req.body;
+        const { name, email, password, phone, role, providerCategory } = req.body;
 
         // Validate input
         if (!name || !email || !password || !phone) {
@@ -45,6 +47,13 @@ exports.register = async (req, res) => {
         const allowedRoles = ['customer', 'provider'];
         const assignedRole = allowedRoles.includes(role) ? role : 'customer';
 
+        if (assignedRole === 'provider' && !MAIN_CATEGORIES.includes(providerCategory)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please select a valid provider category'
+            });
+        }
+
         const verificationToken = crypto.randomBytes(32).toString('hex');
         const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
@@ -54,11 +63,20 @@ exports.register = async (req, res) => {
             password,
             phone,
             role: assignedRole,
+            providerCategory: assignedRole === 'provider' ? providerCategory : null,
             provider: 'local',
             isVerified: false,
             verificationToken,
             verificationTokenExpiry,
         });
+
+        if (assignedRole === 'provider') {
+            await Category.create({
+                name: providerCategory,
+                provider: user._id,
+                order: 1,
+            });
+        }
 
         // Send verification email
         await sendVerificationEmail(email, name, verificationToken);
@@ -75,6 +93,7 @@ exports.register = async (req, res) => {
                     name: user.name,
                     email: user.email,
                     role: user.role,
+                    providerCategory: user.providerCategory,
                     isVerified: false,
                 },
                 token,
@@ -134,7 +153,8 @@ exports.login = async (req, res) => {
                     id: user._id,
                     name: user.name,
                     email: user.email,
-                    role: user.role
+                    role: user.role,
+                    providerCategory: user.providerCategory,
                 },
                 token,
                 refreshToken
@@ -216,7 +236,7 @@ exports.getProfile = async (req, res) => {
  */
 exports.updateProfile = async (req, res) => {
     try {
-        const { name, phone, avatar } = req.body;
+        const { name, phone, avatar, providerCategory } = req.body;
 
         const user = await User.findById(req.user.id);
 
@@ -230,6 +250,16 @@ exports.updateProfile = async (req, res) => {
         user.name = name || user.name;
         user.phone = phone || user.phone;
         user.avatar = avatar || user.avatar;
+
+        if (user.role === 'provider' && providerCategory !== undefined) {
+            if (!MAIN_CATEGORIES.includes(providerCategory)) {
+                return res.status(400).json({
+                    success: false,
+                    message: 'Please select a valid provider category'
+                });
+            }
+            user.providerCategory = providerCategory;
+        }
 
         await user.save();
 

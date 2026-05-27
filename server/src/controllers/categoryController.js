@@ -1,5 +1,14 @@
 const Category = require('../models/Category');
 const Service = require('../models/Service');
+const MAIN_CATEGORIES = require('../constants/mainCategories');
+
+exports.getMainCategories = async (req, res) => {
+    try {
+        res.status(200).json({ success: true, data: MAIN_CATEGORIES });
+    } catch (error) {
+        res.status(500).json({ success: false, message: error.message });
+    }
+};
 
 exports.getMyCategories = async (req, res) => {
     try {
