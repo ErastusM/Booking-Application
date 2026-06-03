@@ -39,6 +39,15 @@ exports.confirmPayment = async (req, res) => {
     try {
         const { paymentIntentId, appointmentId } = req.body;
 
+        // Verify the appointment belongs to the requesting user
+        const existingAppointment = await Appointment.findById(appointmentId);
+        if (!existingAppointment) {
+            return res.status(404).json({ success: false, message: 'Appointment not found' });
+        }
+        if (existingAppointment.customer.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+
         const paymentIntent = await stripe.paymentIntents.retrieve(paymentIntentId);
 
         if (paymentIntent.status !== 'succeeded') {

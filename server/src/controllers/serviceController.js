@@ -5,7 +5,7 @@ exports.getAllServices = async (req, res) => {
     try {
         let query = { isActive: true };
         const services = await Service.find(query)
-            .populate('provider', 'name email')
+            .populate('provider', 'name avatar')
             .populate('createdBy', 'name')
             .sort({ createdAt: -1 });
 
@@ -77,7 +77,12 @@ exports.updateService = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
 
-        const updated = await Service.findByIdAndUpdate(req.params.id, req.body, { new: true });
+        const { name, description, price, duration, location, address, isActive } = req.body;
+        const allowedUpdates = { name, description, price, duration, location, address };
+        if (req.user.role === 'admin' && isActive !== undefined) allowedUpdates.isActive = isActive;
+        Object.keys(allowedUpdates).forEach(k => allowedUpdates[k] === undefined && delete allowedUpdates[k]);
+
+        const updated = await Service.findByIdAndUpdate(req.params.id, allowedUpdates, { new: true });
         res.status(200).json({ success: true, data: updated });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });

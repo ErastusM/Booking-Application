@@ -81,7 +81,7 @@ exports.register = async (req, res) => {
         // Send verification email
         await sendVerificationEmail(email, name, verificationToken);
 
-        const token = generateToken(user._id);
+        const token = generateToken(user._id, user.tokenVersion);
         const refreshToken = generateRefreshToken(user._id);
 
         res.status(201).json({
@@ -142,7 +142,7 @@ exports.login = async (req, res) => {
             });
         }
 
-        const token = generateToken(user._id);
+        const token = generateToken(user._id, user.tokenVersion);
         const refreshToken = generateRefreshToken(user._id);
 
         res.status(200).json({
@@ -198,14 +198,60 @@ exports.googleCallback = (req, res) => {
 
 /**
  * =========================
+ * EXCHANGE OAUTH CODE
+ * =========================
+ */
+exports.exchangeOAuthCode = async (req, res) => {
+    try {
+        const { code } = req.body;
+        if (!code) return res.status(400).json({ success: false, message: 'Code required' });
+
+        const user = await User.findOne({ oauthCode: code, oauthCodeExpiry: { $gt: new Date() } })
+            .select('+oauthCode +oauthCodeExpiry');
+
+        if (!user) return res.status(400).json({ success: false, message: 'Invalid or expired code' });
+
+        user.oauthCode = null;
+        user.oauthCodeExpiry = null;
+        await user.save();
+
+        const token = generateToken(user._id, user.tokenVersion);
+        const refreshToken = generateRefreshToken(user._id);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                token,
+                refreshToken,
+                user: {
+                    _id: user._id,
+                    id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role,
+                    avatar: user.avatar,
+                    phone: user.phone,
+                    providerCategory: user.providerCategory,
+                },
+            },
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Authentication failed' });
+    }
+};
+
+/**
+ * =========================
  * LOGOUT
  * =========================
  */
-exports.logout = (req, res) => {
-    res.status(200).json({
-        success: true,
-        message: 'Logged out successfully'
-    });
+exports.logout = async (req, res) => {
+    try {
+        await User.findByIdAndUpdate(req.user._id, { $inc: { tokenVersion: 1 } });
+        res.status(200).json({ success: true, message: 'Logged out successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Logout failed' });
+    }
 };
 
 /**

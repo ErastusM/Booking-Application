@@ -16,6 +16,10 @@ exports.auth = async (req, res, next) => {
             return res.status(404).json({ success: false, message: 'User not found' });
         }
 
+        if (decoded.tokenVersion !== undefined && decoded.tokenVersion !== req.user.tokenVersion) {
+            return res.status(401).json({ success: false, message: 'Token has been revoked' });
+        }
+
         next();
     } catch (error) {
         res.status(401).json({ success: false, message: 'Token is not valid' });

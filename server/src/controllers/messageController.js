@@ -91,6 +91,7 @@ exports.sendMessage = async (req, res) => {
         const { content } = req.body;
 
         if (!content?.trim()) return res.status(400).json({ success: false, message: 'Message content is required' });
+        if (content.trim().length > 2000) return res.status(400).json({ success: false, message: 'Message cannot exceed 2000 characters' });
 
         const appointment = await Appointment.findById(appointmentId);
         if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });

@@ -37,7 +37,7 @@ const userSchema = new mongoose.Schema(
         },
         providerCategory: {
             type: String,
-            enum: MAIN_CATEGORIES,
+            enum: [...MAIN_CATEGORIES, null],
             default: null,
         },
         provider: {
@@ -63,6 +63,9 @@ const userSchema = new mongoose.Schema(
         },
         googleId: { type: String, default: null },
         avatar: { type: String, default: null },
+        tokenVersion: { type: Number, default: 0 },
+        oauthCode: { type: String, default: null, select: false },
+        oauthCodeExpiry: { type: Date, default: null, select: false },
     },
     {
         timestamps: true

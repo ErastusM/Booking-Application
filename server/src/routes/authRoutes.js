@@ -1,14 +1,17 @@
 const express = require('express');
 const router = express.Router();
+const crypto = require('crypto');
 const {
     register,
     login,
     logout,
     getProfile,
     updateProfile,
-    verifyEmail
+    verifyEmail,
+    exchangeOAuthCode,
 } = require('../controllers/authController');
 const { auth } = require('../middleware/auth');
+const User = require('../models/User');
 
 router.post('/register', register);
 router.post('/login', login);
@@ -16,47 +19,30 @@ router.post('/logout', auth, logout);
 router.get('/profile', auth, getProfile);
 router.put('/profile', auth, updateProfile);
 router.get('/verify-email', verifyEmail);
+router.post('/exchange-code', exchangeOAuthCode);
 
 const passport = require('../config/passport');
-const { generateToken, generateRefreshToken } = require('../utils/helpers');
 
 // Kick off Google OAuth
 router.get('/google',
     passport.authenticate('google', { scope: ['profile', 'email'], session: false })
 );
 
-// Google redirects here
+// Google redirects here — issue a short-lived one-time code; client exchanges it for tokens
 router.get('/google/callback',
-    (req, res, next) => {
-        console.log('✅ Google callback hit');
-        console.log('Query params:', req.query);
-        next();
-    },
     passport.authenticate('google', {
         failureRedirect: `${process.env.CLIENT_URL}/login?error=google_failed`,
         session: false,
-        failureMessage: true,
     }),
-    (req, res) => {
-        console.log('✅ Passport auth passed');
-        console.log('User:', req.user);
+    async (req, res) => {
         try {
-            const token = generateToken(req.user._id);
-            const refreshToken = generateRefreshToken(req.user._id);
-            const redirectUrl = `${process.env.CLIENT_URL}/auth/callback` +
-                `?token=${token}` +
-                `&refreshToken=${refreshToken}` +
-                `&id=${req.user._id}` +
-                `&role=${req.user.role}` +
-                `&name=${encodeURIComponent(req.user.name)}` +
-                `&email=${encodeURIComponent(req.user.email)}` +
-                `&avatar=${encodeURIComponent(req.user.avatar || '')}` +
-                `&phone=${encodeURIComponent(req.user.phone || '')}` +
-                `&providerCategory=${encodeURIComponent(req.user.providerCategory || '')}`
-            console.log('✅ Redirecting to:', redirectUrl);
-            res.redirect(redirectUrl);
+            const code = crypto.randomBytes(32).toString('hex');
+            await User.findByIdAndUpdate(req.user._id, {
+                oauthCode: code,
+                oauthCodeExpiry: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
+            });
+            res.redirect(`${process.env.CLIENT_URL}/auth/callback?code=${code}`);
         } catch (err) {
-            console.error('❌ Error in callback handler:', err.message);
             res.redirect(`${process.env.CLIENT_URL}/login?error=google_failed`);
         }
     }

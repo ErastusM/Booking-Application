@@ -8,50 +8,45 @@ const AuthCallback = () => {
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
-        const token = params.get('token');
-        const refreshToken = params.get('refreshToken');
-        const id = params.get('id');
-        const role = params.get('role');
-        const name = params.get('name');
-        const email = params.get('email');
-        const avatar = params.get('avatar');
+        const code = params.get('code');
 
-        if (token) {
-            // Store token first so restoreSession can use it
-            localStorage.setItem('token', token);
-            if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
-
-            // Call login with the full user shape
-            login({
-                token,
-                user: {
-                    _id: id,
-                    id,
-                    role,
-                    name,
-                    email,
-                    avatar: avatar || null,
-                    phone: 'pending',
-                },
-            });
-
-            // Small delay to let auth state settle before redirecting
-            setTimeout(() => {
-                const phoneValue = params.get('phone');
-                const needsPhone = !phoneValue || phoneValue === 'pending';
-                if (needsPhone) {
-                    navigate('/complete-profile');
-                } else if (role === 'admin') {
-                    navigate('/admin/dashboard');
-                } else if (role === 'provider') {
-                    navigate('/dashboard');
-                } else {
-                    navigate('/');
-                }
-            }, 500);
-        } else {
+        if (!code) {
             navigate('/login?error=google_failed');
+            return;
         }
+
+        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+
+        fetch(`${apiUrl}/api/auth/exchange-code`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ code }),
+        })
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    const { token, refreshToken, user } = data.data;
+                    localStorage.setItem('token', token);
+                    if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
+                    login({ token, user });
+
+                    setTimeout(() => {
+                        const needsPhone = !user.phone || user.phone === 'pending';
+                        if (needsPhone) {
+                            navigate('/complete-profile');
+                        } else if (user.role === 'admin') {
+                            navigate('/admin/dashboard');
+                        } else if (user.role === 'provider') {
+                            navigate('/dashboard');
+                        } else {
+                            navigate('/');
+                        }
+                    }, 500);
+                } else {
+                    navigate('/login?error=google_failed');
+                }
+            })
+            .catch(() => navigate('/login?error=google_failed'));
     }, []);
 
     return (
