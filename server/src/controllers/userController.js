@@ -2,8 +2,15 @@ const User = require('../models/User');
 
 exports.getAllUsers = async (req, res) => {
     try {
-        const users = await User.find().select('-password').sort({ createdAt: -1 });
-        res.status(200).json({ success: true, count: users.length, data: users });
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(100, Math.max(1, parseInt(req.query.limit) || 50));
+        const skip = (page - 1) * limit;
+
+        const [users, total] = await Promise.all([
+            User.find().select('-password').sort({ createdAt: -1 }).skip(skip).limit(limit),
+            User.countDocuments(),
+        ]);
+        res.status(200).json({ success: true, count: users.length, total, page, pages: Math.ceil(total / limit), data: users });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

@@ -37,7 +37,7 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
         next.notified = true;
         await next.save();
 
-        // Shift everyone else up
+        // Shift everyone else up — single bulkWrite instead of one save per entry
         const remaining = await WaitingList.find({
             service,
             appointmentDate,
@@ -45,9 +45,15 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
             status: 'waiting',
         }).sort({ position: 1 });
 
-        for (let i = 0; i < remaining.length; i++) {
-            remaining[i].position = i + 1;
-            await remaining[i].save();
+        if (remaining.length > 0) {
+            await WaitingList.bulkWrite(
+                remaining.map((entry, i) => ({
+                    updateOne: {
+                        filter: { _id: entry._id },
+                        update: { $set: { position: i + 1 } },
+                    },
+                }))
+            );
         }
 
         console.log(`Promoted ${next.customer.name} from waiting list`);

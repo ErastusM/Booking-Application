@@ -14,38 +14,60 @@ exports.getAllProviders = async (req, res) => {
         const providers = await User.find({
             _id: { $in: providerIds },
             role: 'provider',
-        }).select('name email avatar providerCategory');
+        }).select('name avatar providerCategory');
 
-        // Enrich each provider with stats
-        const enriched = await Promise.all(providers.map(async (p) => {
-            const services = await Service.find({ provider: p._id, isActive: true });
-            const reviews = await Review.find({ service: { $in: services.map(s => s._id) } });
+        // Batch: fetch all services for these providers in ONE query
+        const allServices = await Service.find({
+            provider: { $in: providerIds },
+            isActive: true,
+        }).select('provider name price location');
 
-            const avgRating = reviews.length
-                ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
+        // Batch: fetch all reviews for those services in ONE query
+        const serviceIds = allServices.map(s => s._id);
+        const allReviews = await Review.find({
+            service: { $in: serviceIds },
+        }).select('service rating');
+
+        // Build lookup maps
+        const servicesByProvider = {};
+        allServices.forEach(s => {
+            const pid = s.provider.toString();
+            if (!servicesByProvider[pid]) servicesByProvider[pid] = [];
+            servicesByProvider[pid].push(s);
+        });
+
+        const reviewsByService = {};
+        allReviews.forEach(r => {
+            const sid = r.service.toString();
+            if (!reviewsByService[sid]) reviewsByService[sid] = [];
+            reviewsByService[sid].push(r.rating);
+        });
+
+        const enriched = providers.map(p => {
+            const services = servicesByProvider[p._id.toString()] || [];
+            const ratings = services.flatMap(s => reviewsByService[s._id.toString()] || []);
+
+            const avgRating = ratings.length
+                ? parseFloat((ratings.reduce((s, r) => s + r, 0) / ratings.length).toFixed(1))
                 : null;
 
             const prices = services.map(s => s.price);
-            const minPrice = prices.length ? Math.min(...prices) : null;
-            const maxPrice = prices.length ? Math.max(...prices) : null;
-
             const locations = [...new Set(services.map(s => s.location).filter(Boolean))];
 
             return {
                 _id: p._id,
                 name: p.name,
-                email: p.email,
                 avatar: p.avatar,
                 providerCategory: p.providerCategory || null,
                 serviceCount: services.length,
-                reviewCount: reviews.length,
+                reviewCount: ratings.length,
                 avgRating,
-                minPrice,
-                maxPrice,
+                minPrice: prices.length ? Math.min(...prices) : null,
+                maxPrice: prices.length ? Math.max(...prices) : null,
                 location: locations[0] || '',
                 locations,
             };
-        }));
+        });
 
         res.status(200).json({ success: true, count: enriched.length, data: enriched });
     } catch (error) {
@@ -58,7 +80,7 @@ exports.getProviderProfile = async (req, res) => {
         const provider = await User.findOne({
             _id: req.params.id,
             role: 'provider',
-        }).select('name email avatar providerCategory');
+        }).select('name avatar providerCategory');
 
         if (!provider) {
             return res.status(404).json({ success: false, message: 'Provider not found' });
@@ -73,14 +95,20 @@ exports.getProviderProfile = async (req, res) => {
         // Get their categories
         const categories = await Category.find({ provider: req.params.id }).sort({ order: 1 });
 
-        // Get reviews
-        const reviews = await Review.find({
-            service: { $in: services.map(s => s._id) }
-        }).populate('customer', 'name').sort({ createdAt: -1 });
+        // Get reviews — limit payload; compute avg via aggregation
+        const [reviewDocs, [avgResult]] = await Promise.all([
+            Review.find({ service: { $in: services.map(s => s._id) } })
+                .populate('customer', 'name')
+                .sort({ createdAt: -1 })
+                .limit(20),
+            Review.aggregate([
+                { $match: { service: { $in: services.map(s => s._id) } } },
+                { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
+            ]),
+        ]);
 
-        const avgRating = reviews.length
-            ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
-            : null;
+        const avgRating = avgResult ? parseFloat(avgResult.avg.toFixed(1)) : null;
+        const reviewCount = avgResult?.count || 0;
 
         // Group services by category
         // Group services by category — Featured shows ALL services
@@ -107,15 +135,14 @@ exports.getProviderProfile = async (req, res) => {
                 provider: {
                     _id: provider._id,
                     name: provider.name,
-                    email: provider.email,
                     avatar: provider.avatar,
                     providerCategory: provider.providerCategory || null,
                     avgRating,
-                    reviewCount: reviews.length,
+                    reviewCount,
                     serviceCount: services.length,
                 },
                 categories: grouped,
-                reviews: reviews.slice(0, 5),
+                reviews: reviewDocs.slice(0, 5),
             },
         });
     } catch (error) {

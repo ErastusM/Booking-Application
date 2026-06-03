@@ -41,4 +41,8 @@ const waitingListSchema = new mongoose.Schema(
     { timestamps: true }
 );
 
+// Composite index for the slot lookup used on every join/promote/position shift
+waitingListSchema.index({ service: 1, appointmentDate: 1, startTime: 1, status: 1 });
+waitingListSchema.index({ customer: 1, status: 1 });
+
 module.exports = mongoose.model('WaitingList', waitingListSchema);

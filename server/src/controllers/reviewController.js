@@ -48,15 +48,25 @@ exports.createReview = async (req, res) => {
 
 exports.getServiceReviews = async (req, res) => {
     try {
-        const reviews = await Review.find({ service: req.params.serviceId })
-            .populate('customer', 'name')
-            .sort({ createdAt: -1 });
+        const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const skip = (page - 1) * limit;
 
-        const avgRating = reviews.length
-            ? (reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length).toFixed(1)
-            : null;
+        const [reviews, total, avgResult] = await Promise.all([
+            Review.find({ service: req.params.serviceId })
+                .populate('customer', 'name')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit),
+            Review.countDocuments({ service: req.params.serviceId }),
+            Review.aggregate([
+                { $match: { service: require('mongoose').Types.ObjectId.createFromHexString(req.params.serviceId) } },
+                { $group: { _id: null, avg: { $avg: '$rating' } } },
+            ]),
+        ]);
 
-        res.status(200).json({ success: true, count: reviews.length, avgRating, data: reviews });
+        const avgRating = avgResult[0] ? parseFloat(avgResult[0].avg.toFixed(1)) : null;
+        res.status(200).json({ success: true, count: reviews.length, total, avgRating, data: reviews });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

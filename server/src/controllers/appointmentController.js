@@ -18,11 +18,27 @@ exports.getAllAppointments = async (req, res) => {
         } else if (req.user.role === 'provider') {
             query = { provider: req.user._id };
         }
-        const appointments = await Appointment.find(query)
-            .populate('customer', 'name email phone')
-            .populate('service', 'name price duration')
-            .sort({ appointmentDate: -1 });
-        res.status(200).json({ success: true, count: appointments.length, data: appointments });
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
+        const skip = (page - 1) * limit;
+
+        const [appointments, total] = await Promise.all([
+            Appointment.find(query)
+                .populate('customer', 'name email phone')
+                .populate('service', 'name price duration')
+                .sort({ appointmentDate: -1 })
+                .skip(skip)
+                .limit(limit),
+            Appointment.countDocuments(query),
+        ]);
+        res.status(200).json({
+            success: true,
+            count: appointments.length,
+            total,
+            page,
+            pages: Math.ceil(total / limit),
+            data: appointments,
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

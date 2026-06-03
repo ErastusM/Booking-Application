@@ -12,17 +12,31 @@ exports.getAnalytics = async (req, res) => {
         const last30Days = new Date(now - 30 * 24 * 60 * 60 * 1000);
         const last7Days = new Date(now - 7 * 24 * 60 * 60 * 1000);
 
-        // ── Revenue ──
-        const paidAppointments = await Appointment.find({ paymentStatus: 'paid' });
-        const totalRevenue = paidAppointments.reduce((sum, a) => sum + (a.totalPrice || 0), 0);
-
-        const thisMonthRevenue = paidAppointments
-            .filter(a => new Date(a.createdAt) >= startOfMonth)
-            .reduce((sum, a) => sum + (a.totalPrice || 0), 0);
-
-        const lastMonthRevenue = paidAppointments
-            .filter(a => new Date(a.createdAt) >= startOfLastMonth && new Date(a.createdAt) <= endOfLastMonth)
-            .reduce((sum, a) => sum + (a.totalPrice || 0), 0);
+        // ── Revenue (single aggregation pass, no full table load into memory) ──
+        const [revResult] = await Appointment.aggregate([
+            { $match: { paymentStatus: 'paid' } },
+            {
+                $group: {
+                    _id: null,
+                    total: { $sum: '$totalPrice' },
+                    thisMonth: {
+                        $sum: { $cond: [{ $gte: ['$createdAt', startOfMonth] }, '$totalPrice', 0] }
+                    },
+                    lastMonth: {
+                        $sum: {
+                            $cond: [
+                                { $and: [{ $gte: ['$createdAt', startOfLastMonth] }, { $lte: ['$createdAt', endOfLastMonth] }] },
+                                '$totalPrice',
+                                0
+                            ]
+                        }
+                    },
+                }
+            }
+        ]);
+        const totalRevenue = revResult?.total || 0;
+        const thisMonthRevenue = revResult?.thisMonth || 0;
+        const lastMonthRevenue = revResult?.lastMonth || 0;
 
         const revenueGrowth = lastMonthRevenue === 0 ? 100
             : Math.round(((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100);

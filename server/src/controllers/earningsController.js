@@ -7,41 +7,58 @@ exports.getMyEarnings = async (req, res) => {
         const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
         const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0);
 
-        // All completed appointments for this provider
-        const allCompleted = await Appointment.find({
-            provider: req.user._id,
-            status: 'completed',
-        }).populate('service', 'name price').populate('customer', 'name').sort({ appointmentDate: -1 });
-
-        const totalEarned = allCompleted.reduce((sum, a) => sum + (a.totalPrice || 0), 0);
-
-        const thisMonthEarned = allCompleted
-            .filter(a => new Date(a.createdAt) >= startOfMonth)
-            .reduce((sum, a) => sum + (a.totalPrice || 0), 0);
-
-        const lastMonthEarned = allCompleted
-            .filter(a => new Date(a.createdAt) >= startOfLastMonth && new Date(a.createdAt) <= endOfLastMonth)
-            .reduce((sum, a) => sum + (a.totalPrice || 0), 0);
-
+        // Single aggregation for revenue totals — no full table load
+        const [revResult] = await Appointment.aggregate([
+            { $match: { provider: req.user._id, status: 'completed' } },
+            {
+                $group: {
+                    _id: null,
+                    total: { $sum: '$totalPrice' },
+                    thisMonth: {
+                        $sum: { $cond: [{ $gte: ['$createdAt', startOfMonth] }, '$totalPrice', 0] }
+                    },
+                    lastMonth: {
+                        $sum: {
+                            $cond: [
+                                { $and: [{ $gte: ['$createdAt', startOfLastMonth] }, { $lte: ['$createdAt', endOfLastMonth] }] },
+                                '$totalPrice',
+                                0
+                            ]
+                        }
+                    },
+                    count: { $sum: 1 },
+                }
+            }
+        ]);
+        const totalEarned = revResult?.total || 0;
+        const thisMonthEarned = revResult?.thisMonth || 0;
+        const lastMonthEarned = revResult?.lastMonth || 0;
+        const completedCount = revResult?.count || 0;
         const growth = lastMonthEarned === 0 ? 100
             : Math.round(((thisMonthEarned - lastMonthEarned) / lastMonthEarned) * 100);
 
-        // Earnings by service
-        const earningsByService = {};
-        allCompleted.forEach(a => {
-            const name = a.service?.name || 'Unknown';
-            if (!earningsByService[name]) {
-                earningsByService[name] = { name, total: 0, count: 0 };
-            }
-            earningsByService[name].total += a.totalPrice || 0;
-            earningsByService[name].count += 1;
-        });
+        // Earnings by service — aggregation only
+        const earningsByServiceArr = await Appointment.aggregate([
+            { $match: { provider: req.user._id, status: 'completed' } },
+            { $group: { _id: '$service', total: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
+            { $lookup: { from: 'services', localField: '_id', foreignField: '_id', as: 'svc' } },
+            { $unwind: { path: '$svc', preserveNullAndEmpty: true } },
+            { $project: { name: { $ifNull: ['$svc.name', 'Unknown'] }, total: 1, count: 1 } },
+            { $sort: { total: -1 } },
+        ]);
 
-        const earningsByServiceArr = Object.values(earningsByService)
-            .sort((a, b) => b.total - a.total);
+        // Recent 10 transactions only — scoped query
+        const recentAppointments = await Appointment.find({
+            provider: req.user._id,
+            status: 'completed',
+        })
+            .select('customer service appointmentDate totalPrice paymentStatus')
+            .populate('service', 'name')
+            .populate('customer', 'name')
+            .sort({ appointmentDate: -1 })
+            .limit(10);
 
-        // Recent transactions (last 10)
-        const recentTransactions = allCompleted.slice(0, 10).map(a => ({
+        const recentTransactions = recentAppointments.map(a => ({
             _id: a._id,
             customerName: a.customer?.name || 'Unknown',
             serviceName: a.service?.name || 'Unknown',
@@ -57,7 +74,7 @@ exports.getMyEarnings = async (req, res) => {
                 thisMonthEarned,
                 lastMonthEarned,
                 growth,
-                completedCount: allCompleted.length,
+                completedCount,
                 earningsByService: earningsByServiceArr,
                 recentTransactions,
             },

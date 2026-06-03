@@ -66,4 +66,7 @@ const serviceSchema = new mongoose.Schema(
     }
 );
 
+serviceSchema.index({ provider: 1, isActive: 1 });
+serviceSchema.index({ isActive: 1, createdAt: -1 });
+
 module.exports = mongoose.model('Service', serviceSchema);
