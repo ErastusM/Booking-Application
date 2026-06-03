@@ -29,18 +29,16 @@ const retentionRoutes = require('./src/routes/retentionRoutes');
 const startReminderJob = require('./src/utils/reminderService');
 const passport = require('./src/config/passport');
 
-// Connect to database
-connectDB();
-
 const app = express();
 
-// Rate limiters
+// Rate limiters — disabled in test environment to prevent 429s during test runs
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: 20,
+    max: process.env.NODE_ENV === 'test' ? 10000 : 20,
     message: { success: false, message: 'Too many requests, please try again later.' },
     standardHeaders: true,
     legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === 'test',
 });
 
 // Middleware
@@ -89,9 +87,16 @@ app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-    console.log(`Server running on port ${PORT}`);
-    startReminderJob();
-});
+// Only bind and start the cron job when run directly (not imported by tests)
+if (require.main === module) {
+    connectDB().then(() => {
+        app.listen(PORT, () => {
+            console.log(`Server running on port ${PORT}`);
+            startReminderJob();
+        });
+    });
+}
+
+module.exports = app;
 
 module.exports = app;
