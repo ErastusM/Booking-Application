@@ -4,8 +4,6 @@
     "description": "Frontend for Bookplus multi-service booking application",
     "private": true,
     "dependencies": {
-        "@stripe/react-stripe-js": "^6.3.0",
-        "@stripe/stripe-js": "^9.4.0",
         "autoprefixer": "^10.4.13",
         "axios": "^1.3.0",
         "postcss": "^8.4.21",

@@ -116,15 +116,6 @@ describe('Customer-only routes', () => {
             });
         expect(res.status).toBe(403);
     });
-
-    it('POST /api/payments/create-payment-intent returns 403 for a provider', async () => {
-        const provider = await makeProvider();
-        const res = await request(app)
-            .post('/api/payments/create-payment-intent')
-            .set(authHeader(provider))
-            .send({ appointmentId: 'someid' });
-        expect(res.status).toBe(403);
-    });
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

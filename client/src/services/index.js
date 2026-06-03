@@ -53,11 +53,6 @@ export const notificationService = {
     deleteNotification: (id) => API.delete(`/notifications/${id}`),
 };
 
-export const paymentService = {
-    createPaymentIntent: (serviceId) => API.post('/payments/create-payment-intent', { serviceId }),
-    confirmPayment: (paymentIntentId, appointmentId) => API.post('/payments/confirm', { paymentIntentId, appointmentId }),
-};
-
 export const analyticsService = {
     getAnalytics: () => API.get('/analytics'),
 };
