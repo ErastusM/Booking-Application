@@ -73,10 +73,24 @@ exports.createAppointment = async (req, res) => {
             notes: notes || '',
             selectedAddOns: Array.isArray(selectedAddOns) ? selectedAddOns : [],
             totalPrice: (svc.price || 0) + (Array.isArray(selectedAddOns) ? selectedAddOns.reduce((sum, a) => sum + (a.price || 0), 0) : 0),
-            status: 'pending',
+            status: 'confirmed',
         });
-        await appointment.populate('service', 'name price duration');
-        res.status(201).json({ success: true, message: 'Appointment created successfully', data: appointment });
+        await appointment.populate(['service', { path: 'customer', select: 'name email' }]);
+
+        // Send confirmation email immediately
+        try {
+            const dateStr = new Date(appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+            const timeStr = `${startTime} – ${endTime}`;
+            await sendAppointmentConfirmed(
+                req.user.email,
+                req.user.name,
+                svc.name,
+                dateStr,
+                timeStr
+            );
+        } catch (_) { /* email failure must not break the booking */ }
+
+        res.status(201).json({ success: true, message: 'Appointment confirmed', data: appointment });
     } catch (error) {
         res.status(500).json({ success: false, message: error.message });
     }

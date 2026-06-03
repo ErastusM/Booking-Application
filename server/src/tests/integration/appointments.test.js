@@ -49,8 +49,9 @@ describe('POST /api/appointments – booking creation', () => {
                 endTime: '09:30',
             });
         expect(res.status).toBe(201);
-        expect(res.body.data.status).toBe('pending');
-        expect(res.body.data.customer.toString()).toBe(customer._id.toString());
+        expect(res.body.data.status).toBe('confirmed');
+        const customerId = res.body.data.customer?._id || res.body.data.customer;
+        expect(customerId.toString()).toBe(customer._id.toString());
     });
 
     it('returns 400 when required fields are missing', async () => {

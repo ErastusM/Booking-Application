@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { appointmentService, reviewService, availabilityService } from '../services';
 import ReviewModal from '../components/ReviewModal';
 
@@ -12,6 +12,9 @@ const statusConfig = {
 
 const MyAppointments = () => {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const justConfirmed = searchParams.get('confirmed') === '1';
+    const justWaitlisted = searchParams.get('waitlisted') === '1';
     const [appointments, setAppointments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -138,6 +141,20 @@ const MyAppointments = () => {
             </div>
 
             <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
+
+                {justConfirmed && (
+                    <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '1rem 1.25rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontFamily: 'Outfit, sans-serif' }}>
+                        <span style={{ fontSize: '1.2rem' }}>✅</span>
+                        <div><strong>Appointment confirmed!</strong> You'll receive a confirmation email shortly. See you there.</div>
+                    </div>
+                )}
+
+                {justWaitlisted && (
+                    <div style={{ background: '#dbeafe', border: '1px solid #93c5fd', color: '#1e40af', padding: '1rem 1.25rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontFamily: 'Outfit, sans-serif' }}>
+                        <span style={{ fontSize: '1.2rem' }}>🔔</span>
+                        <div><strong>Added to waiting list.</strong> We'll notify you if a slot opens up.</div>
+                    </div>
+                )}
 
                 {error && (
                     <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
