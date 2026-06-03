@@ -1,5 +1,8 @@
+const pino = require('pino');
+const log = pino({ level: process.env.LOG_LEVEL || 'info' });
+
 exports.errorHandler = (err, req, res, next) => {
-    console.error(err.stack);
+    log.error({ err, method: req.method, url: req.originalUrl }, err.message);
 
     const status = err.statusCode || 500;
     const message = err.message || 'Internal Server Error';

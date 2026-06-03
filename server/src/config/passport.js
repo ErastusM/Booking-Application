@@ -7,8 +7,6 @@ passport.use(new GoogleStrategy({
     clientSecret: process.env.GOOGLE_CLIENT_SECRET,
     callbackURL: `${process.env.SERVER_URL}/api/auth/google/callback`
 }, async (accessToken, refreshToken, profile, done) => {
-    console.log("🔥 Google OAuth triggered");
-    console.log("Google profile:", profile);
     try {
         let user = await User.findOne({ googleId: profile.id });
 

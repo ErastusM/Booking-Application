@@ -240,27 +240,27 @@ exports.sendReminder1h = async (email, name, serviceName, time) => {
 };
 
 exports.sendRebookingPrompt = async (email, name, serviceName, providerName, providerId) => {
-    const bookUrl = \`\${process.env.CLIENT_URL || 'http://localhost:3001'}/book-appointment?providerId=\${providerId}\`;
+    const bookUrl = `${process.env.CLIENT_URL || 'http://localhost:3001'}/book-appointment?providerId=${providerId}`;
     await transporter.sendMail({
-        from: \`"Bookplus" <\${process.env.EMAIL_USER}>\`,
+        from: `"Bookplus" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: '✨ Book your next appointment',
-        html: \`
+        html: `
         <div style="font-family: Arial, sans-serif; max-width: 560px; margin: 0 auto;">
             <div style="background: #1a1a2e; padding: 2rem; text-align: center;">
                 <h1 style="font-family: Georgia, serif; color: #c9a84c; margin: 0;">Bookplus</h1>
             </div>
             <div style="padding: 2rem; background: white; border: 1px solid #e8e6e1;">
                 <h2 style="font-family: Georgia, serif; color: #1a1a2e;">Glad you came in!</h2>
-                <p style="color: #6b6b80;">Hi \${name}, thank you for your recent <strong>\${serviceName}</strong> with \${providerName}. We'd love to see you again!</p>
+                <p style="color: #6b6b80;">Hi ${name}, thank you for your recent <strong>${serviceName}</strong> with ${providerName}. We'd love to see you again!</p>
                 <div style="text-align: center; margin: 2rem 0;">
-                    <a href="\${bookUrl}" style="background: #c9a84c; color: #1a1a2e; text-decoration: none; padding: 0.75rem 2rem; border-radius: 6px; font-weight: bold; font-size: 1rem;">Book Again</a>
+                    <a href="${bookUrl}" style="background: #c9a84c; color: #1a1a2e; text-decoration: none; padding: 0.75rem 2rem; border-radius: 6px; font-weight: bold; font-size: 1rem;">Book Again</a>
                 </div>
                 <p style="color: #6b6b80; font-size: 0.85rem; text-align: center;">Regular appointments keep you looking your best.</p>
             </div>
             <div style="background: #f5f3ef; padding: 1rem; text-align: center; border: 1px solid #e8e6e1; border-top: none;">
                 <p style="color: #9b9baa; font-size: 0.75rem; margin: 0;">© 2026 Bookplus</p>
             </div>
-        </div>\`,
+        </div>`,
     });
 };

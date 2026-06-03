@@ -8,8 +8,8 @@ services:
     volumes:
       - mongo_data:/data/db
     environment:
-      MONGO_INITDB_ROOT_USERNAME: admin
-      MONGO_INITDB_ROOT_PASSWORD: password
+      MONGO_INITDB_ROOT_USERNAME: ${MONGO_ROOT_USER}
+      MONGO_INITDB_ROOT_PASSWORD: ${MONGO_ROOT_PASS}
 
   server:
     build: ./server
@@ -19,21 +19,8 @@ services:
       - "5000:5000"
     depends_on:
       - mongodb
-    environment:
-      PORT: 5000
-      MONGODB_URI: mongodb://admin:password@mongodb:27017/bookplus?authSource=admin
-      JWT_SECRET: "X7k$$mP2#vR9!qLw4nZj8eYc3tBs6dFhA"
-      REFRESH_TOKEN_SECRET: "Gp5!uW8$$xN2@kQz7mHr4vJc9bTy3eLfD"
-      JWT_EXPIRE: 7d
-      REFRESH_TOKEN_EXPIRE: 30d
-      NODE_ENV: production
-      CLIENT_URL: http://localhost:3001
-      SERVER_URL: http://localhost:5000
-      GOOGLE_CLIENT_ID: 1020316786551-seg7ssupos5og11clm97s0bi5tharen4.apps.googleusercontent.com
-      GOOGLE_CLIENT_SECRET: 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
-      EMAIL_USER: bookplusdigitalsolutions@gmail.com
-      EMAIL_PASS: pxuelxdgrskcasve
-      STRIPE_SECRET_KEY: sk_test_placeholder
+    env_file:
+      - .env.production
 
   client:
     build: ./client
@@ -43,8 +30,9 @@ services:
       - "3001:3000"
     depends_on:
       - server
-    environment:
-      REACT_APP_API_URL: http://localhost:5000
+    env_file:
+      - .env.production
 
 volumes:
   mongo_data:
+

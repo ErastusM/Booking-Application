@@ -1,6 +1,13 @@
 const cron = require('node-cron');
+const pino = require('pino');
 const Appointment = require('../models/Appointment');
 const { sendReminder24h, sendReminder1h } = require('./emailService');
+
+const log = pino({ level: process.env.LOG_LEVEL || 'info' });
+
+// Track consecutive cron failures so ops can be alerted
+let consecutiveCronFailures = 0;
+const MAX_FAILURES_BEFORE_ALERT = 3;
 
 const startReminderJob = () => {
     // Run every 15 minutes
@@ -25,7 +32,7 @@ const startReminderJob = () => {
                     await sendReminder24h(appt.customer.email, appt.customer.name, appt.service?.name || 'your appointment', dateStr, appt.startTime);
                     await Appointment.findByIdAndUpdate(appt._id, { reminderSent24h: true });
                 } catch (e) {
-                    console.error('24h reminder failed for', appt._id, e.message);
+                    log.error({ appointmentId: appt._id, err: e.message }, '24h reminder email failed');
                 }
             }
 
@@ -45,16 +52,28 @@ const startReminderJob = () => {
                     await sendReminder1h(appt.customer.email, appt.customer.name, appt.service?.name || 'your appointment', appt.startTime);
                     await Appointment.findByIdAndUpdate(appt._id, { reminderSent1h: true });
                 } catch (e) {
-                    console.error('1h reminder failed for', appt._id, e.message);
+                    log.error({ appointmentId: appt._id, err: e.message }, '1h reminder email failed');
                 }
             }
 
+            // Reset failure counter on success
+            consecutiveCronFailures = 0;
+
         } catch (error) {
-            console.error('Reminder cron error:', error.message);
+            consecutiveCronFailures += 1;
+            log.error({ err: error.message, consecutiveCronFailures }, 'Reminder cron job failed');
+
+            if (consecutiveCronFailures >= MAX_FAILURES_BEFORE_ALERT) {
+                // Structured alert — surface to any log aggregation / alerting tool (Datadog, Sentry, etc.)
+                log.fatal(
+                    { consecutiveCronFailures, alert: 'CRON_REMINDER_DEGRADED' },
+                    'ALERT: Reminder cron has failed multiple times in a row — manual intervention required'
+                );
+            }
         }
     });
 
-    console.log('Reminder cron job started (every 15 minutes)');
+    log.info('Reminder cron job started (every 15 minutes)');
 };
 
 module.exports = startReminderJob;

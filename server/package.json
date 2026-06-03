@@ -10,9 +10,13 @@
     },
     "jest": {
         "testEnvironment": "node",
-        "testMatch": ["**/tests/**/*.test.js"],
+        "testMatch": [
+            "**/tests/**/*.test.js"
+        ],
         "testTimeout": 30000,
-        "setupFiles": ["./src/tests/helpers/jestSetup.js"],
+        "setupFiles": [
+            "./src/tests/helpers/jestSetup.js"
+        ],
         "coverageDirectory": "coverage",
         "collectCoverageFrom": [
             "src/controllers/**/*.js",
@@ -42,6 +46,8 @@
         "nodemailer": "^8.0.7",
         "passport": "^0.7.0",
         "passport-google-oauth20": "^2.0.0",
+        "pino": "^10.3.1",
+        "pino-http": "^11.0.0",
         "stripe": "^22.1.1"
     },
     "devDependencies": {

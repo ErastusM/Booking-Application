@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { protect, authorize } = require('../middleware/auth');
+const { auth, authorize } = require('../middleware/auth');
 const {
     getMyPackages,
     createPackage,
@@ -13,7 +13,7 @@ const {
     getMyPackageClients,
 } = require('../controllers/packageController');
 
-router.use(protect);
+router.use(auth);
 
 // Provider routes
 router.get('/my-packages', authorize('admin', 'provider'), getMyPackages);

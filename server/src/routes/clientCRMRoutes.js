@@ -1,9 +1,9 @@
 const express = require('express');
 const router = express.Router();
-const { protect, authorize } = require('../middleware/auth');
+const { auth, authorize } = require('../middleware/auth');
 const { getMyClients, getClientDetail, upsertClientNote } = require('../controllers/clientCRMController');
 
-router.use(protect);
+router.use(auth);
 router.use(authorize('admin', 'provider'));
 
 router.get('/clients', getMyClients);

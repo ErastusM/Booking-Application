@@ -1,4 +1,7 @@
 const mongoose = require('mongoose');
+const pino = require('pino');
+
+const log = pino({ level: process.env.LOG_LEVEL || 'info' });
 
 const connectDB = async () => {
     try {
@@ -9,10 +12,10 @@ const connectDB = async () => {
             maxPoolSize: 10,
         });
 
-        console.log(`MongoDB Connected: ${conn.connection.host}`);
+        log.info({ host: conn.connection.host }, 'MongoDB connected');
         return conn;
     } catch (error) {
-        console.error(`Error: ${error.message}`);
+        log.fatal({ err: error.message }, 'MongoDB connection failed');
         process.exit(1);
     }
 };

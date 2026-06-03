@@ -4,6 +4,9 @@ const cors = require('cors');
 const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 const rateLimit = require('express-rate-limit');
+const pino = require('pino');
+const pinoHttp = require('pino-http');
+const mongoose = require('mongoose');
 const connectDB = require('./src/utils/database');
 const { errorHandler, notFound } = require('./src/middleware/errorHandler');
 
@@ -31,6 +34,13 @@ const passport = require('./src/config/passport');
 
 const app = express();
 
+// Structured logger — pretty in dev, JSON in production/test
+const logger = pino({
+    level: process.env.LOG_LEVEL || 'info',
+    transport: process.env.NODE_ENV === 'development' ? { target: 'pino-pretty', options: { colorize: true } } : undefined,
+});
+module.exports.logger = logger;
+
 // Rate limiters — disabled in test environment to prevent 429s during test runs
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
@@ -50,6 +60,9 @@ app.use(cors({
 app.use(express.json());
 app.use(express.urlencoded({ extended: false }));
 app.use(mongoSanitize());
+if (process.env.NODE_ENV !== 'test') {
+    app.use(pinoHttp({ logger }));
+}
 
 // Routes
 app.use(passport.initialize());
@@ -73,11 +86,15 @@ app.use('/api/packages', packageRoutes);
 app.use('/api/retention', retentionRoutes);
 
 
-// Health check
-app.get('/api/health', (req, res) => {
-    res.status(200).json({
-        success: true,
-        message: 'Server is running'
+// Health check — includes DB connectivity
+app.get('/api/health', async (req, res) => {
+    const dbState = mongoose.connection.readyState === 1 ? 'connected' : 'disconnected';
+    const status = dbState === 'connected' ? 200 : 503;
+    res.status(status).json({
+        success: dbState === 'connected',
+        db: dbState,
+        uptime: Math.floor(process.uptime()),
+        timestamp: new Date().toISOString(),
     });
 });
 
@@ -90,10 +107,27 @@ const PORT = process.env.PORT || 5000;
 // Only bind and start the cron job when run directly (not imported by tests)
 if (require.main === module) {
     connectDB().then(() => {
-        app.listen(PORT, () => {
-            console.log(`Server running on port ${PORT}`);
+        const server = app.listen(PORT, () => {
+            logger.info({ port: PORT }, 'Server running');
             startReminderJob();
         });
+
+        const shutdown = async (signal) => {
+            logger.info({ signal }, 'Shutdown signal received — closing gracefully');
+            server.close(async () => {
+                await mongoose.connection.close();
+                logger.info('MongoDB connection closed');
+                process.exit(0);
+            });
+            // Force exit if graceful close takes too long
+            setTimeout(() => {
+                logger.error('Graceful shutdown timed out — forcing exit');
+                process.exit(1);
+            }, 10000).unref();
+        };
+
+        process.on('SIGTERM', () => shutdown('SIGTERM'));
+        process.on('SIGINT',  () => shutdown('SIGINT'));
     });
 }
 

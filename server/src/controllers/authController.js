@@ -170,34 +170,6 @@ exports.login = async (req, res) => {
 
 /**
  * =========================
- * GOOGLE CALLBACK (NOT USED DIRECTLY HERE)
- * =========================
- * Passport handles this.
- * This exists ONLY for clarity.
- */
-exports.googleCallback = (req, res) => {
-    try {
-        const user = req.user;
-
-        const token = generateToken(user._id);
-        const refreshToken = generateRefreshToken(user._id);
-
-        return res.redirect(
-            `${process.env.CLIENT_URL}/auth/callback` +
-            `?token=${token}` +
-            `&refreshToken=${refreshToken}` +
-            `&role=${user.role}` +
-            `&name=${encodeURIComponent(user.name)}`
-        );
-    } catch (error) {
-        return res.redirect(
-            `${process.env.CLIENT_URL}/login?error=google_failed`
-        );
-    }
-};
-
-/**
- * =========================
  * EXCHANGE OAUTH CODE
  * =========================
  */

@@ -1270,10 +1270,6 @@ const ProviderDashboard = () => {
                     </div>
                 )}
 
-            </div>
-
-            </div>
-
             {/* Clients tab */}
             {activeTab === 'clients' && (
                 <div style={{ display: 'grid', gridTemplateColumns: selectedClient ? '1fr 380px' : '1fr', gap: '1.5rem', alignItems: 'start' }}>
@@ -1466,6 +1462,8 @@ const ProviderDashboard = () => {
                     )}
                 </div>
             )}
+
+            </div>
 
             {/* Recurring blocked time action modal */}
             {recurringActionModal && (
