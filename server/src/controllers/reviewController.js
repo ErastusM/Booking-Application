@@ -42,7 +42,7 @@ exports.createReview = async (req, res) => {
 
         res.status(201).json({ success: true, data: review });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -68,7 +68,7 @@ exports.getServiceReviews = async (req, res) => {
         const avgRating = avgResult[0] ? parseFloat(avgResult[0].avg.toFixed(1)) : null;
         res.status(200).json({ success: true, count: reviews.length, total, avgRating, data: reviews });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -83,7 +83,7 @@ exports.deleteReview = async (req, res) => {
         await Review.findByIdAndDelete(req.params.id);
         res.status(200).json({ success: true, message: 'Review deleted' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -95,6 +95,6 @@ exports.getMyReviews = async (req, res) => {
 
         res.status(200).json({ success: true, data: reviews });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

@@ -1,3 +1,4 @@
+const { logger } = require('../../server');
 const WaitingList = require('../models/WaitingList');
 const Appointment = require('../models/Appointment');
 
@@ -58,7 +59,7 @@ exports.joinWaitingList = async (req, res) => {
 
         res.status(201).json({ success: true, data: entry });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -74,7 +75,7 @@ exports.getMyWaitingList = async (req, res) => {
 
         res.status(200).json({ success: true, count: entries.length, data: entries });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -108,7 +109,7 @@ exports.leaveWaitingList = async (req, res) => {
 
         res.status(200).json({ success: true, message: 'Removed from waiting list' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -155,9 +156,9 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
             await remaining[i].save();
         }
 
-        console.log(`Promoted ${next.customer.name} from waiting list to appointment ${promoted._id}`);
+        logger.info({ customer: next.customer.name, appointmentId: promoted._id }, 'Promoted from waiting list');
     } catch (error) {
-        console.error('Error promoting from waiting list:', error.message);
+        logger.error({ err: error }, 'Error promoting from waiting list');
     }
 };
 
@@ -174,6 +175,6 @@ exports.getNotifications = async (req, res) => {
 
         res.status(200).json({ success: true, data: notifications });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

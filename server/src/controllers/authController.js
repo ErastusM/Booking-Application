@@ -103,7 +103,7 @@ exports.register = async (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: error.message
+            message: 'Internal server error'
         });
     }
 };
@@ -163,7 +163,7 @@ exports.login = async (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: error.message
+            message: 'Internal server error'
         });
     }
 };
@@ -178,7 +178,8 @@ exports.exchangeOAuthCode = async (req, res) => {
         const { code } = req.body;
         if (!code) return res.status(400).json({ success: false, message: 'Code required' });
 
-        const user = await User.findOne({ oauthCode: code, oauthCodeExpiry: { $gt: new Date() } })
+        const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+        const user = await User.findOne({ oauthCode: codeHash, oauthCodeExpiry: { $gt: new Date() } })
             .select('+oauthCode +oauthCodeExpiry');
 
         if (!user) return res.status(400).json({ success: false, message: 'Invalid or expired code' });
@@ -242,7 +243,7 @@ exports.getProfile = async (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: error.message
+            message: 'Internal server error'
         });
     }
 };
@@ -289,7 +290,7 @@ exports.updateProfile = async (req, res) => {
     } catch (error) {
         res.status(500).json({
             success: false,
-            message: error.message
+            message: 'Internal server error'
         });
     }
 };

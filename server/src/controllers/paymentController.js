@@ -1,3 +1,4 @@
+const { logger } = require('../../server');
 const stripe = require('stripe')(process.env.STRIPE_SECRET_KEY);
 const Appointment = require('../models/Appointment');
 const Service = require('../models/Service');
@@ -31,7 +32,7 @@ exports.createPaymentIntent = async (req, res) => {
             serviceName: service.name,
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -74,11 +75,11 @@ exports.confirmPayment = async (req, res) => {
                 time
             );
         } catch (emailErr) {
-            console.error('Confirmation email failed:', emailErr.message);
+            logger.error({ err: emailErr }, 'Confirmation email failed');
         }
 
         res.status(200).json({ success: true, data: appointment });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

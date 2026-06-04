@@ -50,7 +50,7 @@ exports.getMyConversations = async (req, res) => {
 
         res.status(200).json({ success: true, data: conversations });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -79,7 +79,7 @@ exports.getMessages = async (req, res) => {
 
         res.status(200).json({ success: true, data: messages });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -118,7 +118,7 @@ exports.sendMessage = async (req, res) => {
         await message.populate('sender', 'name avatar');
         res.status(201).json({ success: true, data: message });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -131,6 +131,6 @@ exports.getUnreadCount = async (req, res) => {
         });
         res.status(200).json({ success: true, data: { count } });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

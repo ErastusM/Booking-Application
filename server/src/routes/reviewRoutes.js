@@ -7,8 +7,9 @@ const {
     getMyReviews,
 } = require('../controllers/reviewController');
 const { auth, authorize } = require('../middleware/auth');
+const { createReviewRules } = require('../middleware/validate');
 
-router.post('/', auth, authorize('customer'), createReview);
+router.post('/', auth, authorize('customer'), createReviewRules, createReview);
 router.get('/my-reviews', auth, getMyReviews);
 router.get('/service/:serviceId', getServiceReviews);
 router.delete('/:id', auth, authorize('admin'), deleteReview);

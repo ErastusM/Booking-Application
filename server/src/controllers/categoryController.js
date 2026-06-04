@@ -6,7 +6,7 @@ exports.getMainCategories = async (req, res) => {
     try {
         res.status(200).json({ success: true, data: MAIN_CATEGORIES });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -15,7 +15,7 @@ exports.getMyCategories = async (req, res) => {
         const categories = await Category.find({ provider: req.user._id }).sort({ order: 1, createdAt: 1 });
         res.status(200).json({ success: true, data: categories });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -24,7 +24,7 @@ exports.getProviderCategories = async (req, res) => {
         const categories = await Category.find({ provider: req.params.providerId }).sort({ order: 1, createdAt: 1 });
         res.status(200).json({ success: true, data: categories });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -36,7 +36,7 @@ exports.createCategory = async (req, res) => {
         const category = await Category.create({ name, provider: req.user._id });
         res.status(201).json({ success: true, data: category });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -50,7 +50,7 @@ exports.updateCategory = async (req, res) => {
 
         res.status(200).json({ success: true, data: category });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -65,6 +65,6 @@ exports.deleteCategory = async (req, res) => {
 
         res.status(200).json({ success: true, message: 'Category deleted' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

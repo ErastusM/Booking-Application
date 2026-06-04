@@ -50,14 +50,23 @@ const authLimiter = rateLimit({
     skip: () => process.env.NODE_ENV === 'test',
 });
 
+const writeLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: process.env.NODE_ENV === 'test' ? 10000 : 100,
+    message: { success: false, message: 'Too many requests, please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === 'test',
+});
+
 // Middleware
 app.use(helmet());
 app.use(cors({
     origin: process.env.CLIENT_URL || 'http://localhost:3001',
     credentials: true,
 }));
-app.use(express.json());
-app.use(express.urlencoded({ extended: false }));
+app.use(express.json({ limit: '1mb' }));
+app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.use(mongoSanitize());
 if (process.env.NODE_ENV !== 'test') {
     app.use(pinoHttp({ logger }));
@@ -67,10 +76,10 @@ if (process.env.NODE_ENV !== 'test') {
 app.use(passport.initialize());
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/services', serviceRoutes);
-app.use('/api/appointments', appointmentRoutes);
+app.use('/api/appointments', writeLimiter, appointmentRoutes);
 app.use('/api/users', userRoutes);
-app.use('/api/waitinglist', waitingListRoutes);
-app.use('/api/reviews', reviewRoutes);
+app.use('/api/waitinglist', writeLimiter, waitingListRoutes);
+app.use('/api/reviews', writeLimiter, reviewRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/availability', availabilityRoutes);
@@ -78,7 +87,7 @@ app.use('/api/earnings', earningsRoutes);
 app.use('/api/categories', categoryRoutes);
 app.use('/api/providers', providerRoutes);
 app.use('/api/blocked-times', blockedTimeRoutes);
-app.use('/api/messages', messageRoutes);
+app.use('/api/messages', writeLimiter, messageRoutes);
 app.use('/api/crm', clientCRMRoutes);
 app.use('/api/packages', packageRoutes);
 app.use('/api/retention', retentionRoutes);
@@ -128,7 +137,5 @@ if (require.main === module) {
         process.on('SIGINT',  () => shutdown('SIGINT'));
     });
 }
-
-module.exports = app;
 
 module.exports = app;
