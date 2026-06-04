@@ -1,4 +1,5 @@
-const { logger } = require('../../server');
+const pino = require('pino');
+const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const Appointment = require('../models/Appointment');
 const Service = require('../models/Service');
 const User = require('../models/User');

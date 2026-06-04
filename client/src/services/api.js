@@ -1,7 +1,9 @@
 import axios from 'axios';
 
+const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+
 const API = axios.create({
-    baseURL: process.env.REACT_APP_API_URL || 'http://localhost:5000/api'
+    baseURL: `${API_BASE}/api`
 });
 
 // Add token to requests
@@ -13,4 +15,21 @@ API.interceptors.request.use((config) => {
     return config;
 });
 
+// Handle auth errors globally
+API.interceptors.response.use(
+    (response) => response,
+    (error) => {
+        if (error.response?.status === 401) {
+            localStorage.removeItem('token');
+            localStorage.removeItem('refreshToken');
+            // Redirect to login if not already there
+            if (window.location.pathname !== '/login' && window.location.pathname !== '/auth/callback') {
+                window.location.href = '/login?error=session_expired';
+            }
+        }
+        return Promise.reject(error);
+    }
+);
+
+export { API_BASE };
 export default API;

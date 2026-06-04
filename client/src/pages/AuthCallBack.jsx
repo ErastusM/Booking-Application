@@ -1,10 +1,12 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
+import API from '../services/api';
 
 const AuthCallback = () => {
     const { login } = useAuthContext();
     const navigate = useNavigate();
+    const [error, setError] = useState('');
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -15,15 +17,8 @@ const AuthCallback = () => {
             return;
         }
 
-        const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-
-        fetch(`${apiUrl}/api/auth/exchange-code`, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ code }),
-        })
-            .then(r => r.json())
-            .then(data => {
+        API.post('/auth/exchange-code', { code })
+            .then(({ data }) => {
                 if (data.success) {
                     const { token, refreshToken, user } = data.data;
                     localStorage.setItem('token', token);
@@ -43,17 +38,31 @@ const AuthCallback = () => {
                         }
                     }, 500);
                 } else {
-                    navigate('/login?error=google_failed');
+                    setError(data.message || 'Authentication failed');
+                    setTimeout(() => navigate('/login?error=google_failed'), 2000);
                 }
             })
-            .catch(() => navigate('/login?error=google_failed'));
-    }, []);
+            .catch((err) => {
+                setError(err.response?.data?.message || 'Authentication failed. Please try again.');
+                setTimeout(() => navigate('/login?error=google_failed'), 2000);
+            });
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
         <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--off-white)' }}>
             <div style={{ textAlign: 'center' }}>
-                <div style={{ width: '40px', height: '40px', border: '3px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 1rem' }} />
-                <p style={{ color: 'var(--text-muted)', fontFamily: 'Inter, sans-serif' }}>Signing you in with Google...</p>
+                {error ? (
+                    <>
+                        <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>⚠️</div>
+                        <p style={{ color: '#991b1b', fontFamily: 'Inter, sans-serif', fontSize: '0.9rem' }}>{error}</p>
+                        <p style={{ color: 'var(--text-muted)', fontFamily: 'Inter, sans-serif', fontSize: '0.8rem', marginTop: '0.5rem' }}>Redirecting to login...</p>
+                    </>
+                ) : (
+                    <>
+                        <div style={{ width: '40px', height: '40px', border: '3px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 1rem' }} />
+                        <p style={{ color: 'var(--text-muted)', fontFamily: 'Inter, sans-serif' }}>Signing you in with Google...</p>
+                    </>
+                )}
             </div>
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
