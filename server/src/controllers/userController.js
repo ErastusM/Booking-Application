@@ -12,7 +12,7 @@ exports.getAllUsers = async (req, res) => {
         ]);
         res.status(200).json({ success: true, count: users.length, total, page, pages: Math.ceil(total / limit), data: users });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -25,7 +25,7 @@ exports.deleteUser = async (req, res) => {
         await User.findByIdAndDelete(req.params.id);
         res.status(200).json({ success: true, message: 'User deleted successfully' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -49,6 +49,6 @@ exports.updateUserRole = async (req, res) => {
 
         res.status(200).json({ success: true, data: user });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

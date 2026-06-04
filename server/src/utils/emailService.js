@@ -8,6 +8,19 @@ const transporter = nodemailer.createTransport({
     },
 });
 
+/**
+ * Escape HTML special characters to prevent injection in email templates.
+ */
+const escapeHtml = (str) => {
+    if (typeof str !== 'string') return '';
+    return str
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+};
+
 exports.sendVerificationEmail = async (email, name, token) => {
     const verificationUrl = `${process.env.SERVER_URL}/api/auth/verify-email?token=${token}`;
 
@@ -28,7 +41,7 @@ exports.sendVerificationEmail = async (email, name, token) => {
             <!-- Body -->
             <div style="padding: 2.5rem 2rem; background: white; border-left: 1px solid #e8e6e1; border-right: 1px solid #e8e6e1;">
                 <h2 style="font-family: Georgia, serif; color: #1a1a2e; font-size: 1.5rem; margin-bottom: 1rem;">
-                    Welcome, ${name}!
+                    Welcome, ${escapeHtml(name)}!
                 </h2>
                 <p style="color: #6b6b80; font-size: 0.95rem; line-height: 1.7; margin-bottom: 1.5rem;">
                     Thanks for signing up. Please verify your email address to activate your account and start booking appointments.
@@ -71,7 +84,7 @@ exports.sendWelcomeEmail = async (email, name) => {
             </div>
             <div style="padding: 2.5rem 2rem; background: white; border-left: 1px solid #e8e6e1; border-right: 1px solid #e8e6e1;">
                 <h2 style="font-family: Georgia, serif; color: #1a1a2e; font-size: 1.5rem; margin-bottom: 1rem;">
-                    You're all set, ${name}! ✅
+                    You're all set, ${escapeHtml(name)}! ✅
                 </h2>
                 <p style="color: #6b6b80; font-size: 0.95rem; line-height: 1.7;">
                     Your account has been verified. You can now discover and book services on Bookplus.
@@ -99,9 +112,9 @@ exports.sendAppointmentConfirmed = async (email, name, serviceName, date, time) 
             </div>
             <div style="padding: 2rem; background: white; border: 1px solid #e8e6e1;">
                 <h2 style="font-family: Georgia, serif; color: #1a1a2e;">Appointment Confirmed! ✂️</h2>
-                <p style="color: #6b6b80;">Hi ${name}, your appointment has been confirmed.</p>
+                <p style="color: #6b6b80;">Hi ${escapeHtml(name)}, your appointment has been confirmed.</p>
                 <div style="background: #f5f3ef; padding: 1rem; border-radius: 8px; margin: 1.5rem 0;">
-                    <p style="margin: 0.25rem 0;"><strong>Service:</strong> ${serviceName}</p>
+                    <p style="margin: 0.25rem 0;"><strong>Service:</strong> ${escapeHtml(serviceName)}</p>
                     <p style="margin: 0.25rem 0;"><strong>Date:</strong> ${date}</p>
                     <p style="margin: 0.25rem 0;"><strong>Time:</strong> ${time}</p>
                 </div>
@@ -126,7 +139,7 @@ exports.sendAppointmentCompleted = async (email, name, serviceName) => {
             </div>
             <div style="padding: 2rem; background: white; border: 1px solid #e8e6e1;">
                 <h2 style="font-family: Georgia, serif; color: #1a1a2e;">Thanks for visiting! 🙏</h2>
-                <p style="color: #6b6b80;">Hi ${name}, we hope you enjoyed your <strong>${serviceName}</strong>.</p>
+                <p style="color: #6b6b80;">Hi ${escapeHtml(name)}, we hope you enjoyed your <strong>${escapeHtml(serviceName)}</strong>.</p>
                 <p style="color: #6b6b80;">We'd love to hear your feedback — leave a review on your appointments page!</p>
                 <div style="text-align: center; margin: 1.5rem 0;">
                     <a href="${process.env.CLIENT_URL}/appointments" style="background: #c9a84c; color: #1a1a2e; padding: 0.75rem 2rem; border-radius: 8px; text-decoration: none; font-weight: 700;">Leave a Review →</a>
@@ -151,7 +164,7 @@ exports.sendAppointmentCancelled = async (email, name, serviceName, date) => {
             </div>
             <div style="padding: 2rem; background: white; border: 1px solid #e8e6e1;">
                 <h2 style="font-family: Georgia, serif; color: #1a1a2e;">Appointment Cancelled</h2>
-                <p style="color: #6b6b80;">Hi ${name}, your <strong>${serviceName}</strong> appointment on <strong>${date}</strong> has been cancelled.</p>
+                <p style="color: #6b6b80;">Hi ${escapeHtml(name)}, your <strong>${escapeHtml(serviceName)}</strong> appointment on <strong>${date}</strong> has been cancelled.</p>
                 <div style="text-align: center; margin: 1.5rem 0;">
                     <a href="${process.env.CLIENT_URL}/book-appointment" style="background: #c9a84c; color: #1a1a2e; padding: 0.75rem 2rem; border-radius: 8px; text-decoration: none; font-weight: 700;">Book Again →</a>
                 </div>
@@ -175,9 +188,9 @@ exports.sendAppointmentRescheduled = async (email, providerName, customerName, s
             </div>
             <div style="padding: 2rem; background: white; border: 1px solid #e8e6e1;">
                 <h2 style="font-family: Georgia, serif; color: #1a1a2e;">Appointment Rescheduled</h2>
-                <p style="color: #6b6b80;">Hi ${providerName}, <strong>${customerName}</strong> has rescheduled their appointment.</p>
+                <p style="color: #6b6b80;">Hi ${escapeHtml(providerName)}, <strong>${escapeHtml(customerName)}</strong> has rescheduled their appointment.</p>
                 <div style="background: #f5f3ef; padding: 1rem; border-radius: 8px; margin: 1.5rem 0;">
-                    <p style="margin: 0.25rem 0;"><strong>Service:</strong> ${serviceName}</p>
+                    <p style="margin: 0.25rem 0;"><strong>Service:</strong> ${escapeHtml(serviceName)}</p>
                     <p style="margin: 0.25rem 0;"><strong>New Date:</strong> ${date}</p>
                     <p style="margin: 0.25rem 0;"><strong>New Time:</strong> ${time}</p>
                 </div>
@@ -202,9 +215,9 @@ exports.sendReminder24h = async (email, name, serviceName, date, time) => {
             </div>
             <div style="padding: 2rem; background: white; border: 1px solid #e8e6e1;">
                 <h2 style="font-family: Georgia, serif; color: #1a1a2e;">See you tomorrow!</h2>
-                <p style="color: #6b6b80;">Hi ${name}, this is a friendly reminder that you have an upcoming appointment.</p>
+                <p style="color: #6b6b80;">Hi ${escapeHtml(name)}, this is a friendly reminder that you have an upcoming appointment.</p>
                 <div style="background: #f5f3ef; padding: 1rem; border-radius: 8px; margin: 1.5rem 0;">
-                    <p style="margin: 0.25rem 0;"><strong>Service:</strong> ${serviceName}</p>
+                    <p style="margin: 0.25rem 0;"><strong>Service:</strong> ${escapeHtml(serviceName)}</p>
                     <p style="margin: 0.25rem 0;"><strong>Date:</strong> ${date}</p>
                     <p style="margin: 0.25rem 0;"><strong>Time:</strong> ${time}</p>
                 </div>
@@ -229,7 +242,7 @@ exports.sendReminder1h = async (email, name, serviceName, time) => {
             </div>
             <div style="padding: 2rem; background: white; border: 1px solid #e8e6e1;">
                 <h2 style="font-family: Georgia, serif; color: #1a1a2e;">Your appointment is soon</h2>
-                <p style="color: #6b6b80;">Hi ${name}, your <strong>${serviceName}</strong> appointment starts at <strong>${time}</strong> — just 1 hour away!</p>
+                <p style="color: #6b6b80;">Hi ${escapeHtml(name)}, your <strong>${escapeHtml(serviceName)}</strong> appointment starts at <strong>${time}</strong> — just 1 hour away!</p>
                 <p style="color: #6b6b80; font-size: 0.85rem;">Please arrive a few minutes early. We look forward to seeing you.</p>
             </div>
             <div style="background: #f5f3ef; padding: 1rem; text-align: center; border: 1px solid #e8e6e1; border-top: none;">
@@ -252,7 +265,7 @@ exports.sendRebookingPrompt = async (email, name, serviceName, providerName, pro
             </div>
             <div style="padding: 2rem; background: white; border: 1px solid #e8e6e1;">
                 <h2 style="font-family: Georgia, serif; color: #1a1a2e;">Glad you came in!</h2>
-                <p style="color: #6b6b80;">Hi ${name}, thank you for your recent <strong>${serviceName}</strong> with ${providerName}. We'd love to see you again!</p>
+                <p style="color: #6b6b80;">Hi ${escapeHtml(name)}, thank you for your recent <strong>${escapeHtml(serviceName)}</strong> with ${escapeHtml(providerName)}. We'd love to see you again!</p>
                 <div style="text-align: center; margin: 2rem 0;">
                     <a href="${bookUrl}" style="background: #c9a84c; color: #1a1a2e; text-decoration: none; padding: 0.75rem 2rem; border-radius: 6px; font-weight: bold; font-size: 1rem;">Book Again</a>
                 </div>

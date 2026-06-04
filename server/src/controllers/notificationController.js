@@ -13,7 +13,7 @@ exports.getMyNotifications = async (req, res) => {
 
         res.status(200).json({ success: true, unreadCount, data: notifications });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -25,7 +25,7 @@ exports.markAllRead = async (req, res) => {
         );
         res.status(200).json({ success: true, message: 'All notifications marked as read' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -34,7 +34,7 @@ exports.markOneRead = async (req, res) => {
         await Notification.findByIdAndUpdate(req.params.id, { read: true });
         res.status(200).json({ success: true });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -43,6 +43,6 @@ exports.deleteNotification = async (req, res) => {
         await Notification.findByIdAndDelete(req.params.id);
         res.status(200).json({ success: true });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

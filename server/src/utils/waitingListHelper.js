@@ -2,6 +2,8 @@ const WaitingList = require('../models/WaitingList');
 const Appointment = require('../models/Appointment');
 const Service = require('../models/Service');
 const { createNotification } = require('./notificationHelper');
+const pino = require('pino');
+const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
 exports.promoteFromWaitingList = async (service, appointmentDate, startTime, endTime) => {
     try {
@@ -56,8 +58,8 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
             );
         }
 
-        console.log(`Promoted ${next.customer.name} from waiting list`);
+        logger.info({ customer: next.customer.name }, 'Promoted from waiting list');
     } catch (error) {
-        console.error('Waiting list promotion error:', error.message);
+        logger.error({ err: error }, 'Waiting list promotion error');
     }
 };

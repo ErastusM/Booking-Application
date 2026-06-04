@@ -5,7 +5,9 @@ exports.errorHandler = (err, req, res, next) => {
     log.error({ err, method: req.method, url: req.originalUrl }, err.message);
 
     const status = err.statusCode || 500;
-    const message = err.message || 'Internal Server Error';
+
+    // In production, never leak internal error details to the client
+    const message = status < 500 ? (err.message || 'Request error') : 'Internal Server Error';
 
     res.status(status).json({
         success: false,

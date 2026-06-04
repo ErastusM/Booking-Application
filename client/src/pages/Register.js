@@ -250,7 +250,7 @@ const Register = () => {
                             </div>
 
                             <a
-                                href="http://localhost:5000/api/auth/google"
+                                href={`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/auth/google`}
                                 style={{
                                     display: 'flex',
                                     alignItems: 'center',
