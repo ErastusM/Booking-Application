@@ -85,8 +85,8 @@ describe('POST /api/auth/register', () => {
         const res = await request(app)
             .post('/api/auth/register')
             .send({ ...validPayload, email: 'hacker@example.com', role: 'admin' });
-        expect(res.status).toBe(201);
-        expect(res.body.data.user.role).toBe('customer');
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/customer or provider/i);
     });
 
     it('new user is not verified by default', async () => {
@@ -235,18 +235,20 @@ describe('POST /api/auth/exchange-code', () => {
     });
 
     it('returns 400 for an invalid / unknown code', async () => {
+        const unknownCode = crypto.randomBytes(32).toString('hex');
         const res = await request(app)
             .post('/api/auth/exchange-code')
-            .send({ code: 'totally_fake_code' });
+            .send({ code: unknownCode });
         expect(res.status).toBe(400);
         expect(res.body.message).toMatch(/invalid or expired/i);
     });
 
     it('returns 400 for an expired code', async () => {
-        const expiredCode = crypto.randomBytes(16).toString('hex');
+        const expiredCode = crypto.randomBytes(32).toString('hex');
+        const expiredCodeHash = crypto.createHash('sha256').update(expiredCode).digest('hex');
         await makeUser({
             email: 'oauth@example.com',
-            oauthCode: expiredCode,
+            oauthCode: expiredCodeHash,
             oauthCodeExpiry: new Date(Date.now() - 1000), // already past
         });
         const res = await request(app)
@@ -257,6 +259,7 @@ describe('POST /api/auth/exchange-code', () => {
 
     it('returns 200 with token for a valid unexpired code, then clears the code', async () => {
         const validCode = crypto.randomBytes(32).toString('hex');
+        const validCodeHash = crypto.createHash('sha256').update(validCode).digest('hex');
         await User.create({
             name: 'OAuth User',
             email: 'oauthvalid@example.com',
@@ -265,7 +268,7 @@ describe('POST /api/auth/exchange-code', () => {
             role: 'customer',
             isVerified: true,
             provider: 'google',
-            oauthCode: validCode,
+            oauthCode: validCodeHash,
             oauthCodeExpiry: new Date(Date.now() + 600_000),
         });
         const res = await request(app)
@@ -281,6 +284,7 @@ describe('POST /api/auth/exchange-code', () => {
 
     it('code cannot be used twice (replay attack)', async () => {
         const validCode = crypto.randomBytes(32).toString('hex');
+        const validCodeHash = crypto.createHash('sha256').update(validCode).digest('hex');
         await User.create({
             name: 'Replay User',
             email: 'replay@example.com',
@@ -289,7 +293,7 @@ describe('POST /api/auth/exchange-code', () => {
             role: 'customer',
             isVerified: true,
             provider: 'google',
-            oauthCode: validCode,
+            oauthCode: validCodeHash,
             oauthCodeExpiry: new Date(Date.now() + 600_000),
         });
         await request(app).post('/api/auth/exchange-code').send({ code: validCode });
