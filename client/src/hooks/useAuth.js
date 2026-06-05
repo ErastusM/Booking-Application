@@ -22,6 +22,7 @@ export const useAuth = () => {
             } catch (err) {
                 // Token is invalid or expired — clear it
                 localStorage.removeItem('token');
+                localStorage.removeItem('refreshToken');
                 setToken(null);
                 setUser(null);
             } finally {
@@ -39,8 +40,14 @@ export const useAuth = () => {
         setError(null);
     }, []);
 
-    const logout = useCallback(() => {
+    const logout = useCallback(async () => {
+        try {
+            await API.post('/auth/logout');
+        } catch {
+            // Continue with local logout even if API call fails
+        }
         localStorage.removeItem('token');
+        localStorage.removeItem('refreshToken');
         setToken(null);
         setUser(null);
     }, []);

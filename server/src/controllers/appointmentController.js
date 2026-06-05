@@ -1,3 +1,5 @@
+const pino = require('pino');
+const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const Appointment = require('../models/Appointment');
 const Service = require('../models/Service');
 const User = require('../models/User');
@@ -40,7 +42,7 @@ exports.getAllAppointments = async (req, res) => {
             data: appointments,
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -92,7 +94,7 @@ exports.createAppointment = async (req, res) => {
 
         res.status(201).json({ success: true, message: 'Appointment confirmed', data: appointment });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -114,7 +116,7 @@ exports.updateAppointment = async (req, res) => {
         await appointment.save();
         res.status(200).json({ success: true, message: 'Appointment updated successfully', data: appointment });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -151,12 +153,12 @@ exports.cancelAppointment = async (req, res) => {
                 date
             );
         } catch (emailErr) {
-            console.error('Cancel email failed:', emailErr.message);
+            logger.error({ err: emailErr }, 'Cancel email failed');
         }
 
         res.status(200).json({ success: true, message: 'Appointment cancelled successfully', data: appointment });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -206,12 +208,12 @@ exports.updateAppointmentStatus = async (req, res) => {
                 await sendAppointmentCancelled(customerEmail, customerName, serviceName, date);
             }
         } catch (emailErr) {
-            console.error('Email notification failed:', emailErr.message);
+            logger.error({ err: emailErr }, 'Email notification failed');
         }
 
         res.status(200).json({ success: true, data: appointment });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -261,11 +263,11 @@ exports.rescheduleAppointment = async (req, res) => {
                 }
             }
         } catch (emailErr) {
-            console.error('Reschedule email failed:', emailErr.message);
+            logger.error({ err: emailErr }, 'Reschedule email failed');
         }
 
         res.status(200).json({ success: true, data: appointment });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

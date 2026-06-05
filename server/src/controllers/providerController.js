@@ -71,7 +71,7 @@ exports.getAllProviders = async (req, res) => {
 
         res.status(200).json({ success: true, count: enriched.length, data: enriched });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -146,6 +146,6 @@ exports.getProviderProfile = async (req, res) => {
             },
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

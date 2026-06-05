@@ -11,7 +11,7 @@ exports.getAllServices = async (req, res) => {
 
         res.status(200).json({ success: true, count: services.length, data: services });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -23,7 +23,7 @@ exports.getMyServices = async (req, res) => {
 
         res.status(200).json({ success: true, count: services.length, data: services });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -40,7 +40,7 @@ exports.createService = async (req, res) => {
 
         res.status(201).json({ success: true, data: service });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -59,7 +59,7 @@ exports.createMyService = async (req, res) => {
 
         res.status(201).json({ success: true, data: service });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -85,7 +85,7 @@ exports.updateService = async (req, res) => {
         const updated = await Service.findByIdAndUpdate(req.params.id, allowedUpdates, { new: true });
         res.status(200).json({ success: true, data: updated });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -105,6 +105,6 @@ exports.deleteService = async (req, res) => {
         await Service.findByIdAndDelete(req.params.id);
         res.status(200).json({ success: true, message: 'Service deleted' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

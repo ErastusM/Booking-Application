@@ -32,7 +32,7 @@ exports.getMyBlockedTimes = async (req, res) => {
             .sort({ date: 1, startTime: 1 });
         res.status(200).json({ success: true, data: blocked });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -75,7 +75,7 @@ exports.createBlockedTime = async (req, res) => {
         });
         res.status(201).json({ success: true, data: blocked });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -115,7 +115,7 @@ exports.updateBlockedTime = async (req, res) => {
 
         res.status(200).json({ success: true, message: 'Blocked time updated' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -143,6 +143,6 @@ exports.deleteBlockedTime = async (req, res) => {
 
         res.status(200).json({ success: true, message: 'Blocked time deleted' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

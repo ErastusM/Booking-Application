@@ -80,6 +80,6 @@ exports.getMyEarnings = async (req, res) => {
             },
         });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

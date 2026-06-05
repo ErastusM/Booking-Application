@@ -10,7 +10,7 @@ exports.getMyPackages = async (req, res) => {
             .sort({ createdAt: -1 });
         res.status(200).json({ success: true, data: packages });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -28,7 +28,7 @@ exports.createPackage = async (req, res) => {
         await pkg.populate('services', 'name price duration');
         res.status(201).json({ success: true, data: pkg });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -42,7 +42,7 @@ exports.updatePackage = async (req, res) => {
         if (!pkg) return res.status(404).json({ success: false, message: 'Package not found' });
         res.status(200).json({ success: true, data: pkg });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -52,7 +52,7 @@ exports.deletePackage = async (req, res) => {
         if (!pkg) return res.status(404).json({ success: false, message: 'Package not found' });
         res.status(200).json({ success: true, message: 'Package deleted' });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -64,7 +64,7 @@ exports.getProviderPackages = async (req, res) => {
             .populate('services', 'name price duration');
         res.status(200).json({ success: true, data: packages });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -90,7 +90,7 @@ exports.purchasePackage = async (req, res) => {
         await clientPkg.populate('package', 'name totalSessions validityDays');
         res.status(201).json({ success: true, data: clientPkg });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -110,7 +110,7 @@ exports.getMyClientPackages = async (req, res) => {
 
         res.status(200).json({ success: true, data: pkgs });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -134,7 +134,7 @@ exports.redeemSession = async (req, res) => {
 
         res.status(200).json({ success: true, data: clientPkg });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
@@ -147,6 +147,6 @@ exports.getMyPackageClients = async (req, res) => {
             .sort({ createdAt: -1 });
         res.status(200).json({ success: true, data: pkgs });
     } catch (error) {
-        res.status(500).json({ success: false, message: error.message });
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
