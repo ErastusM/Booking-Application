@@ -1,7 +1,7 @@
 const Appointment = require('../models/Appointment');
 const Service = require('../models/Service');
 const User = require('../models/User');
-const { createNotification } = require('../utils/notificationHelper');
+const { createNotification } = require('../utils/notificationhelper');
 const {
     sendAppointmentConfirmed,
     sendAppointmentCompleted,

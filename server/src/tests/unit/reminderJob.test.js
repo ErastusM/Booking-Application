@@ -23,7 +23,7 @@ jest.mock('../../utils/emailService', () => ({
     sendRebookingPrompt: jest.fn().mockResolvedValue(true),
 }));
 
-jest.mock('../../utils/notificationHelper', () => ({
+jest.mock('../../utils/notificationhelper', () => ({
     createNotification: jest.fn().mockResolvedValue(true),
 }));
 

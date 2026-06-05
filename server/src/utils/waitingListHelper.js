@@ -1,7 +1,7 @@
 const WaitingList = require('../models/WaitingList');
 const Appointment = require('../models/Appointment');
 const Service = require('../models/Service');
-const { createNotification } = require('./notificationHelper');
+const { createNotification } = require('./notificationhelper');
 
 exports.promoteFromWaitingList = async (service, appointmentDate, startTime, endTime) => {
     try {
