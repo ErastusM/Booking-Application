@@ -11,7 +11,7 @@ services:
       - .env.production
 
   server:
-    build: ./server
+    image: erastusm/bookplus-server:latest
     container_name: barbershop-server
     restart: always
     depends_on:
@@ -20,10 +20,7 @@ services:
       - .env.production
 
   client:
-    build:
-      context: ./client
-      args:
-        - REACT_APP_API_URL=https://api.bookplus.pro
+    image: erastusm/bookplus-client:latest
     container_name: barbershop-client
     restart: always
     depends_on:
