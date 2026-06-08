@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import NotificationBell from './NotificationBell';
+import SuggestionBox from './SuggestionBox';
 
 const Navbar = () => {
     const { user, logout } = useAuthContext();
@@ -9,6 +10,7 @@ const Navbar = () => {
     const location = useLocation();
     const [scrolled, setScrolled] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
+    const [showSuggestion, setShowSuggestion] = useState(false);
     const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
 
     const isHome = location.pathname === '/';
@@ -149,16 +151,16 @@ const Navbar = () => {
                         onClick={() => setMenuOpen(false)}
                         style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1001, backdropFilter: 'blur(2px)' }}
                     />
-                    {/* Drawer panel — slides in from the right */}
+                    {/* Drawer panel — slides in from the left */}
                     <div style={{
-                        position: 'fixed', top: 0, right: 0, bottom: 0,
+                        position: 'fixed', top: 0, left: 0, bottom: 0,
                         width: '280px', maxWidth: '85vw',
                         background: darkMode ? '#12121c' : 'white',
                         zIndex: 1002,
                         display: 'flex', flexDirection: 'column',
-                        boxShadow: '-8px 0 40px rgba(0,0,0,0.2)',
+                        boxShadow: '8px 0 40px rgba(0,0,0,0.2)',
                         overflowY: 'auto',
-                        animation: 'slideInRight 0.22s ease-out',
+                        animation: 'slideInLeft 0.22s ease-out',
                     }}>
                         {/* Drawer header */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
@@ -247,11 +249,17 @@ const Navbar = () => {
                     const active = location.pathname === to.split('?')[0] && (to === '/dashboard' ? !location.search.includes('tab=') || location.search === '' : true);
                     return (
                         <Link key={to} to={to} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', textDecoration: 'none', color: isActive(to.split('?')[0]) ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: isActive(to.split('?')[0]) ? '700' : '500', fontFamily: 'Outfit, sans-serif', transition: 'color 0.15s' }}>
-                            <span style={{ color: isActive(to.split('?')[0]) ? 'var(--gold)' : 'var(--text-muted)' }}>{icon}</span>
+                            <span style={{ color: isActive(to.split('?')[0]) ? 'var(--gold)' : 'var(--text-muted)', display: 'flex' }}>{icon}</span>
                             {label}
                         </Link>
                     );
                 })}
+                <button onClick={() => setShowSuggestion(true)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', background: 'none', border: 'none', cursor: 'pointer', color: showSuggestion ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: showSuggestion ? '700' : '500', fontFamily: 'Outfit, sans-serif', padding: 0 }}>
+                    <span style={{ color: showSuggestion ? 'var(--gold)' : 'var(--text-muted)', display: 'flex' }}>
+                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M22 12h-6l-2 3H10l-2-3H2"/><path strokeLinecap="round" strokeLinejoin="round" d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
+                    </span>
+                    Suggest
+                </button>
                 {user.role === 'customer' && [
                     { to: '/', icon: (
                         <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
@@ -267,12 +275,19 @@ const Navbar = () => {
                     ), label: 'Profile' },
                 ].map(({ to, icon, label }) => (
                     <Link key={to} to={to} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', textDecoration: 'none', color: isActive(to) ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: isActive(to) ? '700' : '500', fontFamily: 'Outfit, sans-serif', transition: 'color 0.15s' }}>
-                        <span style={{ color: isActive(to) ? 'var(--gold)' : 'var(--text-muted)' }}>{icon}</span>
+                        <span style={{ color: isActive(to) ? 'var(--gold)' : 'var(--text-muted)', display: 'flex' }}>{icon}</span>
                         {label}
                     </Link>
                 ))}
+                <button onClick={() => setShowSuggestion(true)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', background: 'none', border: 'none', cursor: 'pointer', color: showSuggestion ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: showSuggestion ? '700' : '500', fontFamily: 'Outfit, sans-serif', padding: 0 }}>
+                    <span style={{ color: showSuggestion ? 'var(--gold)' : 'var(--text-muted)', display: 'flex' }}>
+                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M22 12h-6l-2 3H10l-2-3H2"/><path strokeLinecap="round" strokeLinejoin="round" d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
+                    </span>
+                    Suggest
+                </button>
             </div>
         )}
+        {user && <SuggestionBox user={user} open={showSuggestion} onClose={() => setShowSuggestion(false)} />}
         {/* Spacer so content doesn't hide behind bottom nav on mobile */}
         {user && <div className="show-mobile" style={{ height: '62px' }} />}
     </>

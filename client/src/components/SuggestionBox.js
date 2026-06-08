@@ -11,8 +11,11 @@ const categoryMeta = {
     'General':         { icon: '💬', color: '#6b7280' },
 };
 
-const SuggestionBox = ({ user }) => {
-    const [open, setOpen] = useState(false);
+const SuggestionBox = ({ user, open: openProp, onClose }) => {
+    const [openInternal, setOpenInternal] = useState(false);
+    const isControlled = openProp !== undefined;
+    const open = isControlled ? openProp : openInternal;
+    const doClose = () => { if (isControlled) { onClose?.(); } else { setOpenInternal(false); } };
     const [category, setCategory] = useState('General');
     const [message, setMessage] = useState('');
     const [submitting, setSubmitting] = useState(false);
@@ -44,30 +47,33 @@ const SuggestionBox = ({ user }) => {
 
     return (
         <>
-            {/* Floating trigger button */}
-            <button
-                onClick={() => { setOpen(true); reset(); }}
-                title="Send us a suggestion"
-                style={{
-                    position: 'fixed', bottom: '1.5rem', right: '1.5rem',
-                    width: '52px', height: '52px', borderRadius: '50%',
-                    background: 'var(--charcoal)', color: 'white',
-                    border: '2px solid rgba(201,168,76,0.4)',
-                    boxShadow: '0 4px 18px rgba(26,26,46,0.35)',
-                    cursor: 'pointer', fontSize: '1.3rem',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    zIndex: 1000, transition: 'transform 0.15s, box-shadow 0.15s',
-                }}
-                onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(26,26,46,0.45)'; }}
-                onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 18px rgba(26,26,46,0.35)'; }}
-            >
-                💡
-            </button>
+            {/* Floating trigger button — desktop only, hidden when controlled from outside */}
+            {!isControlled && (
+                <button
+                    onClick={() => { setOpenInternal(true); reset(); }}
+                    title="Send us a suggestion"
+                    className="hidden-mobile"
+                    style={{
+                        position: 'fixed', bottom: '1.5rem', right: '1.5rem',
+                        width: '52px', height: '52px', borderRadius: '50%',
+                        background: 'var(--charcoal)', color: 'white',
+                        border: '2px solid rgba(201,168,76,0.4)',
+                        boxShadow: '0 4px 18px rgba(26,26,46,0.35)',
+                        cursor: 'pointer',
+                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                        zIndex: 1000, transition: 'transform 0.15s, box-shadow 0.15s',
+                    }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(26,26,46,0.45)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 18px rgba(26,26,46,0.35)'; }}
+                >
+                    <svg width="22" height="22" fill="none" stroke="white" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M22 12h-6l-2 3H10l-2-3H2"/><path strokeLinecap="round" strokeLinejoin="round" d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
+                </button>
+            )}
 
             {/* Drawer overlay */}
             {open && (
                 <div
-                    onClick={() => setOpen(false)}
+                    onClick={doClose}
                     style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1001, backdropFilter: 'blur(2px)' }}
                 />
             )}
@@ -87,7 +93,7 @@ const SuggestionBox = ({ user }) => {
                         <h2 style={{ fontFamily: 'Cormorant Garamond, serif', color: 'var(--gold)', fontSize: '1.4rem', fontWeight: '700', margin: '0 0 0.25rem' }}>Suggestion Box</h2>
                         <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.8rem', margin: 0 }}>Help us make Bookplus better</p>
                     </div>
-                    <button onClick={() => setOpen(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0, marginTop: '2px' }}>×</button>
+                    <button onClick={doClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0, marginTop: '2px' }}>×</button>
                 </div>
 
                 <div style={{ padding: '1.75rem', flex: 1 }}>
@@ -96,7 +102,7 @@ const SuggestionBox = ({ user }) => {
                             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎉</div>
                             <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.4rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>Thank you!</h3>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '1.5rem' }}>Your suggestion has been sent to our team. We read every message and appreciate you taking the time.</p>
-                            <button onClick={() => { reset(); setOpen(false); }} style={{ background: 'var(--charcoal)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', padding: '0.65rem 1.5rem', fontFamily: 'Outfit, sans-serif', fontSize: '0.875rem', fontWeight: '600', cursor: 'pointer' }}>Close</button>
+                            <button onClick={() => { reset(); doClose(); }} style={{ background: 'var(--charcoal)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', padding: '0.65rem 1.5rem', fontFamily: 'Outfit, sans-serif', fontSize: '0.875rem', fontWeight: '600', cursor: 'pointer' }}>Close</button>
                         </div>
                     ) : (
                         <form onSubmit={handleSubmit}>
