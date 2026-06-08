@@ -5,7 +5,12 @@ export const authService = {
     login: (credentials) => API.post('/auth/login', credentials),
     logout: () => API.post('/auth/logout'),
     getProfile: () => API.get('/auth/profile'),
-    updateProfile: (data) => API.put('/auth/profile', data)
+    updateProfile: (data) => API.put('/auth/profile', data),
+    updatePortfolio: (data) => API.put('/auth/portfolio', data),
+    completeProviderSetup: (data) => API.post('/auth/provider-setup', data),
+    changePassword: (data) => API.put('/auth/change-password', data),
+    forgotPassword: (email) => API.post('/auth/forgot-password', { email }),
+    resetPassword: (data) => API.post('/auth/reset-password', data),
 };
 
 export const serviceService = {
@@ -17,8 +22,9 @@ export const serviceService = {
 };
 
 export const appointmentService = {
-    getAllAppointments: () => API.get('/appointments'),
+    getAllAppointments: (params) => API.get('/appointments', { params }),
     getCustomerAppointments: () => API.get('/appointments/my-appointments'),
+    getBookedSlots: (providerId, date) => API.get('/appointments/booked-slots', { params: { providerId, date } }),
     createAppointment: (data) => API.post('/appointments', data),
     updateAppointment: (id, data) => API.put(`/appointments/${id}`, data),
     cancelAppointment: (id, reason) => API.post(`/appointments/${id}/cancel`, { cancellationReason: reason }),
@@ -27,9 +33,10 @@ export const appointmentService = {
 };
 
 export const userService = {
-    getAllUsers: () => API.get('/users'),
+    getAllUsers: (params) => API.get('/users', { params }),
     deleteUser: (id) => API.delete(`/users/${id}`),
     updateUserRole: (id, role) => API.put(`/users/${id}/role`, { role }),
+    toggleUserActive: (id) => API.put(`/users/${id}/active`),
 };
 
 export const waitingListService = {
@@ -43,6 +50,7 @@ export const reviewService = {
     createReview: (data) => API.post('/reviews', data),
     getServiceReviews: (serviceId) => API.get(`/reviews/service/${serviceId}`),
     getMyReviews: () => API.get('/reviews/my-reviews'),
+    getProviderReviews: () => API.get('/reviews/provider-reviews'),
     deleteReview: (id) => API.delete(`/reviews/${id}`),
 };
 
@@ -123,4 +131,15 @@ export const packageService = {
 
 export const retentionService = {
     getRetentionMetrics: () => API.get('/retention'),
+};
+
+export const teamService = {
+    getMyTeam: () => API.get('/team'),
+    addMember: (data) => API.post('/team', data),
+    updateMember: (id, data) => API.put(`/team/${id}`, data),
+    deleteMember: (id) => API.delete(`/team/${id}`),
+};
+
+export const suggestionService = {
+    submit: (data) => API.post('/suggestions', data),
 };

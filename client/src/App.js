@@ -10,6 +10,7 @@ import BookAppointment from './pages/BookAppointment';
 import MyAppointments from './pages/MyAppointments';
 import AdminDashboard from './pages/AdminDashboard';
 import ProviderDashboard from './pages/ProviderDashboard';
+import ProviderAccount from './pages/ProviderAccount';
 import MyWaitingList from './pages/MyWaitingList';
 import Profile from './pages/Profile';
 import AnalyticsDashboard from './pages/AnalyticsDashboard';
@@ -18,6 +19,8 @@ import ProviderProfilePage from './pages/ProviderProfilePage';
 import AuthCallback from './pages/AuthCallBack';
 import CompleteProfile from './pages/CompleteProfile';
 import VerifyEmail from './pages/VerifyEmail';
+import ForgotPassword from './pages/ForgotPassword';
+import ResetPassword from './pages/ResetPassword';
 
 function App() {
     return (
@@ -33,6 +36,8 @@ function App() {
                     <Route path="/providers/:id" element={<ProviderProfilePage />} />
                     <Route path="/auth/callback" element={<AuthCallback />} />
                     <Route path="/verify-email" element={<VerifyEmail />} />
+                    <Route path="/forgot-password" element={<ForgotPassword />} />
+                    <Route path="/reset-password" element={<ResetPassword />} />
 
                     {/* Customer only */}
                     <Route path="/book-appointment" element={
@@ -57,14 +62,19 @@ function App() {
                             <ProviderDashboard />
                         </ProtectedRoute>
                     } />
+                    <Route path="/account" element={
+                        <ProtectedRoute allowedRoles={['provider']}>
+                            <ProviderAccount />
+                        </ProtectedRoute>
+                    } />
 
                     {/* Admin only */}
-                    <Route path="/admin/dashboard" element={
+                    <Route path="/bkplus-command" element={
                         <ProtectedRoute allowedRoles={['admin']}>
                             <AdminDashboard />
                         </ProtectedRoute>
                     } />
-                    <Route path="/admin/analytics" element={
+                    <Route path="/bkplus-command/insights" element={
                         <ProtectedRoute allowedRoles={['admin']}>
                             <AnalyticsDashboard />
                         </ProtectedRoute>
