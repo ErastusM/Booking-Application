@@ -2,7 +2,6 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { appointmentService, reviewService, availabilityService } from '../services';
 import ReviewModal from '../components/ReviewModal';
-import SuggestionBox from '../components/SuggestionBox';
 import { useAuthContext } from '../context/AuthContext';
 
 const statusConfig = {
@@ -360,8 +359,6 @@ const MyAppointments = () => {
             {selectedAppointment && (
                 <ReviewModal appointment={selectedAppointment} onClose={() => setSelectedAppointment(null)} onSubmitted={fetchData} />
             )}
-
-            <SuggestionBox user={user} />
 
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>

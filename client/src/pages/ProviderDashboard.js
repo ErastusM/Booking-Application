@@ -3,7 +3,6 @@ import { Link } from 'react-router-dom';
 import { appointmentService, availabilityService, earningsService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, retentionService, teamService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import OnboardingWizard from '../components/OnboardingWizard';
-import SuggestionBox from '../components/SuggestionBox';
 
 const statusConfig = {
     pending: { label: 'Pending', bg: '#fef3c7', color: '#92400e' },
@@ -616,8 +615,6 @@ const ProviderDashboard = () => {
     ];
 
     const labelStyle = { display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', letterSpacing: '0.05em', textTransform: 'uppercase' };
-
-    if (showWizard === null) return null; // very brief — only before auth check resolves
 
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100vh' }}>
@@ -1920,9 +1917,6 @@ const ProviderDashboard = () => {
             )}
 
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-
-            {/* Suggestion box — always visible for providers */}
-            <SuggestionBox user={user} />
 
             {/* Add Appointment modal */}
             {showApptModal && (
