@@ -65,6 +65,7 @@ const appointmentSchema = new mongoose.Schema(
         },
         reminderSent24h: { type: Boolean, default: false },
         reminderSent1h:  { type: Boolean, default: false },
+        walkInName: { type: String, default: null },
     },
     {
         timestamps: true

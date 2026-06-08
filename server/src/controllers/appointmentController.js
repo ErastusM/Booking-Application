@@ -82,7 +82,7 @@ exports.getAllAppointments = async (req, res) => {
 
 exports.createAppointment = async (req, res) => {
     try {
-        const { service, appointmentDate, startTime, endTime, notes, selectedAddOns } = req.body;
+        const { service, appointmentDate, startTime, endTime, notes, selectedAddOns, walkInName } = req.body;
         if (!service || !appointmentDate || !startTime || !endTime) {
             return res.status(400).json({ success: false, message: 'Please provide all required fields' });
         }
@@ -99,6 +99,9 @@ exports.createAppointment = async (req, res) => {
         if (existingAppointment) {
             return res.status(400).json({ success: false, message: 'This time slot is already booked. You can join the waiting list instead.' });
         }
+
+        const isProviderBooking = req.user.role === 'provider';
+
         const appointment = await Appointment.create({
             customer: req.user._id,
             service,
@@ -109,7 +112,9 @@ exports.createAppointment = async (req, res) => {
             notes: notes || '',
             selectedAddOns: Array.isArray(selectedAddOns) ? selectedAddOns : [],
             totalPrice: (svc.price || 0) + (Array.isArray(selectedAddOns) ? selectedAddOns.reduce((sum, a) => sum + (a.price || 0), 0) : 0),
+            // Provider walk-in bookings are immediately confirmed; customer bookings are confirmed too
             status: 'confirmed',
+            walkInName: isProviderBooking ? (walkInName?.trim() || null) : null,
         });
         await appointment.populate(['service', { path: 'customer', select: 'name email' }]);
 

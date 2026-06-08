@@ -20,7 +20,7 @@ const {
 // Public — used by booking page to show available slots
 router.get('/booked-slots', getBookedSlots);
 
-router.post('/', auth, authorize('customer'), createAppointmentRules, createAppointment);
+router.post('/', auth, authorize('customer', 'provider'), createAppointmentRules, createAppointment);
 router.get('/', auth, getAllAppointments);
 router.put('/:id', auth, authorize('admin'), updateAppointment);
 router.put('/:id/status', auth, authorize('admin', 'provider'), updateAppointmentStatusRules, updateAppointmentStatus);

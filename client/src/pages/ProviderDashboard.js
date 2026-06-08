@@ -47,7 +47,7 @@ const ProviderDashboard = () => {
     const [recurringActionModal, setRecurringActionModal] = useState(null);
     const [recurringMode, setRecurringMode] = useState('this');
     const [showApptModal, setShowApptModal] = useState(false);
-    const [apptForm, setApptForm] = useState({ serviceId: '', date: '', startTime: '', notes: '' });
+    const [apptForm, setApptForm] = useState({ serviceId: '', date: '', startTime: '', clientName: '', notes: '' });
     const [savingAppt, setSavingAppt] = useState(false);
     const [apptError, setApptError] = useState('');
 
@@ -661,7 +661,7 @@ const ProviderDashboard = () => {
                                         }}>
                                             <div>
                                                 <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.35rem' }}>Customer</p>
-                                                <p style={{ fontFamily: 'Inter, sans-serif', fontWeight: '600', color: 'var(--charcoal)' }}>{a.customer?.name}</p>
+                                                <p style={{ fontFamily: 'Inter, sans-serif', fontWeight: '600', color: 'var(--charcoal)' }}>{a.walkInName || a.customer?.name}</p>
                                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{a.customer?.email}</p>
                                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{a.customer?.phone}</p>
                                             </div>
@@ -1167,7 +1167,7 @@ const ProviderDashboard = () => {
                                         style={{ position:'absolute', left:'3px', right:'3px', zIndex:4, borderRadius:'5px', overflow:'hidden', cursor:'pointer', boxSizing:'border-box',
                                             top:`${top}px`, height:`${h}px`, background:c.bg, color:c.text,
                                             borderLeft:`3px solid ${c.text}`, padding:'3px 6px', boxShadow:'0 1px 3px rgba(0,0,0,0.1)' }}>
-                                        <div style={{ fontWeight:'700', fontSize:'0.75rem', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.customer?.name}</div>
+                                        <div style={{ fontWeight:'700', fontSize:'0.75rem', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.walkInName || a.customer?.name}</div>
                                         {h > 30 && <div style={{ fontSize:'0.68rem', opacity:0.85, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.service?.name}</div>}
                                         {h > 46 && <div style={{ fontSize:'0.65rem', opacity:0.7 }}>{a.startTime} \u2013 {a.endTime}</div>}
                                     </div>
@@ -1219,7 +1219,7 @@ const ProviderDashboard = () => {
                                     {addMenuOpen && (
                                         <div style={{position:'absolute',top:'calc(100% + 4px)',right:0,background:'white',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',boxShadow:'var(--shadow-md)',zIndex:200,minWidth:'190px',overflow:'hidden'}}>
                                             {[['\uD83D\uDCC5','Appointment','appt'],['\uD83D\uDEAB','Blocked time','block']].map(([icon,label,key])=>(
-                                                <button key={label} onClick={()=>{setAddMenuOpen(false);if(key==='block'){openBlockedTimeForm(null);}else{setApptForm({serviceId:'',date:'',startTime:'',notes:''});setApptError('');setShowApptModal(true);}}} style={{width:'100%',textAlign:'left',padding:'0.7rem 1rem',border:'none',borderBottom:'1px solid var(--border)',background:'white',color:'var(--charcoal)',fontSize:'0.85rem',cursor:'pointer',fontFamily:'Outfit, sans-serif',display:'flex',alignItems:'center',gap:'0.5rem'}}>
+                                                <button key={label} onClick={()=>{setAddMenuOpen(false);if(key==='block'){openBlockedTimeForm(null);}else{setApptForm({serviceId:'',date:'',startTime:'',clientName:'',notes:''});setApptError('');setShowApptModal(true);}}} style={{width:'100%',textAlign:'left',padding:'0.7rem 1rem',border:'none',borderBottom:'1px solid var(--border)',background:'white',color:'var(--charcoal)',fontSize:'0.85rem',cursor:'pointer',fontFamily:'Outfit, sans-serif',display:'flex',alignItems:'center',gap:'0.5rem'}}>
                                                     <span>{icon}</span><span>{label}</span>
                                                 </button>
                                             ))}
@@ -1276,7 +1276,7 @@ const ProviderDashboard = () => {
                                                                 <div style={{ display:'flex', justifyContent:'space-between', alignItems:'flex-start' }}>
                                                                     <div>
                                                                         <p style={{ fontWeight:'600', color:'var(--charcoal)', fontSize:'0.875rem', margin:'0 0 0.15rem' }}>{a.service?.name}</p>
-                                                                        <p style={{ color:'var(--text-muted)', fontSize:'0.78rem', margin:'0 0 0.15rem' }}>{a.customer?.name}</p>
+                                                                        <p style={{ color:'var(--text-muted)', fontSize:'0.78rem', margin:'0 0 0.15rem' }}>{a.walkInName || a.customer?.name}</p>
                                                                         <p style={{ color:'var(--text-muted)', fontSize:'0.75rem', margin:0 }}>{a.startTime} \u2013 {a.endTime}</p>
                                                                     </div>
                                                                     <span style={{ fontSize:'0.7rem', fontWeight:'600', padding:'0.15rem 0.5rem', borderRadius:'99px', background:c.bg, color:c.text, whiteSpace:'nowrap' }}>{a.status}</span>
@@ -1823,6 +1823,7 @@ const ProviderDashboard = () => {
                                     appointmentDate: apptForm.date,
                                     startTime: apptForm.startTime,
                                     endTime,
+                                    walkInName: apptForm.clientName.trim() || undefined,
                                     notes: apptForm.notes,
                                 });
                                 const res = await appointmentService.getAllAppointments();
@@ -1841,6 +1842,11 @@ const ProviderDashboard = () => {
                                         <option value="">Select a service</option>
                                         {myServices.map(s => <option key={s._id} value={s._id}>{s.name} ({s.duration} min)</option>)}
                                     </select>
+                                    {myServices.length === 0 && <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.35rem' }}>No services found. Add services in the Catalogue tab first.</p>}
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional)</span></label>
+                                    <input type="text" value={apptForm.clientName} onChange={e => setApptForm(f => ({ ...f, clientName: e.target.value }))} placeholder="e.g. John Smith" className="input" style={{ width: '100%' }} />
                                 </div>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date</label>
