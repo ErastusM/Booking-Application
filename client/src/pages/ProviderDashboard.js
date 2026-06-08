@@ -92,11 +92,14 @@ const ProviderDashboard = () => {
     }, [user]);
 
     useEffect(() => {
-        fetchAppointments();
-        fetchAvailability();
-        fetchMyServices();
-        fetchCategories();
-        fetchBlockedTimes();
+        // Run all initial fetches in parallel — don't wait for one before starting the next
+        Promise.allSettled([
+            fetchAppointments(),
+            fetchAvailability(),
+            fetchMyServices(),
+            fetchCategories(),
+            fetchBlockedTimes(),
+        ]);
     }, []);
 
     // Cancel any in-progress drag if mouse is released outside a column
@@ -116,7 +119,8 @@ const ProviderDashboard = () => {
     }, [activeTab]);
 
     const fetchAppointments = async () => {
-        setLoading(true);
+        // Don't block the whole page — only set loading on first load
+        if (appointments.length === 0) setLoading(true);
         try {
             const res = await appointmentService.getAllAppointments();
             setAppointments(res.data.data);
@@ -179,6 +183,21 @@ const ProviderDashboard = () => {
 
     const saveBlockedTime = async (mode) => {
         setSavingBlockedTime(true);
+        // Optimistic update: close the panel and show the block immediately
+        const optimisticEntry = {
+            _id: 'tmp_' + Date.now(),
+            provider: user?._id,
+            date: blockedTimeForm.date,
+            startTime: blockedTimeForm.startTime,
+            endTime: blockedTimeForm.endTime,
+            reason: blockedTimeForm.reason || blockedTimeForm.title || '',
+            isRecurring: false,
+        };
+        if (!editingBlockedTime) {
+            setBlockedTimes(prev => [...prev, optimisticEntry]);
+            closeBlockedTimeForm();
+            setRecurringActionModal(null);
+        }
         try {
             if (editingBlockedTime) {
                 await blockedTimeService.updateBlockedTime(editingBlockedTime._id, {
@@ -225,11 +244,16 @@ const ProviderDashboard = () => {
                 await blockedTimeService.createBlockedTime(payload);
             }
             await fetchBlockedTimes();
-            closeBlockedTimeForm();
-            setRecurringActionModal(null);
+            if (editingBlockedTime) {
+                closeBlockedTimeForm();
+                setRecurringActionModal(null);
+            }
         } catch (err) {
             console.error('BlockedTime save error:', err?.response?.data || err);
-            alert(err?.response?.data?.message || 'Failed to save blocked time. Please try again.');
+            // Roll back optimistic entry on failure
+            setBlockedTimes(prev => prev.filter(b => !String(b._id).startsWith('tmp_')));
+            if (!editingBlockedTime) setShowBlockedTimeForm(true); // reopen if we closed it
+            alert(err?.response?.data?.message || err?.message || 'Failed to save blocked time. Please try again.');
         } finally {
             setSavingBlockedTime(false);
         }
@@ -593,15 +617,7 @@ const ProviderDashboard = () => {
 
     const labelStyle = { display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', letterSpacing: '0.05em', textTransform: 'uppercase' };
 
-    if (loading) return (
-        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ textAlign: 'center' }}>
-                <div style={{ width: '40px', height: '40px', border: '3px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 1rem' }} />
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Loading...</p>
-            </div>
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
-        </div>
-    );
+    if (showWizard === null) return null; // very brief — only before auth check resolves
 
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100vh' }}>
@@ -648,9 +664,26 @@ const ProviderDashboard = () => {
                         {error}
                     </div>
                 )}
+                {loading && (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0', marginBottom: '1rem' }}>
+                        <div style={{ width: '16px', height: '16px', border: '2px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
+                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Loading appointments...</span>
+                        <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+                    </div>
+                )}
 
-                {/* Tabs — single scrollable strip */}
+                {/* Tabs — single scrollable strip — Calendar always first */}
                 <div className="tab-strip" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                    {/* Calendar first */}
+                    <button onClick={() => setActiveTab('calendar')} style={{
+                        padding: '0.75rem 1.25rem', background: 'none', border: 'none',
+                        borderBottom: activeTab === 'calendar' ? '2px solid var(--gold)' : '2px solid transparent',
+                        color: activeTab === 'calendar' ? 'var(--gold-dark)' : 'var(--text-muted)',
+                        fontWeight: activeTab === 'calendar' ? '600' : '400', fontSize: '0.875rem',
+                        cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                        transition: 'all 0.2s', marginBottom: '-1px', whiteSpace: 'nowrap', flexShrink: 0,
+                    }}>{'\uD83D\uDCC5'} Calendar</button>
+                    {/* Appointment status tabs */}
                     {appointmentTabs.map(tab => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
                             padding: '0.75rem 1.25rem', background: 'none', border: 'none',
@@ -669,7 +702,8 @@ const ProviderDashboard = () => {
                             )}
                         </button>
                     ))}
-                    {[['calendar','📅 Calendar'],['services','✂️ Catalogue'],['availability','🗓 Availability'],['earnings','💵 Earnings'],['clients','👥 Clients'],['messages','💬 Messages'],['memberships','🪪 Memberships'],['team','👤 Team']].map(([tab, label]) => (
+                    {/* Other feature tabs */}
+                    {[['services','✂️ Catalogue'],['availability','🗓 Availability'],['earnings','💵 Earnings'],['clients','👥 Clients'],['messages','💬 Messages'],['memberships','🪪 Memberships'],['team','👤 Team']].map(([tab, label]) => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
                             padding: '0.75rem 1.25rem', background: 'none', border: 'none',
                             borderBottom: activeTab === tab ? '2px solid var(--gold)' : '2px solid transparent',
