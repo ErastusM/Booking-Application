@@ -219,6 +219,15 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
 
   .provider-card { grid-template-columns: 1fr !important; gap: 1rem !important; }
   .section { padding: 3rem 0; }
+
+  /* Calendar */
+  .cal-toolbar-inner { flex-direction: column !important; align-items: flex-start !important; }
+  .cal-title { font-size: 0.82rem !important; }
+  .cal-toolbar .cal-toolbar-inner > div:last-child { width: 100%; justify-content: flex-end; }
+  /* Month view day-detail panel stacks below on mobile */
+  .cal-month-grid { grid-template-columns: 1fr !important; }
+  /* Make appointment cards inside grid stack */
+  .appt-card-grid { grid-template-columns: 1fr !important; padding: 1rem !important; }
 }
 
 @media (min-width: 769px) {

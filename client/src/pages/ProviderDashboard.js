@@ -603,17 +603,17 @@ const ProviderDashboard = () => {
                     </div>
                 )}
 
-                {/* Tabs */}
-                <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', overflowX: 'auto' }}>
+                {/* Tabs — single scrollable strip */}
+                <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
                     {appointmentTabs.map(tab => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
-                            padding: '0.75rem 1.5rem', background: 'none', border: 'none',
+                            padding: '0.75rem 1.25rem', background: 'none', border: 'none',
                             borderBottom: activeTab === tab ? '2px solid var(--gold)' : '2px solid transparent',
                             color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-muted)',
                             fontWeight: activeTab === tab ? '600' : '400', fontSize: '0.875rem',
                             cursor: 'pointer', fontFamily: 'Inter, sans-serif',
                             textTransform: 'capitalize', transition: 'all 0.2s',
-                            marginBottom: '-1px', whiteSpace: 'nowrap',
+                            marginBottom: '-1px', whiteSpace: 'nowrap', flexShrink: 0,
                         }}>
                             {tab.charAt(0).toUpperCase() + tab.slice(1)}
                             {counts[tab] > 0 && (
@@ -623,20 +623,18 @@ const ProviderDashboard = () => {
                             )}
                         </button>
                     ))}
-                    <div style={{ marginLeft: 'auto', display: 'flex' }}>
-                        {['calendar', 'services', 'availability', 'earnings', 'clients', 'messages', 'memberships', 'team'].map(tab => (
-                            <button key={tab} onClick={() => setActiveTab(tab)} style={{
-                                padding: '0.75rem 1.5rem', background: 'none', border: 'none',
-                                borderBottom: activeTab === tab ? '2px solid var(--gold)' : '2px solid transparent',
-                                color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-muted)',
-                                fontWeight: activeTab === tab ? '600' : '400', fontSize: '0.875rem',
-                                cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-                                transition: 'all 0.2s', marginBottom: '-1px', whiteSpace: 'nowrap',
-                            }}>
-                                {tab === 'calendar' ? '📅 Calendar' : tab === 'availability' ? '🗓 Availability' : tab === 'services' ? '✂️ Catalogue' : tab === 'earnings' ? '💵 Earnings' : tab === 'clients' ? '👥 Clients' : tab === 'messages' ? '💬 Messages' : tab === 'memberships' ? '🪪 Memberships' : '👤 Team'}
-                            </button>
-                        ))}
-                    </div>
+                    {[['calendar','📅 Calendar'],['services','✂️ Catalogue'],['availability','🗓 Availability'],['earnings','💵 Earnings'],['clients','👥 Clients'],['messages','💬 Messages'],['memberships','🪪 Memberships'],['team','👤 Team']].map(([tab, label]) => (
+                        <button key={tab} onClick={() => setActiveTab(tab)} style={{
+                            padding: '0.75rem 1.25rem', background: 'none', border: 'none',
+                            borderBottom: activeTab === tab ? '2px solid var(--gold)' : '2px solid transparent',
+                            color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-muted)',
+                            fontWeight: activeTab === tab ? '600' : '400', fontSize: '0.875rem',
+                            cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                            transition: 'all 0.2s', marginBottom: '-1px', whiteSpace: 'nowrap', flexShrink: 0,
+                        }}>
+                            {label}
+                        </button>
+                    ))}
                 </div>
 
                 {/* Appointment tabs */}
@@ -653,7 +651,7 @@ const ProviderDashboard = () => {
                                 {filtered.map((a, i) => {
                                     const s = statusConfig[a.status] || statusConfig.pending;
                                     return (
-                                        <div key={a._id} className="fade-up provider-card" style={{
+                                        <div key={a._id} className="fade-up provider-card appt-card-grid" style={{
                                             animationDelay: `${i * 0.05}s`, opacity: 0,
                                             background: 'white', borderRadius: 'var(--radius)',
                                             border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)',
@@ -1188,13 +1186,13 @@ const ProviderDashboard = () => {
                     );
 
                     return (
-                    <div onClick={() => { if (viewMenuOpen) setViewMenuOpen(false); if (addMenuOpen) setAddMenuOpen(false); }}>
+                    <div className="cal-toolbar" onClick={() => { if (viewMenuOpen) setViewMenuOpen(false); if (addMenuOpen) setAddMenuOpen(false); }}>
                         {/* ── Fresha-style Toolbar ── */}
-                        <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem', flexWrap:'wrap', gap:'0.5rem' }}>
-                            <div style={{ display:'flex', alignItems:'center', gap:'0.4rem' }}>
+                        <div className="cal-toolbar-inner" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem', flexWrap:'wrap', gap:'0.5rem' }}>
+                            <div style={{ display:'flex', alignItems:'center', gap:'0.4rem', flexShrink: 0 }}>
                                 <button onClick={e=>{e.stopPropagation();setCurrentDate(new Date());setSelectedDay(null);}} style={{...btnBase,padding:'0.45rem 0.9rem',fontSize:'0.82rem',fontWeight:'500',color:'var(--text-secondary)'}}>Today</button>
                                 <button onClick={e=>{e.stopPropagation();handlePrev();}} style={{...btnBase,padding:'0.45rem 0.7rem',fontSize:'1.1rem',lineHeight:1}}>{'\u2039'}</button>
-                                <span style={{fontFamily:'Outfit, sans-serif',fontSize:'0.9rem',fontWeight:'600',color:'var(--charcoal)',minWidth:'165px',textAlign:'center'}}>{fmtToolbar()}</span>
+                                <span className="cal-title" style={{fontFamily:'Outfit, sans-serif',fontSize:'0.9rem',fontWeight:'600',color:'var(--charcoal)',textAlign:'center'}}>{fmtToolbar()}</span>
                                 <button onClick={e=>{e.stopPropagation();handleNext();}} style={{...btnBase,padding:'0.45rem 0.7rem',fontSize:'1.1rem',lineHeight:1}}>{'\u203A'}</button>
                             </div>
                             <div style={{ display:'flex', gap:'0.5rem', alignItems:'center' }}>
@@ -1233,7 +1231,7 @@ const ProviderDashboard = () => {
 
                         {/* ── Month view ── */}
                         {calendarView === 'month' && (
-                            <div style={{ display:'grid', gridTemplateColumns:selectedDay!==null?'1fr 300px':'1fr', gap:'1.5rem', alignItems:'start' }}>
+                            <div className="cal-month-grid" style={{ display:'grid', gridTemplateColumns:selectedDay!==null?'1fr 300px':'1fr', gap:'1.5rem', alignItems:'start' }}>
                                 <div style={{ background:'white', borderRadius:'var(--radius)', border:'1px solid var(--border)', boxShadow:'var(--shadow-sm)', overflow:'hidden' }}>
                                     <div style={{ display:'grid', gridTemplateColumns:'repeat(7, 1fr)', borderBottom:'1px solid var(--border)', background:'var(--warm-gray)' }}>
                                         {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>(
