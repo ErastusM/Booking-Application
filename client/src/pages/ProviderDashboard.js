@@ -50,6 +50,7 @@ const ProviderDashboard = () => {
     const [apptForm, setApptForm] = useState({ serviceId: '', date: '', startTime: '', clientName: '', notes: '' });
     const [savingAppt, setSavingAppt] = useState(false);
     const [apptError, setApptError] = useState('');
+    const [dragState, setDragState] = useState({ active: false, date: null, startY: 0, endY: 0 });
 
     // CRM / Messages / Packages / Retention
     const [clients, setClients] = useState([]);
@@ -96,6 +97,13 @@ const ProviderDashboard = () => {
         fetchMyServices();
         fetchCategories();
         fetchBlockedTimes();
+    }, []);
+
+    // Cancel any in-progress drag if mouse is released outside a column
+    useEffect(() => {
+        const up = () => setDragState(prev => prev.active ? { active: false, date: null, startY: 0, endY: 0 } : prev);
+        window.addEventListener('mouseup', up);
+        return () => window.removeEventListener('mouseup', up);
     }, []);
 
     useEffect(() => {
@@ -1085,7 +1093,7 @@ const ProviderDashboard = () => {
                     const NUM_H = END_H - START_H;
                     const TOTAL_H = NUM_H * ROW_H;
                     const nowTs = new Date();
-                    const fmtHour = (h) => h === 12 ? '12 PM' : h < 12 ? `${h} AM` : `${h - 12} PM`;
+                    const fmtHour = (h) => `${String(h).padStart(2,'0')}:00`;
 
                     const calCols = [
                         { id: 'me', name: (user?.name || 'Me').split(' ')[0], avatar: user?.avatar, color: '#c9a84c' },
@@ -1120,23 +1128,57 @@ const ProviderDashboard = () => {
                         return blockedTimes.filter(b => b.date ? String(b.date).substring(0,10) === ds : false);
                     };
 
-                    const handleSlotClick = (e, date) => {
+                    const clampY = (y) => Math.max(0, Math.min(y, TOTAL_H));
+                    const yToMins = (y) => Math.round((clampY(y) / ROW_H) * 60 / 15) * 15 + START_H * 60;
+                    const minsToTime = (m) => `${String(Math.min(Math.floor(m/60), END_H)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
+
+                    const handleDragStart = (e, date) => {
+                        e.preventDefault();
                         const rect = e.currentTarget.getBoundingClientRect();
-                        const y = e.clientY - rect.top;
-                        const rawMins = Math.round((y / ROW_H) * 60 / 15) * 15;
-                        const totalMins = START_H * 60 + rawMins;
-                        const pad = n => String(n).padStart(2,'0');
-                        const sH = Math.min(Math.floor(totalMins/60), END_H - 1);
-                        const sM = totalMins % 60;
-                        const eH = Math.min(sH + 1, END_H);
+                        const y = clampY(e.clientY - rect.top);
+                        setDragState({ active: true, date, startY: y, endY: y });
+                    };
+
+                    const handleDragMove = (e, date) => {
+                        if (!dragState.active || !dragState.date || dragState.date.toDateString() !== date.toDateString()) return;
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const y = clampY(e.clientY - rect.top);
+                        setDragState(prev => ({ ...prev, endY: y }));
+                    };
+
+                    const handleDragEnd = (e, date) => {
+                        if (!dragState.active || !dragState.date || dragState.date.toDateString() !== date.toDateString()) {
+                            setDragState({ active: false, date: null, startY: 0, endY: 0 });
+                            return;
+                        }
+                        e.stopPropagation();
+                        const minY = Math.min(dragState.startY, dragState.endY);
+                        const maxY = Math.max(dragState.startY, dragState.endY);
+                        let startMins = yToMins(minY);
+                        let endMins = yToMins(maxY);
+                        if (endMins <= startMins) endMins = Math.min(startMins + 60, END_H * 60);
+                        const capturedDate = dragState.date;
+                        setDragState({ active: false, date: null, startY: 0, endY: 0 });
                         openBlockedTimeForm(null);
-                        setBlockedTimeForm(prev => ({ ...prev, date: dateToStr(date), startTime: `${pad(sH)}:${pad(sM)}`, endTime: `${pad(eH)}:${pad(sM)}` }));
+                        setBlockedTimeForm(prev => ({
+                            ...prev,
+                            date: dateToStr(capturedDate),
+                            startTime: minsToTime(startMins),
+                            endTime: minsToTime(endMins),
+                        }));
                     };
 
                     // Renders the absolute-positioned content of a single time column
-                    const renderCol = (date, appts, blocked, isNow) => (
-                        <div style={{ position: 'relative', height: `${TOTAL_H}px`, cursor: 'crosshair' }}
-                            onClick={(e) => handleSlotClick(e, date)}>
+                    const renderCol = (date, appts, blocked, isNow) => {
+                        const ds = date.toDateString();
+                        const isThisDrag = dragState.active && dragState.date && dragState.date.toDateString() === ds;
+                        const dragTop = isThisDrag ? Math.min(dragState.startY, dragState.endY) : 0;
+                        const dragHt  = isThisDrag ? Math.abs(dragState.endY - dragState.startY) : 0;
+                        return (
+                        <div style={{ position: 'relative', height: `${TOTAL_H}px`, cursor: dragState.active ? 'ns-resize' : 'crosshair', userSelect: 'none' }}
+                            onMouseDown={(e) => handleDragStart(e, date)}
+                            onMouseMove={(e) => handleDragMove(e, date)}
+                            onMouseUp={(e) => handleDragEnd(e, date)}>
                             {/* Hour grid lines */}
                             {Array.from({ length: NUM_H }, (_,i) => (
                                 <div key={i} style={{ position:'absolute', left:0, right:0, top:`${i*ROW_H}px`, height:`${ROW_H}px`, borderBottom:'1px solid var(--border)', pointerEvents:'none',
@@ -1146,14 +1188,27 @@ const ProviderDashboard = () => {
                             {Array.from({ length: NUM_H }, (_,i) => (
                                 <div key={`hf${i}`} style={{ position:'absolute', left:0, right:0, top:`${i*ROW_H + ROW_H/2}px`, height:'1px', background:'rgba(0,0,0,0.04)', pointerEvents:'none' }} />
                             ))}
+                            {/* Drag selection overlay */}
+                            {isThisDrag && dragHt > 3 && (
+                                <div style={{ position:'absolute', left:'2px', right:'2px', top:`${dragTop}px`, height:`${dragHt}px`,
+                                    background:'rgba(201,168,76,0.18)', border:'2px solid var(--gold)', borderRadius:'4px',
+                                    zIndex:10, pointerEvents:'none', display:'flex', alignItems:'center', justifyContent:'center' }}>
+                                    {dragHt > 22 && (
+                                        <span style={{ fontSize:'0.7rem', fontWeight:'700', color:'var(--gold-dark)', fontFamily:'Outfit, sans-serif',
+                                            padding:'1px 5px', background:'white', borderRadius:'3px', border:'1px solid var(--gold)', whiteSpace:'nowrap' }}>
+                                            {minsToTime(yToMins(Math.min(dragState.startY, dragState.endY)))} &ndash; {minsToTime(yToMins(Math.max(dragState.startY, dragState.endY)))}
+                                        </span>
+                                    )}
+                                </div>
+                            )}
                             {/* Blocked times — hatched grey bars */}
                             {blocked.map((b,bi) => (
-                                <div key={`b${bi}`} onClick={(e) => { e.stopPropagation(); openBlockedTimeForm(b); }}
+                                <div key={`b${bi}`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openBlockedTimeForm(b); }}
                                     style={{ position:'absolute', left:'3px', right:'3px', zIndex:3, borderRadius:'4px', overflow:'hidden', cursor:'pointer', boxSizing:'border-box',
                                         top:`${timeToY(b.startTime)}px`, height:`${durationPx(b.startTime, b.endTime)}px`,
                                         background:'repeating-linear-gradient(45deg,rgba(100,100,100,0.07),rgba(100,100,100,0.07) 4px,white 4px,white 8px)',
                                         border:'1px solid #d1d5db', display:'flex', alignItems:'center', padding:'2px 6px', gap:'4px' }}>
-                                    <span style={{ fontSize:'0.7rem' }}>\uD83D\uDEAB</span>
+                                    <span style={{ fontSize:'0.7rem' }}>{'\uD83D\uDEAB'}</span>
                                     <span style={{ fontSize:'0.7rem', color:'#6b7280', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{b.reason || b.title || 'Blocked'}</span>
                                 </div>
                             ))}
@@ -1163,13 +1218,13 @@ const ProviderDashboard = () => {
                                 const top = timeToY(a.startTime);
                                 const h = durationPx(a.startTime, a.endTime);
                                 return (
-                                    <div key={`a${ai}`} onClick={(e) => e.stopPropagation()}
+                                    <div key={`a${ai}`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}
                                         style={{ position:'absolute', left:'3px', right:'3px', zIndex:4, borderRadius:'5px', overflow:'hidden', cursor:'pointer', boxSizing:'border-box',
                                             top:`${top}px`, height:`${h}px`, background:c.bg, color:c.text,
                                             borderLeft:`3px solid ${c.text}`, padding:'3px 6px', boxShadow:'0 1px 3px rgba(0,0,0,0.1)' }}>
                                         <div style={{ fontWeight:'700', fontSize:'0.75rem', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.walkInName || a.customer?.name}</div>
                                         {h > 30 && <div style={{ fontSize:'0.68rem', opacity:0.85, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.service?.name}</div>}
-                                        {h > 46 && <div style={{ fontSize:'0.65rem', opacity:0.7 }}>{a.startTime} \u2013 {a.endTime}</div>}
+                                        {h > 46 && <div style={{ fontSize:'0.65rem', opacity:0.7 }}>{a.startTime} {'\u2013'} {a.endTime}</div>}
                                     </div>
                                 );
                             })}
@@ -1183,7 +1238,8 @@ const ProviderDashboard = () => {
                                 ) : null;
                             })()}
                         </div>
-                    );
+                        );
+                    };
 
                     return (
                     <div className="cal-toolbar" onClick={() => { if (viewMenuOpen) setViewMenuOpen(false); if (addMenuOpen) setAddMenuOpen(false); }}>
