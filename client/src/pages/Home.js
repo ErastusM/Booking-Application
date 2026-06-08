@@ -207,11 +207,11 @@ const Home = () => {
                 <div className="container">
                     <div style={{
                         display: 'grid',
-                        gridTemplateColumns: 'repeat(4, 1fr)',
+                        gridTemplateColumns: `repeat(${user?.role === 'provider' ? 3 : 4}, 1fr)`,
                         gap: '1rem',
                         textAlign: 'center',
                     }}>
-                        {stats.map((stat, i) => (
+                        {stats.filter(s => !(user?.role === 'provider' && s.label === 'Top Providers')).map((stat, i) => (
                             <div key={i} style={{ padding: '0.5rem' }}>
                                 <div style={{
                                     fontFamily: 'Inter, sans-serif',
