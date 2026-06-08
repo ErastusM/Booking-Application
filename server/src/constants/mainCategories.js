@@ -6,6 +6,7 @@ const MAIN_CATEGORIES = [
     'Education & Training',
     'Photography & Creative Work',
     'Event & Rental Businesses',
+    'Other',
 ];
 
 module.exports = MAIN_CATEGORIES;

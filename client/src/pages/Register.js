@@ -22,6 +22,7 @@ const Register = () => {
     const [step, setStep] = useState(1);
     const [selectedRole, setSelectedRole] = useState('');
     const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '', providerCategory: '' });
+    const [customCategory, setCustomCategory] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [passwordFocused, setPasswordFocused] = useState(false);
@@ -51,6 +52,10 @@ const Register = () => {
             setError('Please select your main service category');
             return;
         }
+        if (formData.providerCategory === 'Other' && !customCategory.trim()) {
+            setError('Please describe the service you intend to offer');
+            return;
+        }
         if (!passwordValid) {
             setError('Please meet all password requirements');
             return;
@@ -58,7 +63,13 @@ const Register = () => {
         setLoading(true);
         setError('');
         try {
-            await authService.register({ ...formData, role: selectedRole });
+            await authService.register({
+                ...formData,
+                role: selectedRole,
+                providerCategory: formData.providerCategory === 'Other'
+                    ? customCategory.trim()
+                    : formData.providerCategory,
+            });
             setStep(3); // New step — check email
         } catch (err) {
             setError(err.response?.data?.message || 'Registration failed');
@@ -229,6 +240,17 @@ const Register = () => {
                                             <option key={category} value={category}>{category}</option>
                                         ))}
                                     </select>
+                                    {formData.providerCategory === 'Other' && (
+                                        <input
+                                            type="text"
+                                            value={customCategory}
+                                            onChange={e => setCustomCategory(e.target.value)}
+                                            required
+                                            placeholder="e.g. Pet Grooming, Tattoo Studio..."
+                                            className="input"
+                                            style={{ marginTop: '0.75rem' }}
+                                        />
+                                    )}
                                 </div>
                             )}
 
