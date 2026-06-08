@@ -213,6 +213,7 @@ const ProviderDashboard = () => {
                     });
                 }
             } else {
+                const payload = {
                     date: blockedTimeForm.date,
                     startTime: blockedTimeForm.startTime,
                     endTime: blockedTimeForm.endTime,
