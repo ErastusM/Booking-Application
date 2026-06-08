@@ -14,7 +14,7 @@ const blockedTimeSchema = new mongoose.Schema({
     isRecurring: { type: Boolean, default: false },
     recurrenceType: {
         type: String,
-        enum: ['daily', 'weekly', 'monthly'],
+        enum: ['daily', 'weekly', 'monthly', null],
         default: null,
     },
     recurrenceGroupId: { type: String, default: null, index: true },

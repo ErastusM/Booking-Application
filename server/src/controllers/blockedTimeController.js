@@ -75,7 +75,8 @@ exports.createBlockedTime = async (req, res) => {
         });
         res.status(201).json({ success: true, data: blocked });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Internal server error' });
+        console.error('createBlockedTime error:', error?.message, error?.errors);
+        res.status(500).json({ success: false, message: error?.message || 'Internal server error' });
     }
 };
 
@@ -115,7 +116,8 @@ exports.updateBlockedTime = async (req, res) => {
 
         res.status(200).json({ success: true, message: 'Blocked time updated' });
     } catch (error) {
-        res.status(500).json({ success: false, message: 'Internal server error' });
+        console.error('updateBlockedTime error:', error?.message);
+        res.status(500).json({ success: false, message: error?.message || 'Internal server error' });
     }
 };
 
