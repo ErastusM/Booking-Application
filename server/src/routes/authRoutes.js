@@ -7,8 +7,13 @@ const {
     logout,
     getProfile,
     updateProfile,
+    updatePortfolio,
+    completeProviderSetup,
+    changePassword,
     verifyEmail,
     exchangeOAuthCode,
+    forgotPassword,
+    resetPassword,
 } = require('../controllers/authController');
 const { auth } = require('../middleware/auth');
 const {
@@ -24,6 +29,11 @@ router.post('/login', loginRules, login);
 router.post('/logout', auth, logout);
 router.get('/profile', auth, getProfile);
 router.put('/profile', auth, updateProfileRules, updateProfile);
+router.put('/portfolio', auth, updatePortfolio);
+router.post('/provider-setup', auth, completeProviderSetup);
+router.put('/change-password', auth, changePassword);
+router.post('/forgot-password', forgotPassword);
+router.post('/reset-password', resetPassword);
 router.get('/verify-email', verifyEmail);
 router.post('/exchange-code', exchangeCodeRules, exchangeOAuthCode);
 

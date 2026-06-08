@@ -21,7 +21,10 @@ const Login = () => {
         try {
             const response = await authService.login(formData);
             login(response.data.data);
-            navigate('/');
+            const role = response.data.data?.user?.role;
+            if (role === 'provider') navigate('/dashboard');
+            else if (role === 'admin') navigate('/bkplus-command');
+            else navigate('/');
         } catch (err) {
             setError(err.response?.data?.message || 'Login failed');
         } finally {
@@ -180,6 +183,11 @@ const Login = () => {
                                 placeholder="••••••••"
                                 className="input"
                             />
+                            <div style={{ textAlign: 'right', marginTop: '0.5rem' }}>
+                                <Link to="/forgot-password" style={{ color: 'var(--gold)', fontWeight: '500', fontSize: '0.82rem', textDecoration: 'none' }}>
+                                    Forgot password?
+                                </Link>
+                            </div>
                         </div>
 
                         <button

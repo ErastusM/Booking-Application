@@ -37,7 +37,6 @@ const userSchema = new mongoose.Schema(
         },
         providerCategory: {
             type: String,
-            enum: [...MAIN_CATEGORIES, null],
             default: null,
         },
         provider: {
@@ -64,8 +63,24 @@ const userSchema = new mongoose.Schema(
         googleId: { type: String, default: null },
         avatar: { type: String, default: null },
         tokenVersion: { type: Number, default: 0 },
+        providerSetupComplete: { type: Boolean, default: false },
+        googleCalendarEmbedUrl: { type: String, default: '' },
+        businessProfile: {
+            businessName: { type: String, default: '' },
+            teamSize: { type: String, default: '' },
+            locationType: { type: String, default: '' },
+            address: { type: String, default: '' },
+            currentSoftware: { type: String, default: '' },
+            referralSource: { type: String, default: '' },
+        },
+        portfolio: {
+            images: [{ type: String }],
+            instagramUrl: { type: String, default: '' },
+        },
         oauthCode: { type: String, default: null, select: false },
         oauthCodeExpiry: { type: Date, default: null, select: false },
+        passwordResetToken: { type: String, default: null, select: false },
+        passwordResetExpiry: { type: Date, default: null, select: false },
     },
     {
         timestamps: true

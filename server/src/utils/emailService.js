@@ -6,6 +6,10 @@ const transporter = nodemailer.createTransport({
         user: process.env.EMAIL_USER,
         pass: process.env.EMAIL_PASS,
     },
+    // Fail fast instead of hanging if SMTP is blocked (e.g. DigitalOcean blocks outbound SMTP)
+    connectionTimeout: 10000,
+    greetingTimeout: 10000,
+    socketTimeout: 15000,
 });
 
 /**
@@ -20,6 +24,8 @@ const escapeHtml = (str) => {
         .replace(/"/g, '&quot;')
         .replace(/'/g, '&#039;');
 };
+
+exports.transporter = transporter;
 
 exports.sendVerificationEmail = async (email, name, token) => {
     const verificationUrl = `${process.env.SERVER_URL}/api/auth/verify-email?token=${token}`;
@@ -100,7 +106,7 @@ exports.sendWelcomeEmail = async (email, name) => {
     await transporter.sendMail(mailOptions);
 };
 
-exports.sendAppointmentConfirmed = async (email, name, serviceName, date, time) => {
+exports.sendAppointmentConfirmed = async (email, name, serviceName, date, time, gcalUrl) => {
     await transporter.sendMail({
         from: `"Bookplus" <${process.env.EMAIL_USER}>`,
         to: email,
@@ -119,6 +125,9 @@ exports.sendAppointmentConfirmed = async (email, name, serviceName, date, time) 
                     <p style="margin: 0.25rem 0;"><strong>Time:</strong> ${time}</p>
                 </div>
                 <p style="color: #6b6b80; font-size: 0.85rem;">Please arrive 5 minutes early. See you soon!</p>
+                ${gcalUrl ? `<div style="text-align: center; margin: 1.5rem 0;">
+                    <a href="${gcalUrl}" target="_blank" style="display: inline-block; background: #4285F4; color: white; padding: 0.75rem 1.75rem; border-radius: 8px; text-decoration: none; font-weight: 600; font-size: 0.9rem;">📅 Add to Google Calendar</a>
+                </div>` : ''}
             </div>
             <div style="background: #f5f3ef; padding: 1rem; text-align: center; border: 1px solid #e8e6e1; border-top: none;">
                 <p style="color: #9b9baa; font-size: 0.75rem; margin: 0;">© 2026 Bookplus</p>
@@ -272,6 +281,46 @@ exports.sendRebookingPrompt = async (email, name, serviceName, providerName, pro
                 <p style="color: #6b6b80; font-size: 0.85rem; text-align: center;">Regular appointments keep you looking your best.</p>
             </div>
             <div style="background: #f5f3ef; padding: 1rem; text-align: center; border: 1px solid #e8e6e1; border-top: none;">
+                <p style="color: #9b9baa; font-size: 0.75rem; margin: 0;">© 2026 Bookplus</p>
+            </div>
+        </div>`,
+    });
+};
+
+exports.sendPasswordResetEmail = async (email, name, token) => {
+    const clientUrl = process.env.CLIENT_URL || 'http://localhost:3000';
+    const resetUrl = `${clientUrl}/reset-password?token=${token}`;
+
+    await transporter.sendMail({
+        from: `"Bookplus" <${process.env.EMAIL_USER}>`,
+        to: email,
+        subject: 'Reset your Bookplus password',
+        html: `
+        <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 560px; margin: 0 auto; background: #fafaf8;">
+            <div style="background: #1a1a2e; padding: 2.5rem 2rem; text-align: center;">
+                <h1 style="font-family: Georgia, serif; color: #c9a84c; font-size: 2rem; margin: 0; letter-spacing: 0.05em;">
+                    Book<span style="color: white;">plus</span>
+                </h1>
+            </div>
+            <div style="padding: 2.5rem 2rem; background: white; border-left: 1px solid #e8e6e1; border-right: 1px solid #e8e6e1;">
+                <h2 style="font-family: Georgia, serif; color: #1a1a2e; font-size: 1.5rem; margin-bottom: 1rem;">
+                    Reset your password
+                </h2>
+                <p style="color: #6b6b80; font-size: 0.95rem; line-height: 1.7; margin-bottom: 1.5rem;">
+                    Hi ${escapeHtml(name)}, we received a request to reset the password for your Bookplus account.
+                    Click the button below to choose a new password. This link expires in <strong>1 hour</strong>.
+                </p>
+                <div style="text-align: center; margin: 2rem 0;">
+                    <a href="${resetUrl}"
+                       style="background: #c9a84c; color: #1a1a2e; padding: 0.875rem 2.5rem; border-radius: 8px; text-decoration: none; font-weight: 700; font-size: 1rem; display: inline-block;">
+                        Reset Password →
+                    </a>
+                </div>
+                <p style="color: #9b9baa; font-size: 0.82rem; text-align: center; margin-top: 1.5rem;">
+                    If you didn't request this, you can safely ignore this email. Your password won't change.
+                </p>
+            </div>
+            <div style="background: #f5f3ef; padding: 1rem 2rem; text-align: center; border: 1px solid #e8e6e1; border-top: none;">
                 <p style="color: #9b9baa; font-size: 0.75rem; margin: 0;">© 2026 Bookplus</p>
             </div>
         </div>`,
