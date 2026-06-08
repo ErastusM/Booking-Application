@@ -246,6 +246,9 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
 
   /* Tab strip smaller text */
   .tab-strip button { padding: 0.65rem 0.85rem !important; font-size: 0.8rem !important; }
+
+  /* Extra bottom padding so content clears the bottom nav bar */
+  body { padding-bottom: 62px; }
 }
 
 @media (min-width: 769px) {

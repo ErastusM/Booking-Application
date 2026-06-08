@@ -74,6 +74,7 @@ const Navbar = () => {
     );
 
     return (
+    <>
         <nav style={navStyles}>
             <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '72px' }}>
 
@@ -219,6 +220,62 @@ const Navbar = () => {
                 </>
             )}
         </nav>
+
+        {/* Mobile bottom navigation bar — only for logged-in users */}
+        {user && (
+            <div className="show-mobile" style={{
+                position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 999,
+                background: 'white', borderTop: '1px solid var(--border)',
+                boxShadow: '0 -4px 20px rgba(0,0,0,0.08)',
+                display: 'flex', alignItems: 'stretch',
+                height: '62px', paddingBottom: 'env(safe-area-inset-bottom)',
+            }}>
+                {user.role === 'provider' && [
+                    { to: '/dashboard', icon: (
+                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
+                    ), label: 'Dashboard' },
+                    { to: '/dashboard?tab=calendar', icon: (
+                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                    ), label: 'Calendar' },
+                    { to: '/services', icon: (
+                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
+                    ), label: 'Services' },
+                    { to: '/account', icon: (
+                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                    ), label: 'Account' },
+                ].map(({ to, icon, label }) => {
+                    const active = location.pathname === to.split('?')[0] && (to === '/dashboard' ? !location.search.includes('tab=') || location.search === '' : true);
+                    return (
+                        <Link key={to} to={to} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', textDecoration: 'none', color: isActive(to.split('?')[0]) ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: isActive(to.split('?')[0]) ? '700' : '500', fontFamily: 'Outfit, sans-serif', transition: 'color 0.15s' }}>
+                            <span style={{ color: isActive(to.split('?')[0]) ? 'var(--gold)' : 'var(--text-muted)' }}>{icon}</span>
+                            {label}
+                        </Link>
+                    );
+                })}
+                {user.role === 'customer' && [
+                    { to: '/', icon: (
+                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+                    ), label: 'Home' },
+                    { to: '/book-appointment', icon: (
+                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
+                    ), label: 'Book' },
+                    { to: '/appointments', icon: (
+                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+                    ), label: 'Bookings' },
+                    { to: '/profile', icon: (
+                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                    ), label: 'Profile' },
+                ].map(({ to, icon, label }) => (
+                    <Link key={to} to={to} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', textDecoration: 'none', color: isActive(to) ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: isActive(to) ? '700' : '500', fontFamily: 'Outfit, sans-serif', transition: 'color 0.15s' }}>
+                        <span style={{ color: isActive(to) ? 'var(--gold)' : 'var(--text-muted)' }}>{icon}</span>
+                        {label}
+                    </Link>
+                ))}
+            </div>
+        )}
+        {/* Spacer so content doesn't hide behind bottom nav on mobile */}
+        {user && <div className="show-mobile" style={{ height: '62px' }} />}
+    </>
     );
 };
 

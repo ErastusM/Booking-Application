@@ -18,7 +18,7 @@ const ProviderDashboard = () => {
     const [appointments, setAppointments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [activeTab, setActiveTab] = useState('pending');
+    const [activeTab, setActiveTab] = useState('calendar');
     const [availability, setAvailability] = useState(null);
     const [savingAvailability, setSavingAvailability] = useState(false);
     const [availabilitySuccess, setAvailabilitySuccess] = useState('');
@@ -42,7 +42,7 @@ const ProviderDashboard = () => {
     const [blockedTimes, setBlockedTimes] = useState([]);
     const [showBlockedTimeForm, setShowBlockedTimeForm] = useState(false);
     const [editingBlockedTime, setEditingBlockedTime] = useState(null);
-    const [blockedTimeForm, setBlockedTimeForm] = useState({ blockType: 'Custom', title: '', date: '', startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '' });
+    const [blockedTimeForm, setBlockedTimeForm] = useState({ blockType: 'Custom', title: '', date: '', startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', customDays: [] });
     const [savingBlockedTime, setSavingBlockedTime] = useState(false);
     const [recurringActionModal, setRecurringActionModal] = useState(null);
     const [recurringMode, setRecurringMode] = useState('this');
@@ -187,14 +187,51 @@ const ProviderDashboard = () => {
                     reason: blockedTimeForm.reason,
                     updateMode: mode,
                 });
+            } else if (blockedTimeForm.isRecurring && blockedTimeForm.recurrenceType === 'custom') {
+                // Expand custom days client-side
+                const days = blockedTimeForm.customDays || [];
+                if (days.length === 0) throw new Error('Please select at least one day.');
+                const startDate = new Date(blockedTimeForm.date + 'T00:00:00');
+                const endDate = blockedTimeForm.recurrenceEndDate
+                    ? new Date(blockedTimeForm.recurrenceEndDate + 'T00:00:00')
+                    : new Date(startDate.getTime() + 90 * 24 * 60 * 60 * 1000);
+                const dates = [];
+                const cur = new Date(startDate);
+                while (cur <= endDate && dates.length < 365) {
+                    if (days.includes(cur.getDay())) {
+                        dates.push(`${cur.getFullYear()}-${String(cur.getMonth()+1).padStart(2,'0')}-${String(cur.getDate()).padStart(2,'0')}`);
+                    }
+                    cur.setDate(cur.getDate() + 1);
+                }
+                for (const d of dates) {
+                    await blockedTimeService.createBlockedTime({
+                        date: d,
+                        startTime: blockedTimeForm.startTime,
+                        endTime: blockedTimeForm.endTime,
+                        reason: blockedTimeForm.reason || blockedTimeForm.title || '',
+                        isRecurring: false,
+                    });
+                }
             } else {
-                await blockedTimeService.createBlockedTime(blockedTimeForm);
+                    date: blockedTimeForm.date,
+                    startTime: blockedTimeForm.startTime,
+                    endTime: blockedTimeForm.endTime,
+                    reason: blockedTimeForm.reason || blockedTimeForm.title || '',
+                    isRecurring: blockedTimeForm.isRecurring,
+                    recurrenceType: blockedTimeForm.isRecurring ? blockedTimeForm.recurrenceType : undefined,
+                    recurrenceEndDate: blockedTimeForm.recurrenceEndDate || undefined,
+                };
+                await blockedTimeService.createBlockedTime(payload);
             }
             await fetchBlockedTimes();
             closeBlockedTimeForm();
             setRecurringActionModal(null);
-        } catch { }
-        setSavingBlockedTime(false);
+        } catch (err) {
+            console.error('BlockedTime save error:', err?.response?.data || err);
+            alert(err?.response?.data?.message || 'Failed to save blocked time. Please try again.');
+        } finally {
+            setSavingBlockedTime(false);
+        }
     };
 
     const handleDeleteBlockedTime = (item) => {
@@ -2028,14 +2065,31 @@ const ProviderDashboard = () => {
                                 <div>
                                     <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Frequency</label>
                                     <select className="input" value={blockedTimeForm.isRecurring ? blockedTimeForm.recurrenceType : 'none'} onChange={e => {
-                                        if (e.target.value === 'none') setBlockedTimeForm(p => ({ ...p, isRecurring: false, recurrenceType: 'weekly' }));
+                                        if (e.target.value === 'none') setBlockedTimeForm(p => ({ ...p, isRecurring: false, recurrenceType: 'weekly', customDays: [] }));
                                         else setBlockedTimeForm(p => ({ ...p, isRecurring: true, recurrenceType: e.target.value }));
                                     }} style={{ width: '100%', boxSizing: 'border-box' }}>
                                         <option value="none">Doesn't repeat</option>
                                         <option value="daily">Daily</option>
                                         <option value="weekly">Weekly</option>
                                         <option value="monthly">Monthly</option>
+                                        <option value="custom">Custom (select days)</option>
                                     </select>
+                                    {blockedTimeForm.isRecurring && blockedTimeForm.recurrenceType === 'custom' && (
+                                        <div style={{ marginTop: '0.65rem' }}>
+                                            <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.5rem' }}>Repeat on</label>
+                                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                                {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d, i) => {
+                                                    const selected = (blockedTimeForm.customDays || []).includes(i);
+                                                    return (
+                                                        <button key={d} type="button" onClick={() => setBlockedTimeForm(p => {
+                                                            const days = p.customDays || [];
+                                                            return { ...p, customDays: selected ? days.filter(x => x !== i) : [...days, i] };
+                                                        })} style={{ width: '38px', height: '38px', borderRadius: '50%', border: `2px solid ${selected ? 'var(--gold)' : 'var(--border)'}`, background: selected ? 'var(--gold)' : 'white', color: selected ? 'var(--charcoal)' : 'var(--text-muted)', fontWeight: '600', fontSize: '0.72rem', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>{d}</button>
+                                                    );
+                                                })}
+                                            </div>
+                                        </div>
+                                    )}
                                     {blockedTimeForm.isRecurring && (
                                         <div style={{ marginTop: '0.65rem' }}>
                                             <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>End date <span style={{ fontWeight: 400, textTransform: 'none' }}>(Optional)</span></label>
