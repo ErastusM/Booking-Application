@@ -176,7 +176,7 @@ const Navbar = () => {
                                     Book<span style={{ color: 'var(--charcoal)' }}>plus</span>
                                 </span>
                             </Link>
-                            <button onClick={() => setMenuOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.25rem', lineHeight: 1 }}>
+                            <button onClick={() => setMenuOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.6rem', lineHeight: 1, minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                 <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                     <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                                 </svg>
@@ -261,12 +261,6 @@ const Navbar = () => {
                         </Link>
                     );
                 })}
-                <button onClick={() => setShowSuggestion(true)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', background: 'none', border: 'none', cursor: 'pointer', color: showSuggestion ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: showSuggestion ? '700' : '500', fontFamily: 'Outfit, sans-serif', padding: 0 }}>
-                    <span style={{ color: showSuggestion ? 'var(--gold)' : 'var(--text-muted)', display: 'flex' }}>
-                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M22 12h-6l-2 3H10l-2-3H2"/><path strokeLinecap="round" strokeLinejoin="round" d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
-                    </span>
-                    Suggest
-                </button>
                 {user.role === 'customer' && [
                     { to: '/', icon: (
                         <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
