@@ -42,7 +42,7 @@ const registerRules = [
     body('providerCategory')
         .optional()
         .isString().withMessage('Provider category must be a string')
-        .isLength({ max: 50 }).withMessage('Category name too long'),
+        .isLength({ max: 100 }).withMessage('Category name too long'),
     handleValidationErrors,
 ];
 
