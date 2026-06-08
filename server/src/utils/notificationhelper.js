@@ -7,3 +7,16 @@ exports.createNotification = async (userId, message, type = 'general', link = ''
         console.error('Failed to create notification:', error.message);
     }
 };
+
+// Notify every admin user — used for system-level alerts (new signups, new bookings, etc.)
+exports.notifyAdmins = async (message, type = 'system', link = '') => {
+    try {
+        const User = require('../models/User');
+        const admins = await User.find({ role: 'admin' }).select('_id');
+        if (!admins.length) return;
+        const docs = admins.map((a) => ({ user: a._id, message, type, link }));
+        await Notification.insertMany(docs);
+    } catch (error) {
+        console.error('Failed to notify admins:', error.message);
+    }
+};

@@ -98,3 +98,30 @@ exports.getMyReviews = async (req, res) => {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
+
+// Reviews received by a provider (across all their services)
+exports.getProviderReviews = async (req, res) => {
+    try {
+        const Service = require('../models/Service');
+        const services = await Service.find({ provider: req.user._id }).select('_id');
+        const serviceIds = services.map(s => s._id);
+
+        const reviews = await Review.find({ service: { $in: serviceIds } })
+            .populate('customer', 'name avatar')
+            .populate('service', 'name')
+            .sort({ createdAt: -1 });
+
+        const avgResult = reviews.length
+            ? reviews.reduce((sum, r) => sum + r.rating, 0) / reviews.length
+            : null;
+
+        res.status(200).json({
+            success: true,
+            count: reviews.length,
+            avgRating: avgResult ? parseFloat(avgResult.toFixed(1)) : null,
+            data: reviews,
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};

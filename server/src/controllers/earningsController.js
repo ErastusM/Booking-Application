@@ -42,7 +42,7 @@ exports.getMyEarnings = async (req, res) => {
             { $match: { provider: req.user._id, status: 'completed' } },
             { $group: { _id: '$service', total: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
             { $lookup: { from: 'services', localField: '_id', foreignField: '_id', as: 'svc' } },
-            { $unwind: { path: '$svc', preserveNullAndEmpty: true } },
+            { $unwind: { path: '$svc', preserveNullAndEmptyArrays: true } },
             { $project: { name: { $ifNull: ['$svc.name', 'Unknown'] }, total: 1, count: 1 } },
             { $sort: { total: -1 } },
         ]);

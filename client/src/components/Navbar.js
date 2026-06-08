@@ -23,6 +23,11 @@ const Navbar = () => {
     useEffect(() => { setMenuOpen(false); }, [location]);
 
     useEffect(() => {
+        document.body.style.overflow = menuOpen ? 'hidden' : '';
+        return () => { document.body.style.overflow = ''; };
+    }, [menuOpen]);
+
+    useEffect(() => {
         document.body.classList.toggle('dark-mode', darkMode);
         localStorage.setItem('darkMode', darkMode);
     }, [darkMode]);
@@ -58,7 +63,11 @@ const Navbar = () => {
     };
 
     const mobileLink = (to, label) => (
-        <Link to={to} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500' }}>{label}</Link>
+        <Link to={to} onClick={() => setMenuOpen(false)} style={{
+            color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500',
+            fontSize: '1.05rem', padding: '0.9rem 0.25rem',
+            borderBottom: '1px solid var(--border)', display: 'block',
+        }}>{label}</Link>
     );
 
     return (
@@ -80,8 +89,8 @@ const Navbar = () => {
                     {user?.role === 'customer' && navLink('/appointments', 'Appointments')}
                     {user?.role === 'customer' && navLink('/waiting-list', 'Waiting List')}
                     {user?.role === 'provider' && navLink('/dashboard', 'Dashboard')}
-                    {user?.role === 'admin' && navLink('/admin/dashboard', 'Dashboard')}
-                    {user?.role === 'admin' && navLink('/admin/analytics', 'Analytics')}
+                    {user?.role === 'admin' && navLink('/bkplus-command', 'Dashboard')}
+                    {user?.role === 'admin' && navLink('/bkplus-command/insights', 'Analytics')}
                 </div>
 
                 {/* Right side */}
@@ -89,9 +98,12 @@ const Navbar = () => {
                     {user ? (
                         <>
                             <NotificationBell isTransparent={isTransparent} />
-                            <Link to="/profile" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: isTransparent ? 'white' : 'var(--text-primary)', fontSize: '0.9rem', fontWeight: '500' }}>
-                                <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--charcoal)', fontWeight: '700', fontSize: '0.8rem' }}>
-                                    {user.name?.charAt(0).toUpperCase()}
+                            <Link to={user.role === 'provider' ? '/account' : '/profile'} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: isTransparent ? 'white' : 'var(--text-primary)', fontSize: '0.9rem', fontWeight: '500' }}>
+                                <div style={{ width: '34px', height: '34px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--charcoal)', fontWeight: '700', fontSize: '0.8rem', flexShrink: 0 }}>
+                                    {user.avatar
+                                        ? <img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        : user.name?.charAt(0).toUpperCase()
+                                    }
                                 </div>
                                 {user.name?.split(' ')[0]}
                             </Link>
@@ -130,29 +142,45 @@ const Navbar = () => {
 
             {/* Mobile menu */}
             {menuOpen && (
-                <div style={{ background: 'white', borderTop: '1px solid var(--border)', padding: '1rem 1.5rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {mobileLink('/', 'Home')}
-                    {mobileLink('/services', 'Services')}
-                    {user?.role === 'customer' && mobileLink('/book-appointment', 'Book Appointment')}
-                    {user?.role === 'customer' && mobileLink('/appointments', 'My Appointments')}
-                    {user?.role === 'customer' && mobileLink('/waiting-list', 'Waiting List')}
-                    {user?.role === 'provider' && mobileLink('/dashboard', 'Dashboard')}
-                    {user?.role === 'admin' && mobileLink('/admin/dashboard', 'Admin Dashboard')}
-                    {user?.role === 'admin' && mobileLink('/admin/analytics', 'Analytics')}
-                    {user ? (
-                        <>
-                            {mobileLink('/profile', 'My Profile')}
-                            <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: '#ef4444', fontWeight: '600', cursor: 'pointer', textAlign: 'left', padding: 0, fontFamily: 'Inter, sans-serif', fontSize: '1rem' }}>
-                                Logout
-                            </button>
-                        </>
-                    ) : (
-                        <>
-                            {mobileLink('/login', 'Login')}
-                            <Link to="/register" className="btn-primary" style={{ width: 'fit-content' }}>Sign Up</Link>
-                        </>
-                    )}
-                </div>
+                <>
+                    {/* Backdrop — tap to close */}
+                    <div
+                        onClick={() => setMenuOpen(false)}
+                        style={{ position: 'fixed', top: '72px', left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1 }}
+                    />
+                    {/* Panel */}
+                    <div style={{
+                        position: 'relative', zIndex: 2,
+                        background: darkMode ? '#12121c' : 'white',
+                        borderTop: '1px solid var(--border)',
+                        padding: '0.25rem 1.5rem 1.5rem',
+                        display: 'flex', flexDirection: 'column',
+                        boxShadow: 'var(--shadow-lg)',
+                        maxHeight: 'calc(100vh - 72px)', overflowY: 'auto',
+                    }}>
+                        {mobileLink('/', 'Home')}
+                        {mobileLink('/services', 'Services')}
+                        {user?.role === 'customer' && mobileLink('/book-appointment', 'Book Appointment')}
+                        {user?.role === 'customer' && mobileLink('/appointments', 'My Appointments')}
+                        {user?.role === 'customer' && mobileLink('/waiting-list', 'Waiting List')}
+                        {user?.role === 'provider' && mobileLink('/dashboard', 'Dashboard')}
+                        {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}
+                        {user?.role === 'admin' && mobileLink('/bkplus-command/insights', 'Analytics')}
+                        {user ? (
+                            <>
+                                {mobileLink('/profile', 'My Profile')}
+                                <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: '#ef4444', fontWeight: '600', cursor: 'pointer', textAlign: 'left', padding: '1rem 0.25rem 0', fontFamily: 'Inter, sans-serif', fontSize: '1.05rem' }}>
+                                    Logout
+                                </button>
+                            </>
+                        ) : (
+                            <>
+                                {mobileLink('/login', 'Login')}
+                                <Link to="/register" onClick={() => setMenuOpen(false)} className="btn-primary" style={{ width: '100%', marginTop: '1rem', padding: '0.85rem' }}>Sign Up</Link>
+                            </>
+                        )}
+                    </div>
+                </>
             )}
         </nav>
     );

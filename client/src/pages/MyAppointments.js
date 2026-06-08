@@ -2,6 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { appointmentService, reviewService, availabilityService } from '../services';
 import ReviewModal from '../components/ReviewModal';
+import SuggestionBox from '../components/SuggestionBox';
+import { useAuthContext } from '../context/AuthContext';
 
 const statusConfig = {
     pending:   { label: 'Pending',   bg: '#fef3c7', color: '#92400e' },
@@ -10,8 +12,22 @@ const statusConfig = {
     cancelled: { label: 'Cancelled', bg: '#fee2e2', color: '#991b1b' },
 };
 
+const buildGCalUrl = (a) => {
+    try {
+        const pad = (n) => String(n).padStart(2, '0');
+        const base = new Date(a.appointmentDate);
+        const [sh, sm] = (a.startTime || '09:00').split(':').map(Number);
+        const [eh, em] = (a.endTime || '10:00').split(':').map(Number);
+        const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), sh, sm);
+        const end = new Date(base.getFullYear(), base.getMonth(), base.getDate(), eh, em);
+        const fmt = (d) => `${d.getFullYear()}${pad(d.getMonth()+1)}${pad(d.getDate())}T${pad(d.getHours())}${pad(d.getMinutes())}00`;
+        return `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(a.service?.name || 'Appointment')}&dates=${fmt(start)}/${fmt(end)}&details=${encodeURIComponent('Booked via Bookplus')}`;
+    } catch (_) { return '#'; }
+};
+
 const MyAppointments = () => {
     const navigate = useNavigate();
+    const { user } = useAuthContext();
     const [searchParams] = useSearchParams();
     const justConfirmed = searchParams.get('confirmed') === '1';
     const justWaitlisted = searchParams.get('waitlisted') === '1';
@@ -244,8 +260,16 @@ const MyAppointments = () => {
                                             >
                                                 🗓 Reschedule
                                             </button>
-                                        )}
-                                        {a.status !== 'cancelled' && a.status !== 'completed' && (
+                                        )}                                        {(a.status === 'pending' || a.status === 'confirmed') && (
+                                            <a
+                                                href={buildGCalUrl(a)}
+                                                target="_blank"
+                                                rel="noopener noreferrer"
+                                                style={{ display: 'inline-block', background: '#4285F4', color: 'white', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'Inter, sans-serif', textDecoration: 'none', textAlign: 'center' }}
+                                            >
+                                                📅 Google Calendar
+                                            </a>
+                                        )}                                        {a.status !== 'cancelled' && a.status !== 'completed' && (
                                             <button
                                                 onClick={() => handleCancel(a._id)}
                                                 style={{ background: 'none', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'Inter, sans-serif', transition: 'all 0.2s' }}
@@ -336,6 +360,8 @@ const MyAppointments = () => {
             {selectedAppointment && (
                 <ReviewModal appointment={selectedAppointment} onClose={() => setSelectedAppointment(null)} onSubmitted={fetchData} />
             )}
+
+            <SuggestionBox user={user} />
 
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>

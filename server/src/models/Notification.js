@@ -13,7 +13,7 @@ const notificationSchema = new mongoose.Schema(
         },
         type: {
             type: String,
-            enum: ['appointment', 'waiting_list', 'general'],
+            enum: ['appointment', 'waiting_list', 'general', 'system'],
             default: 'general',
         },
         read: {

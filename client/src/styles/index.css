@@ -128,6 +128,23 @@ h1, h2, h3, h4 {
 }
 .input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,76,0.12); }
 
+/* Normalize native date/time inputs so they never overflow their container (esp. iOS Safari) */
+input[type="date"],
+input[type="time"] {
+  -webkit-appearance: none;
+  appearance: none;
+  min-width: 0;
+  max-width: 100%;
+}
+input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+
+/* Date & time picker grid — shrinkable cells, stacks on narrow phones */
+.datetime-grid > div { min-width: 0; }
+.datetime-grid input { width: 100%; }
+@media (max-width: 480px) {
+  .datetime-grid { grid-template-columns: 1fr !important; }
+}
+
 /* ── Select / Dropdown ── */
 select {
   appearance: none;
@@ -186,6 +203,8 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
 
   .booking-grid { grid-template-columns: 1fr !important; }
   .booking-summary { position: relative !important; top: auto !important; }
+
+  .catalogue-grid { grid-template-columns: 1fr !important; }
 
   .profile-grid { grid-template-columns: 1fr !important; }
   .profile-sticky { position: relative !important; top: auto !important; }

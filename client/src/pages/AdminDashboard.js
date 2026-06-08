@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useRef } from 'react';
 import { appointmentService, serviceService, userService } from '../services';
 
 const statusConfig = {
@@ -7,6 +7,31 @@ const statusConfig = {
     completed: { label: 'Completed', bg: '#d1fae5', color: '#065f46' },
     cancelled: { label: 'Cancelled', bg: '#fee2e2', color: '#991b1b' },
 };
+
+const chipStyle = (active) => ({
+    padding: '0.4rem 0.9rem', borderRadius: '99px', border: '1px solid',
+    borderColor: active ? 'var(--gold)' : 'var(--border)',
+    background: active ? 'rgba(201,168,76,0.12)' : 'white',
+    color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
+    fontSize: '0.78rem', fontWeight: active ? '600' : '400',
+    cursor: 'pointer', fontFamily: 'Inter, sans-serif', textTransform: 'capitalize',
+});
+
+const Pagination = ({ page, pages, onChange }) => (
+    <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1.25rem' }}>
+        <button onClick={() => onChange(Math.max(1, page - 1))} disabled={page <= 1} style={{
+            padding: '0.4rem 0.9rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'white',
+            color: 'var(--text-secondary)', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.5 : 1,
+            fontSize: '0.8rem', fontFamily: 'Inter, sans-serif',
+        }}>← Prev</button>
+        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Page {page} of {pages}</span>
+        <button onClick={() => onChange(Math.min(pages, page + 1))} disabled={page >= pages} style={{
+            padding: '0.4rem 0.9rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'white',
+            color: 'var(--text-secondary)', cursor: page >= pages ? 'not-allowed' : 'pointer', opacity: page >= pages ? 0.5 : 1,
+            fontSize: '0.8rem', fontFamily: 'Inter, sans-serif',
+        }}>Next →</button>
+    </div>
+);
 
 const AdminDashboard = () => {
     const [activeTab, setActiveTab] = useState('appointments');
@@ -19,25 +44,79 @@ const AdminDashboard = () => {
     const [editingService, setEditingService] = useState(null);
     const [serviceForm, setServiceForm] = useState({ name: '', description: '', price: '', duration: '' });
 
-    useEffect(() => { fetchAll(); }, []);
+    // User filters + pagination
+    const [userSearch, setUserSearch] = useState('');
+    const [userRoleFilter, setUserRoleFilter] = useState('');
+    const [userStatusFilter, setUserStatusFilter] = useState('');
+    const [userPage, setUserPage] = useState(1);
+    const [usersMeta, setUsersMeta] = useState({ total: 0, pages: 1 });
 
-    const fetchAll = async () => {
-        setLoading(true);
+    // Appointment filter + pagination
+    const [apptStatusFilter, setApptStatusFilter] = useState('');
+    const [apptPage, setApptPage] = useState(1);
+    const [apptMeta, setApptMeta] = useState({ total: 0, pages: 1 });
+
+    const fetchUsers = async () => {
         try {
-            const [apptRes, svcRes, userRes] = await Promise.all([
-                appointmentService.getAllAppointments(),
-                serviceService.getAllServices(),
-                userService.getAllUsers(),
-            ]);
-            setAppointments(apptRes.data.data);
-            setServices(svcRes.data.data);
-            setUsers(userRes.data.data);
+            const params = { page: userPage };
+            if (userSearch.trim()) params.search = userSearch.trim();
+            if (userRoleFilter) params.role = userRoleFilter;
+            if (userStatusFilter) params.status = userStatusFilter;
+            const res = await userService.getAllUsers(params);
+            setUsers(res.data.data);
+            setUsersMeta({ total: res.data.total, pages: res.data.pages || 1 });
         } catch {
-            setError('Failed to load dashboard data');
-        } finally {
-            setLoading(false);
+            setError('Failed to load users');
         }
     };
+
+    const fetchAppointments = async () => {
+        try {
+            const params = { page: apptPage };
+            if (apptStatusFilter) params.status = apptStatusFilter;
+            const res = await appointmentService.getAllAppointments(params);
+            setAppointments(res.data.data);
+            setApptMeta({ total: res.data.total, pages: res.data.pages || 1 });
+        } catch {
+            setError('Failed to load appointments');
+        }
+    };
+
+    const fetchServices = async () => {
+        try {
+            const res = await serviceService.getAllServices();
+            setServices(res.data.data);
+        } catch {
+            setError('Failed to load services');
+        }
+    };
+
+    // Initial load
+    useEffect(() => {
+        (async () => {
+            setLoading(true);
+            await Promise.all([fetchAppointments(), fetchServices(), fetchUsers()]);
+            setLoading(false);
+        })();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
+
+    // Refetch users when filters/page change (debounced for search)
+    const usersMounted = useRef(false);
+    useEffect(() => {
+        if (!usersMounted.current) { usersMounted.current = true; return; }
+        const t = setTimeout(fetchUsers, 300);
+        return () => clearTimeout(t);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [userSearch, userRoleFilter, userStatusFilter, userPage]);
+
+    // Refetch appointments when status filter/page change
+    const apptsMounted = useRef(false);
+    useEffect(() => {
+        if (!apptsMounted.current) { apptsMounted.current = true; return; }
+        fetchAppointments();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [apptStatusFilter, apptPage]);
 
     const handleUpdateStatus = async (id, status) => {
         try {
@@ -56,7 +135,7 @@ const AdminDashboard = () => {
             } else {
                 await serviceService.createService(serviceForm);
             }
-            await fetchAll();
+            await fetchServices();
             setShowServiceForm(false);
             setEditingService(null);
             setServiceForm({ name: '', description: '', price: '', duration: '' });
@@ -102,11 +181,21 @@ const AdminDashboard = () => {
         }
     };
 
+    const handleToggleActive = async (id) => {
+        try {
+            const res = await userService.toggleUserActive(id);
+            const isActive = res.data.data.isActive;
+            setUsers(users.map(u => u._id === id ? { ...u, isActive } : u));
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to update user status');
+        }
+    };
+
     const tabs = ['appointments', 'services', 'users'];
     const stats = [
-        { label: 'Total Appointments', value: appointments.length, icon: '📅' },
+        { label: 'Total Appointments', value: apptMeta.total, icon: '📅' },
         { label: 'Total Services', value: services.length, icon: '✂️' },
-        { label: 'Total Users', value: users.length, icon: '👥' },
+        { label: 'Total Users', value: usersMeta.total, icon: '👥' },
         { label: 'Pending', value: appointments.filter(a => a.status === 'pending').length, icon: '⏳' },
     ];
 
@@ -160,7 +249,7 @@ const AdminDashboard = () => {
             <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
-                    <a href="/admin/analytics" style={{
+                    <a href="/bkplus-command/insights" style={{
                         display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
                         background: 'var(--charcoal)', color: 'white',
                         padding: '0.6rem 1.25rem', borderRadius: 'var(--radius-sm)',
@@ -210,30 +299,43 @@ const AdminDashboard = () => {
 
                 {/* Appointments tab */}
                 {activeTab === 'appointments' && (
-                    <div className="table-scroll" style={tableWrapperStyle}>
-                        {appointments.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>No appointments yet</div>
-                        ) : (
-                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                                <thead>
-                                    <tr style={{ background: 'var(--warm-gray)', borderBottom: '1px solid var(--border)' }}>
-                                        {['Customer', 'Service', 'Date', 'Time', 'Price', 'Status', 'Action'].map(h => (
-                                            <th key={h} style={thStyle}>{h}</th>
-                                        ))}
-                                    </tr>
-                                </thead>
-                                <tbody>
-                                    {appointments.map((a, i) => {
-                                        const s = statusConfig[a.status] || statusConfig.pending;
-                                        return (
-                                            <tr key={a._id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'white' : 'rgba(250,250,248,0.5)' }}>
-                                                <td style={{ padding: '0.875rem 1rem' }}>
-                                                    <p style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.875rem' }}>{a.customer?.name}</p>
-                                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{a.customer?.email}</p>
-                                                </td>
-                                                <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{a.service?.name}</td>
-                                                <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{new Date(a.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
-                                                <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{a.startTime} – {a.endTime}</td>
+                    <div>
+                        {/* Status filter toolbar */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                {['', 'pending', 'confirmed', 'completed', 'cancelled'].map(st => (
+                                    <button key={st || 'all'} onClick={() => { setApptStatusFilter(st); setApptPage(1); }} style={chipStyle(apptStatusFilter === st)}>
+                                        {st === '' ? 'All' : st}
+                                    </button>
+                                ))}
+                            </div>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{apptMeta.total} total</span>
+                        </div>
+
+                        <div className="table-scroll" style={tableWrapperStyle}>
+                            {appointments.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>No appointments found</div>
+                            ) : (
+                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                                    <thead>
+                                        <tr style={{ background: 'var(--warm-gray)', borderBottom: '1px solid var(--border)' }}>
+                                            {['Customer', 'Service', 'Date', 'Time', 'Price', 'Status', 'Action'].map(h => (
+                                                <th key={h} style={thStyle}>{h}</th>
+                                            ))}
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        {appointments.map((a, i) => {
+                                            const s = statusConfig[a.status] || statusConfig.pending;
+                                            return (
+                                                <tr key={a._id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'white' : 'rgba(250,250,248,0.5)' }}>
+                                                    <td style={{ padding: '0.875rem 1rem' }}>
+                                                        <p style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.875rem' }}>{a.customer?.name}</p>
+                                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{a.customer?.email}</p>
+                                                    </td>
+                                                    <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{a.service?.name}</td>
+                                                    <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{new Date(a.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
+                                                    <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{a.startTime} – {a.endTime}</td>
                                                 <td style={{ padding: '0.875rem 1rem', fontWeight: '600', color: 'var(--charcoal)' }}>${a.totalPrice}</td>
                                                 <td style={{ padding: '0.875rem 1rem' }}>
                                                     <span style={{ padding: '0.2rem 0.65rem', borderRadius: '99px', fontSize: '0.72rem', fontWeight: '600', background: s.bg, color: s.color }}>{s.label}</span>
@@ -251,6 +353,10 @@ const AdminDashboard = () => {
                                     })}
                                 </tbody>
                             </table>
+                            )}
+                        </div>
+                        {apptMeta.pages > 1 && (
+                            <Pagination page={apptPage} pages={apptMeta.pages} onChange={setApptPage} />
                         )}
                     </div>
                 )}
@@ -322,59 +428,115 @@ const AdminDashboard = () => {
 
                 {/* Users tab */}
                 {activeTab === 'users' && (
-                    <div className="table-scroll" style={tableWrapperStyle}>
-                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                            <thead>
-                                <tr style={{ background: 'var(--warm-gray)', borderBottom: '1px solid var(--border)' }}>
-                                    {['User', 'Email', 'Phone', 'Role', 'Actions'].map(h => <th key={h} style={thStyle}>{h}</th>)}
-                                </tr>
-                            </thead>
-                            <tbody>
-                                {users.map((u, i) => (
-                                    <tr key={u._id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'white' : 'rgba(250,250,248,0.5)' }}>
-                                        <td style={{ padding: '0.875rem 1rem' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: '700', color: 'var(--charcoal)', flexShrink: 0 }}>
-                                                    {u.name?.charAt(0).toUpperCase()}
+                    <div>
+                        {/* Filter toolbar */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                            <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                <input
+                                    value={userSearch}
+                                    onChange={e => { setUserSearch(e.target.value); setUserPage(1); }}
+                                    placeholder="Search name or email…"
+                                    style={{ ...inputStyle, width: '220px', padding: '0.5rem 0.75rem' }}
+                                />
+                                <select value={userRoleFilter} onChange={e => { setUserRoleFilter(e.target.value); setUserPage(1); }} style={{ ...inputStyle, width: 'auto', padding: '0.5rem 0.75rem', cursor: 'pointer' }}>
+                                    <option value="">All roles</option>
+                                    <option value="customer">Customers</option>
+                                    <option value="provider">Providers</option>
+                                    <option value="admin">Admins</option>
+                                </select>
+                                <select value={userStatusFilter} onChange={e => { setUserStatusFilter(e.target.value); setUserPage(1); }} style={{ ...inputStyle, width: 'auto', padding: '0.5rem 0.75rem', cursor: 'pointer' }}>
+                                    <option value="">All statuses</option>
+                                    <option value="active">Active</option>
+                                    <option value="suspended">Suspended</option>
+                                </select>
+                            </div>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{usersMeta.total} total</span>
+                        </div>
+
+                        <div className="table-scroll" style={tableWrapperStyle}>
+                            {users.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>No users found</div>
+                            ) : (
+                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                                <thead>
+                                    <tr style={{ background: 'var(--warm-gray)', borderBottom: '1px solid var(--border)' }}>
+                                        {['User', 'Email', 'Phone', 'Role', 'Status', 'Actions'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {users.map((u, i) => (
+                                        <tr key={u._id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'white' : 'rgba(250,250,248,0.5)' }}>
+                                            <td style={{ padding: '0.875rem 1rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: '700', color: 'var(--charcoal)', flexShrink: 0 }}>
+                                                        {u.name?.charAt(0).toUpperCase()}
+                                                    </div>
+                                                    <span style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{u.name}</span>
                                                 </div>
-                                                <span style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{u.name}</span>
-                                            </div>
-                                        </td>
-                                        <td style={{ padding: '0.875rem 1rem', color: 'var(--text-muted)' }}>{u.email}</td>
-                                        <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{u.phone || '—'}</td>
-                                        <td style={{ padding: '0.875rem 1rem' }}>
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                            </td>
+                                            <td style={{ padding: '0.875rem 1rem', color: 'var(--text-muted)' }}>{u.email}</td>
+                                            <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{u.phone || '—'}</td>
+                                            <td style={{ padding: '0.875rem 1rem' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                                    <span style={{
+                                                        display: 'inline-block', padding: '0.2rem 0.65rem',
+                                                        borderRadius: '99px', fontSize: '0.72rem', fontWeight: '600',
+                                                        background: u.role === 'admin' ? '#fef3c7' : u.role === 'provider' ? '#dbeafe' : '#d1fae5',
+                                                        color: u.role === 'admin' ? '#92400e' : u.role === 'provider' ? '#1e40af' : '#065f46',
+                                                        textTransform: 'capitalize',
+                                                    }}>
+                                                        {u.role}
+                                                    </span>
+                                                    {u.role !== 'admin' && (
+                                                        <button
+                                                            onClick={() => handleRoleChange(u._id, 'admin')}
+                                                            style={{
+                                                                background: 'none', border: '1px solid var(--border)',
+                                                                color: 'var(--text-muted)', padding: '0.2rem 0.5rem',
+                                                                borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                                                                fontSize: '0.7rem', fontFamily: 'Inter, sans-serif',
+                                                            }}
+                                                        >
+                                                            Make Admin
+                                                        </button>
+                                                    )}
+                                                </div>
+                                            </td>
+                                            <td style={{ padding: '0.875rem 1rem' }}>
                                                 <span style={{
                                                     display: 'inline-block', padding: '0.2rem 0.65rem',
                                                     borderRadius: '99px', fontSize: '0.72rem', fontWeight: '600',
-                                                    background: u.role === 'admin' ? '#fef3c7' : u.role === 'provider' ? '#dbeafe' : '#d1fae5',
-                                                    color: u.role === 'admin' ? '#92400e' : u.role === 'provider' ? '#1e40af' : '#065f46',
-                                                    textTransform: 'capitalize',
+                                                    background: u.isActive === false ? '#fee2e2' : '#d1fae5',
+                                                    color: u.isActive === false ? '#991b1b' : '#065f46',
                                                 }}>
-                                                    {u.role}
+                                                    {u.isActive === false ? 'Suspended' : 'Active'}
                                                 </span>
-                                                {u.role !== 'admin' && (
-                                                    <button
-                                                        onClick={() => handleRoleChange(u._id, 'admin')}
-                                                        style={{
-                                                            background: 'none', border: '1px solid var(--border)',
-                                                            color: 'var(--text-muted)', padding: '0.2rem 0.5rem',
-                                                            borderRadius: 'var(--radius-sm)', cursor: 'pointer',
-                                                            fontSize: '0.7rem', fontFamily: 'Inter, sans-serif',
-                                                        }}
-                                                    >
-                                                        Make Admin
-                                                    </button>
-                                                )}
-                                            </div>
-                                        </td>
-                                        <td style={{ padding: '0.875rem 1rem' }}>
-                                            <button onClick={() => handleDeleteUser(u._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Delete</button>
-                                        </td>
-                                    </tr>
-                                ))}
-                            </tbody>
-                        </table>
+                                            </td>
+                                            <td style={{ padding: '0.875rem 1rem' }}>
+                                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                    {u.role !== 'admin' && (
+                                                        <button onClick={() => handleToggleActive(u._id)} style={{
+                                                            background: u.isActive === false ? '#d1fae5' : '#fef3c7',
+                                                            border: u.isActive === false ? '1px solid #6ee7b7' : '1px solid #fcd34d',
+                                                            color: u.isActive === false ? '#065f46' : '#92400e',
+                                                            padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer',
+                                                            fontSize: '0.75rem', fontWeight: '600', fontFamily: 'Inter, sans-serif',
+                                                        }}>
+                                                            {u.isActive === false ? 'Activate' : 'Suspend'}
+                                                        </button>
+                                                    )}
+                                                    <button onClick={() => handleDeleteUser(u._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}>Delete</button>
+                                                </div>
+                                            </td>
+                                        </tr>
+                                    ))}
+                                </tbody>
+                            </table>
+                            )}
+                        </div>
+                        {usersMeta.pages > 1 && (
+                            <Pagination page={userPage} pages={usersMeta.pages} onChange={setUserPage} />
+                        )}
                     </div>
                 )}
             </div>
