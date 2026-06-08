@@ -46,6 +46,10 @@ const ProviderDashboard = () => {
     const [savingBlockedTime, setSavingBlockedTime] = useState(false);
     const [recurringActionModal, setRecurringActionModal] = useState(null);
     const [recurringMode, setRecurringMode] = useState('this');
+    const [showApptModal, setShowApptModal] = useState(false);
+    const [apptForm, setApptForm] = useState({ serviceId: '', date: '', startTime: '', notes: '' });
+    const [savingAppt, setSavingAppt] = useState(false);
+    const [apptError, setApptError] = useState('');
 
     // CRM / Messages / Packages / Retention
     const [clients, setClients] = useState([]);
@@ -1216,8 +1220,8 @@ const ProviderDashboard = () => {
                                     </button>
                                     {addMenuOpen && (
                                         <div style={{position:'absolute',top:'calc(100% + 4px)',right:0,background:'white',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',boxShadow:'var(--shadow-md)',zIndex:200,minWidth:'190px',overflow:'hidden'}}>
-                                            {[['\uD83D\uDCC5','Appointment','pending'],['\uD83D\uDEAB','Blocked time','block']].map(([icon,label,key])=>(
-                                                <button key={label} onClick={()=>{setAddMenuOpen(false);if(key==='block'){openBlockedTimeForm(null);}else{setActiveTab(key);}}} style={{width:'100%',textAlign:'left',padding:'0.7rem 1rem',border:'none',borderBottom:'1px solid var(--border)',background:'white',color:'var(--charcoal)',fontSize:'0.85rem',cursor:'pointer',fontFamily:'Outfit, sans-serif',display:'flex',alignItems:'center',gap:'0.5rem'}}>
+                                            {[['\uD83D\uDCC5','Appointment','appt'],['\uD83D\uDEAB','Blocked time','block']].map(([icon,label,key])=>(
+                                                <button key={label} onClick={()=>{setAddMenuOpen(false);if(key==='block'){openBlockedTimeForm(null);}else{setApptForm({serviceId:'',date:'',startTime:'',notes:''});setApptError('');setShowApptModal(true);}}} style={{width:'100%',textAlign:'left',padding:'0.7rem 1rem',border:'none',borderBottom:'1px solid var(--border)',background:'white',color:'var(--charcoal)',fontSize:'0.85rem',cursor:'pointer',fontFamily:'Outfit, sans-serif',display:'flex',alignItems:'center',gap:'0.5rem'}}>
                                                     <span>{icon}</span><span>{label}</span>
                                                 </button>
                                             ))}
@@ -1793,6 +1797,74 @@ const ProviderDashboard = () => {
 
             {/* Suggestion box — always visible for providers */}
             <SuggestionBox user={user} />
+
+            {/* Add Appointment modal */}
+            {showApptModal && (
+                <>
+                    <div onClick={() => setShowApptModal(false)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1001, backdropFilter: 'blur(2px)' }} />
+                    <div style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '420px', maxWidth: '95vw', background: 'white', borderRadius: 'var(--radius)', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', zIndex: 1002, overflow: 'hidden' }}>
+                        <div style={{ background: 'var(--charcoal)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div>
+                                <h2 style={{ fontFamily: 'Cormorant Garamond, serif', color: 'var(--gold)', fontSize: '1.25rem', fontWeight: '700', margin: '0 0 0.15rem' }}>New Appointment</h2>
+                                <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', margin: 0 }}>Book a slot for a client</p>
+                            </div>
+                            <button onClick={() => setShowApptModal(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0 }}>×</button>
+                        </div>
+                        <form onSubmit={async e => {
+                            e.preventDefault();
+                            setApptError('');
+                            const svc = myServices.find(s => s._id === apptForm.serviceId);
+                            if (!svc) { setApptError('Please select a service'); return; }
+                            const [h, m] = apptForm.startTime.split(':').map(Number);
+                            const endMins = h * 60 + m + (svc.duration || 30);
+                            const endTime = `${String(Math.floor(endMins / 60)).padStart(2,'0')}:${String(endMins % 60).padStart(2,'0')}`;
+                            setSavingAppt(true);
+                            try {
+                                await appointmentService.createAppointment({
+                                    service: apptForm.serviceId,
+                                    appointmentDate: apptForm.date,
+                                    startTime: apptForm.startTime,
+                                    endTime,
+                                    notes: apptForm.notes,
+                                });
+                                const res = await appointmentService.getAllAppointments();
+                                setAppointments(res.data.data || []);
+                                setShowApptModal(false);
+                            } catch (err) {
+                                setApptError(err.response?.data?.message || 'Failed to create appointment');
+                            } finally {
+                                setSavingAppt(false);
+                            }
+                        }} style={{ padding: '1.5rem' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Service</label>
+                                    <select value={apptForm.serviceId} onChange={e => setApptForm(f => ({ ...f, serviceId: e.target.value }))} required className="input" style={{ width: '100%' }}>
+                                        <option value="">Select a service</option>
+                                        {myServices.map(s => <option key={s._id} value={s._id}>{s.name} ({s.duration} min)</option>)}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date</label>
+                                    <input type="date" value={apptForm.date} onChange={e => setApptForm(f => ({ ...f, date: e.target.value }))} required className="input" style={{ width: '100%' }} min={new Date().toISOString().split('T')[0]} />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Start Time</label>
+                                    <input type="time" value={apptForm.startTime} onChange={e => setApptForm(f => ({ ...f, startTime: e.target.value }))} required className="input" style={{ width: '100%' }} />
+                                </div>
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Notes <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional)</span></label>
+                                    <textarea value={apptForm.notes} onChange={e => setApptForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Any notes for this appointment..." className="input" style={{ width: '100%', resize: 'vertical' }} />
+                                </div>
+                                {apptError && <p style={{ color: '#dc2626', fontSize: '0.85rem', margin: 0 }}>{apptError}</p>}
+                                <button type="submit" disabled={savingAppt} style={{ width: '100%', padding: '0.9rem', background: savingAppt ? '#9ca3af' : 'var(--charcoal)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontFamily: 'Outfit, sans-serif', fontSize: '0.95rem', fontWeight: '700', cursor: savingAppt ? 'not-allowed' : 'pointer' }}>
+                                    {savingAppt ? 'Saving...' : 'Book Appointment'}
+                                </button>
+                            </div>
+                        </form>
+                    </div>
+                </>
+            )}
 
             {/* Fresha-style Add/Edit Blocked Time panel */}
             {showBlockedTimeForm && (
