@@ -3,7 +3,7 @@ const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const Appointment = require('../models/Appointment');
 const Service = require('../models/Service');
 const User = require('../models/User');
-const { createNotification } = require('../utils/notificationhelper');
+const { createNotification, notifyAdmins } = require('../utils/notificationhelper');
 const {
     sendAppointmentConfirmed,
     sendAppointmentCompleted,
@@ -11,6 +11,34 @@ const {
     sendAppointmentRescheduled,
     sendRebookingPrompt,
 } = require('../utils/emailService');
+
+/**
+ * GET /api/appointments/booked-slots?providerId=&date=YYYY-MM-DD
+ * Public — returns start/end times of all non-cancelled appointments for a provider on a given date.
+ * Used by the booking page to grey out taken time slots.
+ */
+exports.getBookedSlots = async (req, res) => {
+    try {
+        const { providerId, date } = req.query;
+        if (!providerId || !date) {
+            return res.status(400).json({ success: false, message: 'providerId and date are required' });
+        }
+        const start = new Date(date);
+        start.setHours(0, 0, 0, 0);
+        const end = new Date(date);
+        end.setHours(23, 59, 59, 999);
+
+        const appointments = await Appointment.find({
+            provider: providerId,
+            appointmentDate: { $gte: start, $lte: end },
+            status: { $nin: ['cancelled'] },
+        }).select('startTime endTime -_id');
+
+        res.status(200).json({ success: true, data: appointments });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
 
 exports.getAllAppointments = async (req, res) => {
     try {
@@ -20,6 +48,12 @@ exports.getAllAppointments = async (req, res) => {
         } else if (req.user.role === 'provider') {
             query = { provider: req.user._id };
         }
+
+        const { status } = req.query;
+        if (status && ['pending', 'confirmed', 'completed', 'cancelled'].includes(status)) {
+            query.status = status;
+        }
+
         const page = Math.max(1, parseInt(req.query.page) || 1);
         const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
         const skip = (page - 1) * limit;
@@ -79,16 +113,43 @@ exports.createAppointment = async (req, res) => {
         });
         await appointment.populate(['service', { path: 'customer', select: 'name email' }]);
 
+        // Notify the provider (in-app) and alert admins of the new booking
+        try {
+            const bookingDate = new Date(appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+            if (svc.provider) {
+                await createNotification(
+                    svc.provider,
+                    `New booking: ${req.user.name} booked ${svc.name} on ${bookingDate} at ${startTime}`,
+                    'appointment',
+                    '/dashboard'
+                );
+            }
+            await notifyAdmins(
+                `New booking: ${svc.name} by ${req.user.name} on ${bookingDate} at ${startTime}`,
+                'system',
+                '/bkplus-command'
+            );
+        } catch (_) { /* notifications must not break the booking */ }
+
         // Send confirmation email immediately
         try {
             const dateStr = new Date(appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
             const timeStr = `${startTime} – ${endTime}`;
+            const _pad = (n) => String(n).padStart(2, '0');
+            const _fmt = (d) => `${d.getFullYear()}${_pad(d.getMonth()+1)}${_pad(d.getDate())}T${_pad(d.getHours())}${_pad(d.getMinutes())}00`;
+            const _base = new Date(appointmentDate);
+            const [_sh, _sm] = startTime.split(':').map(Number);
+            const [_eh, _em] = endTime.split(':').map(Number);
+            const _gcalStart = new Date(_base.getFullYear(), _base.getMonth(), _base.getDate(), _sh, _sm);
+            const _gcalEnd = new Date(_base.getFullYear(), _base.getMonth(), _base.getDate(), _eh, _em);
+            const gcalUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(svc.name)}&dates=${_fmt(_gcalStart)}/${_fmt(_gcalEnd)}&details=${encodeURIComponent('Booked via Bookplus')}`;
             await sendAppointmentConfirmed(
                 req.user.email,
                 req.user.name,
                 svc.name,
                 dateStr,
-                timeStr
+                timeStr,
+                gcalUrl
             );
         } catch (_) { /* email failure must not break the booking */ }
 
@@ -195,7 +256,15 @@ exports.updateAppointmentStatus = async (req, res) => {
             const time = `${appointment.startTime} – ${appointment.endTime}`;
 
             if (status === 'confirmed') {
-                await sendAppointmentConfirmed(customerEmail, customerName, serviceName, date, time);
+                const _pad = (n) => String(n).padStart(2, '0');
+                const _fmt = (d) => `${d.getFullYear()}${_pad(d.getMonth()+1)}${_pad(d.getDate())}T${_pad(d.getHours())}${_pad(d.getMinutes())}00`;
+                const _base = new Date(appointment.appointmentDate);
+                const [_sh, _sm] = (appointment.startTime || '09:00').split(':').map(Number);
+                const [_eh, _em] = (appointment.endTime || '10:00').split(':').map(Number);
+                const _gcalStart = new Date(_base.getFullYear(), _base.getMonth(), _base.getDate(), _sh, _sm);
+                const _gcalEnd = new Date(_base.getFullYear(), _base.getMonth(), _base.getDate(), _eh, _em);
+                const gcalUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(serviceName)}&dates=${_fmt(_gcalStart)}/${_fmt(_gcalEnd)}&details=${encodeURIComponent('Booked via Bookplus')}`;
+                await sendAppointmentConfirmed(customerEmail, customerName, serviceName, date, time, gcalUrl);
             } else if (status === 'completed') {
                 await sendAppointmentCompleted(customerEmail, customerName, serviceName);
                 // Send rebooking prompt

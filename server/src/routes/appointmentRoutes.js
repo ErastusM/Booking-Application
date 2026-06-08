@@ -7,6 +7,7 @@ const {
     updateAppointment,
     updateAppointmentStatus,
     rescheduleAppointment,
+    getBookedSlots,
 } = require('../controllers/appointmentController');
 const { auth, authorize } = require('../middleware/auth');
 const {
@@ -15,6 +16,9 @@ const {
     rescheduleAppointmentRules,
     cancelAppointmentRules,
 } = require('../middleware/validate');
+
+// Public — used by booking page to show available slots
+router.get('/booked-slots', getBookedSlots);
 
 router.post('/', auth, authorize('customer'), createAppointmentRules, createAppointment);
 router.get('/', auth, getAllAppointments);

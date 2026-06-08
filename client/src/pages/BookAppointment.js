@@ -23,6 +23,7 @@ const BookAppointment = () => {
     const [error, setError] = useState('');
     const [providerAvailability, setProviderAvailability] = useState(null);
     const [availabilityError, setAvailabilityError] = useState('');
+    const [bookedSlots, setBookedSlots] = useState([]); // [{startTime, endTime}]
 
     const totalPrice = selectedService
         ? selectedService.price + selectedAddOns.reduce((sum, a) => sum + a.price, 0)
@@ -68,7 +69,7 @@ const BookAppointment = () => {
             .filter(([, v]) => v.enabled)
             .map(([day, v]) => {
                 const slot = v.slots[0];
-                return `${day.charAt(0).toUpperCase() + day.slice(1, 3)}: ${slot?.start}â€“${slot?.end}`;
+                return `${day.charAt(0).toUpperCase() + day.slice(1, 3)}: ${slot?.start}-${slot?.end}`;
             }).join(', ');
         if (!daySchedule || !daySchedule.enabled) {
             setAvailabilityError(`This provider is not available at this time. Working hours are ${allWorkingHours || 'not set'}`);
@@ -76,7 +77,7 @@ const BookAppointment = () => {
         }
         const slot = daySchedule.slots[0];
         if (slot && (formData.startTime < slot.start || formData.startTime >= slot.end)) {
-            setAvailabilityError(`This provider is not available at this time. Working hours are ${slot.start}â€“${slot.end}`);
+            setAvailabilityError(`This provider is not available at this time. Working hours are ${slot.start}-${slot.end}`);
             return;
         }
         setAvailabilityError('');
@@ -121,15 +122,30 @@ const BookAppointment = () => {
 
     const handleChange = (e) => {
         const { name, value } = e.target;
-        if (name === 'startTime' && selectedService) {
-            const [hours, minutes] = value.split(':').map(Number);
-            const totalMins = hours * 60 + minutes + totalDuration;
-            const endH = Math.floor(totalMins / 60) % 24;
-            const endM = totalMins % 60;
-            setFormData(prev => ({ ...prev, startTime: value, endTime: `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}` }));
-        } else {
-            setFormData(prev => ({ ...prev, [name]: value }));
+        setFormData(prev => ({ ...prev, [name]: value }));
+    };
+
+    const handleDateSelect = (dateStr) => {
+        setFormData(prev => ({ ...prev, appointmentDate: dateStr, startTime: '', endTime: '' }));
+        // Fetch already-booked slots for this provider+date
+        const providerId = searchParams.get('providerId');
+        if (providerId) {
+            appointmentService.getBookedSlots(providerId, dateStr)
+                .then(res => setBookedSlots(res.data.data || []))
+                .catch(() => setBookedSlots([]));
         }
+    };
+
+    const handleTimeSelect = (time) => {
+        const [hours, minutes] = time.split(':').map(Number);
+        const totalMins = hours * 60 + minutes + (totalDuration || 30);
+        const endH = Math.floor(totalMins / 60) % 24;
+        const endM = totalMins % 60;
+        setFormData(prev => ({
+            ...prev,
+            startTime: time,
+            endTime: `${String(endH).padStart(2, '0')}:${String(endM).padStart(2, '0')}`,
+        }));
     };
 
     const canReview = formData.service && formData.appointmentDate && formData.startTime && !availabilityError;
@@ -163,6 +179,60 @@ const BookAppointment = () => {
     };
 
     const today = new Date().toISOString().split('T')[0];
+
+    // Date strip — next 30 days
+    const dateStrip = (() => {
+        const days = [];
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        for (let i = 0; i < 30; i++) {
+            const d = new Date(now);
+            d.setDate(now.getDate() + i);
+            days.push(d);
+        }
+        return days;
+    })();
+
+    // Generate time slot pills from provider availability (or 08:00–20:00 fallback)
+    const generateTimeSlots = (dateStr) => {
+        const duration = totalDuration || 30;
+        const interval = Math.max(30, duration);
+        let startMins = 8 * 60;
+        let endMins = 20 * 60;
+        if (providerAvailability && dateStr) {
+            const [y, m, d] = dateStr.split('-').map(Number);
+            const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+            const daySchedule = providerAvailability[dayNames[new Date(y, m - 1, d).getDay()]];
+            if (!daySchedule?.enabled || !daySchedule.slots?.[0]) return [];
+            const [sH, sM] = daySchedule.slots[0].start.split(':').map(Number);
+            const [eH, eM] = daySchedule.slots[0].end.split(':').map(Number);
+            startMins = sH * 60 + sM;
+            endMins = eH * 60 + eM;
+        }
+
+        // Convert booked appointments to minute ranges
+        const bookedRanges = bookedSlots.map(b => {
+            const [bsH, bsM] = b.startTime.split(':').map(Number);
+            const [beH, beM] = b.endTime.split(':').map(Number);
+            return { start: bsH * 60 + bsM, end: beH * 60 + beM };
+        });
+
+        const slots = [];
+        for (let mins = startMins; mins + duration <= endMins; mins += interval) {
+            const slotEnd = mins + duration;
+            // Exclude slot if it overlaps any existing booking
+            const isBooked = bookedRanges.some(b => mins < b.end && slotEnd > b.start);
+            if (!isBooked) {
+                const h = Math.floor(mins / 60);
+                const min = mins % 60;
+                slots.push(`${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`);
+            }
+        }
+        return slots;
+    };
+
+    const timeSlots = generateTimeSlots(formData.appointmentDate);
+
     const labelStyle = { display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' };
     const cardStyle = { background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '2rem', boxShadow: 'var(--shadow-sm)' };
     const stepBadge = (num) => (
@@ -194,7 +264,7 @@ const BookAppointment = () => {
 
                     <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 340px', gap: '2rem', alignItems: 'start' }}>
 
-                        {/* Left â€” booking details card */}
+                        {/* Left - booking details card */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
                             {/* Provider + date/time block */}
@@ -218,13 +288,13 @@ const BookAppointment = () => {
 
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                        <span style={{ fontSize: '1rem' }}>ðŸ“…</span>
+                                        <span style={{ fontSize: '1rem' }}>📅</span>
                                         <span style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--charcoal)', fontWeight: '500' }}>{formattedDate}</span>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                        <span style={{ fontSize: '1rem' }}>ðŸ•</span>
+                                        <span style={{ fontSize: '1rem' }}>🕐</span>
                                         <span style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--charcoal)', fontWeight: '500' }}>
-                                            {formData.startTime}â€“{formData.endTime}
+                                            {formData.startTime}-{formData.endTime}
                                             <span style={{ color: 'var(--text-muted)', fontWeight: '400' }}> ({totalDuration} min)</span>
                                         </span>
                                     </div>
@@ -276,7 +346,7 @@ const BookAppointment = () => {
                             </div>
                         </div>
 
-                        {/* Right â€” sticky confirm panel */}
+                        {/* Right - sticky confirm panel */}
                         <div style={{ position: 'sticky', top: '100px' }}>
                             <div style={{ ...cardStyle, padding: '1.5rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.35rem' }}>
@@ -315,10 +385,10 @@ const BookAppointment = () => {
 
                 <div className="booking-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '2rem', alignItems: 'start' }}>
 
-                    {/* Left â€” steps */}
+                    {/* Left - steps */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
-                        {/* Step 1 â€” Service */}
+                        {/* Step 1 - Service */}
                         <div style={cardStyle}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
                                 {stepBadge(1)}
@@ -373,40 +443,101 @@ const BookAppointment = () => {
                                 {stepBadge(selectedService?.addOns?.length > 0 ? 3 : 2)}
                                 <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)' }}>Pick a Date & Time</h2>
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                <div style={{ gridColumn: '1 / -1' }}>
-                                    <label style={labelStyle}>Date</label>
-                                    <input type="date" name="appointmentDate" value={formData.appointmentDate} onChange={handleChange} min={today} required className="input" />
+
+                            {/* Horizontal date strip */}
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <label style={labelStyle}>Select a date</label>
+                                <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                                    {dateStrip.map((d, i) => {
+                                        const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+                                        const isSelected = formData.appointmentDate === dateStr;
+                                        return (
+                                            <button
+                                                key={i}
+                                                type="button"
+                                                onClick={() => handleDateSelect(dateStr)}
+                                                style={{
+                                                    flexShrink: 0,
+                                                    display: 'flex', flexDirection: 'column', alignItems: 'center',
+                                                    padding: '0.6rem 0.75rem', borderRadius: '12px',
+                                                    border: `2px solid ${isSelected ? 'var(--gold)' : 'var(--border)'}`,
+                                                    background: isSelected ? 'var(--gold)' : 'white',
+                                                    color: 'var(--charcoal)',
+                                                    cursor: 'pointer', minWidth: '52px', transition: 'all 0.15s',
+                                                    fontFamily: 'Outfit, sans-serif',
+                                                }}
+                                            >
+                                                <span style={{ fontSize: '0.62rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.7 }}>
+                                                    {d.toLocaleDateString('en-US', { weekday: 'short' })}
+                                                </span>
+                                                <span style={{ fontSize: '1.2rem', fontWeight: '700', lineHeight: 1.2 }}>{d.getDate()}</span>
+                                                <span style={{ fontSize: '0.62rem', opacity: 0.7 }}>
+                                                    {d.toLocaleDateString('en-US', { month: 'short' })}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
                                 </div>
-                                <div>
-                                    <label style={labelStyle}>Start Time</label>
-                                    <input type="time" name="startTime" value={formData.startTime} onChange={handleChange} required className="input" />
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>End Time</label>
-                                    <input type="time" name="endTime" value={formData.endTime} onChange={handleChange} required className="input" style={{ background: selectedService ? 'var(--warm-gray)' : 'white' }} readOnly={!!selectedService} />
-                                    {selectedService && <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>Auto-calculated from duration</p>}
-                                </div>
-                                {availabilityError && (
-                                    <div style={{ gridColumn: '1 / -1', background: '#fef3c7', border: '1px solid #fcd34d', color: '#92400e', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem' }}>
-                                        {availabilityError}
-                                    </div>
-                                )}
                             </div>
+
+                            {/* Time slot pills */}
+                            {formData.appointmentDate && (
+                                <div>
+                                    <label style={labelStyle}>Pick a time</label>
+                                    {timeSlots.length === 0 ? (
+                                        <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', padding: '0.75rem 0', fontFamily: 'Outfit, sans-serif' }}>
+                                            No available slots on this day.
+                                        </p>
+                                    ) : (
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(78px, 1fr))', gap: '0.5rem' }}>
+                                            {timeSlots.map((time, i) => {
+                                                const isSelected = formData.startTime === time;
+                                                return (
+                                                    <button
+                                                        key={i}
+                                                        type="button"
+                                                        onClick={() => handleTimeSelect(time)}
+                                                        style={{
+                                                            padding: '0.65rem 0.4rem',
+                                                            borderRadius: '10px',
+                                                            border: `2px solid ${isSelected ? 'var(--gold)' : 'var(--border)'}`,
+                                                            background: isSelected ? 'var(--gold)' : 'white',
+                                                            color: 'var(--charcoal)',
+                                                            fontWeight: isSelected ? '700' : '500',
+                                                            fontSize: '0.875rem',
+                                                            cursor: 'pointer',
+                                                            fontFamily: 'Outfit, sans-serif',
+                                                            transition: 'all 0.15s',
+                                                        }}
+                                                    >
+                                                        {time}
+                                                    </button>
+                                                );
+                                            })}
+                                        </div>
+                                    )}
+                                </div>
+                            )}
+
+                            {availabilityError && (
+                                <div style={{ marginTop: '1rem', background: '#fef3c7', border: '1px solid #fcd34d', color: '#92400e', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem' }}>
+                                    {availabilityError}
+                                </div>
+                            )}
                         </div>
                     </div>
 
-                    {/* Right â€” summary + proceed */}
+                    {/* Right - summary + proceed */}
                     <div className="booking-summary" style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '2rem', boxShadow: 'var(--shadow-sm)', position: 'sticky', top: '100px' }}>
                         <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
                             Booking Summary
                         </h3>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
                             {[
-                                { label: 'Service', value: selectedService?.name || 'â€”' },
-                                { label: 'Duration', value: selectedService ? `${totalDuration} min` : 'â€”' },
-                                { label: 'Date', value: formattedDate || 'â€”' },
-                                { label: 'Time', value: formData.startTime ? `${formData.startTime} â€“ ${formData.endTime}` : 'â€”' },
+                                { label: 'Service', value: selectedService?.name || '—' },
+                                { label: 'Duration', value: selectedService ? `${totalDuration} min` : '—' },
+                                { label: 'Date', value: formattedDate || '—' },
+                                { label: 'Time', value: formData.startTime ? `${formData.startTime} - ${formData.endTime}` : '—' },
                             ].map(({ label, value }) => (
                                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
                                     <span style={{ color: 'var(--text-secondary)', fontFamily: 'Outfit, sans-serif' }}>{label}</span>
@@ -417,7 +548,7 @@ const BookAppointment = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem' }}>
                             <span style={{ fontWeight: '600', color: 'var(--charcoal)', fontFamily: 'Outfit, sans-serif' }}>Total</span>
                             <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)' }}>
-                                {selectedService ? `NAD ${totalPrice}` : 'â€”'}
+                                {selectedService ? `NAD ${totalPrice}` : '—'}
                             </span>
                         </div>
                         <button
