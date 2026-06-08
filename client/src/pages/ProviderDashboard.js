@@ -1189,16 +1189,16 @@ const ProviderDashboard = () => {
                         <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem', flexWrap:'wrap', gap:'0.5rem' }}>
                             <div style={{ display:'flex', alignItems:'center', gap:'0.4rem' }}>
                                 <button onClick={e=>{e.stopPropagation();setCurrentDate(new Date());setSelectedDay(null);}} style={{...btnBase,padding:'0.45rem 0.9rem',fontSize:'0.82rem',fontWeight:'500',color:'var(--text-secondary)'}}>Today</button>
-                                <button onClick={e=>{e.stopPropagation();handlePrev();}} style={{...btnBase,padding:'0.45rem 0.7rem',fontSize:'1.1rem',lineHeight:1}}>\u2039</button>
+                                <button onClick={e=>{e.stopPropagation();handlePrev();}} style={{...btnBase,padding:'0.45rem 0.7rem',fontSize:'1.1rem',lineHeight:1}}>{'\u2039'}</button>
                                 <span style={{fontFamily:'Outfit, sans-serif',fontSize:'0.9rem',fontWeight:'600',color:'var(--charcoal)',minWidth:'165px',textAlign:'center'}}>{fmtToolbar()}</span>
-                                <button onClick={e=>{e.stopPropagation();handleNext();}} style={{...btnBase,padding:'0.45rem 0.7rem',fontSize:'1.1rem',lineHeight:1}}>\u203A</button>
+                                <button onClick={e=>{e.stopPropagation();handleNext();}} style={{...btnBase,padding:'0.45rem 0.7rem',fontSize:'1.1rem',lineHeight:1}}>{'\u203A'}</button>
                             </div>
                             <div style={{ display:'flex', gap:'0.5rem', alignItems:'center' }}>
                                 {/* View dropdown */}
                                 <div style={{ position:'relative' }} onClick={e=>e.stopPropagation()}>
                                     <button onClick={()=>{setViewMenuOpen(o=>!o);setAddMenuOpen(false);}} style={{...btnBase,padding:'0.45rem 0.85rem',fontSize:'0.82rem',fontWeight:'500',display:'flex',alignItems:'center',gap:'0.35rem'}}>
                                         <span>{viewLabels[calendarView]||'Day'}</span>
-                                        <span style={{fontSize:'0.6rem',opacity:0.6}}>\u25be</span>
+                                        <span style={{fontSize:'0.6rem',opacity:0.6}}>{'\u25be'}</span>
                                     </button>
                                     {viewMenuOpen && (
                                         <div style={{position:'absolute',top:'calc(100% + 4px)',right:0,background:'white',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',boxShadow:'var(--shadow-md)',zIndex:200,minWidth:'140px',overflow:'hidden'}}>
@@ -1212,7 +1212,7 @@ const ProviderDashboard = () => {
                                 <div style={{ position:'relative' }} onClick={e=>e.stopPropagation()}>
                                     <button onClick={()=>{setAddMenuOpen(o=>!o);setViewMenuOpen(false);}} style={{border:'none',borderRadius:'var(--radius-sm)',padding:'0.45rem 1rem',cursor:'pointer',background:'var(--charcoal)',color:'white',fontSize:'0.82rem',fontFamily:'Outfit, sans-serif',fontWeight:'600',display:'flex',alignItems:'center',gap:'0.35rem'}}>
                                         <span>+ Add</span>
-                                        <span style={{fontSize:'0.6rem',opacity:0.75}}>\u25be</span>
+                                        <span style={{fontSize:'0.6rem',opacity:0.75}}>{'\u25be'}</span>
                                     </button>
                                     {addMenuOpen && (
                                         <div style={{position:'absolute',top:'calc(100% + 4px)',right:0,background:'white',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',boxShadow:'var(--shadow-md)',zIndex:200,minWidth:'190px',overflow:'hidden'}}>
@@ -1625,7 +1625,7 @@ const ProviderDashboard = () => {
                                             <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.15rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0, flex: 1, paddingRight: '0.5rem' }}>{pkg.name}</h3>
                                             <span style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem', borderRadius: '99px', border: '1px solid', cursor: 'pointer', borderColor: pkg.isActive ? '#6ee7b7' : '#d1d5db', background: pkg.isActive ? '#d1fae5' : '#f3f4f6', color: pkg.isActive ? '#065f46' : '#6b7280', fontWeight: '700', whiteSpace: 'nowrap', flexShrink: 0 }}
                                                 onClick={() => togglePackageActive(pkg)}>
-                                                {pkg.isActive ? 'â— Active' : 'â—‹ Inactive'}
+                                                {pkg.isActive ? '● Active' : '○ Inactive'}
                                             </span>
                                         </div>
                                         {pkg.description && <p style={{ fontSize: '0.83rem', color: 'var(--text-secondary)', marginBottom: '1rem', lineHeight: 1.5 }}>{pkg.description}</p>}
