@@ -64,9 +64,12 @@ const Navbar = () => {
 
     const mobileLink = (to, label) => (
         <Link to={to} onClick={() => setMenuOpen(false)} style={{
-            color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500',
-            fontSize: '1.05rem', padding: '0.9rem 0.25rem',
+            color: isActive(to) ? 'var(--gold-dark)' : 'var(--text-primary)',
+            textDecoration: 'none', fontWeight: isActive(to) ? '600' : '500',
+            fontSize: '0.95rem', padding: '0.85rem 1.5rem',
             borderBottom: '1px solid var(--border)', display: 'block',
+            background: isActive(to) ? 'rgba(201,168,76,0.07)' : 'transparent',
+            borderLeft: isActive(to) ? '3px solid var(--gold)' : '3px solid transparent',
         }}>{label}</Link>
     );
 
@@ -132,53 +135,86 @@ const Navbar = () => {
                 {/* Mobile hamburger */}
                 <button onClick={() => setMenuOpen(!menuOpen)} className="show-mobile" style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'white' : 'var(--charcoal)', padding: '0.5rem' }}>
                     <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        {menuOpen
-                            ? <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            : <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-                        }
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                     </svg>
                 </button>
             </div>
 
-            {/* Mobile menu */}
+            {/* Mobile side drawer */}
             {menuOpen && (
                 <>
-                    {/* Backdrop — tap to close */}
+                    {/* Full-screen backdrop */}
                     <div
                         onClick={() => setMenuOpen(false)}
-                        style={{ position: 'fixed', top: '72px', left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.45)', zIndex: 1 }}
+                        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1001, backdropFilter: 'blur(2px)' }}
                     />
-                    {/* Panel */}
+                    {/* Drawer panel — slides in from the right */}
                     <div style={{
-                        position: 'relative', zIndex: 2,
+                        position: 'fixed', top: 0, right: 0, bottom: 0,
+                        width: '280px', maxWidth: '85vw',
                         background: darkMode ? '#12121c' : 'white',
-                        borderTop: '1px solid var(--border)',
-                        padding: '0.25rem 1.5rem 1.5rem',
+                        zIndex: 1002,
                         display: 'flex', flexDirection: 'column',
-                        boxShadow: 'var(--shadow-lg)',
-                        maxHeight: 'calc(100vh - 72px)', overflowY: 'auto',
+                        boxShadow: '-8px 0 40px rgba(0,0,0,0.2)',
+                        overflowY: 'auto',
+                        animation: 'slideInRight 0.22s ease-out',
                     }}>
-                        {mobileLink('/', 'Home')}
-                        {mobileLink('/services', 'Services')}
-                        {user?.role === 'customer' && mobileLink('/book-appointment', 'Book Appointment')}
-                        {user?.role === 'customer' && mobileLink('/appointments', 'My Appointments')}
-                        {user?.role === 'customer' && mobileLink('/waiting-list', 'Waiting List')}
-                        {user?.role === 'provider' && mobileLink('/dashboard', 'Dashboard')}
-                        {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}
-                        {user?.role === 'admin' && mobileLink('/bkplus-command/insights', 'Analytics')}
-                        {user ? (
-                            <>
-                                {mobileLink('/profile', 'My Profile')}
-                                <button onClick={handleLogout} style={{ background: 'none', border: 'none', color: '#ef4444', fontWeight: '600', cursor: 'pointer', textAlign: 'left', padding: '1rem 0.25rem 0', fontFamily: 'Inter, sans-serif', fontSize: '1.05rem' }}>
+                        {/* Drawer header */}
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                            <Link to="/" onClick={() => setMenuOpen(false)} style={{ textDecoration: 'none' }}>
+                                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.4rem', fontWeight: '700', color: 'var(--gold)', letterSpacing: '-0.02em' }}>
+                                    Book<span style={{ color: 'var(--charcoal)' }}>plus</span>
+                                </span>
+                            </Link>
+                            <button onClick={() => setMenuOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.25rem', lineHeight: 1 }}>
+                                <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                </svg>
+                            </button>
+                        </div>
+
+                        {/* User badge */}
+                        {user && (
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.5rem', background: 'rgba(201,168,76,0.07)', borderBottom: '1px solid var(--border)' }}>
+                                <div style={{ width: '38px', height: '38px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--charcoal)', fontWeight: '700', fontSize: '0.9rem', flexShrink: 0 }}>
+                                    {user.avatar
+                                        ? <img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        : user.name?.charAt(0).toUpperCase()
+                                    }
+                                </div>
+                                <div>
+                                    <p style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--charcoal)', margin: 0 }}>{user.name}</p>
+                                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0, textTransform: 'capitalize' }}>{user.role}</p>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Nav links */}
+                        <div style={{ flex: 1, padding: '0.75rem 0' }}>
+                            {mobileLink('/', 'Home')}
+                            {mobileLink('/services', 'Services')}
+                            {user?.role === 'customer' && mobileLink('/book-appointment', 'Book Appointment')}
+                            {user?.role === 'customer' && mobileLink('/appointments', 'My Appointments')}
+                            {user?.role === 'customer' && mobileLink('/waiting-list', 'Waiting List')}
+                            {user?.role === 'provider' && mobileLink('/dashboard', 'Dashboard')}
+                            {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}
+                            {user?.role === 'admin' && mobileLink('/bkplus-command/insights', 'Analytics')}
+                            {user && mobileLink(user.role === 'provider' ? '/account' : '/profile', 'My Profile')}
+                        </div>
+
+                        {/* Bottom actions */}
+                        <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            {user ? (
+                                <button onClick={handleLogout} style={{ width: '100%', padding: '0.75rem', background: '#fee2e2', border: 'none', borderRadius: 'var(--radius-sm)', color: '#dc2626', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: '0.9rem' }}>
                                     Logout
                                 </button>
-                            </>
-                        ) : (
-                            <>
-                                {mobileLink('/login', 'Login')}
-                                <Link to="/register" onClick={() => setMenuOpen(false)} className="btn-primary" style={{ width: '100%', marginTop: '1rem', padding: '0.85rem' }}>Sign Up</Link>
-                            </>
-                        )}
+                            ) : (
+                                <>
+                                    {mobileLink('/login', 'Login')}
+                                    <Link to="/register" onClick={() => setMenuOpen(false)} className="btn-primary" style={{ width: '100%', padding: '0.85rem', textAlign: 'center', textDecoration: 'none' }}>Sign Up</Link>
+                                </>
+                            )}
+                        </div>
                     </div>
                 </>
             )}
