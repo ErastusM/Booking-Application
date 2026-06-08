@@ -90,17 +90,44 @@ exports.createAppointment = async (req, res) => {
         if (!svc) {
             return res.status(404).json({ success: false, message: 'Service not found' });
         }
-        const existingAppointment = await Appointment.findOne({
-            service,
-            appointmentDate: new Date(appointmentDate),
-            startTime,
-            status: { $nin: ['cancelled'] },
-        });
-        if (existingAppointment) {
-            return res.status(400).json({ success: false, message: 'This time slot is already booked. You can join the waiting list instead.' });
-        }
-
         const isProviderBooking = req.user.role === 'provider';
+
+        // Block double-bookings: check provider time overlap (not just same service+time)
+        const providerId = svc.provider;
+        if (providerId) {
+            const [newSH, newSM] = startTime.split(':').map(Number);
+            const [newEH, newEM] = endTime.split(':').map(Number);
+            const newStart = newSH * 60 + newSM;
+            const newEnd = newEH * 60 + newEM;
+            const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
+            const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
+            const existing = await Appointment.find({
+                provider: providerId,
+                appointmentDate: { $gte: dayStart, $lte: dayEnd },
+                status: { $nin: ['cancelled'] },
+            }).select('startTime endTime');
+            const hasOverlap = existing.some(a => {
+                const [aSH, aSM] = a.startTime.split(':').map(Number);
+                const [aEH, aEM] = a.endTime.split(':').map(Number);
+                const aStart = aSH * 60 + aSM;
+                const aEnd = aEH * 60 + aEM;
+                return newStart < aEnd && newEnd > aStart;
+            });
+            if (hasOverlap) {
+                return res.status(400).json({ success: false, message: 'This time slot is already booked. You can join the waiting list instead.' });
+            }
+        } else {
+            // Fallback for services without a provider: check by service+time
+            const existingAppointment = await Appointment.findOne({
+                service,
+                appointmentDate: new Date(appointmentDate),
+                startTime,
+                status: { $nin: ['cancelled'] },
+            });
+            if (existingAppointment) {
+                return res.status(400).json({ success: false, message: 'This time slot is already booked. You can join the waiting list instead.' });
+            }
+        }
 
         const appointment = await Appointment.create({
             customer: req.user._id,
@@ -242,6 +269,17 @@ exports.updateAppointmentStatus = async (req, res) => {
         }
         appointment.status = status;
         await appointment.save();
+
+        // If cancelling via status update, promote waiting list just like direct cancel
+        if (status === 'cancelled') {
+            const { promoteFromWaitingList } = require('../utils/waitingListHelper');
+            await promoteFromWaitingList(
+                appointment.service._id,
+                appointment.appointmentDate,
+                appointment.startTime,
+                appointment.endTime
+            );
+        }
 
         const messages = {
             confirmed: `Your appointment for ${appointment.service?.name} has been confirmed!`,

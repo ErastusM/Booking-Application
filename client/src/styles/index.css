@@ -195,13 +195,16 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
 @media (max-width: 768px) {
   .hidden-mobile { display: none !important; }
   .show-mobile { display: flex !important; }
-  .container { padding: 0 1rem; }
+  .container { padding: 0 0.75rem; }
   body { overflow-x: hidden; }
+
+  /* Tighter header on mobile */
+  .provider-header { padding-top: 5rem !important; padding-bottom: 1.5rem !important; }
 
   .auth-left { display: none !important; }
   .auth-right {
     grid-column: 1 / -1 !important;
-    padding: 5rem 1.5rem 2rem !important;
+    padding: 5rem 1.25rem 2rem !important;
     width: 100% !important;
   }
 
@@ -213,25 +216,36 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
   .profile-grid { grid-template-columns: 1fr !important; }
   .profile-sticky { position: relative !important; top: auto !important; }
 
+  /* Appointment cards: stack to 2 cols then full width for actions */
   .appt-row { grid-template-columns: 1fr 1fr !important; gap: 0.75rem !important; }
   .appt-row > div:last-child { grid-column: 1 / -1; flex-direction: row !important; justify-content: flex-start !important; gap: 0.75rem; }
 
-  .stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+  /* Stats: 2x2 grid on mobile */
+  .stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 0.65rem !important; }
+  .stats-grid > div { padding: 0.9rem 1rem !important; }
+  .stats-grid > div p:last-child { font-size: 1.3rem !important; }
 
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .table-scroll table { min-width: 600px; }
 
-  .provider-card { grid-template-columns: 1fr !important; gap: 1rem !important; }
+  /* Provider appointment cards */
+  .provider-card { grid-template-columns: 1fr !important; gap: 0.75rem !important; }
   .section { padding: 3rem 0; }
 
-  /* Calendar */
-  .cal-toolbar-inner { flex-direction: column !important; align-items: flex-start !important; }
+  /* Calendar toolbar */
+  .cal-toolbar-inner { flex-direction: column !important; align-items: flex-start !important; gap: 0.5rem !important; }
   .cal-title { font-size: 0.82rem !important; }
   .cal-toolbar .cal-toolbar-inner > div:last-child { width: 100%; justify-content: flex-end; }
   /* Month view day-detail panel stacks below on mobile */
   .cal-month-grid { grid-template-columns: 1fr !important; }
-  /* Make appointment cards inside grid stack */
+  /* Appointment card grid */
   .appt-card-grid { grid-template-columns: 1fr !important; padding: 1rem !important; }
+
+  /* Modals full-screen on mobile */
+  .modal-center { top: 0 !important; left: 0 !important; right: 0 !important; bottom: 0 !important; transform: none !important; width: 100% !important; max-width: 100% !important; border-radius: 0 !important; overflow-y: auto !important; }
+
+  /* Tab strip smaller text */
+  .tab-strip button { padding: 0.65rem 0.85rem !important; font-size: 0.8rem !important; }
 }
 
 @media (min-width: 769px) {
