@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { appointmentService, reviewService, availabilityService } from '../services';
+import { appointmentService, reviewService, availabilityService, messageService } from '../services';
 import ReviewModal from '../components/ReviewModal';
 import { useAuthContext } from '../context/AuthContext';
 
@@ -46,6 +46,12 @@ const MyAppointments = () => {
     const [showCancelModal, setShowCancelModal] = useState(null); // appointment object
     const [showConfirmedBanner, setShowConfirmedBanner] = useState(justConfirmed);
     const [showWaitlistedBanner, setShowWaitlistedBanner] = useState(justWaitlisted);
+    const [msgModal, setMsgModal] = useState(null);       // appointment object
+    const [msgThread, setMsgThread] = useState([]);
+    const [msgText, setMsgText] = useState('');
+    const [loadingMsgs, setLoadingMsgs] = useState(false);
+    const [sendingMsg, setSendingMsg] = useState(false);
+    const msgEndRef = React.useRef(null);
 
     useEffect(() => { fetchData(); }, []);
 
@@ -120,6 +126,33 @@ const MyAppointments = () => {
         } catch {
             setError('Failed to cancel appointment');
         }
+    };
+
+    const openMsgModal = async (appointment) => {
+        setMsgModal(appointment);
+        setMsgThread([]);
+        setMsgText('');
+        setLoadingMsgs(true);
+        try {
+            const res = await messageService.getMessages(appointment._id);
+            setMsgThread(res.data.data || []);
+        } catch { /* no prior messages is fine */ }
+        setLoadingMsgs(false);
+    };
+
+    const sendMsg = async (e) => {
+        e.preventDefault();
+        if (!msgText.trim() || sendingMsg) return;
+        setSendingMsg(true);
+        try {
+            const res = await messageService.sendMessage(msgModal._id, msgText.trim());
+            setMsgThread(prev => [...prev, res.data.data]);
+            setMsgText('');
+            setTimeout(() => msgEndRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+        } catch {
+            setError('Failed to send message');
+        }
+        setSendingMsg(false);
     };
 
     const handleReschedule = async (e) => {
@@ -321,7 +354,7 @@ const MyAppointments = () => {
                                         )}
                                         {(a.status === 'pending' || a.status === 'confirmed' || a.status === 'completed') && (
                                             <button
-                                                onClick={() => navigate(`/appointments/${a._id}/messages`)}
+                                                onClick={() => openMsgModal(a)}
                                                 style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-secondary)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'Inter, sans-serif' }}
                                             >
                                                 💬 Message
@@ -334,6 +367,70 @@ const MyAppointments = () => {
                     </div>
                 )}
             </div>
+
+            {/* Message Modal */}
+            {msgModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+                    <div style={{ background: 'white', borderRadius: 'var(--radius)', width: '100%', maxWidth: '480px', boxShadow: '0 20px 60px rgba(26,26,46,0.25)', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}>
+                        {/* Header */}
+                        <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                            <div>
+                                <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>
+                                    Message Provider
+                                </h2>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.2rem 0 0', fontFamily: 'Outfit, sans-serif' }}>
+                                    {msgModal.service?.name} · {new Date(msgModal.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                </p>
+                            </div>
+                            <button onClick={() => setMsgModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.4rem', lineHeight: 1, padding: 0 }}>×</button>
+                        </div>
+
+                        {/* Thread */}
+                        <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            {loadingMsgs ? (
+                                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>Loading messages…</div>
+                            ) : msgThread.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '2rem', color: 'var(--text-muted)', fontSize: '0.875rem' }}>No messages yet. Say hello!</div>
+                            ) : msgThread.map((m, i) => {
+                                const isMine = m.sender?._id === user?._id || m.sender === user?._id;
+                                return (
+                                    <div key={i} style={{ display: 'flex', flexDirection: 'column', alignItems: isMine ? 'flex-end' : 'flex-start' }}>
+                                        <div style={{
+                                            maxWidth: '75%', padding: '0.6rem 0.9rem',
+                                            borderRadius: isMine ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
+                                            background: isMine ? 'var(--charcoal)' : 'var(--warm-gray)',
+                                            color: isMine ? 'white' : 'var(--charcoal)',
+                                            fontSize: '0.875rem', lineHeight: '1.45', fontFamily: 'Outfit, sans-serif',
+                                        }}>
+                                            {m.content}
+                                        </div>
+                                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '3px', fontFamily: 'Outfit, sans-serif' }}>
+                                            {new Date(m.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                        </span>
+                                    </div>
+                                );
+                            })}
+                            <div ref={msgEndRef} />
+                        </div>
+
+                        {/* Input */}
+                        <form onSubmit={sendMsg} style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border)', display: 'flex', gap: '0.75rem', flexShrink: 0 }}>
+                            <input
+                                value={msgText}
+                                onChange={e => setMsgText(e.target.value)}
+                                placeholder="Type a message…"
+                                maxLength={2000}
+                                className="input"
+                                style={{ flex: 1, fontSize: '0.875rem' }}
+                                autoFocus
+                            />
+                            <button type="submit" disabled={!msgText.trim() || sendingMsg} className="btn-primary" style={{ padding: '0.5rem 1.25rem', whiteSpace: 'nowrap' }}>
+                                {sendingMsg ? '…' : 'Send'}
+                            </button>
+                        </form>
+                    </div>
+                </div>
+            )}
 
             {/* Cancel-or-Reschedule Modal */}
             {showCancelModal && (

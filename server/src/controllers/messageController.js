@@ -1,5 +1,6 @@
 const Message = require('../models/Message');
 const Appointment = require('../models/Appointment');
+const { createNotification } = require('../utils/notificationhelper');
 
 // Get all conversations for the logged-in user (grouped by appointment)
 exports.getMyConversations = async (req, res) => {
@@ -116,6 +117,15 @@ exports.sendMessage = async (req, res) => {
         });
 
         await message.populate('sender', 'name avatar');
+
+        // Notify the recipient
+        const senderIsCustomer = appointment.customer.toString() === userId.toString();
+        const notifLink = senderIsCustomer ? '/dashboard' : '/appointments';
+        const preview = content.trim().length > 80 ? content.trim().substring(0, 80) + '…' : content.trim();
+        try {
+            await createNotification(recipientId, `New message from ${req.user.name}: "${preview}"`, 'message', notifLink);
+        } catch (_) {}
+
         res.status(201).json({ success: true, data: message });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
