@@ -329,6 +329,36 @@ exports.updateAppointmentStatus = async (req, res) => {
     }
 };
 
+exports.providerRescheduleAppointment = async (req, res) => {
+    try {
+        const { appointmentDate, startTime } = req.body;
+        if (!appointmentDate || !startTime) {
+            return res.status(400).json({ success: false, message: 'appointmentDate and startTime are required' });
+        }
+        const appointment = await Appointment.findById(req.params.id).populate('service');
+        if (!appointment) {
+            return res.status(404).json({ success: false, message: 'Appointment not found' });
+        }
+        if (appointment.provider.toString() !== req.user._id.toString()) {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+        if (!['pending', 'confirmed'].includes(appointment.status)) {
+            return res.status(400).json({ success: false, message: 'Cannot reschedule a cancelled or completed appointment' });
+        }
+        const [hours, minutes] = startTime.split(':').map(Number);
+        const totalMinutes = hours * 60 + minutes + (appointment.service?.duration || 30);
+        const endHours = Math.floor(totalMinutes / 60) % 24;
+        const endMins = totalMinutes % 60;
+        appointment.appointmentDate = new Date(appointmentDate);
+        appointment.startTime = startTime;
+        appointment.endTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
+        await appointment.save();
+        res.status(200).json({ success: true, data: appointment });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
 exports.rescheduleAppointment = async (req, res) => {
     try {
         const { appointmentDate, startTime } = req.body;

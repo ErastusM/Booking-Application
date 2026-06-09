@@ -7,6 +7,7 @@ const {
     updateAppointment,
     updateAppointmentStatus,
     rescheduleAppointment,
+    providerRescheduleAppointment,
     getBookedSlots,
 } = require('../controllers/appointmentController');
 const { auth, authorize } = require('../middleware/auth');
@@ -26,5 +27,6 @@ router.put('/:id', auth, authorize('admin'), updateAppointment);
 router.put('/:id/status', auth, authorize('admin', 'provider'), updateAppointmentStatusRules, updateAppointmentStatus);
 router.delete('/:id', auth, authorize('customer', 'admin'), cancelAppointmentRules, cancelAppointment);
 router.put('/:id/reschedule', auth, authorize('customer'), rescheduleAppointmentRules, rescheduleAppointment);
+router.put('/:id/provider-reschedule', auth, authorize('provider'), providerRescheduleAppointment);
 
 module.exports = router;

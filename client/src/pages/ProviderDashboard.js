@@ -50,6 +50,11 @@ const ProviderDashboard = () => {
     const [savingAppt, setSavingAppt] = useState(false);
     const [apptError, setApptError] = useState('');
     const [dragState, setDragState] = useState({ active: false, date: null, startY: 0, endY: 0 });
+    const [apptDrag, setApptDrag] = useState({ active: false, appt: null, offsetY: 0, currentY: 0, colDate: null, moved: false });
+    const [apptDetailModal, setApptDetailModal] = useState(null);
+    const [apptRescheduleForm, setApptRescheduleForm] = useState({ appointmentDate: '', startTime: '' });
+    const [savingApptDetail, setSavingApptDetail] = useState(false);
+    const [apptDetailError, setApptDetailError] = useState('');
 
     // CRM / Messages / Packages / Retention
     const [clients, setClients] = useState([]);
@@ -103,7 +108,10 @@ const ProviderDashboard = () => {
 
     // Cancel any in-progress drag if mouse is released outside a column
     useEffect(() => {
-        const up = () => setDragState(prev => prev.active ? { active: false, date: null, startY: 0, endY: 0 } : prev);
+        const up = () => {
+            setDragState(prev => prev.active ? { active: false, date: null, startY: 0, endY: 0 } : prev);
+            setApptDrag(prev => prev.active ? { active: false, appt: null, offsetY: 0, currentY: 0, colDate: null, moved: false } : prev);
+        };
         window.addEventListener('mouseup', up);
         return () => window.removeEventListener('mouseup', up);
     }, []);
@@ -473,6 +481,20 @@ const ProviderDashboard = () => {
             setAppointments(appointments.map(a => a._id === id ? { ...a, status } : a));
         } catch {
             setError('Failed to update appointment');
+        }
+    };
+
+    const handleProviderReschedule = async (id, appointmentDate, startTime) => {
+        setSavingApptDetail(true);
+        setApptDetailError('');
+        try {
+            const res = await appointmentService.providerRescheduleAppointment(id, { appointmentDate, startTime });
+            setAppointments(prev => prev.map(a => a._id === id ? { ...a, ...res.data.data } : a));
+            setApptDetailModal(null);
+        } catch (err) {
+            setApptDetailError(err.response?.data?.message || 'Failed to reschedule');
+        } finally {
+            setSavingApptDetail(false);
         }
     };
 
@@ -1201,6 +1223,16 @@ const ProviderDashboard = () => {
                     const yToMins = (y) => Math.round((clampY(y) / ROW_H) * 60 / 15) * 15 + START_H * 60;
                     const minsToTime = (m) => `${String(Math.min(Math.floor(m/60), END_H)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
 
+                    const handleApptDragStart = (e, appt, date) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const colEl = e.currentTarget.parentElement;
+                        const rect = colEl.getBoundingClientRect();
+                        const y = clampY(e.clientY - rect.top);
+                        const apptTopY = timeToY(appt.startTime);
+                        setApptDrag({ active: true, appt, offsetY: y - apptTopY, currentY: y, colDate: date, moved: false });
+                    };
+
                     const handleDragStart = (e, date) => {
                         e.preventDefault();
                         const rect = e.currentTarget.getBoundingClientRect();
@@ -1209,6 +1241,12 @@ const ProviderDashboard = () => {
                     };
 
                     const handleDragMove = (e, date) => {
+                        if (apptDrag.active) {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const y = clampY(e.clientY - rect.top);
+                            setApptDrag(prev => ({ ...prev, currentY: y, colDate: date, moved: prev.moved || Math.abs(y - prev.currentY) > 4 }));
+                            return;
+                        }
                         if (!dragState.active || !dragState.date || dragState.date.toDateString() !== date.toDateString()) return;
                         const rect = e.currentTarget.getBoundingClientRect();
                         const y = clampY(e.clientY - rect.top);
@@ -1216,6 +1254,24 @@ const ProviderDashboard = () => {
                     };
 
                     const handleDragEnd = (e, date) => {
+                        if (apptDrag.active) {
+                            const appt = apptDrag.appt;
+                            const moved = apptDrag.moved;
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const y = clampY(e.clientY - rect.top);
+                            const newTopY = clampY(y - apptDrag.offsetY);
+                            const newStartTime = minsToTime(yToMins(newTopY));
+                            const newDateStr = dateToStr(date);
+                            setApptDrag({ active: false, appt: null, offsetY: 0, currentY: 0, colDate: null, moved: false });
+                            if (moved) {
+                                handleProviderReschedule(appt._id, newDateStr, newStartTime);
+                            } else {
+                                setApptRescheduleForm({ appointmentDate: new Date(appt.appointmentDate).toISOString().split('T')[0], startTime: appt.startTime });
+                                setApptDetailError('');
+                                setApptDetailModal(appt);
+                            }
+                            return;
+                        }
                         if (!dragState.active || !dragState.date || dragState.date.toDateString() !== date.toDateString()) {
                             setDragState({ active: false, date: null, startY: 0, endY: 0 });
                             return;
@@ -1244,7 +1300,7 @@ const ProviderDashboard = () => {
                         const dragTop = isThisDrag ? Math.min(dragState.startY, dragState.endY) : 0;
                         const dragHt  = isThisDrag ? Math.abs(dragState.endY - dragState.startY) : 0;
                         return (
-                        <div style={{ position: 'relative', height: `${TOTAL_H}px`, cursor: dragState.active ? 'ns-resize' : 'crosshair', userSelect: 'none' }}
+                        <div style={{ position: 'relative', height: `${TOTAL_H}px`, cursor: apptDrag.active ? 'grabbing' : dragState.active ? 'ns-resize' : 'crosshair', userSelect: 'none' }}
                             onMouseDown={(e) => handleDragStart(e, date)}
                             onMouseMove={(e) => handleDragMove(e, date)}
                             onMouseUp={(e) => handleDragEnd(e, date)}>
@@ -1270,6 +1326,21 @@ const ProviderDashboard = () => {
                                     )}
                                 </div>
                             )}
+                            {/* Appointment drag ghost */}
+                            {apptDrag.active && apptDrag.colDate && apptDrag.colDate.toDateString() === ds && (() => {
+                                const gc = statusCalendarColors[apptDrag.appt.status] || statusCalendarColors.pending;
+                                const ghostTop = clampY(apptDrag.currentY - apptDrag.offsetY);
+                                const ghostH = durationPx(apptDrag.appt.startTime, apptDrag.appt.endTime);
+                                return (
+                                    <div style={{ position:'absolute', left:'3px', right:'3px', zIndex:8, top:`${ghostTop}px`, height:`${ghostH}px`,
+                                        background:gc.bg, color:gc.text, borderLeft:`3px solid ${gc.text}`,
+                                        border:`1.5px dashed ${gc.text}`, borderRadius:'5px',
+                                        padding:'3px 6px', opacity:0.8, pointerEvents:'none', boxShadow:'0 6px 20px rgba(0,0,0,0.2)' }}>
+                                        <div style={{ fontWeight:'700', fontSize:'0.75rem', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{apptDrag.appt.walkInName || apptDrag.appt.customer?.name}</div>
+                                        <div style={{ fontSize:'0.65rem', opacity:0.8 }}>{minsToTime(yToMins(ghostTop))}</div>
+                                    </div>
+                                );
+                            })()}
                             {/* Blocked times — hatched grey bars */}
                             {blocked.map((b,bi) => (
                                 <div key={`b${bi}`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openBlockedTimeForm(b); }}
@@ -1287,16 +1358,13 @@ const ProviderDashboard = () => {
                                 const top = timeToY(a.startTime);
                                 const h = durationPx(a.startTime, a.endTime);
                                 return (
-                                    <div key={`a${ai}`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => e.stopPropagation()}
-                                        style={{ position:'absolute', left:'3px', right:'3px', zIndex:4, borderRadius:'5px', overflow:'hidden', cursor:'pointer', boxSizing:'border-box',
+                                    <div key={`a${ai}`}
+                                        onMouseDown={(e) => { if (!apptDrag.active) handleApptDragStart(e, a, date); }}
+                                        onClick={(e) => e.stopPropagation()}
+                                        style={{ position:'absolute', left:'3px', right:'3px', zIndex:4, borderRadius:'5px', overflow:'hidden', cursor: apptDrag.active ? 'grabbing' : 'grab', boxSizing:'border-box',
                                             top:`${top}px`, height:`${h}px`, background:c.bg, color:c.text,
                                             borderLeft:`3px solid ${c.text}`, padding:'3px 6px', boxShadow:'0 1px 3px rgba(0,0,0,0.1)' }}>
-                                        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'2px' }}>
-                                            <div style={{ fontWeight:'700', fontSize:'0.75rem', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1 }}>{a.walkInName || a.customer?.name}</div>
-                                            {a.status !== 'cancelled' && a.status !== 'completed' && (
-                                                <button onClick={e=>{e.stopPropagation();if(window.confirm('Cancel this appointment?'))handleStatusUpdate(a._id,'cancelled');}} style={{ flexShrink:0, background:'rgba(0,0,0,0.18)', border:'none', borderRadius:'2px', color:'inherit', cursor:'pointer', fontSize:'0.65rem', padding:'0 3px', lineHeight:'14px', height:'14px' }}>✕</button>
-                                            )}
-                                        </div>
+                                        <div style={{ fontWeight:'700', fontSize:'0.75rem', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.walkInName || a.customer?.name}</div>
                                         {h > 30 && <div style={{ fontSize:'0.68rem', opacity:0.85, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.service?.name}</div>}
                                         {h > 46 && <div style={{ fontSize:'0.65rem', opacity:0.7 }}>{a.startTime} {'\u2013'} {a.endTime}</div>}
                                     </div>
@@ -2147,6 +2215,89 @@ const ProviderDashboard = () => {
                                 {savingBlockedTime ? 'Saving...' : editingBlockedTime ? 'Update' : 'Save'}
                             </button>
                         </form>
+                    </div>
+                </>
+            )}
+            {/* Appointment detail / reschedule panel */}
+            {apptDetailModal && (
+                <>
+                    <div onClick={() => setApptDetailModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1001, backdropFilter: 'blur(2px)' }} />
+                    <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '400px', maxWidth: '95vw', background: 'white', boxShadow: '-8px 0 40px rgba(0,0,0,0.18)', zIndex: 1002, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+                        {/* Header */}
+                        <div style={{ background: 'var(--charcoal)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                            <div>
+                                <h2 style={{ fontFamily: 'Cormorant Garamond, serif', color: 'var(--gold)', fontSize: '1.25rem', fontWeight: '700', margin: '0 0 0.2rem' }}>Appointment</h2>
+                                <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', margin: 0, fontFamily: 'Outfit, sans-serif' }}>{apptDetailModal.service?.name}</p>
+                            </div>
+                            <button onClick={() => setApptDetailModal(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0 }}>&times;</button>
+                        </div>
+
+                        <div style={{ padding: '1.5rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                            {/* Details */}
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                                {[
+                                    ['Client',    apptDetailModal.walkInName || apptDetailModal.customer?.name || '—'],
+                                    ['Service',   apptDetailModal.service?.name || '—'],
+                                    ['Date',      apptDetailModal.appointmentDate ? new Date(apptDetailModal.appointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—'],
+                                    ['Time',      `${apptDetailModal.startTime} – ${apptDetailModal.endTime}`],
+                                    ['Duration',  apptDetailModal.service?.duration ? `${apptDetailModal.service.duration} min` : '—'],
+                                    ['Price',     apptDetailModal.totalPrice ? `NAD ${apptDetailModal.totalPrice}` : '—'],
+                                ].map(([label, value]) => (
+                                    <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.7rem 0', borderBottom: '1px solid var(--border)' }}>
+                                        <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>{label}</span>
+                                        <span style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--charcoal)', fontFamily: 'Outfit, sans-serif' }}>{value}</span>
+                                    </div>
+                                ))}
+                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.7rem 0' }}>
+                                    <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>Status</span>
+                                    <span style={{ fontSize: '0.72rem', fontWeight: '700', padding: '0.2rem 0.7rem', borderRadius: '99px', background: (statusCalendarColors[apptDetailModal.status] || statusCalendarColors.pending).bg, color: (statusCalendarColors[apptDetailModal.status] || statusCalendarColors.pending).text, textTransform: 'capitalize' }}>
+                                        {apptDetailModal.status}
+                                    </span>
+                                </div>
+                            </div>
+
+                            {/* Reschedule section */}
+                            {apptDetailModal.status !== 'cancelled' && apptDetailModal.status !== 'completed' && (
+                                <div style={{ background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '1rem' }}>
+                                    <p style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--charcoal)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.85rem', fontFamily: 'Outfit, sans-serif' }}>Reschedule</p>
+                                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.85rem' }}>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontFamily: 'Outfit, sans-serif' }}>New date</label>
+                                            <input type="date" className="input" value={apptRescheduleForm.appointmentDate} onChange={e => setApptRescheduleForm(f => ({ ...f, appointmentDate: e.target.value }))} style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }} />
+                                        </div>
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontFamily: 'Outfit, sans-serif' }}>Start time</label>
+                                            <input type="time" className="input" value={apptRescheduleForm.startTime} onChange={e => setApptRescheduleForm(f => ({ ...f, startTime: e.target.value }))} style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }} />
+                                        </div>
+                                    </div>
+                                    {apptDetailError && <p style={{ color: '#991b1b', fontSize: '0.8rem', marginBottom: '0.75rem', fontFamily: 'Outfit, sans-serif' }}>{apptDetailError}</p>}
+                                    <button
+                                        onClick={() => handleProviderReschedule(apptDetailModal._id, apptRescheduleForm.appointmentDate, apptRescheduleForm.startTime)}
+                                        disabled={savingApptDetail || !apptRescheduleForm.appointmentDate || !apptRescheduleForm.startTime}
+                                        style={{ width: '100%', padding: '0.75rem', background: 'var(--charcoal)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', cursor: savingApptDetail ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.875rem', opacity: savingApptDetail ? 0.7 : 1 }}
+                                    >
+                                        {savingApptDetail ? 'Saving...' : 'Save new time \u2192'}
+                                    </button>
+                                </div>
+                            )}
+
+                            <div style={{ flexGrow: 1 }} />
+
+                            {/* Cancel button */}
+                            {apptDetailModal.status !== 'cancelled' && apptDetailModal.status !== 'completed' && (
+                                <button
+                                    onClick={async () => {
+                                        if (window.confirm('Cancel this appointment?')) {
+                                            await handleStatusUpdate(apptDetailModal._id, 'cancelled');
+                                            setApptDetailModal(null);
+                                        }
+                                    }}
+                                    style={{ width: '100%', padding: '0.875rem', background: 'none', color: '#991b1b', border: '1.5px solid #fca5a5', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.875rem' }}
+                                >
+                                    Cancel appointment
+                                </button>
+                            )}
+                        </div>
                     </div>
                 </>
             )}
