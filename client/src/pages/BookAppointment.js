@@ -186,12 +186,12 @@ const BookAppointment = () => {
 
     const today = new Date().toISOString().split('T')[0];
 
-    // Date strip — next 30 days
+    // Date strip — next 6 months (~180 days)
     const dateStrip = (() => {
         const days = [];
         const now = new Date();
         now.setHours(0, 0, 0, 0);
-        for (let i = 0; i < 30; i++) {
+        for (let i = 0; i < 180; i++) {
             const d = new Date(now);
             d.setDate(now.getDate() + i);
             days.push(d);
