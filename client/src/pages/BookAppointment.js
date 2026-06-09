@@ -261,7 +261,7 @@ const BookAppointment = () => {
                 <div className="container" style={{ paddingTop: '3rem', paddingBottom: '5rem' }}>
                     {error && <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>{error}</div>}
 
-                    <div style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 340px', gap: '2rem', alignItems: 'start' }}>
+                    <div className="booking-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 340px', gap: '2rem', alignItems: 'start' }}>
 
                         {/* Left - booking details card */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -382,7 +382,7 @@ const BookAppointment = () => {
             <div className="container" style={{ paddingTop: '3rem', paddingBottom: '5rem' }}>
                 {error && <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>{error}</div>}
 
-                <div className="booking-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 380px', gap: '2rem', alignItems: 'start' }}>
+                <div className="booking-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: '2rem', alignItems: 'start' }}>
 
                     {/* Left - steps */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>

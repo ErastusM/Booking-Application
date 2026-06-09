@@ -199,6 +199,27 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
 ::-webkit-scrollbar-track { background: var(--warm-gray); }
 ::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 3px; }
 
+/* Tablet / narrow desktop: stack booking layout before the sidebar crowds the form */
+@media (max-width: 900px) {
+  body { overflow-x: hidden; }
+  .booking-grid { grid-template-columns: 1fr !important; }
+  .booking-summary { display: none !important; }
+  .booking-mobile-bar {
+    display: flex !important;
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    background: white;
+    border-top: 1px solid var(--border);
+    padding: 0.875rem 1.25rem;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 100;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
+  }
+}
+
 @media (max-width: 768px) {
   .hidden-mobile { display: none !important; }
   .show-mobile { display: flex !important; }
