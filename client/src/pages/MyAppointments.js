@@ -43,8 +43,20 @@ const MyAppointments = () => {
     const [activeFilter, setActiveFilter] = useState('all');
     const [providerSchedule, setProviderSchedule] = useState(null);
     const [rescheduleAvailError, setRescheduleAvailError] = useState('');
+    const [showCancelModal, setShowCancelModal] = useState(null); // appointment object
+    const [showConfirmedBanner, setShowConfirmedBanner] = useState(justConfirmed);
+    const [showWaitlistedBanner, setShowWaitlistedBanner] = useState(justWaitlisted);
 
     useEffect(() => { fetchData(); }, []);
+
+    useEffect(() => {
+        if (!justConfirmed && !justWaitlisted) return;
+        const t = setTimeout(() => {
+            setShowConfirmedBanner(false);
+            setShowWaitlistedBanner(false);
+        }, 15000);
+        return () => clearTimeout(t);
+    }, []);
 
     useEffect(() => {
         if (!reschedulingAppointment) {
@@ -93,16 +105,20 @@ const MyAppointments = () => {
         }
     };
 
-    const handleCancel = async (id) => {
-        if (window.confirm('Cancel this appointment?')) {
-            try {
-                await appointmentService.cancelAppointment(id, 'Cancelled by customer');
-                setAppointments(appointments.map(a => a._id === id ? { ...a, status: 'cancelled' } : a));
-                setSuccess('Appointment cancelled successfully.');
-                setTimeout(() => setSuccess(''), 4000);
-            } catch {
-                setError('Failed to cancel appointment');
-            }
+    const handleCancel = (appointment) => {
+        setShowCancelModal(appointment);
+    };
+
+    const confirmCancel = async () => {
+        const id = showCancelModal._id;
+        setShowCancelModal(null);
+        try {
+            await appointmentService.cancelAppointment(id, 'Cancelled by customer');
+            setAppointments(appointments.map(a => a._id === id ? { ...a, status: 'cancelled' } : a));
+            setSuccess('Appointment cancelled successfully.');
+            setTimeout(() => setSuccess(''), 15000);
+        } catch {
+            setError('Failed to cancel appointment');
         }
     };
 
@@ -116,7 +132,7 @@ const MyAppointments = () => {
             setReschedulingAppointment(null);
             setRescheduleForm({ appointmentDate: '', startTime: '' });
             setSuccess('Appointment rescheduled successfully!');
-            setTimeout(() => setSuccess(''), 4000);
+            setTimeout(() => setSuccess(''), 15000);
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to reschedule appointment');
         } finally {
@@ -158,7 +174,7 @@ const MyAppointments = () => {
 
             <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
 
-                {justConfirmed && (
+                {showConfirmedBanner && (
                     <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '1rem 1.25rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontFamily: 'Outfit, sans-serif' }}>
                         <span style={{ fontSize: '1.2rem' }}>✅</span>
                         <div>
@@ -168,7 +184,7 @@ const MyAppointments = () => {
                     </div>
                 )}
 
-                {justWaitlisted && (
+                {showWaitlistedBanner && (
                     <div style={{ background: '#dbeafe', border: '1px solid #93c5fd', color: '#1e40af', padding: '1rem 1.25rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontFamily: 'Outfit, sans-serif' }}>
                         <span style={{ fontSize: '1.2rem' }}>🔔</span>
                         <div><strong>Added to waiting list.</strong> We'll notify you if a slot opens up.</div>
@@ -274,7 +290,7 @@ const MyAppointments = () => {
                                             </a>
                                         )}                                        {a.status !== 'cancelled' && a.status !== 'completed' && (
                                             <button
-                                                onClick={() => handleCancel(a._id)}
+                                                onClick={() => handleCancel(a)}
                                                 style={{ background: 'none', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'Inter, sans-serif', transition: 'all 0.2s' }}
                                                 onMouseEnter={e => e.target.style.background = '#fee2e2'}
                                                 onMouseLeave={e => e.target.style.background = 'none'}
@@ -318,6 +334,47 @@ const MyAppointments = () => {
                     </div>
                 )}
             </div>
+
+            {/* Cancel-or-Reschedule Modal */}
+            {showCancelModal && (
+                <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+                    <div style={{ background: 'white', borderRadius: 'var(--radius)', padding: '2rem', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(26,26,46,0.25)' }}>
+                        <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>What would you like to do?</h2>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem', fontFamily: 'Outfit, sans-serif', lineHeight: '1.5' }}>
+                            <strong style={{ color: 'var(--charcoal)' }}>{showCancelModal.service?.name}</strong> on{' '}
+                            {new Date(showCancelModal.appointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at {showCancelModal.startTime}.
+                        </p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <button
+                                onClick={() => {
+                                    const appt = showCancelModal;
+                                    setShowCancelModal(null);
+                                    setReschedulingAppointment(appt);
+                                    setRescheduleForm({ appointmentDate: '', startTime: '' });
+                                }}
+                                className="btn-primary"
+                                style={{ padding: '0.9rem', fontSize: '0.95rem', textAlign: 'center' }}
+                            >
+                                🗓 Reschedule Instead
+                            </button>
+                            <button
+                                onClick={confirmCancel}
+                                style={{ padding: '0.9rem', background: 'none', border: '1.5px solid #fca5a5', color: '#dc2626', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: '600', fontFamily: 'Outfit, sans-serif', transition: 'background 0.2s' }}
+                                onMouseEnter={e => e.currentTarget.style.background = '#fff1f2'}
+                                onMouseLeave={e => e.currentTarget.style.background = 'none'}
+                            >
+                                Cancel Appointment
+                            </button>
+                            <button
+                                onClick={() => setShowCancelModal(null)}
+                                style={{ padding: '0.75rem', background: 'none', border: '1.5px solid var(--border)', color: 'var(--text-muted)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.875rem', fontFamily: 'Outfit, sans-serif' }}
+                            >
+                                Go Back
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
 
             {/* Reschedule Modal */}
             {reschedulingAppointment && (
