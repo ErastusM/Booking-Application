@@ -173,7 +173,14 @@ const BookAppointment = () => {
         setError('');
         try {
             await waitingListService.join({ service: formData.service, provider: searchParams.get('providerId') || undefined, appointmentDate: formData.appointmentDate, startTime: formData.startTime, endTime: formData.endTime });
-            navigate('/waiting-list?joined=1');
+            const target = '/waiting-list?joined=1';
+            navigate(target, { replace: true });
+            // Fallback in case SPA navigation is interrupted by stale client chunks in production.
+            setTimeout(() => {
+                if (window.location.pathname !== '/waiting-list') {
+                    window.location.assign(target);
+                }
+            }, 120);
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to join waiting list');
         }
