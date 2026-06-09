@@ -173,7 +173,7 @@ const BookAppointment = () => {
         setError('');
         try {
             await waitingListService.join({ service: formData.service, provider: searchParams.get('providerId') || undefined, appointmentDate: formData.appointmentDate, startTime: formData.startTime, endTime: formData.endTime });
-            navigate('/appointments?waitlisted=1');
+            navigate('/waiting-list?joined=1');
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to join waiting list');
         }

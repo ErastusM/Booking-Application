@@ -78,6 +78,15 @@ const writeLimiter = rateLimit({
     skip: () => process.env.NODE_ENV === 'test',
 });
 
+const readLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: process.env.NODE_ENV === 'test' ? 10000 : 300,
+    message: { success: false, message: 'Too many requests, please slow down.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    skip: () => process.env.NODE_ENV === 'test',
+});
+
 // Middleware
 app.use(helmet());
 app.use(cors({
@@ -94,7 +103,7 @@ if (process.env.NODE_ENV !== 'test') {
 // Routes
 app.use(passport.initialize());
 app.use('/api/auth', authLimiter, authRoutes);
-app.use('/api/services', serviceRoutes);
+app.use('/api/services', readLimiter, serviceRoutes);
 app.use('/api/appointments', writeLimiter, appointmentRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/waitinglist', writeLimiter, waitingListRoutes);
@@ -103,8 +112,8 @@ app.use('/api/notifications', notificationRoutes);
 app.use('/api/analytics', analyticsRoutes);
 app.use('/api/availability', availabilityRoutes);
 app.use('/api/earnings', earningsRoutes);
-app.use('/api/categories', categoryRoutes);
-app.use('/api/providers', providerRoutes);
+app.use('/api/categories', readLimiter, categoryRoutes);
+app.use('/api/providers', readLimiter, providerRoutes);
 app.use('/api/blocked-times', blockedTimeRoutes);
 app.use('/api/messages', writeLimiter, messageRoutes);
 app.use('/api/crm', clientCRMRoutes);

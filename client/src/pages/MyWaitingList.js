@@ -1,7 +1,10 @@
 import React, { useEffect, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { waitingListService } from '../services';
 
 const MyWaitingList = () => {
+    const [searchParams] = useSearchParams();
+    const justJoined = searchParams.get('joined') === '1';
     const [entries, setEntries] = useState([]);
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -87,6 +90,16 @@ const MyWaitingList = () => {
             </div>
 
             <div className="container" style={{ paddingTop: '3rem', paddingBottom: '5rem', maxWidth: '760px' }}>
+
+                {justJoined && (
+                    <div style={{
+                        background: '#dbeafe', border: '1px solid #93c5fd',
+                        color: '#1e40af', padding: '0.875rem 1rem',
+                        borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem',
+                    }}>
+                        <strong>Added to waiting list.</strong> We will notify you if a matching slot opens up.
+                    </div>
+                )}
 
                 {error && (
                     <div style={{

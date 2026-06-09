@@ -19,7 +19,7 @@ const {
 } = require('../middleware/validate');
 
 // Public — used by booking page to show available slots
-router.get('/booked-slots', getBookedSlots);
+router.get('/booked-slots', auth, getBookedSlots);
 
 router.post('/', auth, authorize('customer', 'provider'), createAppointmentRules, createAppointment);
 router.get('/', auth, getAllAppointments);
