@@ -21,8 +21,8 @@ const MyWaitingList = () => {
                 waitingListService.getMyList(),
                 waitingListService.getNotifications(),
             ]);
-            setEntries(listRes.data.data);
-            setNotifications(notifRes.data.data);
+            setEntries(listRes.data.data || []);
+            setNotifications(notifRes.data.data || []);
         } catch {
             setError('Failed to load waiting list');
         } finally {

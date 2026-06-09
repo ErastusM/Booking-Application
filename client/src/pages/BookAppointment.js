@@ -148,8 +148,6 @@ const BookAppointment = () => {
         }));
     };
 
-    const canReview = formData.service && formData.appointmentDate && formData.startTime && !availabilityError && !selectedSlotBooked;
-
     const handleConfirm = async () => {
         setLoading(true);
         setError('');
@@ -238,6 +236,7 @@ const BookAppointment = () => {
 
     const timeSlots = generateTimeSlots(formData.appointmentDate);
     const selectedSlotBooked = formData.startTime && timeSlots.find(s => s.time === formData.startTime)?.isBooked;
+    const canReview = formData.service && formData.appointmentDate && formData.startTime && !availabilityError && !selectedSlotBooked;
 
     const labelStyle = { display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' };
     const cardStyle = { background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '2rem', boxShadow: 'var(--shadow-sm)' };

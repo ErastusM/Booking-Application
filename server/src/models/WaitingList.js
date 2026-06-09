@@ -7,6 +7,11 @@ const waitingListSchema = new mongoose.Schema(
             ref: 'Service',
             required: true,
         },
+        provider: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null,
+        },
         customer: {
             type: mongoose.Schema.Types.ObjectId,
             ref: 'User',

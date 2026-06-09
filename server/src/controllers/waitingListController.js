@@ -2,21 +2,53 @@ const pino = require('pino');
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const WaitingList = require('../models/WaitingList');
 const Appointment = require('../models/Appointment');
+const Service = require('../models/Service');
+const { createNotification } = require('../utils/notificationhelper');
+
+const toMinutes = (t) => {
+    const [h, m] = String(t).split(':').map(Number);
+    return h * 60 + m;
+};
 
 // Join the waiting list for a slot
 exports.joinWaitingList = async (req, res) => {
     try {
         const { service, appointmentDate, startTime, endTime } = req.body;
+        let { provider } = req.body;
 
-        // Check the slot is actually taken
-        const existingAppointment = await Appointment.findOne({
-            service,
-            appointmentDate: new Date(appointmentDate),
-            startTime,
-            status: { $nin: ['cancelled'] },
-        });
+        const svc = await Service.findById(service).select('name provider');
+        if (!svc) {
+            return res.status(404).json({ success: false, message: 'Service not found' });
+        }
+        if (!provider) provider = svc.provider;
 
-        if (!existingAppointment) {
+        const dateObj = new Date(appointmentDate);
+        const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
+
+        // Confirm the slot is actually taken — provider-aware time overlap when the
+        // provider is known (matches how the booking page greys out slots).
+        let slotTaken = false;
+        if (provider) {
+            const nStart = toMinutes(startTime);
+            const nEnd = toMinutes(endTime || startTime);
+            const existing = await Appointment.find({
+                provider,
+                appointmentDate: { $gte: dayStart, $lte: dayEnd },
+                status: { $nin: ['cancelled'] },
+            }).select('startTime endTime');
+            slotTaken = existing.some(a => nStart < toMinutes(a.endTime) && nEnd > toMinutes(a.startTime));
+        } else {
+            const existingAppointment = await Appointment.findOne({
+                service,
+                appointmentDate: dateObj,
+                startTime,
+                status: { $nin: ['cancelled'] },
+            });
+            slotTaken = !!existingAppointment;
+        }
+
+        if (!slotTaken) {
             return res.status(400).json({
                 success: false,
                 message: 'This slot is still available — just book it directly!',
@@ -26,7 +58,7 @@ exports.joinWaitingList = async (req, res) => {
         // Check customer isn't already on the waiting list for this slot
         const alreadyWaiting = await WaitingList.findOne({
             service,
-            appointmentDate: new Date(appointmentDate),
+            appointmentDate: dateObj,
             startTime,
             customer: req.user._id,
             status: 'waiting',
@@ -42,15 +74,16 @@ exports.joinWaitingList = async (req, res) => {
         // Calculate position
         const waitingCount = await WaitingList.countDocuments({
             service,
-            appointmentDate: new Date(appointmentDate),
+            appointmentDate: dateObj,
             startTime,
             status: 'waiting',
         });
 
         const entry = await WaitingList.create({
             service,
+            provider: provider || null,
             customer: req.user._id,
-            appointmentDate: new Date(appointmentDate),
+            appointmentDate: dateObj,
             startTime,
             endTime,
             position: waitingCount + 1,
@@ -58,8 +91,20 @@ exports.joinWaitingList = async (req, res) => {
 
         await entry.populate('service', 'name price duration');
 
+        // Notify the provider that a customer joined their waiting list
+        if (provider) {
+            const when = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+            await createNotification(
+                provider,
+                `${req.user.name} joined the waiting list for ${svc.name} on ${when} at ${startTime}.`,
+                'waiting_list',
+                '/dashboard'
+            );
+        }
+
         res.status(201).json({ success: true, data: entry });
     } catch (error) {
+        logger.error({ err: error }, 'Error joining waiting list');
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
