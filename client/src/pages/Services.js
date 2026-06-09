@@ -137,7 +137,9 @@ const ServiceCard = ({ service, user, navigate, index }) => {
                     </div>
                     {user?.role === 'customer' && (
                         <button
-                            onClick={() => navigate('/book-appointment')}
+                            onClick={() => navigate(service.provider?._id
+                                ? `/book-appointment?serviceId=${service._id}&providerId=${service.provider._id}`
+                                : '/services')}
                             className="btn-primary"
                             style={{ padding: '0.6rem 1.25rem', fontSize: '0.85rem' }}
                         >

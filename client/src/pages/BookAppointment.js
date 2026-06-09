@@ -148,14 +148,15 @@ const BookAppointment = () => {
         }));
     };
 
-    const canReview = formData.service && formData.appointmentDate && formData.startTime && !availabilityError;
+    const canReview = formData.service && formData.appointmentDate && formData.startTime && !availabilityError && !selectedSlotBooked;
 
     const handleConfirm = async () => {
         setLoading(true);
         setError('');
         try {
             await appointmentService.createAppointment({ ...formData, selectedAddOns });
-            navigate('/appointments?confirmed=1');
+            const providerName = providerInfo?.name || '';
+            navigate(`/appointments?confirmed=1&provider=${encodeURIComponent(providerName)}`);
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to book appointment');
             setStep('form');
@@ -220,18 +221,16 @@ const BookAppointment = () => {
         const slots = [];
         for (let mins = startMins; mins + duration <= endMins; mins += interval) {
             const slotEnd = mins + duration;
-            // Exclude slot if it overlaps any existing booking
             const isBooked = bookedRanges.some(b => mins < b.end && slotEnd > b.start);
-            if (!isBooked) {
-                const h = Math.floor(mins / 60);
-                const min = mins % 60;
-                slots.push(`${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`);
-            }
+            const h = Math.floor(mins / 60);
+            const min = mins % 60;
+            slots.push({ time: `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`, isBooked });
         }
         return slots;
     };
 
     const timeSlots = generateTimeSlots(formData.appointmentDate);
+    const selectedSlotBooked = formData.startTime && timeSlots.find(s => s.time === formData.startTime)?.isBooked;
 
     const labelStyle = { display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' };
     const cardStyle = { background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '2rem', boxShadow: 'var(--shadow-sm)' };
@@ -490,29 +489,41 @@ const BookAppointment = () => {
                                         </p>
                                     ) : (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                            {timeSlots.map((time, i) => {
-                                                const isSelected = formData.startTime === time;
+                                            {timeSlots.map((slot, i) => {
+                                                const isSelected = formData.startTime === slot.time;
                                                 return (
                                                     <button
                                                         key={i}
                                                         type="button"
-                                                        onClick={() => handleTimeSelect(time)}
+                                                        onClick={() => {
+                                                            if (slot.isBooked) {
+                                                                handleTimeSelect(slot.time);
+                                                            } else {
+                                                                handleTimeSelect(slot.time);
+                                                            }
+                                                        }}
                                                         style={{
                                                             width: '100%',
                                                             padding: '1rem 1.25rem',
                                                             borderRadius: '12px',
-                                                            border: `2px solid ${isSelected ? 'var(--gold)' : 'var(--border)'}`,
-                                                            background: isSelected ? 'rgba(201,168,76,0.08)' : 'white',
-                                                            color: isSelected ? 'var(--gold-dark)' : 'var(--charcoal)',
+                                                            border: `2px solid ${slot.isBooked ? '#e5e7eb' : isSelected ? 'var(--gold)' : 'var(--border)'}`,
+                                                            background: slot.isBooked ? '#f9fafb' : isSelected ? 'rgba(201,168,76,0.08)' : 'white',
+                                                            color: slot.isBooked ? '#9ca3af' : isSelected ? 'var(--gold-dark)' : 'var(--charcoal)',
                                                             fontWeight: isSelected ? '600' : '400',
                                                             fontSize: '1rem',
                                                             cursor: 'pointer',
                                                             fontFamily: 'Outfit, sans-serif',
                                                             textAlign: 'left',
+                                                            display: 'flex',
+                                                            alignItems: 'center',
+                                                            justifyContent: 'space-between',
                                                             transition: 'all 0.15s',
                                                         }}
                                                     >
-                                                        {time}
+                                                        <span>{slot.time}</span>
+                                                        {slot.isBooked && (
+                                                            <span style={{ fontSize: '0.72rem', color: '#9ca3af', fontStyle: 'italic' }}>Taken — tap to join waitlist</span>
+                                                        )}
                                                     </button>
                                                 );
                                             })}
@@ -521,7 +532,14 @@ const BookAppointment = () => {
                                 </div>
                             )}
 
-                            {availabilityError && (
+                        {/* Show waitlist prompt if selected slot is taken */}
+                        {selectedSlotBooked && (
+                            <div style={{ marginTop: '1rem', background: '#fef3c7', border: '1px solid #fcd34d', color: '#92400e', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', fontFamily: 'Outfit, sans-serif' }}>
+                                <strong>This slot is already taken.</strong> You can join the waiting list and we'll notify you if it opens up.
+                            </div>
+                        )}
+
+                        {availabilityError && (
                                 <div style={{ marginTop: '1rem', background: '#fef3c7', border: '1px solid #fcd34d', color: '#92400e', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', fontSize: '0.85rem' }}>
                                     {availabilityError}
                                 </div>
@@ -561,9 +579,11 @@ const BookAppointment = () => {
                         >
                             Review & Confirm â†’
                         </button>
-                        <button onClick={handleJoinWaitingList} disabled={loading} className="btn-outline" style={{ width: '100%', padding: '0.875rem' }}>
-                            Join Waiting List Instead
-                        </button>
+                        {selectedSlotBooked && formData.startTime && (
+                            <button onClick={handleJoinWaitingList} disabled={loading} className="btn-outline" style={{ width: '100%', padding: '0.875rem', marginBottom: '0.75rem' }}>
+                                Join Waiting List
+                            </button>
+                        )}
                         <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', textAlign: 'center', marginTop: '1rem', lineHeight: 1.5 }}>
                             Free cancellation up to 24 hours before your appointment.
                         </p>
@@ -577,13 +597,23 @@ const BookAppointment = () => {
                         <div style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--charcoal)', fontFamily: 'Outfit, sans-serif' }}>NAD {totalPrice}</div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>1 item · {totalDuration} min</div>
                     </div>
-                    <button
-                        onClick={() => { setError(''); setStep('review'); }}
-                        disabled={!canReview}
-                        style={{ background: 'var(--charcoal)', color: 'white', border: 'none', borderRadius: '99px', padding: '0.75rem 1.75rem', fontWeight: '600', cursor: canReview ? 'pointer' : 'not-allowed', opacity: canReview ? 1 : 0.5, fontSize: '0.95rem', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap' }}
-                    >
-                        Continue →
-                    </button>
+                    {selectedSlotBooked && formData.startTime ? (
+                        <button
+                            onClick={handleJoinWaitingList}
+                            disabled={loading}
+                            style={{ background: 'var(--charcoal)', color: 'white', border: 'none', borderRadius: '99px', padding: '0.75rem 1.5rem', fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap' }}
+                        >
+                            Join Waitlist
+                        </button>
+                    ) : (
+                        <button
+                            onClick={() => { setError(''); setStep('review'); }}
+                            disabled={!canReview}
+                            style={{ background: 'var(--charcoal)', color: 'white', border: 'none', borderRadius: '99px', padding: '0.75rem 1.75rem', fontWeight: '600', cursor: canReview ? 'pointer' : 'not-allowed', opacity: canReview ? 1 : 0.5, fontSize: '0.95rem', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap' }}
+                        >
+                            Continue →
+                        </button>
+                    )}
                 </div>
             )}
         </div>

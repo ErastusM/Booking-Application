@@ -91,7 +91,7 @@ const Navbar = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }} className="hidden-mobile">
                     {navLink('/', 'Home')}
                     {navLink('/services', 'Services')}
-                    {user?.role === 'customer' && navLink('/book-appointment', 'Book')}
+                    {user?.role === 'customer' && navLink('/services', 'Book')}
                     {user?.role === 'customer' && navLink('/appointments', 'Appointments')}
                     {user?.role === 'customer' && navLink('/waiting-list', 'Waiting List')}
                     {user?.role === 'provider' && navLink('/dashboard', 'Dashboard')}
@@ -209,7 +209,7 @@ const Navbar = () => {
                         <div style={{ flex: 1, padding: '0.75rem 0' }}>
                             {mobileLink('/', 'Home')}
                             {mobileLink('/services', 'Services')}
-                            {user?.role === 'customer' && mobileLink('/book-appointment', 'Book Appointment')}
+                            {user?.role === 'customer' && mobileLink('/services', 'Book Appointment')}
                             {user?.role === 'customer' && mobileLink('/appointments', 'My Appointments')}
                             {user?.role === 'customer' && mobileLink('/waiting-list', 'Waiting List')}
                             {user?.role === 'provider' && mobileLink('/dashboard', 'Dashboard')}
@@ -271,7 +271,7 @@ const Navbar = () => {
                     { to: '/', icon: (
                         <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
                     ), label: 'Home' },
-                    { to: '/book-appointment', icon: (
+                    { to: '/services', icon: (
                         <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
                     ), label: 'Book' },
                     { to: '/appointments', icon: (

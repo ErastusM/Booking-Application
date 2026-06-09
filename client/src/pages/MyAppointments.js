@@ -30,6 +30,7 @@ const MyAppointments = () => {
     const [searchParams] = useSearchParams();
     const justConfirmed = searchParams.get('confirmed') === '1';
     const justWaitlisted = searchParams.get('waitlisted') === '1';
+    const confirmedProvider = searchParams.get('provider') || '';
     const [appointments, setAppointments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -160,7 +161,10 @@ const MyAppointments = () => {
                 {justConfirmed && (
                     <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '1rem 1.25rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontFamily: 'Outfit, sans-serif' }}>
                         <span style={{ fontSize: '1.2rem' }}>✅</span>
-                        <div><strong>Appointment confirmed!</strong> You'll receive a confirmation email shortly. See you there.</div>
+                        <div>
+                            <strong>Appointment confirmed{confirmedProvider ? ` with ${confirmedProvider}` : ''}!</strong>
+                            {user?.name ? ` ${user.name.split(' ')[0]}, y` : ' Y'}ou'll receive a confirmation email shortly. See you there.
+                        </div>
                     </div>
                 )}
 
