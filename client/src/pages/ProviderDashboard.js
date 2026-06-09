@@ -1251,7 +1251,7 @@ const ProviderDashboard = () => {
                             {/* Hour grid lines */}
                             {Array.from({ length: NUM_H }, (_,i) => (
                                 <div key={i} style={{ position:'absolute', left:0, right:0, top:`${i*ROW_H}px`, height:`${ROW_H}px`, borderBottom:'1px solid var(--border)', pointerEvents:'none',
-                                    background: isOutsideWorkingHours(date, i+START_H) ? 'repeating-linear-gradient(45deg,rgba(0,0,0,0.022),rgba(0,0,0,0.022) 4px,transparent 4px,transparent 8px)' : 'transparent' }} />
+                                    background: isOutsideWorkingHours(date, i+START_H) ? '#eeebe6' : 'white' }} />
                             ))}
                             {/* 30-min half-lines */}
                             {Array.from({ length: NUM_H }, (_,i) => (
@@ -1291,7 +1291,12 @@ const ProviderDashboard = () => {
                                         style={{ position:'absolute', left:'3px', right:'3px', zIndex:4, borderRadius:'5px', overflow:'hidden', cursor:'pointer', boxSizing:'border-box',
                                             top:`${top}px`, height:`${h}px`, background:c.bg, color:c.text,
                                             borderLeft:`3px solid ${c.text}`, padding:'3px 6px', boxShadow:'0 1px 3px rgba(0,0,0,0.1)' }}>
-                                        <div style={{ fontWeight:'700', fontSize:'0.75rem', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.walkInName || a.customer?.name}</div>
+                                        <div style={{ display:'flex', alignItems:'flex-start', justifyContent:'space-between', gap:'2px' }}>
+                                            <div style={{ fontWeight:'700', fontSize:'0.75rem', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis', flex:1 }}>{a.walkInName || a.customer?.name}</div>
+                                            {a.status !== 'cancelled' && a.status !== 'completed' && (
+                                                <button onClick={e=>{e.stopPropagation();if(window.confirm('Cancel this appointment?'))handleStatusUpdate(a._id,'cancelled');}} style={{ flexShrink:0, background:'rgba(0,0,0,0.18)', border:'none', borderRadius:'2px', color:'inherit', cursor:'pointer', fontSize:'0.65rem', padding:'0 3px', lineHeight:'14px', height:'14px' }}>✕</button>
+                                            )}
+                                        </div>
                                         {h > 30 && <div style={{ fontSize:'0.68rem', opacity:0.85, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.service?.name}</div>}
                                         {h > 46 && <div style={{ fontSize:'0.65rem', opacity:0.7 }}>{a.startTime} {'\u2013'} {a.endTime}</div>}
                                     </div>
@@ -1370,7 +1375,7 @@ const ProviderDashboard = () => {
                                             const isToday = day && today.getDate()===day && today.getMonth()===currentDate.getMonth() && today.getFullYear()===currentDate.getFullYear();
                                             const isSelected = selectedDay===day;
                                             return (
-                                                <div key={i} onClick={()=>day&&setSelectedDay(isSelected?null:day)} style={{ minHeight:'90px', padding:'6px', borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)', background:isSelected?'rgba(201,168,76,0.06)':day?'white':'var(--warm-gray)', cursor:day?'pointer':'default', transition:'background 0.15s' }} onMouseEnter={e=>{if(day&&!isSelected)e.currentTarget.style.background='var(--warm-gray)';}} onMouseLeave={e=>{if(day&&!isSelected)e.currentTarget.style.background='white';}}>
+                                                <div key={i} onClick={()=>day&&setSelectedDay(isSelected?null:day)} style={{ minHeight:'90px', padding:'6px', borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)', background:isSelected?'rgba(201,168,76,0.06)':!day?'#f0ede8':(availability&&!availability[['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][new Date(currentDate.getFullYear(),currentDate.getMonth(),day).getDay()]]?.enabled)?'#ede9e4':'white', cursor:day?'pointer':'default', transition:'background 0.15s' }} onMouseEnter={e=>{if(day&&!isSelected)e.currentTarget.style.background='var(--warm-gray)';}} onMouseLeave={e=>{if(day&&!isSelected){const _d=new Date(currentDate.getFullYear(),currentDate.getMonth(),day);const isWorking=!availability||availability[['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][_d.getDay()]]?.enabled;e.currentTarget.style.background=isWorking?'white':'#ede9e4';}}}>
                                                     {day && (
                                                         <>
                                                             <div style={{ width:'24px', height:'24px', borderRadius:'50%', background:isToday?'var(--gold)':'transparent', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.78rem', fontWeight:isToday?'700':'400', color:isToday?'var(--charcoal)':'var(--text-secondary)', marginBottom:'4px' }}>{day}</div>

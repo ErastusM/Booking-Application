@@ -196,7 +196,7 @@ const BookAppointment = () => {
     // Generate time slot pills from provider availability (or 08:00–20:00 fallback)
     const generateTimeSlots = (dateStr) => {
         const duration = totalDuration || 30;
-        const interval = Math.max(30, duration);
+        const interval = duration;
         let startMins = 8 * 60;
         let endMins = 20 * 60;
         if (providerAvailability && dateStr) {
@@ -489,7 +489,7 @@ const BookAppointment = () => {
                                             No available slots on this day.
                                         </p>
                                     ) : (
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(78px, 1fr))', gap: '0.5rem' }}>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                             {timeSlots.map((time, i) => {
                                                 const isSelected = formData.startTime === time;
                                                 return (
@@ -498,15 +498,17 @@ const BookAppointment = () => {
                                                         type="button"
                                                         onClick={() => handleTimeSelect(time)}
                                                         style={{
-                                                            padding: '0.65rem 0.4rem',
-                                                            borderRadius: '10px',
+                                                            width: '100%',
+                                                            padding: '1rem 1.25rem',
+                                                            borderRadius: '12px',
                                                             border: `2px solid ${isSelected ? 'var(--gold)' : 'var(--border)'}`,
-                                                            background: isSelected ? 'var(--gold)' : 'white',
-                                                            color: 'var(--charcoal)',
-                                                            fontWeight: isSelected ? '700' : '500',
-                                                            fontSize: '0.875rem',
+                                                            background: isSelected ? 'rgba(201,168,76,0.08)' : 'white',
+                                                            color: isSelected ? 'var(--gold-dark)' : 'var(--charcoal)',
+                                                            fontWeight: isSelected ? '600' : '400',
+                                                            fontSize: '1rem',
                                                             cursor: 'pointer',
                                                             fontFamily: 'Outfit, sans-serif',
+                                                            textAlign: 'left',
                                                             transition: 'all 0.15s',
                                                         }}
                                                     >
@@ -568,6 +570,22 @@ const BookAppointment = () => {
                     </div>
                 </div>
             </div>
+            {/* Mobile sticky bottom bar — shown only on mobile via CSS */}
+            {selectedService && (
+                <div className="booking-mobile-bar">
+                    <div>
+                        <div style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--charcoal)', fontFamily: 'Outfit, sans-serif' }}>NAD {totalPrice}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>1 item · {totalDuration} min</div>
+                    </div>
+                    <button
+                        onClick={() => { setError(''); setStep('review'); }}
+                        disabled={!canReview}
+                        style={{ background: 'var(--charcoal)', color: 'white', border: 'none', borderRadius: '99px', padding: '0.75rem 1.75rem', fontWeight: '600', cursor: canReview ? 'pointer' : 'not-allowed', opacity: canReview ? 1 : 0.5, fontSize: '0.95rem', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap' }}
+                    >
+                        Continue →
+                    </button>
+                </div>
+            )}
         </div>
     );
 };

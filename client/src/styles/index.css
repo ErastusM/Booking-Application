@@ -177,6 +177,9 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
   from { transform: translateX(-100%); }
   to { transform: translateX(0); }
 }
+
+/* Mobile sticky bottom bar for booking — hidden on desktop */
+.booking-mobile-bar { display: none; }
 .fade-up { animation: fadeUp 0.5s ease forwards; }
 .fade-up-delay-1 { animation-delay: 0.1s; opacity: 0; }
 .fade-up-delay-2 { animation-delay: 0.2s; opacity: 0; }
@@ -213,7 +216,8 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
   }
 
   .booking-grid { grid-template-columns: 1fr !important; }
-  .booking-summary { position: relative !important; top: auto !important; }
+  .booking-summary { display: none !important; }
+  .provider-account-grid { grid-template-columns: 1fr !important; }
 
   .catalogue-grid { grid-template-columns: 1fr !important; }
 
@@ -253,6 +257,22 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
 
   /* Extra bottom padding so content clears the bottom nav bar */
   body { padding-bottom: 62px; }
+
+  /* Booking page mobile sticky bar */
+  .booking-mobile-bar {
+    display: flex !important;
+    position: fixed;
+    bottom: 62px;
+    left: 0;
+    right: 0;
+    background: white;
+    border-top: 1px solid var(--border);
+    padding: 0.875rem 1.25rem;
+    justify-content: space-between;
+    align-items: center;
+    z-index: 100;
+    box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
+  }
 }
 
 @media (min-width: 769px) {

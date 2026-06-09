@@ -142,6 +142,12 @@ const Navbar = () => {
                     </button>
                 )}
 
+                {/* Mobile login link — only for logged-out users */}
+                {!user && (
+                    <Link to="/login" className="show-mobile" style={{ color: isTransparent ? 'white' : 'var(--charcoal)', textDecoration: 'none', fontSize: '0.85rem', fontWeight: '600', padding: '0.4rem 0.875rem', border: '1.5px solid', borderColor: isTransparent ? 'rgba(255,255,255,0.5)' : 'var(--border)', borderRadius: 'var(--radius-sm)', marginRight: '0.25rem' }}>
+                        Log in
+                    </Link>
+                )}
                 {/* Mobile hamburger */}
                 <button onClick={() => setMenuOpen(!menuOpen)} className="show-mobile" style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'white' : 'var(--charcoal)', padding: '0.5rem' }}>
                     <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">

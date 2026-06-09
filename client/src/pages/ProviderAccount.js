@@ -177,7 +177,7 @@ const ProviderAccount = () => {
                     ← Back to Dashboard
                 </Link>
 
-                <div style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '2rem', alignItems: 'start' }}>
+                <div className="provider-account-grid" style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '2rem', alignItems: 'start' }}>
 
                     {/* Sidebar */}
                     <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 0.75rem', position: 'sticky', top: '90px' }}>
