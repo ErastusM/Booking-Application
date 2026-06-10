@@ -3,6 +3,7 @@ const router = express.Router();
 const {
     createAppointment,
     getAllAppointments,
+    getMyAppointments,
     cancelAppointment,
     updateAppointment,
     updateAppointmentStatus,
@@ -22,6 +23,7 @@ const {
 router.get('/booked-slots', auth, getBookedSlots);
 
 router.post('/', auth, authorize('customer', 'provider'), createAppointmentRules, createAppointment);
+router.get('/my-appointments', auth, getMyAppointments);
 router.get('/', auth, getAllAppointments);
 router.put('/:id', auth, authorize('admin'), updateAppointment);
 router.put('/:id/status', auth, authorize('admin', 'provider'), updateAppointmentStatusRules, updateAppointmentStatus);

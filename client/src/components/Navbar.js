@@ -34,7 +34,7 @@ const Navbar = () => {
         localStorage.setItem('darkMode', darkMode);
     }, [darkMode]);
 
-    const handleLogout = () => { logout(); navigate('/'); };
+    const handleLogout = () => { setMenuOpen(false); logout(); navigate('/'); };
     const isActive = (path) => location.pathname === path;
 
     const navLink = (to, label) => (
@@ -91,7 +91,7 @@ const Navbar = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }} className="hidden-mobile">
                     {navLink('/', 'Home')}
                     {navLink('/services', 'Services')}
-                    {user?.role === 'customer' && navLink('/services', 'Book')}
+                    {user?.role === 'customer' && navLink('/book-appointment', 'Book')}
                     {user?.role === 'customer' && navLink('/appointments', 'Appointments')}
                     {user?.role === 'customer' && navLink('/waiting-list', 'Waiting List')}
                     {user?.role === 'provider' && navLink('/dashboard', 'Dashboard')}
@@ -209,7 +209,7 @@ const Navbar = () => {
                         <div style={{ flex: 1, padding: '0.75rem 0' }}>
                             {mobileLink('/', 'Home')}
                             {mobileLink('/services', 'Services')}
-                            {user?.role === 'customer' && mobileLink('/services', 'Book Appointment')}
+                            {user?.role === 'customer' && mobileLink('/book-appointment', 'Book Appointment')}
                             {user?.role === 'customer' && mobileLink('/appointments', 'My Appointments')}
                             {user?.role === 'customer' && mobileLink('/waiting-list', 'Waiting List')}
                             {user?.role === 'provider' && mobileLink('/dashboard', 'Dashboard')}

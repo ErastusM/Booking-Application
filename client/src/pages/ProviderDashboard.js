@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { appointmentService, availabilityService, earningsService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, retentionService, teamService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import OnboardingWizard from '../components/OnboardingWizard';
@@ -13,6 +13,7 @@ const statusConfig = {
 
 const ProviderDashboard = () => {
     const { user, setUser } = useAuthContext();
+    const location = useLocation();
     const [showWizard, setShowWizard] = useState(false);
     const [appointments, setAppointments] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -34,7 +35,7 @@ const ProviderDashboard = () => {
     const [catalogueCategory, setCatalogueCategory] = useState('all');
     const [catalogueSearch, setCatalogueSearch] = useState('');
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [calendarView, setCalendarView] = useState('day');
+    const [calendarView, setCalendarView] = useState('month');
     const [selectedDay, setSelectedDay] = useState(null);
     const [viewMenuOpen, setViewMenuOpen] = useState(false);
     const [addMenuOpen, setAddMenuOpen] = useState(false);
@@ -44,6 +45,7 @@ const ProviderDashboard = () => {
     const [blockedTimeForm, setBlockedTimeForm] = useState({ blockType: 'Custom', title: '', date: '', startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', customDays: [] });
     const [savingBlockedTime, setSavingBlockedTime] = useState(false);
     const [recurringActionModal, setRecurringActionModal] = useState(null);
+    const [timeSelectionPreview, setTimeSelectionPreview] = useState(null);
     const [recurringMode, setRecurringMode] = useState('this');
     const [showApptModal, setShowApptModal] = useState(false);
     const [apptForm, setApptForm] = useState({ serviceId: '', date: '', startTime: '', clientName: '', notes: '' });
@@ -52,6 +54,9 @@ const ProviderDashboard = () => {
     const [dragState, setDragState] = useState({ active: false, date: null, startY: 0, endY: 0 });
     const [apptDrag, setApptDrag] = useState({ active: false, appt: null, offsetY: 0, currentY: 0, colDate: null, moved: false });
     const [apptDetailModal, setApptDetailModal] = useState(null);
+    const [resizing, setResizing] = useState({ active: false, appt: null, colRect: null, initialEndMins: 0 });
+    const [snapInterval, setSnapInterval] = useState(15); // minutes
+    const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, content: '' });
     const [apptRescheduleForm, setApptRescheduleForm] = useState({ appointmentDate: '', startTime: '' });
     const [savingApptDetail, setSavingApptDetail] = useState(false);
     const [apptDetailError, setApptDetailError] = useState('');
@@ -94,6 +99,15 @@ const ProviderDashboard = () => {
             setShowWizard(true);
         }
     }, [user]);
+
+    useEffect(() => {
+        const tab = new URLSearchParams(location.search).get('tab');
+        const validTabs = ['calendar', 'pending', 'confirmed', 'completed', 'cancelled', 'services', 'availability', 'earnings', 'clients', 'messages', 'memberships', 'team'];
+        if (tab && validTabs.includes(tab)) {
+            setActiveTab(tab);
+            setSelectedDay(null);
+        }
+    }, [location.search]);
 
     useEffect(() => {
         // Run all initial fetches in parallel — don't wait for one before starting the next
@@ -1223,6 +1237,11 @@ const ProviderDashboard = () => {
                     const yToMins = (y) => Math.round((clampY(y) / ROW_H) * 60 / 15) * 15 + START_H * 60;
                     const minsToTime = (m) => `${String(Math.min(Math.floor(m/60), END_H)).padStart(2,'0')}:${String(m%60).padStart(2,'0')}`;
 
+                    const parseTimeToMins = (t) => { const [hh,mm] = (t||'00:00').split(':').map(Number); return hh*60+mm; };
+
+                    // make snap interval configurable
+                    const yToMinsSnap = (y) => Math.round((clampY(y) / ROW_H) * 60 / snapInterval) * snapInterval + START_H * 60;
+
                     const handleApptDragStart = (e, appt, date) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -1231,6 +1250,147 @@ const ProviderDashboard = () => {
                         const y = clampY(e.clientY - rect.top);
                         const apptTopY = timeToY(appt.startTime);
                         setApptDrag({ active: true, appt, offsetY: y - apptTopY, currentY: y, colDate: date, moved: false });
+                    };
+
+                    const handleApptDragStartTouch = (e, appt, date) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const touch = e.touches && e.touches[0];
+                        if (!touch) return;
+                        const colEl = e.currentTarget.parentElement;
+                        const rect = colEl.getBoundingClientRect();
+                        const y = clampY(touch.clientY - rect.top);
+                        const apptTopY = timeToY(appt.startTime);
+                        setApptDrag({ active: true, appt, offsetY: y - apptTopY, currentY: y, colDate: date, moved: false });
+                    };
+
+                    const handleDragStartTouch = (e, date) => {
+                        e.preventDefault();
+                        const touch = e.touches && e.touches[0];
+                        if (!touch) return;
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const y = clampY(touch.clientY - rect.top);
+                        setDragState({ active: true, date, startY: y, endY: y });
+                    };
+
+                    const handleDragMoveTouch = (e, date) => {
+                        const touch = e.touches && e.touches[0];
+                        if (!touch) return;
+                        if (apptDrag.active) {
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const y = clampY(touch.clientY - rect.top);
+                            setApptDrag(prev => ({ ...prev, currentY: y, colDate: date, moved: prev.moved || Math.abs(y - prev.currentY) > 4 }));
+                            return;
+                        }
+                        if (!dragState.active || !dragState.date || dragState.date.toDateString() !== date.toDateString()) return;
+                        const rect = e.currentTarget.getBoundingClientRect();
+                        const y = clampY(touch.clientY - rect.top);
+                        setDragState(prev => ({ ...prev, endY: y }));
+                    };
+
+                    const handleDragEndTouch = (e, date) => {
+                        const touch = e.changedTouches && e.changedTouches[0];
+                        if (!touch && !apptDrag.active) return;
+                        if (apptDrag.active) {
+                            const appt = apptDrag.appt;
+                            const moved = apptDrag.moved;
+                            const rect = e.currentTarget.getBoundingClientRect();
+                            const y = clampY((touch ? touch.clientY : e.clientY) - rect.top);
+                            const newTopY = clampY(y - apptDrag.offsetY);
+                            const newStartTime = minsToTime(yToMins(newTopY));
+                            const newDateStr = dateToStr(date);
+                            setApptDrag({ active: false, appt: null, offsetY: 0, currentY: 0, colDate: null, moved: false });
+                            if (moved) {
+                                handleProviderReschedule(appt._id, newDateStr, newStartTime);
+                            } else {
+                                setApptRescheduleForm({ appointmentDate: new Date(appt.appointmentDate).toISOString().split('T')[0], startTime: appt.startTime });
+                                setApptDetailError('');
+                                setApptDetailModal(appt);
+                            }
+                            return;
+                        }
+                        // handle range selection touch end
+                        if (!dragState.active || !dragState.date || dragState.date.toDateString() !== date.toDateString()) {
+                            setDragState({ active: false, date: null, startY: 0, endY: 0 });
+                            return;
+                        }
+                        e.stopPropagation();
+                        const minY = Math.min(dragState.startY, dragState.endY);
+                        const maxY = Math.max(dragState.startY, dragState.endY);
+                        let startMins = yToMins(minY);
+                        let endMins = yToMins(maxY);
+                        if (endMins <= startMins) endMins = Math.min(startMins + 60, END_H * 60);
+                        const capturedDate = dragState.date;
+                        setDragState({ active: false, date: null, startY: 0, endY: 0 });
+                        setShowBlockedTimeForm(false);
+                        setShowApptModal(false);
+                        setTimeSelectionPreview({
+                            date: dateToStr(capturedDate),
+                            startTime: minsToTime(startMins),
+                            endTime: minsToTime(endMins),
+                        });
+                    };
+
+                    const handleResizeStart = (e, appt, date) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const colEl = e.currentTarget.closest('[data-col]') || e.currentTarget.parentElement;
+                        const rect = colEl.getBoundingClientRect();
+
+                        // Common resize start logic extracted to allow long-press on touch
+                        const startResize = () => {
+                            setResizing({ active: true, appt, colRect: rect, initialEndMins: parseTimeToMins(appt.endTime) });
+
+                            const move = (ev) => {
+                                ev.preventDefault();
+                                const clientY = ev.clientY ?? (ev.touches && ev.touches[0] && ev.touches[0].clientY) ?? (ev.changedTouches && ev.changedTouches[0] && ev.changedTouches[0].clientY);
+                                const y = clampY(clientY - rect.top);
+                                const newEndMins = yToMinsSnap(y);
+                                const startMins = parseTimeToMins(appt.startTime);
+                                const finalEnd = Math.max(newEndMins, startMins + Math.max(15, snapInterval));
+                                try {
+                                    setAppointments(prev => prev.map(a => a._id === appt._id ? { ...a, endTime: minsToTime(finalEnd) } : a));
+                                } catch (err) { /* ignore */ }
+                            };
+                            const up = async (ev) => {
+                                const clientY = ev.clientY ?? (ev.touches && ev.touches[0] && ev.touches[0].clientY) ?? (ev.changedTouches && ev.changedTouches[0] && ev.changedTouches[0].clientY);
+                                const y = clampY(clientY - rect.top);
+                                const newEndMins = yToMinsSnap(y);
+                                const startMins = parseTimeToMins(appt.startTime);
+                                const finalEnd = Math.max(newEndMins, startMins + Math.max(15, snapInterval));
+                                try {
+                                    await appointmentService.updateAppointment(appt._id, { endTime: minsToTime(finalEnd) });
+                                    await fetchAppointments();
+                                } catch (err) {
+                                    await fetchAppointments();
+                                    alert('Failed to update appointment end time');
+                                } finally {
+                                    setResizing({ active: false, appt: null, colRect: null, initialEndMins: 0 });
+                                }
+                                window.removeEventListener('mousemove', move);
+                                window.removeEventListener('mouseup', up);
+                                window.removeEventListener('touchmove', move);
+                                window.removeEventListener('touchend', up);
+                            };
+                            window.addEventListener('mousemove', move);
+                            window.addEventListener('mouseup', up);
+                            window.addEventListener('touchmove', move, { passive: false });
+                            window.addEventListener('touchend', up);
+                        };
+
+                        // If this was a touchstart, wait for a short long-press before starting resize
+                        const isTouch = e.type && e.type.indexOf('touch') === 0 || (e.touches && e.touches.length);
+                        if (isTouch) {
+                            let touchTimer = setTimeout(() => {
+                                try { if (navigator.vibrate) navigator.vibrate(10); } catch (err) { }
+                                startResize();
+                            }, 320);
+                            const clear = () => { clearTimeout(touchTimer); window.removeEventListener('touchend', clear); window.removeEventListener('touchcancel', clear); };
+                            window.addEventListener('touchend', clear, { once: true });
+                            window.addEventListener('touchcancel', clear, { once: true });
+                        } else {
+                            startResize();
+                        }
                     };
 
                     const handleDragStart = (e, date) => {
@@ -1284,13 +1444,13 @@ const ProviderDashboard = () => {
                         if (endMins <= startMins) endMins = Math.min(startMins + 60, END_H * 60);
                         const capturedDate = dragState.date;
                         setDragState({ active: false, date: null, startY: 0, endY: 0 });
-                        openBlockedTimeForm(null);
-                        setBlockedTimeForm(prev => ({
-                            ...prev,
+                        setShowBlockedTimeForm(false);
+                        setShowApptModal(false);
+                        setTimeSelectionPreview({
                             date: dateToStr(capturedDate),
                             startTime: minsToTime(startMins),
                             endTime: minsToTime(endMins),
-                        }));
+                        });
                     };
 
                     // Renders the absolute-positioned content of a single time column
@@ -1303,11 +1463,14 @@ const ProviderDashboard = () => {
                         <div style={{ position: 'relative', height: `${TOTAL_H}px`, cursor: apptDrag.active ? 'grabbing' : dragState.active ? 'ns-resize' : 'crosshair', userSelect: 'none' }}
                             onMouseDown={(e) => handleDragStart(e, date)}
                             onMouseMove={(e) => handleDragMove(e, date)}
-                            onMouseUp={(e) => handleDragEnd(e, date)}>
+                            onMouseUp={(e) => handleDragEnd(e, date)}
+                            onTouchStart={(e) => handleDragStartTouch(e, date)}
+                            onTouchMove={(e) => handleDragMoveTouch(e, date)}
+                            onTouchEnd={(e) => handleDragEndTouch(e, date)}>
                             {/* Hour grid lines */}
                             {Array.from({ length: NUM_H }, (_,i) => (
                                 <div key={i} style={{ position:'absolute', left:0, right:0, top:`${i*ROW_H}px`, height:`${ROW_H}px`, borderBottom:'1px solid var(--border)', pointerEvents:'none',
-                                    background: isOutsideWorkingHours(date, i+START_H) ? '#eeebe6' : 'white' }} />
+                                    background: isOutsideWorkingHours(date, i+START_H) ? 'rgba(201,168,76,0.08)' : 'white' }} />
                             ))}
                             {/* 30-min half-lines */}
                             {Array.from({ length: NUM_H }, (_,i) => (
@@ -1346,30 +1509,82 @@ const ProviderDashboard = () => {
                                 <div key={`b${bi}`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openBlockedTimeForm(b); }}
                                     style={{ position:'absolute', left:'3px', right:'3px', zIndex:3, borderRadius:'4px', overflow:'hidden', cursor:'pointer', boxSizing:'border-box',
                                         top:`${timeToY(b.startTime)}px`, height:`${durationPx(b.startTime, b.endTime)}px`,
-                                        background:'repeating-linear-gradient(45deg,rgba(100,100,100,0.07),rgba(100,100,100,0.07) 4px,white 4px,white 8px)',
-                                        border:'1px solid #d1d5db', display:'flex', alignItems:'center', padding:'2px 6px', gap:'4px' }}>
+                                        background:'repeating-linear-gradient(45deg, rgba(201,168,76,0.10), rgba(201,168,76,0.10) 6px, white 6px, white 12px)',
+                                        border:'1px solid var(--border)', display:'flex', alignItems:'center', padding:'2px 6px', gap:'4px' }}>
                                     <span style={{ fontSize:'0.7rem' }}>{'\uD83D\uDEAB'}</span>
                                     <span style={{ fontSize:'0.7rem', color:'#6b7280', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{b.reason || b.title || 'Blocked'}</span>
                                 </div>
                             ))}
                             {/* Appointment blocks — sized by duration */}
-                            {appts.filter(a => a.startTime && a.endTime).map((a,ai) => {
-                                const c = statusCalendarColors[a.status] || statusCalendarColors.pending;
-                                const top = timeToY(a.startTime);
-                                const h = durationPx(a.startTime, a.endTime);
-                                return (
-                                    <div key={`a${ai}`}
-                                        onMouseDown={(e) => { if (!apptDrag.active) handleApptDragStart(e, a, date); }}
-                                        onClick={(e) => e.stopPropagation()}
-                                        style={{ position:'absolute', left:'3px', right:'3px', zIndex:4, borderRadius:'5px', overflow:'hidden', cursor: apptDrag.active ? 'grabbing' : 'grab', boxSizing:'border-box',
-                                            top:`${top}px`, height:`${h}px`, background:c.bg, color:c.text,
-                                            borderLeft:`3px solid ${c.text}`, padding:'3px 6px', boxShadow:'0 1px 3px rgba(0,0,0,0.1)' }}>
-                                        <div style={{ fontWeight:'700', fontSize:'0.75rem', whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.walkInName || a.customer?.name}</div>
-                                        {h > 30 && <div style={{ fontSize:'0.68rem', opacity:0.85, whiteSpace:'nowrap', overflow:'hidden', textOverflow:'ellipsis' }}>{a.service?.name}</div>}
-                                        {h > 46 && <div style={{ fontSize:'0.65rem', opacity:0.7 }}>{a.startTime} {'\u2013'} {a.endTime}</div>}
-                                    </div>
-                                );
-                            })}
+                            {(() => {
+                                // Layout overlapping appointments into columns
+                                const layout = (list) => {
+                                    const items = list.map(a => ({ ...a, s: parseTimeToMins(a.startTime), e: parseTimeToMins(a.endTime) })).sort((x,y)=>x.s-y.s);
+                                    const cols = [];
+                                    const placed = [];
+                                    items.forEach(it => {
+                                        let placedCol = -1;
+                                        for (let ci = 0; ci < cols.length; ci++) {
+                                            const last = cols[ci][cols[ci].length - 1];
+                                            if (it.s >= last.e) { placedCol = ci; break; }
+                                        }
+                                        if (placedCol === -1) { cols.push([it]); placedCol = cols.length - 1; }
+                                        else { cols[placedCol].push(it); }
+                                        placed.push({ ...it, col: placedCol });
+                                    });
+                                    // compute total cols per overlapping group by scanning again
+                                    const groups = [];
+                                    placed.forEach(p => {
+                                        // find group that overlaps
+                                        let g = groups.find(g => !(p.e <= g.start || p.s >= g.end));
+                                        if (!g) { groups.push({ start: p.s, end: p.e, items: [p] }); }
+                                        else { g.items.push(p); g.start = Math.min(g.start, p.s); g.end = Math.max(g.end, p.e); }
+                                    });
+                                    // For each placed item, compute totalCols as max simultaneous overlaps in its group
+                                    return placed.map(p => {
+                                        const group = groups.find(g => p.s < g.end && p.e > g.start) || { items: [p] };
+                                        // compute max concurrent
+                                        let maxCols = 1;
+                                        for (let t = p.s; t < p.e; t += 1) {
+                                            const concurrent = group.items.filter(x => x.s < t && x.e > t).length;
+                                            if (concurrent > maxCols) maxCols = concurrent;
+                                        }
+                                        return { ...p, totalCols: Math.max(maxCols, 1) };
+                                    });
+                                };
+                                const laid = layout(appts.filter(a => a.startTime && a.endTime));
+                                return laid.map((a, ai) => {
+                                    const isResizingThis = resizing.active && resizing.appt && resizing.appt._id === a._id;
+                                    const c = statusCalendarColors[a.status] || statusCalendarColors.pending;
+                                    const top = timeToY(a.startTime);
+                                    const h = durationPx(a.startTime, a.endTime);
+                                    const colIndex = a.col || 0;
+                                    const total = a.totalCols || 1;
+                                    const leftPct = (colIndex / total) * 100;
+                                    const widthPct = 100 / total;
+                                            return (
+                                        <div key={`a${ai}`}
+                                            data-appt-id={a._id}
+                                            className="appt-block"
+                                            onMouseDown={(e) => { if (!apptDrag.active) handleApptDragStart(e, a, date); }}
+                                            onTouchStart={(e) => { if (!apptDrag.active) handleApptDragStartTouch(e, a, date); }}
+                                            onClick={(e) => e.stopPropagation()}
+                                            onMouseEnter={(e) => setTooltip({ visible: true, x: e.clientX, y: e.clientY, content: `${a.service?.name} · ${a.startTime}–${a.endTime}\n${a.walkInName || a.customer?.name}` })}
+                                            onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '' })}
+                                            style={{ position:'absolute', left:`calc(${leftPct}% + 3px)`, width:`calc(${widthPct}% - 6px)`, zIndex:4, overflow:'hidden', cursor: apptDrag.active ? 'grabbing' : 'grab', boxSizing:'border-box',
+                                                top:`${top}px`, height:`${h}px`, background:c.bg, color:c.text,
+                                                borderLeft:`3px solid ${c.text}`, transition:'top 0.08s linear, left 0.08s linear',
+                                                transform: isResizingThis ? 'translateY(-2px) scaleY(1.02)' : undefined,
+                                                boxShadow: isResizingThis ? '0 16px 36px rgba(16,24,40,0.12)' : undefined }}>
+                                            <div className="title" style={{ overflow:'hidden', textOverflow:'ellipsis' }}>{a.walkInName || a.customer?.name}</div>
+                                            {h > 30 && <div className="meta" style={{ opacity:0.9, overflow:'hidden', textOverflow:'ellipsis' }}>{a.service?.name}</div>}
+                                            {h > 46 && <div className="meta" style={{ opacity:0.75 }}>{a.startTime} {'\u2013'} {a.endTime}</div>}
+                                            {/* Resize handle */}
+                                            <div onMouseDown={(e) => handleResizeStart(e, a, date)} onTouchStart={(e) => handleResizeStart(e, a, date)} className="appt-resize-handle" />
+                                        </div>
+                                    );
+                                });
+                            })()}
                             {/* Current time red line */}
                             {isNow && (() => {
                                 const y = (nowTs.getHours()-START_H)*ROW_H + (nowTs.getMinutes()/60)*ROW_H;
@@ -1384,7 +1599,36 @@ const ProviderDashboard = () => {
                     };
 
                     return (
-                    <div className="cal-toolbar" onClick={() => { if (viewMenuOpen) setViewMenuOpen(false); if (addMenuOpen) setAddMenuOpen(false); }}>
+                    <>
+                        {timeSelectionPreview && (
+                            <div style={{ marginBottom: '1rem', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '0.75rem' }}>
+                                <div style={{ background: 'white', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '0.95rem 1rem', flex: '1 1 320px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+                                    <div>
+                                        <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: 'var(--charcoal)' }}>Selected time range</p>
+                                        <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{timeSelectionPreview.date} · {timeSelectionPreview.startTime} – {timeSelectionPreview.endTime}</p>
+                                    </div>
+                                    <button onClick={() => setTimeSelectionPreview(null)} style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.55rem 0.9rem', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Cancel</button>
+                                </div>
+                                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                    <button onClick={() => {
+                                        setApptForm(prev => ({ ...prev, date: timeSelectionPreview.date, startTime: timeSelectionPreview.startTime }));
+                                        setShowApptModal(true);
+                                        setTimeSelectionPreview(null);
+                                    }} className="btn-primary" style={{ minWidth: '170px' }}>Book appointment</button>
+                                    <button onClick={() => {
+                                        openBlockedTimeForm(null);
+                                        setBlockedTimeForm(prev => ({
+                                            ...prev,
+                                            date: timeSelectionPreview.date,
+                                            startTime: timeSelectionPreview.startTime,
+                                            endTime: timeSelectionPreview.endTime,
+                                        }));
+                                        setTimeSelectionPreview(null);
+                                    }} className="btn-outline" style={{ minWidth: '170px' }}>Block time</button>
+                                </div>
+                            </div>
+                        )}
+                        <div className="cal-toolbar" onClick={() => { if (viewMenuOpen) setViewMenuOpen(false); if (addMenuOpen) setAddMenuOpen(false); }}>
                         {/* ── Fresha-style Toolbar ── */}
                         <div className="cal-toolbar-inner" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem', flexWrap:'wrap', gap:'0.5rem' }}>
                             <div style={{ display:'flex', alignItems:'center', gap:'0.4rem', flexShrink: 0 }}>
@@ -1427,6 +1671,13 @@ const ProviderDashboard = () => {
                             </div>
                         </div>
 
+                        {/* Tooltip */}
+                        {tooltip.visible && (
+                            <div style={{ position: 'fixed', left: tooltip.x + 12, top: tooltip.y + 12, zIndex: 9999, background: 'white', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)', padding: '0.5rem 0.6rem', borderRadius: '6px', fontSize: '0.82rem', whiteSpace: 'pre-wrap' }}>
+                                {tooltip.content}
+                            </div>
+                        )}
+
                         {/* ── Month view ── */}
                         {calendarView === 'month' && (
                             <div className="cal-month-grid" style={{ display:'grid', gridTemplateColumns:selectedDay!==null?'1fr 300px':'1fr', gap:'1.5rem', alignItems:'start' }}>
@@ -1443,7 +1694,15 @@ const ProviderDashboard = () => {
                                             const isToday = day && today.getDate()===day && today.getMonth()===currentDate.getMonth() && today.getFullYear()===currentDate.getFullYear();
                                             const isSelected = selectedDay===day;
                                             return (
-                                                <div key={i} onClick={()=>day&&setSelectedDay(isSelected?null:day)} style={{ minHeight:'90px', padding:'6px', borderRight:'1px solid var(--border)', borderBottom:'1px solid var(--border)', background:isSelected?'rgba(201,168,76,0.06)':!day?'#f0ede8':(availability&&!availability[['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][new Date(currentDate.getFullYear(),currentDate.getMonth(),day).getDay()]]?.enabled)?'#ede9e4':'white', cursor:day?'pointer':'default', transition:'background 0.15s' }} onMouseEnter={e=>{if(day&&!isSelected)e.currentTarget.style.background='var(--warm-gray)';}} onMouseLeave={e=>{if(day&&!isSelected){const _d=new Date(currentDate.getFullYear(),currentDate.getMonth(),day);const isWorking=!availability||availability[['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][_d.getDay()]]?.enabled;e.currentTarget.style.background=isWorking?'white':'#ede9e4';}}}>
+                                                <div key={i} onClick={()=>day&&setSelectedDay(isSelected?null:day)} style={{
+                                                    minHeight:'90px',
+                                                    padding:'6px',
+                                                    borderRight:'1px solid var(--border)',
+                                                    borderBottom:'1px solid var(--border)',
+                                                    background: isSelected ? 'rgba(201,168,76,0.12)' : !day ? 'var(--warm-gray)' : (availability && !availability[['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][new Date(currentDate.getFullYear(),currentDate.getMonth(),day).getDay()]]?.enabled) ? 'rgba(237,233,228,0.9)' : 'white',
+                                                    cursor:day?'pointer':'default',
+                                                    transition:'background 0.15s',
+                                                }} onMouseEnter={e=>{if(day&&!isSelected)e.currentTarget.style.background='rgba(201,168,76,0.07)';}} onMouseLeave={e=>{if(day&&!isSelected){const _d=new Date(currentDate.getFullYear(),currentDate.getMonth(),day);const isWorking=!availability||availability[['sunday','monday','tuesday','wednesday','thursday','friday','saturday'][_d.getDay()]]?.enabled;e.currentTarget.style.background=isWorking?'white':'rgba(237,233,228,0.9)';}}}>
                                                     {day && (
                                                         <>
                                                             <div style={{ width:'24px', height:'24px', borderRadius:'50%', background:isToday?'var(--gold)':'transparent', display:'flex', alignItems:'center', justifyContent:'center', fontSize:'0.78rem', fontWeight:isToday?'700':'400', color:isToday?'var(--charcoal)':'var(--text-secondary)', marginBottom:'4px' }}>{day}</div>
@@ -1491,10 +1750,12 @@ const ProviderDashboard = () => {
                         )}
 
                         {/* ── Day view \u2014 Fresha team columns ── */}
-                        {calendarView === 'day' && (
+                        {calendarView === 'day' && (() => {
+                            const dayColsTemplate = `64px repeat(${calCols.length}, minmax(160px,1fr))`;
+                            return (
                             <div style={{ background:'white', borderRadius:'var(--radius)', border:'1px solid var(--border)', boxShadow:'var(--shadow-sm)', overflow:'auto' }}>
                                 {/* Column headers */}
-                                <div style={{ display:'grid', gridTemplateColumns:`64px repeat(${calCols.length}, minmax(160px,1fr))`, borderBottom:'2px solid var(--border)', background:'var(--warm-gray)', position:'sticky', top:0, zIndex:10 }}>
+                                <div className="cal-grid-header" style={{ display:'grid', gridTemplateColumns: dayColsTemplate, borderBottom:'2px solid var(--border)', background:'var(--warm-gray)', position:'sticky', top:0, zIndex:10 }}>
                                     <div style={{ borderRight:'1px solid var(--border)', padding:'0.5rem 0.5rem', display:'flex', alignItems:'flex-end' }}>
                                         <span style={{ fontSize:'0.62rem', color:'var(--text-muted)' }}>GMT+2</span>
                                     </div>
@@ -1512,7 +1773,7 @@ const ProviderDashboard = () => {
                                     })}
                                 </div>
                                 {/* Time grid body */}
-                                <div style={{ display:'grid', gridTemplateColumns:`64px repeat(${calCols.length}, minmax(160px,1fr))` }}>
+                                <div className="cal-grid-body" style={{ display:'grid', gridTemplateColumns: dayColsTemplate }}>
                                     {/* Hour labels */}
                                     <div style={{ background:'var(--warm-gray)', borderRight:'1px solid var(--border)' }}>
                                         {Array.from({length:NUM_H},(_,i)=>(
@@ -1521,7 +1782,7 @@ const ProviderDashboard = () => {
                                     </div>
                                     {/* Staff columns */}
                                     {calCols.map((col,ci) => (
-                                        <div key={ci} style={{ borderLeft:'1px solid var(--border)' }}>
+                                        <div key={ci} data-col style={{ borderLeft:'1px solid var(--border)' }}>
                                             {renderCol(
                                                 currentDate,
                                                 ci === 0 ? getAppointmentsForDate(currentDate) : [],
@@ -1532,14 +1793,16 @@ const ProviderDashboard = () => {
                                     ))}
                                 </div>
                             </div>
-                        )}
+                            );
+                        })()}
 
                         {/* ── 3-Day view ── */}
                         {calendarView === '3day' && (() => {
                             const days3 = get3Days(currentDate);
+                            const threeColsTemplate = '64px repeat(3, 1fr)';
                             return (
                                 <div style={{ background:'white', borderRadius:'var(--radius)', border:'1px solid var(--border)', boxShadow:'var(--shadow-sm)', overflow:'auto' }}>
-                                    <div style={{ display:'grid', gridTemplateColumns:'64px repeat(3, 1fr)', borderBottom:'2px solid var(--border)', background:'var(--warm-gray)', position:'sticky', top:0, zIndex:10 }}>
+                                    <div className="cal-grid-header" style={{ display:'grid', gridTemplateColumns: threeColsTemplate, borderBottom:'2px solid var(--border)', background:'var(--warm-gray)', position:'sticky', top:0, zIndex:10 }}>
                                         <div style={{ borderRight:'1px solid var(--border)', padding:'0.5rem', display:'flex', alignItems:'flex-end' }}>
                                             <span style={{ fontSize:'0.62rem', color:'var(--text-muted)' }}>GMT+2</span>
                                         </div>
@@ -1553,14 +1816,14 @@ const ProviderDashboard = () => {
                                             );
                                         })}
                                     </div>
-                                    <div style={{ display:'grid', gridTemplateColumns:'64px repeat(3, 1fr)' }}>
+                                    <div className="cal-grid-body" style={{ display:'grid', gridTemplateColumns: threeColsTemplate }}>
                                         <div style={{ background:'var(--warm-gray)', borderRight:'1px solid var(--border)' }}>
                                             {Array.from({length:NUM_H},(_,i)=>(
                                                 <div key={i} style={{ height:`${ROW_H}px`, padding:'5px 8px', fontSize:'0.68rem', color:'var(--text-muted)', borderBottom:'1px solid var(--border)', boxSizing:'border-box' }}>{fmtHour(i+START_H)}</div>
                                             ))}
                                         </div>
                                         {days3.map((d,di)=>(
-                                            <div key={di} style={{ borderLeft:'1px solid var(--border)' }}>
+                                            <div key={di} data-col style={{ borderLeft:'1px solid var(--border)' }}>
                                                 {renderCol(d, getAppointmentsForDate(d), getBlockedForDate(d), d.toDateString()===nowTs.toDateString())}
                                             </div>
                                         ))}
@@ -1572,9 +1835,10 @@ const ProviderDashboard = () => {
                         {/* ── Week view ── */}
                         {calendarView === 'week' && (() => {
                             const wdays = getWeekDays(currentDate);
+                            const weekColsTemplate = '64px repeat(7, 1fr)';
                             return (
                                 <div style={{ background:'white', borderRadius:'var(--radius)', border:'1px solid var(--border)', boxShadow:'var(--shadow-sm)', overflow:'auto' }}>
-                                    <div style={{ display:'grid', gridTemplateColumns:'64px repeat(7, 1fr)', borderBottom:'2px solid var(--border)', background:'var(--warm-gray)', position:'sticky', top:0, zIndex:10 }}>
+                                    <div className="cal-grid-header" style={{ display:'grid', gridTemplateColumns: weekColsTemplate, borderBottom:'2px solid var(--border)', background:'var(--warm-gray)', position:'sticky', top:0, zIndex:10 }}>
                                         <div style={{ borderRight:'1px solid var(--border)', padding:'0.5rem', display:'flex', alignItems:'flex-end' }}>
                                             <span style={{ fontSize:'0.62rem', color:'var(--text-muted)' }}>GMT+2</span>
                                         </div>
@@ -1588,14 +1852,14 @@ const ProviderDashboard = () => {
                                             );
                                         })}
                                     </div>
-                                    <div style={{ display:'grid', gridTemplateColumns:'64px repeat(7, 1fr)' }}>
+                                    <div className="cal-grid-body" style={{ display:'grid', gridTemplateColumns: weekColsTemplate }}>
                                         <div style={{ background:'var(--warm-gray)', borderRight:'1px solid var(--border)' }}>
                                             {Array.from({length:NUM_H},(_,i)=>(
                                                 <div key={i} style={{ height:`${ROW_H}px`, padding:'5px 8px', fontSize:'0.68rem', color:'var(--text-muted)', borderBottom:'1px solid var(--border)', boxSizing:'border-box' }}>{fmtHour(i+START_H)}</div>
                                             ))}
                                         </div>
                                         {wdays.map((d,di)=>(
-                                            <div key={di} style={{ borderLeft:'1px solid var(--border)' }}>
+                                            <div key={di} data-col style={{ borderLeft:'1px solid var(--border)' }}>
                                                 {renderCol(d, getAppointmentsForDate(d), getBlockedForDate(d), d.toDateString()===nowTs.toDateString())}
                                             </div>
                                         ))}
@@ -1622,6 +1886,7 @@ const ProviderDashboard = () => {
                             </div>
                         )}
                     </div>
+                    </>
                     );
                 })()}
 
@@ -1672,14 +1937,18 @@ const ProviderDashboard = () => {
                             </div>
                             <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '70vh', overflowY: 'auto' }}>
                                 <div>
-                                    <p style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Visit History</p>
-                                    {clientDetail.appointments?.slice(0, 5).map((a, i) => (
+                                    <p style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
+                                        Visit History {clientDetail.appointments?.length ? `(${clientDetail.appointments.length})` : ''}
+                                    </p>
+                                    {clientDetail.appointments?.length ? clientDetail.appointments.map((a, i) => (
                                         <div key={i} style={{ padding: '0.5rem 0', borderBottom: '1px solid var(--border)', fontSize: '0.82rem' }}>
                                             <div style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{a.service?.name}</div>
                                             <div style={{ color: 'var(--text-muted)' }}>{new Date(a.appointmentDate).toLocaleDateString()} · {a.startTime} · ${a.totalPrice}</div>
                                             <span style={{ fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '4px', background: '#f3f4f6', color: 'var(--text-muted)' }}>{a.status}</span>
                                         </div>
-                                    ))}
+                                    )) : (
+                                        <div style={{ padding: '1rem 0', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No appointment history yet for this client.</div>
+                                    )}
                                 </div>
                                 <div>
                                     <p style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Client Notes</p>

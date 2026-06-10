@@ -205,6 +205,34 @@ describe('PUT /api/appointments/:id/status', () => {
     });
 });
 
+describe('PUT /api/appointments/:id/reschedule', () => {
+    it('rejects rescheduling into an already-booked slot', async () => {
+        const customer = await makeUser();
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id);
+        const date = tomorrow();
+
+        const apptA = await makeAppointment(customer._id, svc._id, provider._id, {
+            appointmentDate: new Date(date),
+            startTime: '10:00',
+            endTime: '10:30',
+        });
+        await makeAppointment(customer._id, svc._id, provider._id, {
+            appointmentDate: new Date(date),
+            startTime: '11:00',
+            endTime: '11:30',
+        });
+
+        const res = await request(app)
+            .put(`/api/appointments/${apptA._id}/reschedule`)
+            .set(authHeader(customer))
+            .send({ appointmentDate: date, startTime: '11:00' });
+
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/already booked/i);
+    });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGINATION
 // ─────────────────────────────────────────────────────────────────────────────

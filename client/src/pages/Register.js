@@ -263,7 +263,7 @@ const Register = () => {
                                 {loading ? 'Creating account...' : 'Create Account →'}
                             </button>
                             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.5 }}>
-                                By signing up you agree to our Terms of Service and Privacy Policy.
+                                By signing up you agree to our <Link to="/terms" style={{ color: 'inherit', textDecoration: 'underline' }}>Terms of Service</Link> and <Link to="/privacy-policy" style={{ color: 'inherit', textDecoration: 'underline' }}>Privacy Policy</Link>.
                             </p>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: '0.5rem 0' }}>
                                 <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />

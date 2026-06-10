@@ -220,6 +220,41 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
   }
 }
 
+/* Calendar alignment helpers */
+:root { --time-col-width: 64px; }
+.cal-grid-header, .cal-grid-body { box-sizing: border-box; }
+.cal-grid-header > div, .cal-grid-body > div { box-sizing: border-box; padding: 0.6rem; }
+.cal-grid-header { overflow: hidden; }
+.cal-grid-body { overflow: auto; scrollbar-gutter: stable both-edges; }
+/* Make calendar columns touch-friendly and prevent native scrolling during drag */
+.cal-grid-body > div { touch-action: none; }
+
+/* Appointment block visuals for Fresha-like look */
+
+.appt-block { border-radius: 6px; padding: 6px 8px; box-shadow: 0 8px 18px rgba(16,24,40,0.06); transition: transform 0.12s cubic-bezier(.2,.9,.3,1), box-shadow 0.12s cubic-bezier(.2,.9,.3,1); }
+.appt-block:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(16,24,40,0.10); }
+.appt-block .title { font-weight: 700; font-size: 0.82rem; color: var(--charcoal); }
+.appt-block .meta { font-size: 0.72rem; color: var(--text-secondary); }
+
+/* Resize handle: larger hit area for touch, subtle grip lines and grab icon */
+.appt-resize-handle { position: absolute; right: 8px; bottom: 8px; width: 20px; height: 20px; border-radius: 4px; background: rgba(0,0,0,0.04); display: flex; align-items: center; justify-content: center; cursor: ns-resize; transition: background 0.12s ease, transform 0.12s ease; }
+.appt-resize-handle:hover { background: rgba(0,0,0,0.08); transform: translateY(-1px); }
+.appt-resize-handle:before, .appt-resize-handle:after, .appt-resize-handle > span { content: ''; display: block; width: 10px; height: 2px; background: rgba(0,0,0,0.18); border-radius: 1px; }
+.appt-resize-handle:before { transform: translateY(-4px); }
+.appt-resize-handle > span { transform: translateY(0); }
+.appt-resize-handle:after { transform: translateY(4px); }
+.appt-resize-handle > span { display: block; }
+
+/* Larger touch hit target on small devices */
+@media (max-width: 480px) {
+  .appt-resize-handle { width: 28px; height: 28px; right: 6px; bottom: 6px; }
+  .appt-resize-handle:before, .appt-resize-handle:after, .appt-resize-handle > span { width: 14px; }
+}
+
+/* Tooltip small adjustments */
+.cal-tooltip { font-size: 0.82rem; padding: 0.45rem 0.6rem; border-radius: 6px; }
+
+
 @media (max-width: 768px) {
   .hidden-mobile { display: none !important; }
   .show-mobile { display: flex !important; }

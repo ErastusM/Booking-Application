@@ -88,9 +88,12 @@ const MyAppointments = () => {
             setRescheduleAvailError('This provider is not available at this time.');
             return;
         }
-        const slot = daySchedule.slots[0];
-        if (slot && (rescheduleForm.startTime < slot.start || rescheduleForm.startTime >= slot.end)) {
-            setRescheduleAvailError(`This provider is not available at this time. Working hours: ${slot.start}–${slot.end}`);
+        const isWithinSlot = daySchedule.slots.some(slot =>
+            rescheduleForm.startTime >= slot.start && rescheduleForm.startTime < slot.end
+        );
+        if (!isWithinSlot) {
+            const ranges = daySchedule.slots.map(slot => `${slot.start}–${slot.end}`).join(', ');
+            setRescheduleAvailError(`This provider is not available at this time. Working hours: ${ranges}`);
             return;
         }
         setRescheduleAvailError('');
@@ -99,7 +102,7 @@ const MyAppointments = () => {
     const fetchData = async () => {
         try {
             const [apptRes, reviewRes] = await Promise.all([
-                appointmentService.getAllAppointments(),
+                appointmentService.getCustomerAppointments(),
                 reviewService.getMyReviews(),
             ]);
             setAppointments(apptRes.data.data);

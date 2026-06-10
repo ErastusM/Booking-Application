@@ -1,6 +1,7 @@
 const pino = require('pino');
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const Appointment = require('../models/Appointment');
+const Availability = require('../models/Availability');
 const Service = require('../models/Service');
 const User = require('../models/User');
 const { createNotification, notifyAdmins } = require('../utils/notificationhelper');
@@ -11,6 +12,62 @@ const {
     sendAppointmentRescheduled,
     sendRebookingPrompt,
 } = require('../utils/emailService');
+
+const defaultSchedule = {
+    monday:    { enabled: true,  slots: [{ start: '09:00', end: '17:00' }] },
+    tuesday:   { enabled: true,  slots: [{ start: '09:00', end: '17:00' }] },
+    wednesday: { enabled: true,  slots: [{ start: '09:00', end: '17:00' }] },
+    thursday:  { enabled: true,  slots: [{ start: '09:00', end: '17:00' }] },
+    friday:    { enabled: true,  slots: [{ start: '09:00', end: '17:00' }] },
+    saturday:  { enabled: false, slots: [{ start: '09:00', end: '17:00' }] },
+    sunday:    { enabled: false, slots: [{ start: '09:00', end: '17:00' }] },
+};
+
+const parseTimeToMinutes = (time) => {
+    const [h, m] = String(time).split(':').map(Number);
+    return h * 60 + m;
+};
+
+const timesOverlap = (startA, endA, startB, endB) => startA < endB && endA > startB;
+
+const getProviderSchedule = async (providerId) => {
+    if (!providerId) return defaultSchedule;
+    const availability = await Availability.findOne({ provider: providerId });
+    return availability?.schedule || defaultSchedule;
+};
+
+const isTimeWithinSchedule = (schedule, appointmentDate, startTime, durationMinutes) => {
+    const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const dayIndex = new Date(appointmentDate).getDay();
+    const daySchedule = schedule[dayNames[dayIndex]];
+    if (!daySchedule?.enabled || !Array.isArray(daySchedule.slots) || daySchedule.slots.length === 0) {
+        return false;
+    }
+    const start = parseTimeToMinutes(startTime);
+    const end = start + durationMinutes;
+    return daySchedule.slots.some(slot => {
+        const slotStart = parseTimeToMinutes(slot.start);
+        const slotEnd = parseTimeToMinutes(slot.end);
+        return start >= slotStart && end <= slotEnd;
+    });
+};
+
+const hasConflictingAppointment = async (providerId, appointmentDate, startTime, endTime, excludeId) => {
+    if (!providerId) return false;
+    const start = new Date(appointmentDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(appointmentDate);
+    end.setHours(23, 59, 59, 999);
+    const existing = await Appointment.find({
+        provider: providerId,
+        appointmentDate: { $gte: start, $lte: end },
+        status: { $nin: ['cancelled'] },
+        _id: { $ne: excludeId },
+    }).select('startTime endTime');
+    const newStart = parseTimeToMinutes(startTime);
+    const newEnd = parseTimeToMinutes(endTime);
+    return existing.some(a => timesOverlap(newStart, newEnd, parseTimeToMinutes(a.startTime), parseTimeToMinutes(a.endTime)));
+};
 
 /**
  * GET /api/appointments/booked-slots?providerId=&date=YYYY-MM-DD
@@ -73,6 +130,23 @@ exports.getAllAppointments = async (req, res) => {
             total,
             page,
             pages: Math.ceil(total / limit),
+            data: appointments,
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+exports.getMyAppointments = async (req, res) => {
+    try {
+        const appointments = await Appointment.find({ customer: req.user._id })
+            .populate('customer', 'name email phone')
+            .populate('service', 'name price duration')
+            .sort({ appointmentDate: -1 });
+
+        res.status(200).json({
+            success: true,
+            count: appointments.length,
             data: appointments,
         });
     } catch (error) {
@@ -345,13 +419,28 @@ exports.providerRescheduleAppointment = async (req, res) => {
         if (!['pending', 'confirmed'].includes(appointment.status)) {
             return res.status(400).json({ success: false, message: 'Cannot reschedule a cancelled or completed appointment' });
         }
+
+        const duration = appointment.service?.duration || 30;
         const [hours, minutes] = startTime.split(':').map(Number);
-        const totalMinutes = hours * 60 + minutes + (appointment.service?.duration || 30);
+        const totalMinutes = hours * 60 + minutes + duration;
         const endHours = Math.floor(totalMinutes / 60) % 24;
         const endMins = totalMinutes % 60;
+        const endTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
+
+        const providerId = appointment.provider;
+        const schedule = await getProviderSchedule(providerId);
+        if (!isTimeWithinSchedule(schedule, appointmentDate, startTime, duration)) {
+            return res.status(400).json({ success: false, message: 'Selected time is outside your availability schedule' });
+        }
+
+        const conflict = await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appointment._id);
+        if (conflict) {
+            return res.status(400).json({ success: false, message: 'This time slot is already booked' });
+        }
+
         appointment.appointmentDate = new Date(appointmentDate);
         appointment.startTime = startTime;
-        appointment.endTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
+        appointment.endTime = endTime;
         await appointment.save();
         res.status(200).json({ success: true, data: appointment });
     } catch (error) {
@@ -362,6 +451,9 @@ exports.providerRescheduleAppointment = async (req, res) => {
 exports.rescheduleAppointment = async (req, res) => {
     try {
         const { appointmentDate, startTime } = req.body;
+        if (!appointmentDate || !startTime) {
+            return res.status(400).json({ success: false, message: 'appointmentDate and startTime are required' });
+        }
         const appointment = await Appointment.findById(req.params.id)
             .populate('service')
             .populate('customer', 'name email');
@@ -375,12 +467,24 @@ exports.rescheduleAppointment = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Only pending or confirmed appointments can be rescheduled' });
         }
 
-        // Calculate new end time
+        const duration = appointment.service?.duration || 30;
         const [hours, minutes] = startTime.split(':').map(Number);
-        const totalMinutes = hours * 60 + minutes + appointment.service.duration;
+        const totalMinutes = hours * 60 + minutes + duration;
         const endHours = Math.floor(totalMinutes / 60) % 24;
         const endMins = totalMinutes % 60;
         const endTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
+
+        const providerId = appointment.provider || appointment.service?.provider;
+        if (providerId) {
+            const schedule = await getProviderSchedule(providerId);
+            if (!isTimeWithinSchedule(schedule, appointmentDate, startTime, duration)) {
+                return res.status(400).json({ success: false, message: 'Selected time is outside the provider availability schedule' });
+            }
+            const conflict = await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appointment._id);
+            if (conflict) {
+                return res.status(400).json({ success: false, message: 'This time slot is already booked' });
+            }
+        }
 
         appointment.appointmentDate = new Date(appointmentDate);
         appointment.startTime = startTime;
@@ -388,7 +492,6 @@ exports.rescheduleAppointment = async (req, res) => {
         appointment.status = 'pending';
         await appointment.save();
 
-        // Notify provider by email
         try {
             if (appointment.provider) {
                 const provider = await User.findById(appointment.provider);

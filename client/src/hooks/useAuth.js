@@ -21,10 +21,7 @@ export const useAuth = () => {
                 setToken(savedToken);
             } catch (err) {
                 // Token is invalid or expired — clear it
-                localStorage.removeItem('token');
-                localStorage.removeItem('refreshToken');
-                setToken(null);
-                setUser(null);
+                window.dispatchEvent(new Event('auth-logout'));
             } finally {
                 setLoading(false);
             }
@@ -33,8 +30,23 @@ export const useAuth = () => {
         restoreSession();
     }, []);
 
+    useEffect(() => {
+        const handleAuthLogout = () => {
+            localStorage.removeItem('token');
+            localStorage.removeItem('refreshToken');
+            setToken(null);
+            setUser(null);
+        };
+
+        window.addEventListener('auth-logout', handleAuthLogout);
+        return () => window.removeEventListener('auth-logout', handleAuthLogout);
+    }, []);
+
     const login = useCallback((userData) => {
         localStorage.setItem('token', userData.token);
+        if (userData.refreshToken) {
+            localStorage.setItem('refreshToken', userData.refreshToken);
+        }
         setToken(userData.token);
         setUser(userData.user);
         setError(null);
@@ -46,10 +58,7 @@ export const useAuth = () => {
         } catch {
             // Continue with local logout even if API call fails
         }
-        localStorage.removeItem('token');
-        localStorage.removeItem('refreshToken');
-        setToken(null);
-        setUser(null);
+        window.dispatchEvent(new Event('auth-logout'));
     }, []);
 
     return { user, token, loading, error, login, logout, setUser };

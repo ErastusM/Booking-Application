@@ -162,7 +162,6 @@ exports.leaveWaitingList = async (req, res) => {
 // Called internally when an appointment is cancelled
 exports.promoteFromWaitingList = async (service, appointmentDate, startTime, endTime) => {
     try {
-        // Find #1 in the queue for this slot
         const next = await WaitingList.findOne({
             service,
             appointmentDate,
@@ -173,23 +172,34 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
 
         if (!next) return; // Nobody waiting
 
-        // Create appointment for them
+        const svc = await Service.findById(service).select('name price provider');
+        if (!svc) return;
+
+        const providerId = next.provider || svc.provider;
+        const dateStr = new Date(appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+
         const promoted = await Appointment.create({
             customer: next.customer._id,
             service,
+            provider: providerId || null,
             appointmentDate,
             startTime,
             endTime,
-            totalPrice: 0, // Will be set from service
+            totalPrice: svc.price || 0,
             status: 'confirmed',
         });
 
-        // Mark them as promoted and notified
         next.status = 'promoted';
         next.notified = true;
         await next.save();
 
-        // Shift everyone else up
+        await createNotification(
+            next.customer._id,
+            `Good news! A slot opened up for ${svc.name} on ${dateStr} at ${startTime}. You've been booked in!`,
+            'appointment',
+            '/appointments'
+        );
+
         const remaining = await WaitingList.find({
             service,
             appointmentDate,

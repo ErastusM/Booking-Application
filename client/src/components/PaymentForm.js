@@ -82,7 +82,7 @@ const PaymentForm = ({ appointmentId, amount, serviceName, onSuccess, onCancel }
                         fontSize: '1.5rem', fontWeight: '700',
                         color: 'var(--gold-dark)',
                     }}>
-                        ${(amount / 100).toFixed(2)}
+                        NAD {(amount / 100).toFixed(2)}
                     </span>
                 </div>
 
@@ -134,7 +134,7 @@ const PaymentForm = ({ appointmentId, amount, serviceName, onSuccess, onCancel }
                             className="btn-primary"
                             style={{ flex: 2, padding: '0.875rem' }}
                         >
-                            {loading ? 'Processing...' : `Pay $${(amount / 100).toFixed(2)} →`}
+                            {loading ? 'Processing...' : `Pay NAD ${(amount / 100).toFixed(2)} →`}
                         </button>
                     </div>
                 </form>
