@@ -30,7 +30,7 @@ const AuthCallback = () => {
                         if (needsPhone) {
                             navigate('/complete-profile');
                         } else if (user.role === 'admin') {
-                            navigate('/admin/dashboard');
+                            navigate('/bkplus-command');
                         } else if (user.role === 'provider') {
                             navigate('/dashboard');
                         } else {
