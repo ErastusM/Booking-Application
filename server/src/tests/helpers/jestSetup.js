@@ -8,6 +8,5 @@ process.env.CLIENT_URL = 'http://localhost:3001';
 process.env.SERVER_URL = 'http://localhost:5000';
 process.env.EMAIL_USER = 'test@example.com';
 process.env.EMAIL_PASS = 'testpass';
-process.env.STRIPE_SECRET_KEY = 'sk_test_placeholder';
 process.env.GOOGLE_CLIENT_ID = 'test_google_client_id';
 process.env.GOOGLE_CLIENT_SECRET = 'test_google_client_secret';

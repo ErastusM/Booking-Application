@@ -33,11 +33,6 @@ export const appointmentService = {
     providerRescheduleAppointment: (id, data) => API.put(`/appointments/${id}/provider-reschedule`, data),
 };
 
-export const paymentService = {
-    createPaymentIntent: (serviceId) => API.post('/payments/create-payment-intent', { serviceId }),
-    confirmPayment: (paymentIntentId, appointmentId) => API.post('/payments/confirm', { paymentIntentId, appointmentId }),
-};
-
 export const userService = {
     getAllUsers: (params) => API.get('/users', { params }),
     deleteUser: (id) => API.delete(`/users/${id}`),

@@ -20,8 +20,6 @@ jest.mock('../../utils/emailService', () => ({
     sendRebookingPrompt: jest.fn().mockResolvedValue(true),
 }));
 
-jest.mock('stripe', () => jest.fn(() => ({ paymentIntents: { create: jest.fn(), retrieve: jest.fn() } })));
-
 beforeAll(() => testDb.connect());
 afterAll(() => testDb.closeDatabase());
 afterEach(() => testDb.clearDatabase());

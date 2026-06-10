@@ -27,7 +27,6 @@ const blockedTimeRoutes = require('./src/routes/blockedTimeRoutes');
 const messageRoutes = require('./src/routes/messageRoutes');
 const clientCRMRoutes = require('./src/routes/clientCRMRoutes');
 const packageRoutes = require('./src/routes/packageRoutes');
-const paymentRoutes = require('./src/routes/paymentRoutes');
 const retentionRoutes = require('./src/routes/retentionRoutes');
 const teamMemberRoutes = require('./src/routes/teamMemberRoutes');
 const suggestionRoutes = require('./src/routes/suggestionRoutes');
@@ -90,8 +89,18 @@ const readLimiter = rateLimit({
 
 // Middleware
 app.use(helmet());
+const allowedOrigins = new Set([
+    ...(process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map(o => o.trim()).filter(Boolean) : []),
+    'http://localhost:3000',
+    'http://localhost:3001',
+]);
+
 app.use(cors({
-    origin: process.env.CLIENT_URL || 'http://localhost:3001',
+    origin: (origin, callback) => {
+        // Allow non-browser clients (curl, server-to-server) and configured browser origins.
+        if (!origin || allowedOrigins.has(origin)) return callback(null, true);
+        return callback(new Error('Not allowed by CORS'));
+    },
     credentials: true,
 }));
 app.use(express.json({ limit: '1mb' }));
@@ -119,7 +128,6 @@ app.use('/api/blocked-times', blockedTimeRoutes);
 app.use('/api/messages', writeLimiter, messageRoutes);
 app.use('/api/crm', clientCRMRoutes);
 app.use('/api/packages', packageRoutes);
-app.use('/api/payments', paymentRoutes);
 app.use('/api/retention', retentionRoutes);
 app.use('/api/team', teamMemberRoutes);
 app.use('/api/suggestions', writeLimiter, suggestionRoutes);
