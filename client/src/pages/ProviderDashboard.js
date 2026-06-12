@@ -4,7 +4,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService } from '../services';
+import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService, waitingListService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import OnboardingWizard from '../components/OnboardingWizard';
 
@@ -28,6 +28,7 @@ const ProviderDashboard = () => {
     const [savingAvailability, setSavingAvailability] = useState(false);
     const [availabilitySuccess, setAvailabilitySuccess] = useState('');
     const [myServices, setMyServices] = useState([]);
+    const [providerWaitlist, setProviderWaitlist] = useState([]);
     const [showServiceForm, setShowServiceForm] = useState(false);
     const [editingService, setEditingService] = useState(null);
     const [savingService, setSavingService] = useState(false);
@@ -140,6 +141,9 @@ const ProviderDashboard = () => {
     }, []);
 
     useEffect(() => { // eslint-disable-line react-hooks/exhaustive-deps
+        if (activeTab === 'overview') {
+            waitingListService.getProviderList().then(r => setProviderWaitlist(r.data.data || [])).catch(() => {});
+        }
         if (activeTab === 'clients' && clients.length === 0) fetchClients();
         if (activeTab === 'messages' && conversations.length === 0) fetchConversations();
         if (activeTab === 'memberships' && myPackages.length === 0) fetchMyPackages();
@@ -1346,6 +1350,27 @@ const ProviderDashboard = () => {
                                     </div>
                                 </div>
                             </div>
+
+                            {providerWaitlist.length > 0 && (
+                                <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1.5rem' }}>
+                                    <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>
+                                        Waiting List <span style={{ fontSize: '0.75rem', fontWeight: '700', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark)', borderRadius: '99px', padding: '0.15rem 0.6rem', marginLeft: '0.4rem' }}>{providerWaitlist.length}</span>
+                                    </h3>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                        {providerWaitlist.slice(0, 6).map((w) => (
+                                            <div key={w._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                                                <div>
+                                                    <p style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.875rem', margin: 0 }}>{w.customer?.name}</p>
+                                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', margin: 0 }}>{w.service?.name} · {new Date(w.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at {w.startTime}</p>
+                                                </div>
+                                                <span style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', background: 'var(--warm-gray)', borderRadius: '99px', padding: '0.2rem 0.65rem', whiteSpace: 'nowrap' }}>#{w.position} in queue</span>
+                                            </div>
+                                        ))}
+                                        {providerWaitlist.length > 6 && <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>+{providerWaitlist.length - 6} more waiting</p>}
+                                    </div>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.85rem', marginBottom: 0 }}>Clients are promoted automatically when a matching slot opens up.</p>
+                                </div>
+                            )}
 
                             <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                                 <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>

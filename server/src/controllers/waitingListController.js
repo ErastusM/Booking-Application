@@ -109,6 +109,21 @@ exports.joinWaitingList = async (req, res) => {
     }
 };
 
+// Provider/admin: view waiting list entries for their services
+exports.getProviderWaitingList = async (req, res) => {
+    try {
+        const query = { status: 'waiting' };
+        if (req.user.role !== 'admin') query.provider = req.user._id;
+        const entries = await WaitingList.find(query)
+            .populate('service', 'name price duration')
+            .populate('customer', 'name email phone')
+            .sort({ appointmentDate: 1, position: 1 });
+        res.status(200).json({ success: true, count: entries.length, data: entries });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
 // Get current user's waiting list entries
 exports.getMyWaitingList = async (req, res) => {
     try {

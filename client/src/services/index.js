@@ -47,6 +47,7 @@ export const userService = {
 export const waitingListService = {
     join: (data) => API.post('/waitinglist', data),
     getMyList: () => API.get('/waitinglist'),
+    getProviderList: () => API.get('/waitinglist/provider'),
     leave: (id) => API.delete(`/waitinglist/${id}`),
     getNotifications: () => API.get('/waitinglist/notifications'),
 };
