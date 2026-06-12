@@ -14,7 +14,7 @@ const chipStyle = (active) => ({
     background: active ? 'rgba(201,168,76,0.12)' : 'white',
     color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
     fontSize: '0.78rem', fontWeight: active ? '600' : '400',
-    cursor: 'pointer', fontFamily: 'Inter, sans-serif', textTransform: 'capitalize',
+    cursor: 'pointer', fontFamily: 'Outfit, sans-serif', textTransform: 'capitalize',
 });
 
 const Pagination = ({ page, pages, onChange }) => (
@@ -22,13 +22,13 @@ const Pagination = ({ page, pages, onChange }) => (
         <button onClick={() => onChange(Math.max(1, page - 1))} disabled={page <= 1} style={{
             padding: '0.4rem 0.9rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'white',
             color: 'var(--text-secondary)', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.5 : 1,
-            fontSize: '0.8rem', fontFamily: 'Inter, sans-serif',
+            fontSize: '0.8rem', fontFamily: 'Outfit, sans-serif',
         }}>← Prev</button>
         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Page {page} of {pages}</span>
         <button onClick={() => onChange(Math.min(pages, page + 1))} disabled={page >= pages} style={{
             padding: '0.4rem 0.9rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'white',
             color: 'var(--text-secondary)', cursor: page >= pages ? 'not-allowed' : 'pointer', opacity: page >= pages ? 0.5 : 1,
-            fontSize: '0.8rem', fontFamily: 'Inter, sans-serif',
+            fontSize: '0.8rem', fontFamily: 'Outfit, sans-serif',
         }}>Next →</button>
     </div>
 );
@@ -238,11 +238,14 @@ const AdminDashboard = () => {
         <div style={{ background: 'var(--off-white)', minHeight: '100vh' }}>
 
             {/* Header */}
-            <div style={{ background: 'var(--charcoal)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ background: 'var(--charcoal)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 30%, rgba(201,168,76,0.1) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Management</p>
-                    <h1 style={{ fontFamily: 'Inter, sans-serif', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'white' }}>Admin Dashboard</h1>
+                    <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(2.2rem, 4vw, 3.25rem)', fontWeight: '700', color: 'white', lineHeight: 1.05, marginBottom: '0.35rem' }}>Admin Dashboard</h1>
+                    <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: '0.98rem', maxWidth: '56ch', lineHeight: 1.65 }}>
+                        Oversee appointments, services, and users with a clearer hierarchy and faster decision-making.
+                    </p>
                 </div>
             </div>
 
@@ -254,7 +257,7 @@ const AdminDashboard = () => {
                         background: 'var(--charcoal)', color: 'white',
                         padding: '0.6rem 1.25rem', borderRadius: 'var(--radius-sm)',
                         textDecoration: 'none', fontSize: '0.875rem', fontWeight: '600',
-                        fontFamily: 'Inter, sans-serif',
+                        fontFamily: 'Outfit, sans-serif',
                     }}>
                         📈 View Analytics
                     </a>
@@ -263,13 +266,13 @@ const AdminDashboard = () => {
                 {/* Stats */}
                 <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
                     {stats.map((s, i) => (
-                        <div key={i} style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>
+                        <div key={i} style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.2rem 1.4rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(201,168,76,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.15rem', flexShrink: 0 }}>
                                 {s.icon}
                             </div>
                             <div>
-                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{s.label}</p>
-                                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
+                                <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</p>
+                                <p style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.85rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
                             </div>
                         </div>
                     ))}
@@ -282,15 +285,16 @@ const AdminDashboard = () => {
                 )}
 
                 {/* Tabs */}
-                <div style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', overflowX: 'auto' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', overflowX: 'auto', paddingBottom: '0.35rem' }}>
                     {tabs.map(tab => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
-                            padding: '0.75rem 1.5rem', background: 'none', border: 'none',
-                            borderBottom: activeTab === tab ? '2px solid var(--gold)' : '2px solid transparent',
-                            color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-muted)',
-                            fontWeight: activeTab === tab ? '600' : '400', fontSize: '0.875rem',
-                            cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-                            textTransform: 'capitalize', transition: 'all 0.2s', marginBottom: '-1px', whiteSpace: 'nowrap',
+                            padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(201,168,76,0.1)' : 'white', border: '1px solid',
+                            borderColor: activeTab === tab ? 'var(--gold)' : 'var(--border)',
+                            borderRadius: '999px',
+                            color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                            fontWeight: activeTab === tab ? '700' : '500', fontSize: '0.85rem',
+                            cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                            textTransform: 'capitalize', transition: 'all 0.2s', whiteSpace: 'nowrap',
                         }}>
                             {tab.charAt(0).toUpperCase() + tab.slice(1)}
                         </button>

@@ -1,6 +1,10 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
-import { appointmentService, availabilityService, earningsService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, retentionService, teamService } from '../services';
+import FullCalendar from '@fullcalendar/react';
+import dayGridPlugin from '@fullcalendar/daygrid';
+import timeGridPlugin from '@fullcalendar/timegrid';
+import interactionPlugin from '@fullcalendar/interaction';
+import { appointmentService, availabilityService, earningsService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import OnboardingWizard from '../components/OnboardingWizard';
 
@@ -55,11 +59,12 @@ const ProviderDashboard = () => {
     const [apptDrag, setApptDrag] = useState({ active: false, appt: null, offsetY: 0, currentY: 0, colDate: null, moved: false });
     const [apptDetailModal, setApptDetailModal] = useState(null);
     const [resizing, setResizing] = useState({ active: false, appt: null, colRect: null, initialEndMins: 0 });
-    const [snapInterval, setSnapInterval] = useState(15); // minutes
+    const snapInterval = 15; // minutes
     const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, content: '' });
     const [apptRescheduleForm, setApptRescheduleForm] = useState({ appointmentDate: '', startTime: '' });
     const [savingApptDetail, setSavingApptDetail] = useState(false);
     const [apptDetailError, setApptDetailError] = useState('');
+    const swipeGestureRef = useRef({ tracking: false, startX: 0, startY: 0, dx: 0, dy: 0, locked: false });
 
     // CRM / Messages / Packages / Retention
     const [clients, setClients] = useState([]);
@@ -81,9 +86,6 @@ const ProviderDashboard = () => {
     const [showPackageForm, setShowPackageForm] = useState(false);
     const [packageForm, setPackageForm] = useState({ name: '', description: '', totalSessions: '', price: '', validityDays: '365' });
     const [savingPackage, setSavingPackage] = useState(false);
-
-    const [retentionData, setRetentionData] = useState(null);
-    const [loadingRetention, setLoadingRetention] = useState(false);
 
     // Team members
     const [teamMembers, setTeamMembers] = useState([]);
@@ -109,7 +111,7 @@ const ProviderDashboard = () => {
         }
     }, [location.search]);
 
-    useEffect(() => {
+    useEffect(() => { // eslint-disable-line react-hooks/exhaustive-deps
         // Run all initial fetches in parallel — don't wait for one before starting the next
         Promise.allSettled([
             fetchAppointments(),
@@ -118,7 +120,7 @@ const ProviderDashboard = () => {
             fetchCategories(),
             fetchBlockedTimes(),
         ]);
-    }, []);
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Cancel any in-progress drag if mouse is released outside a column
     useEffect(() => {
@@ -130,14 +132,13 @@ const ProviderDashboard = () => {
         return () => window.removeEventListener('mouseup', up);
     }, []);
 
-    useEffect(() => {
+    useEffect(() => { // eslint-disable-line react-hooks/exhaustive-deps
         if (activeTab === 'earnings' && !earnings) fetchEarnings();
         if (activeTab === 'clients' && clients.length === 0) fetchClients();
         if (activeTab === 'messages' && conversations.length === 0) fetchConversations();
         if (activeTab === 'memberships' && myPackages.length === 0) fetchMyPackages();
-        if (activeTab === 'retention' && !retentionData) fetchRetention();
         if (activeTab === 'team' && teamMembers.length === 0) fetchTeam();
-    }, [activeTab]);
+    }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const fetchAppointments = async () => {
         // Don't block the whole page — only set loading on first load
@@ -396,14 +397,6 @@ const ProviderDashboard = () => {
         } catch { /* ignore */ }
     };
 
-    const fetchRetention = async () => {
-        setLoadingRetention(true);
-        try {
-            const res = await retentionService.getRetentionMetrics();
-            setRetentionData(res.data.data);
-        } catch { /* ignore */ } finally { setLoadingRetention(false); }
-    };
-
     const fetchTeam = async () => {
         setLoadingTeam(true);
         try {
@@ -624,6 +617,122 @@ const ProviderDashboard = () => {
         cancelled: { bg: '#F7C1C1', text: '#791F1F' },
     };
 
+    const toDateKey = (dateObj) => {
+        const d = new Date(dateObj);
+        return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+    };
+
+    const toTimeKey = (dateObj) => {
+        const d = new Date(dateObj);
+        return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+    };
+
+    const toDateString = (value) => {
+        if (!value) return null;
+        if (typeof value === 'string' && value.length >= 10) return value.slice(0, 10);
+        return toDateKey(value);
+    };
+
+    const mergeDateAndTime = (dateValue, timeValue) => {
+        const dateStr = toDateString(dateValue);
+        if (!dateStr || !timeValue) return null;
+        return new Date(`${dateStr}T${timeValue}:00`);
+    };
+
+    const appointmentEvents = appointments.map(a => {
+        const start = mergeDateAndTime(a.appointmentDate, a.startTime);
+        const end = mergeDateAndTime(a.appointmentDate, a.endTime);
+        const colors = statusCalendarColors[a.status] || statusCalendarColors.pending;
+        if (!start || !end) return null;
+        return {
+            id: `appt_${a._id}`,
+            title: `${a.startTime} ${a.service?.name || 'Appointment'}`,
+            start,
+            end,
+            backgroundColor: colors.bg,
+            borderColor: colors.bg,
+            textColor: colors.text,
+            extendedProps: {
+                kind: 'appointment',
+                appointmentId: a._id,
+                raw: a,
+            },
+        };
+    }).filter(Boolean);
+
+    const blockedEvents = blockedTimes.map(b => {
+        const start = mergeDateAndTime(b.date, b.startTime);
+        const end = mergeDateAndTime(b.date, b.endTime);
+        if (!start || !end) return null;
+        return {
+            id: `block_${b._id}`,
+            title: b.reason || b.title || 'Blocked',
+            start,
+            end,
+            backgroundColor: '#e5e7eb',
+            borderColor: '#d1d5db',
+            textColor: '#374151',
+            editable: false,
+            extendedProps: {
+                kind: 'blocked',
+                blockedId: b._id,
+                raw: b,
+            },
+        };
+    }).filter(Boolean);
+
+    const fullCalendarEvents = [...appointmentEvents, ...blockedEvents];
+
+    const getFullCalendarView = () => {
+        if (calendarView === 'day') return 'timeGridDay';
+        if (calendarView === 'week') return 'timeGridWeek';
+        return 'dayGridMonth';
+    };
+
+    const handleFullCalendarSelect = (selection) => {
+        const startDate = selection.start;
+        setApptError('');
+        setApptForm(prev => ({
+            ...prev,
+            date: toDateKey(startDate),
+            startTime: toTimeKey(startDate),
+        }));
+        setShowApptModal(true);
+    };
+
+    const handleFullCalendarEventClick = (clickInfo) => {
+        const event = clickInfo.event;
+        if (event.extendedProps.kind === 'blocked') {
+            const block = blockedTimes.find(b => b._id === event.extendedProps.blockedId);
+            openBlockedTimeForm(block || null);
+            return;
+        }
+        setApptRescheduleForm({
+            appointmentDate: toDateString(event.start),
+            startTime: toTimeKey(event.start),
+        });
+        setApptDetailError('');
+        setApptDetailModal(event.extendedProps.raw || null);
+    };
+
+    const handleFullCalendarEventDrop = async (dropInfo) => {
+        const event = dropInfo.event;
+        if (event.extendedProps.kind !== 'appointment') {
+            dropInfo.revert();
+            return;
+        }
+        try {
+            const appointmentId = event.extendedProps.appointmentId;
+            const appointmentDate = toDateString(event.start);
+            const startTime = toTimeKey(event.start);
+            const res = await appointmentService.providerRescheduleAppointment(appointmentId, { appointmentDate, startTime });
+            setAppointments(prev => prev.map(a => a._id === appointmentId ? { ...a, ...res.data.data } : a));
+        } catch (err) {
+            setError(err.response?.data?.message || 'Failed to reschedule appointment');
+            dropInfo.revert();
+        }
+    };
+
     const isOutsideWorkingHours = (date, hour) => {
         if (!availability) return false;
         const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -669,11 +778,16 @@ const ProviderDashboard = () => {
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 70% 40%, rgba(201,168,76,0.1) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Your Bookings</p>
-                    <h1 style={{ fontFamily: 'Inter, sans-serif', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'white' }}>Provider Dashboard</h1>
-                    <Link to="/account" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginTop: '1rem', color: 'rgba(255,255,255,0.7)', fontFamily: 'Inter, sans-serif', fontSize: '0.85rem', textDecoration: 'none', border: '1px solid rgba(255,255,255,0.2)', padding: '0.4rem 0.9rem', borderRadius: 'var(--radius-sm)', transition: 'all 0.2s' }}
+                    <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(2.2rem, 4vw, 3.25rem)', fontWeight: '700', color: 'white', lineHeight: 1.05, marginBottom: '0.35rem' }}>Provider Dashboard</h1>
+                    <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: '0.98rem', maxWidth: '56ch', lineHeight: 1.65, marginBottom: '1rem' }}>
+                        Manage appointments, availability, services, and team operations from one calm workspace.
+                    </p>
+                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
+                    <Link to="/account" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: 'rgba(255,255,255,0.7)', fontFamily: 'Outfit, sans-serif', fontSize: '0.85rem', textDecoration: 'none', border: '1px solid rgba(255,255,255,0.2)', padding: '0.45rem 0.9rem', borderRadius: 'var(--radius-sm)', transition: 'all 0.2s' }}
                         onMouseEnter={e => e.currentTarget.style.color = 'white'}
                         onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}
                     >👤 My Account</Link>
+                    </div>
                 </div>
             </div>
 
@@ -682,11 +796,11 @@ const ProviderDashboard = () => {
                 {/* Stats */}
                 <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
                     {stats.map((s, i) => (
-                        <div key={i} style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
+                        <div key={i} style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.2rem 1.4rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                            <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(201,168,76,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.15rem', flexShrink: 0 }}>{s.icon}</div>
                             <div>
-                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{s.label}</p>
-                                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
+                                <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</p>
+                                <p style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.85rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
                             </div>
                         </div>
                     ))}
@@ -706,26 +820,25 @@ const ProviderDashboard = () => {
                 )}
 
                 {/* Tabs — single scrollable strip — Calendar always first */}
-                <div className="tab-strip" style={{ display: 'flex', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+                <div className="tab-strip" style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '0.35rem' }}>
                     {/* Calendar first */}
                     <button onClick={() => setActiveTab('calendar')} style={{
-                        padding: '0.75rem 1.25rem', background: 'none', border: 'none',
-                        borderBottom: activeTab === 'calendar' ? '2px solid var(--gold)' : '2px solid transparent',
-                        color: activeTab === 'calendar' ? 'var(--gold-dark)' : 'var(--text-muted)',
-                        fontWeight: activeTab === 'calendar' ? '600' : '400', fontSize: '0.875rem',
-                        cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-                        transition: 'all 0.2s', marginBottom: '-1px', whiteSpace: 'nowrap', flexShrink: 0,
+                        padding: '0.65rem 1rem', background: activeTab === 'calendar' ? 'rgba(201,168,76,0.1)' : 'white', border: '1px solid',
+                        borderColor: activeTab === 'calendar' ? 'var(--gold)' : 'var(--border)',
+                        borderRadius: '999px', color: activeTab === 'calendar' ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                        fontWeight: activeTab === 'calendar' ? '700' : '500', fontSize: '0.85rem',
+                        cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                        transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
                     }}>{'\uD83D\uDCC5'} Calendar</button>
                     {/* Appointment status tabs */}
                     {appointmentTabs.map(tab => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
-                            padding: '0.75rem 1.25rem', background: 'none', border: 'none',
-                            borderBottom: activeTab === tab ? '2px solid var(--gold)' : '2px solid transparent',
-                            color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-muted)',
-                            fontWeight: activeTab === tab ? '600' : '400', fontSize: '0.875rem',
-                            cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-                            textTransform: 'capitalize', transition: 'all 0.2s',
-                            marginBottom: '-1px', whiteSpace: 'nowrap', flexShrink: 0,
+                            padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(201,168,76,0.1)' : 'white', border: '1px solid',
+                            borderColor: activeTab === tab ? 'var(--gold)' : 'var(--border)',
+                            borderRadius: '999px', color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                            fontWeight: activeTab === tab ? '700' : '500', fontSize: '0.85rem',
+                            cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                            textTransform: 'capitalize', transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
                         }}>
                             {tab.charAt(0).toUpperCase() + tab.slice(1)}
                             {counts[tab] > 0 && (
@@ -738,12 +851,12 @@ const ProviderDashboard = () => {
                     {/* Other feature tabs */}
                     {[['services','✂️ Catalogue'],['availability','🗓 Availability'],['earnings','💵 Earnings'],['clients','👥 Clients'],['messages','💬 Messages'],['memberships','🪪 Memberships'],['team','👤 Team']].map(([tab, label]) => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
-                            padding: '0.75rem 1.25rem', background: 'none', border: 'none',
-                            borderBottom: activeTab === tab ? '2px solid var(--gold)' : '2px solid transparent',
-                            color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-muted)',
-                            fontWeight: activeTab === tab ? '600' : '400', fontSize: '0.875rem',
-                            cursor: 'pointer', fontFamily: 'Inter, sans-serif',
-                            transition: 'all 0.2s', marginBottom: '-1px', whiteSpace: 'nowrap', flexShrink: 0,
+                            padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(201,168,76,0.1)' : 'white', border: '1px solid',
+                            borderColor: activeTab === tab ? 'var(--gold)' : 'var(--border)',
+                            borderRadius: '999px', color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                            fontWeight: activeTab === tab ? '700' : '500', fontSize: '0.85rem',
+                            cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                            transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
                         }}>
                             {label}
                         </button>
@@ -1190,9 +1303,83 @@ const ProviderDashboard = () => {
                 )}
 
                 {/* Calendar tab */}
+                {activeTab === 'calendar' && (
+                    <div>
+                        <div className="fc-toolbar-shell" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                {[['day', 'Day'], ['week', 'Week'], ['month', 'Month']].map(([view, label]) => (
+                                    <button
+                                        key={view}
+                                        onClick={() => setCalendarView(view)}
+                                        style={{
+                                            padding: '0.42rem 0.9rem',
+                                            borderRadius: 'var(--radius-sm)',
+                                            border: '1px solid',
+                                            borderColor: calendarView === view ? 'var(--gold)' : 'var(--border)',
+                                            background: calendarView === view ? 'rgba(201,168,76,0.1)' : 'white',
+                                            color: calendarView === view ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                                            cursor: 'pointer',
+                                            fontSize: '0.82rem',
+                                            fontWeight: calendarView === view ? '700' : '500',
+                                            fontFamily: 'Inter, sans-serif',
+                                        }}
+                                    >
+                                        {label}
+                                    </button>
+                                ))}
+                            </div>
+                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                <button
+                                    onClick={() => {
+                                        setApptError('');
+                                        setApptForm(prev => ({ ...prev, date: toDateKey(new Date()) }));
+                                        setShowApptModal(true);
+                                    }}
+                                    className="btn-primary"
+                                    style={{ padding: '0.5rem 0.9rem', fontSize: '0.82rem' }}
+                                >
+                                    + Appointment
+                                </button>
+                                <button
+                                    onClick={() => openBlockedTimeForm(null)}
+                                    className="btn-outline"
+                                    style={{ padding: '0.5rem 0.9rem', fontSize: '0.82rem' }}
+                                >
+                                    + Block Time
+                                </button>
+                            </div>
+                        </div>
+
+                        <div className="fc-bookplus-wrapper" style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                            <FullCalendar
+                                key={calendarView}
+                                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
+                                initialView={getFullCalendarView()}
+                                initialDate={currentDate}
+                                headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
+                                height="auto"
+                                events={fullCalendarEvents}
+                                selectable
+                                selectMirror
+                                editable
+                                eventDurationEditable={false}
+                                dayMaxEvents={3}
+                                slotMinTime="07:00:00"
+                                slotMaxTime="23:00:00"
+                                allDaySlot={false}
+                                select={handleFullCalendarSelect}
+                                eventClick={handleFullCalendarEventClick}
+                                eventDrop={handleFullCalendarEventDrop}
+                                datesSet={(arg) => setCurrentDate(arg.start)}
+                            />
+                        </div>
+                    </div>
+                )}
+
                 {/* Calendar tab */}
-                {activeTab === 'calendar' && (() => {
-                    const ROW_H = 64;
+                {activeTab === 'calendar' && false && (() => {
+                    const isMobileViewport = typeof window !== 'undefined' && window.innerWidth <= 768;
+                    const ROW_H = isMobileViewport ? 52 : 64;
                     const START_H = 7;
                     const END_H = 23;
                     const NUM_H = END_H - START_H;
@@ -1242,85 +1429,24 @@ const ProviderDashboard = () => {
                     // make snap interval configurable
                     const yToMinsSnap = (y) => Math.round((clampY(y) / ROW_H) * 60 / snapInterval) * snapInterval + START_H * 60;
 
-                    const handleApptDragStart = (e, appt, date) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const colEl = e.currentTarget.parentElement;
-                        const rect = colEl.getBoundingClientRect();
-                        const y = clampY(e.clientY - rect.top);
-                        const apptTopY = timeToY(appt.startTime);
-                        setApptDrag({ active: true, appt, offsetY: y - apptTopY, currentY: y, colDate: date, moved: false });
+                    const parseColDate = (colEl) => {
+                        const ds = colEl?.getAttribute('data-col-date');
+                        if (!ds) return null;
+                        const d = new Date(`${ds}T00:00:00`);
+                        return Number.isNaN(d.getTime()) ? null : d;
                     };
 
-                    const handleApptDragStartTouch = (e, appt, date) => {
-                        e.preventDefault();
-                        e.stopPropagation();
-                        const touch = e.touches && e.touches[0];
-                        if (!touch) return;
-                        const colEl = e.currentTarget.parentElement;
-                        const rect = colEl.getBoundingClientRect();
-                        const y = clampY(touch.clientY - rect.top);
-                        const apptTopY = timeToY(appt.startTime);
-                        setApptDrag({ active: true, appt, offsetY: y - apptTopY, currentY: y, colDate: date, moved: false });
+                    const getColFromPoint = (x, y, fallbackCol) => {
+                        const el = document.elementFromPoint(x, y);
+                        return el?.closest?.('[data-col-date]') || fallbackCol || null;
                     };
 
-                    const handleDragStartTouch = (e, date) => {
-                        e.preventDefault();
-                        const touch = e.touches && e.touches[0];
-                        if (!touch) return;
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const y = clampY(touch.clientY - rect.top);
-                        setDragState({ active: true, date, startY: y, endY: y });
-                    };
-
-                    const handleDragMoveTouch = (e, date) => {
-                        const touch = e.touches && e.touches[0];
-                        if (!touch) return;
-                        if (apptDrag.active) {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const y = clampY(touch.clientY - rect.top);
-                            setApptDrag(prev => ({ ...prev, currentY: y, colDate: date, moved: prev.moved || Math.abs(y - prev.currentY) > 4 }));
-                            return;
-                        }
-                        if (!dragState.active || !dragState.date || dragState.date.toDateString() !== date.toDateString()) return;
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const y = clampY(touch.clientY - rect.top);
-                        setDragState(prev => ({ ...prev, endY: y }));
-                    };
-
-                    const handleDragEndTouch = (e, date) => {
-                        const touch = e.changedTouches && e.changedTouches[0];
-                        if (!touch && !apptDrag.active) return;
-                        if (apptDrag.active) {
-                            const appt = apptDrag.appt;
-                            const moved = apptDrag.moved;
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const y = clampY((touch ? touch.clientY : e.clientY) - rect.top);
-                            const newTopY = clampY(y - apptDrag.offsetY);
-                            const newStartTime = minsToTime(yToMins(newTopY));
-                            const newDateStr = dateToStr(date);
-                            setApptDrag({ active: false, appt: null, offsetY: 0, currentY: 0, colDate: null, moved: false });
-                            if (moved) {
-                                handleProviderReschedule(appt._id, newDateStr, newStartTime);
-                            } else {
-                                setApptRescheduleForm({ appointmentDate: new Date(appt.appointmentDate).toISOString().split('T')[0], startTime: appt.startTime });
-                                setApptDetailError('');
-                                setApptDetailModal(appt);
-                            }
-                            return;
-                        }
-                        // handle range selection touch end
-                        if (!dragState.active || !dragState.date || dragState.date.toDateString() !== date.toDateString()) {
-                            setDragState({ active: false, date: null, startY: 0, endY: 0 });
-                            return;
-                        }
-                        e.stopPropagation();
-                        const minY = Math.min(dragState.startY, dragState.endY);
-                        const maxY = Math.max(dragState.startY, dragState.endY);
+                    const finishRangeSelection = (capturedDate, startY, endY) => {
+                        const minY = Math.min(startY, endY);
+                        const maxY = Math.max(startY, endY);
                         let startMins = yToMins(minY);
                         let endMins = yToMins(maxY);
                         if (endMins <= startMins) endMins = Math.min(startMins + 60, END_H * 60);
-                        const capturedDate = dragState.date;
                         setDragState({ active: false, date: null, startY: 0, endY: 0 });
                         setShowBlockedTimeForm(false);
                         setShowApptModal(false);
@@ -1331,6 +1457,194 @@ const ProviderDashboard = () => {
                         });
                     };
 
+                    const beginAppointmentDrag = (appt, date, baseCol, pointerY, apptTopY) => {
+                        swipeGestureRef.current.locked = true;
+                        let currentCol = baseCol;
+                        setApptDrag({ active: true, appt, offsetY: pointerY - apptTopY, currentY: pointerY, colDate: date, moved: false });
+
+                        const move = (ev) => {
+                            ev.preventDefault();
+                            const nextCol = getColFromPoint(ev.clientX, ev.clientY, currentCol);
+                            if (!nextCol) return;
+                            currentCol = nextCol;
+                            const rect = currentCol.getBoundingClientRect();
+                            const nextY = clampY(ev.clientY - rect.top);
+                            const nextDate = parseColDate(currentCol) || date;
+                            setApptDrag(prev => ({
+                                ...prev,
+                                currentY: nextY,
+                                colDate: nextDate,
+                                moved: prev.moved || Math.abs(nextY - prev.currentY) > 6,
+                            }));
+                        };
+
+                        const up = (ev) => {
+                            const dropCol = getColFromPoint(ev.clientX, ev.clientY, currentCol) || baseCol;
+                            const dropRect = dropCol.getBoundingClientRect();
+                            const dropY = clampY(ev.clientY - dropRect.top);
+                            const dropDate = parseColDate(dropCol) || date;
+                            const newTopY = clampY(dropY - (pointerY - apptTopY));
+                            const newStartTime = minsToTime(yToMins(newTopY));
+                            const movedEnough = Math.abs(dropY - pointerY) > 6;
+                            const changedDay = dropDate.toDateString() !== date.toDateString();
+
+                            window.removeEventListener('pointermove', move);
+                            window.removeEventListener('pointerup', up);
+                            window.removeEventListener('pointercancel', up);
+                            swipeGestureRef.current.locked = false;
+                            setApptDrag({ active: false, appt: null, offsetY: 0, currentY: 0, colDate: null, moved: false });
+
+                            if (movedEnough || changedDay) {
+                                handleProviderReschedule(appt._id, dateToStr(dropDate), newStartTime);
+                            } else {
+                                setApptRescheduleForm({ appointmentDate: new Date(appt.appointmentDate).toISOString().split('T')[0], startTime: appt.startTime });
+                                setApptDetailError('');
+                                setApptDetailModal(appt);
+                            }
+                        };
+
+                        window.addEventListener('pointermove', move, { passive: false });
+                        window.addEventListener('pointerup', up);
+                        window.addEventListener('pointercancel', up);
+                    };
+
+                    const handleApptPointerDown = (e, appt, date) => {
+                        if (e.button !== 0) return;
+                        if (e.target.closest('.appt-resize-handle')) return;
+                        e.stopPropagation();
+
+                        const baseCol = e.currentTarget.closest('[data-col-date]');
+                        if (!baseCol) return;
+                        const baseRect = baseCol.getBoundingClientRect();
+                        const y = clampY(e.clientY - baseRect.top);
+                        const apptTopY = timeToY(appt.startTime);
+                        const isTouch = e.pointerType === 'touch';
+
+                        if (!isTouch) {
+                            e.preventDefault();
+                            beginAppointmentDrag(appt, date, baseCol, y, apptTopY);
+                            return;
+                        }
+
+                        const startX = e.clientX;
+                        const startYClient = e.clientY;
+                        let activated = false;
+                        let finished = false;
+
+                        const cleanup = () => {
+                            window.removeEventListener('pointermove', maybeCancel);
+                            window.removeEventListener('pointerup', maybeTapOpen);
+                            window.removeEventListener('pointercancel', maybeTapOpen);
+                        };
+
+                        const maybeCancel = (ev) => {
+                            if (Math.abs(ev.clientX - startX) > 10 || Math.abs(ev.clientY - startYClient) > 10) {
+                                clearTimeout(holdTimer);
+                                cleanup();
+                            }
+                        };
+
+                        const maybeTapOpen = () => {
+                            if (finished) return;
+                            finished = true;
+                            clearTimeout(holdTimer);
+                            cleanup();
+                            if (!activated) {
+                                setApptRescheduleForm({ appointmentDate: new Date(appt.appointmentDate).toISOString().split('T')[0], startTime: appt.startTime });
+                                setApptDetailError('');
+                                setApptDetailModal(appt);
+                            }
+                        };
+
+                        const holdTimer = setTimeout(() => {
+                            if (finished) return;
+                            activated = true;
+                            cleanup();
+                            try { if (navigator.vibrate) navigator.vibrate(10); } catch (err) { }
+                            beginAppointmentDrag(appt, date, baseCol, y, apptTopY);
+                        }, 260);
+
+                        window.addEventListener('pointermove', maybeCancel, { passive: true });
+                        window.addEventListener('pointerup', maybeTapOpen);
+                        window.addEventListener('pointercancel', maybeTapOpen);
+                    };
+
+                    const beginSlotSelection = (colEl, date, startY) => {
+                        swipeGestureRef.current.locked = true;
+                        const rect = colEl.getBoundingClientRect();
+                        setDragState({ active: true, date, startY, endY: startY });
+
+                        const move = (ev) => {
+                            ev.preventDefault();
+                            const yNow = clampY(ev.clientY - rect.top);
+                            setDragState(prev => ({ ...prev, endY: yNow }));
+                        };
+
+                        const up = (ev) => {
+                            const endY = clampY(ev.clientY - rect.top);
+                            window.removeEventListener('pointermove', move);
+                            window.removeEventListener('pointerup', up);
+                            window.removeEventListener('pointercancel', up);
+                            swipeGestureRef.current.locked = false;
+                            finishRangeSelection(date, startY, endY);
+                        };
+
+                        window.addEventListener('pointermove', move, { passive: false });
+                        window.addEventListener('pointerup', up);
+                        window.addEventListener('pointercancel', up);
+                    };
+
+                    const handleSlotPointerDown = (e, date) => {
+                        if (e.button !== 0) return;
+                        if (e.target.closest('[data-appt-id]') || e.target.closest('[data-blocked-id]') || e.target.closest('.appt-resize-handle')) return;
+
+                        const colEl = e.currentTarget;
+                        const rect = colEl.getBoundingClientRect();
+                        const startY = clampY(e.clientY - rect.top);
+                        const isTouch = e.pointerType === 'touch';
+
+                        if (!isTouch) {
+                            e.preventDefault();
+                            beginSlotSelection(colEl, date, startY);
+                            return;
+                        }
+
+                        const startX = e.clientX;
+                        const startYClient = e.clientY;
+                        let finished = false;
+
+                        const cleanup = () => {
+                            window.removeEventListener('pointermove', maybeCancel);
+                            window.removeEventListener('pointerup', stopWaiting);
+                            window.removeEventListener('pointercancel', stopWaiting);
+                        };
+
+                        const maybeCancel = (ev) => {
+                            if (Math.abs(ev.clientX - startX) > 10 || Math.abs(ev.clientY - startYClient) > 10) {
+                                clearTimeout(holdTimer);
+                                cleanup();
+                            }
+                        };
+
+                        const stopWaiting = () => {
+                            if (finished) return;
+                            finished = true;
+                            clearTimeout(holdTimer);
+                            cleanup();
+                        };
+
+                        const holdTimer = setTimeout(() => {
+                            if (finished) return;
+                            cleanup();
+                            try { if (navigator.vibrate) navigator.vibrate(10); } catch (err) { }
+                            beginSlotSelection(colEl, date, startY);
+                        }, 260);
+
+                        window.addEventListener('pointermove', maybeCancel, { passive: true });
+                        window.addEventListener('pointerup', stopWaiting);
+                        window.addEventListener('pointercancel', stopWaiting);
+                    };
+
                     const handleResizeStart = (e, appt, date) => {
                         e.preventDefault();
                         e.stopPropagation();
@@ -1339,11 +1653,12 @@ const ProviderDashboard = () => {
 
                         // Common resize start logic extracted to allow long-press on touch
                         const startResize = () => {
+                            swipeGestureRef.current.locked = true;
                             setResizing({ active: true, appt, colRect: rect, initialEndMins: parseTimeToMins(appt.endTime) });
 
                             const move = (ev) => {
                                 ev.preventDefault();
-                                const clientY = ev.clientY ?? (ev.touches && ev.touches[0] && ev.touches[0].clientY) ?? (ev.changedTouches && ev.changedTouches[0] && ev.changedTouches[0].clientY);
+                                const clientY = ev.clientY;
                                 const y = clampY(clientY - rect.top);
                                 const newEndMins = yToMinsSnap(y);
                                 const startMins = parseTimeToMins(appt.startTime);
@@ -1353,7 +1668,7 @@ const ProviderDashboard = () => {
                                 } catch (err) { /* ignore */ }
                             };
                             const up = async (ev) => {
-                                const clientY = ev.clientY ?? (ev.touches && ev.touches[0] && ev.touches[0].clientY) ?? (ev.changedTouches && ev.changedTouches[0] && ev.changedTouches[0].clientY);
+                                const clientY = ev.clientY;
                                 const y = clampY(clientY - rect.top);
                                 const newEndMins = yToMinsSnap(y);
                                 const startMins = parseTimeToMins(appt.startTime);
@@ -1365,92 +1680,31 @@ const ProviderDashboard = () => {
                                     await fetchAppointments();
                                     alert('Failed to update appointment end time');
                                 } finally {
+                                    swipeGestureRef.current.locked = false;
                                     setResizing({ active: false, appt: null, colRect: null, initialEndMins: 0 });
                                 }
-                                window.removeEventListener('mousemove', move);
-                                window.removeEventListener('mouseup', up);
-                                window.removeEventListener('touchmove', move);
-                                window.removeEventListener('touchend', up);
+                                window.removeEventListener('pointermove', move);
+                                window.removeEventListener('pointerup', up);
+                                window.removeEventListener('pointercancel', up);
                             };
-                            window.addEventListener('mousemove', move);
-                            window.addEventListener('mouseup', up);
-                            window.addEventListener('touchmove', move, { passive: false });
-                            window.addEventListener('touchend', up);
+                            window.addEventListener('pointermove', move, { passive: false });
+                            window.addEventListener('pointerup', up);
+                            window.addEventListener('pointercancel', up);
                         };
 
                         // If this was a touchstart, wait for a short long-press before starting resize
-                        const isTouch = e.type && e.type.indexOf('touch') === 0 || (e.touches && e.touches.length);
+                        const isTouch = e.pointerType === 'touch';
                         if (isTouch) {
-                            let touchTimer = setTimeout(() => {
+                            const touchTimer = setTimeout(() => {
                                 try { if (navigator.vibrate) navigator.vibrate(10); } catch (err) { }
                                 startResize();
                             }, 320);
-                            const clear = () => { clearTimeout(touchTimer); window.removeEventListener('touchend', clear); window.removeEventListener('touchcancel', clear); };
-                            window.addEventListener('touchend', clear, { once: true });
-                            window.addEventListener('touchcancel', clear, { once: true });
+                            const clear = () => { clearTimeout(touchTimer); window.removeEventListener('pointerup', clear); window.removeEventListener('pointercancel', clear); };
+                            window.addEventListener('pointerup', clear, { once: true });
+                            window.addEventListener('pointercancel', clear, { once: true });
                         } else {
                             startResize();
                         }
-                    };
-
-                    const handleDragStart = (e, date) => {
-                        e.preventDefault();
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const y = clampY(e.clientY - rect.top);
-                        setDragState({ active: true, date, startY: y, endY: y });
-                    };
-
-                    const handleDragMove = (e, date) => {
-                        if (apptDrag.active) {
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const y = clampY(e.clientY - rect.top);
-                            setApptDrag(prev => ({ ...prev, currentY: y, colDate: date, moved: prev.moved || Math.abs(y - prev.currentY) > 4 }));
-                            return;
-                        }
-                        if (!dragState.active || !dragState.date || dragState.date.toDateString() !== date.toDateString()) return;
-                        const rect = e.currentTarget.getBoundingClientRect();
-                        const y = clampY(e.clientY - rect.top);
-                        setDragState(prev => ({ ...prev, endY: y }));
-                    };
-
-                    const handleDragEnd = (e, date) => {
-                        if (apptDrag.active) {
-                            const appt = apptDrag.appt;
-                            const moved = apptDrag.moved;
-                            const rect = e.currentTarget.getBoundingClientRect();
-                            const y = clampY(e.clientY - rect.top);
-                            const newTopY = clampY(y - apptDrag.offsetY);
-                            const newStartTime = minsToTime(yToMins(newTopY));
-                            const newDateStr = dateToStr(date);
-                            setApptDrag({ active: false, appt: null, offsetY: 0, currentY: 0, colDate: null, moved: false });
-                            if (moved) {
-                                handleProviderReschedule(appt._id, newDateStr, newStartTime);
-                            } else {
-                                setApptRescheduleForm({ appointmentDate: new Date(appt.appointmentDate).toISOString().split('T')[0], startTime: appt.startTime });
-                                setApptDetailError('');
-                                setApptDetailModal(appt);
-                            }
-                            return;
-                        }
-                        if (!dragState.active || !dragState.date || dragState.date.toDateString() !== date.toDateString()) {
-                            setDragState({ active: false, date: null, startY: 0, endY: 0 });
-                            return;
-                        }
-                        e.stopPropagation();
-                        const minY = Math.min(dragState.startY, dragState.endY);
-                        const maxY = Math.max(dragState.startY, dragState.endY);
-                        let startMins = yToMins(minY);
-                        let endMins = yToMins(maxY);
-                        if (endMins <= startMins) endMins = Math.min(startMins + 60, END_H * 60);
-                        const capturedDate = dragState.date;
-                        setDragState({ active: false, date: null, startY: 0, endY: 0 });
-                        setShowBlockedTimeForm(false);
-                        setShowApptModal(false);
-                        setTimeSelectionPreview({
-                            date: dateToStr(capturedDate),
-                            startTime: minsToTime(startMins),
-                            endTime: minsToTime(endMins),
-                        });
                     };
 
                     // Renders the absolute-positioned content of a single time column
@@ -1461,12 +1715,7 @@ const ProviderDashboard = () => {
                         const dragHt  = isThisDrag ? Math.abs(dragState.endY - dragState.startY) : 0;
                         return (
                         <div style={{ position: 'relative', height: `${TOTAL_H}px`, cursor: apptDrag.active ? 'grabbing' : dragState.active ? 'ns-resize' : 'crosshair', userSelect: 'none' }}
-                            onMouseDown={(e) => handleDragStart(e, date)}
-                            onMouseMove={(e) => handleDragMove(e, date)}
-                            onMouseUp={(e) => handleDragEnd(e, date)}
-                            onTouchStart={(e) => handleDragStartTouch(e, date)}
-                            onTouchMove={(e) => handleDragMoveTouch(e, date)}
-                            onTouchEnd={(e) => handleDragEndTouch(e, date)}>
+                            onPointerDown={(e) => handleSlotPointerDown(e, date)}>
                             {/* Hour grid lines */}
                             {Array.from({ length: NUM_H }, (_,i) => (
                                 <div key={i} style={{ position:'absolute', left:0, right:0, top:`${i*ROW_H}px`, height:`${ROW_H}px`, borderBottom:'1px solid var(--border)', pointerEvents:'none',
@@ -1506,7 +1755,7 @@ const ProviderDashboard = () => {
                             })()}
                             {/* Blocked times — hatched grey bars */}
                             {blocked.map((b,bi) => (
-                                <div key={`b${bi}`} onMouseDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openBlockedTimeForm(b); }}
+                                <div key={`b${bi}`} data-blocked-id={b._id || `b-${bi}`} onPointerDown={(e) => e.stopPropagation()} onClick={(e) => { e.stopPropagation(); openBlockedTimeForm(b); }}
                                     style={{ position:'absolute', left:'3px', right:'3px', zIndex:3, borderRadius:'4px', overflow:'hidden', cursor:'pointer', boxSizing:'border-box',
                                         top:`${timeToY(b.startTime)}px`, height:`${durationPx(b.startTime, b.endTime)}px`,
                                         background:'repeating-linear-gradient(45deg, rgba(201,168,76,0.10), rgba(201,168,76,0.10) 6px, white 6px, white 12px)',
@@ -1566,8 +1815,7 @@ const ProviderDashboard = () => {
                                         <div key={`a${ai}`}
                                             data-appt-id={a._id}
                                             className="appt-block"
-                                            onMouseDown={(e) => { if (!apptDrag.active) handleApptDragStart(e, a, date); }}
-                                            onTouchStart={(e) => { if (!apptDrag.active) handleApptDragStartTouch(e, a, date); }}
+                                            onPointerDown={(e) => { if (!apptDrag.active) handleApptPointerDown(e, a, date); }}
                                             onClick={(e) => e.stopPropagation()}
                                             onMouseEnter={(e) => setTooltip({ visible: true, x: e.clientX, y: e.clientY, content: `${a.service?.name} · ${a.startTime}–${a.endTime}\n${a.walkInName || a.customer?.name}` })}
                                             onMouseLeave={() => setTooltip({ visible: false, x: 0, y: 0, content: '' })}
@@ -1580,7 +1828,7 @@ const ProviderDashboard = () => {
                                             {h > 30 && <div className="meta" style={{ opacity:0.9, overflow:'hidden', textOverflow:'ellipsis' }}>{a.service?.name}</div>}
                                             {h > 46 && <div className="meta" style={{ opacity:0.75 }}>{a.startTime} {'\u2013'} {a.endTime}</div>}
                                             {/* Resize handle */}
-                                            <div onMouseDown={(e) => handleResizeStart(e, a, date)} onTouchStart={(e) => handleResizeStart(e, a, date)} className="appt-resize-handle" />
+                                            <div onPointerDown={(e) => handleResizeStart(e, a, date)} className="appt-resize-handle" />
                                         </div>
                                     );
                                 });
@@ -1596,6 +1844,36 @@ const ProviderDashboard = () => {
                             })()}
                         </div>
                         );
+                    };
+
+                    const handleCalendarSwipeStart = (e) => {
+                        if (e.pointerType !== 'touch') return;
+                        swipeGestureRef.current = {
+                            ...swipeGestureRef.current,
+                            tracking: true,
+                            startX: e.clientX,
+                            startY: e.clientY,
+                            dx: 0,
+                            dy: 0,
+                        };
+                    };
+
+                    const handleCalendarSwipeMove = (e) => {
+                        if (e.pointerType !== 'touch') return;
+                        if (!swipeGestureRef.current.tracking) return;
+                        swipeGestureRef.current.dx = e.clientX - swipeGestureRef.current.startX;
+                        swipeGestureRef.current.dy = e.clientY - swipeGestureRef.current.startY;
+                    };
+
+                    const handleCalendarSwipeEnd = (e) => {
+                        if (e.pointerType !== 'touch') return;
+                        if (!swipeGestureRef.current.tracking) return;
+                        const { dx, dy, locked } = swipeGestureRef.current;
+                        if (!locked && Math.abs(dx) > 64 && Math.abs(dx) > Math.abs(dy) * 1.25) {
+                            if (dx < 0) handleNext();
+                            else handlePrev();
+                        }
+                        swipeGestureRef.current = { ...swipeGestureRef.current, tracking: false, dx: 0, dy: 0, locked: false };
                     };
 
                     return (
@@ -1628,7 +1906,14 @@ const ProviderDashboard = () => {
                                 </div>
                             </div>
                         )}
-                        <div className="cal-toolbar" onClick={() => { if (viewMenuOpen) setViewMenuOpen(false); if (addMenuOpen) setAddMenuOpen(false); }}>
+                        <div
+                            className="cal-toolbar"
+                            onClick={() => { if (viewMenuOpen) setViewMenuOpen(false); if (addMenuOpen) setAddMenuOpen(false); }}
+                            onPointerDownCapture={handleCalendarSwipeStart}
+                            onPointerMoveCapture={handleCalendarSwipeMove}
+                            onPointerUpCapture={handleCalendarSwipeEnd}
+                            onPointerCancelCapture={handleCalendarSwipeEnd}
+                        >
                         {/* ── Fresha-style Toolbar ── */}
                         <div className="cal-toolbar-inner" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:'1rem', flexWrap:'wrap', gap:'0.5rem' }}>
                             <div style={{ display:'flex', alignItems:'center', gap:'0.4rem', flexShrink: 0 }}>
@@ -1719,7 +2004,7 @@ const ProviderDashboard = () => {
                                     <div style={{ background:'white', borderRadius:'var(--radius)', border:'1px solid var(--border)', boxShadow:'var(--shadow-sm)', overflow:'hidden', position:'sticky', top:'100px' }}>
                                         <div style={{ padding:'1rem 1.25rem', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                                             <h3 style={{ fontFamily:'Outfit, sans-serif', fontSize:'1rem', fontWeight:'600', color:'var(--charcoal)', margin:0 }}>{new Date(currentDate.getFullYear(),currentDate.getMonth(),selectedDay).toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})}</h3>
-                                            <button onClick={()=>setSelectedDay(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:'1.2rem', lineHeight:1, padding:0 }}>\u00d7</button>
+                                            <button onClick={()=>setSelectedDay(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:'1.2rem', lineHeight:1, padding:0 }}>&times;</button>
                                         </div>
                                         <div style={{ padding:'1rem' }}>
                                             {getAppointmentsForDay(selectedDay).length===0 ? (
@@ -1734,7 +2019,7 @@ const ProviderDashboard = () => {
                                                                     <div>
                                                                         <p style={{ fontWeight:'600', color:'var(--charcoal)', fontSize:'0.875rem', margin:'0 0 0.15rem' }}>{a.service?.name}</p>
                                                                         <p style={{ color:'var(--text-muted)', fontSize:'0.78rem', margin:'0 0 0.15rem' }}>{a.walkInName || a.customer?.name}</p>
-                                                                        <p style={{ color:'var(--text-muted)', fontSize:'0.75rem', margin:0 }}>{a.startTime} \u2013 {a.endTime}</p>
+                                                                        <p style={{ color:'var(--text-muted)', fontSize:'0.75rem', margin:0 }}>{a.startTime} - {a.endTime}</p>
                                                                     </div>
                                                                     <span style={{ fontSize:'0.7rem', fontWeight:'600', padding:'0.15rem 0.5rem', borderRadius:'99px', background:c.bg, color:c.text, whiteSpace:'nowrap' }}>{a.status}</span>
                                                                 </div>
@@ -1782,7 +2067,7 @@ const ProviderDashboard = () => {
                                     </div>
                                     {/* Staff columns */}
                                     {calCols.map((col,ci) => (
-                                        <div key={ci} data-col style={{ borderLeft:'1px solid var(--border)' }}>
+                                        <div key={ci} data-col data-col-date={dateToStr(currentDate)} style={{ borderLeft:'1px solid var(--border)' }}>
                                             {renderCol(
                                                 currentDate,
                                                 ci === 0 ? getAppointmentsForDate(currentDate) : [],
@@ -1823,7 +2108,7 @@ const ProviderDashboard = () => {
                                             ))}
                                         </div>
                                         {days3.map((d,di)=>(
-                                            <div key={di} data-col style={{ borderLeft:'1px solid var(--border)' }}>
+                                            <div key={di} data-col data-col-date={dateToStr(d)} style={{ borderLeft:'1px solid var(--border)' }}>
                                                 {renderCol(d, getAppointmentsForDate(d), getBlockedForDate(d), d.toDateString()===nowTs.toDateString())}
                                             </div>
                                         ))}
@@ -1859,7 +2144,7 @@ const ProviderDashboard = () => {
                                             ))}
                                         </div>
                                         {wdays.map((d,di)=>(
-                                            <div key={di} data-col style={{ borderLeft:'1px solid var(--border)' }}>
+                                            <div key={di} data-col data-col-date={dateToStr(d)} style={{ borderLeft:'1px solid var(--border)' }}>
                                                 {renderCol(d, getAppointmentsForDate(d), getBlockedForDate(d), d.toDateString()===nowTs.toDateString())}
                                             </div>
                                         ))}
@@ -1877,7 +2162,7 @@ const ProviderDashboard = () => {
                                     </div>
                                 ) : (
                                     <div style={{ background:'white', borderRadius:'var(--radius)', border:'1px solid var(--border)', boxShadow:'var(--shadow-sm)', padding:'5rem 2rem', textAlign:'center' }}>
-                                        <div style={{ fontSize:'2.5rem', marginBottom:'0.75rem' }}>\uD83D\uDCC5</div>
+                                        <div style={{ fontSize:'2.1rem', marginBottom:'0.75rem', fontWeight:'700', color:'var(--gold-dark)' }}>Calendar</div>
                                         <p style={{ fontFamily:'Cormorant Garamond, serif', fontSize:'1.2rem', fontWeight:'700', color:'var(--charcoal)', marginBottom:'0.5rem' }}>Google Calendar not connected</p>
                                         <p style={{ color:'var(--text-muted)', fontSize:'0.875rem', maxWidth:'400px', margin:'0 auto 1.25rem' }}>Go to <strong>My Account \u2192 Personal settings \u2192 Google Calendar</strong> and paste your embed URL.</p>
                                         <Link to="/account" className="btn-primary" style={{ padding:'0.65rem 1.5rem', fontSize:'0.875rem', textDecoration:'none', display:'inline-block' }}>Go to Account settings</Link>

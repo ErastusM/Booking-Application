@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { authService } from '../services';
 import MAIN_CATEGORIES from '../constants/mainCategories';
+import { API_BASE } from '../services/api';
 
 const roles = [
     {
@@ -90,7 +91,7 @@ const Register = () => {
 
             {/* Navbar */}
             <div style={{ padding: '1.5rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Link to="/" style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.5rem', fontWeight: '700', color: 'var(--gold)', textDecoration: 'none' }}>
+                <Link to="/" style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.5rem', fontWeight: '700', color: 'var(--gold)', textDecoration: 'none' }}>
                     Book<span style={{ color: 'var(--charcoal)' }}>plus</span>
                 </Link>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
@@ -118,7 +119,7 @@ const Register = () => {
                 {step === 1 && (
                     <div style={{ width: '100%', maxWidth: '560px' }} className="fade-up">
                         <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-                            <h1 style={{ fontFamily: 'Inter, sans-serif', fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
+                            <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
                                 What brings you here?
                             </h1>
                             <p style={{ color: 'var(--text-muted)', fontSize: '1rem' }}>
@@ -136,13 +137,13 @@ const Register = () => {
                                         border: '2px solid var(--border)', borderRadius: 'var(--radius)',
                                         cursor: 'pointer', textAlign: 'left',
                                         transition: 'all 0.2s ease', boxShadow: 'var(--shadow-sm)',
-                                        fontFamily: 'Inter, sans-serif',
+                                        fontFamily: 'Outfit, sans-serif',
                                     }}
                                     onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--gold)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
                                     onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; e.currentTarget.style.transform = 'translateY(0)'; }}
                                 >
                                     <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>{role.icon}</div>
-                                    <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
+                                    <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                                         {role.title}
                                     </h3>
                                     <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.6 }}>
@@ -162,7 +163,7 @@ const Register = () => {
                     <div style={{ width: '100%', maxWidth: '440px' }} className="fade-up">
                         <button
                             onClick={() => setStep(1)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.875rem', fontFamily: 'Inter, sans-serif', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem', padding: 0 }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.875rem', fontFamily: 'Outfit, sans-serif', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem', padding: 0 }}
                         >
                             ← Back
                         </button>
@@ -175,7 +176,7 @@ const Register = () => {
                             </span>
                         </div>
 
-                        <h1 style={{ fontFamily: 'Inter, sans-serif', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
+                        <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                             Create your account
                         </h1>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '2rem' }}>
@@ -272,7 +273,7 @@ const Register = () => {
                             </div>
 
                             <a
-                                href={`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/auth/google`}
+                                href={`${API_BASE}/api/auth/google`}
                                 style={{
                                     display: 'flex',
                                     alignItems: 'center',
@@ -287,7 +288,7 @@ const Register = () => {
                                     fontWeight: '600',
                                     fontSize: '0.9rem',
                                     textDecoration: 'none',
-                                    fontFamily: 'Inter, sans-serif',
+                                    fontFamily: 'Outfit, sans-serif',
                                     transition: 'all 0.2s',
                                 }}
                                 onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--gold)'}
@@ -308,7 +309,7 @@ const Register = () => {
                         {step === 3 && (
                             <div style={{ width: '100%', maxWidth: '440px', textAlign: 'center' }} className="fade-up">
                                 <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>📧</div>
-                                <h1 style={{ fontFamily: 'Inter, sans-serif', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
+                                <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
                                     Check your email!
                                 </h1>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.7, marginBottom: '2rem' }}>
@@ -317,7 +318,7 @@ const Register = () => {
                                 <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '1.5rem', boxShadow: 'var(--shadow-sm)', marginBottom: '1.5rem' }}>
                                     <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
                                         📬 Didn't get the email? Check your spam folder or{' '}
-                                        <button onClick={() => setStep(2)} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: '0.85rem' }}>
+                                        <button onClick={() => setStep(2)} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontWeight: '600', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontSize: '0.85rem' }}>
                                             try again
                                         </button>
                                     </p>

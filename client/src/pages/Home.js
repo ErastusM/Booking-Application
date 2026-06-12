@@ -110,7 +110,7 @@ const Home = () => {
 
                         {/* Headline */}
                         <h1 className="fade-up fade-up-delay-1" style={{
-                            fontFamily: 'Inter, sans-serif',
+                            fontFamily: 'Cormorant Garamond, serif',
                             fontSize: 'clamp(2.8rem, 6vw, 5rem)',
                             fontWeight: '700',
                             color: 'white',
@@ -205,7 +205,7 @@ const Home = () => {
                 padding: '2rem 0',
             }}>
                 <div className="container">
-                    <div style={{
+                    <div className="home-stats-grid" style={{
                         display: 'grid',
                         gridTemplateColumns: `repeat(${user?.role === 'provider' ? 3 : 4}, 1fr)`,
                         gap: '1rem',
@@ -214,7 +214,7 @@ const Home = () => {
                         {stats.filter(s => !(user?.role === 'provider' && s.label === 'Top Providers')).map((stat, i) => (
                             <div key={i} style={{ padding: '0.5rem' }}>
                                 <div style={{
-                                    fontFamily: 'Inter, sans-serif',
+                                    fontFamily: 'Cormorant Garamond, serif',
                                     fontSize: '2rem',
                                     fontWeight: '700',
                                     color: 'var(--charcoal)',
@@ -251,7 +251,7 @@ const Home = () => {
                             Why Choose Us
                         </p>
                         <h2 style={{
-                            fontFamily: 'Inter, sans-serif',
+                            fontFamily: 'Cormorant Garamond, serif',
                             fontSize: 'clamp(1.8rem, 4vw, 3rem)',
                             fontWeight: '700',
                             color: 'var(--charcoal)',
@@ -285,7 +285,7 @@ const Home = () => {
                                     {f.icon}
                                 </div>
                                 <h3 style={{
-                                    fontFamily: 'Inter, sans-serif',
+                                    fontFamily: 'Cormorant Garamond, serif',
                                     fontSize: '1.2rem',
                                     fontWeight: '600',
                                     color: 'var(--charcoal)',
@@ -321,7 +321,7 @@ const Home = () => {
                 }} />
                 <div className="container" style={{ position: 'relative', textAlign: 'center' }}>
                     <h2 style={{
-                        fontFamily: 'Inter, sans-serif',
+                        fontFamily: 'Cormorant Garamond, serif',
                         fontSize: 'clamp(1.8rem, 4vw, 2.8rem)',
                         fontWeight: '700',
                         color: 'white',
@@ -361,7 +361,7 @@ const Home = () => {
                     gap: '1rem',
                 }}>
                     <span style={{
-                        fontFamily: 'Inter, sans-serif',
+                        fontFamily: 'Cormorant Garamond, serif',
                         color: 'var(--gold)',
                         fontSize: '1.2rem',
                         fontWeight: '700',

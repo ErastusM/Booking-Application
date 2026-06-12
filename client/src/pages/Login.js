@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
+import { API_BASE } from '../services/api';
 
 const Login = () => {
     const { login } = useAuthContext();
@@ -57,7 +58,6 @@ const Login = () => {
                 }} />
                 <div style={{
                     position: 'absolute',
-                    top: 0,
                     right: 0,
                     width: '3px',
                     top: '20%',
@@ -66,7 +66,7 @@ const Login = () => {
                 }} />
                 <div style={{ position: 'relative', zIndex: 1 }}>
                     <Link to="/" style={{
-                        fontFamily: 'Inter, sans-serif',
+                        fontFamily: 'Cormorant Garamond, serif',
                         fontSize: '1.8rem',
                         fontWeight: '700',
                         color: 'var(--gold)',
@@ -77,7 +77,7 @@ const Login = () => {
                         Book<span style={{ color: 'white' }}>plus</span>
                     </Link>
                     <h2 style={{
-                        fontFamily: 'Inter, sans-serif',
+                        fontFamily: 'Cormorant Garamond, serif',
                         fontSize: 'clamp(2rem, 3vw, 2.8rem)',
                         fontWeight: '700',
                         color: 'white',
@@ -109,7 +109,7 @@ const Login = () => {
             }}>
                 <div style={{ width: '100%', maxWidth: '400px' }} className="fade-up">
                     <h1 style={{
-                        fontFamily: 'Inter, sans-serif',
+                        fontFamily: 'Cormorant Garamond, serif',
                         fontSize: '2rem',
                         fontWeight: '700',
                         color: 'var(--charcoal)',
@@ -205,7 +205,7 @@ const Login = () => {
                         </div>
 
                         <a
-                            href={`${process.env.REACT_APP_API_URL || 'http://localhost:5000'}/api/auth/google`}
+                            href={`${API_BASE}/api/auth/google`}
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',
@@ -220,7 +220,7 @@ const Login = () => {
                                 fontWeight: '600',
                                 fontSize: '0.9rem',
                                 textDecoration: 'none',
-                                fontFamily: 'Inter, sans-serif',
+                                fontFamily: 'Outfit, sans-serif',
                                 transition: 'all 0.2s',
                             }}
                             onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--gold)'}

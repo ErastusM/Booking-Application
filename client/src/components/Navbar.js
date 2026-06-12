@@ -11,7 +11,7 @@ const Navbar = () => {
     const [scrolled, setScrolled] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const [showSuggestion, setShowSuggestion] = useState(false);
-    const [darkMode, setDarkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
+    const [darkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
 
     const isHome = location.pathname === '/';
     const isTransparent = isHome && !scrolled;
@@ -142,99 +142,93 @@ const Navbar = () => {
                     </button>
                 )}
 
-                {/* Mobile login link — only for logged-out users */}
-                {!user && (
-                    <Link to="/login" className="show-mobile" style={{ color: isTransparent ? 'white' : 'var(--charcoal)', textDecoration: 'none', fontSize: '0.85rem', fontWeight: '600', padding: '0.4rem 0.875rem', border: '1.5px solid', borderColor: isTransparent ? 'rgba(255,255,255,0.5)' : 'var(--border)', borderRadius: 'var(--radius-sm)', marginRight: '0.25rem' }}>
-                        Log in
-                    </Link>
-                )}
                 {/* Mobile hamburger */}
-                <button onClick={() => setMenuOpen(!menuOpen)} className="show-mobile" style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'white' : 'var(--charcoal)', padding: '0.5rem' }}>
+                <button
+                    onClick={() => setMenuOpen(prev => !prev)}
+                    className="show-mobile"
+                    aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'white' : 'var(--charcoal)', padding: '0.5rem', minWidth: '44px', minHeight: '44px', alignItems: 'center', justifyContent: 'center' }}>
                     <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                        {menuOpen
+                            ? <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            : <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />}
                     </svg>
                 </button>
             </div>
+        </nav>
 
-            {/* Mobile side drawer */}
-            {menuOpen && (
-                <>
-                    {/* Full-screen backdrop */}
-                    <div
-                        onClick={() => setMenuOpen(false)}
-                        style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1001, backdropFilter: 'blur(2px)' }}
-                    />
-                    {/* Drawer panel — slides in from the left */}
-                    <div style={{
-                        position: 'fixed', top: 0, left: 0, bottom: 0,
-                        width: '280px', maxWidth: '85vw',
-                        background: darkMode ? '#12121c' : 'white',
-                        zIndex: 1002,
-                        display: 'flex', flexDirection: 'column',
-                        boxShadow: '8px 0 40px rgba(0,0,0,0.2)',
-                        overflowY: 'auto',
-                        animation: 'slideInLeft 0.22s ease-out',
-                    }}>
-                        {/* Drawer header */}
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-                            <Link to="/" onClick={() => setMenuOpen(false)} style={{ textDecoration: 'none' }}>
-                                <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.4rem', fontWeight: '700', color: 'var(--gold)', letterSpacing: '-0.02em' }}>
-                                    Book<span style={{ color: 'var(--charcoal)' }}>plus</span>
-                                </span>
-                            </Link>
-                            <button onClick={() => setMenuOpen(false)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.6rem', lineHeight: 1, minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                                </svg>
+        {/* Mobile side drawer — rendered outside nav to avoid iOS clipping */}
+        {menuOpen && (
+            <>
+                <div onClick={() => setMenuOpen(false)} className="show-mobile" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.44)', zIndex: 1200, backdropFilter: 'blur(2px)' }} />
+                <aside className="show-mobile" style={{
+                    position: 'fixed', top: 0, left: 0, bottom: 0,
+                    width: '86vw', maxWidth: '330px',
+                    background: darkMode ? '#12121c' : 'white',
+                    zIndex: 1201,
+                    display: 'flex', flexDirection: 'column',
+                    boxShadow: '12px 0 44px rgba(0,0,0,0.24)',
+                    overflowY: 'auto',
+                    transform: 'translateX(0)',
+                    animation: 'slideInLeft 0.22s ease-out',
+                }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.1rem 1.2rem', borderBottom: '1px solid var(--border)' }}>
+                        <Link to="/" onClick={() => setMenuOpen(false)} style={{ textDecoration: 'none' }}>
+                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.4rem', fontWeight: '700', color: 'var(--gold)', letterSpacing: '-0.02em' }}>
+                                Book<span style={{ color: 'var(--charcoal)' }}>plus</span>
+                            </span>
+                        </Link>
+                        <button onClick={() => setMenuOpen(false)} aria-label="Close menu" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.55rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                            </svg>
+                        </button>
+                    </div>
+
+                    {!user && (
+                        <div style={{ padding: '1rem 1.2rem', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+                            <Link to="/login" onClick={() => setMenuOpen(false)} style={{ width: '100%', textAlign: 'center', textDecoration: 'none', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', color: 'var(--charcoal)', fontWeight: '600', fontSize: '0.92rem' }}>Log in</Link>
+                            <Link to="/register" onClick={() => setMenuOpen(false)} className="btn-primary" style={{ width: '100%', padding: '0.8rem 1rem', textAlign: 'center', textDecoration: 'none' }}>Sign Up</Link>
+                        </div>
+                    )}
+
+                    {user && (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.2rem', background: 'rgba(201,168,76,0.07)', borderBottom: '1px solid var(--border)' }}>
+                            <div style={{ width: '38px', height: '38px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--charcoal)', fontWeight: '700', fontSize: '0.9rem', flexShrink: 0 }}>
+                                {user.avatar
+                                    ? <img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                    : user.name?.charAt(0).toUpperCase()
+                                }
+                            </div>
+                            <div>
+                                <p style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--charcoal)', margin: 0 }}>{user.name}</p>
+                                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0, textTransform: 'capitalize' }}>{user.role}</p>
+                            </div>
+                        </div>
+                    )}
+
+                    <div style={{ flex: 1, padding: '0.6rem 0' }}>
+                        {mobileLink('/', 'Home')}
+                        {mobileLink('/services', 'Services')}
+                        {user?.role === 'customer' && mobileLink('/book-appointment', 'Book Appointment')}
+                        {user?.role === 'customer' && mobileLink('/appointments', 'My Appointments')}
+                        {user?.role === 'customer' && mobileLink('/waiting-list', 'Waiting List')}
+                        {user?.role === 'provider' && mobileLink('/dashboard', 'Dashboard')}
+                        {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}
+                        {user?.role === 'admin' && mobileLink('/bkplus-command/insights', 'Analytics')}
+                        {user && mobileLink(user.role === 'provider' ? '/account' : '/profile', 'My Profile')}
+                    </div>
+
+                    {user && (
+                        <div style={{ padding: '1rem 1.2rem', borderTop: '1px solid var(--border)' }}>
+                            <button onClick={handleLogout} style={{ width: '100%', padding: '0.78rem', background: '#fee2e2', border: 'none', borderRadius: 'var(--radius-sm)', color: '#dc2626', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: '0.9rem' }}>
+                                Logout
                             </button>
                         </div>
-
-                        {/* User badge */}
-                        {user && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.5rem', background: 'rgba(201,168,76,0.07)', borderBottom: '1px solid var(--border)' }}>
-                                <div style={{ width: '38px', height: '38px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--charcoal)', fontWeight: '700', fontSize: '0.9rem', flexShrink: 0 }}>
-                                    {user.avatar
-                                        ? <img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                        : user.name?.charAt(0).toUpperCase()
-                                    }
-                                </div>
-                                <div>
-                                    <p style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--charcoal)', margin: 0 }}>{user.name}</p>
-                                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0, textTransform: 'capitalize' }}>{user.role}</p>
-                                </div>
-                            </div>
-                        )}
-
-                        {/* Nav links */}
-                        <div style={{ flex: 1, padding: '0.75rem 0' }}>
-                            {mobileLink('/', 'Home')}
-                            {mobileLink('/services', 'Services')}
-                            {user?.role === 'customer' && mobileLink('/book-appointment', 'Book Appointment')}
-                            {user?.role === 'customer' && mobileLink('/appointments', 'My Appointments')}
-                            {user?.role === 'customer' && mobileLink('/waiting-list', 'Waiting List')}
-                            {user?.role === 'provider' && mobileLink('/dashboard', 'Dashboard')}
-                            {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}
-                            {user?.role === 'admin' && mobileLink('/bkplus-command/insights', 'Analytics')}
-                            {user && mobileLink(user.role === 'provider' ? '/account' : '/profile', 'My Profile')}
-                        </div>
-
-                        {/* Bottom actions */}
-                        <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                            {user ? (
-                                <button onClick={handleLogout} style={{ width: '100%', padding: '0.75rem', background: '#fee2e2', border: 'none', borderRadius: 'var(--radius-sm)', color: '#dc2626', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: '0.9rem' }}>
-                                    Logout
-                                </button>
-                            ) : (
-                                <>
-                                    {mobileLink('/login', 'Login')}
-                                    <Link to="/register" onClick={() => setMenuOpen(false)} className="btn-primary" style={{ width: '100%', padding: '0.85rem', textAlign: 'center', textDecoration: 'none' }}>Sign Up</Link>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                </>
-            )}
-        </nav>
+                    )}
+                </aside>
+            </>
+        )}
 
         {/* Mobile bottom navigation bar — only for logged-in users */}
         {user && (
@@ -259,7 +253,6 @@ const Navbar = () => {
                         <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                     ), label: 'Account' },
                 ].map(({ to, icon, label }) => {
-                    const active = location.pathname === to.split('?')[0] && (to === '/dashboard' ? !location.search.includes('tab=') || location.search === '' : true);
                     return (
                         <Link key={to} to={to} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', textDecoration: 'none', color: isActive(to.split('?')[0]) ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: isActive(to.split('?')[0]) ? '700' : '500', fontFamily: 'Outfit, sans-serif', transition: 'color 0.15s' }}>
                             <span style={{ color: isActive(to.split('?')[0]) ? 'var(--gold)' : 'var(--text-muted)', display: 'flex' }}>{icon}</span>

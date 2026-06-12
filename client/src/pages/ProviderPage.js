@@ -76,7 +76,7 @@ const ProvidersPage = () => {
                     </h1>
 
                     {/* Search bar */}
-                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', maxWidth: '700px' }}>
+                    <div className="providers-search-filters" style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap', maxWidth: '700px' }}>
                         <div style={{ flex: 2, position: 'relative', minWidth: '200px' }}>
                             <span style={{ position: 'absolute', left: '1rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '1rem' }}>🔍</span>
                             <input
@@ -132,7 +132,7 @@ const ProvidersPage = () => {
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Try adjusting your search or location filter</p>
                     </div>
                 ) : (
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
+                    <div className="providers-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
                         {filtered.map((provider, i) => (
                             <div
                                 key={provider._id}
