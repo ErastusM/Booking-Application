@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
@@ -7,23 +7,31 @@ import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
-import BookAppointment from './pages/BookAppointment';
-import MyAppointments from './pages/MyAppointments';
-import AdminDashboard from './pages/AdminDashboard';
-import ProviderDashboard from './pages/ProviderDashboard';
-import ProviderAccount from './pages/ProviderAccount';
-import MyWaitingList from './pages/MyWaitingList';
-import Profile from './pages/Profile';
-import AnalyticsDashboard from './pages/AnalyticsDashboard';
-import ProvidersPage from './pages/ProviderPage';
-import ProviderProfilePage from './pages/ProviderProfilePage';
-import AuthCallback from './pages/AuthCallBack';
-import CompleteProfile from './pages/CompleteProfile';
-import VerifyEmail from './pages/VerifyEmail';
-import ForgotPassword from './pages/ForgotPassword';
-import ResetPassword from './pages/ResetPassword';
-import PrivacyPolicy from './pages/PrivacyPolicy';
-import TermsOfService from './pages/TermsOfService';
+
+// Heavy screens are lazy-loaded so the initial bundle stays lean
+const BookAppointment = lazy(() => import('./pages/BookAppointment'));
+const MyAppointments = lazy(() => import('./pages/MyAppointments'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const ProviderDashboard = lazy(() => import('./pages/ProviderDashboard'));
+const ProviderAccount = lazy(() => import('./pages/ProviderAccount'));
+const MyWaitingList = lazy(() => import('./pages/MyWaitingList'));
+const Profile = lazy(() => import('./pages/Profile'));
+const AnalyticsDashboard = lazy(() => import('./pages/AnalyticsDashboard'));
+const ProvidersPage = lazy(() => import('./pages/ProviderPage'));
+const ProviderProfilePage = lazy(() => import('./pages/ProviderProfilePage'));
+const AuthCallback = lazy(() => import('./pages/AuthCallBack'));
+const CompleteProfile = lazy(() => import('./pages/CompleteProfile'));
+const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
+const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
+const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const TermsOfService = lazy(() => import('./pages/TermsOfService'));
+
+const RouteFallback = () => (
+    <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ width: '36px', height: '36px', border: '3px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+    </div>
+);
 
 function App() {
     return (
@@ -31,6 +39,7 @@ function App() {
             <ThemeProvider>
             <AuthProvider>
                 <Navbar />
+                <Suspense fallback={<RouteFallback />}>
                 <Routes>
                     {/* Public routes */}
                     <Route path="/" element={<Home />} />
@@ -94,6 +103,7 @@ function App() {
                     } />
                     <Route path="/complete-profile" element={<CompleteProfile />} />
                 </Routes>
+                </Suspense>
             </AuthProvider>
             </ThemeProvider>
         </Router>

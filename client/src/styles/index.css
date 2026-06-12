@@ -340,8 +340,20 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
   .profile-sticky { position: relative !important; top: auto !important; }
 
   /* Appointment cards: stack to 2 cols then full width for actions */
-  .appt-row { grid-template-columns: 1fr 1fr !important; gap: 0.75rem !important; }
-  .appt-row > div:last-child { grid-column: 1 / -1; flex-direction: row !important; justify-content: flex-start !important; gap: 0.75rem; }
+  .appt-row { grid-template-columns: 1fr 1fr !important; gap: 0.75rem !important; padding: 1.25rem !important; }
+  .appt-row > div:last-child {
+    grid-column: 1 / -1;
+    flex-direction: row !important;
+    flex-wrap: wrap;
+    justify-content: flex-start !important;
+    gap: 0.6rem;
+  }
+  .appt-row > div:last-child button,
+  .appt-row > div:last-child a {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+  }
 
   /* Stats: 2x2 grid on mobile */
   .stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 0.65rem !important; }
@@ -432,9 +444,17 @@ body.dark-mode [style*="border-radius: 50%"][style*="background: white"] {
   background: var(--card-bg);
   border-top: 1px solid var(--border);
   box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
+  /* iPhone home-indicator / Android gesture-bar safe area */
+  padding-bottom: env(safe-area-inset-bottom, 0);
 }
 body.dark-mode .bottom-nav {
   box-shadow: 0 -4px 20px rgba(0,0,0,0.35);
+}
+
+/* Sticky bottom bars respect the safe area too */
+.booking-confirm-mobile,
+.block-time-panel {
+  padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0)) !important;
 }
 
 /* ── Mobile drawer ── */
