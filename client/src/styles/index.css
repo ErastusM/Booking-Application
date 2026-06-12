@@ -28,6 +28,8 @@
   --card-bg: #ffffff;
   --input-bg: #ffffff;
   --surface-raised: #ffffff;
+  /* --ink never flips: dark surfaces (hero headers, primary buttons) stay dark in both modes */
+  --ink: #1a1a2e;
 }
 
 body.dark-mode {
@@ -407,6 +409,23 @@ body.dark-mode select option { background: var(--card-bg); color: var(--text-pri
 /* Broad surface coverage — any element explicitly set to white via class */
 body.dark-mode .surface-white,
 body.dark-mode .bg-white { background: var(--card-bg) !important; }
+
+/* Catch-all: inline `background: 'white'` styles flip to card surface in dark mode.
+   React serializes inline styles without spaces (background:white). */
+body.dark-mode [style*="background:white"],
+body.dark-mode [style*="background: white"],
+body.dark-mode [style*="background-color:white"],
+body.dark-mode [style*="background-color: white"],
+body.dark-mode [style*="background:#fff"],
+body.dark-mode [style*="background: #fff"],
+body.dark-mode [style*="background:rgb(255, 255, 255)"] {
+  background: var(--card-bg) !important;
+}
+/* Keep tiny toggle knobs white — they sit on colored tracks */
+body.dark-mode [style*="border-radius:50%"][style*="background:white"],
+body.dark-mode [style*="border-radius: 50%"][style*="background: white"] {
+  background: #ffffff !important;
+}
 
 /* ── Bottom navigation bar ── */
 .bottom-nav {

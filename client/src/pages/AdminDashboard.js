@@ -238,7 +238,7 @@ const AdminDashboard = () => {
         <div style={{ background: 'var(--off-white)', minHeight: '100vh' }}>
 
             {/* Header */}
-                <div style={{ background: 'var(--charcoal)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ background: 'var(--ink)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 30%, rgba(201,168,76,0.1) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Management</p>
@@ -254,7 +254,7 @@ const AdminDashboard = () => {
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
                     <a href="/bkplus-command/insights" style={{
                         display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-                        background: 'var(--charcoal)', color: 'white',
+                        background: 'var(--ink)', color: 'white',
                         padding: '0.6rem 1.25rem', borderRadius: 'var(--radius-sm)',
                         textDecoration: 'none', fontSize: '0.875rem', fontWeight: '600',
                         fontFamily: 'Outfit, sans-serif',
@@ -472,7 +472,7 @@ const AdminDashboard = () => {
                                         <tr key={u._id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'white' : 'rgba(250,250,248,0.5)' }}>
                                             <td style={{ padding: '0.875rem 1rem' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: '700', color: 'var(--charcoal)', flexShrink: 0 }}>
+                                                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: '700', color: 'var(--ink)', flexShrink: 0 }}>
                                                         {u.name?.charAt(0).toUpperCase()}
                                                     </div>
                                                     <span style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{u.name}</span>

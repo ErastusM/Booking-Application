@@ -62,7 +62,7 @@ const ResetPassword = () => {
         }}>
             {/* Left decorative panel */}
             <div className="auth-left" style={{
-                background: 'var(--charcoal)',
+                background: 'var(--ink)',
                 display: 'flex',
                 flexDirection: 'column',
                 justifyContent: 'center',

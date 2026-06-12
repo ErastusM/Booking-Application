@@ -50,7 +50,7 @@ const Profile = () => {
 
             {/* Header */}
             <div style={{
-                background: 'var(--charcoal)',
+                background: 'var(--ink)',
                 paddingTop: '9rem',
                 paddingBottom: '3rem',
                 position: 'relative',

@@ -273,7 +273,7 @@ const Services = () => {
 
             {/* Page header */}
             <div style={{
-                background: 'var(--charcoal)',
+                background: 'var(--ink)',
                 paddingTop: '9rem',
                 paddingBottom: '4rem',
                 position: 'relative',

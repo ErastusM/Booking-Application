@@ -76,10 +76,6 @@ export const availabilityService = {
     getProviderAvailability: (providerId) => API.get(`/availability/${providerId}`),
 };
 
-export const earningsService = {
-    getMyEarnings: () => API.get('/earnings'),
-};
-
 export const providerServiceService = {
     getMyServices: () => API.get('/services/my-services'),
     createMyService: (data) => API.post('/services/my-services', data),

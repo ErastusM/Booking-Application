@@ -49,7 +49,7 @@ const CompleteProfile = () => {
                             {user?.avatar ? (
                                 <img src={user.avatar} alt={user.name} style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', margin: '0 auto', display: 'block', marginBottom: '1rem' }} />
                             ) : (
-                                <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 auto', marginBottom: '1rem' }}>
+                                <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif', fontSize: '2rem', fontWeight: '700', color: 'var(--ink)', margin: '0 auto', marginBottom: '1rem' }}>
                                     {getInitials(user?.name)}
                                 </div>
                             )}

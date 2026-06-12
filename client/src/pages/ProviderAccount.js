@@ -242,7 +242,7 @@ const ProviderAccount = () => {
                                     {/* Left - photo + name */}
                                     <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '2rem', textAlign: 'center' }}>
                                         <div style={{ position: 'relative', display: 'inline-block', marginBottom: '1.75rem' }}>
-                                            <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)' }}>
+                                            <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', fontSize: '2rem', fontWeight: '700', color: 'var(--ink)' }}>
                                                 {user?.avatar
                                                     ? <img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                     : user?.name?.charAt(0).toUpperCase()
@@ -423,7 +423,7 @@ const ProviderAccount = () => {
                                                 <div key={r._id} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem' }}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '0.8rem', color: 'var(--charcoal)', flexShrink: 0, overflow: 'hidden' }}>
+                                                            <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '0.8rem', color: 'var(--ink)', flexShrink: 0, overflow: 'hidden' }}>
                                                                 {r.customer?.avatar
                                                                     ? <img src={r.customer.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                                     : r.customer?.name?.charAt(0).toUpperCase()

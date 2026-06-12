@@ -86,7 +86,7 @@ const ProviderProfilePage = () => {
         <div style={{ background: 'var(--off-white)', minHeight: '100vh' }}>
 
             {/* Hero */}
-            <div style={{ background: 'var(--charcoal)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--ink)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 30% 60%, rgba(201,168,76,0.1) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <button onClick={() => navigate('/services')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontFamily: 'Inter, sans-serif', marginBottom: '1.5rem', padding: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -97,7 +97,7 @@ const ProviderProfilePage = () => {
                         {provider.avatar ? (
                             <img src={provider.avatar} alt={provider.name} style={{ width: '90px', height: '90px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', flexShrink: 0 }} />
                         ) : (
-                            <div style={{ width: '90px', height: '90px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif', fontSize: '2.2rem', fontWeight: '700', color: 'var(--charcoal)', flexShrink: 0 }}>
+                            <div style={{ width: '90px', height: '90px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif', fontSize: '2.2rem', fontWeight: '700', color: 'var(--ink)', flexShrink: 0 }}>
                                 {getInitials(provider.name)}
                             </div>
                         )}

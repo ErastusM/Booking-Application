@@ -58,7 +58,7 @@ const Home = () => {
                 display: 'flex',
                 alignItems: 'center',
                 overflow: 'hidden',
-                background: 'var(--charcoal)',
+                background: 'var(--ink)',
             }}>
                 {/* Background texture */}
                 <div ref={heroRef} style={{
@@ -308,7 +308,7 @@ const Home = () => {
 
             {/* CTA Banner */}
             <section style={{
-                background: 'var(--charcoal)',
+                background: 'var(--ink)',
                 padding: '5rem 0',
                 position: 'relative',
                 overflow: 'hidden',

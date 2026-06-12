@@ -121,7 +121,7 @@ const AnalyticsDashboard = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
-    const [chartMode, setChartMode] = useState('bookings'); // bookings | revenue | users
+    const [chartMode, setChartMode] = useState('bookings'); // bookings | users
 
     useEffect(() => { fetchAnalytics(); }, []);
 
@@ -152,20 +152,20 @@ const AnalyticsDashboard = () => {
         </div>
     );
 
-    const { revenue, revenueByService, appointments, bookingsOverTime, users, newUsersOverTime, popularServices, busiestDays, ratingsPerService } = data;
+    const { appointments, bookingsOverTime, users, newUsersOverTime, popularServices, busiestDays, ratingsPerService } = data;
 
-    const chartData = chartMode === 'bookings' ? bookingsOverTime
-        : chartMode === 'revenue' ? bookingsOverTime
-        : newUsersOverTime;
+    const chartData = chartMode === 'bookings' ? bookingsOverTime : newUsersOverTime;
 
-    const chartValueKey = chartMode === 'revenue' ? 'revenue' : 'count';
-    const chartColor = chartMode === 'revenue' ? 'var(--gold)' : chartMode === 'users' ? '#60a5fa' : 'var(--charcoal)';
+    const chartValueKey = 'count';
+    const chartColor = chartMode === 'users' ? '#60a5fa' : 'var(--gold)';
+    const completedCount = appointments.byStatus.find(s => s._id === 'completed')?.count || 0;
+    const cancelledCount = appointments.byStatus.find(s => s._id === 'cancelled')?.count || 0;
 
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100vh' }}>
 
             {/* Header */}
-            <div style={{ background: 'var(--charcoal)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--ink)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 30%, rgba(201,168,76,0.1) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '1rem' }}>
                     <div>
@@ -180,11 +180,11 @@ const AnalyticsDashboard = () => {
 
             <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
 
-                {/* ── Revenue KPIs ── */}
+                {/* ── Booking KPIs ── */}
                 <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
-                    <MiniStat label="Total Revenue" value={`$${revenue.total.toLocaleString()}`} icon="💰" sub="All time" trend={revenue.growth} />
-                    <MiniStat label="This Month" value={`$${revenue.thisMonth.toLocaleString()}`} icon="📅" sub={`Last month: $${revenue.lastMonth.toLocaleString()}`} />
                     <MiniStat label="Total Bookings" value={appointments.total} icon="📋" sub={`${appointments.thisMonth} this month`} />
+                    <MiniStat label="Completed" value={completedCount} icon="✅" sub="All time" />
+                    <MiniStat label="Cancelled" value={cancelledCount} icon="🚫" sub="All time" />
                     <MiniStat label="Total Users" value={users.total} icon="👥" sub={`${users.newThisMonth} new this month`} />
                 </div>
 
@@ -204,7 +204,6 @@ const AnalyticsDashboard = () => {
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                             {[
                                 { key: 'bookings', label: 'Bookings' },
-                                { key: 'revenue', label: 'Revenue' },
                                 { key: 'users', label: 'New Users' },
                             ].map(m => (
                                 <button key={m.key} onClick={() => setChartMode(m.key)} style={{
@@ -235,24 +234,12 @@ const AnalyticsDashboard = () => {
                         <DonutChart data={appointments.byStatus} />
                     </Card>
 
-                    {/* Revenue by service */}
-                    <Card title="Revenue by Service">
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                            {revenueByService.map((s, i) => {
-                                const max = revenueByService[0]?.total || 1;
-                                return (
-                                    <div key={i}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500' }}>{s.name}</span>
-                                            <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)' }}>${s.total}</span>
-                                        </div>
-                                        <div style={{ height: '6px', borderRadius: '99px', background: 'var(--warm-gray)', overflow: 'hidden' }}>
-                                            <div style={{ height: '100%', borderRadius: '99px', background: 'var(--gold)', width: `${(s.total / max) * 100}%`, transition: 'width 0.5s ease' }} />
-                                        </div>
-                                    </div>
-                                );
-                            })}
-                            {revenueByService.length === 0 && <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No paid appointments yet</p>}
+                    {/* New users over the last 30 days */}
+                    <Card title="New Users (30 Days)">
+                        <BarChart data={newUsersOverTime} valueKey="count" labelKey="label" color="#60a5fa" height={160} />
+                        <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem' }}>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{newUsersOverTime[0]?.label}</span>
+                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{newUsersOverTime[newUsersOverTime.length - 1]?.label}</span>
                         </div>
                     </Card>
                 </div>
@@ -272,7 +259,7 @@ const AnalyticsDashboard = () => {
                                         <p style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--charcoal)' }}>{s.name}</p>
                                         <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{s.count} booking{s.count !== 1 ? 's' : ''}</p>
                                     </div>
-                                    <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--gold-dark)' }}>${s.price}</span>
+                                    <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--gold-dark)' }}>{s.count}×</span>
                                 </div>
                             ))}
                             {popularServices.length === 0 && <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No bookings yet</p>}

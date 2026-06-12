@@ -95,7 +95,7 @@ const ProvidersPage = () => {
         <div style={{ background: 'var(--off-white)', minHeight: '100vh' }}>
 
             {/* Header */}
-            <div style={{ background: 'var(--charcoal)', paddingTop: '9rem', paddingBottom: '4rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--ink)', paddingTop: '9rem', paddingBottom: '4rem', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 50%, rgba(201,168,76,0.08) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Discover</p>
@@ -201,7 +201,7 @@ const ProvidersPage = () => {
                                         {provider.avatar ? (
                                             <img src={provider.avatar} alt={provider.name} style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', position: 'relative', zIndex: 1 }} />
                                         ) : (
-                                            <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', border: '3px solid rgba(255,255,255,0.2)', position: 'relative', zIndex: 1 }}>
+                                            <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'Inter, sans-serif', fontSize: '2rem', fontWeight: '700', color: 'var(--ink)', border: '3px solid rgba(255,255,255,0.2)', position: 'relative', zIndex: 1 }}>
                                                 {getInitials(provider.name)}
                                             </div>
                                         )}

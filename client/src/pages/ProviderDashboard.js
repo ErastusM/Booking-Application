@@ -4,7 +4,7 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { appointmentService, availabilityService, earningsService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService } from '../services';
+import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import OnboardingWizard from '../components/OnboardingWizard';
 
@@ -26,8 +26,6 @@ const ProviderDashboard = () => {
     const [availability, setAvailability] = useState(null);
     const [savingAvailability, setSavingAvailability] = useState(false);
     const [availabilitySuccess, setAvailabilitySuccess] = useState('');
-    const [earnings, setEarnings] = useState(null);
-    const [loadingEarnings, setLoadingEarnings] = useState(false);
     const [myServices, setMyServices] = useState([]);
     const [showServiceForm, setShowServiceForm] = useState(false);
     const [editingService, setEditingService] = useState(null);
@@ -112,7 +110,7 @@ const ProviderDashboard = () => {
 
     useEffect(() => {
         const tab = new URLSearchParams(location.search).get('tab');
-        const validTabs = ['calendar', 'pending', 'confirmed', 'completed', 'cancelled', 'history', 'services', 'availability', 'earnings', 'clients', 'messages', 'memberships', 'team'];
+        const validTabs = ['calendar', 'pending', 'confirmed', 'completed', 'cancelled', 'history', 'services', 'availability', 'overview', 'clients', 'messages', 'memberships', 'team'];
         if (tab && validTabs.includes(tab)) {
             setActiveTab(tab);
             setSelectedDay(null);
@@ -141,7 +139,6 @@ const ProviderDashboard = () => {
     }, []);
 
     useEffect(() => { // eslint-disable-line react-hooks/exhaustive-deps
-        if (activeTab === 'earnings' && !earnings) fetchEarnings();
         if (activeTab === 'clients' && clients.length === 0) fetchClients();
         if (activeTab === 'messages' && conversations.length === 0) fetchConversations();
         if (activeTab === 'memberships' && myPackages.length === 0) fetchMyPackages();
@@ -313,18 +310,6 @@ const ProviderDashboard = () => {
             saveBlockedTime(recurringMode);
         } else {
             doDeleteBlockedTime(recurringActionModal.item._id, recurringMode);
-        }
-    };
-
-    const fetchEarnings = async () => {
-        setLoadingEarnings(true);
-        try {
-            const res = await earningsService.getMyEarnings();
-            setEarnings(res.data.data);
-        } catch {
-            setError('Failed to load earnings');
-        } finally {
-            setLoadingEarnings(false);
         }
     };
 
@@ -807,7 +792,7 @@ const ProviderDashboard = () => {
             )}
 
             {/* Header */}
-            <div className="provider-header" style={{ background: 'var(--charcoal)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
+            <div className="provider-header" style={{ background: 'var(--ink)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 70% 40%, rgba(201,168,76,0.1) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Your Bookings</p>
@@ -891,7 +876,7 @@ const ProviderDashboard = () => {
                         transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
                     }}>🕐 History</button>
                     {/* Other feature tabs */}
-                    {[['services','✂️ Catalogue'],['availability','🗓 Availability'],['earnings','💵 Earnings'],['clients','👥 Clients'],['messages','💬 Messages'],['memberships','🪪 Memberships'],['team','👤 Team']].map(([tab, label]) => (
+                    {[['services','✂️ Catalogue'],['availability','🗓 Availability'],['overview','📊 Overview'],['clients','👥 Clients'],['messages','💬 Messages'],['memberships','🪪 Memberships'],['team','👤 Team']].map(([tab, label]) => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
                             padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(201,168,76,0.1)' : 'white', border: '1px solid',
                             borderColor: activeTab === tab ? 'var(--gold)' : 'var(--border)',
@@ -1263,138 +1248,134 @@ const ProviderDashboard = () => {
                     </div>
                 )}
 
-                {/* Earnings tab */}
-                {activeTab === 'earnings' && (
-                    <div>
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <h2 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>Earnings Overview</h2>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>Track your income from completed appointments</p>
-                        </div>
-
-                        {loadingEarnings ? (
-                            <div style={{ textAlign: 'center', padding: '4rem' }}>
-                                <div style={{ width: '40px', height: '40px', border: '3px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto' }} />
+                {/* Overview tab — non-financial business stats */}
+                {activeTab === 'overview' && (() => {
+                    const todayStr = new Date().toDateString();
+                    const now = new Date();
+                    const todays = appointments.filter(a => new Date(a.appointmentDate).toDateString() === todayStr && a.status !== 'cancelled');
+                    const upcoming = appointments.filter(a => new Date(a.appointmentDate) >= now && a.status === 'confirmed');
+                    const completedAll = appointments.filter(a => a.status === 'completed');
+                    const cancelledAll = appointments.filter(a => a.status === 'cancelled');
+                    const byService = Object.values(appointments.reduce((acc, a) => {
+                        const name = a.service?.name || 'Other';
+                        acc[name] = acc[name] || { name, count: 0 };
+                        acc[name].count += 1;
+                        return acc;
+                    }, {})).sort((a, b) => b.count - a.count).slice(0, 6);
+                    const recent = [...appointments].sort((a, b) => new Date(b.appointmentDate) - new Date(a.appointmentDate)).slice(0, 8);
+                    const clientNames = new Set(appointments.map(a => a.customer?._id || a.walkInName).filter(Boolean));
+                    return (
+                        <div>
+                            <div style={{ marginBottom: '1.5rem' }}>
+                                <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>Business Overview</h2>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>Your bookings at a glance</p>
                             </div>
-                        ) : earnings ? (
-                            <>
-                                <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
-                                    {[
-                                        { label: 'Total Earned', value: `$${earnings.totalEarned.toLocaleString()}`, icon: '💰', sub: 'All time' },
-                                        { label: 'This Month', value: `$${earnings.thisMonthEarned.toLocaleString()}`, icon: '📅', sub: `Last month: $${earnings.lastMonthEarned}` },
-                                        { label: 'Completed Jobs', value: earnings.completedCount, icon: '✅', sub: 'Total completed' },
-                                        { label: 'Growth', value: `${earnings.growth >= 0 ? '+' : ''}${earnings.growth}%`, icon: '📈', sub: 'vs last month' },
-                                    ].map((s, i) => (
-                                        <div key={i} style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                            <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
-                                            <div>
-                                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{s.label}</p>
-                                                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
-                                                {s.sub && <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{s.sub}</p>}
-                                            </div>
+
+                            <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+                                {[
+                                    { label: "Today's Bookings", value: todays.length, icon: '📅', sub: 'Scheduled today' },
+                                    { label: 'Upcoming', value: upcoming.length, icon: '⏳', sub: 'Confirmed ahead' },
+                                    { label: 'Completed', value: completedAll.length, icon: '✅', sub: 'All time' },
+                                    { label: 'Clients Served', value: clientNames.size, icon: '👥', sub: `${cancelledAll.length} cancellations` },
+                                ].map((s, i) => (
+                                    <div key={i} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                        <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
+                                        <div>
+                                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{s.label}</p>
+                                            <p style={{ fontFamily: 'Outfit, sans-serif', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
+                                            {s.sub && <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{s.sub}</p>}
                                         </div>
-                                    ))}
-                                </div>
-
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
-                                    <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
-                                        <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>Earnings by Service</h3>
-                                        {earnings.earningsByService.length === 0 ? (
-                                            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No completed paid appointments yet</p>
-                                        ) : (
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
-                                                {earnings.earningsByService.map((s, i) => {
-                                                    const max = earnings.earningsByService[0]?.total || 1;
-                                                    return (
-                                                        <div key={i}>
-                                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                                                                <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: '500' }}>{s.name}</span>
-                                                                <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                                                                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{s.count} job{s.count !== 1 ? 's' : ''}</span>
-                                                                    <span style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--charcoal)' }}>${s.total}</span>
-                                                                </div>
-                                                            </div>
-                                                            <div style={{ height: '6px', borderRadius: '99px', background: 'var(--warm-gray)', overflow: 'hidden' }}>
-                                                                <div style={{ height: '100%', borderRadius: '99px', background: 'var(--gold)', width: `${(s.total / max) * 100}%`, transition: 'width 0.5s ease' }} />
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })}
-                                            </div>
-                                        )}
                                     </div>
+                                ))}
+                            </div>
 
-                                    <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
-                                        <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>Monthly Comparison</h3>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                                            {[
-                                                { label: 'This Month', value: earnings.thisMonthEarned, color: 'var(--gold)' },
-                                                { label: 'Last Month', value: earnings.lastMonthEarned, color: 'var(--charcoal)' },
-                                            ].map((item, i) => {
-                                                const max = Math.max(earnings.thisMonthEarned, earnings.lastMonthEarned, 1);
+                            <div className="provider-profile-two-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                                <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
+                                    <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>Popular Services</h3>
+                                    {byService.length === 0 ? (
+                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No bookings yet</p>
+                                    ) : (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                                            {byService.map((s, i) => {
+                                                const max = byService[0]?.count || 1;
                                                 return (
                                                     <div key={i}>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.5rem' }}>
-                                                            <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: '500' }}>{item.label}</span>
-                                                            <span style={{ fontSize: '1rem', fontWeight: '700', color: 'var(--charcoal)' }}>${item.value}</span>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
+                                                            <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: '500' }}>{s.name}</span>
+                                                            <span style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--charcoal)' }}>{s.count} booking{s.count !== 1 ? 's' : ''}</span>
                                                         </div>
-                                                        <div style={{ height: '10px', borderRadius: '99px', background: 'var(--warm-gray)', overflow: 'hidden' }}>
-                                                            <div style={{ height: '100%', borderRadius: '99px', background: item.color, width: `${(item.value / max) * 100}%`, transition: 'width 0.5s ease' }} />
+                                                        <div style={{ height: '6px', borderRadius: '99px', background: 'var(--warm-gray)', overflow: 'hidden' }}>
+                                                            <div style={{ height: '100%', borderRadius: '99px', background: 'var(--gold)', width: `${(s.count / max) * 100}%`, transition: 'width 0.5s ease' }} />
                                                         </div>
                                                     </div>
                                                 );
                                             })}
-                                            <div style={{ paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
-                                                <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)' }}>
-                                                    {earnings.growth >= 0 ? '📈' : '📉'} {Math.abs(earnings.growth)}% {earnings.growth >= 0 ? 'increase' : 'decrease'} from last month
-                                                </p>
-                                            </div>
-                                        </div>
-                                    </div>
-                                </div>
-
-                                <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
-                                    <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
-                                        <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)' }}>Recent Transactions</h3>
-                                    </div>
-                                    {earnings.recentTransactions.length === 0 ? (
-                                        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}><p>No transactions yet</p></div>
-                                    ) : (
-                                        <div className="table-scroll">
-                                            <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                                                <thead>
-                                                    <tr style={{ background: 'var(--warm-gray)', borderBottom: '1px solid var(--border)' }}>
-                                                        {['Customer', 'Service', 'Date', 'Amount', 'Status'].map(h => (
-                                                            <th key={h} style={{ padding: '0.875rem 1rem', textAlign: 'left', fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
-                                                        ))}
-                                                    </tr>
-                                                </thead>
-                                                <tbody>
-                                                    {earnings.recentTransactions.map((t, i) => (
-                                                        <tr key={t._id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'white' : 'rgba(250,250,248,0.5)' }}>
-                                                            <td style={{ padding: '0.875rem 1rem', fontWeight: '600', color: 'var(--charcoal)' }}>{t.customerName}</td>
-                                                            <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{t.serviceName}</td>
-                                                            <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{new Date(t.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
-                                                            <td style={{ padding: '0.875rem 1rem', fontWeight: '700', color: 'var(--charcoal)' }}>${t.amount}</td>
-                                                            <td style={{ padding: '0.875rem 1rem' }}>
-                                                                <span style={{ padding: '0.2rem 0.65rem', borderRadius: '99px', fontSize: '0.72rem', fontWeight: '600', background: t.paymentStatus === 'paid' ? '#d1fae5' : '#fef3c7', color: t.paymentStatus === 'paid' ? '#065f46' : '#92400e' }}>
-                                                                    {t.paymentStatus === 'paid' ? 'Paid' : 'Pending'}
-                                                                </span>
-                                                            </td>
-                                                        </tr>
-                                                    ))}
-                                                </tbody>
-                                            </table>
                                         </div>
                                     )}
                                 </div>
-                            </>
-                        ) : (
-                            <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>
-                                <p>Failed to load earnings data</p>
+
+                                <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
+                                    <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>Booking Status</h3>
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                        {['pending', 'confirmed', 'completed', 'cancelled'].map(st => {
+                                            const cnt = appointments.filter(a => a.status === st).length;
+                                            const total = Math.max(appointments.length, 1);
+                                            const cfg = statusConfig[st];
+                                            return (
+                                                <div key={st}>
+                                                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
+                                                        <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: '500', textTransform: 'capitalize' }}>{cfg?.label || st}</span>
+                                                        <span style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--charcoal)' }}>{cnt}</span>
+                                                    </div>
+                                                    <div style={{ height: '8px', borderRadius: '99px', background: 'var(--warm-gray)', overflow: 'hidden' }}>
+                                                        <div style={{ height: '100%', borderRadius: '99px', background: cfg?.bg || 'var(--gold)', width: `${(cnt / total) * 100}%`, transition: 'width 0.5s ease' }} />
+                                                    </div>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
                             </div>
-                        )}
-                    </div>
-                )}
+
+                            <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                                <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
+                                    <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)' }}>Recent Activity</h3>
+                                </div>
+                                {recent.length === 0 ? (
+                                    <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}><p>No bookings yet</p></div>
+                                ) : (
+                                    <div className="table-scroll">
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                                            <thead>
+                                                <tr style={{ background: 'var(--warm-gray)', borderBottom: '1px solid var(--border)' }}>
+                                                    {['Client', 'Service', 'Date', 'Time', 'Status'].map(h => (
+                                                        <th key={h} style={{ padding: '0.875rem 1rem', textAlign: 'left', fontSize: '0.7rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase' }}>{h}</th>
+                                                    ))}
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {recent.map((a) => {
+                                                    const cfg = statusConfig[a.status] || statusConfig.pending;
+                                                    return (
+                                                        <tr key={a._id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                            <td style={{ padding: '0.875rem 1rem', fontWeight: '600', color: 'var(--charcoal)' }}>{a.walkInName || a.customer?.name || '—'}</td>
+                                                            <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{a.service?.name}</td>
+                                                            <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{new Date(a.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
+                                                            <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{a.startTime} – {a.endTime}</td>
+                                                            <td style={{ padding: '0.875rem 1rem' }}>
+                                                                <span style={{ padding: '0.2rem 0.65rem', borderRadius: '99px', fontSize: '0.72rem', fontWeight: '600', background: cfg.bg, color: cfg.color }}>{cfg.label}</span>
+                                                            </td>
+                                                        </tr>
+                                                    );
+                                                })}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+                        </div>
+                    );
+                })()}
 
                 {/* Calendar tab */}
                 {activeTab === 'calendar' && (
@@ -2449,7 +2430,7 @@ const ProviderDashboard = () => {
                                     <div key={i} onClick={() => openConversation(conv)} style={{ padding: '0.875rem 1.25rem', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: selectedConversation?.appointment?._id === conv.appointment?._id ? 'rgba(201,168,76,0.06)' : 'white', transition: 'background 0.1s' }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
                                             <span style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.875rem' }}>{conv.appointment?.customer?.name || conv.lastMessage?.sender?.name}</span>
-                                            {conv.unread > 0 && <span style={{ background: 'var(--gold)', color: 'var(--charcoal)', fontSize: '0.68rem', fontWeight: '700', padding: '0.1rem 0.45rem', borderRadius: '99px' }}>{conv.unread}</span>}
+                                            {conv.unread > 0 && <span style={{ background: 'var(--gold)', color: 'var(--ink)', fontSize: '0.68rem', fontWeight: '700', padding: '0.1rem 0.45rem', borderRadius: '99px' }}>{conv.unread}</span>}
                                         </div>
                                         <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conv.lastMessage?.content}</div>
                                         <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>{conv.appointment?.service?.name}</div>
@@ -2498,7 +2479,7 @@ const ProviderDashboard = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                         <div>
                             <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.5rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Memberships</h2>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.25rem' }}>Multi-session plans clients can purchase and redeem over time.</p>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.25rem' }}>Multi-session plans clients can enroll in and redeem over time.</p>
                         </div>
                         <button onClick={() => { setShowPackageForm(true); setPackageForm({ name: '', description: '', price: '', totalSessions: '', validityDays: '365' }); }} className="btn-primary" style={{ padding: '0.65rem 1.25rem', fontSize: '0.875rem' }}>+ New Membership</button>
                     </div>
@@ -2538,7 +2519,7 @@ const ProviderDashboard = () => {
                         <div style={{ textAlign: 'center', padding: '5rem 2rem', color: 'var(--text-muted)', background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', marginTop: '1.5rem' }}>
                             <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🪪</div>
                             <p style={{ fontWeight: '600', fontSize: '1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No membership plans yet</p>
-                            <p style={{ fontSize: '0.875rem' }}>Create plans that let clients pre-purchase sessions at a discounted rate.</p>
+                            <p style={{ fontSize: '0.875rem' }}>Create plans that let clients enroll in multi-session bundles.</p>
                         </div>
                     ) : (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '1.25rem', marginTop: '1.5rem' }}>
@@ -2722,7 +2703,7 @@ const ProviderDashboard = () => {
                 <>
                     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1001, backdropFilter: 'blur(2px)' }} onClick={() => setShowApptModal(false)} />
                     <div className="modal-center" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '420px', maxWidth: '95vw', background: 'white', borderRadius: 'var(--radius)', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', zIndex: 1002, overflow: 'hidden' }}>
-                        <div style={{ background: 'var(--charcoal)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <div>
                                 <h2 style={{ fontFamily: 'Cormorant Garamond, serif', color: 'var(--gold)', fontSize: '1.25rem', fontWeight: '700', margin: '0 0 0.15rem' }}>New Appointment</h2>
                                 <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', margin: 0 }}>Book a slot for a client</p>
@@ -2864,7 +2845,7 @@ const ProviderDashboard = () => {
                     <div onClick={closeBlockedTimeForm} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1001, backdropFilter: 'blur(2px)' }} />
                     <div className="block-time-panel" style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '400px', maxWidth: '95vw', background: 'var(--card-bg)', boxShadow: '-8px 0 40px rgba(0,0,0,0.18)', zIndex: 1002, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
                         {/* Panel header */}
-                        <div style={{ background: 'var(--charcoal)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                        <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                             <div>
                                 <h2 style={{ fontFamily: 'Cormorant Garamond, serif', color: 'var(--gold)', fontSize: '1.25rem', fontWeight: '700', margin: '0 0 0.2rem' }}>
                                     {editingBlockedTime ? 'Edit Blocked Time' : 'Add blocked time'}
@@ -3017,7 +2998,7 @@ const ProviderDashboard = () => {
                     <div onClick={() => setApptDetailModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1001, backdropFilter: 'blur(2px)' }} />
                     <div className="block-time-panel" style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '400px', maxWidth: '95vw', background: 'var(--card-bg)', boxShadow: '-8px 0 40px rgba(0,0,0,0.18)', zIndex: 1002, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
                         {/* Header */}
-                        <div style={{ background: 'var(--charcoal)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+                        <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                             <div>
                                 <h2 style={{ fontFamily: 'Cormorant Garamond, serif', color: 'var(--gold)', fontSize: '1.25rem', fontWeight: '700', margin: '0 0 0.2rem' }}>Appointment</h2>
                                 <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', margin: 0, fontFamily: 'Outfit, sans-serif' }}>{apptDetailModal.service?.name}</p>
@@ -3067,7 +3048,7 @@ const ProviderDashboard = () => {
                                     <button
                                         onClick={() => handleProviderReschedule(apptDetailModal._id, apptRescheduleForm.appointmentDate, apptRescheduleForm.startTime)}
                                         disabled={savingApptDetail || !apptRescheduleForm.appointmentDate || !apptRescheduleForm.startTime}
-                                        style={{ width: '100%', padding: '0.75rem', background: 'var(--charcoal)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', cursor: savingApptDetail ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.875rem', opacity: savingApptDetail ? 0.7 : 1 }}
+                                        style={{ width: '100%', padding: '0.75rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', cursor: savingApptDetail ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.875rem', opacity: savingApptDetail ? 0.7 : 1 }}
                                     >
                                         {savingApptDetail ? 'Saving...' : 'Save new time \u2192'}
                                     </button>
@@ -3109,7 +3090,7 @@ const ProviderDashboard = () => {
                 <>
                     <div onClick={() => setSeriesCancelModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, backdropFilter: 'blur(2px)' }} />
                     <div className="modal-center" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '380px', maxWidth: '95vw', background: 'var(--card-bg)', borderRadius: 'var(--radius)', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', zIndex: 1101, overflow: 'hidden' }}>
-                        <div style={{ background: 'var(--charcoal)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <h2 style={{ fontFamily: 'Cormorant Garamond, serif', color: 'var(--gold)', fontSize: '1.2rem', fontWeight: '700', margin: 0 }}>Cancel recurring appointment</h2>
                             <button onClick={() => setSeriesCancelModal(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0 }}>×</button>
                         </div>

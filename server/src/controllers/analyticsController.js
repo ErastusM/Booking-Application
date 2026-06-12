@@ -12,46 +12,6 @@ exports.getAnalytics = async (req, res) => {
         const last30Days = new Date(now - 30 * 24 * 60 * 60 * 1000);
         const last7Days = new Date(now - 7 * 24 * 60 * 60 * 1000);
 
-        // ── Revenue (single aggregation pass, no full table load into memory) ──
-        const [revResult] = await Appointment.aggregate([
-            { $match: { paymentStatus: 'paid' } },
-            {
-                $group: {
-                    _id: null,
-                    total: { $sum: '$totalPrice' },
-                    thisMonth: {
-                        $sum: { $cond: [{ $gte: ['$createdAt', startOfMonth] }, '$totalPrice', 0] }
-                    },
-                    lastMonth: {
-                        $sum: {
-                            $cond: [
-                                { $and: [{ $gte: ['$createdAt', startOfLastMonth] }, { $lte: ['$createdAt', endOfLastMonth] }] },
-                                '$totalPrice',
-                                0
-                            ]
-                        }
-                    },
-                }
-            }
-        ]);
-        const totalRevenue = revResult?.total || 0;
-        const thisMonthRevenue = revResult?.thisMonth || 0;
-        const lastMonthRevenue = revResult?.lastMonth || 0;
-
-        const revenueGrowth = lastMonthRevenue === 0 ? 100
-            : Math.round(((thisMonthRevenue - lastMonthRevenue) / lastMonthRevenue) * 100);
-
-        // ── Revenue by service ──
-        const revenueByService = await Appointment.aggregate([
-            { $match: { paymentStatus: 'paid' } },
-            { $group: { _id: '$service', total: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
-            { $lookup: { from: 'services', localField: '_id', foreignField: '_id', as: 'service' } },
-            { $unwind: '$service' },
-            { $project: { name: '$service.name', total: 1, count: 1 } },
-            { $sort: { total: -1 } },
-            { $limit: 6 },
-        ]);
-
         // ── Appointments ──
         const totalAppointments = await Appointment.countDocuments();
         const thisMonthAppointments = await Appointment.countDocuments({ createdAt: { $gte: startOfMonth } });
@@ -67,7 +27,6 @@ exports.getAnalytics = async (req, res) => {
                 $group: {
                     _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
                     count: { $sum: 1 },
-                    revenue: { $sum: '$totalPrice' },
                 }
             },
             { $sort: { _id: 1 } },
@@ -83,7 +42,6 @@ exports.getAnalytics = async (req, res) => {
                 date: dateStr,
                 label: date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
                 count: found ? found.count : 0,
-                revenue: found ? found.revenue : 0,
             });
         }
 
@@ -156,8 +114,6 @@ exports.getAnalytics = async (req, res) => {
         res.status(200).json({
             success: true,
             data: {
-                revenue: { total: totalRevenue, thisMonth: thisMonthRevenue, lastMonth: lastMonthRevenue, growth: revenueGrowth },
-                revenueByService,
                 appointments: { total: totalAppointments, thisMonth: thisMonthAppointments, byStatus: appointmentsByStatus },
                 bookingsOverTime: filledBookings,
                 users: { total: totalUsers, customers: totalCustomers, providers: totalProviders, newThisMonth: newUsersThisMonth, newLastWeek: newUsersLastWeek },

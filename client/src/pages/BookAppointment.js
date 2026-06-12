@@ -257,9 +257,9 @@ const BookAppointment = () => {
     const canReview = formData.service && formData.appointmentDate && formData.startTime && !availabilityError && !selectedSlotBooked;
 
     const labelStyle = { display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' };
-    const cardStyle = { background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '2rem', boxShadow: 'var(--shadow-sm)' };
+    const cardStyle = { background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '2rem', boxShadow: 'var(--shadow-sm)' };
     const stepBadge = (num) => (
-        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--gold)', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: '700', flexShrink: 0 }}>{num}</div>
+        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--gold)', color: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: '700', flexShrink: 0 }}>{num}</div>
     );
 
     const formattedDate = formData.appointmentDate
@@ -271,7 +271,7 @@ const BookAppointment = () => {
         return (
             <div style={{ background: 'var(--off-white)', minHeight: '100vh' }}>
                 {/* Header */}
-                <div style={{ background: 'var(--charcoal)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ background: 'var(--ink)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
                     <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 20% 50%, rgba(201,168,76,0.1) 0%, transparent 60%)', pointerEvents: 'none' }} />
                     <div className="container" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         <button onClick={() => setStep('form')} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 'var(--radius-sm)', padding: '0.5rem 1rem', color: 'white', cursor: 'pointer', fontSize: '0.85rem', fontFamily: 'Outfit, sans-serif' }}>&larr; Back</button>
@@ -376,12 +376,13 @@ const BookAppointment = () => {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.35rem' }}>
                                     <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {totalPrice}</span>
                                 </div>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', marginBottom: '1.25rem' }}>To pay in-store</div>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', marginBottom: '1.25rem' }}>Estimated total</div>
                                 <button
                                     onClick={handleConfirm}
                                     disabled={loading}
-                                    style={{ width: '100%', padding: '0.875rem', background: 'var(--charcoal)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.95rem', fontWeight: '600', fontFamily: 'Outfit, sans-serif', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1, letterSpacing: '0.03em' }}
+                                    style={{ width: '100%', padding: '0.875rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.95rem', fontWeight: '600', fontFamily: 'Outfit, sans-serif', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, letterSpacing: '0.03em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem' }}
                                 >
+                                    {loading && <span style={{ display: 'inline-block', width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
                                     {loading ? 'Confirming...' : 'Confirm'}
                                 </button>
                             </div>
@@ -393,9 +394,10 @@ const BookAppointment = () => {
                 <div className="booking-confirm-mobile" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--card-bg)', borderTop: '1px solid var(--border)', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 200, boxShadow: '0 -4px 20px rgba(0,0,0,0.08)' }}>
                     <div>
                         <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {totalPrice}</div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>To pay in-store</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>Estimated total</div>
                     </div>
-                    <button onClick={handleConfirm} disabled={loading} style={{ padding: '0.875rem 2rem', background: 'var(--charcoal)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.95rem', fontWeight: '700', fontFamily: 'Outfit, sans-serif', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
+                    <button onClick={handleConfirm} disabled={loading} style={{ padding: '0.875rem 2rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '700', fontFamily: 'Outfit, sans-serif', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                        {loading && <span style={{ display: 'inline-block', width: '15px', height: '15px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
                         {loading ? 'Confirming...' : 'Confirm'}
                     </button>
                 </div>
@@ -407,7 +409,7 @@ const BookAppointment = () => {
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100vh' }}>
             {/* Header */}
-            <div style={{ background: 'var(--charcoal)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--ink)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 20% 50%, rgba(201,168,76,0.1) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Schedule Your Visit</p>
@@ -637,7 +639,7 @@ const BookAppointment = () => {
                         <button
                             onClick={handleJoinWaitingList}
                             disabled={loading}
-                            style={{ background: 'var(--charcoal)', color: 'white', border: 'none', borderRadius: '99px', padding: '0.75rem 1.5rem', fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap' }}
+                            style={{ background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', padding: '0.75rem 1.5rem', fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap' }}
                         >
                             Join Waitlist
                         </button>
@@ -645,7 +647,7 @@ const BookAppointment = () => {
                         <button
                             onClick={() => { setError(''); setStep('review'); }}
                             disabled={!canReview}
-                            style={{ background: 'var(--charcoal)', color: 'white', border: 'none', borderRadius: '99px', padding: '0.75rem 1.75rem', fontWeight: '600', cursor: canReview ? 'pointer' : 'not-allowed', opacity: canReview ? 1 : 0.5, fontSize: '0.95rem', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap' }}
+                            style={{ background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', padding: '0.75rem 1.75rem', fontWeight: '600', cursor: canReview ? 'pointer' : 'not-allowed', opacity: canReview ? 1 : 0.5, fontSize: '0.95rem', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap' }}
                         >
                             Continue →
                         </button>

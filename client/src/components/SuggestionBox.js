@@ -56,7 +56,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                     style={{
                         position: 'fixed', bottom: '1.5rem', right: '1.5rem',
                         width: '52px', height: '52px', borderRadius: '50%',
-                        background: 'var(--charcoal)', color: 'white',
+                        background: 'var(--ink)', color: 'white',
                         border: '2px solid rgba(201,168,76,0.4)',
                         boxShadow: '0 4px 18px rgba(26,26,46,0.35)',
                         cursor: 'pointer',
@@ -88,7 +88,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                 display: 'flex', flexDirection: 'column', overflowY: 'auto',
             }}>
                 {/* Header */}
-                <div style={{ background: 'var(--charcoal)', padding: '1.5rem 1.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
+                <div style={{ background: 'var(--ink)', padding: '1.5rem 1.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
                     <div>
                         <h2 style={{ fontFamily: 'Cormorant Garamond, serif', color: 'var(--gold)', fontSize: '1.4rem', fontWeight: '700', margin: '0 0 0.25rem' }}>Suggestion Box</h2>
                         <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.8rem', margin: 0 }}>Help us make Bookplus better</p>
@@ -102,7 +102,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎉</div>
                             <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.4rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>Thank you!</h3>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '1.5rem' }}>Your suggestion has been sent to our team. We read every message and appreciate you taking the time.</p>
-                            <button onClick={() => { reset(); doClose(); }} style={{ background: 'var(--charcoal)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', padding: '0.65rem 1.5rem', fontFamily: 'Outfit, sans-serif', fontSize: '0.875rem', fontWeight: '600', cursor: 'pointer' }}>Close</button>
+                            <button onClick={() => { reset(); doClose(); }} style={{ background: 'var(--ink)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', padding: '0.65rem 1.5rem', fontFamily: 'Outfit, sans-serif', fontSize: '0.875rem', fontWeight: '600', cursor: 'pointer' }}>Close</button>
                         </div>
                     ) : (
                         <form onSubmit={handleSubmit}>
@@ -157,7 +157,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                             {/* Sender info (read-only if logged in) */}
                             {user && (
                                 <div style={{ background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '0.75rem 1rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                    <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'var(--charcoal)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)', fontWeight: '700', fontSize: '0.85rem', flexShrink: 0 }}>
+                                    <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)', fontWeight: '700', fontSize: '0.85rem', flexShrink: 0 }}>
                                         {user.avatar ? <img src={user.avatar} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : user.name?.[0]?.toUpperCase()}
                                     </div>
                                     <div>

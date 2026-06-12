@@ -252,47 +252,49 @@ exports.createAppointment = async (req, res) => {
             await appointment.populate(['service', { path: 'customer', select: 'name email' }]);
         }
 
-        // Notify the provider (in-app) and alert admins of the new booking
-        try {
-            const bookingDate = new Date(appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-            if (svc.provider) {
-                await createNotification(
-                    svc.provider,
-                    `New booking: ${req.user.name} booked ${svc.name} on ${bookingDate} at ${startTime}`,
-                    'appointment',
-                    '/dashboard'
-                );
-            }
-            await notifyAdmins(
-                `New booking: ${svc.name} by ${req.user.name} on ${bookingDate} at ${startTime}`,
-                'system',
-                '/bkplus-command'
-            );
-        } catch (_) { /* notifications must not break the booking */ }
-
-        // Send confirmation email immediately
-        try {
-            const dateStr = new Date(appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-            const timeStr = `${startTime} – ${endTime}`;
-            const _pad = (n) => String(n).padStart(2, '0');
-            const _fmt = (d) => `${d.getFullYear()}${_pad(d.getMonth()+1)}${_pad(d.getDate())}T${_pad(d.getHours())}${_pad(d.getMinutes())}00`;
-            const _base = new Date(appointmentDate);
-            const [_sh, _sm] = startTime.split(':').map(Number);
-            const [_eh, _em] = endTime.split(':').map(Number);
-            const _gcalStart = new Date(_base.getFullYear(), _base.getMonth(), _base.getDate(), _sh, _sm);
-            const _gcalEnd = new Date(_base.getFullYear(), _base.getMonth(), _base.getDate(), _eh, _em);
-            const gcalUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(svc.name)}&dates=${_fmt(_gcalStart)}/${_fmt(_gcalEnd)}&details=${encodeURIComponent('Booked via Bookplus')}`;
-            await sendAppointmentConfirmed(
-                req.user.email,
-                req.user.name,
-                svc.name,
-                dateStr,
-                timeStr,
-                gcalUrl
-            );
-        } catch (_) { /* email failure must not break the booking */ }
-
+        // Respond immediately — notifications and email run in the background
         res.status(201).json({ success: true, message: 'Appointment confirmed', data: appointment });
+
+        // Notify the provider (in-app) and alert admins of the new booking (fire-and-forget)
+        setImmediate(async () => {
+            try {
+                const bookingDate = new Date(appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                if (svc.provider) {
+                    await createNotification(
+                        svc.provider,
+                        `New booking: ${req.user.name} booked ${svc.name} on ${bookingDate} at ${startTime}`,
+                        'appointment',
+                        '/dashboard'
+                    );
+                }
+                await notifyAdmins(
+                    `New booking: ${svc.name} by ${req.user.name} on ${bookingDate} at ${startTime}`,
+                    'system',
+                    '/bkplus-command'
+                );
+            } catch (err) { logger.error({ err }, 'Booking notification failed'); }
+
+            try {
+                const dateStr = new Date(appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+                const timeStr = `${startTime} – ${endTime}`;
+                const _pad = (n) => String(n).padStart(2, '0');
+                const _fmt = (d) => `${d.getFullYear()}${_pad(d.getMonth()+1)}${_pad(d.getDate())}T${_pad(d.getHours())}${_pad(d.getMinutes())}00`;
+                const _base = new Date(appointmentDate);
+                const [_sh, _sm] = startTime.split(':').map(Number);
+                const [_eh, _em] = endTime.split(':').map(Number);
+                const _gcalStart = new Date(_base.getFullYear(), _base.getMonth(), _base.getDate(), _sh, _sm);
+                const _gcalEnd = new Date(_base.getFullYear(), _base.getMonth(), _base.getDate(), _eh, _em);
+                const gcalUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(svc.name)}&dates=${_fmt(_gcalStart)}/${_fmt(_gcalEnd)}&details=${encodeURIComponent('Booked via Bookplus')}`;
+                await sendAppointmentConfirmed(
+                    req.user.email,
+                    req.user.name,
+                    svc.name,
+                    dateStr,
+                    timeStr,
+                    gcalUrl
+                );
+            } catch (err) { logger.error({ err }, 'Booking confirmation email failed'); }
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
