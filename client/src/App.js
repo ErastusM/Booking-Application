@@ -1,6 +1,7 @@
 import React from 'react';
 import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
@@ -27,6 +28,7 @@ import TermsOfService from './pages/TermsOfService';
 function App() {
     return (
         <Router>
+            <ThemeProvider>
             <AuthProvider>
                 <Navbar />
                 <Routes>
@@ -93,6 +95,7 @@ function App() {
                     <Route path="/complete-profile" element={<CompleteProfile />} />
                 </Routes>
             </AuthProvider>
+            </ThemeProvider>
         </Router>
     );
 }

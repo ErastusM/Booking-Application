@@ -8,16 +8,18 @@ const BookAppointment = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
 
-    // â”€â”€ data â”€â”€
+    // â"€â"€ data â"€â"€
     const [services, setServices] = useState([]);
     const [providerInfo, setProviderInfo] = useState(null);
 
-    // â”€â”€ selections â”€â”€
+    // â"€â"€ selections â"€â"€
     const [selectedService, setSelectedService] = useState(null);
     const [selectedAddOns, setSelectedAddOns] = useState([]);
+    const [selectedOption, setSelectedOption] = useState(null); // sub-option (mutually exclusive variant)
+    const [optionSheet, setOptionSheet] = useState(null); // service pending option selection
     const [formData, setFormData] = useState({ service: '', appointmentDate: '', startTime: '', endTime: '', notes: '' });
 
-    // â”€â”€ ui state â”€â”€
+    // â"€â"€ ui state â"€â"€
     const [step, setStep] = useState('form'); // 'form' | 'review'
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -25,18 +27,34 @@ const BookAppointment = () => {
     const [availabilityError, setAvailabilityError] = useState('');
     const [bookedSlots, setBookedSlots] = useState([]); // [{startTime, endTime}]
 
+    const effectivePrice    = selectedOption ? selectedOption.price    : (selectedService?.price    ?? 0);
+    const effectiveDuration = selectedOption ? selectedOption.duration : (selectedService?.duration ?? 0);
+
     const totalPrice = selectedService
-        ? selectedService.price + selectedAddOns.reduce((sum, a) => sum + a.price, 0)
+        ? effectivePrice + selectedAddOns.reduce((sum, a) => sum + a.price, 0)
         : 0;
 
     const totalDuration = selectedService
-        ? selectedService.duration + selectedAddOns.reduce((sum, a) => sum + (a.duration || 0), 0)
+        ? effectiveDuration + selectedAddOns.reduce((sum, a) => sum + (a.duration || 0), 0)
         : 0;
 
     const handleServiceSelect = (service) => {
-        setSelectedService(service);
+        if (service.options && service.options.length > 0) {
+            setOptionSheet(service); // show picker first
+        } else {
+            setSelectedService(service);
+            setSelectedOption(null);
+            setSelectedAddOns([]);
+            setFormData(prev => ({ ...prev, service: service._id }));
+        }
+    };
+
+    const handleOptionConfirm = (option) => {
+        setSelectedService(optionSheet);
+        setSelectedOption(option);
         setSelectedAddOns([]);
-        setFormData(prev => ({ ...prev, service: service._id }));
+        setFormData(prev => ({ ...prev, service: optionSheet._id }));
+        setOptionSheet(null);
     };
 
     const toggleAddOn = (addOn) => {
@@ -248,7 +266,7 @@ const BookAppointment = () => {
         ? new Date(formData.appointmentDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })
         : '';
 
-    // â”€â”€â”€ REVIEW SCREEN â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // â"€â"€â"€ REVIEW SCREEN â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     if (step === 'review') {
         return (
             <div style={{ background: 'var(--off-white)', minHeight: '100vh' }}>
@@ -267,7 +285,7 @@ const BookAppointment = () => {
                 <div className="container" style={{ paddingTop: '3rem', paddingBottom: '5rem' }}>
                     {error && <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>{error}</div>}
 
-                    <div className="booking-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 340px', gap: '2rem', alignItems: 'start' }}>
+                    <div className="booking-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 340px', gap: '2rem', alignItems: 'start', paddingBottom: '5rem' }}>
 
                         {/* Left - booking details card */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -286,6 +304,7 @@ const BookAppointment = () => {
                                             <div>
                                                 <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)' }}>{providerInfo.name}</div>
                                                 {providerInfo.providerCategory && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{providerInfo.providerCategory}</div>}
+                                                {providerInfo.businessProfile?.address && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '3px' }}>{providerInfo.businessProfile.address}</div>}
                                             </div>
                                         </div>
                                     </>
@@ -310,10 +329,10 @@ const BookAppointment = () => {
                             <div style={cardStyle}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '1rem', borderBottom: '1px solid var(--border)', marginBottom: '1rem' }}>
                                     <div>
-                                        <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem' }}>{selectedService?.name}</div>
-                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{selectedService?.duration} min{providerInfo ? ` with ${providerInfo.name}` : ''}</div>
+                                        <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem' }}>{selectedService?.name}{selectedOption ? ` — ${selectedOption.name}` : ''}</div>
+                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{effectiveDuration} min{providerInfo ? ` with ${providerInfo.name}` : ''}</div>
                                     </div>
-                                    <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {selectedService?.price}</span>
+                                    <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {effectivePrice}</span>
                                 </div>
                                 {selectedAddOns.map((addOn, i) => (
                                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: i < selectedAddOns.length - 1 ? '1px solid var(--border)' : 'none', marginBottom: i < selectedAddOns.length - 1 ? '0.75rem' : 0 }}>
@@ -333,7 +352,7 @@ const BookAppointment = () => {
                             {/* Cancellation policy */}
                             <div style={cardStyle}>
                                 <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.4rem' }}>Cancellation policy</div>
-                                <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>Cancel for free up to 24 hours before your appointment.</div>
+                                <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>Cancel for free anytime.</div>
                             </div>
 
                             {/* Notes */}
@@ -351,8 +370,8 @@ const BookAppointment = () => {
                             </div>
                         </div>
 
-                        {/* Right - sticky confirm panel */}
-                        <div style={{ position: 'sticky', top: '100px' }}>
+                        {/* Right - sticky confirm panel (desktop only) */}
+                        <div className="booking-confirm-desktop" style={{ position: 'sticky', top: '100px' }}>
                             <div style={{ ...cardStyle, padding: '1.5rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.35rem' }}>
                                     <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {totalPrice}</span>
@@ -369,11 +388,22 @@ const BookAppointment = () => {
                         </div>
                     </div>
                 </div>
+
+                {/* Mobile sticky bottom confirm bar */}
+                <div className="booking-confirm-mobile" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--card-bg)', borderTop: '1px solid var(--border)', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 200, boxShadow: '0 -4px 20px rgba(0,0,0,0.08)' }}>
+                    <div>
+                        <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {totalPrice}</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>To pay in-store</div>
+                    </div>
+                    <button onClick={handleConfirm} disabled={loading} style={{ padding: '0.875rem 2rem', background: 'var(--charcoal)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.95rem', fontWeight: '700', fontFamily: 'Outfit, sans-serif', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.7 : 1 }}>
+                        {loading ? 'Confirming...' : 'Confirm'}
+                    </button>
+                </div>
             </div>
         );
     }
 
-    // â”€â”€â”€ BOOKING FORM â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+    // ─── BOOKING FORM â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100vh' }}>
             {/* Header */}
@@ -622,6 +652,47 @@ const BookAppointment = () => {
                     )}
                 </div>
             )}
+        {/* ── Service options bottom sheet (Fresha-style) ── */}
+        {optionSheet && (
+            <>
+                <div onClick={() => setOptionSheet(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 900, backdropFilter: 'blur(2px)' }} />
+                <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', zIndex: 901, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 -8px 40px rgba(0,0,0,0.2)' }}>
+                    <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                            <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>{optionSheet.name}</h2>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.2rem 0 0' }}>Select an option · Required</p>
+                        </div>
+                        <button onClick={() => setOptionSheet(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.6rem', color: 'var(--text-muted)', lineHeight: 1, padding: 0 }}>×</button>
+                    </div>
+                    <div style={{ padding: '0.5rem 0' }}>
+                        {optionSheet.options.map((opt, i) => (
+                            <button
+                                key={i}
+                                type="button"
+                                onClick={() => handleOptionConfirm(opt)}
+                                style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '1.1rem 1.5rem', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', textAlign: 'left', gap: '1rem' }}
+                            >
+                                <div style={{ flex: 1 }}>
+                                    <div style={{ fontWeight: '600', color: 'var(--charcoal)', fontFamily: 'Outfit, sans-serif', fontSize: '0.95rem' }}>{opt.name}</div>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{opt.duration} min</div>
+                                    {opt.description && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.5 }}>{opt.description}</div>}
+                                    <div style={{ fontWeight: '700', color: 'var(--charcoal)', marginTop: '6px', fontFamily: 'Outfit, sans-serif' }}>NAD {opt.price}</div>
+                                </div>
+                                <div style={{ width: '22px', height: '22px', borderRadius: '50%', border: '2px solid var(--border)', flexShrink: 0, marginTop: '2px' }} />
+                            </button>
+                        ))}
+                    </div>
+                    <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <div>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>from </span>
+                            <span style={{ fontWeight: '700', color: 'var(--charcoal)', fontFamily: 'Outfit, sans-serif' }}>NAD {Math.min(...optionSheet.options.map(o => o.price))}</span>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>{Math.min(...optionSheet.options.map(o => o.duration))} – {Math.max(...optionSheet.options.map(o => o.duration))} min</span>
+                        </div>
+                        <button onClick={() => setOptionSheet(null)} style={{ padding: '0.65rem 1.5rem', background: 'var(--warm-gray)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: '600', color: 'var(--text-secondary)', fontFamily: 'Outfit, sans-serif' }}>Add</button>
+                    </div>
+                </div>
+            </>
+        )}
         </div>
     );
 };

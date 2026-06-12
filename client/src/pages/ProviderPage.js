@@ -16,7 +16,35 @@ const ProvidersPage = () => {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [locationFilter, setLocationFilter] = useState('');
+    const [nearMeLoading, setNearMeLoading] = useState(false);
+    const [nearMeCity, setNearMeCity] = useState(null);
     const navigate = useNavigate();
+
+    const handleNearMe = () => {
+        if (!navigator.geolocation) return;
+        setNearMeLoading(true);
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                try {
+                    const { latitude, longitude } = pos.coords;
+                    const res = await fetch(
+                        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
+                        { headers: { 'Accept-Language': 'en' } }
+                    );
+                    const data = await res.json();
+                    const city = data.address?.city || data.address?.town || data.address?.village || data.address?.state || '';
+                    setNearMeCity(city);
+                    setLocationFilter(city);
+                } catch {
+                    // Silently fail — leave filters unchanged
+                } finally {
+                    setNearMeLoading(false);
+                }
+            },
+            () => setNearMeLoading(false),
+            { timeout: 8000 }
+        );
+    };
 
     useEffect(() => {
         const fetch = async () => {
@@ -96,7 +124,7 @@ const ProvidersPage = () => {
                         <div style={{ flex: 1, minWidth: '160px' }}>
                             <select
                                 value={locationFilter}
-                                onChange={e => setLocationFilter(e.target.value)}
+                                onChange={e => { setLocationFilter(e.target.value); setNearMeCity(null); }}
                                 style={{
                                     width: '100%', padding: '0.875rem 1rem',
                                     border: 'none', borderRadius: 'var(--radius-sm)',
@@ -112,6 +140,24 @@ const ProvidersPage = () => {
                                 ))}
                             </select>
                         </div>
+                        <button
+                            onClick={handleNearMe}
+                            disabled={nearMeLoading}
+                            title="Find providers near your current location"
+                            style={{
+                                padding: '0.875rem 1.25rem', border: 'none', borderRadius: 'var(--radius-sm)',
+                                background: nearMeCity ? 'var(--gold)' : 'white', color: nearMeCity ? 'var(--charcoal)' : 'var(--text-muted)',
+                                boxShadow: 'var(--shadow-md)', cursor: nearMeLoading ? 'not-allowed' : 'pointer',
+                                fontFamily: 'Inter, sans-serif', fontSize: '0.875rem', fontWeight: '600',
+                                whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.4rem',
+                                opacity: nearMeLoading ? 0.7 : 1, transition: 'all 0.2s',
+                            }}
+                        >
+                            {nearMeLoading ? (
+                                <span style={{ display: 'inline-block', width: '14px', height: '14px', border: '2px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                            ) : '📡'}
+                            {nearMeCity ? nearMeCity : 'Near me'}
+                        </button>
                     </div>
                 </div>
             </div>

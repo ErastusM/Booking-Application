@@ -31,6 +31,10 @@ export const appointmentService = {
     updateAppointmentStatus: (id, status) => API.put(`/appointments/${id}/status`, { status }),
     rescheduleAppointment: (id, data) => API.put(`/appointments/${id}/reschedule`, data),
     providerRescheduleAppointment: (id, data) => API.put(`/appointments/${id}/provider-reschedule`, data),
+    cancelAppointmentSeries: (id, deleteMode) => API.delete(`/appointments/${id}/series`, { data: { deleteMode } }),
+    getAppointmentHistory: (params) => API.get('/appointments/history', { params }),
+    createGroupBooking: (data) => API.post('/appointments/group', data),
+    getGroupBooking: (groupId) => API.get(`/appointments/group/${groupId}`),
 };
 
 export const userService = {

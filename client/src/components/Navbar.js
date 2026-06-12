@@ -1,17 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import NotificationBell from './NotificationBell';
 import SuggestionBox from './SuggestionBox';
 
 const Navbar = () => {
     const { user, logout } = useAuthContext();
+    const { darkMode, toggleDarkMode } = useTheme();
     const navigate = useNavigate();
     const location = useLocation();
     const [scrolled, setScrolled] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const [showSuggestion, setShowSuggestion] = useState(false);
-    const [darkMode] = useState(() => localStorage.getItem('darkMode') === 'true');
 
     const isHome = location.pathname === '/';
     const isTransparent = isHome && !scrolled;
@@ -28,11 +29,6 @@ const Navbar = () => {
         document.body.style.overflow = menuOpen ? 'hidden' : '';
         return () => { document.body.style.overflow = ''; };
     }, [menuOpen]);
-
-    useEffect(() => {
-        document.body.classList.toggle('dark-mode', darkMode);
-        localStorage.setItem('darkMode', darkMode);
-    }, [darkMode]);
 
     const handleLogout = () => { setMenuOpen(false); logout(); navigate('/'); };
     const isActive = (path) => location.pathname === path;
@@ -78,11 +74,11 @@ const Navbar = () => {
     return (
     <>
         <nav style={navStyles}>
-            <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '72px' }}>
+            <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '64px' }}>
 
                 {/* Logo */}
-                <Link to="/" style={{ textDecoration: 'none' }}>
-                    <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--gold)', letterSpacing: '-0.02em' }}>
+                <Link to="/" style={{ textDecoration: 'none', flexShrink: 0 }}>
+                    <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--gold)', letterSpacing: '-0.02em' }}>
                         Book<span style={{ color: isTransparent ? 'white' : 'var(--charcoal)' }}>plus</span>
                     </span>
                 </Link>
@@ -99,8 +95,24 @@ const Navbar = () => {
                     {user?.role === 'admin' && navLink('/bkplus-command/insights', 'Analytics')}
                 </div>
 
-                {/* Right side */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }} className="hidden-mobile">
+                {/* Right side desktop */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }} className="hidden-mobile">
+                    {/* Dark mode toggle */}
+                    <button
+                        onClick={toggleDarkMode}
+                        title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                        aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)', padding: '0.4rem', display: 'flex', alignItems: 'center', borderRadius: 'var(--radius-sm)', transition: 'color 0.2s' }}
+                        onMouseEnter={e => e.currentTarget.style.color = 'var(--gold)'}
+                        onMouseLeave={e => e.currentTarget.style.color = isTransparent ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)'}
+                    >
+                        {darkMode ? (
+                            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+                        ) : (
+                            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
+                        )}
+                    </button>
+
                     {user ? (
                         <>
                             <NotificationBell isTransparent={isTransparent} />
@@ -119,7 +131,7 @@ const Navbar = () => {
                                 color: isTransparent ? 'white' : 'var(--text-secondary)',
                                 padding: '0.4rem 1rem', borderRadius: 'var(--radius-sm)',
                                 cursor: 'pointer', fontSize: '0.85rem',
-                                fontFamily: 'Inter, sans-serif', transition: 'all 0.2s ease',
+                                fontFamily: 'Outfit, sans-serif', transition: 'all 0.2s ease',
                             }}
                                 onMouseEnter={e => { e.target.style.borderColor = '#ef4444'; e.target.style.color = '#ef4444'; }}
                                 onMouseLeave={e => { e.target.style.borderColor = isTransparent ? 'rgba(255,255,255,0.4)' : 'var(--border)'; e.target.style.color = isTransparent ? 'white' : 'var(--text-secondary)'; }}
@@ -137,7 +149,7 @@ const Navbar = () => {
 
                 {/* Desktop suggestion button */}
                 {user && (
-                    <button onClick={() => { setShowSuggestion(true); }} className="hidden-mobile" title="Send a suggestion" style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)', padding: '0.4rem', display: 'flex', alignItems: 'center', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--gold)'} onMouseLeave={e => e.currentTarget.style.color = isTransparent ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)'}>
+                    <button onClick={() => setShowSuggestion(true)} className="hidden-mobile" title="Send a suggestion" style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)', padding: '0.4rem', display: 'flex', alignItems: 'center', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--gold)'} onMouseLeave={e => e.currentTarget.style.color = isTransparent ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)'}>
                         <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M22 12h-6l-2 3H10l-2-3H2"/><path strokeLinecap="round" strokeLinejoin="round" d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
                     </button>
                 )}
@@ -157,24 +169,22 @@ const Navbar = () => {
             </div>
         </nav>
 
-        {/* Mobile side drawer — rendered outside nav to avoid iOS clipping */}
+        {/* Mobile side drawer */}
         {menuOpen && (
             <>
                 <div onClick={() => setMenuOpen(false)} className="show-mobile" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.44)', zIndex: 1200, backdropFilter: 'blur(2px)' }} />
-                <aside className="show-mobile" style={{
+                <aside className="show-mobile mobile-drawer" style={{
                     position: 'fixed', top: 0, left: 0, bottom: 0,
                     width: '86vw', maxWidth: '330px',
-                    background: darkMode ? '#12121c' : 'white',
                     zIndex: 1201,
                     display: 'flex', flexDirection: 'column',
                     boxShadow: '12px 0 44px rgba(0,0,0,0.24)',
                     overflowY: 'auto',
-                    transform: 'translateX(0)',
                     animation: 'slideInLeft 0.22s ease-out',
                 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.1rem 1.2rem', borderBottom: '1px solid var(--border)' }}>
                         <Link to="/" onClick={() => setMenuOpen(false)} style={{ textDecoration: 'none' }}>
-                            <span style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.4rem', fontWeight: '700', color: 'var(--gold)', letterSpacing: '-0.02em' }}>
+                            <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.4rem', fontWeight: '700', color: 'var(--gold)', letterSpacing: '-0.02em' }}>
                                 Book<span style={{ color: 'var(--charcoal)' }}>plus</span>
                             </span>
                         </Link>
@@ -200,8 +210,8 @@ const Navbar = () => {
                                     : user.name?.charAt(0).toUpperCase()
                                 }
                             </div>
-                            <div>
-                                <p style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--charcoal)', margin: 0 }}>{user.name}</p>
+                            <div style={{ minWidth: 0 }}>
+                                <p style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--charcoal)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</p>
                                 <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0, textTransform: 'capitalize' }}>{user.role}</p>
                             </div>
                         </div>
@@ -219,9 +229,35 @@ const Navbar = () => {
                         {user && mobileLink(user.role === 'provider' ? '/account' : '/profile', 'My Profile')}
                     </div>
 
+                    {/* Dark mode toggle in drawer */}
+                    <div style={{ padding: '0.75rem 1.2rem', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                            <svg width="16" height="16" fill="none" stroke="var(--text-muted)" strokeWidth="2" viewBox="0 0 24 24">
+                                {darkMode
+                                    ? <><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></>
+                                    : <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+                                }
+                            </svg>
+                            <span style={{ fontSize: '0.9rem', color: 'var(--text-primary)', fontWeight: '500' }}>
+                                {darkMode ? 'Light mode' : 'Dark mode'}
+                            </span>
+                        </div>
+                        <button
+                            onClick={toggleDarkMode}
+                            aria-label="Toggle dark mode"
+                            style={{
+                                width: '48px', height: '26px', borderRadius: '99px', border: 'none', cursor: 'pointer',
+                                background: darkMode ? 'var(--gold)' : '#d1d5db',
+                                position: 'relative', transition: 'background 0.2s', flexShrink: 0,
+                            }}
+                        >
+                            <span style={{ position: 'absolute', top: '3px', left: darkMode ? '25px' : '3px', width: '20px', height: '20px', borderRadius: '50%', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s' }} />
+                        </button>
+                    </div>
+
                     {user && (
-                        <div style={{ padding: '1rem 1.2rem', borderTop: '1px solid var(--border)' }}>
-                            <button onClick={handleLogout} style={{ width: '100%', padding: '0.78rem', background: '#fee2e2', border: 'none', borderRadius: 'var(--radius-sm)', color: '#dc2626', fontWeight: '600', cursor: 'pointer', fontFamily: 'Inter, sans-serif', fontSize: '0.9rem' }}>
+                        <div style={{ padding: '1rem 1.2rem' }}>
+                            <button onClick={handleLogout} style={{ width: '100%', padding: '0.78rem', background: '#fee2e2', border: 'none', borderRadius: 'var(--radius-sm)', color: '#dc2626', fontWeight: '600', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontSize: '0.9rem' }}>
                                 Logout
                             </button>
                         </div>
@@ -230,12 +266,10 @@ const Navbar = () => {
             </>
         )}
 
-        {/* Mobile bottom navigation bar — only for logged-in users */}
+        {/* Mobile bottom navigation bar */}
         {user && (
-            <div className="show-mobile" style={{
+            <div className="show-mobile bottom-nav" style={{
                 position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 999,
-                background: 'white', borderTop: '1px solid var(--border)',
-                boxShadow: '0 -4px 20px rgba(0,0,0,0.08)',
                 display: 'flex', alignItems: 'stretch',
                 height: '62px', paddingBottom: 'env(safe-area-inset-bottom)',
             }}>
@@ -252,14 +286,12 @@ const Navbar = () => {
                     { to: '/account', icon: (
                         <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                     ), label: 'Account' },
-                ].map(({ to, icon, label }) => {
-                    return (
-                        <Link key={to} to={to} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', textDecoration: 'none', color: isActive(to.split('?')[0]) ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: isActive(to.split('?')[0]) ? '700' : '500', fontFamily: 'Outfit, sans-serif', transition: 'color 0.15s' }}>
-                            <span style={{ color: isActive(to.split('?')[0]) ? 'var(--gold)' : 'var(--text-muted)', display: 'flex' }}>{icon}</span>
-                            {label}
-                        </Link>
-                    );
-                })}
+                ].map(({ to, icon, label }) => (
+                    <Link key={to} to={to} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', textDecoration: 'none', color: isActive(to.split('?')[0]) ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: isActive(to.split('?')[0]) ? '700' : '500', fontFamily: 'Outfit, sans-serif', transition: 'color 0.15s' }}>
+                        <span style={{ color: isActive(to.split('?')[0]) ? 'var(--gold)' : 'var(--text-muted)', display: 'flex' }}>{icon}</span>
+                        {label}
+                    </Link>
+                ))}
                 {user.role === 'customer' && [
                     { to: '/', icon: (
                         <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
@@ -288,7 +320,6 @@ const Navbar = () => {
             </div>
         )}
         {user && <SuggestionBox user={user} open={showSuggestion} onClose={() => setShowSuggestion(false)} />}
-        {/* Spacer so content doesn't hide behind bottom nav on mobile */}
         {user && <div className="show-mobile" style={{ height: '62px' }} />}
     </>
     );

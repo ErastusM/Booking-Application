@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { Link } from 'react-router-dom';
 import { authService, reviewService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 const CLOUDINARY_CLOUD = 'dktit6s95';
 const CLOUDINARY_PRESET = 'bookplus';
@@ -36,6 +37,7 @@ const sidebarItems = [
 
 const ProviderAccount = () => {
     const { user, setUser } = useAuthContext();
+    const { darkMode: darkModeOn, toggleDarkMode } = useTheme();
     const [section, setSection] = useState('profile');
 
     // Login & security
@@ -43,7 +45,6 @@ const ProviderAccount = () => {
     const [pwForm, setPwForm] = useState({ current: '', newPwd: '', confirm: '' });
     const [pwSaving, setPwSaving] = useState(false);
     const [pwMsg, setPwMsg] = useState({ text: '', ok: false });
-    const [darkModeOn, setDarkModeOn] = useState(() => localStorage.getItem('darkMode') === 'true');
     const [calendarEmbed, setCalendarEmbed] = useState('');
     const [calendarEmbedSaving, setCalendarEmbedSaving] = useState(false);
     const [calendarEmbedMsg, setCalendarEmbedMsg] = useState('');
@@ -54,11 +55,45 @@ const ProviderAccount = () => {
     }, [user]);
 
     // Profile
-    const [profileForm, setProfileForm] = useState({ name: user?.name || '', phone: user?.phone || '' });
+    const [profileForm, setProfileForm] = useState({ name: user?.name || '', phone: user?.phone || '', address: user?.businessProfile?.address || '' });
     const [avatarUploading, setAvatarUploading] = useState(false);
     const [profileSaving, setProfileSaving] = useState(false);
     const [profileMsg, setProfileMsg] = useState('');
+    const [geoLoading, setGeoLoading] = useState(false);
     const avatarInputRef = useRef();
+
+    const handleDetectLocation = () => {
+        if (!navigator.geolocation) return;
+        setGeoLoading(true);
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                try {
+                    const { latitude, longitude } = pos.coords;
+                    const res = await fetch(
+                        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
+                        { headers: { 'Accept-Language': 'en' } }
+                    );
+                    const data = await res.json();
+                    const addr = data.address || {};
+                    const parts = [
+                        addr.road || addr.pedestrian,
+                        addr.house_number,
+                        addr.suburb || addr.neighbourhood,
+                        addr.city || addr.town || addr.village,
+                        addr.state,
+                        addr.country,
+                    ].filter(Boolean);
+                    setProfileForm(f => ({ ...f, address: parts.join(', ') }));
+                } catch {
+                    // silently fail
+                } finally {
+                    setGeoLoading(false);
+                }
+            },
+            () => setGeoLoading(false),
+            { timeout: 8000 }
+        );
+    };
 
     // Portfolio
     const [portfolio, setPortfolio] = useState({ images: [], instagramUrl: '' });
@@ -203,9 +238,9 @@ const ProviderAccount = () => {
                                 </h1>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem' }}>Edit and manage the content of your online profile</p>
 
-                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', alignItems: 'start' }}>
+                                <div className="provider-profile-two-col">
                                     {/* Left - photo + name */}
-                                    <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '2rem', textAlign: 'center' }}>
+                                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '2rem', textAlign: 'center' }}>
                                         <div style={{ position: 'relative', display: 'inline-block', marginBottom: '1.75rem' }}>
                                             <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)' }}>
                                                 {user?.avatar
@@ -234,6 +269,19 @@ const ProviderAccount = () => {
                                                 <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Phone</label>
                                                 <input value={profileForm.phone} onChange={e => setProfileForm(p => ({ ...p, phone: e.target.value }))} className="input" />
                                             </div>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Business Address</label>
+                                                <button
+                                                    type="button"
+                                                    onClick={handleDetectLocation}
+                                                    disabled={geoLoading}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.75rem', marginBottom: '0.5rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(201,168,76,0.08)', color: 'var(--gold-dark)', fontSize: '0.75rem', fontWeight: '600', cursor: geoLoading ? 'not-allowed' : 'pointer', opacity: geoLoading ? 0.7 : 1 }}
+                                                >
+                                                    {geoLoading ? <span style={{ display: 'inline-block', width: '11px', height: '11px', border: '2px solid rgba(201,168,76,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /> : '📡'}
+                                                    {geoLoading ? 'Detecting…' : 'Use current location'}
+                                                </button>
+                                                <textarea value={profileForm.address} onChange={e => setProfileForm(p => ({ ...p, address: e.target.value }))} className="input" rows={2} placeholder="e.g. 12 Independence Ave, Windhoek" style={{ resize: 'vertical', fontSize: '0.875rem' }} />
+                                            </div>
                                             {profileMsg && <p style={{ fontSize: '0.8rem', color: profileMsg.includes('fail') ? '#ef4444' : '#065f46' }}>{profileMsg}</p>}
                                             <button type="submit" disabled={profileSaving} className="btn-primary" style={{ padding: '0.65rem 1.5rem', fontSize: '0.875rem' }}>
                                                 {profileSaving ? 'Saving...' : 'Save changes'}
@@ -243,29 +291,29 @@ const ProviderAccount = () => {
 
                                     {/* Right - info cards */}
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                                        <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
+                                        <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
                                             <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.1rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '1rem' }}>Account details</h3>
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-                                                    <span style={{ color: 'var(--text-muted)' }}>Email</span>
-                                                    <span style={{ color: 'var(--text-secondary)', fontWeight: '500' }}>{user?.email}</span>
+                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                                <div className="acct-detail-row">
+                                                    <span className="acct-label">Email</span>
+                                                    <span className="acct-value">{user?.email}</span>
                                                 </div>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-                                                    <span style={{ color: 'var(--text-muted)' }}>Phone</span>
-                                                    <span style={{ color: 'var(--text-secondary)', fontWeight: '500' }}>{user?.phone}</span>
+                                                <div className="acct-detail-row">
+                                                    <span className="acct-label">Phone</span>
+                                                    <span className="acct-value">{user?.phone}</span>
                                                 </div>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-                                                    <span style={{ color: 'var(--text-muted)' }}>Category</span>
-                                                    <span style={{ color: 'var(--text-secondary)', fontWeight: '500' }}>{user?.providerCategory || '—'}</span>
+                                                <div className="acct-detail-row">
+                                                    <span className="acct-label">Category</span>
+                                                    <span className="acct-value">{user?.providerCategory || '—'}</span>
                                                 </div>
-                                                <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.875rem' }}>
-                                                    <span style={{ color: 'var(--text-muted)' }}>Verified</span>
-                                                    <span style={{ color: user?.isVerified ? '#065f46' : '#92400e', fontWeight: '600' }}>{user?.isVerified ? 'Yes' : 'Pending email'}</span>
+                                                <div className="acct-detail-row">
+                                                    <span className="acct-label">Verified</span>
+                                                    <span className="acct-value" style={{ color: user?.isVerified ? '#065f46' : '#92400e', fontWeight: '600' }}>{user?.isVerified ? 'Verified' : 'Pending'}</span>
                                                 </div>
                                             </div>
                                         </div>
 
-                                        <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
+                                        <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
                                             <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.1rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>Online profile visibility</h3>
                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>Your profile is visible to clients searching for providers on Bookplus.</p>
                                             <Link to={`/providers/${user?.id}`} target="_blank" style={{ color: 'var(--gold-dark)', fontWeight: '600', textDecoration: 'none', fontSize: '0.875rem' }}>View public profile →</Link>
@@ -286,7 +334,7 @@ const ProviderAccount = () => {
                                 ) : (
                                     <>
                                         {/* Upload images */}
-                                        <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1.5rem' }}>
+                                        <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1.5rem' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
                                                 <h3 style={{ fontFamily: 'Inter, sans-serif', fontWeight: '600', color: 'var(--charcoal)' }}>Images ({portfolio.images.length}/30)</h3>
                                                 <button onClick={() => portfolioInputRef.current?.click()} disabled={portfolioSaving} className="btn-primary" style={{ padding: '0.5rem 1.25rem', fontSize: '0.875rem' }}>
@@ -354,7 +402,7 @@ const ProviderAccount = () => {
                                 {reviewsLoading ? (
                                     <p style={{ color: 'var(--text-muted)' }}>Loading...</p>
                                 ) : reviews.length === 0 ? (
-                                    <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '5rem 2rem', textAlign: 'center' }}>
+                                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '5rem 2rem', textAlign: 'center' }}>
                                         <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>⭐</div>
                                         <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.4rem', fontWeight: '600' }}>No reviews yet</p>
                                         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Clients have not provided feedback for their appointments yet.</p>
@@ -362,7 +410,7 @@ const ProviderAccount = () => {
                                 ) : (
                                     <>
                                         {avgRating && (
-                                            <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                            <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                                 <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '3rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{avgRating}</span>
                                                 <div>
                                                     <Stars rating={Math.round(avgRating)} />
@@ -372,7 +420,7 @@ const ProviderAccount = () => {
                                         )}
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                             {reviews.map(r => (
-                                                <div key={r._id} style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem' }}>
+                                                <div key={r._id} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem' }}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.5rem' }}>
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                                             <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '0.8rem', color: 'var(--charcoal)', flexShrink: 0, overflow: 'hidden' }}>
@@ -411,7 +459,7 @@ const ProviderAccount = () => {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
 
                                     {/* Personal info */}
-                                    <div onClick={() => setSection('profile')} style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', cursor: 'pointer', transition: 'box-shadow 0.2s', display: 'flex', alignItems: 'center', gap: '1.25rem' }}
+                                    <div onClick={() => setSection('profile')} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', cursor: 'pointer', transition: 'box-shadow 0.2s', display: 'flex', alignItems: 'center', gap: '1.25rem' }}
                                         onMouseEnter={e => e.currentTarget.style.boxShadow = 'var(--shadow-md)'}
                                         onMouseLeave={e => e.currentTarget.style.boxShadow = 'var(--shadow-sm)'}
                                     >
@@ -424,7 +472,7 @@ const ProviderAccount = () => {
                                     </div>
 
                                     {/* Login & security */}
-                                    <div style={{ background: 'white', borderRadius: 'var(--radius)', border: `1px solid ${settingsOpen === 'security' ? 'var(--gold)' : 'var(--border)'}`, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: `1px solid ${settingsOpen === 'security' ? 'var(--gold)' : 'var(--border)'}`, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                                         <div onClick={() => setSettingsOpen(s => s === 'security' ? null : 'security')} style={{ padding: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
                                             <div style={{ fontSize: '1.6rem', flexShrink: 0 }}>🔐</div>
                                             <div style={{ flex: 1 }}>
@@ -466,7 +514,7 @@ const ProviderAccount = () => {
                                     </div>
 
                                     {/* Appearance */}
-                                    <div style={{ background: 'white', borderRadius: 'var(--radius)', border: `1px solid ${settingsOpen === 'appearance' ? 'var(--gold)' : 'var(--border)'}`, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: `1px solid ${settingsOpen === 'appearance' ? 'var(--gold)' : 'var(--border)'}`, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                                         <div onClick={() => setSettingsOpen(s => s === 'appearance' ? null : 'appearance')} style={{ padding: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
                                             <div style={{ fontSize: '1.6rem', flexShrink: 0 }}>🎨</div>
                                             <div style={{ flex: 1 }}>
@@ -483,12 +531,7 @@ const ProviderAccount = () => {
                                                         <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{darkModeOn ? 'Currently on' : 'Currently off'}</p>
                                                     </div>
                                                     <button
-                                                        onClick={() => {
-                                                            const next = !darkModeOn;
-                                                            setDarkModeOn(next);
-                                                            localStorage.setItem('darkMode', next);
-                                                            document.body.classList.toggle('dark-mode', next);
-                                                        }}
+                                                        onClick={toggleDarkMode}
                                                         style={{
                                                             width: '52px', height: '28px', borderRadius: '99px', border: 'none', cursor: 'pointer',
                                                             background: darkModeOn ? 'var(--gold)' : '#d1d5db',

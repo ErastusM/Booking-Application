@@ -86,7 +86,7 @@ const Profile = () => {
 
                     {/* Left — avatar card */}
                     <div className="profile-sticky" style={{
-                        background: 'white',
+                        background: 'var(--card-bg)',
                         borderRadius: 'var(--radius)',
                         border: '1px solid var(--border)',
                         boxShadow: 'var(--shadow-sm)',
@@ -149,7 +149,7 @@ const Profile = () => {
 
                     {/* Right — edit form */}
                     <div style={{
-                        background: 'white', borderRadius: 'var(--radius)',
+                        background: 'var(--card-bg)', borderRadius: 'var(--radius)',
                         border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '2rem',
                     }}>
                         <h2 style={{

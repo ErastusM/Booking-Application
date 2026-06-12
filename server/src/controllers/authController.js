@@ -283,7 +283,7 @@ exports.getProfile = async (req, res) => {
  */
 exports.updateProfile = async (req, res) => {
     try {
-        const { name, phone, avatar, providerCategory } = req.body;
+        const { name, phone, avatar, providerCategory, address } = req.body;
 
         const user = await User.findById(req.user.id);
 
@@ -298,6 +298,10 @@ exports.updateProfile = async (req, res) => {
         user.phone = phone || user.phone;
         user.avatar = avatar || user.avatar;
         if (req.body.googleCalendarEmbedUrl !== undefined) user.googleCalendarEmbedUrl = req.body.googleCalendarEmbedUrl.trim();
+
+        if (user.role === 'provider' && address !== undefined) {
+            user.businessProfile.address = address.trim();
+        }
 
         if (user.role === 'provider' && providerCategory !== undefined) {
             if (!MAIN_CATEGORIES.includes(providerCategory)) {

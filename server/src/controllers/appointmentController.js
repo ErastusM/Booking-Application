@@ -1,5 +1,6 @@
 const pino = require('pino');
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+const { randomUUID } = require('crypto');
 const Appointment = require('../models/Appointment');
 const Availability = require('../models/Availability');
 const Service = require('../models/Service');
@@ -154,9 +155,19 @@ exports.getMyAppointments = async (req, res) => {
     }
 };
 
+/* Helper: advance a date by one recurrence interval */
+const advanceDate = (date, type) => {
+    const d = new Date(date);
+    if (type === 'daily')   d.setDate(d.getDate() + 1);
+    if (type === 'weekly')  d.setDate(d.getDate() + 7);
+    if (type === 'monthly') d.setMonth(d.getMonth() + 1);
+    return d;
+};
+
 exports.createAppointment = async (req, res) => {
     try {
-        const { service, appointmentDate, startTime, endTime, notes, selectedAddOns, walkInName } = req.body;
+        const { service, appointmentDate, startTime, endTime, notes, selectedAddOns, walkInName,
+                isRecurring, recurrenceType, recurrenceEndDate } = req.body;
         if (!service || !appointmentDate || !startTime || !endTime) {
             return res.status(400).json({ success: false, message: 'Please provide all required fields' });
         }
@@ -203,21 +214,43 @@ exports.createAppointment = async (req, res) => {
             }
         }
 
-        const appointment = await Appointment.create({
+        const basePrice = (svc.price || 0) + (Array.isArray(selectedAddOns) ? selectedAddOns.reduce((sum, a) => sum + (a.price || 0), 0) : 0);
+        const baseDoc = {
             customer: req.user._id,
             service,
             provider: svc.provider || null,
-            appointmentDate: new Date(appointmentDate),
             startTime,
             endTime,
             notes: notes || '',
             selectedAddOns: Array.isArray(selectedAddOns) ? selectedAddOns : [],
-            totalPrice: (svc.price || 0) + (Array.isArray(selectedAddOns) ? selectedAddOns.reduce((sum, a) => sum + (a.price || 0), 0) : 0),
-            // Provider walk-in bookings are immediately confirmed; customer bookings are confirmed too
+            totalPrice: basePrice,
             status: 'confirmed',
             walkInName: isProviderBooking ? (walkInName?.trim() || null) : null,
-        });
-        await appointment.populate(['service', { path: 'customer', select: 'name email' }]);
+        };
+
+        let appointment;
+
+        if (isRecurring && recurrenceType && ['daily', 'weekly', 'monthly'].includes(recurrenceType)) {
+            const groupId = randomUUID();
+            const seriesEnd = recurrenceEndDate ? new Date(recurrenceEndDate) : (() => {
+                const d = new Date(appointmentDate);
+                d.setMonth(d.getMonth() + 3);
+                return d;
+            })();
+            const docs = [];
+            let cur = new Date(appointmentDate);
+            const MAX = 52;
+            while (cur <= seriesEnd && docs.length < MAX) {
+                docs.push({ ...baseDoc, appointmentDate: new Date(cur), isRecurring: true, recurrenceType, recurrenceGroupId: groupId, recurrenceEndDate: seriesEnd });
+                cur = advanceDate(cur, recurrenceType);
+            }
+            const created = await Appointment.insertMany(docs);
+            appointment = created[0];
+            await appointment.populate(['service', { path: 'customer', select: 'name email' }]);
+        } else {
+            appointment = await Appointment.create({ ...baseDoc, appointmentDate: new Date(appointmentDate) });
+            await appointment.populate(['service', { path: 'customer', select: 'name email' }]);
+        }
 
         // Notify the provider (in-app) and alert admins of the new booking
         try {
@@ -324,6 +357,67 @@ exports.cancelAppointment = async (req, res) => {
         }
 
         res.status(200).json({ success: true, message: 'Appointment cancelled successfully', data: appointment });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * DELETE /appointments/:id/series
+ * Provider cancels all or future occurrences of a recurring series.
+ * deleteMode: 'this' | 'thisAndFuture' | 'all'
+ */
+exports.cancelAppointmentSeries = async (req, res) => {
+    try {
+        const appt = await Appointment.findById(req.params.id);
+        if (!appt) return res.status(404).json({ success: false, message: 'Appointment not found' });
+        if (!appt.recurrenceGroupId) return res.status(400).json({ success: false, message: 'Not a recurring appointment' });
+        if (appt.provider?.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+
+        const { deleteMode = 'this' } = req.body;
+        let filter = { recurrenceGroupId: appt.recurrenceGroupId };
+
+        if (deleteMode === 'this') {
+            filter = { _id: appt._id };
+        } else if (deleteMode === 'thisAndFuture') {
+            filter = { recurrenceGroupId: appt.recurrenceGroupId, appointmentDate: { $gte: appt.appointmentDate } };
+        }
+        // 'all' uses the base filter (entire group)
+
+        await Appointment.updateMany(filter, { $set: { status: 'cancelled', cancellationReason: 'Recurring series cancelled' } });
+        res.status(200).json({ success: true, message: 'Series cancelled' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * GET /appointments/history
+ * Provider: returns past (completed/cancelled) appointments sorted newest first.
+ */
+exports.getAppointmentHistory = async (req, res) => {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const query = { provider: req.user._id, appointmentDate: { $lt: today } };
+        const { status } = req.query;
+        if (status) query.status = status;
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const limit = Math.min(50, parseInt(req.query.limit) || 20);
+        const skip = (page - 1) * limit;
+
+        const [appointments, total] = await Promise.all([
+            Appointment.find(query)
+                .populate('customer', 'name email phone avatar')
+                .populate('service', 'name price duration')
+                .sort({ appointmentDate: -1 })
+                .skip(skip)
+                .limit(limit),
+            Appointment.countDocuments(query),
+        ]);
+        res.status(200).json({ success: true, count: appointments.length, total, data: appointments });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -512,6 +606,50 @@ exports.rescheduleAppointment = async (req, res) => {
         }
 
         res.status(200).json({ success: true, data: appointment });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/* --- Group Bookings --- */
+exports.createGroupBooking = async (req, res) => {
+    try {
+        const { service, appointmentDate, startTime, endTime, clients, groupSize, notes } = req.body;
+        if (!clients || !Array.isArray(clients) || clients.length === 0) {
+            return res.status(400).json({ success: false, message: 'At least one client is required' });
+        }
+        const svc = await Service.findById(service);
+        if (!svc) return res.status(404).json({ success: false, message: 'Service not found' });
+        const gid = randomUUID();
+        const docs = clients.map(c => ({
+            customer: c.customerId || null,
+            walkInName: c.customerId ? null : (c.name || 'Group Client'),
+            service,
+            provider: req.user._id,
+            appointmentDate: new Date(appointmentDate),
+            startTime,
+            endTime,
+            totalPrice: svc.price,
+            status: 'confirmed',
+            notes: notes || '',
+            groupId: gid,
+            groupSize: groupSize || clients.length,
+        }));
+        const appointments = await Appointment.insertMany(docs);
+        await createNotification(req.user._id, `Group booking created: ${clients.length} client(s) for ${svc.name}`, 'appointment', '/provider-dashboard?tab=confirmed');
+        res.status(201).json({ success: true, data: appointments });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+exports.getGroupBooking = async (req, res) => {
+    try {
+        const appointments = await Appointment.find({ groupId: req.params.groupId })
+            .populate('customer', 'name email phone')
+            .populate('service', 'name price duration')
+            .sort({ createdAt: 1 });
+        res.status(200).json({ success: true, data: appointments });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

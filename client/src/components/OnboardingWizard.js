@@ -51,6 +51,40 @@ const OnboardingWizard = ({ user, onComplete }) => {
     });
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+    const [geoLoading, setGeoLoading] = useState(false);
+
+    const handleDetectLocation = () => {
+        if (!navigator.geolocation) return;
+        setGeoLoading(true);
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                try {
+                    const { latitude, longitude } = pos.coords;
+                    const res = await fetch(
+                        `https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`,
+                        { headers: { 'Accept-Language': 'en' } }
+                    );
+                    const data = await res.json();
+                    const addr = data.address || {};
+                    const parts = [
+                        addr.road || addr.pedestrian,
+                        addr.house_number,
+                        addr.suburb || addr.neighbourhood,
+                        addr.city || addr.town || addr.village,
+                        addr.state,
+                        addr.country,
+                    ].filter(Boolean);
+                    setForm(f => ({ ...f, address: parts.join(', ') }));
+                } catch {
+                    // silently fail
+                } finally {
+                    setGeoLoading(false);
+                }
+            },
+            () => setGeoLoading(false),
+            { timeout: 8000 }
+        );
+    };
 
     const totalSteps = STEPS.length;
     const progress = Math.round((step / (totalSteps - 1)) * 100);
@@ -201,15 +235,37 @@ const OnboardingWizard = ({ user, onComplete }) => {
                                     </p>
                                 </div>
                             ) : (
-                                <textarea
-                                    autoFocus
-                                    className="input"
-                                    placeholder="e.g. 12 Independence Ave, Windhoek, Namibia"
-                                    value={form.address}
-                                    onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
-                                    rows={3}
-                                    style={{ fontSize: '0.95rem', resize: 'vertical' }}
-                                />
+                                <div>
+                                    <button
+                                        type="button"
+                                        onClick={handleDetectLocation}
+                                        disabled={geoLoading}
+                                        style={{
+                                            display: 'flex', alignItems: 'center', gap: '0.5rem',
+                                            padding: '0.6rem 1.1rem', marginBottom: '0.75rem',
+                                            border: '1.5px solid var(--gold)', borderRadius: 'var(--radius-sm)',
+                                            background: 'rgba(201,168,76,0.08)', color: 'var(--gold-dark)',
+                                            fontFamily: 'Outfit, sans-serif', fontSize: '0.875rem', fontWeight: '600',
+                                            cursor: geoLoading ? 'not-allowed' : 'pointer', opacity: geoLoading ? 0.7 : 1,
+                                        }}
+                                    >
+                                        {geoLoading
+                                            ? <span style={{ display: 'inline-block', width: '14px', height: '14px', border: '2px solid rgba(201,168,76,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                                            : '📡'
+                                        }
+                                        {geoLoading ? 'Detecting location…' : 'Use my current location'}
+                                    </button>
+                                    <textarea
+                                        autoFocus
+                                        className="input"
+                                        placeholder="e.g. 12 Independence Ave, Windhoek, Namibia"
+                                        value={form.address}
+                                        onChange={e => setForm(f => ({ ...f, address: e.target.value }))}
+                                        rows={3}
+                                        style={{ fontSize: '0.95rem', resize: 'vertical' }}
+                                    />
+                                    <p style={{ marginTop: '0.4rem', fontSize: '0.75rem', color: 'var(--text-muted)' }}>GPS fills the address — you can edit it before continuing.</p>
+                                </div>
                             )}
                         </div>
                     )}

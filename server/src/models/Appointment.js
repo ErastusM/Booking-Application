@@ -66,6 +66,14 @@ const appointmentSchema = new mongoose.Schema(
         reminderSent24h: { type: Boolean, default: false },
         reminderSent1h:  { type: Boolean, default: false },
         walkInName: { type: String, default: null },
+        /* Group booking — shared slot for multiple clients */
+        groupId:    { type: String, default: null }, // UUID shared by all appointments in the group
+        groupSize:  { type: Number, default: 1 },    // max participants in the group
+        /* Recurring appointment fields */
+        isRecurring:        { type: Boolean, default: false },
+        recurrenceType:     { type: String, enum: ['daily', 'weekly', 'monthly', null], default: null },
+        recurrenceGroupId:  { type: String, default: null },
+        recurrenceEndDate:  { type: Date, default: null },
     },
     {
         timestamps: true
@@ -79,5 +87,6 @@ appointmentSchema.index({ provider: 1, appointmentDate: -1 });
 appointmentSchema.index({ paymentStatus: 1 });
 appointmentSchema.index({ reminderSent24h: 1, appointmentDate: 1, status: 1 });
 appointmentSchema.index({ reminderSent1h: 1, appointmentDate: 1, status: 1 });
+appointmentSchema.index({ recurrenceGroupId: 1, appointmentDate: 1 });
 
 module.exports = mongoose.model('Appointment', appointmentSchema);

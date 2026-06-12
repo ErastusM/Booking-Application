@@ -1,5 +1,7 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap');
 
+@keyframes spin { to { transform: rotate(360deg); } }
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -22,16 +24,27 @@
   --radius: 14px;
   --radius-sm: 8px;
   --radius-lg: 20px;
+  /* Surface tokens */
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+  --surface-raised: #ffffff;
 }
 
 body.dark-mode {
   --off-white: #0f0f1a;
   --charcoal: #e8e6e1;
-  --border: #2d2d44;
-  --warm-gray: #1a1a2e;
-  --text-primary: #fafaf8;
+  --border: #2a2a42;
+  --warm-gray: #161628;
+  --text-primary: #f0eee8;
   --text-secondary: #9b9baa;
   --text-muted: #6b6b80;
+  --shadow-sm: 0 2px 8px rgba(0,0,0,0.25);
+  --shadow-md: 0 4px 20px rgba(0,0,0,0.35);
+  --shadow-lg: 0 8px 40px rgba(0,0,0,0.45);
+  /* Surface tokens — dark */
+  --card-bg: #16162a;
+  --input-bg: #1e1e35;
+  --surface-raised: #1e1e35;
   background: #0f0f1a;
 }
 
@@ -121,7 +134,7 @@ p, li, label, input, textarea, select, button, a {
 .btn-danger:active { transform: translateY(0) scale(0.98); }
 
 .card {
-  background: white;
+  background: var(--card-bg);
   border-radius: var(--radius);
   box-shadow: var(--shadow-sm);
   border: 1px solid var(--border);
@@ -137,8 +150,8 @@ p, li, label, input, textarea, select, button, a {
   font-family: 'Outfit', sans-serif;
   font-size: 0.95rem;
   color: var(--text-primary);
-  background: white;
-  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+  background: var(--input-bg);
+  transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
   outline: none;
 }
 .input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,76,0.12); }
@@ -377,6 +390,113 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
 
 @media (min-width: 769px) {
   .show-mobile { display: none !important; }
+}
+
+/* ── Dark mode surface overrides ──
+   For pages that use inline background: white, this provides broad coverage */
+body.dark-mode .card,
+body.dark-mode [class*="card"] { background: var(--card-bg); }
+
+body.dark-mode .input,
+body.dark-mode input:not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"]),
+body.dark-mode textarea,
+body.dark-mode select { background: var(--input-bg) !important; color: var(--text-primary) !important; border-color: var(--border) !important; }
+
+body.dark-mode select option { background: var(--card-bg); color: var(--text-primary); }
+
+/* Broad surface coverage — any element explicitly set to white via class */
+body.dark-mode .surface-white,
+body.dark-mode .bg-white { background: var(--card-bg) !important; }
+
+/* ── Bottom navigation bar ── */
+.bottom-nav {
+  background: var(--card-bg);
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
+}
+body.dark-mode .bottom-nav {
+  box-shadow: 0 -4px 20px rgba(0,0,0,0.35);
+}
+
+/* ── Mobile drawer ── */
+.mobile-drawer {
+  background: var(--card-bg);
+}
+
+/* ── Block time panel — right sidebar on desktop, bottom sheet on mobile ── */
+@media (max-width: 640px) {
+  .block-time-panel {
+    top: auto !important;
+    right: 0 !important;
+    left: 0 !important;
+    bottom: 0 !important;
+    width: 100% !important;
+    max-width: 100% !important;
+    max-height: 90vh;
+    border-radius: 20px 20px 0 0;
+    box-shadow: 0 -8px 40px rgba(0,0,0,0.22) !important;
+  }
+}
+
+/* ── Account details row — prevents text overflow on mobile ── */
+.acct-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.875rem;
+}
+.acct-detail-row .acct-label {
+  color: var(--text-muted);
+  flex-shrink: 0;
+}
+.acct-detail-row .acct-value {
+  color: var(--text-secondary);
+  font-weight: 500;
+  text-align: right;
+  word-break: break-all;
+  min-width: 0;
+}
+
+/* ── Provider profile two-column grid — stacks on mobile ── */
+.provider-profile-two-col {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1.5rem;
+  align-items: start;
+}
+
+@media (max-width: 640px) {
+  .provider-profile-two-col {
+    grid-template-columns: 1fr !important;
+  }
+  .acct-detail-row {
+    flex-direction: column;
+    gap: 0.15rem;
+  }
+  .acct-detail-row .acct-value {
+    text-align: left;
+    word-break: break-all;
+  }
+}
+
+/* ── Booking review page — responsive ── */
+.booking-confirm-mobile { display: none; }
+.booking-confirm-desktop { display: block; }
+
+@media (max-width: 768px) {
+  .booking-grid {
+    grid-template-columns: 1fr !important;
+  }
+  .booking-confirm-desktop { display: none !important; }
+  .booking-confirm-mobile { display: flex !important; }
+}
+
+/* ── Booking mobile bar — dark mode ── */
+body.dark-mode .booking-mobile-bar,
+body.dark-mode .booking-confirm-mobile {
+  background: var(--card-bg);
+  border-top-color: var(--border);
 }
 
 /* ──────────────────────────────────────────────────

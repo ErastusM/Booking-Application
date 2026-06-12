@@ -32,7 +32,7 @@ const ProviderDashboard = () => {
     const [showServiceForm, setShowServiceForm] = useState(false);
     const [editingService, setEditingService] = useState(null);
     const [savingService, setSavingService] = useState(false);
-    const [serviceForm, setServiceForm] = useState({ name: '', description: '', price: '', duration: '', location: '', address: '', category: '' });
+    const [serviceForm, setServiceForm] = useState({ name: '', description: '', price: '', duration: '', location: '', address: '', category: '', options: [] });
     const [categories, setCategories] = useState([]);
     const [newCategoryName, setNewCategoryName] = useState('');
     const [showCategoryForm, setShowCategoryForm] = useState(false);
@@ -52,9 +52,17 @@ const ProviderDashboard = () => {
     const [timeSelectionPreview, setTimeSelectionPreview] = useState(null);
     const [recurringMode, setRecurringMode] = useState('this');
     const [showApptModal, setShowApptModal] = useState(false);
-    const [apptForm, setApptForm] = useState({ serviceId: '', date: '', startTime: '', clientName: '', notes: '' });
+    const [apptForm, setApptForm] = useState({ serviceId: '', date: '', startTime: '', clientName: '', notes: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', isGroup: false, groupClients: [{ name: '' }] });
     const [savingAppt, setSavingAppt] = useState(false);
     const [apptError, setApptError] = useState('');
+    // Appointment history
+    const [history, setHistory] = useState([]);
+    const [historyLoading, setHistoryLoading] = useState(false);
+    const [historyPage, setHistoryPage] = useState(1);
+    const [historyTotal, setHistoryTotal] = useState(0);
+    // Recurring series cancel modal
+    const [seriesCancelModal, setSeriesCancelModal] = useState(null); // { appt, mode }
+    const [seriesCancelMode, setSeriesCancelMode] = useState('this');
     const [dragState, setDragState] = useState({ active: false, date: null, startY: 0, endY: 0 });
     const [apptDrag, setApptDrag] = useState({ active: false, appt: null, offsetY: 0, currentY: 0, colDate: null, moved: false });
     const [apptDetailModal, setApptDetailModal] = useState(null);
@@ -104,7 +112,7 @@ const ProviderDashboard = () => {
 
     useEffect(() => {
         const tab = new URLSearchParams(location.search).get('tab');
-        const validTabs = ['calendar', 'pending', 'confirmed', 'completed', 'cancelled', 'services', 'availability', 'earnings', 'clients', 'messages', 'memberships', 'team'];
+        const validTabs = ['calendar', 'pending', 'confirmed', 'completed', 'cancelled', 'history', 'services', 'availability', 'earnings', 'clients', 'messages', 'memberships', 'team'];
         if (tab && validTabs.includes(tab)) {
             setActiveTab(tab);
             setSelectedDay(null);
@@ -138,6 +146,7 @@ const ProviderDashboard = () => {
         if (activeTab === 'messages' && conversations.length === 0) fetchConversations();
         if (activeTab === 'memberships' && myPackages.length === 0) fetchMyPackages();
         if (activeTab === 'team' && teamMembers.length === 0) fetchTeam();
+        if (activeTab === 'history' && history.length === 0) fetchHistory(1);
     }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const fetchAppointments = async () => {
@@ -405,6 +414,26 @@ const ProviderDashboard = () => {
         } catch { /* ignore */ } finally { setLoadingTeam(false); }
     };
 
+    const fetchHistory = async (page = 1) => {
+        setHistoryLoading(true);
+        try {
+            const res = await appointmentService.getAppointmentHistory({ page, limit: 20 });
+            setHistory(page === 1 ? (res.data.data || []) : prev => [...prev, ...(res.data.data || [])]);
+            setHistoryTotal(res.data.total || 0);
+            setHistoryPage(page);
+        } catch { /* ignore */ } finally { setHistoryLoading(false); }
+    };
+
+    const handleSeriesCancel = async () => {
+        if (!seriesCancelModal) return;
+        try {
+            await appointmentService.cancelAppointmentSeries(seriesCancelModal._id, seriesCancelMode);
+            const res = await appointmentService.getAllAppointments();
+            setAppointments(res.data.data || []);
+            setSeriesCancelModal(null);
+        } catch { /* ignore */ }
+    };
+
     const openAddMember = () => {
         setEditingMember(null);
         setTeamForm({ name: '', role: 'Staff', email: '', phone: '', color: '#c9a84c' });
@@ -527,7 +556,7 @@ const ProviderDashboard = () => {
 
     const handleEditService = (s) => {
         setEditingService(s);
-        setServiceForm({ name: s.name, description: s.description, price: s.price, duration: s.duration, location: s.location || '', address: s.address || '', category: s.category?._id || s.category || '' });
+        setServiceForm({ name: s.name, description: s.description, price: s.price, duration: s.duration, location: s.location || '', address: s.address || '', category: s.category?._id || s.category || '', options: s.options || [] });
         setShowServiceForm(true);
     };
 
@@ -852,6 +881,15 @@ const ProviderDashboard = () => {
                             )}
                         </button>
                     ))}
+                    {/* History tab */}
+                    <button onClick={() => setActiveTab('history')} style={{
+                        padding: '0.65rem 1rem', background: activeTab === 'history' ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)', border: '1px solid',
+                        borderColor: activeTab === 'history' ? 'var(--gold)' : 'var(--border)',
+                        borderRadius: '999px', color: activeTab === 'history' ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                        fontWeight: activeTab === 'history' ? '700' : '500', fontSize: '0.85rem',
+                        cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                        transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
+                    }}>🕐 History</button>
                     {/* Other feature tabs */}
                     {[['services','✂️ Catalogue'],['availability','🗓 Availability'],['earnings','💵 Earnings'],['clients','👥 Clients'],['messages','💬 Messages'],['memberships','🪪 Memberships'],['team','👤 Team']].map(([tab, label]) => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
@@ -897,7 +935,10 @@ const ProviderDashboard = () => {
                                             </div>
                                             <div>
                                                 <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.35rem' }}>Service</p>
-                                                <p style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{a.service?.name}</p>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                                    <p style={{ fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>{a.service?.name}</p>
+                                                    {a.isRecurring && <span title="Recurring appointment" style={{ fontSize: '0.7rem', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark)', borderRadius: '99px', padding: '0.1rem 0.4rem', fontWeight: '700' }}>↻</span>}
+                                                </div>
                                                 <p style={{ color: 'var(--gold-dark)', fontWeight: '600', fontSize: '0.875rem' }}>${a.service?.price} · {a.service?.duration} min</p>
                                             </div>
                                             <div>
@@ -977,6 +1018,55 @@ const ProviderDashboard = () => {
                                         ))}
                                     </select>
                                 </div>
+                                {/* Service options/variants */}
+                                <div style={{ gridColumn: '1 / -1' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                                        <label style={labelStyle}>Sub-options <span style={{ fontWeight: '400', color: 'var(--text-muted)', textTransform: 'none', letterSpacing: 0 }}>(optional — e.g. Adults, Students, Trim & Beard)</span></label>
+                                        <button type="button" onClick={() => setServiceForm(f => ({ ...f, options: [...f.options, { name: '', description: '', price: '', duration: '' }] }))} style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(201,168,76,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add option</button>
+                                    </div>
+                                    {serviceForm.options.length > 0 && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                            {serviceForm.options.map((opt, idx) => (
+                                                <div key={idx} style={{ background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '0.75rem', display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '0.5rem', alignItems: 'start' }}>
+                                                    <div style={{ gridColumn: '1 / 3' }}>
+                                                        <input
+                                                            className="input"
+                                                            placeholder="Option name (e.g. Adults)"
+                                                            value={opt.name}
+                                                            onChange={e => { const o = [...serviceForm.options]; o[idx] = { ...o[idx], name: e.target.value }; setServiceForm(f => ({ ...f, options: o })); }}
+                                                            style={{ fontSize: '0.85rem', marginBottom: '0.4rem' }}
+                                                        />
+                                                        <input
+                                                            className="input"
+                                                            placeholder="Description (optional)"
+                                                            value={opt.description}
+                                                            onChange={e => { const o = [...serviceForm.options]; o[idx] = { ...o[idx], description: e.target.value }; setServiceForm(f => ({ ...f, options: o })); }}
+                                                            style={{ fontSize: '0.82rem' }}
+                                                        />
+                                                    </div>
+                                                    <button type="button" onClick={() => setServiceForm(f => ({ ...f, options: f.options.filter((_, i) => i !== idx) }))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.1rem', paddingTop: '6px' }}>×</button>
+                                                    <input
+                                                        className="input"
+                                                        placeholder="Price (NAD)"
+                                                        type="number"
+                                                        value={opt.price}
+                                                        onChange={e => { const o = [...serviceForm.options]; o[idx] = { ...o[idx], price: e.target.value }; setServiceForm(f => ({ ...f, options: o })); }}
+                                                        style={{ fontSize: '0.85rem' }}
+                                                    />
+                                                    <input
+                                                        className="input"
+                                                        placeholder="Duration (min)"
+                                                        type="number"
+                                                        value={opt.duration}
+                                                        onChange={e => { const o = [...serviceForm.options]; o[idx] = { ...o[idx], duration: e.target.value }; setServiceForm(f => ({ ...f, options: o })); }}
+                                                        style={{ fontSize: '0.85rem' }}
+                                                    />
+                                                </div>
+                                            ))}
+                                        </div>
+                                    )}
+                                </div>
+
                                 <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '0.75rem' }}>
                                     <button type="submit" disabled={savingService} className="btn-primary" style={{ padding: '0.65rem 1.5rem', fontSize: '0.875rem' }}>
                                         {savingService ? 'Saving...' : editingService ? 'Update Service' : 'Add Service'}
@@ -1399,6 +1489,62 @@ const ProviderDashboard = () => {
                                 }}
                             />
                         </div>
+                    </div>
+                )}
+
+                {/* History tab */}
+                {activeTab === 'history' && (
+                    <div>
+                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+                            <div>
+                                <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Appointment History</h2>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>Past appointments sorted newest first</p>
+                            </div>
+                            <span style={{ background: 'var(--warm-gray)', color: 'var(--text-secondary)', padding: '0.3rem 0.85rem', borderRadius: '99px', fontSize: '0.8rem', fontWeight: '600' }}>{historyTotal} total</span>
+                        </div>
+                        {historyLoading && history.length === 0 ? (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '4rem', gap: '0.75rem' }}>
+                                <div style={{ width: '18px', height: '18px', border: '2px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                                <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Loading history...</span>
+                            </div>
+                        ) : history.length === 0 ? (
+                            <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '4rem 2rem', textAlign: 'center' }}>
+                                <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🕐</div>
+                                <p style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.2rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No past appointments yet</p>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Completed and past appointments will appear here.</p>
+                            </div>
+                        ) : (
+                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                {history.map(a => {
+                                    const sc = statusConfig[a.status] || statusConfig.pending;
+                                    return (
+                                        <div key={a._id} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1rem 1.25rem' }}>
+                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
+                                                <div style={{ minWidth: 0 }}>
+                                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
+                                                        <p style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--charcoal)', margin: 0 }}>{a.walkInName || a.customer?.name || '—'}</p>
+                                                        {a.isRecurring && <span title="Recurring" style={{ fontSize: '0.7rem', color: 'var(--gold-dark)', background: 'rgba(201,168,76,0.12)', padding: '0.1rem 0.4rem', borderRadius: '99px', fontWeight: '600' }}>↻ Recurring</span>}
+                                                    </div>
+                                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 0.25rem' }}>{a.service?.name}</p>
+                                                    <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: 0 }}>
+                                                        {a.appointmentDate ? new Date(a.appointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric', year: 'numeric' }) : '—'} · {a.startTime}–{a.endTime}
+                                                    </p>
+                                                </div>
+                                                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem', flexShrink: 0 }}>
+                                                    <span style={{ fontSize: '0.72rem', fontWeight: '700', padding: '0.2rem 0.65rem', borderRadius: '99px', background: sc.bg, color: sc.color, textTransform: 'capitalize' }}>{a.status}</span>
+                                                    <span style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {a.totalPrice || 0}</span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                    );
+                                })}
+                                {history.length < historyTotal && (
+                                    <button onClick={() => fetchHistory(historyPage + 1)} disabled={historyLoading} style={{ width: '100%', padding: '0.85rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-secondary)', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontSize: '0.875rem', fontWeight: '600' }}>
+                                        {historyLoading ? 'Loading...' : 'Load more'}
+                                    </button>
+                                )}
+                            </div>
+                        )}
                     </div>
                 )}
 
@@ -2593,14 +2739,29 @@ const ProviderDashboard = () => {
                             const endTime = `${String(Math.floor(endMins / 60)).padStart(2,'0')}:${String(endMins % 60).padStart(2,'0')}`;
                             setSavingAppt(true);
                             try {
-                                await appointmentService.createAppointment({
-                                    service: apptForm.serviceId,
-                                    appointmentDate: apptForm.date,
-                                    startTime: apptForm.startTime,
-                                    endTime,
-                                    walkInName: apptForm.clientName.trim() || undefined,
-                                    notes: apptForm.notes,
-                                });
+                                if (apptForm.isGroup) {
+                                    const validClients = apptForm.groupClients.filter(c => c.name.trim());
+                                    await appointmentService.createGroupBooking({
+                                        service: apptForm.serviceId,
+                                        appointmentDate: apptForm.date,
+                                        startTime: apptForm.startTime,
+                                        endTime,
+                                        clients: validClients,
+                                        notes: apptForm.notes,
+                                    });
+                                } else {
+                                    await appointmentService.createAppointment({
+                                        service: apptForm.serviceId,
+                                        appointmentDate: apptForm.date,
+                                        startTime: apptForm.startTime,
+                                        endTime,
+                                        walkInName: apptForm.clientName.trim() || undefined,
+                                        notes: apptForm.notes,
+                                        isRecurring: apptForm.isRecurring,
+                                        recurrenceType: apptForm.isRecurring ? apptForm.recurrenceType : undefined,
+                                        recurrenceEndDate: apptForm.isRecurring && apptForm.recurrenceEndDate ? apptForm.recurrenceEndDate : undefined,
+                                    });
+                                }
                                 const res = await appointmentService.getAllAppointments();
                                 setAppointments(res.data.data || []);
                                 setShowApptModal(false);
@@ -2619,9 +2780,33 @@ const ProviderDashboard = () => {
                                     </select>
                                     {myServices.length === 0 && <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.35rem' }}>No services found. Add services in the Catalogue tab first.</p>}
                                 </div>
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional)</span></label>
-                                    <input type="text" value={apptForm.clientName} onChange={e => setApptForm(f => ({ ...f, clientName: e.target.value }))} placeholder="e.g. John Smith" className="input" style={{ width: '100%' }} />
+                                {/* Group booking toggle */}
+                                <div style={{ borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', padding: '0.75rem 1rem', background: apptForm.isGroup ? 'rgba(201,168,76,0.05)' : 'transparent' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: apptForm.isGroup ? '0.75rem' : 0 }}>
+                                        <div>
+                                            <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--charcoal)' }}>Group booking</span>
+                                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>Book multiple clients at once</span>
+                                        </div>
+                                        <button type="button" onClick={() => setApptForm(f => ({ ...f, isGroup: !f.isGroup }))} style={{ width: '36px', height: '20px', borderRadius: '99px', border: 'none', background: apptForm.isGroup ? 'var(--gold)' : '#cbd5e1', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                                            <span style={{ position: 'absolute', top: '2px', left: apptForm.isGroup ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', background: 'white', transition: 'left 0.2s', display: 'block' }} />
+                                        </button>
+                                    </div>
+                                    {apptForm.isGroup ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                            {apptForm.groupClients.map((c, i) => (
+                                                <div key={i} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                                    <input className="input" placeholder={`Client ${i + 1} name`} value={c.name} onChange={e => { const g = [...apptForm.groupClients]; g[i] = { ...g[i], name: e.target.value }; setApptForm(f => ({ ...f, groupClients: g })); }} style={{ flex: 1, fontSize: '0.85rem' }} />
+                                                    {apptForm.groupClients.length > 1 && <button type="button" onClick={() => setApptForm(f => ({ ...f, groupClients: f.groupClients.filter((_, j) => j !== i) }))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1rem' }}>×</button>}
+                                                </div>
+                                            ))}
+                                            <button type="button" onClick={() => setApptForm(f => ({ ...f, groupClients: [...f.groupClients, { name: '' }] }))} style={{ alignSelf: 'flex-start', fontSize: '0.75rem', padding: '0.25rem 0.65rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(201,168,76,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add client</button>
+                                        </div>
+                                    ) : (
+                                        <div>
+                                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional)</span></label>
+                                            <input type="text" value={apptForm.clientName} onChange={e => setApptForm(f => ({ ...f, clientName: e.target.value }))} placeholder="e.g. John Smith" className="input" style={{ width: '100%' }} />
+                                        </div>
+                                    )}
                                 </div>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date</label>
@@ -2635,9 +2820,37 @@ const ProviderDashboard = () => {
                                     <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Notes <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional)</span></label>
                                     <textarea value={apptForm.notes} onChange={e => setApptForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Any notes for this appointment..." className="input" style={{ width: '100%', resize: 'vertical' }} />
                                 </div>
+                                {/* Recurring toggle */}
+                                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: apptForm.isRecurring ? '0.75rem' : 0 }}>
+                                        <div>
+                                            <p style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Repeat appointment</p>
+                                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.1rem 0 0' }}>Schedule this as a recurring series</p>
+                                        </div>
+                                        <button type="button" onClick={() => setApptForm(f => ({ ...f, isRecurring: !f.isRecurring }))} style={{ width: '48px', height: '26px', borderRadius: '99px', border: 'none', cursor: 'pointer', background: apptForm.isRecurring ? 'var(--gold)' : '#d1d5db', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                                            <span style={{ position: 'absolute', top: '3px', left: apptForm.isRecurring ? '25px' : '3px', width: '20px', height: '20px', borderRadius: '50%', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s' }} />
+                                        </button>
+                                    </div>
+                                    {apptForm.isRecurring && (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Frequency</label>
+                                                <select value={apptForm.recurrenceType} onChange={e => setApptForm(f => ({ ...f, recurrenceType: e.target.value }))} className="input" style={{ width: '100%' }}>
+                                                    <option value="daily">Daily</option>
+                                                    <option value="weekly">Weekly</option>
+                                                    <option value="monthly">Monthly</option>
+                                                </select>
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>End date <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional, default 3 months)</span></label>
+                                                <input type="date" value={apptForm.recurrenceEndDate} onChange={e => setApptForm(f => ({ ...f, recurrenceEndDate: e.target.value }))} className="input" style={{ width: '100%' }} min={apptForm.date || new Date().toISOString().split('T')[0]} />
+                                            </div>
+                                        </div>
+                                    )}
+                                </div>
                                 {apptError && <p style={{ color: '#dc2626', fontSize: '0.85rem', margin: 0 }}>{apptError}</p>}
                                 <button type="submit" disabled={savingAppt} style={{ width: '100%', padding: '0.9rem', background: savingAppt ? '#9ca3af' : 'var(--charcoal)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontFamily: 'Outfit, sans-serif', fontSize: '0.95rem', fontWeight: '700', cursor: savingAppt ? 'not-allowed' : 'pointer' }}>
-                                    {savingAppt ? 'Saving...' : 'Book Appointment'}
+                                    {savingAppt ? 'Saving...' : apptForm.isRecurring ? 'Book Recurring Series' : 'Book Appointment'}
                                 </button>
                             </div>
                         </form>
@@ -2649,7 +2862,7 @@ const ProviderDashboard = () => {
             {showBlockedTimeForm && (
                 <>
                     <div onClick={closeBlockedTimeForm} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1001, backdropFilter: 'blur(2px)' }} />
-                    <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '400px', maxWidth: '95vw', background: 'white', boxShadow: '-8px 0 40px rgba(0,0,0,0.18)', zIndex: 1002, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+                    <div className="block-time-panel" style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '400px', maxWidth: '95vw', background: 'var(--card-bg)', boxShadow: '-8px 0 40px rgba(0,0,0,0.18)', zIndex: 1002, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
                         {/* Panel header */}
                         <div style={{ background: 'var(--charcoal)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                             <div>
@@ -2802,7 +3015,7 @@ const ProviderDashboard = () => {
             {apptDetailModal && (
                 <>
                     <div onClick={() => setApptDetailModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1001, backdropFilter: 'blur(2px)' }} />
-                    <div style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '400px', maxWidth: '95vw', background: 'white', boxShadow: '-8px 0 40px rgba(0,0,0,0.18)', zIndex: 1002, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+                    <div className="block-time-panel" style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '400px', maxWidth: '95vw', background: 'var(--card-bg)', boxShadow: '-8px 0 40px rgba(0,0,0,0.18)', zIndex: 1002, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
                         {/* Header */}
                         <div style={{ background: 'var(--charcoal)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                             <div>
@@ -2863,20 +3076,59 @@ const ProviderDashboard = () => {
 
                             <div style={{ flexGrow: 1 }} />
 
-                            {/* Cancel button */}
+                            {/* Cancel button — smart: if recurring, offer series cancel */}
                             {apptDetailModal.status !== 'cancelled' && apptDetailModal.status !== 'completed' && (
-                                <button
-                                    onClick={async () => {
-                                        if (window.confirm('Cancel this appointment?')) {
-                                            await handleStatusUpdate(apptDetailModal._id, 'cancelled');
-                                            setApptDetailModal(null);
-                                        }
-                                    }}
-                                    style={{ width: '100%', padding: '0.875rem', background: 'none', color: '#991b1b', border: '1.5px solid #fca5a5', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.875rem' }}
-                                >
-                                    Cancel appointment
-                                </button>
+                                apptDetailModal.isRecurring ? (
+                                    <button
+                                        onClick={() => { setSeriesCancelModal(apptDetailModal); setSeriesCancelMode('this'); setApptDetailModal(null); }}
+                                        style={{ width: '100%', padding: '0.875rem', background: 'none', color: '#991b1b', border: '1.5px solid #fca5a5', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.875rem' }}
+                                    >
+                                        Cancel appointment…
+                                    </button>
+                                ) : (
+                                    <button
+                                        onClick={async () => {
+                                            if (window.confirm('Cancel this appointment?')) {
+                                                await handleStatusUpdate(apptDetailModal._id, 'cancelled');
+                                                setApptDetailModal(null);
+                                            }
+                                        }}
+                                        style={{ width: '100%', padding: '0.875rem', background: 'none', color: '#991b1b', border: '1.5px solid #fca5a5', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.875rem' }}
+                                    >
+                                        Cancel appointment
+                                    </button>
+                                )
                             )}
+                        </div>
+                    </div>
+                </>
+            )}
+
+            {/* Recurring series cancel modal */}
+            {seriesCancelModal && (
+                <>
+                    <div onClick={() => setSeriesCancelModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, backdropFilter: 'blur(2px)' }} />
+                    <div className="modal-center" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '380px', maxWidth: '95vw', background: 'var(--card-bg)', borderRadius: 'var(--radius)', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', zIndex: 1101, overflow: 'hidden' }}>
+                        <div style={{ background: 'var(--charcoal)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <h2 style={{ fontFamily: 'Cormorant Garamond, serif', color: 'var(--gold)', fontSize: '1.2rem', fontWeight: '700', margin: 0 }}>Cancel recurring appointment</h2>
+                            <button onClick={() => setSeriesCancelModal(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0 }}>×</button>
+                        </div>
+                        <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>This appointment is part of a recurring series. What would you like to cancel?</p>
+                            {[
+                                { value: 'this', label: 'This appointment only' },
+                                { value: 'thisAndFuture', label: 'This and all future occurrences' },
+                                { value: 'all', label: 'All appointments in the series' },
+                            ].map(opt => (
+                                <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', border: `2px solid ${seriesCancelMode === opt.value ? 'var(--gold)' : 'var(--border)'}`, background: seriesCancelMode === opt.value ? 'rgba(201,168,76,0.06)' : 'var(--card-bg)', cursor: 'pointer', transition: 'all 0.15s' }}>
+                                    <input type="radio" value={opt.value} checked={seriesCancelMode === opt.value} onChange={() => setSeriesCancelMode(opt.value)} style={{ accentColor: 'var(--gold)', width: '18px', height: '18px', flexShrink: 0 }} />
+                                    <span style={{ fontSize: '0.9rem', color: 'var(--charcoal)', fontWeight: seriesCancelMode === opt.value ? '600' : '400' }}>{opt.label}</span>
+                                </label>
+                            ))}
+                            <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
+                                <button onClick={() => setSeriesCancelModal(null)} style={{ flex: 1, padding: '0.85rem', background: 'var(--warm-gray)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: '600', color: 'var(--text-secondary)' }}>Keep</button>
+                                <button onClick={handleSeriesCancel} style={{ flex: 1, padding: '0.85rem', background: '#ef4444', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: '700', color: 'white' }}>Cancel</button>
+                            </div>
                         </div>
                     </div>
                 </>
