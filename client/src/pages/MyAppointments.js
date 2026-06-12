@@ -9,6 +9,7 @@ const statusConfig = {
     confirmed: { label: 'Confirmed', bg: '#dbeafe', color: '#1e40af' },
     completed: { label: 'Completed', bg: '#d1fae5', color: '#065f46' },
     cancelled: { label: 'Cancelled', bg: '#fee2e2', color: '#991b1b' },
+    'no-show': { label: 'No-show',   bg: '#ede9fe', color: '#5b21b6' },
 };
 
 const buildGCalUrl = (a) => {

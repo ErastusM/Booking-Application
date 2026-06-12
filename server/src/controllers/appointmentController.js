@@ -182,8 +182,9 @@ exports.createAppointment = async (req, res) => {
         if (providerId) {
             const [newSH, newSM] = startTime.split(':').map(Number);
             const [newEH, newEM] = endTime.split(':').map(Number);
-            const newStart = newSH * 60 + newSM;
-            const newEnd = newEH * 60 + newEM;
+            // Buffer minutes around the new booking are treated as occupied
+            const newStart = newSH * 60 + newSM - (svc.bufferBefore || 0);
+            const newEnd = newEH * 60 + newEM + (svc.bufferAfter || 0);
             const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
             const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
             const existing = await Appointment.find({
@@ -225,6 +226,7 @@ exports.createAppointment = async (req, res) => {
             selectedAddOns: Array.isArray(selectedAddOns) ? selectedAddOns : [],
             totalPrice: basePrice,
             status: 'confirmed',
+            statusHistory: [{ status: 'confirmed', changedBy: req.user._id }],
             walkInName: isProviderBooking ? (walkInName?.trim() || null) : null,
         };
 
@@ -335,6 +337,7 @@ exports.cancelAppointment = async (req, res) => {
         }
         appointment.status = 'cancelled';
         appointment.cancellationReason = req.body.cancellationReason || '';
+        appointment.statusHistory.push({ status: 'cancelled', changedBy: req.user._id });
         await appointment.save();
 
         const { promoteFromWaitingList } = require('../utils/waitingListHelper');
@@ -438,6 +441,7 @@ exports.updateAppointmentStatus = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
         appointment.status = status;
+        appointment.statusHistory.push({ status, changedBy: req.user._id });
         await appointment.save();
 
         // If cancelling via status update, promote waiting list just like direct cancel
@@ -455,6 +459,7 @@ exports.updateAppointmentStatus = async (req, res) => {
             confirmed: `Your appointment for ${appointment.service?.name} has been confirmed!`,
             completed: `Your appointment for ${appointment.service?.name} is marked as completed. Leave a review!`,
             cancelled: `Your appointment for ${appointment.service?.name} has been cancelled.`,
+            'no-show': `You missed your appointment for ${appointment.service?.name}. Contact your provider to rebook.`,
         };
         if (messages[status]) {
             await createNotification(appointment.customer._id, messages[status], 'appointment', '/appointments');

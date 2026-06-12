@@ -44,15 +44,32 @@ exports.createService = async (req, res) => {
     }
 };
 
+// Sanitize provider-supplied sub-options into the schema shape
+const sanitizeOptions = (options) => {
+    if (!Array.isArray(options)) return undefined;
+    return options
+        .filter(o => o && String(o.name || '').trim() && o.price !== '' && o.duration !== '')
+        .map(o => ({
+            name: String(o.name).trim().slice(0, 100),
+            description: String(o.description || '').trim().slice(0, 300),
+            price: Math.max(0, Number(o.price) || 0),
+            duration: Math.max(5, Number(o.duration) || 30),
+        }));
+};
+
 // Provider creates their own service
 exports.createMyService = async (req, res) => {
     try {
-        const { name, description, price, duration, location, address } = req.body;
+        const { name, description, price, duration, location, address, category, options, bufferBefore, bufferAfter } = req.body;
 
         const service = await Service.create({
             name, description, price, duration,
             location: location || '',
             address: address || '',
+            category: category || null,
+            options: sanitizeOptions(options) || [],
+            bufferBefore: Math.min(120, Math.max(0, Number(bufferBefore) || 0)),
+            bufferAfter: Math.min(120, Math.max(0, Number(bufferAfter) || 0)),
             createdBy: req.user._id,
             provider: req.user._id,
         });
@@ -77,8 +94,12 @@ exports.updateService = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
 
-        const { name, description, price, duration, location, address, isActive } = req.body;
+        const { name, description, price, duration, location, address, isActive, category, options, bufferBefore, bufferAfter } = req.body;
         const allowedUpdates = { name, description, price, duration, location, address };
+        if (category !== undefined) allowedUpdates.category = category || null;
+        if (options !== undefined) allowedUpdates.options = sanitizeOptions(options) || [];
+        if (bufferBefore !== undefined) allowedUpdates.bufferBefore = Math.min(120, Math.max(0, Number(bufferBefore) || 0));
+        if (bufferAfter !== undefined) allowedUpdates.bufferAfter = Math.min(120, Math.max(0, Number(bufferAfter) || 0));
         if (req.user.role === 'admin' && isActive !== undefined) allowedUpdates.isActive = isActive;
         Object.keys(allowedUpdates).forEach(k => allowedUpdates[k] === undefined && delete allowedUpdates[k]);
 

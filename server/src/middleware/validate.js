@@ -106,7 +106,7 @@ const updateAppointmentStatusRules = [
         .isMongoId().withMessage('Invalid appointment ID'),
     body('status')
         .notEmpty().withMessage('Status is required')
-        .isIn(['pending', 'confirmed', 'completed', 'cancelled']).withMessage('Invalid status'),
+        .isIn(['pending', 'confirmed', 'completed', 'cancelled', 'no-show']).withMessage('Invalid status'),
     handleValidationErrors,
 ];
 

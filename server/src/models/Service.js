@@ -20,6 +20,9 @@ const serviceSchema = new mongoose.Schema(
             required: [true, 'Please add duration in minutes'],
             default: 30
         },
+        /* Buffer minutes blocked off around each booking (cleanup/prep) */
+        bufferBefore: { type: Number, default: 0, min: 0, max: 120 },
+        bufferAfter:  { type: Number, default: 0, min: 0, max: 120 },
         image: {
             type: String,
             default: null

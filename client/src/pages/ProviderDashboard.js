@@ -13,6 +13,7 @@ const statusConfig = {
     confirmed: { label: 'Confirmed', bg: '#dbeafe', color: '#1e40af' },
     completed: { label: 'Completed', bg: '#d1fae5', color: '#065f46' },
     cancelled: { label: 'Cancelled', bg: '#fee2e2', color: '#991b1b' },
+    'no-show': { label: 'No-show', bg: '#ede9fe', color: '#5b21b6' },
 };
 
 const ProviderDashboard = () => {
@@ -30,7 +31,7 @@ const ProviderDashboard = () => {
     const [showServiceForm, setShowServiceForm] = useState(false);
     const [editingService, setEditingService] = useState(null);
     const [savingService, setSavingService] = useState(false);
-    const [serviceForm, setServiceForm] = useState({ name: '', description: '', price: '', duration: '', location: '', address: '', category: '', options: [] });
+    const [serviceForm, setServiceForm] = useState({ name: '', description: '', price: '', duration: '', bufferBefore: '', bufferAfter: '', location: '', address: '', category: '', options: [] });
     const [categories, setCategories] = useState([]);
     const [newCategoryName, setNewCategoryName] = useState('');
     const [showCategoryForm, setShowCategoryForm] = useState(false);
@@ -531,7 +532,7 @@ const ProviderDashboard = () => {
             await fetchMyServices();
             setShowServiceForm(false);
             setEditingService(null);
-            setServiceForm({ name: '', description: '', price: '', duration: '', location: '', address: '', category: '' });
+            setServiceForm({ name: '', description: '', price: '', duration: '', bufferBefore: '', bufferAfter: '', location: '', address: '', category: '', options: [] });
         } catch {
             setError('Failed to save service');
         } finally {
@@ -541,7 +542,7 @@ const ProviderDashboard = () => {
 
     const handleEditService = (s) => {
         setEditingService(s);
-        setServiceForm({ name: s.name, description: s.description, price: s.price, duration: s.duration, location: s.location || '', address: s.address || '', category: s.category?._id || s.category || '', options: s.options || [] });
+        setServiceForm({ name: s.name, description: s.description, price: s.price, duration: s.duration, bufferBefore: s.bufferBefore || '', bufferAfter: s.bufferAfter || '', location: s.location || '', address: s.address || '', category: s.category?._id || s.category || '', options: s.options || [] });
         setShowServiceForm(true);
     };
 
@@ -629,6 +630,7 @@ const ProviderDashboard = () => {
         confirmed: { bg: '#DBEAFE', text: '#1E40AF', borderColor: '#3B82F6' },
         completed: { bg: '#D1FAE5', text: '#065F46', borderColor: '#10B981' },
         cancelled: { bg: '#FEE2E2', text: '#991B1B', borderColor: '#EF4444' },
+        'no-show': { bg: '#EDE9FE', text: '#5B21B6', borderColor: '#8B5CF6' },
     };
 
     const toDateKey = (dateObj) => {
@@ -959,7 +961,7 @@ const ProviderDashboard = () => {
                                 <h2 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>Service menu</h2>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>View and manage the services offered by your business</p>
                             </div>
-                            <button onClick={() => { setShowServiceForm(!showServiceForm); setEditingService(null); setServiceForm({ name: '', description: '', price: '', duration: '', location: '', address: '', category: '' }); }} className="btn-primary" style={{ padding: '0.65rem 1.25rem', fontSize: '0.875rem' }}>
+                            <button onClick={() => { setShowServiceForm(!showServiceForm); setEditingService(null); setServiceForm({ name: '', description: '', price: '', duration: '', bufferBefore: '', bufferAfter: '', location: '', address: '', category: '', options: [] }); }} className="btn-primary" style={{ padding: '0.65rem 1.25rem', fontSize: '0.875rem' }}>
                                 {showServiceForm ? '✕ Cancel' : '+ Add Service'}
                             </button>
                         </div>
@@ -985,6 +987,14 @@ const ProviderDashboard = () => {
                                 <div>
                                     <label style={labelStyle}>Duration (min)</label>
                                     <input required type="number" value={serviceForm.duration} onChange={e => setServiceForm({ ...serviceForm, duration: e.target.value })} className="input" placeholder="30" />
+                                </div>
+                                <div>
+                                    <label style={labelStyle}>Buffer before (min)</label>
+                                    <input type="number" min="0" max="120" value={serviceForm.bufferBefore} onChange={e => setServiceForm({ ...serviceForm, bufferBefore: e.target.value })} className="input" placeholder="0" />
+                                </div>
+                                <div>
+                                    <label style={labelStyle}>Buffer after (min)</label>
+                                    <input type="number" min="0" max="120" value={serviceForm.bufferAfter} onChange={e => setServiceForm({ ...serviceForm, bufferAfter: e.target.value })} className="input" placeholder="0" />
                                 </div>
                                 <div>
                                     <label style={labelStyle}>City / Area</label>
@@ -3056,6 +3066,37 @@ const ProviderDashboard = () => {
                             )}
 
                             <div style={{ flexGrow: 1 }} />
+
+                            {/* Quick status actions */}
+                            {(apptDetailModal.status === 'pending' || apptDetailModal.status === 'confirmed') && (
+                                <div style={{ display: 'flex', gap: '0.6rem' }}>
+                                    {apptDetailModal.status === 'pending' && (
+                                        <button
+                                            onClick={async () => { await handleStatusUpdate(apptDetailModal._id, 'confirmed'); setApptDetailModal(null); }}
+                                            style={{ flex: 1, padding: '0.8rem', background: '#d1fae5', color: '#065f46', border: '1px solid #6ee7b7', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.85rem' }}
+                                        >
+                                            Confirm
+                                        </button>
+                                    )}
+                                    <button
+                                        onClick={async () => { await handleStatusUpdate(apptDetailModal._id, 'completed'); setApptDetailModal(null); }}
+                                        style={{ flex: 1, padding: '0.8rem', background: 'rgba(201,168,76,0.1)', color: 'var(--gold-dark)', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.85rem' }}
+                                    >
+                                        Complete
+                                    </button>
+                                    <button
+                                        onClick={async () => {
+                                            if (window.confirm('Mark this appointment as a no-show?')) {
+                                                await handleStatusUpdate(apptDetailModal._id, 'no-show');
+                                                setApptDetailModal(null);
+                                            }
+                                        }}
+                                        style={{ flex: 1, padding: '0.8rem', background: '#ede9fe', color: '#5b21b6', border: '1px solid #c4b5fd', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.85rem' }}
+                                    >
+                                        No-show
+                                    </button>
+                                </div>
+                            )}
 
                             {/* Cancel button — smart: if recurring, offer series cancel */}
                             {apptDetailModal.status !== 'cancelled' && apptDetailModal.status !== 'completed' && (
