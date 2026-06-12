@@ -94,10 +94,18 @@ describe('POST /api/auth/register', () => {
         expect(res.body.data.user.isVerified).toBe(false);
     });
 
-    it('provider registration requires valid providerCategory', async () => {
+    it('provider registration requires a providerCategory', async () => {
         const res = await request(app)
             .post('/api/auth/register')
-            .send({ ...validPayload, role: 'provider', providerCategory: 'INVALID_CAT', email: 'p@test.com' });
+            .send({ ...validPayload, role: 'provider', providerCategory: '', email: 'p@test.com' });
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/category/i);
+    });
+
+    it('provider registration rejects an overlong providerCategory', async () => {
+        const res = await request(app)
+            .post('/api/auth/register')
+            .send({ ...validPayload, role: 'provider', providerCategory: 'x'.repeat(101), email: 'p2@test.com' });
         expect(res.status).toBe(400);
         expect(res.body.message).toMatch(/category/i);
     });

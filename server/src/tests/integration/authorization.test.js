@@ -97,10 +97,11 @@ describe('Provider-only routes', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Customer-only routes
+// Booking routes — customers and providers may book (providers create
+// walk-in bookings); the route is authorize('customer', 'provider')
 // ─────────────────────────────────────────────────────────────────────────────
-describe('Customer-only routes', () => {
-    it('POST /api/appointments returns 403 for a provider', async () => {
+describe('Booking routes', () => {
+    it('POST /api/appointments allows a provider (walk-in booking)', async () => {
         const provider = await makeProvider();
         const svc = await makeService(provider._id);
         const tomorrow = new Date();
@@ -113,8 +114,10 @@ describe('Customer-only routes', () => {
                 appointmentDate: tomorrow,
                 startTime: '10:00',
                 endTime: '10:30',
+                walkInName: 'Walk-in Client',
             });
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(201);
+        expect(res.body.data.walkInName).toBe('Walk-in Client');
     });
 });
 

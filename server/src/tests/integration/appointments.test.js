@@ -27,10 +27,18 @@ afterAll(() => testDb.closeDatabase());
 afterEach(() => testDb.clearDatabase());
 
 // Helper to build a valid booking payload
+// Next weekday (Mon-Fri) so the date always falls inside the default
+// availability schedule, which disables weekends. Plain "tomorrow" made
+// this suite flaky when run on Fridays/Saturdays.
 const tomorrow = () => {
     const d = new Date();
-    d.setDate(d.getDate() + 1);
-    return d.toISOString().split('T')[0];
+    do {
+        d.setDate(d.getDate() + 1);
+    } while (d.getDay() === 0 || d.getDay() === 6);
+    // Format from local date parts — toISOString() is UTC and can shift
+    // the calendar day near midnight, landing back on a weekend.
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 
 describe('POST /api/appointments – booking creation', () => {
