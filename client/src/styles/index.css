@@ -379,14 +379,25 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
   .show-mobile { display: none !important; }
 }
 
+/* ──────────────────────────────────────────────────
+   FullCalendar — Fresha-style overrides
+   ────────────────────────────────────────────────── */
 .fc-bookplus-wrapper .fc {
-  font-family: 'Inter', sans-serif;
+  font-family: 'Outfit', sans-serif;
   color: var(--charcoal);
+}
+
+/* Toolbar */
+.fc-bookplus-wrapper .fc-header-toolbar {
+  padding: 1rem 1.25rem 0.75rem;
+  margin-bottom: 0 !important;
+  background: white;
+  border-bottom: 1px solid var(--border);
 }
 
 .fc-bookplus-wrapper .fc-toolbar-title {
   font-family: 'Cormorant Garamond', serif;
-  font-size: 1.35rem;
+  font-size: 1.25rem;
   font-weight: 700;
   color: var(--charcoal);
 }
@@ -399,10 +410,15 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
   text-transform: capitalize;
   font-size: 0.8rem !important;
   font-weight: 600 !important;
+  font-family: 'Outfit', sans-serif !important;
+  border-radius: 8px !important;
+  padding: 0.35rem 0.75rem !important;
+  transition: background 0.15s, border-color 0.15s;
 }
 
 .fc-bookplus-wrapper .fc-button:hover {
   background: var(--warm-gray) !important;
+  border-color: #ccc !important;
 }
 
 .fc-bookplus-wrapper .fc-button-primary:not(:disabled).fc-button-active,
@@ -412,45 +428,214 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
   color: var(--gold-dark) !important;
 }
 
+/* Grid lines */
 .fc-bookplus-wrapper .fc-theme-standard td,
 .fc-bookplus-wrapper .fc-theme-standard th,
 .fc-bookplus-wrapper .fc-theme-standard .fc-scrollgrid {
-  border-color: var(--border);
+  border-color: #f0ede8;
+}
+
+/* Column header (day names) */
+.fc-bookplus-wrapper .fc-col-header {
+  background: white;
 }
 
 .fc-bookplus-wrapper .fc-col-header-cell {
-  background: var(--warm-gray);
+  background: white;
+  border-bottom: 2px solid #f0ede8 !important;
+  padding: 0.6rem 0 !important;
 }
 
-.fc-bookplus-wrapper .fc-timegrid-slot-label,
-.fc-bookplus-wrapper .fc-col-header-cell-cushion,
-.fc-bookplus-wrapper .fc-daygrid-day-number {
+.fc-bookplus-wrapper .fc-col-header-cell-cushion {
+  font-size: 0.78rem;
+  font-weight: 700;
   color: var(--text-secondary);
-  font-weight: 600;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  text-decoration: none !important;
 }
 
+/* Today column highlight */
+.fc-bookplus-wrapper .fc-day-today {
+  background: rgba(201, 168, 76, 0.04) !important;
+}
+
+.fc-bookplus-wrapper .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
+  color: var(--gold-dark);
+}
+
+/* Time labels */
+.fc-bookplus-wrapper .fc-timegrid-slot-label-cushion {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #aaa;
+  padding-right: 0.75rem;
+  text-transform: uppercase;
+}
+
+/* Slot rows — minor lines thinner */
+.fc-bookplus-wrapper .fc-timegrid-slot-minor {
+  border-top-color: #f6f4f0 !important;
+}
+
+/* Now indicator */
+.fc-bookplus-wrapper .fc-timegrid-now-indicator-line {
+  border-color: #e05252;
+  border-width: 2px;
+}
+
+.fc-bookplus-wrapper .fc-timegrid-now-indicator-arrow {
+  border-top-color: #e05252;
+  border-bottom-color: #e05252;
+}
+
+/* Events — base */
 .fc-bookplus-wrapper .fc-event {
-  border-radius: 6px;
-  border: none;
-  padding: 1px 2px;
+  border-radius: 8px !important;
+  border: none !important;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.10);
+  padding: 0 !important;
+  overflow: hidden;
+  cursor: pointer;
+  transition: box-shadow 0.15s, transform 0.1s;
+}
+
+.fc-bookplus-wrapper .fc-event:hover {
+  box-shadow: 0 3px 10px rgba(0,0,0,0.16);
+  transform: translateY(-1px);
+}
+
+/* Dragging */
+.fc-bookplus-wrapper .fc-event.fc-event-dragging {
+  opacity: 0.85;
+  box-shadow: 0 6px 20px rgba(0,0,0,0.2);
+  transform: scale(1.02);
+}
+
+/* Mirror (ghost while dragging) */
+.fc-bookplus-wrapper .fc-timegrid-event-harness-inset .fc-event {
+  box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+}
+
+/* Custom event content — appointment */
+.fc-event-appt {
+  padding: 5px 8px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  overflow: hidden;
+}
+
+.fc-event-appt-time {
+  font-size: 0.68rem;
+  font-weight: 700;
+  opacity: 0.75;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fc-event-appt-client {
+  font-size: 0.8rem;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  line-height: 1.2;
+}
+
+.fc-event-appt-service {
+  font-size: 0.72rem;
+  opacity: 0.8;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Blocked time event */
+.fc-event-blocked {
+  padding: 4px 8px;
+  height: 100%;
+  display: flex;
+  align-items: center;
+  font-size: 0.75rem;
+  font-weight: 600;
+  opacity: 0.7;
+}
+
+/* Day-grid (month view) events */
+.fc-bookplus-wrapper .fc-daygrid-event {
+  border-radius: 4px !important;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 1px 5px !important;
+  margin: 1px 2px !important;
+}
+
+.fc-bookplus-wrapper .fc-daygrid-day-number {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--text-secondary);
+  text-decoration: none !important;
+  padding: 6px 8px !important;
+}
+
+.fc-bookplus-wrapper .fc-daygrid-day.fc-day-today .fc-daygrid-day-number {
+  background: var(--gold);
+  color: var(--charcoal);
+  border-radius: 50%;
+  width: 26px;
+  height: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+}
+
+/* Select mirror (what you see while drawing) */
+.fc-bookplus-wrapper .fc-highlight {
+  background: rgba(201, 168, 76, 0.15) !important;
+  border: 2px dashed var(--gold) !important;
+  border-radius: 8px;
+}
+
+/* Scrollbar in time grid */
+.fc-bookplus-wrapper .fc-scroller::-webkit-scrollbar {
+  width: 4px;
+}
+.fc-bookplus-wrapper .fc-scroller::-webkit-scrollbar-thumb {
+  background: #ddd;
+  border-radius: 4px;
 }
 
 @media (max-width: 768px) {
-  .fc-bookplus-wrapper .fc-toolbar {
-    flex-wrap: wrap;
+  .fc-bookplus-wrapper .fc-header-toolbar {
+    flex-direction: column;
+    align-items: flex-start;
     gap: 0.5rem;
+    padding: 0.75rem 1rem;
   }
 
   .fc-bookplus-wrapper .fc-toolbar-title {
     font-size: 1.05rem;
   }
 
-  .fc-bookplus-wrapper .fc-header-toolbar.fc-toolbar {
-    padding: 0.5rem;
-    margin-bottom: 0.4rem;
+  .fc-bookplus-wrapper .fc-toolbar-chunk {
+    display: flex;
+    gap: 0.4rem;
   }
 
-  .fc-bookplus-wrapper .fc-daygrid-event {
-    font-size: 0.7rem;
+  .fc-bookplus-wrapper .fc-button {
+    font-size: 0.75rem !important;
+    padding: 0.3rem 0.6rem !important;
+  }
+
+  .fc-event-appt-client {
+    font-size: 0.75rem;
+  }
+
+  .fc-event-appt-service {
+    display: none;
   }
 }

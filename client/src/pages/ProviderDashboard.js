@@ -39,7 +39,7 @@ const ProviderDashboard = () => {
     const [catalogueCategory, setCatalogueCategory] = useState('all');
     const [catalogueSearch, setCatalogueSearch] = useState('');
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [calendarView, setCalendarView] = useState('month');
+    const [calendarView, setCalendarView] = useState('day');
     const [selectedDay, setSelectedDay] = useState(null);
     const [viewMenuOpen, setViewMenuOpen] = useState(false);
     const [addMenuOpen, setAddMenuOpen] = useState(false);
@@ -611,10 +611,10 @@ const ProviderDashboard = () => {
     };
 
     const statusCalendarColors = {
-        pending:   { bg: '#FAC775', text: '#633806' },
-        confirmed: { bg: '#B5D4F4', text: '#0C447C' },
-        completed: { bg: '#C0DD97', text: '#27500A' },
-        cancelled: { bg: '#F7C1C1', text: '#791F1F' },
+        pending:   { bg: '#FEF3C7', text: '#92400E', borderColor: '#F59E0B' },
+        confirmed: { bg: '#DBEAFE', text: '#1E40AF', borderColor: '#3B82F6' },
+        completed: { bg: '#D1FAE5', text: '#065F46', borderColor: '#10B981' },
+        cancelled: { bg: '#FEE2E2', text: '#991B1B', borderColor: '#EF4444' },
     };
 
     const toDateKey = (dateObj) => {
@@ -646,15 +646,19 @@ const ProviderDashboard = () => {
         if (!start || !end) return null;
         return {
             id: `appt_${a._id}`,
-            title: `${a.startTime} ${a.service?.name || 'Appointment'}`,
+            title: a.service?.name || 'Appointment',
             start,
             end,
             backgroundColor: colors.bg,
-            borderColor: colors.bg,
+            borderColor: colors.borderColor || colors.bg,
             textColor: colors.text,
             extendedProps: {
                 kind: 'appointment',
                 appointmentId: a._id,
+                customerName: a.customer?.name || '',
+                startTime: a.startTime,
+                endTime: a.endTime,
+                status: a.status,
                 raw: a,
             },
         };
@@ -1321,7 +1325,7 @@ const ProviderDashboard = () => {
                                             cursor: 'pointer',
                                             fontSize: '0.82rem',
                                             fontWeight: calendarView === view ? '700' : '500',
-                                            fontFamily: 'Inter, sans-serif',
+                                            fontFamily: 'Outfit, sans-serif',
                                         }}
                                     >
                                         {label}
@@ -1357,7 +1361,7 @@ const ProviderDashboard = () => {
                                 initialView={getFullCalendarView()}
                                 initialDate={currentDate}
                                 headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
-                                height="auto"
+                                height={calendarView === 'month' ? 'auto' : 680}
                                 events={fullCalendarEvents}
                                 selectable
                                 selectMirror
@@ -1365,12 +1369,34 @@ const ProviderDashboard = () => {
                                 eventDurationEditable={false}
                                 dayMaxEvents={3}
                                 slotMinTime="07:00:00"
-                                slotMaxTime="23:00:00"
+                                slotMaxTime="22:00:00"
+                                slotDuration="00:15:00"
+                                slotLabelInterval="01:00:00"
+                                slotLabelFormat={{ hour: 'numeric', minute: '2-digit', meridiem: 'short' }}
                                 allDaySlot={false}
+                                nowIndicator
+                                scrollTime={`${new Date().getHours().toString().padStart(2,'0')}:00:00`}
                                 select={handleFullCalendarSelect}
                                 eventClick={handleFullCalendarEventClick}
                                 eventDrop={handleFullCalendarEventDrop}
                                 datesSet={(arg) => setCurrentDate(arg.start)}
+                                eventContent={(arg) => {
+                                    const { kind, customerName, startTime, endTime } = arg.event.extendedProps;
+                                    if (kind !== 'appointment') {
+                                        return (
+                                            <div className="fc-event-blocked">
+                                                <span>{arg.event.title}</span>
+                                            </div>
+                                        );
+                                    }
+                                    return (
+                                        <div className="fc-event-appt">
+                                            <div className="fc-event-appt-time">{startTime}{endTime ? ` – ${endTime}` : ''}</div>
+                                            <div className="fc-event-appt-client">{customerName}</div>
+                                            <div className="fc-event-appt-service">{arg.event.title}</div>
+                                        </div>
+                                    );
+                                }}
                             />
                         </div>
                     </div>
