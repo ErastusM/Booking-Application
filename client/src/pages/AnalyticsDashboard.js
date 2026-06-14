@@ -79,7 +79,7 @@ const MiniStat = ({ label, value, sub, icon, trend }) => (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>{label}</p>
-                <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.8rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{value}</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.8rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{value}</p>
                 {sub && <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>{sub}</p>}
             </div>
             <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>
@@ -99,7 +99,7 @@ const MiniStat = ({ label, value, sub, icon, trend }) => (
 const Card = ({ title, children, style }) => (
     <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', ...style }}>
         {title && (
-            <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>
+            <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>
                 {title}
             </h3>
         )}
@@ -170,9 +170,9 @@ const AnalyticsDashboard = () => {
                 <div className="container" style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '1rem' }}>
                     <div>
                         <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Insights</p>
-                        <h1 style={{ fontFamily: 'Inter, sans-serif', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'white' }}>Analytics</h1>
+                        <h1 style={{ fontFamily: 'var(--font-body)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'white' }}>Analytics</h1>
                     </div>
-                    <button onClick={fetchAnalytics} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '0.5rem 1.25rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.85rem', fontFamily: 'Inter, sans-serif' }}>
+                    <button onClick={fetchAnalytics} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '0.5rem 1.25rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.85rem', fontFamily: 'var(--font-body)' }}>
                         ↻ Refresh
                     </button>
                 </div>
@@ -198,7 +198,7 @@ const AnalyticsDashboard = () => {
                 {/* ── Time series chart ── */}
                 <Card title="" style={{ marginBottom: '1.5rem' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-                        <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)' }}>
+                        <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)' }}>
                             Last 30 Days
                         </h3>
                         <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -212,7 +212,7 @@ const AnalyticsDashboard = () => {
                                     background: chartMode === m.key ? 'rgba(201,168,76,0.1)' : 'transparent',
                                     color: chartMode === m.key ? 'var(--gold-dark)' : 'var(--text-muted)',
                                     fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer',
-                                    fontFamily: 'Inter, sans-serif',
+                                    fontFamily: 'var(--font-body)',
                                 }}>
                                     {m.label}
                                 </button>

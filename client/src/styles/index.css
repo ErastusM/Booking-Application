@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=Cormorant+Garamond:wght@500;600;700&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
 @keyframes spin { to { transform: rotate(360deg); } }
 
@@ -45,6 +45,9 @@
   /* --ink never flips: dark surfaces (hero headers, primary buttons) stay dark in both modes */
   --ink: #1a1a2e;
   --on-ink: #fafaf8;
+  /* One elegant sans for the whole product — no serif/sans mixing */
+  --font-display: 'Outfit', sans-serif;
+  --font-body: 'Outfit', sans-serif;
   /* Semantic status tokens */
   --success: #10b981; --success-bg: #d1fae5; --success-fg: #065f46;
   --info: #3b82f6;    --info-bg: #dbeafe;    --info-fg: #1e40af;
@@ -88,9 +91,9 @@ body {
 }
 
 h1, h2, h3, h4 {
-  font-family: 'Cormorant Garamond', serif;
-  letter-spacing: -0.02em;
-  font-weight: 700;
+  font-family: var(--font-display);
+  letter-spacing: -0.025em;
+  font-weight: 600;
   text-wrap: balance;
   color: var(--charcoal);
 }
@@ -111,38 +114,38 @@ p, li, label, input, textarea, select, button, a {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  background: var(--gold);
-  color: var(--charcoal);
-  font-family: 'Outfit', sans-serif;
+  background: var(--ink);
+  color: var(--on-ink);
+  font-family: var(--font-body);
   font-weight: 600;
   font-size: 0.9rem;
   padding: 0.75rem 1.75rem;
-  border-radius: var(--radius-sm);
+  border-radius: var(--radius-pill);
   border: none;
   cursor: pointer;
-  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 160ms ease, box-shadow 160ms ease, color 160ms ease, border-color 160ms ease;
+  transition: transform 160ms var(--ease-out), background-color 160ms ease, box-shadow 160ms ease, color 160ms ease, border-color 160ms ease;
   letter-spacing: 0.01em;
 }
-.btn-primary:hover { background: var(--gold-light); transform: translateY(-1px); box-shadow: var(--shadow-md); }
+.btn-primary:hover { background: #24243f; transform: translateY(-1px); box-shadow: var(--shadow-md); }
 .btn-primary:active { transform: translateY(0) scale(0.98); }
-.btn-primary:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
 .btn-outline {
   display: inline-flex;
   align-items: center;
   justify-content: center;
   background: transparent;
-  color: var(--gold);
-  font-family: 'Outfit', sans-serif;
+  color: var(--charcoal);
+  font-family: var(--font-body);
   font-weight: 600;
   font-size: 0.9rem;
   padding: 0.75rem 1.75rem;
-  border-radius: var(--radius-sm);
-  border: 2px solid var(--gold);
+  border-radius: var(--radius-pill);
+  border: 1.5px solid var(--border);
   cursor: pointer;
-  transition: transform 160ms cubic-bezier(0.23, 1, 0.32, 1), background-color 160ms ease, box-shadow 160ms ease, color 160ms ease, border-color 160ms ease;
+  transition: transform 160ms var(--ease-out), background-color 160ms ease, box-shadow 160ms ease, color 160ms ease, border-color 160ms ease;
 }
-.btn-outline:hover { background: var(--gold); color: var(--charcoal); transform: translateY(-1px); }
+.btn-outline:hover { background: var(--surface-sunken); border-color: var(--charcoal); transform: translateY(-1px); }
 .btn-outline:active { transform: translateY(0) scale(0.98); }
 
 .btn-danger {
@@ -583,7 +586,7 @@ body.dark-mode .booking-confirm-mobile {
 }
 
 .fc-bookplus-wrapper .fc-toolbar-title {
-  font-family: 'Cormorant Garamond', serif;
+  font-family: var(--font-display);
   font-size: 1.25rem;
   font-weight: 700;
   color: var(--charcoal);

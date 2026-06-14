@@ -78,7 +78,7 @@ const Navbar = () => {
 
                 {/* Logo */}
                 <Link to="/" style={{ textDecoration: 'none', flexShrink: 0 }}>
-                    <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--gold)', letterSpacing: '-0.02em' }}>
+                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', color: 'var(--gold)', letterSpacing: '-0.02em' }}>
                         Book<span style={{ color: isTransparent ? 'white' : 'var(--charcoal)' }}>plus</span>
                     </span>
                 </Link>
@@ -184,7 +184,7 @@ const Navbar = () => {
                 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.1rem 1.2rem', borderBottom: '1px solid var(--border)' }}>
                         <Link to="/" onClick={() => setMenuOpen(false)} style={{ textDecoration: 'none' }}>
-                            <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.4rem', fontWeight: '700', color: 'var(--gold)', letterSpacing: '-0.02em' }}>
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--gold)', letterSpacing: '-0.02em' }}>
                                 Book<span style={{ color: 'var(--charcoal)' }}>plus</span>
                             </span>
                         </Link>

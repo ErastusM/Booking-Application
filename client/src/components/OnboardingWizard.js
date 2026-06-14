@@ -29,7 +29,7 @@ const pill = (selected, value, onClick) => (
             background: selected === value ? 'rgba(201,168,76,0.12)' : 'white',
             color: selected === value ? 'var(--gold-dark)' : 'var(--text-secondary)',
             fontWeight: selected === value ? '600' : '400',
-            fontFamily: 'Inter, sans-serif',
+            fontFamily: 'var(--font-body)',
             fontSize: '0.9rem',
             cursor: 'pointer',
             transition: 'all 0.15s',
@@ -142,11 +142,11 @@ const OnboardingWizard = ({ user, onComplete }) => {
 
                 {/* Header */}
                 <div style={{ padding: '2rem 2rem 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', fontFamily: 'Inter, sans-serif' }}>
+                    <span style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>
                         Step {Math.max(step, 1)} of {totalSteps - 1}
                     </span>
                     {step > 0 && isOptional(current.id) && (
-                        <button onClick={handleSkip} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', fontFamily: 'Inter, sans-serif' }}>
+                        <button onClick={handleSkip} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.8rem', fontFamily: 'var(--font-body)' }}>
                             Skip
                         </button>
                     )}
@@ -159,7 +159,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                     {current.id === 'welcome' && (
                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', textAlign: 'center', flex: 1, justifyContent: 'center' }}>
                             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>✂️</div>
-                            <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
                                 Welcome to Bookplus, {user?.name?.split(' ')[0]}!
                             </h2>
                             <p style={{ color: 'var(--text-muted)', fontSize: '1rem', lineHeight: 1.6, maxWidth: '360px' }}>
@@ -171,7 +171,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                     {/* BUSINESS NAME */}
                     {current.id === 'name' && (
                         <div>
-                            <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>{current.title}</h2>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>{current.title}</h2>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>{current.subtitle}</p>
                             <input
                                 autoFocus
@@ -188,7 +188,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                     {/* TEAM SIZE */}
                     {current.id === 'team' && (
                         <div>
-                            <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>{current.title}</h2>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>{current.title}</h2>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>{current.subtitle}</p>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
                                 {TEAM_SIZES.map(v => pill(form.teamSize, v, val => setForm(f => ({ ...f, teamSize: val }))))}
@@ -199,7 +199,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                     {/* LOCATION TYPE */}
                     {current.id === 'location' && (
                         <div>
-                            <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>{current.title}</h2>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>{current.title}</h2>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>{current.subtitle}</p>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                 {LOCATION_TYPES.map(v => (
@@ -212,7 +212,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                                             borderColor: form.locationType === v ? 'var(--gold)' : 'var(--border)',
                                             background: form.locationType === v ? 'rgba(201,168,76,0.08)' : 'white',
                                             textAlign: 'left', cursor: 'pointer',
-                                            fontFamily: 'Inter, sans-serif', fontSize: '0.9rem',
+                                            fontFamily: 'var(--font-body)', fontSize: '0.9rem',
                                             color: form.locationType === v ? 'var(--gold-dark)' : 'var(--text-secondary)',
                                             fontWeight: form.locationType === v ? '600' : '400',
                                             transition: 'all 0.15s',
@@ -226,7 +226,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                     {/* ADDRESS */}
                     {current.id === 'address' && (
                         <div>
-                            <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>{current.title}</h2>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>{current.title}</h2>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>{current.subtitle}</p>
                             {form.locationType === 'Mobile / travel to client' ? (
                                 <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '1rem 1.25rem' }}>
@@ -273,7 +273,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                     {/* CURRENT SOFTWARE */}
                     {current.id === 'software' && (
                         <div>
-                            <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>{current.title}</h2>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>{current.title}</h2>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>{current.subtitle}</p>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
                                 {SOFTWARE_OPTIONS.map(v => pill(form.currentSoftware, v, val => setForm(f => ({ ...f, currentSoftware: val }))))}
@@ -284,7 +284,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                     {/* REFERRAL */}
                     {current.id === 'referral' && (
                         <div>
-                            <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>How did you hear about us?</h2>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>How did you hear about us?</h2>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>This helps us know where to focus — takes one second.</p>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
                                 {REFERRAL_OPTIONS.map(v => pill(form.referralSource, v, val => setForm(f => ({ ...f, referralSource: val }))))}
@@ -308,7 +308,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                             borderRadius: 'var(--radius-sm)', padding: '0.6rem 1.25rem',
                             cursor: step === 0 ? 'default' : 'pointer',
                             color: step === 0 ? 'var(--border)' : 'var(--text-secondary)',
-                            fontFamily: 'Inter, sans-serif', fontSize: '0.875rem',
+                            fontFamily: 'var(--font-body)', fontSize: '0.875rem',
                         }}
                     >← Back</button>
 

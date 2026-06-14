@@ -90,7 +90,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                 {/* Header */}
                 <div style={{ background: 'var(--ink)', padding: '1.5rem 1.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
                     <div>
-                        <h2 style={{ fontFamily: 'Cormorant Garamond, serif', color: 'var(--gold)', fontSize: '1.4rem', fontWeight: '700', margin: '0 0 0.25rem' }}>Suggestion Box</h2>
+                        <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.4rem', fontWeight: '700', margin: '0 0 0.25rem' }}>Suggestion Box</h2>
                         <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.8rem', margin: 0 }}>Help us make Bookplus better</p>
                     </div>
                     <button onClick={doClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0, marginTop: '2px' }}>×</button>
@@ -100,7 +100,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                     {sent ? (
                         <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
                             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎉</div>
-                            <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.4rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>Thank you!</h3>
+                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>Thank you!</h3>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '1.5rem' }}>Your suggestion has been sent to our team. We read every message and appreciate you taking the time.</p>
                             <button onClick={() => { reset(); doClose(); }} style={{ background: 'var(--ink)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', padding: '0.65rem 1.5rem', fontFamily: 'Outfit, sans-serif', fontSize: '0.875rem', fontWeight: '600', cursor: 'pointer' }}>Close</button>
                         </div>

@@ -200,7 +200,7 @@ const ProviderAccount = () => {
         background: section === id ? 'rgba(201,168,76,0.1)' : 'transparent',
         color: section === id ? 'var(--gold-dark)' : 'var(--text-secondary)',
         fontWeight: section === id ? '600' : '400',
-        fontFamily: 'Inter, sans-serif', fontSize: '0.9rem',
+        fontFamily: 'var(--font-body)', fontSize: '0.9rem',
         transition: 'all 0.15s',
     });
 
@@ -231,7 +231,7 @@ const ProviderAccount = () => {
                         {/* ── MY PROFILE ── */}
                         {section === 'profile' && (
                             <div>
-                                <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.75rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>
+                                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.75rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>
                                     My profile
                                     <span style={{ marginLeft: '0.75rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', background: '#d1fae5', color: '#065f46', fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.7rem', borderRadius: '99px', verticalAlign: 'middle' }}>
                                         ● Online
@@ -250,12 +250,12 @@ const ProviderAccount = () => {
                                                 }
                                             </div>
                                         </div>
-                                        <button onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading} style={{ border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', padding: '0.4rem 1rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'Inter, sans-serif', marginBottom: '1.25rem' }}>
+                                        <button onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading} style={{ border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', padding: '0.4rem 1rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'var(--font-body)', marginBottom: '1.25rem' }}>
                                             {avatarUploading ? 'Uploading...' : 'Edit photo'}
                                         </button>
                                         <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
 
-                                        <p style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>{user?.name}</p>
+                                        <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>{user?.name}</p>
                                         <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>No reviews yet</p>
                                         {user?.providerCategory && (
                                             <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{user.providerCategory}</p>
@@ -293,7 +293,7 @@ const ProviderAccount = () => {
                                     {/* Right - info cards */}
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                         <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
-                                            <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.1rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '1rem' }}>Account details</h3>
+                                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '1rem' }}>Account details</h3>
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                                 <div className="acct-detail-row">
                                                     <span className="acct-label">Email</span>
@@ -315,7 +315,7 @@ const ProviderAccount = () => {
                                         </div>
 
                                         <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
-                                            <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.1rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>Online profile visibility</h3>
+                                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>Online profile visibility</h3>
                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>Your profile is visible to clients searching for providers on Bookplus.</p>
                                             <Link to={`/providers/${user?.id}`} target="_blank" style={{ color: 'var(--gold-dark)', fontWeight: '600', textDecoration: 'none', fontSize: '0.875rem' }}>View public profile →</Link>
                                         </div>
@@ -327,7 +327,7 @@ const ProviderAccount = () => {
                         {/* ── PORTFOLIO ── */}
                         {section === 'portfolio' && (
                             <div>
-                                <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.75rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>Portfolio</h1>
+                                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.75rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>Portfolio</h1>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem' }}>Showcase your best work to attract more clients</p>
 
                                 {portfolioLoading ? (
@@ -337,7 +337,7 @@ const ProviderAccount = () => {
                                         {/* Upload images */}
                                         <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1.5rem' }}>
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                                                <h3 style={{ fontFamily: 'Inter, sans-serif', fontWeight: '600', color: 'var(--charcoal)' }}>Images ({portfolio.images.length}/30)</h3>
+                                                <h3 style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)' }}>Images ({portfolio.images.length}/30)</h3>
                                                 <button onClick={() => portfolioInputRef.current?.click()} disabled={portfolioSaving} className="btn-primary" style={{ padding: '0.5rem 1.25rem', fontSize: '0.875rem' }}>
                                                     {portfolioSaving ? 'Uploading...' : '+ Add photos'}
                                                 </button>
@@ -371,7 +371,7 @@ const ProviderAccount = () => {
 
                                         {/* Instagram link */}
                                         <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
-                                            <h3 style={{ fontFamily: 'Inter, sans-serif', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>📷 Instagram feed</h3>
+                                            <h3 style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>📷 Instagram feed</h3>
                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>Link your Instagram profile to showcase your latest work automatically.</p>
                                             <div style={{ display: 'flex', gap: '0.75rem' }}>
                                                 <input
@@ -397,7 +397,7 @@ const ProviderAccount = () => {
                         {/* ── REVIEWS ── */}
                         {section === 'reviews' && (
                             <div>
-                                <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.75rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>Reviews</h1>
+                                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.75rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>Reviews</h1>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem' }}>Star ratings and reviews left by clients after their visit</p>
 
                                 {reviewsLoading ? (
@@ -405,14 +405,14 @@ const ProviderAccount = () => {
                                 ) : reviews.length === 0 ? (
                                     <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '5rem 2rem', textAlign: 'center' }}>
                                         <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>⭐</div>
-                                        <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.4rem', fontWeight: '600' }}>No reviews yet</p>
+                                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.4rem', fontWeight: '600' }}>No reviews yet</p>
                                         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Clients have not provided feedback for their appointments yet.</p>
                                     </div>
                                 ) : (
                                     <>
                                         {avgRating && (
                                             <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                                <span style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '3rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{avgRating}</span>
+                                                <span style={{ fontFamily: 'var(--font-display)', fontSize: '3rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{avgRating}</span>
                                                 <div>
                                                     <Stars rating={Math.round(avgRating)} />
                                                     <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginTop: '0.25rem' }}>{reviews.length} review{reviews.length !== 1 ? 's' : ''}</p>
@@ -454,7 +454,7 @@ const ProviderAccount = () => {
                         {/* ── PERSONAL SETTINGS ── */}
                         {section === 'settings' && (
                             <div>
-                                <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.75rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>Personal settings</h1>
+                                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.75rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>Personal settings</h1>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem' }}>Manage settings for your personal account</p>
 
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -466,7 +466,7 @@ const ProviderAccount = () => {
                                     >
                                         <div style={{ fontSize: '1.6rem', flexShrink: 0 }}>👤</div>
                                         <div style={{ flex: 1 }}>
-                                            <h3 style={{ fontFamily: 'Inter, sans-serif', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>Personal info</h3>
+                                            <h3 style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>Personal info</h3>
                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Customise your personal details and how we can contact you</p>
                                         </div>
                                         <span style={{ color: 'var(--text-muted)', fontSize: '1.2rem' }}>›</span>
@@ -477,7 +477,7 @@ const ProviderAccount = () => {
                                         <div onClick={() => setSettingsOpen(s => s === 'security' ? null : 'security')} style={{ padding: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
                                             <div style={{ fontSize: '1.6rem', flexShrink: 0 }}>🔐</div>
                                             <div style={{ flex: 1 }}>
-                                                <h3 style={{ fontFamily: 'Inter, sans-serif', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>Login &amp; security</h3>
+                                                <h3 style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>Login &amp; security</h3>
                                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Update your password and secure your account</p>
                                             </div>
                                             <span style={{ color: 'var(--text-muted)', fontSize: '1.2rem', transition: 'transform 0.2s', transform: settingsOpen === 'security' ? 'rotate(90deg)' : 'none' }}>›</span>
@@ -519,7 +519,7 @@ const ProviderAccount = () => {
                                         <div onClick={() => setSettingsOpen(s => s === 'appearance' ? null : 'appearance')} style={{ padding: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
                                             <div style={{ fontSize: '1.6rem', flexShrink: 0 }}>🎨</div>
                                             <div style={{ flex: 1 }}>
-                                                <h3 style={{ fontFamily: 'Inter, sans-serif', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>Appearance</h3>
+                                                <h3 style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>Appearance</h3>
                                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Select the look and feel of your platform</p>
                                             </div>
                                             <span style={{ color: 'var(--text-muted)', fontSize: '1.2rem', transition: 'transform 0.2s', transform: settingsOpen === 'appearance' ? 'rotate(90deg)' : 'none' }}>›</span>
@@ -554,7 +554,7 @@ const ProviderAccount = () => {
                                         <div onClick={() => setSettingsOpen(s => s === 'calendar' ? null : 'calendar')} style={{ padding: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
                                             <div style={{ fontSize: '1.6rem', flexShrink: 0 }}>📅</div>
                                             <div style={{ flex: 1 }}>
-                                                <h3 style={{ fontFamily: 'Inter, sans-serif', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>Google Calendar</h3>
+                                                <h3 style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>Google Calendar</h3>
                                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Embed your Google Calendar in the dashboard</p>
                                             </div>
                                             <span style={{ color: 'var(--text-muted)', fontSize: '1.2rem', transition: 'transform 0.2s', transform: settingsOpen === 'calendar' ? 'rotate(90deg)' : 'none' }}>›</span>

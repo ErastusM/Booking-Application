@@ -43,7 +43,7 @@ const ResetPassword = () => {
             <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--off-white)' }}>
                 <div style={{ textAlign: 'center', maxWidth: '400px', padding: '2rem' }}>
                     <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
-                    <h2 style={{ fontFamily: 'Inter, sans-serif', color: 'var(--charcoal)', marginBottom: '1rem' }}>Invalid reset link</h2>
+                    <h2 style={{ fontFamily: 'var(--font-body)', color: 'var(--charcoal)', marginBottom: '1rem' }}>Invalid reset link</h2>
                     <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>This password reset link is invalid or missing. Please request a new one.</p>
                     <Link to="/forgot-password" className="btn-primary" style={{ textDecoration: 'none', padding: '0.75rem 1.5rem', display: 'inline-block' }}>
                         Request new link
@@ -78,7 +78,7 @@ const ResetPassword = () => {
                 }} />
                 <div style={{ position: 'relative', zIndex: 1 }}>
                     <Link to="/" style={{
-                        fontFamily: 'Inter, sans-serif',
+                        fontFamily: 'var(--font-body)',
                         fontSize: '1.8rem',
                         fontWeight: '700',
                         color: 'var(--gold)',
@@ -89,7 +89,7 @@ const ResetPassword = () => {
                         Book<span style={{ color: 'white' }}>plus</span>
                     </Link>
                     <h2 style={{
-                        fontFamily: 'Inter, sans-serif',
+                        fontFamily: 'var(--font-body)',
                         fontSize: 'clamp(2rem, 3vw, 2.8rem)',
                         fontWeight: '700',
                         color: 'white',
@@ -124,7 +124,7 @@ const ResetPassword = () => {
                         <div style={{ textAlign: 'center' }}>
                             <div style={{ fontSize: '3rem', marginBottom: '1.5rem' }}>✅</div>
                             <h1 style={{
-                                fontFamily: 'Inter, sans-serif',
+                                fontFamily: 'var(--font-body)',
                                 fontSize: '1.8rem',
                                 fontWeight: '700',
                                 color: 'var(--charcoal)',
@@ -147,7 +147,7 @@ const ResetPassword = () => {
                     ) : (
                         <>
                             <h1 style={{
-                                fontFamily: 'Inter, sans-serif',
+                                fontFamily: 'var(--font-body)',
                                 fontSize: '2rem',
                                 fontWeight: '700',
                                 color: 'var(--charcoal)',

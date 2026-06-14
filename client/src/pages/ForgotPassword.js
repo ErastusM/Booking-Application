@@ -47,7 +47,7 @@ const ForgotPassword = () => {
                 }} />
                 <div style={{ position: 'relative', zIndex: 1 }}>
                     <Link to="/" style={{
-                        fontFamily: 'Inter, sans-serif',
+                        fontFamily: 'var(--font-body)',
                         fontSize: '1.8rem',
                         fontWeight: '700',
                         color: 'var(--gold)',
@@ -58,7 +58,7 @@ const ForgotPassword = () => {
                         Book<span style={{ color: 'white' }}>plus</span>
                     </Link>
                     <h2 style={{
-                        fontFamily: 'Inter, sans-serif',
+                        fontFamily: 'var(--font-body)',
                         fontSize: 'clamp(2rem, 3vw, 2.8rem)',
                         fontWeight: '700',
                         color: 'white',
@@ -93,7 +93,7 @@ const ForgotPassword = () => {
                         <div style={{ textAlign: 'center' }}>
                             <div style={{ fontSize: '3rem', marginBottom: '1.5rem' }}>📬</div>
                             <h1 style={{
-                                fontFamily: 'Inter, sans-serif',
+                                fontFamily: 'var(--font-body)',
                                 fontSize: '1.8rem',
                                 fontWeight: '700',
                                 color: 'var(--charcoal)',
@@ -116,7 +116,7 @@ const ForgotPassword = () => {
                     ) : (
                         <>
                             <h1 style={{
-                                fontFamily: 'Inter, sans-serif',
+                                fontFamily: 'var(--font-body)',
                                 fontSize: '2rem',
                                 fontWeight: '700',
                                 color: 'var(--charcoal)',

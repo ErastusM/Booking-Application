@@ -91,7 +91,7 @@ const Register = () => {
 
             {/* Navbar */}
             <div style={{ padding: '1.5rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Link to="/" style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.5rem', fontWeight: '700', color: 'var(--gold)', textDecoration: 'none' }}>
+                <Link to="/" style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--gold)', textDecoration: 'none' }}>
                     Book<span style={{ color: 'var(--charcoal)' }}>plus</span>
                 </Link>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
@@ -119,7 +119,7 @@ const Register = () => {
                 {step === 1 && (
                     <div style={{ width: '100%', maxWidth: '560px' }} className="fade-up">
                         <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-                            <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
+                            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
                                 What brings you here?
                             </h1>
                             <p style={{ color: 'var(--text-muted)', fontSize: '1rem' }}>
@@ -143,7 +143,7 @@ const Register = () => {
                                     onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; e.currentTarget.style.transform = 'translateY(0)'; }}
                                 >
                                     <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>{role.icon}</div>
-                                    <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
+                                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                                         {role.title}
                                     </h3>
                                     <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.6 }}>
@@ -176,7 +176,7 @@ const Register = () => {
                             </span>
                         </div>
 
-                        <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
+                        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                             Create your account
                         </h1>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '2rem' }}>
@@ -309,7 +309,7 @@ const Register = () => {
                         {step === 3 && (
                             <div style={{ width: '100%', maxWidth: '440px', textAlign: 'center' }} className="fade-up">
                                 <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>📧</div>
-                                <h1 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
+                                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
                                     Check your email!
                                 </h1>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.7, marginBottom: '2rem' }}>

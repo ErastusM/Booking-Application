@@ -80,7 +80,7 @@ const MyWaitingList = () => {
                         letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem',
                     }}>Queue Status</p>
                     <h1 style={{
-                        fontFamily: 'Inter, sans-serif',
+                        fontFamily: 'var(--font-body)',
                         fontSize: 'clamp(2rem, 4vw, 3rem)',
                         fontWeight: '700', color: 'white',
                     }}>
@@ -115,7 +115,7 @@ const MyWaitingList = () => {
                 {notifications.length > 0 && (
                     <div style={{ marginBottom: '2rem' }}>
                         <h2 style={{
-                            fontFamily: 'Inter, sans-serif',
+                            fontFamily: 'var(--font-body)',
                             fontSize: '1.2rem', fontWeight: '600',
                             color: 'var(--charcoal)', marginBottom: '1rem',
                         }}>
@@ -153,7 +153,7 @@ const MyWaitingList = () => {
                     }}>
                         <div style={{ fontSize: '3.5rem', marginBottom: '1rem' }}>⏳</div>
                         <h3 style={{
-                            fontFamily: 'Inter, sans-serif',
+                            fontFamily: 'var(--font-body)',
                             fontSize: '1.3rem', color: 'var(--charcoal)', marginBottom: '0.5rem',
                         }}>
                             No active queues
@@ -209,7 +209,7 @@ const MyWaitingList = () => {
                                     <span style={{
                                         fontSize: '1.3rem',
                                         fontWeight: '700',
-                                        fontFamily: 'Inter, sans-serif',
+                                        fontFamily: 'var(--font-body)',
                                         color: entry.position === 1 ? 'var(--charcoal)' : 'var(--text-secondary)',
                                         lineHeight: 1,
                                     }}>
@@ -220,7 +220,7 @@ const MyWaitingList = () => {
                                 {/* Info */}
                                 <div style={{ flex: 1 }}>
                                     <h3 style={{
-                                        fontFamily: 'Inter, sans-serif',
+                                        fontFamily: 'var(--font-body)',
                                         fontSize: '1.1rem',
                                         fontWeight: '600',
                                         color: 'var(--charcoal)',
@@ -272,7 +272,7 @@ const MyWaitingList = () => {
                                         cursor: 'pointer',
                                         fontSize: '0.8rem',
                                         fontWeight: '600',
-                                        fontFamily: 'Inter, sans-serif',
+                                        fontFamily: 'var(--font-body)',
                                         transition: 'all 0.2s',
                                         whiteSpace: 'nowrap',
                                         flexShrink: 0,

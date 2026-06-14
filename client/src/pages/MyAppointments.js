@@ -207,7 +207,7 @@ const MyAppointments = () => {
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 50%, rgba(201,168,76,0.08) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Your Schedule</p>
-                    <h1 style={{ fontFamily: 'Inter, sans-serif', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'white' }}>My Appointments</h1>
+                    <h1 style={{ fontFamily: 'var(--font-body)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'white' }}>My Appointments</h1>
                 </div>
             </div>
 
@@ -250,7 +250,7 @@ const MyAppointments = () => {
                             borderBottom: activeFilter === f ? '2px solid var(--gold)' : '2px solid transparent',
                             color: activeFilter === f ? 'var(--gold-dark)' : 'var(--text-muted)',
                             fontWeight: activeFilter === f ? '600' : '400', fontSize: '0.875rem',
-                            cursor: 'pointer', fontFamily: 'Inter, sans-serif',
+                            cursor: 'pointer', fontFamily: 'var(--font-body)',
                             textTransform: 'capitalize', whiteSpace: 'nowrap',
                             transition: 'all 0.2s', marginBottom: '-1px',
                         }}>
@@ -268,7 +268,7 @@ const MyAppointments = () => {
                 {filtered.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '5rem 2rem', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
                         <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📅</div>
-                        <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.3rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
+                        <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1.3rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                             No {activeFilter === 'all' ? '' : activeFilter} appointments
                         </h3>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
@@ -291,7 +291,7 @@ const MyAppointments = () => {
                                 }}>
                                     <div>
                                         <p style={labelStyle}>Service</p>
-                                        <p style={{ fontFamily: 'Inter, sans-serif', fontWeight: '600', color: 'var(--charcoal)', fontSize: '1rem' }}>{a.service?.name}</p>
+                                        <p style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', fontSize: '1rem' }}>{a.service?.name}</p>
                                         <p style={{ color: 'var(--gold-dark)', fontWeight: '600', fontSize: '0.9rem' }}>${a.totalPrice}</p>
                                     </div>
                                     <div>
@@ -314,7 +314,7 @@ const MyAppointments = () => {
                                         {(a.status === 'pending' || a.status === 'confirmed') && (
                                             <button
                                                 onClick={() => { setReschedulingAppointment(a); setRescheduleForm({ appointmentDate: '', startTime: '' }); }}
-                                                style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}
+                                                style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}
                                             >
                                                 🗓 Reschedule
                                             </button>
@@ -323,14 +323,14 @@ const MyAppointments = () => {
                                                 href={buildGCalUrl(a)}
                                                 target="_blank"
                                                 rel="noopener noreferrer"
-                                                style={{ display: 'inline-block', background: '#4285F4', color: 'white', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'Inter, sans-serif', textDecoration: 'none', textAlign: 'center' }}
+                                                style={{ display: 'inline-block', background: '#4285F4', color: 'white', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)', textDecoration: 'none', textAlign: 'center' }}
                                             >
                                                 📅 Google Calendar
                                             </a>
                                         )}                                        {a.status !== 'cancelled' && a.status !== 'completed' && (
                                             <button
                                                 onClick={() => handleCancel(a)}
-                                                style={{ background: 'none', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'Inter, sans-serif', transition: 'all 0.2s' }}
+                                                style={{ background: 'none', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)', transition: 'all 0.2s' }}
                                                 onMouseEnter={e => e.target.style.background = '#fee2e2'}
                                                 onMouseLeave={e => e.target.style.background = 'none'}
                                             >
@@ -340,7 +340,7 @@ const MyAppointments = () => {
                                         {a.status === 'completed' && !isReviewed && (
                                             <button
                                                 onClick={() => setSelectedAppointment(a)}
-                                                style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'Inter, sans-serif', transition: 'all 0.2s' }}
+                                                style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)', transition: 'all 0.2s' }}
                                                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(201,168,76,0.15)'}
                                                 onMouseLeave={e => e.currentTarget.style.background = 'rgba(201,168,76,0.08)'}
                                             >
@@ -353,7 +353,7 @@ const MyAppointments = () => {
                                         {a.status === 'completed' && (
                                             <button
                                                 onClick={() => navigate(`/book-appointment?providerId=${a.service?.provider || ''}&serviceId=${a.service?._id || ''}`)}
-                                                style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'Inter, sans-serif' }}
+                                                style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}
                                             >
                                                 Book Again →
                                             </button>
@@ -361,7 +361,7 @@ const MyAppointments = () => {
                                         {(a.status === 'pending' || a.status === 'confirmed' || a.status === 'completed') && (
                                             <button
                                                 onClick={() => openMsgModal(a)}
-                                                style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-secondary)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'Inter, sans-serif' }}
+                                                style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-secondary)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'var(--font-body)' }}
                                             >
                                                 💬 Message
                                             </button>
@@ -369,7 +369,7 @@ const MyAppointments = () => {
                                         {(a.status === 'pending' || a.status === 'confirmed') && (
                                             <button
                                                 onClick={() => setFormsModalApptId(a._id)}
-                                                style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-secondary)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'Inter, sans-serif' }}
+                                                style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-secondary)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'var(--font-body)' }}
                                             >
                                                 📋 Forms
                                             </button>
@@ -389,7 +389,7 @@ const MyAppointments = () => {
                         {/* Header */}
                         <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                             <div>
-                                <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>
+                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>
                                     Message Provider
                                 </h2>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.2rem 0 0', fontFamily: 'Outfit, sans-serif' }}>
@@ -450,7 +450,7 @@ const MyAppointments = () => {
             {showCancelModal && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
                     <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', padding: '2rem', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(26,26,46,0.25)' }}>
-                        <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>What would you like to do?</h2>
+                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>What would you like to do?</h2>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem', fontFamily: 'Outfit, sans-serif', lineHeight: '1.5' }}>
                             <strong style={{ color: 'var(--charcoal)' }}>{showCancelModal.service?.name}</strong> on{' '}
                             {new Date(showCancelModal.appointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at {showCancelModal.startTime}.
@@ -491,7 +491,7 @@ const MyAppointments = () => {
             {reschedulingAppointment && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
                     <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', padding: '2rem', width: '100%', maxWidth: '440px', boxShadow: 'var(--shadow-lg)' }}>
-                        <h2 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
+                        <h2 style={{ fontFamily: 'var(--font-body)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                             Reschedule Appointment
                         </h2>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
@@ -516,7 +516,7 @@ const MyAppointments = () => {
                                 ℹ️ Rescheduling will reset the appointment status to <strong>Pending</strong> for provider confirmation.
                             </div>
                             <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                <button type="button" onClick={() => setReschedulingAppointment(null)} style={{ flex: 1, padding: '0.875rem', background: 'none', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'Inter, sans-serif', fontWeight: '600', fontSize: '0.9rem' }}>
+                                <button type="button" onClick={() => setReschedulingAppointment(null)} style={{ flex: 1, padding: '0.875rem', background: 'none', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', fontWeight: '600', fontSize: '0.9rem' }}>
                                     Cancel
                                 </button>
                                 <button type="submit" disabled={rescheduling || !!rescheduleAvailError} className="btn-primary" style={{ flex: 2, padding: '0.875rem' }}>

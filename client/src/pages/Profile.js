@@ -68,7 +68,7 @@ const Profile = () => {
                         letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem',
                     }}>Account</p>
                     <h1 style={{
-                        fontFamily: 'Inter, sans-serif',
+                        fontFamily: 'var(--font-body)',
                         fontSize: 'clamp(2rem, 4vw, 3rem)',
                         fontWeight: '700', color: 'white',
                     }}>
@@ -114,7 +114,7 @@ const Profile = () => {
                                     background: 'var(--gold)', display: 'flex', alignItems: 'center',
                                     justifyContent: 'center', fontSize: '2rem', fontWeight: '700',
                                     color: 'var(--charcoal)', margin: '0 auto',
-                                    fontFamily: 'Inter, sans-serif',
+                                    fontFamily: 'var(--font-body)',
                                 }}>
                                     {getInitials(user?.name)}
                                 </div>
@@ -122,7 +122,7 @@ const Profile = () => {
                         </div>
 
                         <h2 style={{
-                            fontFamily: 'Inter, sans-serif', fontSize: '1.3rem',
+                            fontFamily: 'var(--font-body)', fontSize: '1.3rem',
                             fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.25rem',
                         }}>
                             {user?.name}
@@ -154,7 +154,7 @@ const Profile = () => {
                         border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '2rem',
                     }}>
                         <h2 style={{
-                            fontFamily: 'Inter, sans-serif', fontSize: '1.3rem',
+                            fontFamily: 'var(--font-body)', fontSize: '1.3rem',
                             fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem',
                         }}>
                             Edit Information
