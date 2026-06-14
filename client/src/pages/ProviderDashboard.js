@@ -7,6 +7,8 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService, waitingListService, earningsService, analyticsService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import OnboardingWizard from '../components/OnboardingWizard';
+import FormsManager from '../components/FormsManager';
+import ApptFormsView from '../components/ApptFormsView';
 
 const statusConfig = {
     pending: { label: 'Pending', bg: '#fef3c7', color: '#92400e' },
@@ -123,7 +125,7 @@ const ProviderDashboard = () => {
 
     useEffect(() => {
         const tab = new URLSearchParams(location.search).get('tab');
-        const validTabs = ['calendar', 'pending', 'confirmed', 'completed', 'cancelled', 'history', 'services', 'availability', 'overview', 'earnings', 'insights', 'clients', 'messages', 'memberships', 'team'];
+        const validTabs = ['calendar', 'pending', 'confirmed', 'completed', 'cancelled', 'history', 'services', 'availability', 'overview', 'earnings', 'insights', 'clients', 'messages', 'memberships', 'team', 'forms'];
         if (tab && validTabs.includes(tab)) {
             setActiveTab(tab);
             setSelectedDay(null);
@@ -982,7 +984,7 @@ const ProviderDashboard = () => {
                         transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
                     }}>🕐 History</button>
                     {/* Other feature tabs */}
-                    {[['services','✂️ Catalogue'],['availability','🗓 Availability'],['overview','📊 Overview'],['earnings','💵 Earnings'],['insights','📈 Insights'],['clients','👥 Clients'],['messages','💬 Messages'],['memberships','🪪 Memberships'],['team','👤 Team']].map(([tab, label]) => (
+                    {[['services','✂️ Catalogue'],['availability','🗓 Availability'],['overview','📊 Overview'],['earnings','💵 Earnings'],['insights','📈 Insights'],['clients','👥 Clients'],['forms','📋 Forms'],['messages','💬 Messages'],['memberships','🪪 Memberships'],['team','👤 Team']].map(([tab, label]) => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
                             padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(201,168,76,0.1)' : 'white', border: '1px solid',
                             borderColor: activeTab === tab ? 'var(--gold)' : 'var(--border)',
@@ -3012,6 +3014,8 @@ const ProviderDashboard = () => {
             )}
 
             {/* ── TEAM TAB ── */}
+            {activeTab === 'forms' && <FormsManager />}
+
             {activeTab === 'team' && (
                 <div>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
@@ -3470,6 +3474,9 @@ const ProviderDashboard = () => {
                                     </span>
                                 </div>
                             </div>
+
+                            {/* Intake / consent forms for this appointment */}
+                            <ApptFormsView appointmentId={apptDetailModal._id} />
 
                             {/* Reschedule section */}
                             {apptDetailModal.status !== 'cancelled' && apptDetailModal.status !== 'completed' && (

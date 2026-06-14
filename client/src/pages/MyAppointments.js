@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { appointmentService, reviewService, availabilityService, messageService } from '../services';
 import ReviewModal from '../components/ReviewModal';
+import IntakeFormModal from '../components/IntakeFormModal';
 import { useAuthContext } from '../context/AuthContext';
 
 const statusConfig = {
@@ -48,6 +49,7 @@ const MyAppointments = () => {
     const [showConfirmedBanner, setShowConfirmedBanner] = useState(justConfirmed);
     const [showWaitlistedBanner, setShowWaitlistedBanner] = useState(justWaitlisted);
     const [msgModal, setMsgModal] = useState(null);       // appointment object
+    const [formsModalApptId, setFormsModalApptId] = useState(null); // appointment id for intake forms
     const [msgThread, setMsgThread] = useState([]);
     const [msgText, setMsgText] = useState('');
     const [loadingMsgs, setLoadingMsgs] = useState(false);
@@ -364,6 +366,14 @@ const MyAppointments = () => {
                                                 💬 Message
                                             </button>
                                         )}
+                                        {(a.status === 'pending' || a.status === 'confirmed') && (
+                                            <button
+                                                onClick={() => setFormsModalApptId(a._id)}
+                                                style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-secondary)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'Inter, sans-serif' }}
+                                            >
+                                                📋 Forms
+                                            </button>
+                                        )}
                                     </div>
                                 </div>
                             );
@@ -520,6 +530,10 @@ const MyAppointments = () => {
 
             {selectedAppointment && (
                 <ReviewModal appointment={selectedAppointment} onClose={() => setSelectedAppointment(null)} onSubmitted={fetchData} />
+            )}
+
+            {formsModalApptId && (
+                <IntakeFormModal appointmentId={formsModalApptId} onClose={() => setFormsModalApptId(null)} />
             )}
 
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>

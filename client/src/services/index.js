@@ -150,3 +150,15 @@ export const teamService = {
 export const suggestionService = {
     submit: (data) => API.post('/suggestions', data),
 };
+
+export const formService = {
+    // Provider
+    getMyTemplates: () => API.get('/forms/templates'),
+    createTemplate: (data) => API.post('/forms/templates', data),
+    updateTemplate: (id, data) => API.put(`/forms/templates/${id}`, data),
+    deleteTemplate: (id) => API.delete(`/forms/templates/${id}`),
+    getSubmissions: (params) => API.get('/forms/submissions', { params }),
+    // Customer + provider
+    getFormsForAppointment: (appointmentId) => API.get(`/forms/for-appointment/${appointmentId}`),
+    submitForm: (data) => API.post('/forms/submissions', data),
+};
