@@ -71,6 +71,10 @@ export const analyticsService = {
     getAnalytics: () => API.get('/analytics'),
 };
 
+export const earningsService = {
+    getMyEarnings: (params) => API.get('/earnings', { params }),
+};
+
 export const availabilityService = {
     getMyAvailability: () => API.get('/availability/me'),
     updateMyAvailability: (schedule) => API.put('/availability/me', { schedule }),
