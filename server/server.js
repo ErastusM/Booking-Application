@@ -37,19 +37,40 @@ const passport = require('./src/config/passport');
 const User = require('./src/models/User');
 
 async function seedAdmin() {
-    const email = 'bookplusdigitalsolutions@gmail.com';
+    // Admin credentials must come from the environment — never hardcoded.
+    const email = process.env.ADMIN_EMAIL;
+    const password = process.env.ADMIN_PASSWORD;
+    if (!email || !password) {
+        logger.warn('ADMIN_EMAIL / ADMIN_PASSWORD not set — skipping admin seed');
+        return;
+    }
     const existing = await User.findOne({ email });
     if (existing) return;
     await User.create({
-        name: 'Admin',
+        name: process.env.ADMIN_NAME || 'Admin',
         email,
-        password: 'MosesHam@1999',
-        phone: '+264000000000',
+        password,
+        phone: process.env.ADMIN_PHONE || '+264000000000',
         role: 'admin',
         isVerified: true,
         provider: 'local',
     });
     logger.info('Admin user seeded');
+}
+
+// Fail fast at boot if anything required for secure operation is missing.
+function assertRequiredEnv() {
+    const required = ['JWT_SECRET', 'REFRESH_TOKEN_SECRET', 'MONGODB_URI'];
+    const missing = required.filter((k) => !process.env[k]);
+    if (missing.length) {
+        logger.fatal({ missing }, 'Missing required environment variables — refusing to start');
+        process.exit(1);
+    }
+    const weak = ['JWT_SECRET', 'REFRESH_TOKEN_SECRET'].filter((k) => (process.env[k] || '').length < 32);
+    if (weak.length && process.env.NODE_ENV === 'production') {
+        logger.fatal({ weak }, 'Token secrets are too short for production (need >= 32 chars)');
+        process.exit(1);
+    }
 }
 
 const app = express();
@@ -117,24 +138,24 @@ app.use(passport.initialize());
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/services', readLimiter, serviceRoutes);
 app.use('/api/appointments', writeLimiter, appointmentRoutes);
-app.use('/api/users', userRoutes);
+app.use('/api/users', readLimiter, userRoutes);
 app.use('/api/waitinglist', writeLimiter, waitingListRoutes);
 app.use('/api/reviews', writeLimiter, reviewRoutes);
-app.use('/api/notifications', notificationRoutes);
-app.use('/api/analytics', analyticsRoutes);
-app.use('/api/availability', availabilityRoutes);
-app.use('/api/earnings', earningsRoutes);
+app.use('/api/notifications', readLimiter, notificationRoutes);
+app.use('/api/analytics', readLimiter, analyticsRoutes);
+app.use('/api/availability', readLimiter, availabilityRoutes);
+app.use('/api/earnings', readLimiter, earningsRoutes);
 app.use('/api/categories', readLimiter, categoryRoutes);
 app.use('/api/providers', readLimiter, providerRoutes);
-app.use('/api/blocked-times', blockedTimeRoutes);
+app.use('/api/blocked-times', writeLimiter, blockedTimeRoutes);
 app.use('/api/messages', writeLimiter, messageRoutes);
-app.use('/api/crm', clientCRMRoutes);
-app.use('/api/packages', packageRoutes);
-app.use('/api/retention', retentionRoutes);
-app.use('/api/team', teamMemberRoutes);
+app.use('/api/crm', readLimiter, clientCRMRoutes);
+app.use('/api/packages', writeLimiter, packageRoutes);
+app.use('/api/retention', readLimiter, retentionRoutes);
+app.use('/api/team', writeLimiter, teamMemberRoutes);
 app.use('/api/suggestions', writeLimiter, suggestionRoutes);
-app.use('/api/forms', formRoutes);
-app.use('/api/push', pushRoutes);
+app.use('/api/forms', writeLimiter, formRoutes);
+app.use('/api/push', writeLimiter, pushRoutes);
 
 
 // Health check — includes DB connectivity
@@ -157,6 +178,7 @@ const PORT = process.env.PORT || 5000;
 
 // Only bind and start the cron job when run directly (not imported by tests)
 if (require.main === module) {
+    assertRequiredEnv();
     connectDB().then(async () => {
         await seedAdmin();
         const server = app.listen(PORT, () => {
