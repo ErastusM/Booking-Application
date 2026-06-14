@@ -151,6 +151,12 @@ export const suggestionService = {
     submit: (data) => API.post('/suggestions', data),
 };
 
+export const pushService = {
+    getPublicKey: () => API.get('/push/vapid-public-key'),
+    subscribe: (subscription) => API.post('/push/subscribe', subscription),
+    unsubscribe: (endpoint) => API.post('/push/unsubscribe', { endpoint }),
+};
+
 export const formService = {
     // Provider
     getMyTemplates: () => API.get('/forms/templates'),

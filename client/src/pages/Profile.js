@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
+import PushToggle from '../components/PushToggle';
 
 const Profile = () => {
     const { user, setUser } = useAuthContext();
@@ -207,6 +208,10 @@ const Profile = () => {
                                 </button>
                             </div>
                         </form>
+
+                        <div style={{ borderTop: '1px solid var(--border)', marginTop: '1.5rem', paddingTop: '0.5rem' }}>
+                            <PushToggle />
+                        </div>
                     </div>
                 </div>
             </div>

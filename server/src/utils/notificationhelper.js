@@ -1,8 +1,11 @@
 const Notification = require('../models/Notification');
+const pushService = require('./pushService');
 
 exports.createNotification = async (userId, message, type = 'general', link = '') => {
     try {
         await Notification.create({ user: userId, message, type, link });
+        // Fire a web push too — no-op unless VAPID is configured
+        pushService.sendToUser(userId, { title: 'Bookplus', body: message, url: link || '/' });
     } catch (error) {
         console.error('Failed to create notification:', error.message);
     }

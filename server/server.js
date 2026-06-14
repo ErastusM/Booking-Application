@@ -31,6 +31,7 @@ const retentionRoutes = require('./src/routes/retentionRoutes');
 const teamMemberRoutes = require('./src/routes/teamMemberRoutes');
 const suggestionRoutes = require('./src/routes/suggestionRoutes');
 const formRoutes = require('./src/routes/formRoutes');
+const pushRoutes = require('./src/routes/pushRoutes');
 const startReminderJob = require('./src/utils/reminderService');
 const passport = require('./src/config/passport');
 const User = require('./src/models/User');
@@ -133,6 +134,7 @@ app.use('/api/retention', retentionRoutes);
 app.use('/api/team', teamMemberRoutes);
 app.use('/api/suggestions', writeLimiter, suggestionRoutes);
 app.use('/api/forms', formRoutes);
+app.use('/api/push', pushRoutes);
 
 
 // Health check — includes DB connectivity
