@@ -33,22 +33,22 @@ const Navbar = () => {
     const handleLogout = () => { setMenuOpen(false); logout(); navigate('/'); };
     const isActive = (path) => location.pathname === path;
 
-    const navLink = (to, label) => (
-        <Link to={to} style={{
-            color: isActive(to) ? 'var(--gold)' : isTransparent ? 'white' : 'var(--text-primary)',
-            borderBottom: isActive(to) ? '2px solid var(--gold)' : '2px solid transparent',
-            paddingBottom: '2px',
-            fontWeight: isActive(to) ? '600' : '400',
-            transition: 'all 0.2s ease',
-            fontSize: '0.9rem',
-            textDecoration: 'none',
-        }}
-            onMouseEnter={e => { if (!isActive(to)) e.target.style.color = 'var(--gold)'; }}
-            onMouseLeave={e => { if (!isActive(to)) e.target.style.color = isTransparent ? 'white' : 'var(--text-primary)'; }}
-        >
-            {label}
-        </Link>
-    );
+    const navLink = (to, label) => {
+        const active = isActive(to);
+        const baseColor = active ? 'var(--gold-dark)' : isTransparent ? 'rgba(255,255,255,0.92)' : 'var(--text-secondary)';
+        return (
+            <Link to={to} className="nav-pill" style={{
+                color: baseColor,
+                fontWeight: active ? '600' : '500',
+                background: active ? (isTransparent ? 'rgba(255,255,255,0.14)' : 'rgba(201,168,76,0.12)') : 'transparent',
+            }}
+                onMouseEnter={e => { if (!active) { e.currentTarget.style.color = isTransparent ? 'white' : 'var(--gold-dark)'; e.currentTarget.style.background = isTransparent ? 'rgba(255,255,255,0.10)' : 'var(--surface-sunken)'; } }}
+                onMouseLeave={e => { if (!active) { e.currentTarget.style.color = baseColor; e.currentTarget.style.background = 'transparent'; } }}
+            >
+                {label}
+            </Link>
+        );
+    };
 
     const navStyles = {
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000,
@@ -286,12 +286,15 @@ const Navbar = () => {
                     { to: '/account', icon: (
                         <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                     ), label: 'Account' },
-                ].map(({ to, icon, label }) => (
-                    <Link key={to} to={to} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', textDecoration: 'none', color: isActive(to.split('?')[0]) ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: isActive(to.split('?')[0]) ? '700' : '500', fontFamily: 'Outfit, sans-serif', transition: 'color 0.15s' }}>
-                        <span style={{ color: isActive(to.split('?')[0]) ? 'var(--gold)' : 'var(--text-muted)', display: 'flex' }}>{icon}</span>
-                        {label}
-                    </Link>
-                ))}
+                ].map(({ to, icon, label }) => {
+                    const active = isActive(to.split('?')[0]);
+                    return (
+                        <Link key={to} to={to} className={`bnav-item ${active ? 'is-active' : ''}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', textDecoration: 'none', color: active ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: active ? '700' : '500', fontFamily: 'Outfit, sans-serif' }}>
+                            <span className="bnav-icon">{icon}</span>
+                            {label}
+                        </Link>
+                    );
+                })}
                 {user.role === 'customer' && [
                     { to: '/', icon: (
                         <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
@@ -305,14 +308,17 @@ const Navbar = () => {
                     { to: '/profile', icon: (
                         <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                     ), label: 'Profile' },
-                ].map(({ to, icon, label }) => (
-                    <Link key={to} to={to} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', textDecoration: 'none', color: isActive(to) ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: isActive(to) ? '700' : '500', fontFamily: 'Outfit, sans-serif', transition: 'color 0.15s' }}>
-                        <span style={{ color: isActive(to) ? 'var(--gold)' : 'var(--text-muted)', display: 'flex' }}>{icon}</span>
-                        {label}
-                    </Link>
-                ))}
-                <button onClick={() => setShowSuggestion(true)} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '3px', background: 'none', border: 'none', cursor: 'pointer', color: showSuggestion ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: showSuggestion ? '700' : '500', fontFamily: 'Outfit, sans-serif', padding: 0 }}>
-                    <span style={{ color: showSuggestion ? 'var(--gold)' : 'var(--text-muted)', display: 'flex' }}>
+                ].map(({ to, icon, label }) => {
+                    const active = isActive(to);
+                    return (
+                        <Link key={to} to={to} className={`bnav-item ${active ? 'is-active' : ''}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', textDecoration: 'none', color: active ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: active ? '700' : '500', fontFamily: 'Outfit, sans-serif' }}>
+                            <span className="bnav-icon">{icon}</span>
+                            {label}
+                        </Link>
+                    );
+                })}
+                <button onClick={() => setShowSuggestion(true)} className={`bnav-item ${showSuggestion ? 'is-active' : ''}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', background: 'none', border: 'none', cursor: 'pointer', color: showSuggestion ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: showSuggestion ? '700' : '500', fontFamily: 'Outfit, sans-serif', padding: 0 }}>
+                    <span className="bnav-icon">
                         <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M22 12h-6l-2 3H10l-2-3H2"/><path strokeLinecap="round" strokeLinejoin="round" d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
                     </span>
                     Suggest

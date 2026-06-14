@@ -1,5 +1,5 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import { BrowserRouter as Router, Routes, Route, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
@@ -33,14 +33,18 @@ const RouteFallback = () => (
     </div>
 );
 
-function App() {
+function AppRoutes() {
+    const location = useLocation();
+
+    // Scroll to top on every route change (premium app feel)
+    React.useEffect(() => {
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+    }, [location.pathname]);
+
     return (
-        <Router>
-            <ThemeProvider>
-            <AuthProvider>
-                <Navbar />
-                <Suspense fallback={<RouteFallback />}>
-                <Routes>
+        <Suspense fallback={<RouteFallback />}>
+            <div key={location.pathname} className="route-view">
+                <Routes location={location}>
                     {/* Public routes */}
                     <Route path="/" element={<Home />} />
                     <Route path="/login" element={<Login />} />
@@ -103,7 +107,18 @@ function App() {
                     } />
                     <Route path="/complete-profile" element={<CompleteProfile />} />
                 </Routes>
-                </Suspense>
+            </div>
+        </Suspense>
+    );
+}
+
+function App() {
+    return (
+        <Router>
+            <ThemeProvider>
+            <AuthProvider>
+                <Navbar />
+                <AppRoutes />
             </AuthProvider>
             </ThemeProvider>
         </Router>
