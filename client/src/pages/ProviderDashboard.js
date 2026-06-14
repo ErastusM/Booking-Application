@@ -817,14 +817,13 @@ const ProviderDashboard = () => {
     };
 
     const handleFullCalendarSelect = (selection) => {
-        const startDate = selection.start;
+        // Offer a choice (appointment vs block) instead of jumping straight to a form.
         setApptError('');
-        setApptForm(prev => ({
-            ...prev,
-            date: toDateKey(startDate),
-            startTime: toTimeKey(startDate),
-        }));
-        setShowApptModal(true);
+        setTimeSelectionPreview({
+            date: toDateKey(selection.start),
+            startTime: toTimeKey(selection.start),
+            endTime: selection.end ? toTimeKey(selection.end) : toTimeKey(selection.start),
+        });
     };
 
     const handleFullCalendarEventClick = (clickInfo) => {
@@ -2522,32 +2521,39 @@ const ProviderDashboard = () => {
                     return (
                     <>
                         {timeSelectionPreview && (
-                            <div style={{ marginBottom: '1rem', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '0.75rem' }}>
-                                <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '0.95rem 1rem', flex: '1 1 320px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-                                    <div>
-                                        <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: 'var(--charcoal)' }}>Selected time range</p>
-                                        <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{timeSelectionPreview.date} · {timeSelectionPreview.startTime} – {timeSelectionPreview.endTime}</p>
+                            <>
+                                <div onClick={() => setTimeSelectionPreview(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, backdropFilter: 'blur(2px)' }} />
+                                <div role="dialog" aria-modal="true" className="scale-in" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '360px', maxWidth: '92vw', background: 'var(--card-bg)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-lg)', zIndex: 1101, overflow: 'hidden' }}>
+                                    <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
+                                        <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>What's this time for?</h3>
+                                        <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                            {new Date(`${timeSelectionPreview.date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · {timeSelectionPreview.startTime} – {timeSelectionPreview.endTime}
+                                        </p>
                                     </div>
-                                    <button onClick={() => setTimeSelectionPreview(null)} style={{ background: 'transparent', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.55rem 0.9rem', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Cancel</button>
+                                    <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                        <button onClick={() => {
+                                            setApptForm(prev => ({ ...prev, date: timeSelectionPreview.date, startTime: timeSelectionPreview.startTime }));
+                                            setShowApptModal(true);
+                                            setTimeSelectionPreview(null);
+                                        }} className="btn btn--primary btn-block btn-lg">
+                                            <span aria-hidden="true">📅</span> Add appointment
+                                        </button>
+                                        <button onClick={() => {
+                                            openBlockedTimeForm(null);
+                                            setBlockedTimeForm(prev => ({
+                                                ...prev,
+                                                date: timeSelectionPreview.date,
+                                                startTime: timeSelectionPreview.startTime,
+                                                endTime: timeSelectionPreview.endTime,
+                                            }));
+                                            setTimeSelectionPreview(null);
+                                        }} className="btn btn--outline btn-block btn-lg">
+                                            <span aria-hidden="true">⛔</span> Block time
+                                        </button>
+                                        <button onClick={() => setTimeSelectionPreview(null)} className="btn btn--ghost btn-block" style={{ marginTop: '0.25rem' }}>Cancel</button>
+                                    </div>
                                 </div>
-                                <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                                    <button onClick={() => {
-                                        setApptForm(prev => ({ ...prev, date: timeSelectionPreview.date, startTime: timeSelectionPreview.startTime }));
-                                        setShowApptModal(true);
-                                        setTimeSelectionPreview(null);
-                                    }} className="btn-primary" style={{ minWidth: '170px' }}>Book appointment</button>
-                                    <button onClick={() => {
-                                        openBlockedTimeForm(null);
-                                        setBlockedTimeForm(prev => ({
-                                            ...prev,
-                                            date: timeSelectionPreview.date,
-                                            startTime: timeSelectionPreview.startTime,
-                                            endTime: timeSelectionPreview.endTime,
-                                        }));
-                                        setTimeSelectionPreview(null);
-                                    }} className="btn-outline" style={{ minWidth: '170px' }}>Block time</button>
-                                </div>
-                            </div>
+                            </>
                         )}
                         <div
                             className="cal-toolbar"
