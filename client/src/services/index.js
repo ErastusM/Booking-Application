@@ -69,6 +69,7 @@ export const notificationService = {
 
 export const analyticsService = {
     getAnalytics: () => API.get('/analytics'),
+    getProviderAnalytics: (params) => API.get('/analytics/provider', { params }),
 };
 
 export const earningsService = {
