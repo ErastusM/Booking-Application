@@ -67,7 +67,8 @@ const ProviderDashboard = () => {
     const [timeSelectionPreview, setTimeSelectionPreview] = useState(null);
     const [recurringMode, setRecurringMode] = useState('this');
     const [showApptModal, setShowApptModal] = useState(false);
-    const [apptForm, setApptForm] = useState({ serviceId: '', date: '', startTime: '', clientName: '', notes: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', isGroup: false, groupClients: [{ name: '' }] });
+    const [apptForm, setApptForm] = useState({ serviceId: '', date: '', startTime: '', clientName: '', notes: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', isGroup: false, groupClients: [{ name: '' }], teamMember: '' });
+    const [calendarStaffFilter, setCalendarStaffFilter] = useState('all'); // 'all' | teamMember _id
     const [savingAppt, setSavingAppt] = useState(false);
     const [apptError, setApptError] = useState('');
     // Appointment history
@@ -166,6 +167,8 @@ const ProviderDashboard = () => {
         if (activeTab === 'memberships' && myPackages.length === 0) fetchMyPackages();
         if (activeTab === 'team' && teamMembers.length === 0) fetchTeam();
         if (activeTab === 'history' && history.length === 0) fetchHistory(1);
+        // Team needed for staff assignment + the calendar staff filter
+        if (activeTab === 'calendar' && teamMembers.length === 0) fetchTeam();
     }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const fetchAppointments = async () => {
@@ -722,8 +725,16 @@ const ProviderDashboard = () => {
         });
     };
 
+    const matchesStaffFilter = (a) => {
+        if (calendarStaffFilter === 'all') return true;
+        const tmId = a.teamMember?._id || a.teamMember || null;
+        if (calendarStaffFilter === 'unassigned') return !tmId;
+        return String(tmId) === String(calendarStaffFilter);
+    };
+
     const getAppointmentsForDate = (date) => {
         return appointments.filter(a => {
+            if (!matchesStaffFilter(a)) return false;
             const d = new Date(a.appointmentDate);
             return (
                 d.getDate() === date.getDate() &&
@@ -763,7 +774,7 @@ const ProviderDashboard = () => {
         return new Date(`${dateStr}T${timeValue}:00`);
     };
 
-    const appointmentEvents = appointments.map(a => {
+    const appointmentEvents = appointments.filter(matchesStaffFilter).map(a => {
         const start = mergeDateAndTime(a.appointmentDate, a.startTime);
         const end = mergeDateAndTime(a.appointmentDate, a.endTime);
         const colors = statusCalendarColors[a.status] || statusCalendarColors.pending;
@@ -2576,6 +2587,21 @@ const ProviderDashboard = () => {
                                 <button onClick={e=>{e.stopPropagation();handleNext();}} style={{...btnBase,padding:'0.45rem 0.7rem',fontSize:'1.1rem',lineHeight:1}}>{'\u203A'}</button>
                             </div>
                             <div style={{ display:'flex', gap:'0.5rem', alignItems:'center' }}>
+                                {/* Staff filter — only when the provider has a team */}
+                                {teamMembers.length > 0 && (
+                                    <div onClick={e=>e.stopPropagation()}>
+                                        <select
+                                            value={calendarStaffFilter}
+                                            onChange={e => setCalendarStaffFilter(e.target.value)}
+                                            aria-label="Filter calendar by staff"
+                                            style={{ ...btnBase, padding:'0.45rem 0.85rem', fontSize:'0.82rem', fontWeight:'500', color:'var(--text-secondary)', paddingRight:'2rem' }}
+                                        >
+                                            <option value="all">All staff</option>
+                                            <option value="unassigned">Me / unassigned</option>
+                                            {teamMembers.filter(m => m.isActive !== false).map(m => <option key={m._id} value={m._id}>{m.name}</option>)}
+                                        </select>
+                                    </div>
+                                )}
                                 {/* View dropdown */}
                                 <div style={{ position:'relative' }} onClick={e=>e.stopPropagation()}>
                                     <button onClick={()=>{setViewMenuOpen(o=>!o);setAddMenuOpen(false);}} style={{...btnBase,padding:'0.45rem 0.85rem',fontSize:'0.82rem',fontWeight:'500',display:'flex',alignItems:'center',gap:'0.35rem'}}>
@@ -3231,6 +3257,7 @@ const ProviderDashboard = () => {
                                         endTime,
                                         clients: validClients,
                                         notes: apptForm.notes,
+                                        teamMember: apptForm.teamMember || undefined,
                                     });
                                 } else {
                                     await appointmentService.createAppointment({
@@ -3240,6 +3267,7 @@ const ProviderDashboard = () => {
                                         endTime,
                                         walkInName: apptForm.clientName.trim() || undefined,
                                         notes: apptForm.notes,
+                                        teamMember: apptForm.teamMember || undefined,
                                         isRecurring: apptForm.isRecurring,
                                         recurrenceType: apptForm.isRecurring ? apptForm.recurrenceType : undefined,
                                         recurrenceEndDate: apptForm.isRecurring && apptForm.recurrenceEndDate ? apptForm.recurrenceEndDate : undefined,
@@ -3263,6 +3291,15 @@ const ProviderDashboard = () => {
                                     </select>
                                     {myServices.length === 0 && <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.35rem' }}>No services found. Add services in the Catalogue tab first.</p>}
                                 </div>
+                                {teamMembers.length > 0 && (
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Staff member</label>
+                                        <select value={apptForm.teamMember} onChange={e => setApptForm(f => ({ ...f, teamMember: e.target.value }))} className="input" style={{ width: '100%' }}>
+                                            <option value="">Me / unassigned</option>
+                                            {teamMembers.filter(m => m.isActive !== false).map(m => <option key={m._id} value={m._id}>{m.name}{m.role ? ` · ${m.role}` : ''}</option>)}
+                                        </select>
+                                    </div>
+                                )}
                                 {/* Group booking toggle */}
                                 <div style={{ borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', padding: '0.75rem 1rem', background: apptForm.isGroup ? 'rgba(201,168,76,0.05)' : 'transparent' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: apptForm.isGroup ? '0.75rem' : 0 }}>

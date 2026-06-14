@@ -120,6 +120,7 @@ exports.getAllAppointments = async (req, res) => {
             Appointment.find(query)
                 .populate('customer', 'name email phone')
                 .populate('service', 'name price duration')
+                .populate('teamMember', 'name color')
                 .sort({ appointmentDate: -1 })
                 .skip(skip)
                 .limit(limit),
@@ -167,7 +168,7 @@ const advanceDate = (date, type) => {
 exports.createAppointment = async (req, res) => {
     try {
         const { service, appointmentDate, startTime, endTime, notes, selectedAddOns, walkInName,
-                isRecurring, recurrenceType, recurrenceEndDate } = req.body;
+                isRecurring, recurrenceType, recurrenceEndDate, teamMember } = req.body;
         if (!service || !appointmentDate || !startTime || !endTime) {
             return res.status(400).json({ success: false, message: 'Please provide all required fields' });
         }
@@ -187,11 +188,16 @@ exports.createAppointment = async (req, res) => {
             const newEnd = newEH * 60 + newEM + (svc.bufferAfter || 0);
             const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
             const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
-            const existing = await Appointment.find({
+            // Per-staff conflicts: different team members can be booked concurrently.
+            // When a staff member is set, only their bookings count; otherwise the
+            // provider's own (unassigned) bookings count.
+            const overlapQuery = {
                 provider: providerId,
                 appointmentDate: { $gte: dayStart, $lte: dayEnd },
                 status: { $nin: ['cancelled'] },
-            }).select('startTime endTime');
+            };
+            overlapQuery.teamMember = teamMember || null;
+            const existing = await Appointment.find(overlapQuery).select('startTime endTime');
             const hasOverlap = existing.some(a => {
                 const [aSH, aSM] = a.startTime.split(':').map(Number);
                 const [aEH, aEM] = a.endTime.split(':').map(Number);
@@ -228,6 +234,7 @@ exports.createAppointment = async (req, res) => {
             status: 'confirmed',
             statusHistory: [{ status: 'confirmed', changedBy: req.user._id }],
             walkInName: isProviderBooking ? (walkInName?.trim() || null) : null,
+            teamMember: teamMember || null,
         };
 
         let appointment;
@@ -635,7 +642,7 @@ exports.rescheduleAppointment = async (req, res) => {
 /* --- Group Bookings --- */
 exports.createGroupBooking = async (req, res) => {
     try {
-        const { service, appointmentDate, startTime, endTime, clients, groupSize, notes } = req.body;
+        const { service, appointmentDate, startTime, endTime, clients, groupSize, notes, teamMember } = req.body;
         if (!clients || !Array.isArray(clients) || clients.length === 0) {
             return res.status(400).json({ success: false, message: 'At least one client is required' });
         }
@@ -655,6 +662,7 @@ exports.createGroupBooking = async (req, res) => {
             notes: notes || '',
             groupId: gid,
             groupSize: groupSize || clients.length,
+            teamMember: teamMember || null,
         }));
         const appointments = await Appointment.insertMany(docs);
         await createNotification(req.user._id, `Group booking created: ${clients.length} client(s) for ${svc.name}`, 'appointment', '/provider-dashboard?tab=confirmed');

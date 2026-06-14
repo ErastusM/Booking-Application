@@ -75,6 +75,8 @@ const appointmentSchema = new mongoose.Schema(
         reminderSent24h: { type: Boolean, default: false },
         reminderSent1h:  { type: Boolean, default: false },
         walkInName: { type: String, default: null },
+        /* Staff member performing the appointment (multi-chair scheduling) */
+        teamMember: { type: mongoose.Schema.Types.ObjectId, ref: 'TeamMember', default: null },
         /* Group booking — shared slot for multiple clients */
         groupId:    { type: String, default: null }, // UUID shared by all appointments in the group
         groupSize:  { type: Number, default: 1 },    // max participants in the group
