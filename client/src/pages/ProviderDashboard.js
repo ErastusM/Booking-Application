@@ -9,6 +9,7 @@ import { useAuthContext } from '../context/AuthContext';
 import OnboardingWizard from '../components/OnboardingWizard';
 import FormsManager from '../components/FormsManager';
 import ApptFormsView from '../components/ApptFormsView';
+import { Calendar, History, Scissors, CalendarClock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban } from 'lucide-react';
 
 const statusConfig = {
     pending: { label: 'Pending', bg: '#fef3c7', color: '#92400e' },
@@ -907,10 +908,10 @@ const ProviderDashboard = () => {
     }, {});
 
     const stats = [
-        { label: 'Total', value: appointments.length, icon: '📋' },
-        { label: 'Pending', value: counts.pending, icon: '⏳' },
-        { label: 'Confirmed', value: counts.confirmed, icon: '✅' },
-        { label: 'Completed', value: counts.completed, icon: '🏆' },
+        { label: 'Total', value: appointments.length, Icon: ClipboardList },
+        { label: 'Pending', value: counts.pending, Icon: CalendarClock },
+        { label: 'Confirmed', value: counts.confirmed, Icon: Calendar },
+        { label: 'Completed', value: counts.completed, Icon: TrendingUp },
     ];
 
     const labelStyle = { display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', letterSpacing: '0.05em', textTransform: 'uppercase' };
@@ -951,7 +952,7 @@ const ProviderDashboard = () => {
                 <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
                     {stats.map((s, i) => (
                         <div key={i} className="card scale-in" style={{ animationDelay: `${i * 40}ms`, padding: '1.2rem 1.4rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(201,168,76,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.15rem', flexShrink: 0 }}>{s.icon}</div>
+                            <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><s.Icon size={20} strokeWidth={2} /></div>
                             <div>
                                 <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</p>
                                 <p className="tnum" style={{ fontFamily: 'var(--font-display)', fontSize: '1.85rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
@@ -977,13 +978,14 @@ const ProviderDashboard = () => {
                 <div className="tab-strip" style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '0.35rem' }}>
                     {/* Calendar first */}
                     <button onClick={() => setActiveTab('calendar')} style={{
+                        display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
                         padding: '0.65rem 1rem', background: activeTab === 'calendar' ? 'rgba(201,168,76,0.12)' : 'transparent', border: '1px solid',
                         borderColor: activeTab === 'calendar' ? 'var(--gold)' : 'var(--border)',
                         borderRadius: '999px', color: activeTab === 'calendar' ? 'var(--gold-dark)' : 'var(--text-secondary)',
                         fontWeight: activeTab === 'calendar' ? '700' : '500', fontSize: '0.85rem',
                         cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
                         transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
-                    }}>{'\uD83D\uDCC5'} Calendar</button>
+                    }}><Calendar size={15} strokeWidth={2} /> Calendar</button>
                     {/* Appointment status tabs */}
                     {appointmentTabs.map(tab => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
@@ -1004,16 +1006,18 @@ const ProviderDashboard = () => {
                     ))}
                     {/* History tab */}
                     <button onClick={() => setActiveTab('history')} style={{
-                        padding: '0.65rem 1rem', background: activeTab === 'history' ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)', border: '1px solid',
+                        display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                        padding: '0.65rem 1rem', background: activeTab === 'history' ? 'rgba(201,168,76,0.12)' : 'transparent', border: '1px solid',
                         borderColor: activeTab === 'history' ? 'var(--gold)' : 'var(--border)',
                         borderRadius: '999px', color: activeTab === 'history' ? 'var(--gold-dark)' : 'var(--text-secondary)',
                         fontWeight: activeTab === 'history' ? '700' : '500', fontSize: '0.85rem',
                         cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
                         transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
-                    }}>🕐 History</button>
+                    }}><History size={15} strokeWidth={2} /> History</button>
                     {/* Other feature tabs */}
-                    {[['services','✂️ Catalogue'],['availability','🗓 Availability'],['overview','📊 Overview'],['earnings','💵 Earnings'],['insights','📈 Insights'],['clients','👥 Clients'],['forms','📋 Forms'],['messages','💬 Messages'],['memberships','🪪 Memberships'],['team','👤 Team']].map(([tab, label]) => (
+                    {[['services','Catalogue',Scissors],['availability','Availability',CalendarClock],['overview','Overview',LayoutDashboard],['earnings','Earnings',TrendingUp],['insights','Insights',BarChart3],['clients','Clients',Users],['forms','Forms',ClipboardList],['messages','Messages',MessageSquare],['memberships','Memberships',Ticket],['team','Team',UserCog]].map(([tab, label, Icon]) => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
+                            display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
                             padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(201,168,76,0.12)' : 'transparent', border: '1px solid',
                             borderColor: activeTab === tab ? 'var(--gold)' : 'var(--border)',
                             borderRadius: '999px', color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-secondary)',
@@ -1021,7 +1025,7 @@ const ProviderDashboard = () => {
                             cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
                             transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
                         }}>
-                            {label}
+                            <Icon size={15} strokeWidth={2} /> {label}
                         </button>
                     ))}
                 </div>
@@ -2536,7 +2540,7 @@ const ProviderDashboard = () => {
                                             setShowApptModal(true);
                                             setTimeSelectionPreview(null);
                                         }} className="btn btn--primary btn-block btn-lg">
-                                            <span aria-hidden="true">📅</span> Add appointment
+                                            <CalendarPlus size={18} strokeWidth={2} /> Add appointment
                                         </button>
                                         <button onClick={() => {
                                             openBlockedTimeForm(null);
@@ -2548,7 +2552,7 @@ const ProviderDashboard = () => {
                                             }));
                                             setTimeSelectionPreview(null);
                                         }} className="btn btn--outline btn-block btn-lg">
-                                            <span aria-hidden="true">⛔</span> Block time
+                                            <Ban size={18} strokeWidth={2} /> Block time
                                         </button>
                                         <button onClick={() => setTimeSelectionPreview(null)} className="btn btn--ghost btn-block" style={{ marginTop: '0.25rem' }}>Cancel</button>
                                     </div>
