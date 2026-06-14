@@ -1,4 +1,8 @@
 const nodemailer = require('nodemailer');
+const pino = require('pino');
+const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+
+const emailConfigured = !!(process.env.EMAIL_USER && process.env.EMAIL_PASS);
 
 const transporter = nodemailer.createTransport({
     host: 'smtp.gmail.com',
@@ -12,6 +16,22 @@ const transporter = nodemailer.createTransport({
     greetingTimeout: 10000,
     socketTimeout: 15000,
 });
+
+/**
+ * Email is a NON-CRITICAL side effect — it must never throw into a request
+ * handler. If SMTP isn't configured, skip silently. If a send fails (e.g.
+ * bad/expired Gmail credentials → EAUTH 535), log and swallow so booking,
+ * status-change, cancel and reschedule requests can never 500 because of email.
+ */
+const safeSend = async (mailOptions) => {
+    if (!emailConfigured) return { skipped: true };
+    try {
+        return await transporter.sendMail(mailOptions);
+    } catch (err) {
+        logger.warn({ err: err.message, to: mailOptions && mailOptions.to }, 'Email send failed (non-fatal)');
+        return { error: true };
+    }
+};
 
 /**
  * Escape HTML special characters to prevent injection in email templates.
@@ -74,7 +94,7 @@ exports.sendVerificationEmail = async (email, name, token) => {
         `,
     };
 
-    await transporter.sendMail(mailOptions);
+    await safeSend(mailOptions);
 };
 
 exports.sendWelcomeEmail = async (email, name) => {
@@ -104,11 +124,11 @@ exports.sendWelcomeEmail = async (email, name) => {
         `,
     };
 
-    await transporter.sendMail(mailOptions);
+    await safeSend(mailOptions);
 };
 
 exports.sendAppointmentConfirmed = async (email, name, serviceName, date, time, gcalUrl) => {
-    await transporter.sendMail({
+    await safeSend({
         from: `"Bookplus" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: '✅ Your appointment is confirmed!',
@@ -138,7 +158,7 @@ exports.sendAppointmentConfirmed = async (email, name, serviceName, date, time, 
 };
 
 exports.sendAppointmentCompleted = async (email, name, serviceName) => {
-    await transporter.sendMail({
+    await safeSend({
         from: `"Bookplus" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: '🏆 How was your appointment?',
@@ -163,7 +183,7 @@ exports.sendAppointmentCompleted = async (email, name, serviceName) => {
 };
 
 exports.sendAppointmentCancelled = async (email, name, serviceName, date) => {
-    await transporter.sendMail({
+    await safeSend({
         from: `"Bookplus" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: '❌ Appointment Cancelled',
@@ -187,7 +207,7 @@ exports.sendAppointmentCancelled = async (email, name, serviceName, date) => {
 };
 
 exports.sendAppointmentRescheduled = async (email, providerName, customerName, serviceName, date, time) => {
-    await transporter.sendMail({
+    await safeSend({
         from: `"Bookplus" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: '🗓 Appointment Rescheduled',
@@ -214,7 +234,7 @@ exports.sendAppointmentRescheduled = async (email, providerName, customerName, s
 };
 
 exports.sendReminder24h = async (email, name, serviceName, date, time) => {
-    await transporter.sendMail({
+    await safeSend({
         from: `"Bookplus" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: '⏰ Reminder: Your appointment is tomorrow',
@@ -241,7 +261,7 @@ exports.sendReminder24h = async (email, name, serviceName, date, time) => {
 };
 
 exports.sendReminder1h = async (email, name, serviceName, time) => {
-    await transporter.sendMail({
+    await safeSend({
         from: `"Bookplus" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: '⏰ Reminder: Your appointment is in 1 hour',
@@ -264,7 +284,7 @@ exports.sendReminder1h = async (email, name, serviceName, time) => {
 
 exports.sendRebookingPrompt = async (email, name, serviceName, providerName, providerId) => {
     const bookUrl = `${process.env.CLIENT_URL || 'http://localhost:3001'}/book-appointment?providerId=${providerId}`;
-    await transporter.sendMail({
+    await safeSend({
         from: `"Bookplus" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: '✨ Book your next appointment',
@@ -292,7 +312,7 @@ exports.sendPasswordResetEmail = async (email, name, token) => {
     const clientUrl = process.env.CLIENT_URL || 'http://localhost:3000';
     const resetUrl = `${clientUrl}/reset-password?token=${token}`;
 
-    await transporter.sendMail({
+    await safeSend({
         from: `"Bookplus" <${process.env.EMAIL_USER}>`,
         to: email,
         subject: 'Reset your Bookplus password',
