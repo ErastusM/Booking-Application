@@ -35,6 +35,8 @@ export const appointmentService = {
     getAppointmentHistory: (params) => API.get('/appointments/history', { params }),
     createGroupBooking: (data) => API.post('/appointments/group', data),
     getGroupBooking: (groupId) => API.get(`/appointments/group/${groupId}`),
+    getByToken: (token) => API.get(`/appointments/manage/${token}`),
+    cancelByToken: (token) => API.post(`/appointments/manage/${token}/cancel`),
 };
 
 export const userService = {

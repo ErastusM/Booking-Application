@@ -26,6 +26,7 @@ const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
+const ManageBooking = lazy(() => import('./pages/ManageBooking'));
 
 const RouteFallback = () => (
     <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -57,6 +58,7 @@ function AppRoutes() {
                     <Route path="/reset-password" element={<ResetPassword />} />
                     <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                     <Route path="/terms" element={<TermsOfService />} />
+                    <Route path="/manage/:token" element={<ManageBooking />} />
 
                     {/* Customer only */}
                     <Route path="/book-appointment" element={
