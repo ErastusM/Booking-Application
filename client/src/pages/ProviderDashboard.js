@@ -54,6 +54,7 @@ const ProviderDashboard = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [calendarView, setCalendarView] = useState('day');
     const [selectedDay, setSelectedDay] = useState(null);
+    const [calendarToast, setCalendarToast] = useState(null); // { msg, type }
     const [viewMenuOpen, setViewMenuOpen] = useState(false);
     const [addMenuOpen, setAddMenuOpen] = useState(false);
     const [blockedTimes, setBlockedTimes] = useState([]);
@@ -841,6 +842,12 @@ const ProviderDashboard = () => {
         setApptDetailModal(event.extendedProps.raw || null);
     };
 
+    const showCalendarToast = (msg, type = 'success') => {
+        setCalendarToast({ msg, type });
+        window.clearTimeout(showCalendarToast._t);
+        showCalendarToast._t = window.setTimeout(() => setCalendarToast(null), 3200);
+    };
+
     const handleFullCalendarEventDrop = async (dropInfo) => {
         const event = dropInfo.event;
         if (event.extendedProps.kind !== 'appointment') {
@@ -853,9 +860,31 @@ const ProviderDashboard = () => {
             const startTime = toTimeKey(event.start);
             const res = await appointmentService.providerRescheduleAppointment(appointmentId, { appointmentDate, startTime });
             setAppointments(prev => prev.map(a => a._id === appointmentId ? { ...a, ...res.data.data } : a));
+            showCalendarToast(`Moved to ${event.start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at ${startTime}`);
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to reschedule appointment');
+            showCalendarToast(err.response?.data?.message || 'Could not reschedule', 'error');
             dropInfo.revert();
+        }
+    };
+
+    // Resize-to-change-duration (Fresha-style). Sends an explicit endTime.
+    const handleFullCalendarEventResize = async (resizeInfo) => {
+        const event = resizeInfo.event;
+        if (event.extendedProps.kind !== 'appointment') {
+            resizeInfo.revert();
+            return;
+        }
+        try {
+            const appointmentId = event.extendedProps.appointmentId;
+            const appointmentDate = toDateString(event.start);
+            const startTime = toTimeKey(event.start);
+            const endTime = event.end ? toTimeKey(event.end) : undefined;
+            const res = await appointmentService.providerRescheduleAppointment(appointmentId, { appointmentDate, startTime, endTime });
+            setAppointments(prev => prev.map(a => a._id === appointmentId ? { ...a, ...res.data.data } : a));
+            showCalendarToast(`Duration updated · ${startTime}–${endTime}`);
+        } catch (err) {
+            showCalendarToast(err.response?.data?.message || 'Could not change duration', 'error');
+            resizeInfo.revert();
         }
     };
 
@@ -1880,7 +1909,8 @@ const ProviderDashboard = () => {
                                 selectable
                                 selectMirror
                                 editable
-                                eventDurationEditable={false}
+                                eventDurationEditable
+                                eventResizableFromStart
                                 dayMaxEvents={3}
                                 slotMinTime="07:00:00"
                                 slotMaxTime="22:00:00"
@@ -1893,6 +1923,7 @@ const ProviderDashboard = () => {
                                 select={handleFullCalendarSelect}
                                 eventClick={handleFullCalendarEventClick}
                                 eventDrop={handleFullCalendarEventDrop}
+                                eventResize={handleFullCalendarEventResize}
                                 datesSet={(arg) => setCurrentDate(arg.start)}
                                 eventContent={(arg) => {
                                     const { kind, customerName, startTime, endTime } = arg.event.extendedProps;
@@ -1913,6 +1944,22 @@ const ProviderDashboard = () => {
                                 }}
                             />
                         </div>
+
+                        {/* Drag/drop/resize feedback toast */}
+                        {calendarToast && (
+                            <div role="status" aria-live="polite" className="cal-toast" style={{
+                                position: 'fixed', left: '50%', bottom: '28px', transform: 'translateX(-50%)', zIndex: 1300,
+                                display: 'flex', alignItems: 'center', gap: '0.6rem',
+                                background: 'var(--ink)', color: 'var(--on-ink)', padding: '0.75rem 1.15rem',
+                                borderRadius: 'var(--radius-pill)', boxShadow: 'var(--shadow-lg)', fontSize: '0.85rem', fontWeight: '600',
+                                maxWidth: '90vw',
+                            }}>
+                                <span aria-hidden="true" style={{ color: calendarToast.type === 'error' ? '#fca5a5' : 'var(--gold)' }}>
+                                    {calendarToast.type === 'error' ? '✕' : '✓'}
+                                </span>
+                                {calendarToast.msg}
+                            </div>
+                        )}
                     </div>
                 )}
 

@@ -241,6 +241,56 @@ describe('PUT /api/appointments/:id/reschedule', () => {
     });
 });
 
+describe('PUT /api/appointments/:id/provider-reschedule (drag & resize)', () => {
+    it('drag (no endTime) recomputes end from service duration', async () => {
+        const customer = await makeUser();
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id, { duration: 30 });
+        const date = tomorrow();
+        const appt = await makeAppointment(customer._id, svc._id, provider._id, {
+            appointmentDate: new Date(date), startTime: '10:00', endTime: '10:30',
+        });
+        const res = await request(app)
+            .put(`/api/appointments/${appt._id}/provider-reschedule`)
+            .set(authHeader(provider))
+            .send({ appointmentDate: date, startTime: '14:00' });
+        expect(res.status).toBe(200);
+        expect(res.body.data.startTime).toBe('14:00');
+        expect(res.body.data.endTime).toBe('14:30');
+    });
+
+    it('resize (explicit endTime) changes the appointment duration', async () => {
+        const customer = await makeUser();
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id, { duration: 30 });
+        const date = tomorrow();
+        const appt = await makeAppointment(customer._id, svc._id, provider._id, {
+            appointmentDate: new Date(date), startTime: '10:00', endTime: '10:30',
+        });
+        const res = await request(app)
+            .put(`/api/appointments/${appt._id}/provider-reschedule`)
+            .set(authHeader(provider))
+            .send({ appointmentDate: date, startTime: '10:00', endTime: '11:15' });
+        expect(res.status).toBe(200);
+        expect(res.body.data.endTime).toBe('11:15');
+    });
+
+    it('rejects an endTime that is not after the start time', async () => {
+        const customer = await makeUser();
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id);
+        const date = tomorrow();
+        const appt = await makeAppointment(customer._id, svc._id, provider._id, {
+            appointmentDate: new Date(date), startTime: '10:00', endTime: '10:30',
+        });
+        const res = await request(app)
+            .put(`/api/appointments/${appt._id}/provider-reschedule`)
+            .set(authHeader(provider))
+            .send({ appointmentDate: date, startTime: '10:00', endTime: '09:30' });
+        expect(res.status).toBe(400);
+    });
+});
+
 // ─────────────────────────────────────────────────────────────────────────────
 // PAGINATION
 // ─────────────────────────────────────────────────────────────────────────────

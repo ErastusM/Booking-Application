@@ -506,7 +506,7 @@ exports.updateAppointmentStatus = async (req, res) => {
 
 exports.providerRescheduleAppointment = async (req, res) => {
     try {
-        const { appointmentDate, startTime } = req.body;
+        const { appointmentDate, startTime, endTime: requestedEndTime } = req.body;
         if (!appointmentDate || !startTime) {
             return res.status(400).json({ success: false, message: 'appointmentDate and startTime are required' });
         }
@@ -521,12 +521,26 @@ exports.providerRescheduleAppointment = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Cannot reschedule a cancelled or completed appointment' });
         }
 
-        const duration = appointment.service?.duration || 30;
         const [hours, minutes] = startTime.split(':').map(Number);
-        const totalMinutes = hours * 60 + minutes + duration;
-        const endHours = Math.floor(totalMinutes / 60) % 24;
-        const endMins = totalMinutes % 60;
-        const endTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
+        const startMinutes = hours * 60 + minutes;
+        // A drag (move) recomputes end from the service duration; a resize sends an
+        // explicit endTime to change the appointment's duration.
+        let endTime, duration;
+        if (requestedEndTime && /^\d{2}:\d{2}$/.test(requestedEndTime)) {
+            const [eh, em] = requestedEndTime.split(':').map(Number);
+            const endMinutes = eh * 60 + em;
+            if (endMinutes <= startMinutes) {
+                return res.status(400).json({ success: false, message: 'End time must be after the start time' });
+            }
+            duration = endMinutes - startMinutes;
+            endTime = requestedEndTime;
+        } else {
+            duration = appointment.service?.duration || 30;
+            const totalMinutes = startMinutes + duration;
+            const endHours = Math.floor(totalMinutes / 60) % 24;
+            const endMins = totalMinutes % 60;
+            endTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
+        }
 
         const providerId = appointment.provider;
         const schedule = await getProviderSchedule(providerId);
