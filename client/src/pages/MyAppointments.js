@@ -242,6 +242,28 @@ const MyAppointments = () => {
                     </div>
                 )}
 
+                {/* Rebook your last visit — one tap */}
+                {(() => {
+                    const past = [...appointments]
+                        .filter(a => a.service && (a.status === 'completed' || new Date(a.appointmentDate) < new Date()))
+                        .sort((a, b) => new Date(b.appointmentDate) - new Date(a.appointmentDate));
+                    const last = past[0];
+                    if (!last) return null;
+                    const providerId = last.service?.provider || '';
+                    const serviceId = last.service?._id || '';
+                    return (
+                        <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', padding: '1.1rem 1.4rem', marginBottom: '1.5rem' }}>
+                            <div>
+                                <p style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', margin: '0 0 0.25rem', fontWeight: '700' }}>Book again</p>
+                                <p style={{ margin: 0, color: 'var(--charcoal)', fontWeight: '600' }}>{last.service?.name}<span style={{ color: 'var(--text-muted)', fontWeight: '400' }}> · last on {new Date(last.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span></p>
+                            </div>
+                            <button onClick={() => navigate(`/book-appointment?providerId=${providerId}&serviceId=${serviceId}`)} className="btn btn--primary" style={{ flexShrink: 0 }}>
+                                Rebook this →
+                            </button>
+                        </div>
+                    );
+                })()}
+
                 {/* Filter tabs */}
                 <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '2rem', borderBottom: '1px solid var(--border)', overflowX: 'auto' }}>
                     {filters.map(f => (
