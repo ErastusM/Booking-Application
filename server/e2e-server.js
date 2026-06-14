@@ -11,6 +11,9 @@ const mongoose = require('mongoose');
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'e2e-jwt-secret';
 process.env.REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'e2e-refresh-secret';
+// E2E must never attempt real email delivery — disable SMTP before the app loads.
+delete process.env.EMAIL_USER;
+delete process.env.EMAIL_PASS;
 const PORT = process.env.PORT || 5050;
 
 (async () => {
@@ -24,7 +27,7 @@ const PORT = process.env.PORT || 5050;
 
     // Seed a verified provider with a bookable service + full weekday availability
     const provider = await User.create({
-        name: 'E2E Barber', email: 'e2e-provider@test.com', password: 'Password1!',
+        name: 'E2E Barber', email: 'e2e-provider@bookplus.invalid', password: 'Password1!',
         phone: '+264810000000', role: 'provider', providerCategory: 'Beauty & Grooming',
         isVerified: true, provider: 'local',
     });
@@ -43,7 +46,7 @@ const PORT = process.env.PORT || 5050;
 
     // Seed a verified customer so E2E can log in without the email-verification wall
     const customer = await User.create({
-        name: 'E2E Customer', email: 'e2e-customer@test.com', password: 'Password1!',
+        name: 'E2E Customer', email: 'e2e-customer@bookplus.invalid', password: 'Password1!',
         phone: '+264810000001', role: 'customer', isVerified: true, provider: 'local',
     });
 

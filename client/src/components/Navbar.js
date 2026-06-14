@@ -4,6 +4,7 @@ import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import NotificationBell from './NotificationBell';
 import SuggestionBox from './SuggestionBox';
+import BrandMark from './BrandMark';
 
 const Navbar = () => {
     const { user, logout } = useAuthContext();
@@ -77,9 +78,10 @@ const Navbar = () => {
             <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '64px' }}>
 
                 {/* Logo */}
-                <Link to="/" style={{ textDecoration: 'none', flexShrink: 0 }}>
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', color: 'var(--gold)', letterSpacing: '-0.02em' }}>
-                        Book<span style={{ color: isTransparent ? 'white' : 'var(--charcoal)' }}>plus</span>
+                <Link to="/" style={{ textDecoration: 'none', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '0.55rem' }}>
+                    <BrandMark size={30} />
+                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', letterSpacing: '-0.02em' }}>
+                        <span style={{ color: isTransparent ? 'white' : 'var(--charcoal)' }}>Book</span><span style={{ color: 'var(--gold)' }}>plus</span>
                     </span>
                 </Link>
 
@@ -183,9 +185,10 @@ const Navbar = () => {
                     animation: 'slideInLeft 0.22s ease-out',
                 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.1rem 1.2rem', borderBottom: '1px solid var(--border)' }}>
-                        <Link to="/" onClick={() => setMenuOpen(false)} style={{ textDecoration: 'none' }}>
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--gold)', letterSpacing: '-0.02em' }}>
-                                Book<span style={{ color: 'var(--charcoal)' }}>plus</span>
+                        <Link to="/" onClick={() => setMenuOpen(false)} style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                            <BrandMark size={28} />
+                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', letterSpacing: '-0.02em' }}>
+                                <span style={{ color: 'var(--charcoal)' }}>Book</span><span style={{ color: 'var(--gold)' }}>plus</span>
                             </span>
                         </Link>
                         <button onClick={() => setMenuOpen(false)} aria-label="Close menu" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.55rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>

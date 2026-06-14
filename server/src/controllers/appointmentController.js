@@ -295,13 +295,27 @@ exports.createAppointment = async (req, res) => {
                 const _gcalStart = new Date(_base.getFullYear(), _base.getMonth(), _base.getDate(), _sh, _sm);
                 const _gcalEnd = new Date(_base.getFullYear(), _base.getMonth(), _base.getDate(), _eh, _em);
                 const gcalUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(svc.name)}&dates=${_fmt(_gcalStart)}/${_fmt(_gcalEnd)}&details=${encodeURIComponent('Booked via Bookplus')}`;
+
+                // Extras for the Fresha-style confirmation: venue, manage link, directions
+                const providerDoc = svc.provider ? await User.findById(svc.provider).select('name businessProfile') : null;
+                const address = providerDoc?.businessProfile?.address || '';
+                const clientBase = process.env.CLIENT_URL || '';
+                const extras = {
+                    price: basePrice,
+                    bookingRef: String(appointment._id).slice(-8).toUpperCase(),
+                    manageUrl: appointment.manageToken ? `${clientBase}/manage/${appointment.manageToken}` : undefined,
+                    directionsUrl: address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : undefined,
+                    venue: providerDoc?.name || undefined,
+                    address: address || undefined,
+                };
                 await sendAppointmentConfirmed(
                     req.user.email,
                     req.user.name,
                     svc.name,
                     dateStr,
                     timeStr,
-                    gcalUrl
+                    gcalUrl,
+                    extras
                 );
             } catch (err) { logger.error({ err }, 'Booking confirmation email failed'); }
         });

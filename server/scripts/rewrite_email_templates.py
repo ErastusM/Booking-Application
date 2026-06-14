@@ -1,69 +1,13 @@
-const nodemailer = require('nodemailer');
-const pino = require('pino');
-const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+# -*- coding: utf-8 -*-
+import io, os
+p = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src', 'utils', 'emailService.js'))
+s = io.open(p, encoding='utf-8').read()
 
-const emailConfigured = !!(process.env.EMAIL_USER && process.env.EMAIL_PASS);
+marker = 'exports.transporter = transporter;'
+idx = s.index(marker) + len(marker)
+head = s[:idx]
 
-// Env-driven SMTP (defaults to Hostinger). Port 465 uses SSL; 587 uses STARTTLS.
-const EMAIL_HOST = process.env.EMAIL_HOST || 'smtp.hostinger.com';
-const EMAIL_PORT = parseInt(process.env.EMAIL_PORT, 10) || 465;
-const EMAIL_FROM_NAME = process.env.EMAIL_FROM_NAME || 'Bookplus';
-// What recipients see in the From header — must match the authenticated mailbox.
-exports.FROM = `"${EMAIL_FROM_NAME}" <${process.env.EMAIL_USER}>`;
-const FROM = exports.FROM;
-
-const transporter = nodemailer.createTransport({
-    host: EMAIL_HOST,
-    port: EMAIL_PORT,
-    secure: EMAIL_PORT === 465,   // SSL on 465, STARTTLS otherwise
-    auth: {
-        user: process.env.EMAIL_USER,
-        pass: process.env.EMAIL_PASS,
-    },
-    connectionTimeout: 10000,
-    greetingTimeout: 10000,
-    socketTimeout: 15000,
-});
-
-// Verify the connection once at boot — purely informational, never fatal.
-if (emailConfigured) {
-    transporter.verify()
-        .then(() => logger.info({ host: EMAIL_HOST, port: EMAIL_PORT, user: process.env.EMAIL_USER }, 'SMTP ready'))
-        .catch((err) => logger.warn({ err: err.message, host: EMAIL_HOST }, 'SMTP verify failed — emails will be skipped/retried per-send'));
-} else {
-    logger.info('SMTP not configured (EMAIL_USER/EMAIL_PASS unset) — emails disabled');
-}
-
-/**
- * Email is a NON-CRITICAL side effect — it must never throw into a request
- * handler. If SMTP isn't configured, skip silently. If a send fails (e.g.
- * bad/expired Gmail credentials → EAUTH 535), log and swallow so booking,
- * status-change, cancel and reschedule requests can never 500 because of email.
- */
-const safeSend = async (mailOptions) => {
-    if (!emailConfigured) return { skipped: true };
-    try {
-        return await transporter.sendMail(mailOptions);
-    } catch (err) {
-        logger.warn({ err: err.message, to: mailOptions && mailOptions.to }, 'Email send failed (non-fatal)');
-        return { error: true };
-    }
-};
-
-/**
- * Escape HTML special characters to prevent injection in email templates.
- */
-const escapeHtml = (str) => {
-    if (typeof str !== 'string') return '';
-    return str
-        .replace(/&/g, '&amp;')
-        .replace(/</g, '&lt;')
-        .replace(/>/g, '&gt;')
-        .replace(/"/g, '&quot;')
-        .replace(/'/g, '&#039;');
-};
-
-exports.transporter = transporter;
+templates = r'''
 
 /* ============================================================================
    Shared clean email layout (Fresha-grade): white card on a light canvas,
@@ -254,3 +198,7 @@ exports.sendPasswordResetEmail = async (email, name, token) => {
         }),
     });
 };
+'''
+
+io.open(p, 'w', encoding='utf-8', newline='').write(head + templates)
+print('email templates rewritten')
