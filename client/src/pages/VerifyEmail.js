@@ -71,7 +71,7 @@ const VerifyEmail = () => {
                     Book<span style={{ color: 'var(--charcoal)' }}>plus</span>
                 </Link>
 
-                <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)', overflow: 'hidden' }}>
+                <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)', overflow: 'hidden' }}>
                     <div style={{ height: '4px', background: 'linear-gradient(to right, var(--gold-dark), var(--gold-light))' }} />
                     <div style={{ padding: '3rem 2rem' }}>
 

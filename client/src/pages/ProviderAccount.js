@@ -216,7 +216,7 @@ const ProviderAccount = () => {
                 <div className="provider-account-grid" style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '2rem', alignItems: 'start' }}>
 
                     {/* Sidebar */}
-                    <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 0.75rem', position: 'sticky', top: '90px' }}>
+                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 0.75rem', position: 'sticky', top: '90px' }}>
                         <p style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0 0.5rem', marginBottom: '0.5rem' }}>Your account</p>
                         {sidebarItems.map(item => (
                             <button key={item.id} onClick={() => setSection(item.id)} style={sideStyle(item.id)}>
@@ -250,7 +250,7 @@ const ProviderAccount = () => {
                                                 }
                                             </div>
                                         </div>
-                                        <button onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading} style={{ border: '1px solid var(--border)', background: 'white', color: 'var(--text-secondary)', padding: '0.4rem 1rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'Inter, sans-serif', marginBottom: '1.25rem' }}>
+                                        <button onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading} style={{ border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', padding: '0.4rem 1rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'Inter, sans-serif', marginBottom: '1.25rem' }}>
                                             {avatarUploading ? 'Uploading...' : 'Edit photo'}
                                         </button>
                                         <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
@@ -370,7 +370,7 @@ const ProviderAccount = () => {
                                         </div>
 
                                         {/* Instagram link */}
-                                        <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
+                                        <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
                                             <h3 style={{ fontFamily: 'Inter, sans-serif', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>📷 Instagram feed</h3>
                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>Link your Instagram profile to showcase your latest work automatically.</p>
                                             <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -550,7 +550,7 @@ const ProviderAccount = () => {
                                     </div>
 
                                     {/* Calendar */}
-                                    <div style={{ background: 'white', borderRadius: 'var(--radius)', border: `1px solid ${settingsOpen === 'calendar' ? 'var(--gold)' : 'var(--border)'}`, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: `1px solid ${settingsOpen === 'calendar' ? 'var(--gold)' : 'var(--border)'}`, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                                         <div onClick={() => setSettingsOpen(s => s === 'calendar' ? null : 'calendar')} style={{ padding: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
                                             <div style={{ fontSize: '1.6rem', flexShrink: 0 }}>📅</div>
                                             <div style={{ flex: 1 }}>

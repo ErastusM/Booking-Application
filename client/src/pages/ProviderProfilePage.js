@@ -160,13 +160,13 @@ const ProviderProfilePage = () => {
 
                         {/* Services list */}
                         {activeServices.length === 0 ? (
-                            <div style={{ textAlign: 'center', padding: '3rem', background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                            <div style={{ textAlign: 'center', padding: '3rem', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No services in this category yet</p>
                             </div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                 {activeServices.map(service => (
-                                    <div key={service._id} className="provider-service-row" style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+                                    <div key={service._id} className="provider-service-row" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
                                         <div style={{ flex: 1 }}>
                                             <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>{service.name}</h3>
                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '0.5rem' }}>{service.description}</p>
@@ -195,7 +195,7 @@ const ProviderProfilePage = () => {
 
                     {/* Right — provider info card */}
                     <div className="provider-profile-sidebar" style={{ position: 'sticky', top: '100px' }}>
-                        <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1rem' }}>
+                        <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1rem' }}>
                             <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem' }}>About</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                 {provider.providerCategory && (
@@ -249,7 +249,7 @@ const ProviderProfilePage = () => {
 
                         {/* Recent reviews */}
                         {reviews.length > 0 && (
-                            <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
+                            <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
                                 <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem' }}>Recent Reviews</h3>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                     {reviews.map(review => (

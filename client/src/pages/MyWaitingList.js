@@ -145,7 +145,7 @@ const MyWaitingList = () => {
                 {/* Waiting entries */}
                 {entries.length === 0 ? (
                     <div style={{
-                        background: 'white',
+                        background: 'var(--card-bg)',
                         borderRadius: 'var(--radius)',
                         border: '1px solid var(--border)',
                         padding: '5rem 2rem',
@@ -172,7 +172,7 @@ const MyWaitingList = () => {
                                 style={{
                                     animationDelay: `${i * 0.06}s`,
                                     opacity: 0,
-                                    background: 'white',
+                                    background: 'var(--card-bg)',
                                     borderRadius: 'var(--radius)',
                                     border: '1px solid var(--border)',
                                     boxShadow: 'var(--shadow-sm)',

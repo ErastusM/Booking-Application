@@ -133,7 +133,7 @@ const Register = () => {
                                     key={role.value}
                                     onClick={() => handleRoleSelect(role.value)}
                                     style={{
-                                        padding: '2rem 1.5rem', background: 'white',
+                                        padding: '2rem 1.5rem', background: 'var(--card-bg)',
                                         border: '2px solid var(--border)', borderRadius: 'var(--radius)',
                                         cursor: 'pointer', textAlign: 'left',
                                         transition: 'all 0.2s ease', boxShadow: 'var(--shadow-sm)',
@@ -283,7 +283,7 @@ const Register = () => {
                                     padding: '0.875rem',
                                     border: '1.5px solid var(--border)',
                                     borderRadius: 'var(--radius-sm)',
-                                    background: 'white',
+                                    background: 'var(--card-bg)',
                                     color: 'var(--charcoal)',
                                     fontWeight: '600',
                                     fontSize: '0.9rem',
@@ -315,7 +315,7 @@ const Register = () => {
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.7, marginBottom: '2rem' }}>
                                     We sent a verification link to <strong style={{ color: 'var(--charcoal)' }}>{formData.email}</strong>. Click the link in the email to activate your account.
                                 </p>
-                                <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '1.5rem', boxShadow: 'var(--shadow-sm)', marginBottom: '1.5rem' }}>
+                                <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '1.5rem', boxShadow: 'var(--shadow-sm)', marginBottom: '1.5rem' }}>
                                     <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
                                         📬 Didn't get the email? Check your spam folder or{' '}
                                         <button onClick={() => setStep(2)} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontWeight: '600', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontSize: '0.85rem' }}>

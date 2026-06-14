@@ -266,7 +266,7 @@ const MyAppointments = () => {
 
                 {/* Appointments list */}
                 {filtered.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '5rem 2rem', background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                    <div style={{ textAlign: 'center', padding: '5rem 2rem', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
                         <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📅</div>
                         <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.3rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                             No {activeFilter === 'all' ? '' : activeFilter} appointments
@@ -283,7 +283,7 @@ const MyAppointments = () => {
                             return (
                                 <div key={a._id} className="fade-up appt-row" style={{
                                     animationDelay: `${i * 0.05}s`, opacity: 0,
-                                    background: 'white', borderRadius: 'var(--radius)',
+                                    background: 'var(--card-bg)', borderRadius: 'var(--radius)',
                                     border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)',
                                     padding: '1.5rem 2rem', display: 'grid',
                                     gridTemplateColumns: '1fr 1fr 1fr 1fr auto',
@@ -385,7 +385,7 @@ const MyAppointments = () => {
             {/* Message Modal */}
             {msgModal && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-                    <div style={{ background: 'white', borderRadius: 'var(--radius)', width: '100%', maxWidth: '480px', boxShadow: '0 20px 60px rgba(26,26,46,0.25)', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}>
+                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '480px', boxShadow: '0 20px 60px rgba(26,26,46,0.25)', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}>
                         {/* Header */}
                         <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                             <div>
@@ -449,7 +449,7 @@ const MyAppointments = () => {
             {/* Cancel-or-Reschedule Modal */}
             {showCancelModal && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-                    <div style={{ background: 'white', borderRadius: 'var(--radius)', padding: '2rem', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(26,26,46,0.25)' }}>
+                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', padding: '2rem', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(26,26,46,0.25)' }}>
                         <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>What would you like to do?</h2>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem', fontFamily: 'Outfit, sans-serif', lineHeight: '1.5' }}>
                             <strong style={{ color: 'var(--charcoal)' }}>{showCancelModal.service?.name}</strong> on{' '}
@@ -490,7 +490,7 @@ const MyAppointments = () => {
             {/* Reschedule Modal */}
             {reschedulingAppointment && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-                    <div style={{ background: 'white', borderRadius: 'var(--radius)', padding: '2rem', width: '100%', maxWidth: '440px', boxShadow: 'var(--shadow-lg)' }}>
+                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', padding: '2rem', width: '100%', maxWidth: '440px', boxShadow: 'var(--shadow-lg)' }}>
                         <h2 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                             Reschedule Appointment
                         </h2>

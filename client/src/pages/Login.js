@@ -215,7 +215,7 @@ const Login = () => {
                                 padding: '0.875rem',
                                 border: '1.5px solid var(--border)',
                                 borderRadius: 'var(--radius-sm)',
-                                background: 'white',
+                                background: 'var(--card-bg)',
                                 color: 'var(--charcoal)',
                                 fontWeight: '600',
                                 fontSize: '0.9rem',

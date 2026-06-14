@@ -46,7 +46,7 @@ const ServiceCard = ({ service, user, navigate, index }) => {
             style={{
                 animationDelay: `${index * 0.08}s`,
                 opacity: 0,
-                background: 'white',
+                background: 'var(--card-bg)',
                 borderRadius: 'var(--radius)',
                 boxShadow: 'var(--shadow-sm)',
                 border: '1px solid var(--border)',

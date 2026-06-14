@@ -116,7 +116,7 @@ const ProvidersPage = () => {
                                     width: '100%', padding: '0.875rem 1rem 0.875rem 2.75rem',
                                     border: 'none', borderRadius: 'var(--radius-sm)',
                                     fontSize: '0.95rem', fontFamily: 'Inter, sans-serif',
-                                    outline: 'none', background: 'white',
+                                    outline: 'none', background: 'var(--card-bg)',
                                     boxShadow: 'var(--shadow-md)',
                                 }}
                             />
@@ -129,7 +129,7 @@ const ProvidersPage = () => {
                                     width: '100%', padding: '0.875rem 1rem',
                                     border: 'none', borderRadius: 'var(--radius-sm)',
                                     fontSize: '0.95rem', fontFamily: 'Inter, sans-serif',
-                                    outline: 'none', background: 'white',
+                                    outline: 'none', background: 'var(--card-bg)',
                                     boxShadow: 'var(--shadow-md)', cursor: 'pointer',
                                     color: locationFilter ? 'var(--charcoal)' : 'var(--text-muted)',
                                 }}
@@ -172,7 +172,7 @@ const ProvidersPage = () => {
                 </p>
 
                 {filtered.length === 0 ? (
-                    <div style={{ textAlign: 'center', padding: '5rem 2rem', background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
+                    <div style={{ textAlign: 'center', padding: '5rem 2rem', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
                         <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>💈</div>
                         <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.3rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>No providers found</h3>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Try adjusting your search or location filter</p>
@@ -187,7 +187,7 @@ const ProvidersPage = () => {
                                 onClick={() => navigate(`/providers/${provider._id}`)}
                             >
                                 <div style={{
-                                    background: 'white', borderRadius: 'var(--radius)',
+                                    background: 'var(--card-bg)', borderRadius: 'var(--radius)',
                                     border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)',
                                     overflow: 'hidden', cursor: 'pointer',
                                     transition: 'box-shadow 0.2s ease, transform 0.2s ease',

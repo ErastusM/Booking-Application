@@ -21,13 +21,13 @@ const chipStyle = (active) => ({
 const Pagination = ({ page, pages, onChange }) => (
     <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', gap: '1rem', marginTop: '1.25rem' }}>
         <button onClick={() => onChange(Math.max(1, page - 1))} disabled={page <= 1} style={{
-            padding: '0.4rem 0.9rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'white',
+            padding: '0.4rem 0.9rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--card-bg)',
             color: 'var(--text-secondary)', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.5 : 1,
             fontSize: '0.8rem', fontFamily: 'Outfit, sans-serif',
         }}>← Prev</button>
         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Page {page} of {pages}</span>
         <button onClick={() => onChange(Math.min(pages, page + 1))} disabled={page >= pages} style={{
-            padding: '0.4rem 0.9rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'white',
+            padding: '0.4rem 0.9rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--card-bg)',
             color: 'var(--text-secondary)', cursor: page >= pages ? 'not-allowed' : 'pointer', opacity: page >= pages ? 0.5 : 1,
             fontSize: '0.8rem', fontFamily: 'Outfit, sans-serif',
         }}>Next →</button>
@@ -214,7 +214,7 @@ const AdminDashboard = () => {
     };
 
     const tableWrapperStyle = {
-        background: 'white', borderRadius: 'var(--radius)',
+        background: 'var(--card-bg)', borderRadius: 'var(--radius)',
         border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)',
         overflow: 'hidden',
     };
@@ -267,7 +267,7 @@ const AdminDashboard = () => {
                 {/* Stats */}
                 <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
                     {stats.map((s, i) => (
-                        <div key={i} style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.2rem 1.4rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div key={i} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.2rem 1.4rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                             <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(201,168,76,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.15rem', flexShrink: 0 }}>
                                 {s.icon}
                             </div>
@@ -377,7 +377,7 @@ const AdminDashboard = () => {
                         </div>
 
                         {showServiceForm && (
-                            <form onSubmit={handleServiceSubmit} style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <form onSubmit={handleServiceSubmit} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <div style={{ gridColumn: '1 / -1' }}>
                                     <label style={labelStyle}>Service Name</label>
                                     <input required value={serviceForm.name} onChange={e => setServiceForm({ ...serviceForm, name: e.target.value })} style={inputStyle} />

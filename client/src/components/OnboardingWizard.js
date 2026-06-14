@@ -130,7 +130,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
             padding: '1rem',
         }}>
             <div style={{
-                background: 'white', borderRadius: 'var(--radius)',
+                background: 'var(--card-bg)', borderRadius: 'var(--radius)',
                 width: '100%', maxWidth: '520px',
                 boxShadow: '0 24px 80px rgba(0,0,0,0.3)',
                 overflow: 'hidden', display: 'flex', flexDirection: 'column',

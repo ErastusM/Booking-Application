@@ -951,18 +951,18 @@ const ProviderDashboard = () => {
                 {/* Stats */}
                 <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
                     {stats.map((s, i) => (
-                        <div key={i} style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.2rem 1.4rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div key={i} className="card scale-in" style={{ animationDelay: `${i * 40}ms`, padding: '1.2rem 1.4rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                             <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(201,168,76,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.15rem', flexShrink: 0 }}>{s.icon}</div>
                             <div>
                                 <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</p>
-                                <p style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.85rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
+                                <p className="tnum" style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.85rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
                             </div>
                         </div>
                     ))}
                 </div>
 
                 {error && (
-                    <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
+                    <div role="alert" style={{ background: 'var(--danger-bg)', border: '1px solid #fca5a5', color: 'var(--danger-fg)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
                         {error}
                     </div>
                 )}
@@ -978,7 +978,7 @@ const ProviderDashboard = () => {
                 <div className="tab-strip" style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '0.35rem' }}>
                     {/* Calendar first */}
                     <button onClick={() => setActiveTab('calendar')} style={{
-                        padding: '0.65rem 1rem', background: activeTab === 'calendar' ? 'rgba(201,168,76,0.1)' : 'white', border: '1px solid',
+                        padding: '0.65rem 1rem', background: activeTab === 'calendar' ? 'rgba(201,168,76,0.12)' : 'transparent', border: '1px solid',
                         borderColor: activeTab === 'calendar' ? 'var(--gold)' : 'var(--border)',
                         borderRadius: '999px', color: activeTab === 'calendar' ? 'var(--gold-dark)' : 'var(--text-secondary)',
                         fontWeight: activeTab === 'calendar' ? '700' : '500', fontSize: '0.85rem',
@@ -988,7 +988,7 @@ const ProviderDashboard = () => {
                     {/* Appointment status tabs */}
                     {appointmentTabs.map(tab => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
-                            padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(201,168,76,0.1)' : 'white', border: '1px solid',
+                            padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(201,168,76,0.12)' : 'transparent', border: '1px solid',
                             borderColor: activeTab === tab ? 'var(--gold)' : 'var(--border)',
                             borderRadius: '999px', color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-secondary)',
                             fontWeight: activeTab === tab ? '700' : '500', fontSize: '0.85rem',
@@ -1015,7 +1015,7 @@ const ProviderDashboard = () => {
                     {/* Other feature tabs */}
                     {[['services','✂️ Catalogue'],['availability','🗓 Availability'],['overview','📊 Overview'],['earnings','💵 Earnings'],['insights','📈 Insights'],['clients','👥 Clients'],['forms','📋 Forms'],['messages','💬 Messages'],['memberships','🪪 Memberships'],['team','👤 Team']].map(([tab, label]) => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
-                            padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(201,168,76,0.1)' : 'white', border: '1px solid',
+                            padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(201,168,76,0.12)' : 'transparent', border: '1px solid',
                             borderColor: activeTab === tab ? 'var(--gold)' : 'var(--border)',
                             borderRadius: '999px', color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-secondary)',
                             fontWeight: activeTab === tab ? '700' : '500', fontSize: '0.85rem',
@@ -1031,7 +1031,7 @@ const ProviderDashboard = () => {
                 {appointmentTabs.includes(activeTab) && (
                     <>
                         {filtered.length === 0 ? (
-                            <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '4rem 2rem', textAlign: 'center' }}>
+                            <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '4rem 2rem', textAlign: 'center' }}>
                                 <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📭</div>
                                 <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No {activeTab} appointments</p>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Check back later or switch tabs to see other bookings.</p>
@@ -1043,7 +1043,7 @@ const ProviderDashboard = () => {
                                     return (
                                         <div key={a._id} className="fade-up provider-card appt-card-grid" style={{
                                             animationDelay: `${i * 0.05}s`, opacity: 0,
-                                            background: 'white', borderRadius: 'var(--radius)',
+                                            background: 'var(--card-bg)', borderRadius: 'var(--radius)',
                                             border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)',
                                             padding: '1.5rem 2rem', display: 'grid',
                                             gridTemplateColumns: '1fr 1fr 1fr auto',
@@ -1106,7 +1106,7 @@ const ProviderDashboard = () => {
                         </div>
 
                         {showServiceForm && (
-                            <form onSubmit={handleServiceSubmit} style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                            <form onSubmit={handleServiceSubmit} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <div style={{ gridColumn: '1 / -1' }}>
                                     <label style={labelStyle}>Service Name</label>
                                     <input required value={serviceForm.name} onChange={e => setServiceForm({ ...serviceForm, name: e.target.value })} className="input" placeholder="e.g. Classic Haircut" />
@@ -1223,7 +1223,7 @@ const ProviderDashboard = () => {
                                 return (
                                     <>
                                         {/* Categories sidebar */}
-                                        <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem' }}>
+                                        <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem' }}>
                                             <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.05rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '1rem' }}>Categories</h3>
                                             {sidebarItems.map(item => {
                                                 const active = catalogueCategory === item.id;
@@ -1263,7 +1263,7 @@ const ProviderDashboard = () => {
                                         {/* Services list grouped by category */}
                                         <div>
                                             {catalogueFiltered.length === 0 ? (
-                                                <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '4rem 2rem', textAlign: 'center' }}>
+                                                <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '4rem 2rem', textAlign: 'center' }}>
                                                     <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>✂️</div>
                                                     <p style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>{catalogueSearch ? 'No services match your search' : 'No services yet'}</p>
                                                     <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{catalogueSearch ? 'Try a different name' : 'Add your first service to start receiving bookings'}</p>
@@ -1277,7 +1277,7 @@ const ProviderDashboard = () => {
                                                             <h3 style={{ fontFamily: 'Inter, sans-serif', fontSize: '1.1rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>{group.name}</h3>
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                                                 {svcs.map(s => (
-                                                                    <div key={s._id} style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', borderLeft: '3px solid var(--gold)', padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+                                                                    <div key={s._id} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', borderLeft: '3px solid var(--gold)', padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
                                                                         <div style={{ minWidth: 0 }}>
                                                                             <p style={{ fontFamily: 'Inter, sans-serif', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem', marginBottom: '0.2rem' }}>{s.name}</p>
                                                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{s.duration} min{s.location ? ` · 📍 ${s.location}` : ''}</p>
@@ -1322,7 +1322,7 @@ const ProviderDashboard = () => {
                         )}
 
                         {availability && (
-                            <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                            <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                                 {Object.entries(availability).map(([day, config], i) => (
                                     <div key={day} style={{ display: 'grid', gridTemplateColumns: '140px 80px 1fr', alignItems: 'center', gap: '1.5rem', padding: '1rem 1.5rem', borderBottom: i < 6 ? '1px solid var(--border)' : 'none', background: config.enabled ? 'white' : 'var(--warm-gray)', transition: 'background 0.2s' }}>
                                         <span style={{ fontWeight: '600', color: config.enabled ? 'var(--charcoal)' : 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'capitalize' }}>{day}</span>
@@ -1361,11 +1361,11 @@ const ProviderDashboard = () => {
 
                             {/* Blocked times list */}
                             {blockedTimes.length === 0 ? (
-                                <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '2rem', textAlign: 'center' }}>
+                                <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '2rem', textAlign: 'center' }}>
                                     <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No blocked times yet. Add one to mark times when you're unavailable.</p>
                                 </div>
                             ) : (
-                                <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                                <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                                     {blockedTimes.map((bt, i) => (
                                         <div key={bt._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.875rem 1.25rem', borderBottom: i < blockedTimes.length - 1 ? '1px solid var(--border)' : 'none', gap: '1rem' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0 }}>
@@ -1897,7 +1897,7 @@ const ProviderDashboard = () => {
                             </div>
                         </div>
 
-                        <div className="fc-bookplus-wrapper" style={{ background: 'white', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                        <div className="fc-bookplus-wrapper" style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                             <FullCalendar
                                 key={calendarView}
                                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -2049,7 +2049,7 @@ const ProviderDashboard = () => {
                     const handleNext = () => { const d = new Date(currentDate); if (calendarView==='month') d.setMonth(d.getMonth()+1); else if (calendarView==='week') d.setDate(d.getDate()+7); else if (calendarView==='3day') d.setDate(d.getDate()+3); else d.setDate(d.getDate()+1); setCurrentDate(d); setSelectedDay(null); };
 
                     const viewLabels = { day: 'Day', '3day': '3 Day', week: 'Week', month: 'Month', google: '\uD83D\uDCC5 Google' };
-                    const btnBase = { border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: 'white', fontFamily: 'Outfit, sans-serif', color: 'var(--charcoal)' };
+                    const btnBase = { border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: 'var(--card-bg)', fontFamily: 'Outfit, sans-serif', color: 'var(--charcoal)' };
 
                     // Convert "HH:MM" to pixel offset from START_H
                     const timeToY = (t) => { const [h,m] = t.split(':').map(Number); return (h - START_H) * ROW_H + (m / 60) * ROW_H; };
@@ -2375,7 +2375,7 @@ const ProviderDashboard = () => {
                                     zIndex:10, pointerEvents:'none', display:'flex', alignItems:'center', justifyContent:'center' }}>
                                     {dragHt > 22 && (
                                         <span style={{ fontSize:'0.7rem', fontWeight:'700', color:'var(--gold-dark)', fontFamily:'Outfit, sans-serif',
-                                            padding:'1px 5px', background:'white', borderRadius:'3px', border:'1px solid var(--gold)', whiteSpace:'nowrap' }}>
+                                            padding:'1px 5px', background: 'var(--card-bg)', borderRadius:'3px', border:'1px solid var(--gold)', whiteSpace:'nowrap' }}>
                                             {minsToTime(yToMins(Math.min(dragState.startY, dragState.endY)))} &ndash; {minsToTime(yToMins(Math.max(dragState.startY, dragState.endY)))}
                                         </span>
                                     )}
@@ -2523,7 +2523,7 @@ const ProviderDashboard = () => {
                     <>
                         {timeSelectionPreview && (
                             <div style={{ marginBottom: '1rem', display: 'flex', flexWrap: 'wrap', justifyContent: 'space-between', gap: '0.75rem' }}>
-                                <div style={{ background: 'white', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '0.95rem 1rem', flex: '1 1 320px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+                                <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '0.95rem 1rem', flex: '1 1 320px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
                                     <div>
                                         <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: '700', color: 'var(--charcoal)' }}>Selected time range</p>
                                         <p style={{ margin: '0.25rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{timeSelectionPreview.date} · {timeSelectionPreview.startTime} – {timeSelectionPreview.endTime}</p>
@@ -2573,7 +2573,7 @@ const ProviderDashboard = () => {
                                         <span style={{fontSize:'0.6rem',opacity:0.6}}>{'\u25be'}</span>
                                     </button>
                                     {viewMenuOpen && (
-                                        <div style={{position:'absolute',top:'calc(100% + 4px)',right:0,background:'white',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',boxShadow:'var(--shadow-md)',zIndex:200,minWidth:'140px',overflow:'hidden'}}>
+                                        <div style={{position:'absolute',top:'calc(100% + 4px)',right:0,background: 'var(--card-bg)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',boxShadow:'var(--shadow-md)',zIndex:200,minWidth:'140px',overflow:'hidden'}}>
                                             {Object.entries(viewLabels).map(([v,l])=>(
                                                 <button key={v} onClick={()=>{setCalendarView(v);setSelectedDay(null);setViewMenuOpen(false);}} style={{width:'100%',textAlign:'left',padding:'0.6rem 1rem',border:'none',borderBottom:'1px solid var(--border)',background:calendarView===v?'rgba(201,168,76,0.07)':'white',color:calendarView===v?'var(--gold-dark)':'var(--charcoal)',fontWeight:calendarView===v?'600':'400',fontSize:'0.85rem',cursor:'pointer',fontFamily:'Outfit, sans-serif'}}>{l}</button>
                                             ))}
@@ -2587,9 +2587,9 @@ const ProviderDashboard = () => {
                                         <span style={{fontSize:'0.6rem',opacity:0.75}}>{'\u25be'}</span>
                                     </button>
                                     {addMenuOpen && (
-                                        <div style={{position:'absolute',top:'calc(100% + 4px)',right:0,background:'white',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',boxShadow:'var(--shadow-md)',zIndex:200,minWidth:'190px',overflow:'hidden'}}>
+                                        <div style={{position:'absolute',top:'calc(100% + 4px)',right:0,background: 'var(--card-bg)',border:'1px solid var(--border)',borderRadius:'var(--radius-sm)',boxShadow:'var(--shadow-md)',zIndex:200,minWidth:'190px',overflow:'hidden'}}>
                                             {[['\uD83D\uDCC5','Appointment','appt'],['\uD83D\uDEAB','Blocked time','block']].map(([icon,label,key])=>(
-                                                <button key={label} onClick={()=>{setAddMenuOpen(false);if(key==='block'){openBlockedTimeForm(null);}else{setApptForm({serviceId:'',date:'',startTime:'',clientName:'',notes:''});setApptError('');setShowApptModal(true);}}} style={{width:'100%',textAlign:'left',padding:'0.7rem 1rem',border:'none',borderBottom:'1px solid var(--border)',background:'white',color:'var(--charcoal)',fontSize:'0.85rem',cursor:'pointer',fontFamily:'Outfit, sans-serif',display:'flex',alignItems:'center',gap:'0.5rem'}}>
+                                                <button key={label} onClick={()=>{setAddMenuOpen(false);if(key==='block'){openBlockedTimeForm(null);}else{setApptForm({serviceId:'',date:'',startTime:'',clientName:'',notes:''});setApptError('');setShowApptModal(true);}}} style={{width:'100%',textAlign:'left',padding:'0.7rem 1rem',border:'none',borderBottom:'1px solid var(--border)',background: 'var(--card-bg)',color:'var(--charcoal)',fontSize:'0.85rem',cursor:'pointer',fontFamily:'Outfit, sans-serif',display:'flex',alignItems:'center',gap:'0.5rem'}}>
                                                     <span>{icon}</span><span>{label}</span>
                                                 </button>
                                             ))}
@@ -2601,7 +2601,7 @@ const ProviderDashboard = () => {
 
                         {/* Tooltip */}
                         {tooltip.visible && (
-                            <div style={{ position: 'fixed', left: tooltip.x + 12, top: tooltip.y + 12, zIndex: 9999, background: 'white', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)', padding: '0.5rem 0.6rem', borderRadius: '6px', fontSize: '0.82rem', whiteSpace: 'pre-wrap' }}>
+                            <div style={{ position: 'fixed', left: tooltip.x + 12, top: tooltip.y + 12, zIndex: 9999, background: 'var(--card-bg)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)', padding: '0.5rem 0.6rem', borderRadius: '6px', fontSize: '0.82rem', whiteSpace: 'pre-wrap' }}>
                                 {tooltip.content}
                             </div>
                         )}
@@ -2609,7 +2609,7 @@ const ProviderDashboard = () => {
                         {/* ── Month view ── */}
                         {calendarView === 'month' && (
                             <div className="cal-month-grid" style={{ display:'grid', gridTemplateColumns:selectedDay!==null?'1fr 300px':'1fr', gap:'1.5rem', alignItems:'start' }}>
-                                <div style={{ background:'white', borderRadius:'var(--radius)', border:'1px solid var(--border)', boxShadow:'var(--shadow-sm)', overflow:'hidden' }}>
+                                <div style={{ background: 'var(--card-bg)', borderRadius:'var(--radius)', border:'1px solid var(--border)', boxShadow:'var(--shadow-sm)', overflow:'hidden' }}>
                                     <div style={{ display:'grid', gridTemplateColumns:'repeat(7, 1fr)', borderBottom:'1px solid var(--border)', background:'var(--warm-gray)' }}>
                                         {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map(d=>(
                                             <div key={d} style={{ padding:'0.6rem', textAlign:'center', fontSize:'0.72rem', fontWeight:'600', color:'var(--text-muted)', letterSpacing:'0.08em', textTransform:'uppercase' }}>{d}</div>
@@ -2644,7 +2644,7 @@ const ProviderDashboard = () => {
                                     </div>
                                 </div>
                                 {selectedDay !== null && (
-                                    <div style={{ background:'white', borderRadius:'var(--radius)', border:'1px solid var(--border)', boxShadow:'var(--shadow-sm)', overflow:'hidden', position:'sticky', top:'100px' }}>
+                                    <div style={{ background: 'var(--card-bg)', borderRadius:'var(--radius)', border:'1px solid var(--border)', boxShadow:'var(--shadow-sm)', overflow:'hidden', position:'sticky', top:'100px' }}>
                                         <div style={{ padding:'1rem 1.25rem', borderBottom:'1px solid var(--border)', display:'flex', justifyContent:'space-between', alignItems:'center' }}>
                                             <h3 style={{ fontFamily:'Outfit, sans-serif', fontSize:'1rem', fontWeight:'600', color:'var(--charcoal)', margin:0 }}>{new Date(currentDate.getFullYear(),currentDate.getMonth(),selectedDay).toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'})}</h3>
                                             <button onClick={()=>setSelectedDay(null)} style={{ background:'none', border:'none', cursor:'pointer', color:'var(--text-muted)', fontSize:'1.2rem', lineHeight:1, padding:0 }}>&times;</button>
@@ -2681,7 +2681,7 @@ const ProviderDashboard = () => {
                         {calendarView === 'day' && (() => {
                             const dayColsTemplate = `64px repeat(${calCols.length}, minmax(160px,1fr))`;
                             return (
-                            <div style={{ background:'white', borderRadius:'var(--radius)', border:'1px solid var(--border)', boxShadow:'var(--shadow-sm)', overflow:'auto' }}>
+                            <div style={{ background: 'var(--card-bg)', borderRadius:'var(--radius)', border:'1px solid var(--border)', boxShadow:'var(--shadow-sm)', overflow:'auto' }}>
                                 {/* Column headers */}
                                 <div className="cal-grid-header" style={{ display:'grid', gridTemplateColumns: dayColsTemplate, borderBottom:'2px solid var(--border)', background:'var(--warm-gray)', position:'sticky', top:0, zIndex:10 }}>
                                     <div style={{ borderRight:'1px solid var(--border)', padding:'0.5rem 0.5rem', display:'flex', alignItems:'flex-end' }}>
@@ -2729,7 +2729,7 @@ const ProviderDashboard = () => {
                             const days3 = get3Days(currentDate);
                             const threeColsTemplate = '64px repeat(3, 1fr)';
                             return (
-                                <div style={{ background:'white', borderRadius:'var(--radius)', border:'1px solid var(--border)', boxShadow:'var(--shadow-sm)', overflow:'auto' }}>
+                                <div style={{ background: 'var(--card-bg)', borderRadius:'var(--radius)', border:'1px solid var(--border)', boxShadow:'var(--shadow-sm)', overflow:'auto' }}>
                                     <div className="cal-grid-header" style={{ display:'grid', gridTemplateColumns: threeColsTemplate, borderBottom:'2px solid var(--border)', background:'var(--warm-gray)', position:'sticky', top:0, zIndex:10 }}>
                                         <div style={{ borderRight:'1px solid var(--border)', padding:'0.5rem', display:'flex', alignItems:'flex-end' }}>
                                             <span style={{ fontSize:'0.62rem', color:'var(--text-muted)' }}>GMT+2</span>
@@ -2765,7 +2765,7 @@ const ProviderDashboard = () => {
                             const wdays = getWeekDays(currentDate);
                             const weekColsTemplate = '64px repeat(7, 1fr)';
                             return (
-                                <div style={{ background:'white', borderRadius:'var(--radius)', border:'1px solid var(--border)', boxShadow:'var(--shadow-sm)', overflow:'auto' }}>
+                                <div style={{ background: 'var(--card-bg)', borderRadius:'var(--radius)', border:'1px solid var(--border)', boxShadow:'var(--shadow-sm)', overflow:'auto' }}>
                                     <div className="cal-grid-header" style={{ display:'grid', gridTemplateColumns: weekColsTemplate, borderBottom:'2px solid var(--border)', background:'var(--warm-gray)', position:'sticky', top:0, zIndex:10 }}>
                                         <div style={{ borderRight:'1px solid var(--border)', padding:'0.5rem', display:'flex', alignItems:'flex-end' }}>
                                             <span style={{ fontSize:'0.62rem', color:'var(--text-muted)' }}>GMT+2</span>
@@ -2804,7 +2804,7 @@ const ProviderDashboard = () => {
                                         <iframe src={user.googleCalendarEmbedUrl} style={{ width:'100%', height:'700px', border:'none', display:'block' }} title="Google Calendar" />
                                     </div>
                                 ) : (
-                                    <div style={{ background:'white', borderRadius:'var(--radius)', border:'1px solid var(--border)', boxShadow:'var(--shadow-sm)', padding:'5rem 2rem', textAlign:'center' }}>
+                                    <div style={{ background: 'var(--card-bg)', borderRadius:'var(--radius)', border:'1px solid var(--border)', boxShadow:'var(--shadow-sm)', padding:'5rem 2rem', textAlign:'center' }}>
                                         <div style={{ fontSize:'2.1rem', marginBottom:'0.75rem', fontWeight:'700', color:'var(--gold-dark)' }}>Calendar</div>
                                         <p style={{ fontFamily:'Cormorant Garamond, serif', fontSize:'1.2rem', fontWeight:'700', color:'var(--charcoal)', marginBottom:'0.5rem' }}>Google Calendar not connected</p>
                                         <p style={{ color:'var(--text-muted)', fontSize:'0.875rem', maxWidth:'400px', margin:'0 auto 1.25rem' }}>Go to <strong>My Account \u2192 Personal settings \u2192 Google Calendar</strong> and paste your embed URL.</p>
@@ -2821,7 +2821,7 @@ const ProviderDashboard = () => {
             {/* Clients tab */}
             {activeTab === 'clients' && (
                 <div style={{ display: 'grid', gridTemplateColumns: selectedClient ? '1fr 380px' : '1fr', gap: '1.5rem', alignItems: 'start' }}>
-                    <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                         <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>My Clients</h2>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{clients.length} total</span>
@@ -2858,7 +2858,7 @@ const ProviderDashboard = () => {
                         )}
                     </div>
                     {selectedClient && clientDetail && (
-                        <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', position: 'sticky', top: '100px' }}>
+                        <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', position: 'sticky', top: '100px' }}>
                             <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>{selectedClient.customer?.name}</h3>
                                 <button onClick={() => { setSelectedClient(null); setClientDetail(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.2rem' }}>×</button>
@@ -2909,7 +2909,7 @@ const ProviderDashboard = () => {
             {/* Messages tab */}
             {activeTab === 'messages' && (
                 <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '1.5rem', minHeight: '500px' }}>
-                    <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                         <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                             <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Conversations</h3>
                         </div>
@@ -2929,7 +2929,7 @@ const ProviderDashboard = () => {
                             </div>
                         )}
                     </div>
-                    <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', display: 'flex', flexDirection: 'column' }}>
+                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', display: 'flex', flexDirection: 'column' }}>
                         {!selectedConversation ? (
                             <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Select a conversation</div>
                         ) : (
@@ -2975,7 +2975,7 @@ const ProviderDashboard = () => {
                     </div>
 
                     {showPackageForm && (
-                        <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--gold)', padding: '1.75rem', marginBottom: '1.5rem', boxShadow: 'var(--shadow-sm)', marginTop: '1.5rem' }}>
+                        <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--gold)', padding: '1.75rem', marginBottom: '1.5rem', boxShadow: 'var(--shadow-sm)', marginTop: '1.5rem' }}>
                             <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.2rem', fontWeight: '700', marginBottom: '1.25rem', color: 'var(--charcoal)' }}>
                                 {packageForm.name ? `Editing: ${packageForm.name}` : 'New Membership Plan'}
                             </h3>
@@ -3006,7 +3006,7 @@ const ProviderDashboard = () => {
                     {loadingPackages ? (
                         <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading...</div>
                     ) : myPackages.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '5rem 2rem', color: 'var(--text-muted)', background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', marginTop: '1.5rem' }}>
+                        <div style={{ textAlign: 'center', padding: '5rem 2rem', color: 'var(--text-muted)', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', marginTop: '1.5rem' }}>
                             <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🪪</div>
                             <p style={{ fontWeight: '600', fontSize: '1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No membership plans yet</p>
                             <p style={{ fontSize: '0.875rem' }}>Create plans that let clients enroll in multi-session bundles.</p>
@@ -3014,7 +3014,7 @@ const ProviderDashboard = () => {
                     ) : (
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(290px, 1fr))', gap: '1.25rem', marginTop: '1.5rem' }}>
                             {myPackages.map((pkg, i) => (
-                                <div key={i} style={{ background: 'white', borderRadius: 'var(--radius)', border: `1px solid ${pkg.isActive ? 'var(--border)' : '#e5e7eb'}`, boxShadow: 'var(--shadow-sm)', overflow: 'hidden', opacity: pkg.isActive ? 1 : 0.7, display: 'flex', flexDirection: 'column' }}>
+                                <div key={i} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: `1px solid ${pkg.isActive ? 'var(--border)' : '#e5e7eb'}`, boxShadow: 'var(--shadow-sm)', overflow: 'hidden', opacity: pkg.isActive ? 1 : 0.7, display: 'flex', flexDirection: 'column' }}>
                                     {/* Gold stripe */}
                                     <div style={{ height: '4px', background: pkg.isActive ? 'var(--gold)' : '#e5e7eb' }} />
                                     <div style={{ padding: '1.5rem', flex: 1 }}>
@@ -3075,7 +3075,7 @@ const ProviderDashboard = () => {
 
                     {/* Add / Edit form */}
                     {showTeamForm && (
-                        <div style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--gold)', padding: '1.75rem', marginBottom: '1.5rem', boxShadow: 'var(--shadow-sm)', marginTop: '1.5rem' }}>
+                        <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--gold)', padding: '1.75rem', marginBottom: '1.5rem', boxShadow: 'var(--shadow-sm)', marginTop: '1.5rem' }}>
                             <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.2rem', fontWeight: '700', marginBottom: '1.25rem', color: 'var(--charcoal)' }}>
                                 {editingMember ? 'Edit team member' : 'New team member'}
                             </h3>
@@ -3111,7 +3111,7 @@ const ProviderDashboard = () => {
                     {loadingTeam ? (
                         <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading...</div>
                     ) : teamMembers.length === 0 ? (
-                        <div style={{ textAlign: 'center', padding: '5rem 2rem', color: 'var(--text-muted)', background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', marginTop: '1.5rem' }}>
+                        <div style={{ textAlign: 'center', padding: '5rem 2rem', color: 'var(--text-muted)', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', marginTop: '1.5rem' }}>
                             <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>👤</div>
                             <p style={{ fontWeight: '600', fontSize: '1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No team members yet</p>
                             <p style={{ fontSize: '0.875rem' }}>Add staff members so you can assign them to appointments and track their schedule.</p>
@@ -3119,7 +3119,7 @@ const ProviderDashboard = () => {
                     ) : (
                         <div style={{ marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                             {teamMembers.map(m => (
-                                <div key={m._id} style={{ background: 'white', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                                <div key={m._id} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                     {/* Colour avatar */}
                                     <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: '700', fontSize: '1rem', flexShrink: 0, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
                                         {m.name.charAt(0).toUpperCase()}
@@ -3161,7 +3161,7 @@ const ProviderDashboard = () => {
             {/* Recurring blocked time action modal */}
             {recurringActionModal && (
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setRecurringActionModal(null); }}>
-                    <div style={{ background: 'white', borderRadius: 'var(--radius) var(--radius) 0 0', padding: '2rem 1.5rem 2.5rem', width: '100%', maxWidth: '480px', position: 'relative' }}>
+                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius) var(--radius) 0 0', padding: '2rem 1.5rem 2.5rem', width: '100%', maxWidth: '480px', position: 'relative' }}>
                         <button onClick={() => setRecurringActionModal(null)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.4rem', color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
                         <h3 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                             {recurringActionModal.action === 'update' ? 'Update blocked time' : 'Delete blocked time'}

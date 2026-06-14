@@ -82,7 +82,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
             <div style={{
                 position: 'fixed', top: 0, right: 0, bottom: 0,
                 width: '420px', maxWidth: '95vw',
-                background: 'white', boxShadow: '-8px 0 40px rgba(0,0,0,0.18)',
+                background: 'var(--card-bg)', boxShadow: '-8px 0 40px rgba(0,0,0,0.18)',
                 zIndex: 1002, transform: open ? 'translateX(0)' : 'translateX(100%)',
                 transition: 'transform 0.28s cubic-bezier(0.4,0,0.2,1)',
                 display: 'flex', flexDirection: 'column', overflowY: 'auto',
