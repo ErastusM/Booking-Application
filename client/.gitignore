@@ -9,3 +9,8 @@ build/
 .vscode/
 .idea/
 .next/
+
+# Playwright
+/test-results/
+/playwright-report/
+/playwright/.cache/

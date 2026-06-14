@@ -378,6 +378,7 @@ const BookAppointment = () => {
                                 </div>
                                 <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', marginBottom: '1.25rem' }}>Estimated total</div>
                                 <button
+                                    data-testid="booking-confirm"
                                     onClick={handleConfirm}
                                     disabled={loading}
                                     style={{ width: '100%', padding: '0.875rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.95rem', fontWeight: '600', fontFamily: 'Outfit, sans-serif', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, letterSpacing: '0.03em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem' }}
@@ -396,7 +397,7 @@ const BookAppointment = () => {
                         <div style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {totalPrice}</div>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>Estimated total</div>
                     </div>
-                    <button onClick={handleConfirm} disabled={loading} style={{ padding: '0.875rem 2rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '700', fontFamily: 'Outfit, sans-serif', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <button data-testid="booking-confirm-mobile" onClick={handleConfirm} disabled={loading} style={{ padding: '0.875rem 2rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '700', fontFamily: 'Outfit, sans-serif', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         {loading && <span style={{ display: 'inline-block', width: '15px', height: '15px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
                         {loading ? 'Confirming...' : 'Confirm'}
                     </button>
@@ -433,7 +434,7 @@ const BookAppointment = () => {
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem' }}>
                                 {services.map(service => (
-                                    <button key={service._id} type="button" onClick={() => handleServiceSelect(service)} style={{
+                                    <button key={service._id} type="button" data-testid="booking-service" onClick={() => handleServiceSelect(service)} style={{
                                         padding: '1rem', border: '2px solid', cursor: 'pointer', textAlign: 'left',
                                         transition: 'all 0.2s ease', fontFamily: 'Outfit, sans-serif', borderRadius: 'var(--radius-sm)',
                                         borderColor: selectedService?._id === service._id ? 'var(--gold)' : 'var(--border)',
@@ -492,6 +493,7 @@ const BookAppointment = () => {
                                             <button
                                                 key={i}
                                                 type="button"
+                                                data-testid="booking-date"
                                                 onClick={() => handleDateSelect(dateStr)}
                                                 style={{
                                                     flexShrink: 0,
@@ -533,6 +535,7 @@ const BookAppointment = () => {
                                                     <button
                                                         key={i}
                                                         type="button"
+                                                        data-testid={slot.isBooked ? 'booking-time-booked' : 'booking-time'}
                                                         onClick={() => {
                                                             if (slot.isBooked) {
                                                                 handleTimeSelect(slot.time);
@@ -610,6 +613,7 @@ const BookAppointment = () => {
                             </span>
                         </div>
                         <button
+                            data-testid="booking-continue"
                             onClick={() => { setError(''); setStep('review'); }}
                             disabled={!canReview}
                             className="btn-primary"
@@ -645,6 +649,7 @@ const BookAppointment = () => {
                         </button>
                     ) : (
                         <button
+                            data-testid="booking-continue-mobile"
                             onClick={() => { setError(''); setStep('review'); }}
                             disabled={!canReview}
                             style={{ background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', padding: '0.75rem 1.75rem', fontWeight: '600', cursor: canReview ? 'pointer' : 'not-allowed', opacity: canReview ? 1 : 0.5, fontSize: '0.95rem', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap' }}

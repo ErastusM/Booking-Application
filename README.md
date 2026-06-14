@@ -70,8 +70,15 @@ Or use the included `.bat` launcher (option 3 starts both).
 ### Test & Build
 
 ```bash
-# Server test suite (Jest + in-memory MongoDB, 100 tests)
+# Server unit/integration suite (Jest + in-memory MongoDB)
 cd server && npm test
+
+# End-to-end suite (Playwright). Boots a self-contained API on an
+# in-memory MongoDB + the CRA dev server automatically — no external
+# Mongo or running stack required. First run only:
+cd client && npx playwright install chromium
+cd client && npm run test:e2e        # headless
+cd client && npm run test:e2e:ui     # interactive UI mode
 
 # Production client build
 cd client && npm run build
@@ -93,16 +100,21 @@ Images: `erastusm/bookplus-server`, `erastusm/bookplus-client` (client build bak
 | Reschedule / cancel own bookings | ✅ | — | ✅ |
 | Join waiting list | ✅ | — | — |
 | Review completed appointments | ✅ | — | — |
+| Complete intake / consent forms before a visit | ✅ | — | — |
 | Manage service catalogue (sub-options, buffers, categories) | — | ✅ | ✅ |
 | Availability, blocked time, breaks | — | ✅ | — |
 | Calendar (day/week/month, drag-to-reschedule) | — | ✅ | — |
 | Walk-in / group / recurring bookings | — | ✅ | — |
 | Confirm / complete / no-show / cancel appointments | — | ✅ | ✅ |
 | Client CRM (history, notes) & messaging | — | ✅ | — |
+| Earnings reporting (completed-appointment value) | — | ✅ | — |
+| Operational insights (utilization, peak hours, retention) | — | ✅ | — |
+| Build intake / consent / consultation forms | — | ✅ | — |
 | Memberships (session bundles, no payment) | — | ✅ | — |
 | Team management | — | ✅ | — |
 | User / service / appointment oversight | — | — | ✅ |
 | Non-financial analytics | — | — | ✅ |
+| Push notifications (opt-in, any role) | ✅ | ✅ | ✅ |
 
 ## Main Features
 
@@ -119,7 +131,10 @@ Images: `erastusm/bookplus-server`, `erastusm/bookplus-client` (client build bak
 - Recurring appointments (daily/weekly/monthly) with series cancel (this / future / all)
 - Group bookings (multiple clients, one slot)
 - Service catalogue: categories, mutually exclusive sub-options, optional display price, duration, **buffer before/after**
-- Business Overview tab: today's bookings, upcoming, completed, clients served, popular services, status breakdown, waiting list queue, recent activity — **no financial metrics**
+- **Business Overview** tab: today's bookings, upcoming, completed, clients served, popular services, status breakdown, waiting-list queue, recent activity
+- **Earnings** tab: value of completed appointments by date range — totals, this/last month + growth, avg per appointment, by service, over time, top clients, recent completed, CSV export (reporting only — no payment/payout logic)
+- **Insights** tab: utilization (booked vs available), no-show & cancellation rates, new vs returning clients, peak hours, busiest days, bookings over time, CSV export
+- **Forms** tab: build intake / consent / consultation forms with a field builder, attach to services, view submissions
 - Client CRM, in-app messaging, memberships (session bundles), team members
 - Onboarding wizard with GPS address autofill
 
@@ -131,16 +146,19 @@ Images: `erastusm/bookplus-server`, `erastusm/bookplus-client` (client build bak
 ### Platform
 - Dark mode (single ThemeContext source of truth, `--ink` token system)
 - PWA: manifest, app icons, installable, standalone display, safe-area insets
+- **Web push notifications** (opt-in toggle in settings) — fire on booking/cancel/reschedule/waitlist/reminders; disabled by default and only active when VAPID keys are configured
+- Intake/consent forms customers complete before a visit, with completion status on the appointment and client profile
 - Route-level code splitting (main bundle ~83 KB gzipped)
-- Email notifications (confirmation, cancellation, reminders) sent fire-and-forget — booking responses don't wait on SMTP; emails are skipped entirely without credentials
+- Email + push notifications sent fire-and-forget — booking responses don't wait on SMTP; both are skipped entirely without credentials
 - Rate limiting, JWT auth, input validation (express-validator), role checks on all protected endpoints
+- End-to-end tested with Playwright (auth, booking, cancellation, discovery) against a self-contained in-memory stack
 
 ## Intentionally Omitted
 
 These are product decisions, not gaps:
 
 - **No payments/billing** — no checkout, card processing, wallets, mobile money, receipts, payment history, invoices, payouts, refunds, deposits, taxes, tips, subscriptions, or POS. `Appointment.paymentStatus`/`paymentIntentId` remain in the schema as deprecated fields only.
-- **No earnings/revenue reporting** — provider and admin dashboards show operational metrics only.
+- **Earnings reporting is display-only** — the provider Earnings tab summarises the value of *completed* appointments (collected in person). There is no payment capture, payout, balance, or transaction ledger behind it.
 - **No inventory / stock / product management.**
 - **No marketplace discovery** — provider profile pages are shareable links, not a global browsing marketplace.
 - **No marketing campaigns / promotions / ads.**
