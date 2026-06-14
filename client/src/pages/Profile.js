@@ -59,7 +59,7 @@ const Profile = () => {
             }}>
                 <div style={{
                     position: 'absolute', inset: 0,
-                    backgroundImage: 'radial-gradient(ellipse at 30% 50%, rgba(201,168,76,0.1) 0%, transparent 60%)',
+                    backgroundImage: 'radial-gradient(ellipse at 30% 50%, rgba(201,168,76,0.05) 0%, transparent 60%)',
                     pointerEvents: 'none',
                 }} />
                 <div className="container" style={{ position: 'relative' }}>

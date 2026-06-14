@@ -71,7 +71,7 @@ const MyWaitingList = () => {
             }}>
                 <div style={{
                     position: 'absolute', inset: 0,
-                    backgroundImage: 'radial-gradient(ellipse at 60% 50%, rgba(201,168,76,0.08) 0%, transparent 60%)',
+                    backgroundImage: 'radial-gradient(ellipse at 60% 50%, rgba(201,168,76,0.045) 0%, transparent 60%)',
                     pointerEvents: 'none',
                 }} />
                 <div className="container" style={{ position: 'relative' }}>

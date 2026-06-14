@@ -66,7 +66,7 @@ const Home = () => {
                     inset: '-20%',
                     backgroundImage: `
                         radial-gradient(ellipse at 20% 50%, rgba(201,168,76,0.15) 0%, transparent 60%),
-                        radial-gradient(ellipse at 80% 20%, rgba(201,168,76,0.08) 0%, transparent 50%),
+                        radial-gradient(ellipse at 80% 20%, rgba(201,168,76,0.045) 0%, transparent 50%),
                         repeating-linear-gradient(
                             45deg,
                             transparent,
@@ -316,7 +316,7 @@ const Home = () => {
                 <div style={{
                     position: 'absolute',
                     inset: 0,
-                    backgroundImage: 'radial-gradient(ellipse at 70% 50%, rgba(201,168,76,0.1) 0%, transparent 70%)',
+                    backgroundImage: 'radial-gradient(ellipse at 70% 50%, rgba(201,168,76,0.05) 0%, transparent 70%)',
                     pointerEvents: 'none',
                 }} />
                 <div className="container" style={{ position: 'relative', textAlign: 'center' }}>
