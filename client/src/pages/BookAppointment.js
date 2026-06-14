@@ -419,7 +419,40 @@ const BookAppointment = () => {
             </div>
 
             <div className="container" style={{ paddingTop: '3rem', paddingBottom: '5rem' }}>
-                {error && <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>{error}</div>}
+                {error && <div role="alert" style={{ background: 'var(--danger-bg)', border: '1px solid #fca5a5', color: 'var(--danger-fg)', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>{error}</div>}
+
+                {/* Progress stepper */}
+                {(() => {
+                    const steps = [
+                        { n: 1, label: 'Service', done: !!selectedService },
+                        { n: 2, label: 'Date & time', done: !!formData.startTime },
+                        { n: 3, label: 'Confirm', done: false },
+                    ];
+                    const currentIdx = !selectedService ? 0 : !formData.startTime ? 1 : 2;
+                    return (
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.75rem', maxWidth: '560px' }}>
+                            {steps.map((s, i) => {
+                                const active = i === currentIdx;
+                                const complete = s.done && i < currentIdx;
+                                return (
+                                    <React.Fragment key={s.n}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                                            <div style={{
+                                                width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                fontSize: '0.8rem', fontWeight: '700', flexShrink: 0, transition: 'all var(--dur) var(--ease-out)',
+                                                background: complete ? 'var(--gold)' : active ? 'var(--ink)' : 'var(--surface-sunken)',
+                                                color: complete ? 'var(--ink)' : active ? 'var(--on-ink)' : 'var(--text-muted)',
+                                                border: active && !complete ? '2px solid var(--gold)' : '2px solid transparent',
+                                            }}>{complete ? '✓' : s.n}</div>
+                                            <span style={{ fontSize: '0.82rem', fontWeight: active ? '700' : '500', color: active ? 'var(--charcoal)' : 'var(--text-muted)', whiteSpace: 'nowrap' }} className="hidden-mobile">{s.label}</span>
+                                        </div>
+                                        {i < steps.length - 1 && <div style={{ flex: 1, height: '2px', background: i < currentIdx ? 'var(--gold)' : 'var(--border)', borderRadius: '2px', transition: 'background var(--dur) ease', minWidth: '16px' }} />}
+                                    </React.Fragment>
+                                );
+                            })}
+                        </div>
+                    );
+                })()}
 
                 <div className="booking-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr) 360px', gap: '2rem', alignItems: 'start' }}>
 
@@ -432,22 +465,38 @@ const BookAppointment = () => {
                                 {stepBadge(1)}
                                 <h2 style={{ fontFamily: 'Cormorant Garamond, serif', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)' }}>Choose a Service</h2>
                             </div>
-                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(180px, 1fr))', gap: '0.75rem' }}>
-                                {services.map(service => (
-                                    <button key={service._id} type="button" data-testid="booking-service" onClick={() => handleServiceSelect(service)} style={{
-                                        padding: '1rem', border: '2px solid', cursor: 'pointer', textAlign: 'left',
-                                        transition: 'all 0.2s ease', fontFamily: 'Outfit, sans-serif', borderRadius: 'var(--radius-sm)',
-                                        borderColor: selectedService?._id === service._id ? 'var(--gold)' : 'var(--border)',
-                                        background: selectedService?._id === service._id ? 'rgba(201,168,76,0.06)' : 'white',
-                                    }}>
-                                        <div style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem', marginBottom: '0.35rem' }}>{service.name}</div>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between' }}>
-                                            <span style={{ color: 'var(--gold-dark)', fontWeight: '700' }}>NAD {service.price}</span>
-                                            <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{service.duration} min</span>
-                                        </div>
-                                    </button>
-                                ))}
-                            </div>
+                            {services.length === 0 ? (
+                                <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
+                                    <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>✂️</div>
+                                    <p style={{ fontSize: '0.9rem', margin: 0 }}>No services available to book right now.</p>
+                                </div>
+                            ) : (
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '0.75rem' }}>
+                                    {services.map(service => {
+                                        const sel = selectedService?._id === service._id;
+                                        return (
+                                            <button key={service._id} type="button" data-testid="booking-service" onClick={() => handleServiceSelect(service)} style={{
+                                                position: 'relative', padding: '1rem', border: '2px solid', cursor: 'pointer', textAlign: 'left', minHeight: '76px',
+                                                transition: 'transform var(--dur-fast) var(--ease-out), border-color var(--dur) ease, background var(--dur) ease, box-shadow var(--dur) ease',
+                                                fontFamily: 'Outfit, sans-serif', borderRadius: 'var(--radius)',
+                                                borderColor: sel ? 'var(--gold)' : 'var(--border)',
+                                                background: sel ? 'rgba(201,168,76,0.08)' : 'var(--card-bg)',
+                                                boxShadow: sel ? 'var(--shadow-sm)' : 'none',
+                                            }}
+                                                onMouseEnter={e => { if (!sel) { e.currentTarget.style.borderColor = 'rgba(201,168,76,0.5)'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; } }}
+                                                onMouseLeave={e => { if (!sel) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; } }}
+                                            >
+                                                {sel && <span aria-hidden="true" style={{ position: 'absolute', top: '0.65rem', right: '0.65rem', width: '20px', height: '20px', borderRadius: '50%', background: 'var(--gold)', color: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: '800' }}>✓</span>}
+                                                <div style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.92rem', marginBottom: '0.4rem', paddingRight: sel ? '1.5rem' : 0 }}>{service.name}</div>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                                                    <span className="price" style={{ color: 'var(--gold-dark)', fontWeight: '700' }}>NAD {service.price}</span>
+                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{service.duration} min</span>
+                                                </div>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            )}
                         </div>
 
                         {/* Add-ons */}
@@ -461,7 +510,7 @@ const BookAppointment = () => {
                                     {selectedService.addOns.map((addOn, i) => {
                                         const checked = selectedAddOns.some(a => a.name === addOn.name);
                                         return (
-                                            <label key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.75rem 1rem', border: `2px solid ${checked ? 'var(--gold)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: checked ? 'rgba(201,168,76,0.06)' : 'white', transition: 'all 0.15s' }}>
+                                            <label key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem', border: `2px solid ${checked ? 'var(--gold)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: checked ? 'rgba(201,168,76,0.08)' : 'var(--card-bg)', transition: 'border-color var(--dur) ease, background var(--dur) ease' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                                     <input type="checkbox" checked={checked} onChange={() => toggleAddOn(addOn)} style={{ accentColor: 'var(--gold)', width: '16px', height: '16px' }} />
                                                     <span style={{ fontWeight: '500', color: 'var(--charcoal)', fontSize: '0.9rem', fontFamily: 'Outfit, sans-serif' }}>{addOn.name}</span>
