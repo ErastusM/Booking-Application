@@ -16,6 +16,7 @@ const {
     getGroupBooking,
     getAppointmentByToken,
     cancelAppointmentByToken,
+    rescheduleAppointmentByToken,
 } = require('../controllers/appointmentController');
 const { auth, authorize } = require('../middleware/auth');
 const {
@@ -31,6 +32,7 @@ router.get('/booked-slots', auth, getBookedSlots);
 // Public — no-login "manage my booking" via opaque token
 router.get('/manage/:token', getAppointmentByToken);
 router.post('/manage/:token/cancel', cancelAppointmentByToken);
+router.post('/manage/:token/reschedule', rescheduleAppointmentByToken);
 
 router.post('/', auth, authorize('customer', 'provider'), createAppointmentRules, createAppointment);
 router.get('/my-appointments', auth, getMyAppointments);

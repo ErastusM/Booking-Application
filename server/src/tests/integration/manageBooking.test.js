@@ -58,6 +58,28 @@ describe('Manage booking via token (no auth)', () => {
         expect(after.body.data.status).toBe('cancelled');
     });
 
+    it('reschedules a booking via token (recomputes end from duration)', async () => {
+        const appt = await createBooking();
+        const res = await request(app)
+            .post(`/api/appointments/manage/${appt.manageToken}/reschedule`)
+            .send({ appointmentDate: nextWeekday(), startTime: '14:00' });
+        expect(res.status).toBe(200);
+        const after = await request(app).get(`/api/appointments/manage/${appt.manageToken}`);
+        expect(after.body.data.startTime).toBe('14:00');
+        expect(after.body.data.endTime).toBe('14:30'); // 30-min service
+    });
+
+    it('rejects a token reschedule into the past', async () => {
+        const appt = await createBooking();
+        const today = new Date();
+        const pad = n => String(n).padStart(2, '0');
+        const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+        const res = await request(app)
+            .post(`/api/appointments/manage/${appt.manageToken}/reschedule`)
+            .send({ appointmentDate: todayStr, startTime: '00:00' });
+        expect(res.status).toBe(400);
+    });
+
     it('404s for an unknown token', async () => {
         const res = await request(app).get('/api/appointments/manage/not-a-real-token');
         expect(res.status).toBe(404);

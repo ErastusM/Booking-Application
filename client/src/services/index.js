@@ -38,6 +38,7 @@ export const appointmentService = {
     getGroupBooking: (groupId) => API.get(`/appointments/group/${groupId}`),
     getByToken: (token) => API.get(`/appointments/manage/${token}`),
     cancelByToken: (token) => API.post(`/appointments/manage/${token}/cancel`),
+    rescheduleByToken: (token, data) => API.post(`/appointments/manage/${token}/reschedule`, data),
 };
 
 export const userService = {

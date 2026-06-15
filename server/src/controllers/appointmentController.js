@@ -894,3 +894,58 @@ exports.cancelAppointmentByToken = async (req, res) => {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
+
+// No-login reschedule via the opaque manage token
+exports.rescheduleAppointmentByToken = async (req, res) => {
+    try {
+        const { appointmentDate, startTime } = req.body;
+        if (!appointmentDate || !startTime) {
+            return res.status(400).json({ success: false, message: 'appointmentDate and startTime are required' });
+        }
+        const appt = await Appointment.findOne({ manageToken: req.params.token })
+            .populate('service', 'name duration')
+            .populate('customer', 'name email');
+        if (!appt) return res.status(404).json({ success: false, message: 'Booking not found' });
+        if (!['pending', 'confirmed'].includes(appt.status)) {
+            return res.status(400).json({ success: false, message: 'This booking can no longer be rescheduled.' });
+        }
+        if (isPastSlot(appointmentDate, startTime)) {
+            return res.status(400).json({ success: false, message: 'That time has already passed. Please pick a later slot.' });
+        }
+
+        const duration = appt.service?.duration
+            || (parseTimeToMinutes(appt.endTime) - parseTimeToMinutes(appt.startTime)) || 30;
+        const tm = parseTimeToMinutes(startTime) + duration;
+        const endTime = `${String(Math.floor(tm / 60) % 24).padStart(2, '0')}:${String(tm % 60).padStart(2, '0')}`;
+
+        const providerId = appt.provider;
+        if (providerId) {
+            const availabilityDoc = await Availability.findOne({ provider: providerId });
+            if (availabilityDoc?.schedule && !isTimeWithinSchedule(availabilityDoc.schedule, appointmentDate, startTime, duration)) {
+                return res.status(400).json({ success: false, message: 'That time is outside the provider availability schedule.' });
+            }
+            if (await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appt._id)) {
+                return res.status(400).json({ success: false, message: 'That time slot is already booked.' });
+            }
+        }
+
+        appt.appointmentDate = new Date(appointmentDate);
+        appt.startTime = startTime;
+        appt.endTime = endTime;
+        appt.statusHistory.push({ status: appt.status, changedBy: appt.customer?._id || null });
+        await appt.save();
+
+        setImmediate(async () => {
+            try {
+                if (appt.provider) {
+                    const when = new Date(appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                    await createNotification(appt.provider, `${appt.customer?.name || appt.walkInName || 'A client'} rescheduled ${appt.service?.name} to ${when} at ${startTime}.`, 'appointment', '/dashboard');
+                }
+            } catch (err) { logger.error({ err }, 'Reschedule notification failed'); }
+        });
+
+        res.status(200).json({ success: true, message: 'Your booking has been rescheduled.', data: { appointmentDate: appt.appointmentDate, startTime: appt.startTime, endTime: appt.endTime } });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};

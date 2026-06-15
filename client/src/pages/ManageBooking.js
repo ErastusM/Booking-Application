@@ -18,6 +18,16 @@ const ManageBooking = () => {
     const [error, setError] = useState('');
     const [cancelling, setCancelling] = useState(false);
     const [done, setDone] = useState('');
+    const [showReschedule, setShowReschedule] = useState(false);
+    const [rDate, setRDate] = useState('');
+    const [rTime, setRTime] = useState('');
+    const [savingR, setSavingR] = useState(false);
+
+    const today = new Date().toISOString().split('T')[0];
+    const toInputDate = (d) => {
+        const x = new Date(d); const p = (n) => String(n).padStart(2, '0');
+        return `${x.getFullYear()}-${p(x.getMonth() + 1)}-${p(x.getDate())}`;
+    };
 
     const load = () => {
         setLoading(true); setError('');
@@ -39,6 +49,22 @@ const ManageBooking = () => {
             setError(err.response?.data?.message || 'Could not cancel — please try again.');
         } finally {
             setCancelling(false);
+        }
+    };
+
+    const reschedule = async (e) => {
+        e.preventDefault();
+        if (!rDate || !rTime) { setError('Please pick a new date and time'); return; }
+        setSavingR(true); setError('');
+        try {
+            await appointmentService.rescheduleByToken(token, { appointmentDate: rDate, startTime: rTime });
+            setShowReschedule(false);
+            setDone('Your booking has been rescheduled. See you then!');
+            load();
+        } catch (err) {
+            setError(err.response?.data?.message || 'Could not reschedule — please try again.');
+        } finally {
+            setSavingR(false);
         }
     };
 
@@ -88,9 +114,23 @@ const ManageBooking = () => {
                             ) : (appt.status === 'pending' || appt.status === 'confirmed') ? (
                                 <>
                                     {error && <p style={{ color: 'var(--danger-fg)', fontSize: '0.85rem', marginTop: '1rem' }}>{error}</p>}
-                                    <button onClick={cancel} disabled={cancelling} className="btn btn--danger-soft btn-block btn-lg" style={{ marginTop: '1.5rem' }}>
-                                        {cancelling ? 'Cancelling…' : 'Cancel booking'}
-                                    </button>
+                                    {showReschedule ? (
+                                        <form onSubmit={reschedule} style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                            <label style={{ fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>New date</label>
+                                            <input type="date" value={rDate} min={today} onChange={e => setRDate(e.target.value)} className="input" required />
+                                            <label style={{ fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>New start time</label>
+                                            <input type="time" value={rTime} onChange={e => setRTime(e.target.value)} className="input" required />
+                                            <button type="submit" disabled={savingR} className="btn-primary" style={{ width: '100%', marginTop: '0.35rem' }}>{savingR ? 'Saving…' : 'Confirm new time →'}</button>
+                                            <button type="button" onClick={() => { setShowReschedule(false); setError(''); }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem' }}>Back</button>
+                                        </form>
+                                    ) : (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '1.5rem' }}>
+                                            <button onClick={() => { setShowReschedule(true); setRDate(toInputDate(appt.appointmentDate)); setRTime(appt.startTime); setError(''); }} className="btn-primary" style={{ width: '100%' }}>Reschedule</button>
+                                            <button onClick={cancel} disabled={cancelling} className="btn btn--danger-soft btn-block btn-lg">
+                                                {cancelling ? 'Cancelling…' : 'Cancel booking'}
+                                            </button>
+                                        </div>
+                                    )}
                                     <p style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.85rem' }}>Free cancellation anytime.</p>
                                 </>
                             ) : (
