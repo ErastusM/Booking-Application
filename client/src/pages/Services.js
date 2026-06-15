@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
 import { serviceService, reviewService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Search } from 'lucide-react';
 
 const StarDisplay = ({ rating }) => (
     <div style={{ display: 'flex', gap: '2px' }}>
@@ -132,7 +133,7 @@ const ServiceCard = ({ service, user, navigate, index }) => {
                             fontWeight: '700',
                             color: 'var(--charcoal)',
                         }}>
-                            ${service.price}
+                            NAD {service.price}
                         </span>
                     </div>
                     {user?.role === 'customer' && (
@@ -230,6 +231,25 @@ const Services = () => {
     const [error, setError] = useState('');
     const { user } = useAuthContext();
     const navigate = useNavigate();
+    const [searchParams, setSearchParams] = useSearchParams();
+    const [q, setQ] = useState(searchParams.get('q') || '');
+
+    // Keep the input in sync if the URL query changes (e.g. arriving from the landing search)
+    useEffect(() => { setQ(searchParams.get('q') || ''); }, [searchParams]);
+
+    const onSearchChange = (val) => {
+        setQ(val);
+        const next = new URLSearchParams(searchParams);
+        if (val.trim()) next.set('q', val.trim()); else next.delete('q');
+        setSearchParams(next, { replace: true });
+    };
+
+    const term = q.trim().toLowerCase();
+    const filtered = !term ? services : services.filter(s =>
+        [s.name, s.description, s.location, s.provider?.name, s.category?.name]
+            .filter(Boolean)
+            .some(v => String(v).toLowerCase().includes(term))
+    );
 
     useEffect(() => {
         const fetchServices = async () => {
@@ -297,7 +317,7 @@ const Services = () => {
                         What We Offer
                     </p>
                     <h1 style={{
-                        fontFamily: 'var(--font-body)',
+                        fontFamily: 'var(--font-display)',
                         fontSize: 'clamp(2rem, 5vw, 3.5rem)',
                         fontWeight: '700',
                         color: 'white',
@@ -312,7 +332,7 @@ const Services = () => {
                         lineHeight: '1.7',
                         fontWeight: '300',
                     }}>
-                        From classic cuts to full grooming packages — every service delivered with precision and care.
+                        Browse every service on Bookplus and book the perfect time in seconds.
                     </p>
                 </div>
             </div>
@@ -333,21 +353,43 @@ const Services = () => {
                     </div>
                 )}
 
-                <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
-                    gap: '1.5rem',
-                }}>
-                    {services.map((service, i) => (
-                        <ServiceCard
-                            key={service._id}
-                            service={service}
-                            user={user}
-                            navigate={navigate}
-                            index={i}
-                        />
-                    ))}
+                {/* Search */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '999px', padding: '0.5rem 0.5rem 0.5rem 1.1rem', boxShadow: 'var(--shadow-sm)', maxWidth: '520px', margin: '0 0 2rem' }}>
+                    <Search size={18} strokeWidth={2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                    <input
+                        value={q}
+                        onChange={e => onSearchChange(e.target.value)}
+                        placeholder="Search services, providers or categories…"
+                        aria-label="Search services"
+                        style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: '0.95rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}
+                    />
+                    {q && (
+                        <button onClick={() => onSearchChange('')} aria-label="Clear search" style={{ background: 'var(--warm-gray)', border: 'none', borderRadius: '999px', width: '28px', height: '28px', cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0, fontSize: '1rem', lineHeight: 1 }}>×</button>
+                    )}
                 </div>
+
+                {filtered.length === 0 ? (
+                    <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '3.5rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                        <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', color: 'var(--charcoal)', margin: '0 0 0.35rem' }}>No services found</p>
+                        <p style={{ fontSize: '0.9rem', margin: 0 }}>{term ? `Nothing matches “${q.trim()}”. Try a different search.` : 'No services available yet.'}</p>
+                    </div>
+                ) : (
+                    <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
+                        gap: '1.5rem',
+                    }}>
+                        {filtered.map((service, i) => (
+                            <ServiceCard
+                                key={service._id}
+                                service={service}
+                                user={user}
+                                navigate={navigate}
+                                index={i}
+                            />
+                        ))}
+                    </div>
+                )}
             </div>
 
             {/* Spinner keyframe */}

@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { appointmentService, serviceService, userService } from '../services';
+import { CalendarDays, Scissors, Users, Clock } from 'lucide-react';
 
 const statusConfig = {
     pending: { label: 'Pending', bg: '#fef3c7', color: '#92400e' },
@@ -194,10 +195,10 @@ const AdminDashboard = () => {
 
     const tabs = ['appointments', 'services', 'users'];
     const stats = [
-        { label: 'Total Appointments', value: apptMeta.total, icon: '📅' },
-        { label: 'Total Services', value: services.length, icon: '✂️' },
-        { label: 'Total Users', value: usersMeta.total, icon: '👥' },
-        { label: 'Pending', value: appointments.filter(a => a.status === 'pending').length, icon: '⏳' },
+        { label: 'Total Appointments', value: apptMeta.total, Icon: CalendarDays },
+        { label: 'Total Services', value: services.length, Icon: Scissors },
+        { label: 'Total Users', value: usersMeta.total, Icon: Users },
+        { label: 'Pending', value: appointments.filter(a => a.status === 'pending').length, Icon: Clock },
     ];
 
     const inputStyle = {
@@ -265,11 +266,11 @@ const AdminDashboard = () => {
                 </div>
 
                 {/* Stats */}
-                <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
+                <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
                     {stats.map((s, i) => (
                         <div key={i} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.2rem 1.4rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(201,168,76,0.12)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.15rem', flexShrink: 0 }}>
-                                {s.icon}
+                            <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <s.Icon size={20} strokeWidth={2} />
                             </div>
                             <div>
                                 <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</p>
