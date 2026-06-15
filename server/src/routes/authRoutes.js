@@ -39,10 +39,11 @@ router.post('/exchange-code', exchangeCodeRules, exchangeOAuthCode);
 
 const passport = require('../config/passport');
 
-// Kick off Google OAuth
-router.get('/google',
-    passport.authenticate('google', { scope: ['profile', 'email'], session: false })
-);
+// Kick off Google OAuth — carry the chosen role (provider/customer) via OAuth state
+router.get('/google', (req, res, next) => {
+    const role = req.query.role === 'provider' ? 'provider' : 'customer';
+    passport.authenticate('google', { scope: ['profile', 'email'], session: false, state: role })(req, res, next);
+});
 
 // Google redirects here — issue a short-lived one-time code; client exchanges it for tokens
 router.get('/google/callback',

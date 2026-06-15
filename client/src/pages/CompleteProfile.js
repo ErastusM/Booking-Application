@@ -2,13 +2,17 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { authService } from '../services';
+import MAIN_CATEGORIES from '../constants/mainCategories';
 
 const CompleteProfile = () => {
     const { user, setUser } = useAuthContext();
     const navigate = useNavigate();
     const [phone, setPhone] = useState('');
+    const [category, setCategory] = useState('');
+    const [customCategory, setCustomCategory] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    const isProvider = user?.role === 'provider';
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -16,13 +20,23 @@ const CompleteProfile = () => {
             setError('Please enter your phone number');
             return;
         }
+        if (isProvider && !category) {
+            setError('Please choose your main service category');
+            return;
+        }
+        if (isProvider && category === 'Other' && !customCategory.trim()) {
+            setError('Please describe the service you offer');
+            return;
+        }
         setLoading(true);
         setError('');
         try {
-            const response = await authService.updateProfile({ phone, name: user?.name, avatar: user?.avatar });
+            const payload = { phone, name: user?.name, avatar: user?.avatar };
+            if (isProvider) payload.providerCategory = category === 'Other' ? customCategory.trim() : category;
+            const response = await authService.updateProfile(payload);
             setUser(response.data.data);
             if (user?.role === 'provider') navigate('/dashboard');
-            else if (user?.role === 'admin') navigate('/admin/dashboard');
+            else if (user?.role === 'admin') navigate('/bkplus-command');
             else navigate('/');
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to save phone number');
@@ -85,6 +99,29 @@ const CompleteProfile = () => {
                                     Used for appointment reminders and provider contact.
                                 </p>
                             </div>
+
+                            {isProvider && (
+                                <div>
+                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                                        Main service category
+                                    </label>
+                                    <select value={category} onChange={e => setCategory(e.target.value)} required className="input">
+                                        <option value="">Select your category</option>
+                                        {MAIN_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
+                                    </select>
+                                    {category === 'Other' && (
+                                        <input
+                                            type="text"
+                                            value={customCategory}
+                                            onChange={e => setCustomCategory(e.target.value)}
+                                            required
+                                            placeholder="e.g. Pet grooming, Tattoo studio…"
+                                            className="input"
+                                            style={{ marginTop: '0.75rem' }}
+                                        />
+                                    )}
+                                </div>
+                            )}
 
                             <button type="submit" disabled={loading} className="btn-primary" style={{ width: '100%', padding: '0.875rem' }}>
                                 {loading ? 'Saving...' : 'Complete Profile →'}

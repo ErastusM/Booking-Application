@@ -274,7 +274,7 @@ const Register = () => {
                             </div>
 
                             <a
-                                href={`${API_BASE}/api/auth/google`}
+                                href={`${API_BASE}/api/auth/google?role=${selectedRole || 'customer'}`}
                                 style={{
                                     display: 'flex',
                                     alignItems: 'center',
