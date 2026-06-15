@@ -16,6 +16,7 @@ const ProvidersPage = () => {
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState('');
     const [locationFilter, setLocationFilter] = useState('');
+    const [categoryFilter, setCategoryFilter] = useState('');
     const [nearMeLoading, setNearMeLoading] = useState(false);
     const [nearMeCity, setNearMeCity] = useState(null);
     const navigate = useNavigate();
@@ -74,10 +75,14 @@ const ProvidersPage = () => {
                 p.location?.toLowerCase().includes(locationFilter.toLowerCase())
             );
         }
+        if (categoryFilter) {
+            result = result.filter(p => p.providerCategory === categoryFilter);
+        }
         setFiltered(result);
-    }, [search, locationFilter, providers]);
+    }, [search, locationFilter, categoryFilter, providers]);
 
     const allLocations = [...new Set(providers.map(p => p.location).filter(Boolean))];
+    const allCategories = [...new Set(providers.map(p => p.providerCategory).filter(Boolean))].sort();
 
     const getInitials = (name) => name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?';
 
@@ -164,11 +169,37 @@ const ProvidersPage = () => {
 
             <div className="container" style={{ paddingTop: '3rem', paddingBottom: '5rem' }}>
 
+                {/* Category filter chips */}
+                {allCategories.length > 0 && (
+                    <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem', marginBottom: '1.5rem', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                        {['', ...allCategories].map(cat => {
+                            const active = categoryFilter === cat;
+                            return (
+                                <button
+                                    key={cat || 'all'}
+                                    onClick={() => setCategoryFilter(cat)}
+                                    style={{
+                                        flexShrink: 0, padding: '0.45rem 1rem', borderRadius: '999px',
+                                        border: '1px solid', borderColor: active ? 'var(--gold)' : 'var(--border)',
+                                        background: active ? 'var(--ink)' : 'var(--card-bg)',
+                                        color: active ? 'var(--on-ink, #fff)' : 'var(--text-secondary)',
+                                        fontSize: '0.82rem', fontWeight: active ? '700' : '500', cursor: 'pointer',
+                                        fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', transition: 'all 0.15s',
+                                    }}
+                                >
+                                    {cat || 'All'}
+                                </button>
+                            );
+                        })}
+                    </div>
+                )}
+
                 {/* Results count */}
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
                     {filtered.length} provider{filtered.length !== 1 ? 's' : ''} found
                     {search && ` for "${search}"`}
-                    {locationFilter && ` in ${locationFilter}`}
+                    {categoryFilter && ` in ${categoryFilter}`}
+                    {locationFilter && ` near ${locationFilter}`}
                 </p>
 
                 {filtered.length === 0 ? (

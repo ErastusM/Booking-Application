@@ -10,6 +10,8 @@ COPY . .
 
 ARG REACT_APP_API_URL
 ENV REACT_APP_API_URL=$REACT_APP_API_URL
+# Don't ship source maps in production — they expose the unminified source.
+ENV GENERATE_SOURCEMAP=false
 
 RUN npm run build
 
