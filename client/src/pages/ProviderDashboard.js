@@ -1729,10 +1729,10 @@ const ProviderDashboard = () => {
                                     fontSize: '0.8rem', fontWeight: earningsPreset === key ? '600' : '400', cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
                                 }}>{label}</button>
                             ))}
-                            <div style={{ display: 'flex', gap: '0.4rem', alignItems: 'center', marginLeft: '0.25rem' }}>
-                                <input type="date" value={earningsRange.from} onChange={e => setEarningsRange(r => ({ ...r, from: e.target.value }))} className="input" style={{ fontSize: '0.78rem', padding: '0.35rem 0.5rem' }} />
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center', marginLeft: '0.25rem' }}>
+                                <input type="date" value={earningsRange.from} onChange={e => setEarningsRange(r => ({ ...r, from: e.target.value }))} className="input" style={{ fontSize: '0.78rem', padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
                                 <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>–</span>
-                                <input type="date" value={earningsRange.to} onChange={e => setEarningsRange(r => ({ ...r, to: e.target.value }))} className="input" style={{ fontSize: '0.78rem', padding: '0.35rem 0.5rem' }} />
+                                <input type="date" value={earningsRange.to} onChange={e => setEarningsRange(r => ({ ...r, to: e.target.value }))} className="input" style={{ fontSize: '0.78rem', padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
                                 <button onClick={() => { setEarningsPreset('custom'); fetchEarnings('custom', earningsRange); }} disabled={!earningsRange.from || !earningsRange.to} style={{ padding: '0.4rem 0.85rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: '600', cursor: (earningsRange.from && earningsRange.to) ? 'pointer' : 'not-allowed', fontFamily: 'Outfit, sans-serif' }}>Apply</button>
                             </div>
                         </div>
@@ -1749,7 +1749,7 @@ const ProviderDashboard = () => {
                         ) : earnings ? (
                             <>
                                 {/* KPI row */}
-                                <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
+                                <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
                                     {[
                                         { label: 'Earned (range)', value: `NAD ${earnings.totals.earned.toLocaleString()}`, icon: '💰', sub: `${earnings.totals.completedCount} completed` },
                                         { label: 'This month', value: `NAD ${earnings.thisMonth.earned.toLocaleString()}`, icon: '📅', sub: `${earnings.growthPct >= 0 ? '▲' : '▼'} ${Math.abs(earnings.growthPct)}% vs last month`, trend: earnings.growthPct },
