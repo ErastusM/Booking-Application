@@ -12,6 +12,7 @@ const {
     becomeProvider,
     changePassword,
     verifyEmail,
+    resendVerification,
     exchangeOAuthCode,
     forgotPassword,
     resetPassword,
@@ -37,6 +38,7 @@ router.put('/change-password', auth, changePassword);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 router.get('/verify-email', verifyEmail);
+router.post('/resend-verification', resendVerification);
 router.post('/exchange-code', exchangeCodeRules, exchangeOAuthCode);
 
 const passport = require('../config/passport');

@@ -28,8 +28,19 @@ const Register = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [passwordFocused, setPasswordFocused] = useState(false);
+    const [resendMsg, setResendMsg] = useState('');
 
     const handleChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+
+    const handleResend = async () => {
+        setResendMsg('Sending…');
+        try {
+            await authService.resendVerification(formData.email);
+            setResendMsg('Sent! Check your inbox (and spam folder).');
+        } catch {
+            setResendMsg('Could not resend right now — please try again shortly.');
+        }
+    };
 
     const handleRoleSelect = (role) => {
         setSelectedRole(role);
@@ -318,11 +329,12 @@ const Register = () => {
                                 </p>
                                 <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '1.5rem', boxShadow: 'var(--shadow-sm)', marginBottom: '1.5rem' }}>
                                     <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
-                                        📬 Didn't get the email? Check your spam folder or{' '}
-                                        <button onClick={() => setStep(2)} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontWeight: '600', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontSize: '0.85rem' }}>
-                                            try again
+                                        Didn't get the email? Check your spam folder or{' '}
+                                        <button onClick={handleResend} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontWeight: '600', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontSize: '0.85rem', padding: 0 }}>
+                                            resend the link
                                         </button>
                                     </p>
+                                    {resendMsg && <p style={{ fontSize: '0.8rem', color: 'var(--gold-dark)', marginTop: '0.5rem' }}>{resendMsg}</p>}
                                 </div>
                                 <Link to="/login" style={{ color: 'var(--text-muted)', fontSize: '0.875rem', textDecoration: 'none' }}>
                                     Already verified? <span style={{ color: 'var(--gold)', fontWeight: '600' }}>Sign in →</span>

@@ -125,6 +125,28 @@ exports.register = async (req, res) => {
 };
 
 /**
+ * Resend the verification email for an unverified account (no auth).
+ * Generic response — never reveals whether an email is registered.
+ */
+exports.resendVerification = async (req, res) => {
+    try {
+        const email = req.body.email?.trim().toLowerCase();
+        if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
+        const user = await User.findOne({ email });
+        if (user && !user.isVerified) {
+            user.verificationToken = crypto.randomBytes(32).toString('hex');
+            user.verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
+            await user.save();
+            sendVerificationEmail(user.email, user.name, user.verificationToken)
+                .catch((err) => console.error('Resend verification failed:', err.message));
+        }
+        res.status(200).json({ success: true, message: 'If that account exists and is unverified, a new verification link is on its way.' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
  * =========================
  * LOGIN (LOCAL ONLY)
  * =========================
