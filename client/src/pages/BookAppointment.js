@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { appointmentService, serviceService, waitingListService, providerMarketService, availabilityService } from '../services';
+import { Calendar, Clock, CalendarX2 } from 'lucide-react';
 
 const BookAppointment = () => {
     const { user } = useAuthContext();
@@ -332,11 +333,11 @@ const BookAppointment = () => {
 
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                        <span style={{ fontSize: '1rem' }}>📅</span>
+                                        <Calendar size={16} strokeWidth={2} style={{ color: 'var(--gold-dark)', flexShrink: 0 }} />
                                         <span style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--charcoal)', fontWeight: '500' }}>{formattedDate}</span>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                        <span style={{ fontSize: '1rem' }}>🕐</span>
+                                        <Clock size={16} strokeWidth={2} style={{ color: 'var(--gold-dark)', flexShrink: 0 }} />
                                         <span style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--charcoal)', fontWeight: '500' }}>
                                             {formData.startTime}-{formData.endTime}
                                             <span style={{ color: 'var(--text-muted)', fontWeight: '400' }}> ({totalDuration} min)</span>
@@ -487,7 +488,7 @@ const BookAppointment = () => {
                             </div>
                             {services.length === 0 ? (
                                 <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
-                                    <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>✂️</div>
+                                    <div style={{ marginBottom: '0.5rem', display: 'flex', justifyContent: 'center' }}><CalendarX2 size={34} strokeWidth={1.5} style={{ color: 'var(--text-muted)' }} /></div>
                                     <p style={{ fontSize: '0.9rem', margin: 0 }}>No services available to book right now.</p>
                                 </div>
                             ) : (
