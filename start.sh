@@ -1,10 +1,10 @@
 #!/bin/bash
 
-# Barbershop Booking Application - Quick Start Script for Unix/Linux/macOS
+# Bookplus Booking Application - Quick Start Script for Unix/Linux/macOS
 
 echo ""
 echo "====================================================="
-echo "   Barbershop Booking Application - Setup"
+echo "   Bookplus Booking Application - Setup"
 echo "====================================================="
 echo ""
 

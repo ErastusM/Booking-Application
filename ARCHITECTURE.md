@@ -1,4 +1,4 @@
-# 🏗️ Barbershop Booking Application - Architecture Guide
+# 🏗️ Bookplus Booking Application - Architecture Guide
 
 ## System Architecture Overview
 
@@ -72,7 +72,7 @@
       │  MONGODB   │                   │ UTILITIES│
       │            │                   │          │
       │ Database:  │                   │helpers.js│
-      │'barbershop'│                   │database. │
+      │'bookplus'│                   │database. │
       │            │                   │js        │
       │Collections:│                   │validators│
       │- users     │                   └──────────┘
@@ -387,7 +387,7 @@ REQUEST ARRIVES
      ▲               ▲                  ▲
      │               │                  │
      └───────────────┴──────────────────┘
-      Network: "barbershop-network"
+      Network: "bookplus-network"
       All containers can communicate
       using service names as hostnames
 ```
@@ -538,4 +538,4 @@ Content-Type: application/json
 
 ---
 
-**Congratulations! You now understand the complete architecture of your Barbershop Booking Application!**
+**Congratulations! You now understand the complete architecture of your Bookplus Booking Application!**

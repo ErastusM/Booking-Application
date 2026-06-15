@@ -1,8 +1,8 @@
-# Project Summary - Barbershop Booking Application
+# Project Summary - Bookplus Booking Application
 
 ## Overview
 
-A complete full-stack MERN (MongoDB, Express, React, Node.js) application for managing barbershop appointments. The application provides both customer-facing booking features and admin management tools.
+A complete full-stack MERN (MongoDB, Express, React, Node.js) application for managing bookplus appointments. The application provides both customer-facing booking features and admin management tools.
 
 **Date Created:** January 15, 2026  
 **Technology Stack:** MERN + Tailwind CSS  
@@ -332,7 +332,7 @@ docker-compose up -d
 ### Server (.env)
 ```env
 PORT=5000
-MONGODB_URI=mongodb://localhost:27017/barbershop
+MONGODB_URI=mongodb://localhost:27017/bookplus
 JWT_SECRET=your_super_secret_jwt_key_change_this
 NODE_ENV=development
 JWT_EXPIRE=7d

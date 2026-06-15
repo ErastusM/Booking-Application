@@ -1,4 +1,4 @@
-# Barbershop Booking Application - Setup Guide
+# Bookplus Booking Application - Setup Guide
 
 ## Prerequisites
 
@@ -72,7 +72,7 @@ Copy-Item .env.example -Destination .env
 
 # Or manually create .env and add:
 PORT=5000
-MONGODB_URI=mongodb://localhost:27017/barbershop
+MONGODB_URI=mongodb://localhost:27017/bookplus
 JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
 NODE_ENV=development
 JWT_EXPIRE=7d
@@ -99,7 +99,7 @@ mongod
 If you have Docker installed:
 
 ```bash
-docker run -d -p 27017:27017 --name barbershop-mongo mongo:6.0
+docker run -d -p 27017:27017 --name bookplus-mongo mongo:6.0
 ```
 
 ### 4. Frontend Setup

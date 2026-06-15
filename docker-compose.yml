@@ -1,9 +1,7 @@
-version: '3.8'
-
 services:
   mongodb:
     image: mongo:6.0
-    container_name: barbershop-mongo
+    container_name: bookplus-mongo
     restart: always
     volumes:
       - mongo_data:/data/db
@@ -12,7 +10,7 @@ services:
 
   server:
     image: erastusm/bookplus-server:latest
-    container_name: barbershop-server
+    container_name: bookplus-server
     restart: always
     ports:
       - "5000:5000"
@@ -23,7 +21,7 @@ services:
 
   client:
     image: erastusm/bookplus-client:latest
-    container_name: barbershop-client
+    container_name: bookplus-client
     restart: always
     depends_on:
       - server
@@ -32,7 +30,7 @@ services:
 
   nginx:
     image: nginx:alpine
-    container_name: barbershop-nginx
+    container_name: bookplus-nginx
     restart: always
     ports:
       - "80:80"

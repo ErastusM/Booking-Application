@@ -1,4 +1,4 @@
-# BarberShop Booking App — Project Context
+# Bookplus Booking App — Project Context
 
 ## Stack
 - Backend: Node/Express, MongoDB/Mongoose, JWT auth, Stripe

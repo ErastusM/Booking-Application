@@ -1,10 +1,10 @@
-# Barbershop Booking Application Development Guide
+# Bookplus Booking Application Development Guide
 
-This document provides guidance for developing the Barbershop Booking Application.
+This document provides guidance for developing the Bookplus Booking Application.
 
 ## Project Overview
 
-A full-stack MERN application for managing barbershop appointments with user authentication, service management, and admin dashboard.
+A full-stack MERN application for managing bookplus appointments with user authentication, service management, and admin dashboard.
 
 ## Technology Stack
 

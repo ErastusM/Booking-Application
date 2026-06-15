@@ -176,7 +176,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                             <input
                                 autoFocus
                                 className="input"
-                                placeholder="e.g. Elite Cuts Barbershop"
+                                placeholder="e.g. Elite Cuts Studio"
                                 value={form.businessName}
                                 onChange={e => setForm(f => ({ ...f, businessName: e.target.value }))}
                                 onKeyDown={e => e.key === 'Enter' && canAdvance() && handleNext()}

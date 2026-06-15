@@ -86,16 +86,18 @@ const BookAppointment = () => {
         const allWorkingHours = Object.entries(providerAvailability)
             .filter(([, v]) => v.enabled)
             .map(([day, v]) => {
-                const slot = v.slots[0];
-                return `${day.charAt(0).toUpperCase() + day.slice(1, 3)}: ${slot?.start}-${slot?.end}`;
-            }).join(', ');
+                const hrs = (v.slots || []).filter(s => s?.start && s?.end).map(s => `${s.start}-${s.end}`).join(', ');
+                return `${day.charAt(0).toUpperCase() + day.slice(1, 3)}: ${hrs}`;
+            }).join('; ');
         if (!daySchedule || !daySchedule.enabled) {
             setAvailabilityError(`This provider is not available at this time. Working hours are ${allWorkingHours || 'not set'}`);
             return;
         }
-        const slot = daySchedule.slots[0];
-        if (slot && (formData.startTime < slot.start || formData.startTime >= slot.end)) {
-            setAvailabilityError(`This provider is not available at this time. Working hours are ${slot.start}-${slot.end}`);
+        // Valid if the chosen start falls within ANY working block that day (split shifts)
+        const dayHours = (daySchedule.slots || []).filter(s => s?.start && s?.end);
+        const within = dayHours.some(s => formData.startTime >= s.start && formData.startTime < s.end);
+        if (!within) {
+            setAvailabilityError(`This provider is not available at this time. Working hours are ${dayHours.map(s => `${s.start}-${s.end}`).join(', ') || 'not set'}`);
             return;
         }
         setAvailabilityError('');
@@ -217,21 +219,30 @@ const BookAppointment = () => {
         return days;
     })();
 
-    // Generate time slot pills from provider availability (or 08:00–20:00 fallback)
+    // Generate time slot pills from provider availability (or 08:00–20:00 fallback).
+    // Slots step by the selected service duration, span EVERY working block of the day
+    // (so split shifts / lunch breaks are honoured), and never appear in the past.
     const generateTimeSlots = (dateStr) => {
         const duration = totalDuration || 30;
         const interval = duration;
-        let startMins = 8 * 60;
-        let endMins = 20 * 60;
+
+        // Working blocks for the day — supports multiple slots (e.g. 09:00–12:00, 13:00–17:00)
+        let blocks = [{ start: 8 * 60, end: 20 * 60 }];
         if (providerAvailability && dateStr) {
             const [y, m, d] = dateStr.split('-').map(Number);
             const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
             const daySchedule = providerAvailability[dayNames[new Date(y, m - 1, d).getDay()]];
-            if (!daySchedule?.enabled || !daySchedule.slots?.[0]) return [];
-            const [sH, sM] = daySchedule.slots[0].start.split(':').map(Number);
-            const [eH, eM] = daySchedule.slots[0].end.split(':').map(Number);
-            startMins = sH * 60 + sM;
-            endMins = eH * 60 + eM;
+            if (!daySchedule?.enabled || !Array.isArray(daySchedule.slots) || daySchedule.slots.length === 0) return [];
+            blocks = daySchedule.slots
+                .filter(s => s?.start && s?.end)
+                .map(s => {
+                    const [sH, sM] = s.start.split(':').map(Number);
+                    const [eH, eM] = s.end.split(':').map(Number);
+                    return { start: sH * 60 + sM, end: eH * 60 + eM };
+                })
+                .filter(b => b.end > b.start)
+                .sort((a, b) => a.start - b.start);
+            if (blocks.length === 0) return [];
         }
 
         // Convert booked appointments to minute ranges
@@ -241,14 +252,23 @@ const BookAppointment = () => {
             return { start: bsH * 60 + bsM, end: beH * 60 + beM };
         });
 
+        // For today, hide times that have already passed
+        let minStart = -1;
+        const now = new Date();
+        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        if (dateStr === todayStr) minStart = now.getHours() * 60 + now.getMinutes();
+
         const slots = [];
-        for (let mins = startMins; mins + duration <= endMins; mins += interval) {
-            const slotEnd = mins + duration;
-            const isBooked = bookedRanges.some(b => mins < b.end && slotEnd > b.start);
-            const h = Math.floor(mins / 60);
-            const min = mins % 60;
-            slots.push({ time: `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`, isBooked });
-        }
+        blocks.forEach(block => {
+            for (let mins = block.start; mins + duration <= block.end; mins += interval) {
+                if (mins < minStart) continue;
+                const slotEnd = mins + duration;
+                const isBooked = bookedRanges.some(b => mins < b.end && slotEnd > b.start);
+                const h = Math.floor(mins / 60);
+                const min = mins % 60;
+                slots.push({ time: `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`, isBooked });
+            }
+        });
         return slots;
     };
 

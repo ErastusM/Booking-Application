@@ -1,4 +1,4 @@
-# 📑 Barbershop Booking Application - Complete File Index
+# 📑 Bookplus Booking Application - Complete File Index
 
 **Total Files Created: 55 files**  
 **Created: January 15, 2026**  
@@ -62,7 +62,7 @@
 | File | Purpose |
 |------|---------|
 | `src/models/User.js` | User schema with authentication methods |
-| `src/models/Service.js` | Service schema for barbershop services |
+| `src/models/Service.js` | Service schema for bookplus services |
 | `src/models/Appointment.js` | Appointment schema with relationships |
 | `src/models/TimeSlot.js` | TimeSlot schema for future use |
 

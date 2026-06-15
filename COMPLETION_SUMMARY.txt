@@ -1,4 +1,4 @@
-🎉 BARBERSHOP BOOKING APPLICATION - COMPLETE! 🎉
+🎉 BOOKPLUS BOOKING APPLICATION - COMPLETE! 🎉
 
 ═══════════════════════════════════════════════════════════════════════════════
 
@@ -269,7 +269,7 @@ FRONTEND
 
 COLLECTIONS:
   ✓ users - User accounts (with role)
-  ✓ services - Barbershop services
+  ✓ services - Bookplus services
   ✓ appointments - Appointment bookings
   ✓ timeslots - Available time slots (future expansion)
 
@@ -353,7 +353,7 @@ DOCKER:
 
 DATABASE:
   mongosh                  # Open MongoDB shell
-  use barbershop          # Switch to database
+  use bookplus          # Switch to database
   db.users.find()         # View users
   db.services.find()      # View services
   db.appointments.find()  # View appointments
@@ -362,7 +362,7 @@ DATABASE:
 
 ✨ YOU'RE ALL SET! ✨
 
-Your complete Barbershop Booking Application is ready to use!
+Your complete Bookplus Booking Application is ready to use!
 
 WHAT YOU HAVE:
   ✓ Full-stack MERN application

@@ -54,13 +54,13 @@ cd client && npm install && npm start
 
 ### Admin Account
 ```
-Email: admin@barbershop.com
+Email: admin@bookplus.com
 Password: admin123
 ```
 
 ### Regular Customer
 ```
-Email: customer@barbershop.com
+Email: customer@bookplus.com
 Password: customer123
 ```
 
@@ -77,12 +77,12 @@ Password: customer123
 mongod
 
 # Or with Docker
-docker run -d -p 27017:27017 --name barbershop-mongo mongo:6.0
+docker run -d -p 27017:27017 --name bookplus-mongo mongo:6.0
 ```
 
 ### MongoDB Connection String
 ```
-mongodb://localhost:27017/barbershop
+mongodb://localhost:27017/bookplus
 ```
 
 ### Access MongoDB CLI
@@ -90,7 +90,7 @@ mongodb://localhost:27017/barbershop
 mongosh
 
 # Switch to database
-use barbershop
+use bookplus
 
 # View collections
 show collections

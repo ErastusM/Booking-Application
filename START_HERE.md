@@ -1,6 +1,6 @@
-# 🎉 Barbershop Booking Application - Complete Setup
+# 🎉 Bookplus Booking Application - Complete Setup
 
-Your complete MERN stack barbershop booking application has been created!
+Your complete MERN stack bookplus booking application has been created!
 
 ## ✅ What's Included
 
@@ -87,7 +87,7 @@ mongod
 
 **Docker MongoDB:**
 ```bash
-docker run -d -p 27017:27017 --name barbershop-mongo mongo:6.0
+docker run -d -p 27017:27017 --name bookplus-mongo mongo:6.0
 ```
 
 **Using Docker Compose:**
@@ -237,7 +237,7 @@ npm run build  # Production build
 ```bash
 # Using MongoDB CLI
 mongosh
-use barbershop
+use bookplus
 db.users.find()
 db.services.find()
 db.appointments.find()
@@ -400,7 +400,7 @@ If you need help:
 
 ## 🎉 You're All Set!
 
-Your complete barbershop booking application is ready to use!
+Your complete bookplus booking application is ready to use!
 
 **Next Action:** Run `start.bat` (Windows) or `./start.sh` (macOS/Linux)
 

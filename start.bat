@@ -1,9 +1,9 @@
 @echo off
-REM Barbershop Booking Application - Quick Start Script for Windows
+REM Bookplus Booking Application - Quick Start Script for Windows
 
 echo.
 echo =====================================================
-echo   Barbershop Booking Application - Setup
+echo   Bookplus Booking Application - Setup
 echo =====================================================
 echo.
 

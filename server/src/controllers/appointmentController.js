@@ -31,6 +31,16 @@ const parseTimeToMinutes = (time) => {
 
 const timesOverlap = (startA, endA, startB, endB) => startA < endB && endA > startB;
 
+// True if the given date + start time is in the past (1-minute grace).
+// Used to stop customers booking/rescheduling into a time that has already passed.
+const isPastSlot = (appointmentDate, startTime) => {
+    const dt = new Date(appointmentDate);
+    if (isNaN(dt.getTime())) return false; // let other validation handle bad dates
+    const [h, m] = String(startTime).split(':').map(Number);
+    dt.setHours(h || 0, m || 0, 0, 0);
+    return dt.getTime() < Date.now() - 60 * 1000;
+};
+
 const getProviderSchedule = async (providerId) => {
     if (!providerId) return defaultSchedule;
     const availability = await Availability.findOne({ provider: providerId });
@@ -178,8 +188,28 @@ exports.createAppointment = async (req, res) => {
         }
         const isProviderBooking = req.user.role === 'provider';
 
+        // Customers cannot book a time that has already passed. Providers/admins may
+        // back-date (e.g. logging a walk-in that just happened).
+        if (req.user.role === 'customer' && isPastSlot(appointmentDate, startTime)) {
+            return res.status(400).json({ success: false, message: 'That time has already passed. Please pick a later slot.' });
+        }
+
         // Block double-bookings: check provider time overlap (not just same service+time)
         const providerId = svc.provider;
+
+        // Enforce the provider's published availability for customer bookings. Providers
+        // may book outside hours (walk-ins/overrides). Only enforced when availability
+        // has actually been set, so providers who never published hours aren't blocked.
+        if (req.user.role === 'customer' && providerId) {
+            const availabilityDoc = await Availability.findOne({ provider: providerId });
+            if (availabilityDoc?.schedule) {
+                const bookingDuration = parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime);
+                if (!isTimeWithinSchedule(availabilityDoc.schedule, appointmentDate, startTime, bookingDuration)) {
+                    return res.status(400).json({ success: false, message: 'Selected time is outside the provider availability schedule' });
+                }
+            }
+        }
+
         if (providerId) {
             const [newSH, newSM] = startTime.split(':').map(Number);
             const [newEH, newEM] = endTime.split(':').map(Number);
@@ -262,6 +292,36 @@ exports.createAppointment = async (req, res) => {
             await appointment.populate(['service', { path: 'customer', select: 'name email' }]);
         }
 
+        // Close the check-then-insert race: if a conflicting booking was created
+        // concurrently (single-node Mongo has no transactions), the later writer —
+        // identified by the larger _id, which is time-ordered — rolls itself back so
+        // only one booking survives the same slot.
+        if (!isRecurring && providerId) {
+            const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
+            const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
+            const sameDay = await Appointment.find({
+                provider: providerId,
+                appointmentDate: { $gte: dayStart, $lte: dayEnd },
+                status: { $nin: ['cancelled'] },
+                teamMember: teamMember || null,
+                _id: { $ne: appointment._id },
+            }).select('startTime endTime _id');
+            const [nSH, nSM] = startTime.split(':').map(Number);
+            const [nEH, nEM] = endTime.split(':').map(Number);
+            const nStart = nSH * 60 + nSM - (svc.bufferBefore || 0);
+            const nEnd = nEH * 60 + nEM + (svc.bufferAfter || 0);
+            const lostRace = sameDay.some(a => {
+                const [aSH, aSM] = a.startTime.split(':').map(Number);
+                const [aEH, aEM] = a.endTime.split(':').map(Number);
+                const overlaps = nStart < (aEH * 60 + aEM) && nEnd > (aSH * 60 + aSM);
+                return overlaps && a._id.toString() < appointment._id.toString();
+            });
+            if (lostRace) {
+                await Appointment.deleteOne({ _id: appointment._id });
+                return res.status(400).json({ success: false, message: 'This time slot was just booked. You can join the waiting list instead.' });
+            }
+        }
+
         // Respond immediately — notifications and email run in the background
         res.status(201).json({ success: true, message: 'Appointment confirmed', data: appointment });
 
@@ -326,7 +386,7 @@ exports.createAppointment = async (req, res) => {
 
 exports.updateAppointment = async (req, res) => {
     try {
-        const appointment = await Appointment.findById(req.params.id);
+        const appointment = await Appointment.findById(req.params.id).populate('service');
         if (!appointment) {
             return res.status(404).json({ success: false, message: 'Appointment not found' });
         }
@@ -334,9 +394,43 @@ exports.updateAppointment = async (req, res) => {
             return res.status(403).json({ success: false, message: 'Not authorized to update this appointment' });
         }
         const { appointmentDate, startTime, endTime, status, notes } = req.body;
-        appointment.appointmentDate = appointmentDate || appointment.appointmentDate;
-        appointment.startTime = startTime || appointment.startTime;
-        appointment.endTime = endTime || appointment.endTime;
+
+        const newDate = appointmentDate || appointment.appointmentDate;
+        const newStart = startTime || appointment.startTime;
+        let newEnd = endTime || appointment.endTime;
+        // If the start moved but no explicit end was given, recompute end from the service duration.
+        if (startTime && !endTime) {
+            const dur = appointment.service?.duration
+                || (parseTimeToMinutes(appointment.endTime) - parseTimeToMinutes(appointment.startTime))
+                || 30;
+            const tm = parseTimeToMinutes(startTime) + dur;
+            newEnd = `${String(Math.floor(tm / 60) % 24).padStart(2, '0')}:${String(tm % 60).padStart(2, '0')}`;
+        }
+
+        const dateChanged = appointmentDate && new Date(appointmentDate).getTime() !== new Date(appointment.appointmentDate).getTime();
+        const timingChanged = dateChanged || (startTime && startTime !== appointment.startTime) || (endTime && endTime !== appointment.endTime);
+
+        // Validate any timing change so an edit can never double-book or fall outside hours.
+        if (timingChanged && appointment.status !== 'cancelled') {
+            const providerId = appointment.provider || appointment.service?.provider;
+            if (providerId) {
+                const duration = parseTimeToMinutes(newEnd) - parseTimeToMinutes(newStart);
+                if (duration <= 0) {
+                    return res.status(400).json({ success: false, message: 'End time must be after the start time' });
+                }
+                const schedule = await getProviderSchedule(providerId);
+                if (!isTimeWithinSchedule(schedule, newDate, newStart, duration)) {
+                    return res.status(400).json({ success: false, message: 'Selected time is outside the availability schedule' });
+                }
+                if (await hasConflictingAppointment(providerId, newDate, newStart, newEnd, appointment._id)) {
+                    return res.status(400).json({ success: false, message: 'This time slot is already booked' });
+                }
+            }
+        }
+
+        appointment.appointmentDate = appointmentDate ? new Date(appointmentDate) : appointment.appointmentDate;
+        appointment.startTime = newStart;
+        appointment.endTime = newEnd;
         appointment.status = status || appointment.status;
         appointment.notes = notes !== undefined ? notes : appointment.notes;
         await appointment.save();
@@ -602,6 +696,9 @@ exports.rescheduleAppointment = async (req, res) => {
         }
         if (!['pending', 'confirmed'].includes(appointment.status)) {
             return res.status(400).json({ success: false, message: 'Only pending or confirmed appointments can be rescheduled' });
+        }
+        if (isPastSlot(appointmentDate, startTime)) {
+            return res.status(400).json({ success: false, message: 'That time has already passed. Please pick a later slot.' });
         }
 
         const duration = appointment.service?.duration || 30;
