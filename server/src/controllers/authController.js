@@ -29,7 +29,7 @@ exports.register = async (req, res) => {
         if (existingUser) {
             return res.status(400).json({
                 success: false,
-                message: 'User already exists with that email'
+                message: 'An account with this email already exists — please sign in instead. One account works as both a customer and a provider.'
             });
         }
 
@@ -325,6 +325,46 @@ exports.updateProfile = async (req, res) => {
             success: false,
             message: 'Internal server error'
         });
+    }
+};
+
+/**
+ * Upgrade the CURRENT account to also be a provider — no second signup.
+ * One account can be both a customer and a provider; this just flips the role
+ * (auth loads the role fresh each request, so it takes effect immediately) and
+ * seeds default availability so the calendar works right away.
+ */
+exports.becomeProvider = async (req, res) => {
+    try {
+        const { providerCategory } = req.body;
+        const user = await User.findById(req.user.id);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+        if (user.role === 'admin') {
+            return res.status(400).json({ success: false, message: 'Admin accounts cannot become providers' });
+        }
+        if (!providerCategory || !providerCategory.trim()) {
+            return res.status(400).json({ success: false, message: 'Please choose your main service category' });
+        }
+
+        user.role = 'provider';
+        user.providerCategory = providerCategory.trim().slice(0, 100);
+        await user.save();
+
+        // Seed a default weekly schedule so the provider's calendar is usable immediately
+        const Availability = require('../models/Availability');
+        const exists = await Availability.findOne({ provider: user._id });
+        if (!exists) {
+            const open = { enabled: true, slots: [{ start: '09:00', end: '17:00' }] };
+            const closed = { enabled: false, slots: [{ start: '09:00', end: '17:00' }] };
+            await Availability.create({
+                provider: user._id,
+                schedule: { monday: open, tuesday: open, wednesday: open, thursday: open, friday: open, saturday: closed, sunday: closed },
+            });
+        }
+
+        res.status(200).json({ success: true, message: 'Your business is set up — welcome aboard!', data: user });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 

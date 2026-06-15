@@ -40,8 +40,8 @@ router.get('/group/:groupId', auth, getGroupBooking);
 router.get('/', auth, getAllAppointments);
 router.put('/:id', auth, authorize('admin'), updateAppointment);
 router.put('/:id/status', auth, authorize('admin', 'provider'), updateAppointmentStatusRules, updateAppointmentStatus);
-router.delete('/:id', auth, authorize('customer', 'admin'), cancelAppointmentRules, cancelAppointment);
-router.put('/:id/reschedule', auth, authorize('customer'), rescheduleAppointmentRules, rescheduleAppointment);
+router.delete('/:id', auth, authorize('customer', 'provider', 'admin'), cancelAppointmentRules, cancelAppointment);
+router.put('/:id/reschedule', auth, authorize('customer', 'provider'), rescheduleAppointmentRules, rescheduleAppointment);
 router.put('/:id/provider-reschedule', auth, authorize('provider'), providerRescheduleAppointment);
 router.delete('/:id/series', auth, authorize('provider', 'admin'), cancelAppointmentSeries);
 

@@ -10,7 +10,7 @@ const {
 const { auth, authorize } = require('../middleware/auth');
 const { joinWaitingListRules } = require('../middleware/validate');
 
-router.post('/', auth, authorize('customer'), joinWaitingListRules, joinWaitingList);
+router.post('/', auth, authorize('customer', 'provider'), joinWaitingListRules, joinWaitingList);
 router.get('/', auth, getMyWaitingList);
 router.get('/provider', auth, authorize('provider', 'admin'), getProviderWaitingList);
 router.get('/notifications', auth, getNotifications);

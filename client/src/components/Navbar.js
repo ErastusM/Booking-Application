@@ -92,7 +92,9 @@ const Navbar = () => {
                     {user?.role === 'customer' && navLink('/book-appointment', 'Book')}
                     {user?.role === 'customer' && navLink('/appointments', 'Appointments')}
                     {user?.role === 'customer' && navLink('/waiting-list', 'Waiting List')}
+                    {user?.role === 'customer' && navLink('/become-provider', 'List your business')}
                     {user?.role === 'provider' && navLink('/dashboard', 'Dashboard')}
+                    {user?.role === 'provider' && navLink('/appointments', 'My bookings')}
                     {user?.role === 'admin' && navLink('/bkplus-command', 'Dashboard')}
                     {user?.role === 'admin' && navLink('/bkplus-command/insights', 'Analytics')}
                 </div>
@@ -236,7 +238,10 @@ const Navbar = () => {
                         {user?.role === 'customer' && mobileLink('/book-appointment', 'Book Appointment')}
                         {user?.role === 'customer' && mobileLink('/appointments', 'My Appointments')}
                         {user?.role === 'customer' && mobileLink('/waiting-list', 'Waiting List')}
+                        {user?.role === 'customer' && mobileLink('/become-provider', 'List your business')}
                         {user?.role === 'provider' && mobileLink('/dashboard', 'Dashboard')}
+                        {user?.role === 'provider' && mobileLink('/book-appointment', 'Book a service')}
+                        {user?.role === 'provider' && mobileLink('/appointments', 'My bookings')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command/insights', 'Analytics')}
                         {user && mobileLink(user.role === 'provider' ? '/account' : '/profile', 'My Profile')}

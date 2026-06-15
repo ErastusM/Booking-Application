@@ -21,6 +21,7 @@ const ProvidersPage = lazy(() => import('./pages/ProviderPage'));
 const ProviderProfilePage = lazy(() => import('./pages/ProviderProfilePage'));
 const AuthCallback = lazy(() => import('./pages/AuthCallBack'));
 const CompleteProfile = lazy(() => import('./pages/CompleteProfile'));
+const BecomeProvider = lazy(() => import('./pages/BecomeProvider'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
@@ -60,20 +61,25 @@ function AppRoutes() {
                     <Route path="/terms" element={<TermsOfService />} />
                     <Route path="/manage/:token" element={<ManageBooking />} />
 
-                    {/* Customer only */}
+                    {/* Customer-context — providers can also act as customers (one account, both modes) */}
                     <Route path="/book-appointment" element={
-                        <ProtectedRoute allowedRoles={['customer']}>
+                        <ProtectedRoute allowedRoles={['customer', 'provider']}>
                             <BookAppointment />
                         </ProtectedRoute>
                     } />
                     <Route path="/appointments" element={
-                        <ProtectedRoute allowedRoles={['customer']}>
+                        <ProtectedRoute allowedRoles={['customer', 'provider']}>
                             <MyAppointments />
                         </ProtectedRoute>
                     } />
                     <Route path="/waiting-list" element={
-                        <ProtectedRoute allowedRoles={['customer']}>
+                        <ProtectedRoute allowedRoles={['customer', 'provider']}>
                             <MyWaitingList />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/become-provider" element={
+                        <ProtectedRoute allowedRoles={['customer']}>
+                            <BecomeProvider />
                         </ProtectedRoute>
                     } />
 

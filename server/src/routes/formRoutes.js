@@ -17,6 +17,6 @@ router.get('/submissions', auth, authorize('provider', 'admin'), getSubmissions)
 
 // Customer + provider: forms attached to an appointment, and submission
 router.get('/for-appointment/:appointmentId', auth, getFormsForAppointment);
-router.post('/submissions', auth, authorize('customer'), submitForm);
+router.post('/submissions', auth, authorize('customer', 'provider'), submitForm);
 
 module.exports = router;

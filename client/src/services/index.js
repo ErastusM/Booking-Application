@@ -8,6 +8,7 @@ export const authService = {
     updateProfile: (data) => API.put('/auth/profile', data),
     updatePortfolio: (data) => API.put('/auth/portfolio', data),
     completeProviderSetup: (data) => API.post('/auth/provider-setup', data),
+    becomeProvider: (data) => API.put('/auth/become-provider', data),
     changePassword: (data) => API.put('/auth/change-password', data),
     forgotPassword: (email) => API.post('/auth/forgot-password', { email }),
     resetPassword: (data) => API.post('/auth/reset-password', data),

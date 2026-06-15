@@ -9,6 +9,7 @@ const {
     updateProfile,
     updatePortfolio,
     completeProviderSetup,
+    becomeProvider,
     changePassword,
     verifyEmail,
     exchangeOAuthCode,
@@ -31,6 +32,7 @@ router.get('/profile', auth, getProfile);
 router.put('/profile', auth, updateProfileRules, updateProfile);
 router.put('/portfolio', auth, updatePortfolio);
 router.post('/provider-setup', auth, completeProviderSetup);
+router.put('/become-provider', auth, becomeProvider);
 router.put('/change-password', auth, changePassword);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
