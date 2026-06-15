@@ -122,18 +122,29 @@ exports.getAllAppointments = async (req, res) => {
             query.status = status;
         }
 
+        // The provider calendar needs every booking, not a page — `all=true` bypasses
+        // pagination so the calendar can never silently drop appointments.
+        const fetchAll = req.query.all === 'true';
+        const base = () => Appointment.find(query)
+            .populate('customer', 'name email phone')
+            .populate('service', 'name price duration')
+            .populate('teamMember', 'name color')
+            .sort({ appointmentDate: -1 });
+
+        if (fetchAll) {
+            const appointments = await base();
+            return res.status(200).json({
+                success: true, count: appointments.length, total: appointments.length,
+                page: 1, pages: 1, data: appointments,
+            });
+        }
+
         const page = Math.max(1, parseInt(req.query.page) || 1);
         const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
         const skip = (page - 1) * limit;
 
         const [appointments, total] = await Promise.all([
-            Appointment.find(query)
-                .populate('customer', 'name email phone')
-                .populate('service', 'name price duration')
-                .populate('teamMember', 'name color')
-                .sort({ appointmentDate: -1 })
-                .skip(skip)
-                .limit(limit),
+            base().skip(skip).limit(limit),
             Appointment.countDocuments(query),
         ]);
         res.status(200).json({
@@ -522,9 +533,18 @@ exports.getAppointmentHistory = async (req, res) => {
     try {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
-        const query = { provider: req.user._id, appointmentDate: { $lt: today } };
         const { status } = req.query;
-        if (status) query.status = status;
+        const query = { provider: req.user._id };
+        if (status) {
+            query.status = status;
+        } else {
+            // "History" = finished appointments (completed / cancelled / no-show) OR
+            // anything already in the past, regardless of status.
+            query.$or = [
+                { status: { $in: ['completed', 'cancelled', 'no-show'] } },
+                { appointmentDate: { $lt: today } },
+            ];
+        }
         const page = Math.max(1, parseInt(req.query.page) || 1);
         const limit = Math.min(50, parseInt(req.query.limit) || 20);
         const skip = (page - 1) * limit;
@@ -549,12 +569,19 @@ exports.updateAppointmentStatus = async (req, res) => {
         const { status } = req.body;
         const appointment = await Appointment.findById(req.params.id)
             .populate('customer', 'name email')
-            .populate('service', 'name');
+            .populate('service', 'name provider');
         if (!appointment) {
             return res.status(404).json({ success: false, message: 'Appointment not found' });
         }
-        if (req.user.role !== 'admin' && appointment.provider?.toString() !== req.user._id.toString()) {
+        // Authorize against the appointment's provider, falling back to the service's
+        // provider for older waiting-list promotions that were created without one.
+        const ownerId = appointment.provider?.toString() || appointment.service?.provider?.toString();
+        if (req.user.role !== 'admin' && ownerId !== req.user._id.toString()) {
             return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
+        // Self-heal: backfill a missing provider so the booking shows on the calendar.
+        if (!appointment.provider && appointment.service?.provider) {
+            appointment.provider = appointment.service.provider;
         }
         // Idempotent: if the status is already what was requested, do nothing. This stops
         // repeat "Complete" clicks (or a client re-fire) from stacking duplicate

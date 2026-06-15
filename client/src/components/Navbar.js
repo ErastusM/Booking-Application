@@ -277,20 +277,34 @@ const Navbar = () => {
                 height: '62px', paddingBottom: 'env(safe-area-inset-bottom)',
             }}>
                 {user.role === 'provider' && [
-                    { to: '/dashboard?tab=calendar', icon: (
-                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                    ), label: 'Calendar' },
-                    { to: '/dashboard', icon: (
-                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
-                    ), label: 'Dashboard' },
                     { to: '/services', icon: (
                         <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
                     ), label: 'Services' },
                     { to: '/account', icon: (
                         <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                     ), label: 'Account' },
-                ].map(({ to, icon, label }) => {
+                    { to: '/dashboard', fab: true, icon: (
+                        <svg width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                    ), label: 'Dashboard' },
+                ].map(({ to, icon, label, fab }) => {
                     const active = isActive(to.split('?')[0]);
+                    if (fab) {
+                        return (
+                            <Link key={to} to={to} aria-label="Dashboard" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', textDecoration: 'none', position: 'relative' }}>
+                                <span style={{
+                                    position: 'absolute', top: '-24px',
+                                    width: '58px', height: '58px', borderRadius: '50%',
+                                    background: 'var(--ink)', color: 'var(--gold)',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    boxShadow: '0 8px 20px rgba(26,26,46,0.40)',
+                                    border: '4px solid var(--card-bg)',
+                                    transition: 'transform var(--dur-fast,0.12s) var(--ease-out, ease)',
+                                    transform: active ? 'scale(1.04)' : 'none',
+                                }}>{icon}</span>
+                                <span style={{ fontSize: '0.62rem', fontWeight: active ? '700' : '600', color: active ? 'var(--gold)' : 'var(--text-secondary)', marginBottom: '7px' }}>{label}</span>
+                            </Link>
+                        );
+                    }
                     return (
                         <Link key={to} to={to} className={`bnav-item ${active ? 'is-active' : ''}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', textDecoration: 'none', color: active ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: active ? '700' : '500', fontFamily: 'Outfit, sans-serif' }}>
                             <span className="bnav-icon">{icon}</span>

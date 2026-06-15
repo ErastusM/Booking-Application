@@ -1,6 +1,8 @@
 @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
 
 @keyframes spin { to { transform: rotate(360deg); } }
+@keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+@keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
 @tailwind base;
 @tailwind components;
@@ -666,6 +668,55 @@ body.dark-mode .booking-confirm-mobile {
 /* Slot rows — minor lines thinner */
 .fc-bookplus-wrapper .fc-timegrid-slot-minor {
   border-top-color: #f6f4f0 !important;
+}
+
+/* Evenly spaced prev / next so the ‹ › chevrons don't look cramped or joined */
+.fc-bookplus-wrapper .fc-button-group {
+  display: inline-flex;
+  gap: 0.4rem;
+}
+.fc-bookplus-wrapper .fc-button-group > .fc-button {
+  margin: 0 !important;
+  border-radius: 8px !important;
+}
+
+/* ── Dark mode FullCalendar — the internals default to white, so theme them ── */
+body.dark-mode .fc-bookplus-wrapper .fc {
+  color: var(--text-primary);
+  --fc-page-bg-color: var(--card-bg);
+  --fc-neutral-bg-color: var(--surface-sunken);
+  --fc-border-color: var(--border);
+  --fc-today-bg-color: rgba(201, 168, 76, 0.10);
+}
+body.dark-mode .fc-bookplus-wrapper .fc-header-toolbar,
+body.dark-mode .fc-bookplus-wrapper .fc-col-header,
+body.dark-mode .fc-bookplus-wrapper .fc-col-header-cell,
+body.dark-mode .fc-bookplus-wrapper .fc-timegrid-body,
+body.dark-mode .fc-bookplus-wrapper .fc-daygrid-body,
+body.dark-mode .fc-bookplus-wrapper .fc-scrollgrid,
+body.dark-mode .fc-bookplus-wrapper table {
+  background: var(--card-bg);
+}
+body.dark-mode .fc-bookplus-wrapper .fc-toolbar-title { color: var(--text-primary); }
+body.dark-mode .fc-bookplus-wrapper .fc-button {
+  background: var(--surface-raised) !important;
+  border-color: var(--border) !important;
+  color: var(--text-primary) !important;
+}
+body.dark-mode .fc-bookplus-wrapper .fc-button:hover {
+  background: var(--surface-sunken) !important;
+  border-color: var(--border) !important;
+}
+body.dark-mode .fc-bookplus-wrapper .fc-theme-standard td,
+body.dark-mode .fc-bookplus-wrapper .fc-theme-standard th,
+body.dark-mode .fc-bookplus-wrapper .fc-theme-standard .fc-scrollgrid {
+  border-color: var(--border);
+}
+body.dark-mode .fc-bookplus-wrapper .fc-col-header-cell {
+  border-bottom-color: var(--border) !important;
+}
+body.dark-mode .fc-bookplus-wrapper .fc-timegrid-slot-minor {
+  border-top-color: var(--border) !important;
 }
 
 /* Now indicator */

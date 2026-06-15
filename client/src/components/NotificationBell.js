@@ -117,55 +117,46 @@ const NotificationBell = () => {
                 )}
             </button>
 
-            {/* Dropdown */}
+            {/* Dropdown — inline styles + CSS vars so it themes in dark mode */}
             {open && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-xl shadow-2xl z-50 overflow-hidden">
+                <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', width: '320px', maxWidth: '90vw', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-lg, 0 12px 40px rgba(0,0,0,0.18))', zIndex: 1000, overflow: 'hidden' }}>
                     {/* Header */}
-                    <div className="flex items-center justify-between px-4 py-3 border-b border-gray-100">
-                        <h3 className="font-bold text-gray-800">Notifications</h3>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem', borderBottom: '1px solid var(--border)' }}>
+                        <h3 style={{ fontWeight: '700', color: 'var(--charcoal)', fontFamily: 'var(--font-display)', fontSize: '1rem', margin: 0 }}>Notifications</h3>
                         {unreadCount > 0 && (
-                            <button
-                                onClick={handleMarkAllRead}
-                                disabled={loading}
-                                className="text-xs text-yellow-600 hover:text-yellow-800 font-semibold"
-                            >
+                            <button onClick={handleMarkAllRead} disabled={loading} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', color: 'var(--gold-dark)' }}>
                                 Mark all read
                             </button>
                         )}
                     </div>
 
                     {/* Notifications list */}
-                    <div className="max-h-96 overflow-y-auto divide-y divide-gray-50">
+                    <div style={{ maxHeight: '24rem', overflowY: 'auto' }}>
                         {error && (
-                            <div className="px-4 py-2 text-xs text-red-600 bg-red-50">
-                                {error}
-                            </div>
+                            <div style={{ padding: '0.5rem 1rem', fontSize: '0.75rem', color: 'var(--danger-fg,#b42318)', background: 'var(--danger-bg,#fde8e8)' }}>{error}</div>
                         )}
                         {notifications.length === 0 ? (
-                            <div className="text-center py-10 text-gray-400">
-                                <p className="text-3xl mb-2">🔔</p>
-                                <p className="text-sm">No notifications yet</p>
+                            <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
+                                <p style={{ fontSize: '1.75rem', margin: '0 0 0.5rem' }}>🔔</p>
+                                <p style={{ fontSize: '0.875rem', margin: 0 }}>No notifications yet</p>
                             </div>
                         ) : (
                             notifications.map(n => (
                                 <div
                                     key={n._id}
                                     onClick={() => handleClick(n)}
-                                    className={`flex items-start gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition ${!n.read ? 'bg-yellow-50' : ''}`}
+                                    style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.8rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border)', background: !n.read ? 'rgba(201,168,76,0.08)' : 'transparent', transition: 'background 0.15s' }}
+                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
+                                    onMouseLeave={e => e.currentTarget.style.background = !n.read ? 'rgba(201,168,76,0.08)' : 'transparent'}
                                 >
-                                    <span className="text-xl mt-0.5 shrink-0">{typeIcon(n.type)}</span>
-                                    <div className="flex-1 min-w-0">
-                                        <p className={`text-sm ${!n.read ? 'font-semibold text-gray-800' : 'text-gray-600'}`}>
+                                    <span style={{ fontSize: '1.25rem', marginTop: '1px', flexShrink: 0 }}>{typeIcon(n.type)}</span>
+                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                        <p style={{ fontSize: '0.85rem', margin: 0, color: !n.read ? 'var(--charcoal)' : 'var(--text-secondary)', fontWeight: !n.read ? '600' : '400', lineHeight: 1.4 }}>
                                             {n.message}
                                         </p>
-                                        <p className="text-xs text-gray-400 mt-0.5">{timeAgo(n.createdAt)}</p>
+                                        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>{timeAgo(n.createdAt)}</p>
                                     </div>
-                                    <button
-                                        onClick={(e) => handleDelete(e, n._id)}
-                                        className="text-gray-300 hover:text-red-400 text-lg shrink-0 transition"
-                                    >
-                                        ×
-                                    </button>
+                                    <button onClick={(e) => handleDelete(e, n._id)} aria-label="Delete" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.1rem', flexShrink: 0, lineHeight: 1 }}>×</button>
                                 </div>
                             ))
                         )}

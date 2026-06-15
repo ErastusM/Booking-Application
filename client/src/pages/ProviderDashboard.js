@@ -157,6 +157,7 @@ const ProviderDashboard = () => {
     }, []);
 
     useEffect(() => { // eslint-disable-line react-hooks/exhaustive-deps
+        setError(''); // a stale error shouldn't follow the user across tabs
         if (activeTab === 'overview') {
             waitingListService.getProviderList().then(r => setProviderWaitlist(r.data.data || [])).catch(() => {});
         }
@@ -175,7 +176,8 @@ const ProviderDashboard = () => {
         // Don't block the whole page — only set loading on first load
         if (appointments.length === 0) setLoading(true);
         try {
-            const res = await appointmentService.getAllAppointments();
+            // `all` so the calendar always has every booking (no pagination gaps)
+            const res = await appointmentService.getAllAppointments({ all: true });
             setAppointments(res.data.data);
         } catch {
             setError('Failed to load appointments');
@@ -609,10 +611,16 @@ const ProviderDashboard = () => {
     };
 
     const handleStatusUpdate = async (id, status) => {
+        setError('');
+        // optimistic
+        setAppointments(prev => prev.map(a => a._id === id ? { ...a, status } : a));
         try {
             await appointmentService.updateAppointmentStatus(id, status);
-            setAppointments(appointments.map(a => a._id === id ? { ...a, status } : a));
+            // Re-sync from the server so calendar, counts and history all reflect it
+            await fetchAppointments();
+            setHistory([]); // invalidate so History refetches when next opened
         } catch {
+            await fetchAppointments(); // roll back optimistic change
             setError('Failed to update appointment');
         }
     };
@@ -1338,18 +1346,18 @@ const ProviderDashboard = () => {
                         {availability && (
                             <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                                 {Object.entries(availability).map(([day, config], i) => (
-                                    <div key={day} style={{ display: 'grid', gridTemplateColumns: '140px 80px 1fr', alignItems: 'center', gap: '1.5rem', padding: '1rem 1.5rem', borderBottom: i < 6 ? '1px solid var(--border)' : 'none', background: config.enabled ? 'white' : 'var(--warm-gray)', transition: 'background 0.2s' }}>
-                                        <span style={{ fontWeight: '600', color: config.enabled ? 'var(--charcoal)' : 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'capitalize' }}>{day}</span>
-                                        <div>
-                                            <button onClick={() => handleDayToggle(day)} style={{ width: '44px', height: '24px', borderRadius: '99px', border: 'none', background: config.enabled ? 'var(--gold)' : '#d1d5db', cursor: 'pointer', position: 'relative', transition: 'background 0.2s' }}>
+                                    <div key={day} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem 1rem', padding: '0.9rem 1.25rem', borderBottom: i < 6 ? '1px solid var(--border)' : 'none', background: config.enabled ? 'var(--card-bg)' : 'var(--warm-gray)', transition: 'background 0.2s' }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', flex: '0 0 auto' }}>
+                                            <span style={{ fontWeight: '600', color: config.enabled ? 'var(--charcoal)' : 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'capitalize', minWidth: '84px' }}>{day}</span>
+                                            <button onClick={() => handleDayToggle(day)} aria-label={`Toggle ${day}`} style={{ width: '44px', height: '24px', borderRadius: '99px', border: 'none', background: config.enabled ? 'var(--gold)' : '#d1d5db', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
                                                 <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'white', position: 'absolute', top: '3px', left: config.enabled ? '23px' : '3px', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
                                             </button>
                                         </div>
                                         {config.enabled ? (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                <input type="time" value={config.slots[0]?.start || '09:00'} onChange={e => handleTimeChange(day, 'start', e.target.value)} className="input" style={{ maxWidth: '140px', padding: '0.4rem 0.75rem', fontSize: '0.875rem' }} />
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
+                                                <input type="time" value={config.slots[0]?.start || '09:00'} onChange={e => handleTimeChange(day, 'start', e.target.value)} className="input" style={{ width: '108px', maxWidth: '40vw', padding: '0.4rem 0.5rem', fontSize: '0.875rem' }} />
                                                 <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', flexShrink: 0 }}>to</span>
-                                                <input type="time" value={config.slots[0]?.end || '17:00'} onChange={e => handleTimeChange(day, 'end', e.target.value)} className="input" style={{ maxWidth: '140px', padding: '0.4rem 0.75rem', fontSize: '0.875rem' }} />
+                                                <input type="time" value={config.slots[0]?.end || '17:00'} onChange={e => handleTimeChange(day, 'end', e.target.value)} className="input" style={{ width: '108px', maxWidth: '40vw', padding: '0.4rem 0.5rem', fontSize: '0.875rem' }} />
                                             </div>
                                         ) : (
                                             <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontStyle: 'italic' }}>Not available</span>
@@ -2331,7 +2339,13 @@ const ProviderDashboard = () => {
                                 const startMins = parseTimeToMins(appt.startTime);
                                 const finalEnd = Math.max(newEndMins, startMins + Math.max(15, snapInterval));
                                 try {
-                                    await appointmentService.updateAppointment(appt._id, { endTime: minsToTime(finalEnd) });
+                                    // provider-reschedule supports an explicit endTime (resize);
+                                    // plain updateAppointment is admin-only and 403s for providers.
+                                    await appointmentService.providerRescheduleAppointment(appt._id, {
+                                        appointmentDate: appt.appointmentDate,
+                                        startTime: appt.startTime,
+                                        endTime: minsToTime(finalEnd),
+                                    });
                                     await fetchAppointments();
                                 } catch (err) {
                                     await fetchAppointments();

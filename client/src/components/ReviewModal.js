@@ -1,24 +1,31 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { reviewService } from '../services';
 
 const StarPicker = ({ rating, onRate }) => {
     const [hovered, setHovered] = useState(0);
     return (
-        <div className="flex gap-1">
-            {[1, 2, 3, 4, 5].map(star => (
-                <button
-                    key={star}
-                    type="button"
-                    onClick={() => onRate(star)}
-                    onMouseEnter={() => setHovered(star)}
-                    onMouseLeave={() => setHovered(0)}
-                    className="text-3xl transition"
-                >
-                    <span className={(hovered || rating) >= star ? 'text-yellow-400' : 'text-gray-300'}>
+        <div style={{ display: 'flex', gap: '0.35rem' }}>
+            {[1, 2, 3, 4, 5].map(star => {
+                const active = (hovered || rating) >= star;
+                return (
+                    <button
+                        key={star}
+                        type="button"
+                        aria-label={`${star} star${star > 1 ? 's' : ''}`}
+                        onClick={() => onRate(star)}
+                        onMouseEnter={() => setHovered(star)}
+                        onMouseLeave={() => setHovered(0)}
+                        style={{
+                            background: 'none', border: 'none', cursor: 'pointer', padding: '2px',
+                            fontSize: '2rem', lineHeight: 1, transition: 'transform var(--dur-fast,0.12s) ease, color 0.15s ease',
+                            color: active ? 'var(--gold)' : 'var(--border)',
+                            transform: hovered === star ? 'scale(1.15)' : 'none',
+                        }}
+                    >
                         ★
-                    </span>
-                </button>
-            ))}
+                    </button>
+                );
+            })}
         </div>
     );
 };
@@ -29,20 +36,22 @@ const ReviewModal = ({ appointment, onClose, onSubmitted }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
 
+    // Lock background scroll + close on Escape while the modal is open
+    useEffect(() => {
+        const prev = document.body.style.overflow;
+        document.body.style.overflow = 'hidden';
+        const onKey = (e) => { if (e.key === 'Escape') onClose(); };
+        window.addEventListener('keydown', onKey);
+        return () => { document.body.style.overflow = prev; window.removeEventListener('keydown', onKey); };
+    }, [onClose]);
+
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (rating === 0) {
-            setError('Please select a star rating');
-            return;
-        }
+        if (rating === 0) { setError('Please select a star rating'); return; }
         setLoading(true);
         setError('');
         try {
-            await reviewService.createReview({
-                appointmentId: appointment._id,
-                rating,
-                comment,
-            });
+            await reviewService.createReview({ appointmentId: appointment._id, rating, comment });
             onSubmitted();
             onClose();
         } catch (err) {
@@ -53,57 +62,59 @@ const ReviewModal = ({ appointment, onClose, onSubmitted }) => {
     };
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-            <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md mx-4">
-                <div className="flex justify-between items-center mb-6">
-                    <h2 className="text-2xl font-bold text-gray-800">Leave a Review</h2>
-                    <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl font-bold">×</button>
+        <div
+            onClick={onClose}
+            style={{
+                position: 'fixed', inset: 0, zIndex: 1000,
+                background: 'rgba(15,15,25,0.55)', backdropFilter: 'blur(3px)',
+                display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
+                padding: '0', animation: 'fadeIn 0.18s ease',
+            }}
+        >
+            <div
+                onClick={e => e.stopPropagation()}
+                className="review-modal-card"
+                style={{
+                    background: 'var(--card-bg)', width: '100%', maxWidth: '440px',
+                    borderRadius: '20px 20px 0 0', boxShadow: '0 -10px 40px rgba(0,0,0,0.25)',
+                    padding: '1.5rem 1.5rem calc(1.5rem + env(safe-area-inset-bottom))',
+                    animation: 'slideUp 0.24s var(--ease-out, cubic-bezier(0.16,1,0.3,1))',
+                }}
+            >
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.35rem' }}>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Leave a review</h2>
+                    <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.6rem', lineHeight: 1, padding: '0 0.25rem' }}>×</button>
                 </div>
-
-                <p className="text-gray-500 mb-6">
-                    Reviewing: <span className="font-semibold text-gray-800">{appointment.service?.name}</span>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: '0 0 1.25rem' }}>
+                    How was your <span style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{appointment.service?.name}</span>?
                 </p>
 
                 {error && (
-                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded mb-4">
-                        {error}
-                    </div>
+                    <div role="alert" style={{ background: 'var(--danger-bg,#fee2e2)', border: '1px solid #fca5a5', color: 'var(--danger-fg,#991b1b)', padding: '0.7rem 0.9rem', borderRadius: 'var(--radius-sm)', marginBottom: '1rem', fontSize: '0.85rem' }}>{error}</div>
                 )}
 
-                <form onSubmit={handleSubmit} className="space-y-5">
+                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
                     <div>
-                        <label className="block text-gray-700 font-semibold mb-2">Your Rating</label>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Your rating</label>
                         <StarPicker rating={rating} onRate={setRating} />
                     </div>
-
                     <div>
-                        <label className="block text-gray-700 font-semibold mb-2">Your Review</label>
+                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Your review</label>
                         <textarea
                             value={comment}
                             onChange={e => setComment(e.target.value)}
-                            required
                             rows="4"
                             maxLength={500}
-                            placeholder="Tell us about your experience..."
-                            className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-yellow-400"
+                            placeholder="Tell us about your experience…"
+                            className="input"
+                            style={{ resize: 'vertical', fontFamily: 'var(--font-body)', width: '100%' }}
                         />
-                        <p className="text-xs text-gray-400 mt-1 text-right">{comment.length}/500</p>
+                        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'right', margin: '0.25rem 0 0' }}>{comment.length}/500</p>
                     </div>
-
-                    <div className="flex gap-3">
-                        <button
-                            type="button"
-                            onClick={onClose}
-                            className="flex-1 border border-gray-300 text-gray-600 font-bold py-2 rounded-lg hover:bg-gray-50 transition"
-                        >
-                            Cancel
-                        </button>
-                        <button
-                            type="submit"
-                            disabled={loading}
-                            className="flex-1 bg-yellow-400 text-black font-bold py-2 rounded-lg hover:bg-yellow-500 transition disabled:opacity-50"
-                        >
-                            {loading ? 'Submitting...' : 'Submit Review'}
+                    <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.25rem' }}>
+                        <button type="button" onClick={onClose} className="btn-outline" style={{ flex: 1 }}>Cancel</button>
+                        <button type="submit" disabled={loading} className="btn-primary" style={{ flex: 1, opacity: loading ? 0.7 : 1 }}>
+                            {loading ? 'Submitting…' : 'Submit review'}
                         </button>
                     </div>
                 </form>
