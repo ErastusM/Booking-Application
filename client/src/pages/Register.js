@@ -3,17 +3,18 @@ import { Link } from 'react-router-dom';
 import { authService } from '../services';
 import MAIN_CATEGORIES from '../constants/mainCategories';
 import { API_BASE } from '../services/api';
+import { CalendarCheck, Briefcase, MailCheck, Check } from 'lucide-react';
 
 const roles = [
     {
         value: 'customer',
-        icon: '📅',
+        Icon: CalendarCheck,
         title: 'Book Services',
         description: 'I want to browse and book services from trusted professionals.',
     },
     {
         value: 'provider',
-        icon: '🧰',
+        Icon: Briefcase,
         title: 'Offer Services',
         description: 'I provide services and want to receive and manage bookings.',
     },
@@ -91,8 +92,8 @@ const Register = () => {
 
             {/* Navbar */}
             <div style={{ padding: '1.5rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <Link to="/" style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--gold)', textDecoration: 'none' }}>
-                    Book<span style={{ color: 'var(--charcoal)' }}>plus</span>
+                <Link to="/" style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', textDecoration: 'none' }}>
+                    Book<span style={{ color: 'var(--gold)' }}>plus</span>
                 </Link>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
                     Already have an account?{' '}
@@ -142,7 +143,7 @@ const Register = () => {
                                     onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--gold)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
                                     onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; e.currentTarget.style.transform = 'translateY(0)'; }}
                                 >
-                                    <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>{role.icon}</div>
+                                    <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}><role.Icon size={26} strokeWidth={2} /></div>
                                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                                         {role.title}
                                     </h3>
@@ -169,8 +170,8 @@ const Register = () => {
                         </button>
 
                         {/* Selected role badge */}
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '99px', padding: '0.35rem 1rem', marginBottom: '1.5rem' }}>
-                            <span style={{ fontSize: '1rem' }}>{roles.find(r => r.value === selectedRole)?.icon}</span>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '99px', padding: '0.35rem 1rem', marginBottom: '1.5rem', color: 'var(--gold-dark)' }}>
+                            {(() => { const R = roles.find(r => r.value === selectedRole)?.Icon; return R ? <R size={15} strokeWidth={2} /> : null; })()}
                             <span style={{ color: 'var(--gold-dark)', fontSize: '0.8rem', fontWeight: '600' }}>
                                 {roles.find(r => r.value === selectedRole)?.title}
                             </span>
@@ -215,7 +216,7 @@ const Register = () => {
                                         <div style={{ marginTop: '0.75rem', padding: '0.75rem 1rem', background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                             {passwordChecks.map((check, i) => (
                                                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: check.valid ? '#065f46' : 'var(--text-muted)', transition: 'color 0.2s' }}>
-                                                    <span style={{ fontSize: '0.9rem' }}>{check.valid ? '✅' : '○'}</span>
+                                                    {check.valid ? <Check size={14} strokeWidth={3} style={{ color: '#10b981', flexShrink: 0 }} /> : <span style={{ display: 'inline-block', width: '14px', textAlign: 'center' }}>○</span>}
                                                     {check.label}
                                                 </div>
                                             ))}
@@ -308,7 +309,7 @@ const Register = () => {
                                         {/* Step 3 — Check your email */}
                         {step === 3 && (
                             <div style={{ width: '100%', maxWidth: '440px', textAlign: 'center' }} className="fade-up">
-                                <div style={{ fontSize: '4rem', marginBottom: '1.5rem' }}>📧</div>
+                                <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}><MailCheck size={56} strokeWidth={1.5} style={{ color: 'var(--gold)' }} /></div>
                                 <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
                                     Check your email!
                                 </h1>

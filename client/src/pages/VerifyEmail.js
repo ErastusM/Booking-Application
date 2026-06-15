@@ -67,8 +67,8 @@ const VerifyEmail = () => {
             <div style={{ width: '100%', maxWidth: '480px', textAlign: 'center' }} className="fade-up">
 
                 {/* Logo */}
-                <Link to="/" style={{ fontFamily: 'var(--font-body)', fontSize: '1.8rem', fontWeight: '700', color: 'var(--gold)', textDecoration: 'none', display: 'block', marginBottom: '2.5rem' }}>
-                    Book<span style={{ color: 'var(--charcoal)' }}>plus</span>
+                <Link to="/" style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: '700', color: 'var(--charcoal)', textDecoration: 'none', display: 'block', marginBottom: '2.5rem' }}>
+                    Book<span style={{ color: 'var(--gold)' }}>plus</span>
                 </Link>
 
                 <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)', overflow: 'hidden' }}>
