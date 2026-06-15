@@ -65,6 +65,7 @@ const ProviderDashboard = () => {
     const [savingBlockedTime, setSavingBlockedTime] = useState(false);
     const [recurringActionModal, setRecurringActionModal] = useState(null);
     const [timeSelectionPreview, setTimeSelectionPreview] = useState(null);
+    const [pendingMove, setPendingMove] = useState(null); // drag-to-move confirmation
     const [recurringMode, setRecurringMode] = useState('this');
     const [showApptModal, setShowApptModal] = useState(false);
     const [apptForm, setApptForm] = useState({ serviceId: '', date: '', startTime: '', clientName: '', notes: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', isGroup: false, groupClients: [{ name: '' }], teamMember: '' });
@@ -867,23 +868,48 @@ const ProviderDashboard = () => {
         showCalendarToast._t = window.setTimeout(() => setCalendarToast(null), 3200);
     };
 
-    const handleFullCalendarEventDrop = async (dropInfo) => {
+    // On drop, don't save immediately — ask the provider to confirm the move first.
+    // Works for both appointments and blocked time.
+    const handleFullCalendarEventDrop = (dropInfo) => {
         const event = dropInfo.event;
-        if (event.extendedProps.kind !== 'appointment') {
-            dropInfo.revert();
-            return;
-        }
+        const kind = event.extendedProps.kind;
+        if (kind !== 'appointment' && kind !== 'blocked') { dropInfo.revert(); return; }
+        if (navigator.vibrate) { try { navigator.vibrate(12); } catch (_) {} }
+        const appointmentDate = toDateString(event.start);
+        const startTime = toTimeKey(event.start);
+        const endTime = event.end ? toTimeKey(event.end) : undefined;
+        setPendingMove({
+            kind,
+            info: dropInfo,
+            id: kind === 'appointment' ? event.extendedProps.appointmentId : event.extendedProps.blockedId,
+            title: event.title,
+            appointmentDate, startTime, endTime,
+            label: `${event.start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${startTime}${endTime ? `–${endTime}` : ''}`,
+        });
+    };
+
+    const confirmPendingMove = async () => {
+        if (!pendingMove) return;
+        const { kind, id, appointmentDate, startTime, endTime, info } = pendingMove;
         try {
-            const appointmentId = event.extendedProps.appointmentId;
-            const appointmentDate = toDateString(event.start);
-            const startTime = toTimeKey(event.start);
-            const res = await appointmentService.providerRescheduleAppointment(appointmentId, { appointmentDate, startTime });
-            setAppointments(prev => prev.map(a => a._id === appointmentId ? { ...a, ...res.data.data } : a));
-            showCalendarToast(`Moved to ${event.start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at ${startTime}`);
+            if (kind === 'appointment') {
+                const res = await appointmentService.providerRescheduleAppointment(id, { appointmentDate, startTime });
+                setAppointments(prev => prev.map(a => a._id === id ? { ...a, ...res.data.data } : a));
+            } else {
+                await blockedTimeService.updateBlockedTime(id, { date: appointmentDate, startTime, endTime });
+                await fetchBlockedTimes();
+            }
+            showCalendarToast(`Moved to ${pendingMove.label}`);
         } catch (err) {
-            showCalendarToast(err.response?.data?.message || 'Could not reschedule', 'error');
-            dropInfo.revert();
+            showCalendarToast(err.response?.data?.message || 'Could not move', 'error');
+            info.revert();
+        } finally {
+            setPendingMove(null);
         }
+    };
+
+    const cancelPendingMove = () => {
+        if (pendingMove) { pendingMove.info.revert(); setPendingMove(null); }
     };
 
     // Resize-to-change-duration (Fresha-style). Sends an explicit endTime.
@@ -1964,6 +1990,9 @@ const ProviderDashboard = () => {
                                 businessHours={businessHoursConfig}
                                 selectable
                                 selectMirror={false}
+                                longPressDelay={350}
+                                eventLongPressDelay={350}
+                                selectLongPressDelay={350}
                                 editable
                                 eventDurationEditable
                                 eventResizableFromStart
@@ -2048,6 +2077,26 @@ const ProviderDashboard = () => {
                                             <Ban size={18} strokeWidth={2} /> Block time
                                         </button>
                                         <button onClick={() => setTimeSelectionPreview(null)} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.85rem', padding: '0.4rem', marginTop: '0.1rem' }}>Cancel</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Drag-to-move confirmation (appointments + blocked time) */}
+                        {pendingMove && (
+                            <div onClick={cancelPendingMove} style={{ position: 'fixed', inset: 0, background: 'rgba(15,15,25,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                                <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+                                    <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
+                                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>
+                                            Move {pendingMove.kind === 'blocked' ? 'blocked time' : 'appointment'}?
+                                        </h3>
+                                        <p style={{ margin: '0.4rem 0 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+                                            {pendingMove.title ? <strong style={{ color: 'var(--charcoal)' }}>{pendingMove.title}</strong> : null} → {pendingMove.label}
+                                        </p>
+                                    </div>
+                                    <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                        <button onClick={confirmPendingMove} className="btn-primary" style={{ width: '100%', padding: '0.8rem' }}>Yes, move it</button>
+                                        <button onClick={cancelPendingMove} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.9rem', padding: '0.5rem' }}>Keep where it was</button>
                                     </div>
                                 </div>
                             </div>

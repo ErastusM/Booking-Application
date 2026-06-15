@@ -69,12 +69,12 @@ const Login = () => {
                         fontFamily: 'var(--font-display)',
                         fontSize: '1.8rem',
                         fontWeight: '700',
-                        color: 'var(--gold)',
+                        color: 'white',
                         textDecoration: 'none',
                         display: 'block',
                         marginBottom: '4rem',
                     }}>
-                        Book<span style={{ color: 'white' }}>plus</span>
+                        Book<span style={{ color: 'var(--gold)' }}>plus</span>
                     </Link>
                     <h2 style={{
                         fontFamily: 'var(--font-display)',
