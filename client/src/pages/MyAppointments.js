@@ -4,6 +4,7 @@ import { appointmentService, reviewService, availabilityService, messageService 
 import ReviewModal from '../components/ReviewModal';
 import IntakeFormModal from '../components/IntakeFormModal';
 import { useAuthContext } from '../context/AuthContext';
+import { CalendarClock, CalendarPlus, MessageSquare, ClipboardList, Star, X, RefreshCw } from 'lucide-react';
 
 const statusConfig = {
     pending:   { label: 'Pending',   bg: '#fef3c7', color: '#92400e' },
@@ -332,70 +333,54 @@ const MyAppointments = () => {
                                             {status.label}
                                         </span>
                                     </div>
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-end' }}>
-                                        {(a.status === 'pending' || a.status === 'confirmed') && (
-                                            <button
-                                                onClick={() => { setReschedulingAppointment(a); setRescheduleForm({ appointmentDate: '', startTime: '' }); }}
-                                                style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}
-                                            >
-                                                🗓 Reschedule
-                                            </button>
-                                        )}                                        {(a.status === 'pending' || a.status === 'confirmed') && (
-                                            <a
-                                                href={buildGCalUrl(a)}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                style={{ display: 'inline-block', background: '#4285F4', color: 'white', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)', textDecoration: 'none', textAlign: 'center' }}
-                                            >
-                                                📅 Google Calendar
-                                            </a>
-                                        )}                                        {a.status !== 'cancelled' && a.status !== 'completed' && (
-                                            <button
-                                                onClick={() => handleCancel(a)}
-                                                style={{ background: 'none', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)', transition: 'all 0.2s' }}
-                                                onMouseEnter={e => e.target.style.background = '#fee2e2'}
-                                                onMouseLeave={e => e.target.style.background = 'none'}
-                                            >
-                                                Cancel
-                                            </button>
-                                        )}
-                                        {a.status === 'completed' && !isReviewed && (
-                                            <button
-                                                onClick={() => setSelectedAppointment(a)}
-                                                style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)', transition: 'all 0.2s' }}
-                                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(201,168,76,0.15)'}
-                                                onMouseLeave={e => e.currentTarget.style.background = 'rgba(201,168,76,0.08)'}
-                                            >
-                                                ★ Review
-                                            </button>
-                                        )}
-                                        {a.status === 'completed' && isReviewed && (
-                                            <span style={{ fontSize: '0.8rem', color: '#065f46', fontWeight: '600' }}>✓ Reviewed</span>
-                                        )}
-                                        {a.status === 'completed' && (
-                                            <button
-                                                onClick={() => navigate(`/book-appointment?providerId=${a.service?.provider || ''}&serviceId=${a.service?._id || ''}`)}
-                                                style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}
-                                            >
-                                                Book Again →
-                                            </button>
-                                        )}
-                                        {(a.status === 'pending' || a.status === 'confirmed' || a.status === 'completed') && (
-                                            <button
-                                                onClick={() => openMsgModal(a)}
-                                                style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-secondary)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'var(--font-body)' }}
-                                            >
-                                                💬 Message
-                                            </button>
-                                        )}
-                                        {(a.status === 'pending' || a.status === 'confirmed') && (
-                                            <button
-                                                onClick={() => setFormsModalApptId(a._id)}
-                                                style={{ background: 'none', border: '1px solid var(--border)', color: 'var(--text-secondary)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'var(--font-body)' }}
-                                            >
-                                                📋 Forms
-                                            </button>
-                                        )}
+                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'stretch', minWidth: '168px' }}>
+                                        {(() => {
+                                            const base = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', width: '100%', padding: '0.5rem 0.875rem', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)', cursor: 'pointer', textDecoration: 'none', boxSizing: 'border-box', lineHeight: 1.2 };
+                                            const gold = { ...base, background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold-dark)' };
+                                            const neutral = { ...base, background: 'none', border: '1px solid var(--border)', color: 'var(--text-secondary)' };
+                                            return (
+                                                <>
+                                                    {(a.status === 'pending' || a.status === 'confirmed') && (
+                                                        <button onClick={() => { setReschedulingAppointment(a); setRescheduleForm({ appointmentDate: '', startTime: '' }); }} style={gold}>
+                                                            <CalendarClock size={15} strokeWidth={2} /> Reschedule
+                                                        </button>
+                                                    )}
+                                                    {(a.status === 'pending' || a.status === 'confirmed') && (
+                                                        <a href={buildGCalUrl(a)} target="_blank" rel="noopener noreferrer" style={{ ...base, background: '#4285F4', border: '1px solid #4285F4', color: 'white' }}>
+                                                            <CalendarPlus size={15} strokeWidth={2} /> Google Calendar
+                                                        </a>
+                                                    )}
+                                                    {a.status !== 'cancelled' && a.status !== 'completed' && (
+                                                        <button onClick={() => handleCancel(a)} style={{ ...base, background: 'none', border: '1px solid #fca5a5', color: '#ef4444' }}>
+                                                            <X size={15} strokeWidth={2} /> Cancel
+                                                        </button>
+                                                    )}
+                                                    {a.status === 'completed' && !isReviewed && (
+                                                        <button onClick={() => setSelectedAppointment(a)} style={gold}>
+                                                            <Star size={15} strokeWidth={2} /> Review
+                                                        </button>
+                                                    )}
+                                                    {a.status === 'completed' && isReviewed && (
+                                                        <span style={{ fontSize: '0.8rem', color: '#065f46', fontWeight: '600', textAlign: 'center' }}>✓ Reviewed</span>
+                                                    )}
+                                                    {a.status === 'completed' && (
+                                                        <button onClick={() => navigate(`/book-appointment?providerId=${a.service?.provider || ''}&serviceId=${a.service?._id || ''}`)} style={gold}>
+                                                            <RefreshCw size={15} strokeWidth={2} /> Book again
+                                                        </button>
+                                                    )}
+                                                    {(a.status === 'pending' || a.status === 'confirmed' || a.status === 'completed') && (
+                                                        <button onClick={() => openMsgModal(a)} style={neutral}>
+                                                            <MessageSquare size={15} strokeWidth={2} /> Message
+                                                        </button>
+                                                    )}
+                                                    {(a.status === 'pending' || a.status === 'confirmed') && (
+                                                        <button onClick={() => setFormsModalApptId(a._id)} style={neutral}>
+                                                            <ClipboardList size={15} strokeWidth={2} /> Forms
+                                                        </button>
+                                                    )}
+                                                </>
+                                            );
+                                        })()}
                                     </div>
                                 </div>
                             );
