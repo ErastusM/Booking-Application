@@ -10,6 +10,18 @@
  */
 require('dotenv').config();
 const nodemailer = require('nodemailer');
+const net = require('net');
+
+// Quick TCP reachability check — tells us if the host blocks the SMTP port.
+const probePort = (host, port, timeout = 7000) => new Promise((resolve) => {
+    const sock = new net.Socket();
+    const finish = (ok, msg) => { try { sock.destroy(); } catch (_) {} resolve({ port, ok, msg }); };
+    sock.setTimeout(timeout);
+    sock.once('connect', () => finish(true, 'open'));
+    sock.once('timeout', () => finish(false, 'timeout — blocked by host/firewall'));
+    sock.once('error', (e) => finish(false, e.code || e.message));
+    sock.connect(port, host);
+});
 
 const mask = (s) => {
     if (!s) return '(NOT SET)';
@@ -49,7 +61,22 @@ const mask = (s) => {
         connectionTimeout: 10000, greetingTimeout: 10000, socketTimeout: 15000,
     });
 
-    console.log('\n--- Verifying SMTP login ---');
+    console.log('\n--- Outbound SMTP port reachability (' + host + ') ---');
+    let anyOpen = false;
+    for (const p of [465, 587, 25]) {
+        const r = await probePort(host, p);
+        if (r.ok) anyOpen = true;
+        console.log(`  port ${p}: ${r.ok ? '✅ open' : '❌ ' + r.msg}`);
+    }
+    if (!anyOpen) {
+        console.error('\n❌ Every SMTP port timed out — your VPS/host is blocking outbound mail.');
+        console.error('   Ask the host to open port 587 (and 465), or use an email API/relay.');
+    } else {
+        console.error('\nℹ️  Use a port marked "open" above. If 587 is open but 465 is blocked,');
+        console.error('   set EMAIL_PORT=587 in .env.production, then: docker compose up -d --force-recreate server');
+    }
+
+    console.log('\n--- Verifying SMTP login on the configured port (' + port + ') ---');
     try {
         await transporter.verify();
         console.log('✅ SMTP login OK — credentials and connection are good.');

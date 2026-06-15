@@ -1948,7 +1948,7 @@ const ProviderDashboard = () => {
                                 height={calendarView === 'month' ? 'auto' : 680}
                                 events={fullCalendarEvents}
                                 selectable
-                                selectMirror
+                                selectMirror={false}
                                 editable
                                 eventDurationEditable
                                 eventResizableFromStart
@@ -2000,6 +2000,43 @@ const ProviderDashboard = () => {
                                 </span>
                                 {calendarToast.msg}
                             </div>
+                        )}
+
+                        {/* On selection release: ask whether to book a client or block the time */}
+                        {timeSelectionPreview && (
+                            <>
+                                <div onClick={() => setTimeSelectionPreview(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,15,25,0.5)', zIndex: 1100, backdropFilter: 'blur(2px)' }} />
+                                <div role="dialog" aria-modal="true" className="scale-in" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '360px', maxWidth: '92vw', background: 'var(--card-bg)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-lg)', zIndex: 1101, overflow: 'hidden' }}>
+                                    <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
+                                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>What's this time for?</h3>
+                                        <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                                            {new Date(`${timeSelectionPreview.date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · {timeSelectionPreview.startTime} – {timeSelectionPreview.endTime}
+                                        </p>
+                                    </div>
+                                    <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                        <button onClick={() => {
+                                            setApptForm(prev => ({ ...prev, date: timeSelectionPreview.date, startTime: timeSelectionPreview.startTime }));
+                                            setShowApptModal(true);
+                                            setTimeSelectionPreview(null);
+                                        }} className="btn-primary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.8rem' }}>
+                                            <CalendarPlus size={18} strokeWidth={2} /> Add appointment
+                                        </button>
+                                        <button onClick={() => {
+                                            openBlockedTimeForm(null);
+                                            setBlockedTimeForm(prev => ({
+                                                ...prev,
+                                                date: timeSelectionPreview.date,
+                                                startTime: timeSelectionPreview.startTime,
+                                                endTime: timeSelectionPreview.endTime,
+                                            }));
+                                            setTimeSelectionPreview(null);
+                                        }} className="btn-outline" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.8rem' }}>
+                                            <Ban size={18} strokeWidth={2} /> Block time
+                                        </button>
+                                        <button onClick={() => setTimeSelectionPreview(null)} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.85rem', padding: '0.4rem', marginTop: '0.1rem' }}>Cancel</button>
+                                    </div>
+                                </div>
+                            </>
                         )}
                     </div>
                 )}

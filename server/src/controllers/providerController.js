@@ -14,7 +14,7 @@ exports.getAllProviders = async (req, res) => {
         const providers = await User.find({
             _id: { $in: providerIds },
             role: 'provider',
-        }).select('name avatar providerCategory');
+        }).select('name avatar providerCategory businessProfile');
 
         // Batch: fetch all services for these providers in ONE query
         const allServices = await Service.find({
@@ -80,7 +80,7 @@ exports.getProviderProfile = async (req, res) => {
         const provider = await User.findOne({
             _id: req.params.id,
             role: 'provider',
-        }).select('name avatar providerCategory');
+        }).select('name avatar providerCategory businessProfile');
 
         if (!provider) {
             return res.status(404).json({ success: false, message: 'Provider not found' });
@@ -137,6 +137,8 @@ exports.getProviderProfile = async (req, res) => {
                     name: provider.name,
                     avatar: provider.avatar,
                     providerCategory: provider.providerCategory || null,
+                    businessProfile: provider.businessProfile || null,
+                    address: provider.businessProfile?.address || '',
                     avgRating,
                     reviewCount,
                     serviceCount: services.length,

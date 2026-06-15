@@ -206,7 +206,7 @@ const ProviderAccount = () => {
 
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100vh', paddingTop: '5rem' }}>
-            <div className="container" style={{ paddingTop: '2rem', paddingBottom: '5rem' }}>
+            <div className="container" style={{ paddingTop: '2rem', paddingBottom: '7.5rem' }}>
 
                 {/* Back to dashboard */}
                 <Link to="/dashboard" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: 'var(--gold-dark)', fontWeight: '600', textDecoration: 'none', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
@@ -242,15 +242,13 @@ const ProviderAccount = () => {
                                 <div className="provider-profile-two-col">
                                     {/* Left - photo + name */}
                                     <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '2rem', textAlign: 'center' }}>
-                                        <div style={{ position: 'relative', display: 'inline-block', marginBottom: '1.75rem' }}>
-                                            <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto', fontSize: '2rem', fontWeight: '700', color: 'var(--ink)' }}>
-                                                {user?.avatar
-                                                    ? <img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                    : user?.name?.charAt(0).toUpperCase()
-                                                }
-                                            </div>
+                                        <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem', fontSize: '2rem', fontWeight: '700', color: 'var(--ink)' }}>
+                                            {user?.avatar
+                                                ? <img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                : user?.name?.charAt(0).toUpperCase()
+                                            }
                                         </div>
-                                        <button onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading} style={{ border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', padding: '0.4rem 1rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontFamily: 'var(--font-body)', marginBottom: '1.25rem' }}>
+                                        <button onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading} style={{ display: 'block', margin: '0 auto 1.25rem', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', padding: '0.45rem 1.1rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>
                                             {avatarUploading ? 'Uploading...' : 'Edit photo'}
                                         </button>
                                         <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
@@ -278,7 +276,7 @@ const ProviderAccount = () => {
                                                     disabled={geoLoading}
                                                     style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.75rem', marginBottom: '0.5rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(201,168,76,0.08)', color: 'var(--gold-dark)', fontSize: '0.75rem', fontWeight: '600', cursor: geoLoading ? 'not-allowed' : 'pointer', opacity: geoLoading ? 0.7 : 1 }}
                                                 >
-                                                    {geoLoading ? <span style={{ display: 'inline-block', width: '11px', height: '11px', border: '2px solid rgba(201,168,76,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /> : '📡'}
+                                                    {geoLoading ? <span style={{ display: 'inline-block', width: '11px', height: '11px', border: '2px solid rgba(201,168,76,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /> : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>}
                                                     {geoLoading ? 'Detecting…' : 'Use current location'}
                                                 </button>
                                                 <textarea value={profileForm.address} onChange={e => setProfileForm(p => ({ ...p, address: e.target.value }))} className="input" rows={2} placeholder="e.g. 12 Independence Ave, Windhoek" style={{ resize: 'vertical', fontSize: '0.875rem' }} />
