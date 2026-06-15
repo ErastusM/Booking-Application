@@ -30,6 +30,25 @@ const mask = (s) => {
 };
 
 (async () => {
+    // If the Resend HTTP API is configured, test that path (works over 443).
+    if (process.env.EMAIL_API_KEY) {
+        const to = process.argv[2];
+        console.log('\n--- Email via Resend HTTP API (port 443) ---');
+        console.log('EMAIL_API_KEY:', `${process.env.EMAIL_API_KEY.slice(0, 4)}***  (${process.env.EMAIL_API_KEY.length} chars)`);
+        console.log('From:', `"${process.env.EMAIL_FROM_NAME || 'Bookplus'}" <${process.env.EMAIL_USER || 'onboarding@resend.dev'}>`);
+        if (!to) { console.log('\nAdd a recipient to send a test: node scripts/test_email.js you@example.com'); process.exit(0); }
+        try {
+            const res = await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${process.env.EMAIL_API_KEY}`, 'Content-Type': 'application/json' },
+                body: JSON.stringify({ from: `"${process.env.EMAIL_FROM_NAME || 'Bookplus'}" <${process.env.EMAIL_USER}>`, to: [to], subject: 'Bookplus API test', text: 'Resend API works.' }),
+            });
+            const body = await res.text();
+            console.log(res.ok ? '✅ Sent via Resend.' : `❌ Resend ${res.status}: ${body}`);
+            process.exit(res.ok ? 0 : 1);
+        } catch (e) { console.error('❌ Resend request failed:', e.message); process.exit(1); }
+    }
+
     const host = process.env.EMAIL_HOST || 'smtp.hostinger.com';
     const port = parseInt(process.env.EMAIL_PORT, 10) || 465;
     const user = process.env.EMAIL_USER;

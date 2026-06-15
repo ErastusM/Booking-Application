@@ -2,7 +2,11 @@ const nodemailer = require('nodemailer');
 const pino = require('pino');
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
-const emailConfigured = !!(process.env.EMAIL_USER && process.env.EMAIL_PASS);
+// Resend HTTP API (https://resend.com) — sends over port 443, so email works
+// even when the host firewalls outbound SMTP ports (465/587). Preferred when set.
+const EMAIL_API_KEY = process.env.EMAIL_API_KEY;
+
+const emailConfigured = !!(EMAIL_API_KEY || (process.env.EMAIL_USER && process.env.EMAIL_PASS));
 
 // Env-driven SMTP (defaults to Hostinger). Port 465 uses SSL; 587 uses STARTTLS.
 const EMAIL_HOST = process.env.EMAIL_HOST || 'smtp.hostinger.com';
@@ -25,14 +29,36 @@ const transporter = nodemailer.createTransport({
     socketTimeout: 15000,
 });
 
-// Verify the connection once at boot — purely informational, never fatal.
-if (emailConfigured) {
+// Boot-time status (purely informational, never fatal).
+if (EMAIL_API_KEY) {
+    logger.info('Email configured via Resend HTTP API (port 443) — SMTP bypassed');
+} else if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
     transporter.verify()
         .then(() => logger.info({ host: EMAIL_HOST, port: EMAIL_PORT, user: process.env.EMAIL_USER }, 'SMTP ready'))
         .catch((err) => logger.warn({ err: err.message, host: EMAIL_HOST }, 'SMTP verify failed — emails will be skipped/retried per-send'));
 } else {
-    logger.info('SMTP not configured (EMAIL_USER/EMAIL_PASS unset) — emails disabled');
+    logger.info('Email not configured (set EMAIL_API_KEY, or EMAIL_USER/EMAIL_PASS) — emails disabled');
 }
+
+// Send via Resend's HTTPS API (used when EMAIL_API_KEY is set).
+const sendViaResend = async (mailOptions) => {
+    const res = await fetch('https://api.resend.com/emails', {
+        method: 'POST',
+        headers: { Authorization: `Bearer ${EMAIL_API_KEY}`, 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            from: mailOptions.from || FROM,
+            to: Array.isArray(mailOptions.to) ? mailOptions.to : [mailOptions.to],
+            subject: mailOptions.subject,
+            html: mailOptions.html,
+            text: mailOptions.text,
+        }),
+    });
+    if (!res.ok) {
+        const body = await res.text().catch(() => '');
+        throw new Error(`Resend ${res.status}: ${body.slice(0, 200)}`);
+    }
+    return res.json().catch(() => ({}));
+};
 
 /**
  * Email is a NON-CRITICAL side effect — it must never throw into a request
@@ -43,6 +69,7 @@ if (emailConfigured) {
 const safeSend = async (mailOptions) => {
     if (!emailConfigured) return { skipped: true };
     try {
+        if (EMAIL_API_KEY) return await sendViaResend(mailOptions);
         return await transporter.sendMail(mailOptions);
     } catch (err) {
         logger.warn({ err: err.message, to: mailOptions && mailOptions.to }, 'Email send failed (non-fatal)');
