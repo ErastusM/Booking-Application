@@ -64,7 +64,9 @@ exports.getAllProviders = async (req, res) => {
                 avgRating,
                 minPrice: prices.length ? Math.min(...prices) : null,
                 maxPrice: prices.length ? Math.max(...prices) : null,
-                location: locations[0] || '',
+                // Prefer a service location; fall back to the provider's saved business address
+                location: locations[0] || p.businessProfile?.address || '',
+                address: p.businessProfile?.address || '',
                 locations,
             };
         });

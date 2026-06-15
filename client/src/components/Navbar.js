@@ -240,15 +240,18 @@ const Navbar = () => {
                         {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command/insights', 'Analytics')}
                         {user && mobileLink(user.role === 'provider' ? '/account' : '/profile', 'My Profile')}
-                        {user && (
-                            <button
-                                onClick={() => { setMenuOpen(false); setShowSuggestion(true); }}
-                                style={{ display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: '0.85rem 1.2rem', fontSize: '1rem', color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', fontWeight: '500' }}
-                            >
-                                Suggest a feature
-                            </button>
-                        )}
                     </div>
+
+                    {/* Suggest a feature — pinned to the bottom, above the toggle */}
+                    {user && (
+                        <button
+                            onClick={() => { setMenuOpen(false); setShowSuggestion(true); }}
+                            style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', padding: '0.95rem 1.2rem', fontSize: '0.95rem', color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.6rem' }}
+                        >
+                            <svg width="16" height="16" fill="none" stroke="var(--text-muted)" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.9c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0012 2z"/></svg>
+                            Suggest a feature
+                        </button>
+                    )}
 
                     {/* Dark mode toggle in drawer */}
                     <div style={{ padding: '0.75rem 1.2rem', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>

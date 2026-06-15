@@ -943,6 +943,20 @@ const ProviderDashboard = () => {
         return d.toDateString() === _now.toDateString() && a.status !== 'cancelled';
     }).length;
 
+    // Build FullCalendar businessHours from the provider's availability so the
+    // calendar greys out non-working time (and constrains drag/resize to it).
+    const businessHoursConfig = (() => {
+        if (!availability) return false;
+        const idx = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
+        const out = [];
+        Object.entries(availability).forEach(([day, cfg]) => {
+            if (cfg?.enabled && Array.isArray(cfg.slots)) {
+                cfg.slots.forEach(s => { if (s?.start && s?.end) out.push({ daysOfWeek: [idx[day]], startTime: s.start, endTime: s.end }); });
+            }
+        });
+        return out.length ? out : false;
+    })();
+
     const labelStyle = { display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', letterSpacing: '0.05em', textTransform: 'uppercase' };
 
     return (
@@ -1360,22 +1374,22 @@ const ProviderDashboard = () => {
                         {availability && (
                             <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                                 {Object.entries(availability).map(([day, config], i) => (
-                                    <div key={day} style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem 1rem', padding: '0.9rem 1.25rem', borderBottom: i < 6 ? '1px solid var(--border)' : 'none', background: config.enabled ? 'var(--card-bg)' : 'var(--warm-gray)', transition: 'background 0.2s' }}>
-                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.9rem', flex: '0 0 auto' }}>
-                                            <span style={{ fontWeight: '600', color: config.enabled ? 'var(--charcoal)' : 'var(--text-muted)', fontSize: '0.9rem', textTransform: 'capitalize', minWidth: '84px' }}>{day}</span>
-                                            <button onClick={() => handleDayToggle(day)} aria-label={`Toggle ${day}`} style={{ width: '44px', height: '24px', borderRadius: '99px', border: 'none', background: config.enabled ? 'var(--gold)' : '#d1d5db', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
-                                                <div style={{ width: '18px', height: '18px', borderRadius: '50%', background: 'white', position: 'absolute', top: '3px', left: config.enabled ? '23px' : '3px', transition: 'left 0.2s', boxShadow: '0 1px 3px rgba(0,0,0,0.2)' }} />
-                                            </button>
+                                    <div key={day} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '1.05rem 1.25rem', borderBottom: i < 6 ? '1px solid var(--border)' : 'none', background: config.enabled ? 'var(--card-bg)' : 'var(--surface-sunken)', transition: 'background 0.2s' }}>
+                                        <div style={{ minWidth: 0, flex: 1 }}>
+                                            <div style={{ fontWeight: '600', color: config.enabled ? 'var(--charcoal)' : 'var(--text-muted)', fontSize: '1rem', textTransform: 'capitalize', marginBottom: config.enabled ? '0.55rem' : 0 }}>{day}</div>
+                                            {config.enabled ? (
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                                    <input type="time" value={config.slots[0]?.start || '09:00'} onChange={e => handleTimeChange(day, 'start', e.target.value)} className="input" style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '0.9rem' }} />
+                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', flexShrink: 0 }}>to</span>
+                                                    <input type="time" value={config.slots[0]?.end || '17:00'} onChange={e => handleTimeChange(day, 'end', e.target.value)} className="input" style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '0.9rem' }} />
+                                                </div>
+                                            ) : (
+                                                <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Not available</div>
+                                            )}
                                         </div>
-                                        {config.enabled ? (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexShrink: 0 }}>
-                                                <input type="time" value={config.slots[0]?.start || '09:00'} onChange={e => handleTimeChange(day, 'start', e.target.value)} className="input" style={{ width: '108px', maxWidth: '40vw', padding: '0.4rem 0.5rem', fontSize: '0.875rem' }} />
-                                                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', flexShrink: 0 }}>to</span>
-                                                <input type="time" value={config.slots[0]?.end || '17:00'} onChange={e => handleTimeChange(day, 'end', e.target.value)} className="input" style={{ width: '108px', maxWidth: '40vw', padding: '0.4rem 0.5rem', fontSize: '0.875rem' }} />
-                                            </div>
-                                        ) : (
-                                            <span style={{ color: 'var(--text-muted)', fontSize: '0.875rem', fontStyle: 'italic' }}>Not available</span>
-                                        )}
+                                        <button onClick={() => handleDayToggle(day)} aria-label={`Toggle ${day}`} style={{ width: '50px', height: '30px', borderRadius: '99px', border: 'none', background: config.enabled ? 'var(--gold)' : '#cbd0d8', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0, alignSelf: 'center' }}>
+                                            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'white', position: 'absolute', top: '3px', left: config.enabled ? '23px' : '3px', transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }} />
+                                        </button>
                                     </div>
                                 ))}
                             </div>
@@ -1947,6 +1961,7 @@ const ProviderDashboard = () => {
                                 headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
                                 height={calendarView === 'month' ? 'auto' : 680}
                                 events={fullCalendarEvents}
+                                businessHours={businessHoursConfig}
                                 selectable
                                 selectMirror={false}
                                 editable
@@ -2004,9 +2019,8 @@ const ProviderDashboard = () => {
 
                         {/* On selection release: ask whether to book a client or block the time */}
                         {timeSelectionPreview && (
-                            <>
-                                <div onClick={() => setTimeSelectionPreview(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,15,25,0.5)', zIndex: 1100, backdropFilter: 'blur(2px)' }} />
-                                <div role="dialog" aria-modal="true" className="scale-in" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '360px', maxWidth: '92vw', background: 'var(--card-bg)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-lg)', zIndex: 1101, overflow: 'hidden' }}>
+                            <div onClick={() => setTimeSelectionPreview(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,15,25,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0' }}>
+                                <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                                     <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>What's this time for?</h3>
                                         <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
@@ -2036,7 +2050,7 @@ const ProviderDashboard = () => {
                                         <button onClick={() => setTimeSelectionPreview(null)} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.85rem', padding: '0.4rem', marginTop: '0.1rem' }}>Cancel</button>
                                     </div>
                                 </div>
-                            </>
+                            </div>
                         )}
                     </div>
                 )}

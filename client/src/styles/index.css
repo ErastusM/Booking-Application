@@ -577,6 +577,7 @@ body.dark-mode .booking-confirm-mobile {
 .fc-bookplus-wrapper .fc {
   font-family: 'Outfit', sans-serif;
   color: var(--charcoal);
+  --fc-non-business-color: rgba(26, 26, 46, 0.05);
 }
 
 /* Toolbar */
@@ -687,6 +688,7 @@ body.dark-mode .fc-bookplus-wrapper .fc {
   --fc-neutral-bg-color: var(--surface-sunken);
   --fc-border-color: var(--border);
   --fc-today-bg-color: rgba(201, 168, 76, 0.10);
+  --fc-non-business-color: rgba(255, 255, 255, 0.045);
 }
 body.dark-mode .fc-bookplus-wrapper .fc-header-toolbar,
 body.dark-mode .fc-bookplus-wrapper .fc-col-header,
