@@ -556,6 +556,12 @@ exports.updateAppointmentStatus = async (req, res) => {
         if (req.user.role !== 'admin' && appointment.provider?.toString() !== req.user._id.toString()) {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
+        // Idempotent: if the status is already what was requested, do nothing. This stops
+        // repeat "Complete" clicks (or a client re-fire) from stacking duplicate
+        // notifications, emails and status-history entries for the same appointment.
+        if (appointment.status === status) {
+            return res.status(200).json({ success: true, data: appointment });
+        }
         appointment.status = status;
         appointment.statusHistory.push({ status, changedBy: req.user._id });
         await appointment.save();
