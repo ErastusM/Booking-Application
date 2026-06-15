@@ -1889,27 +1889,32 @@ const ProviderDashboard = () => {
                 {activeTab === 'calendar' && (
                     <div>
                         <div className="fc-toolbar-shell" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
-                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                {[['day', 'Day'], ['week', 'Week'], ['month', 'Month']].map(([view, label]) => (
-                                    <button
-                                        key={view}
-                                        onClick={() => setCalendarView(view)}
-                                        style={{
-                                            padding: '0.42rem 0.9rem',
-                                            borderRadius: 'var(--radius-sm)',
-                                            border: '1px solid',
-                                            borderColor: calendarView === view ? 'var(--gold)' : 'var(--border)',
-                                            background: calendarView === view ? 'rgba(201,168,76,0.1)' : 'white',
-                                            color: calendarView === view ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                                            cursor: 'pointer',
-                                            fontSize: '0.82rem',
-                                            fontWeight: calendarView === view ? '700' : '500',
-                                            fontFamily: 'Outfit, sans-serif',
-                                        }}
-                                    >
-                                        {label}
-                                    </button>
-                                ))}
+                            <div style={{ display: 'inline-flex', background: 'var(--surface-sunken)', border: '1px solid var(--border)', borderRadius: '10px', padding: '3px', gap: '2px' }}>
+                                {[['day', 'Day'], ['week', 'Week'], ['month', 'Month']].map(([view, label]) => {
+                                    const isActive = calendarView === view;
+                                    return (
+                                        <button
+                                            key={view}
+                                            onClick={() => setCalendarView(view)}
+                                            aria-pressed={isActive}
+                                            style={{
+                                                padding: '0.4rem 1rem',
+                                                borderRadius: '8px',
+                                                border: 'none',
+                                                cursor: 'pointer',
+                                                fontSize: '0.82rem',
+                                                fontWeight: isActive ? '700' : '500',
+                                                fontFamily: 'Outfit, sans-serif',
+                                                background: isActive ? 'var(--card-bg)' : 'transparent',
+                                                color: isActive ? 'var(--charcoal)' : 'var(--text-secondary)',
+                                                boxShadow: isActive ? 'var(--shadow-sm)' : 'none',
+                                                transition: 'background 0.18s var(--ease-out, ease), color 0.18s ease',
+                                            }}
+                                        >
+                                            {label}
+                                        </button>
+                                    );
+                                })}
                             </div>
                             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                 <button
