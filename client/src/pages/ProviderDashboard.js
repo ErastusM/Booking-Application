@@ -66,6 +66,8 @@ const ProviderDashboard = () => {
     const [recurringActionModal, setRecurringActionModal] = useState(null);
     const [timeSelectionPreview, setTimeSelectionPreview] = useState(null);
     const [pendingMove, setPendingMove] = useState(null); // drag-to-move confirmation
+    const [adjustHours, setAdjustHours] = useState(null); // tap-grayed-area → edit working hours
+    const [savingAdjustHours, setSavingAdjustHours] = useState(false);
     const [recurringMode, setRecurringMode] = useState('this');
     const [showApptModal, setShowApptModal] = useState(false);
     const [apptForm, setApptForm] = useState({ serviceId: '', date: '', startTime: '', clientName: '', notes: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', isGroup: false, groupClients: [{ name: '' }], teamMember: '' });
@@ -910,6 +912,47 @@ const ProviderDashboard = () => {
 
     const cancelPendingMove = () => {
         if (pendingMove) { pendingMove.info.revert(); setPendingMove(null); }
+    };
+
+    // Tap a grayed (non-working) slot → quick-edit that day's working hours.
+    const handleCalendarDateClick = (info) => {
+        if (!availability) return;
+        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const dayName = dayNames[info.date.getDay()];
+        const cfg = availability[dayName] || {};
+        const slot = cfg.slots?.[0];
+        const mins = info.date.getHours() * 60 + info.date.getMinutes();
+        const within = cfg.enabled && slot && (() => {
+            const [sh, sm] = slot.start.split(':').map(Number);
+            const [eh, em] = slot.end.split(':').map(Number);
+            return mins >= sh * 60 + sm && mins < eh * 60 + em;
+        })();
+        if (within) return; // inside working hours — leave for drag-to-book
+        setAdjustHours({
+            day: dayName,
+            label: info.date.toLocaleDateString('en-US', { weekday: 'long' }),
+            enabled: cfg.enabled ?? true,
+            start: slot?.start || '09:00',
+            end: slot?.end || '17:00',
+        });
+    };
+
+    const saveAdjustHours = async () => {
+        if (!adjustHours) return;
+        const { day, enabled, start, end } = adjustHours;
+        if (enabled && start >= end) { showCalendarToast('End time must be after start time', 'error'); return; }
+        setSavingAdjustHours(true);
+        const next = { ...availability, [day]: { enabled, slots: [{ start, end }] } };
+        try {
+            await availabilityService.updateMyAvailability(next);
+            setAvailability(next);
+            showCalendarToast(`Working hours updated for ${adjustHours.label}`);
+            setAdjustHours(null);
+        } catch {
+            showCalendarToast('Could not update hours', 'error');
+        } finally {
+            setSavingAdjustHours(false);
+        }
     };
 
     // Resize-to-change-duration (Fresha-style). Sends an explicit endTime.
@@ -2006,6 +2049,7 @@ const ProviderDashboard = () => {
                                 nowIndicator
                                 scrollTime={`${new Date().getHours().toString().padStart(2,'0')}:00:00`}
                                 select={handleFullCalendarSelect}
+                                dateClick={handleCalendarDateClick}
                                 eventClick={handleFullCalendarEventClick}
                                 eventDrop={handleFullCalendarEventDrop}
                                 eventResize={handleFullCalendarEventResize}
@@ -2097,6 +2141,37 @@ const ProviderDashboard = () => {
                                     <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                                         <button onClick={confirmPendingMove} className="btn-primary" style={{ width: '100%', padding: '0.8rem' }}>Yes, move it</button>
                                         <button onClick={cancelPendingMove} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.9rem', padding: '0.5rem' }}>Keep where it was</button>
+                                    </div>
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Tap grayed area → adjust working hours for that day */}
+                        {adjustHours && (
+                            <div onClick={() => setAdjustHours(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,15,25,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                                <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+                                    <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
+                                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Adjust working hours</h3>
+                                        <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{adjustHours.label}</p>
+                                    </div>
+                                    <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+                                            <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--charcoal)' }}>Open this day</span>
+                                            <button onClick={() => setAdjustHours(h => ({ ...h, enabled: !h.enabled }))} aria-label="Toggle open" style={{ width: '50px', height: '30px', borderRadius: '99px', border: 'none', background: adjustHours.enabled ? 'var(--gold)' : '#cbd0d8', cursor: 'pointer', position: 'relative', flexShrink: 0 }}>
+                                                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'white', position: 'absolute', top: '3px', left: adjustHours.enabled ? '23px' : '3px', transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }} />
+                                            </button>
+                                        </label>
+                                        {adjustHours.enabled && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                                <input type="time" value={adjustHours.start} onChange={e => setAdjustHours(h => ({ ...h, start: e.target.value }))} className="input" style={{ flex: 1, minWidth: 0, padding: '0.55rem 0.6rem' }} />
+                                                <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>to</span>
+                                                <input type="time" value={adjustHours.end} onChange={e => setAdjustHours(h => ({ ...h, end: e.target.value }))} className="input" style={{ flex: 1, minWidth: 0, padding: '0.55rem 0.6rem' }} />
+                                            </div>
+                                        )}
+                                        <button onClick={saveAdjustHours} disabled={savingAdjustHours} className="btn-primary" style={{ width: '100%', padding: '0.8rem', marginTop: '0.25rem' }}>
+                                            {savingAdjustHours ? 'Saving…' : 'Save hours'}
+                                        </button>
+                                        <button onClick={() => setAdjustHours(null)} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.9rem', padding: '0.4rem' }}>Cancel</button>
                                     </div>
                                 </div>
                             </div>

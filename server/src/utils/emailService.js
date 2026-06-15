@@ -51,6 +51,7 @@ const sendViaResend = async (mailOptions) => {
             subject: mailOptions.subject,
             html: mailOptions.html,
             text: mailOptions.text,
+            ...(mailOptions.replyTo ? { reply_to: mailOptions.replyTo } : {}),
         }),
     });
     if (!res.ok) {
@@ -91,6 +92,9 @@ const escapeHtml = (str) => {
 };
 
 exports.transporter = transporter;
+// Generic, transport-agnostic sender (Resend API when configured, else SMTP).
+// Use this for one-off emails so they respect the same path as templates.
+exports.sendRaw = safeSend;
 
 /* ============================================================================
    Shared clean email layout (Fresha-grade): white card on a light canvas,
@@ -128,15 +132,26 @@ const actionRow = (actions) => {
     return `<div style="margin-top:18px;">${cells}</div>`;
 };
 
+// Table-based so labels/values keep their spacing in every client (Gmail/Outlook
+// strip flexbox, which jammed "ServiceCar Wash" together).
 const detailsCard = (rows, totalRow) => `
-    <div style="background:${C.sunken};border-radius:12px;padding:18px 20px;margin-top:20px;">
-        ${rows.map(([l, v]) => `
-            <div style="display:flex;justify-content:space-between;font-size:14px;color:${C.text};padding:5px 0;">
-                <span style="color:${C.muted};">${l}</span><span style="color:${C.ink};font-weight:600;text-align:right;">${v}</span>
-            </div>`).join('')}
-        ${totalRow ? `<div style="border-top:1px solid ${C.border};margin-top:10px;padding-top:12px;display:flex;justify-content:space-between;font-size:15px;">
-            <span style="color:${C.ink};font-weight:700;">${totalRow[0]}</span><span style="color:${C.ink};font-weight:700;">${totalRow[1]}</span></div>` : ''}
-    </div>`;
+    <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.sunken};border-radius:12px;margin-top:20px;">
+      <tr><td style="padding:16px 20px;">
+        <table role="presentation" width="100%" cellpadding="0" cellspacing="0">
+          ${rows.map(([l, v]) => `
+            <tr>
+              <td style="font-size:14px;color:${C.muted};padding:6px 0;vertical-align:top;white-space:nowrap;">${l}</td>
+              <td align="right" style="font-size:14px;color:${C.ink};font-weight:600;padding:6px 0 6px 16px;vertical-align:top;">${v}</td>
+            </tr>`).join('')}
+          ${totalRow ? `
+            <tr><td colspan="2" style="border-top:1px solid ${C.border};font-size:0;line-height:0;padding-top:10px;">&nbsp;</td></tr>
+            <tr>
+              <td style="font-size:15px;color:${C.ink};font-weight:700;padding-top:2px;">${totalRow[0]}</td>
+              <td align="right" style="font-size:15px;color:${C.ink};font-weight:700;padding-top:2px;">${totalRow[1]}</td>
+            </tr>` : ''}
+        </table>
+      </td></tr>
+    </table>`;
 
 const shell = ({ heading, headingAccent, inner, preheader }) => `
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"></head>

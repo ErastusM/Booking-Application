@@ -1,4 +1,4 @@
-const { transporter } = require('../utils/emailService');
+const { sendRaw } = require('../utils/emailService');
 
 const escapeHtml = (str) => {
     if (typeof str !== 'string') return '';
@@ -31,9 +31,10 @@ exports.submitSuggestion = async (req, res) => {
         };
         const badgeColor = categoryColors[safeCategory] || '#6b7280';
 
-        await transporter.sendMail({
-            from: `"Bookplus Feedback" <${process.env.EMAIL_USER}>`,
-            to: process.env.ADMIN_EMAIL || 'bookplusdigitalsolutions@gmail.com',
+        await sendRaw({
+            from: `"Bookplus Feedback" <${process.env.EMAIL_USER || 'info@bookplus.pro'}>`,
+            to: process.env.SUGGESTIONS_EMAIL || 'info@bookplus.pro',
+            replyTo: safeEmail !== 'N/A' ? safeEmail : undefined,
             subject: `[${safeCategory}] New suggestion from ${safeName}`,
             html: `
             <div style="font-family: 'Helvetica Neue', Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #fafaf8;">

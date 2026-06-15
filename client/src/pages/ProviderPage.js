@@ -183,13 +183,14 @@ const ProvidersPage = () => {
                             <div
                                 key={provider._id}
                                 className="fade-up"
-                                style={{ animationDelay: `${i * 0.06}s`, opacity: 0 }}
+                                style={{ animationDelay: `${i * 0.06}s`, opacity: 0, height: '100%' }}
                                 onClick={() => navigate(`/providers/${provider._id}`)}
                             >
                                 <div style={{
                                     background: 'var(--card-bg)', borderRadius: 'var(--radius)',
                                     border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)',
-                                    overflow: 'hidden', cursor: 'pointer',
+                                    overflow: 'hidden', cursor: 'pointer', height: '100%',
+                                    display: 'flex', flexDirection: 'column',
                                     transition: 'box-shadow 0.2s ease, transform 0.2s ease',
                                 }}
                                     onMouseEnter={e => { e.currentTarget.style.boxShadow = 'var(--shadow-lg)'; e.currentTarget.style.transform = 'translateY(-4px)'; }}
@@ -207,8 +208,8 @@ const ProvidersPage = () => {
                                         )}
                                     </div>
 
-                                    <div style={{ padding: '1.25rem' }}>
-                                        <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1.15rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>{provider.name}</h3>
+                                    <div style={{ padding: '1.25rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>{provider.name}</h3>
 
                                         {provider.providerCategory && (
                                             <span style={{ display: 'inline-block', fontSize: '0.7rem', fontWeight: '600', padding: '0.2rem 0.6rem', borderRadius: '99px', background: 'rgba(201,168,76,0.1)', color: 'var(--gold-dark)', border: '1px solid rgba(201,168,76,0.3)', marginBottom: '0.5rem' }}>
@@ -216,8 +217,9 @@ const ProvidersPage = () => {
                                             </span>
                                         )}
                                         {provider.location && (
-                                            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.75rem' }}>
-                                                📍 {provider.location}
+                                            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'flex-start', gap: '0.3rem' }}>
+                                                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '2px' }}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
+                                                <span>{provider.location}</span>
                                             </p>
                                         )}
 
@@ -232,13 +234,13 @@ const ProvidersPage = () => {
                                             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>No reviews yet</p>
                                         )}
 
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.875rem', borderTop: '1px solid var(--border)' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.875rem', borderTop: '1px solid var(--border)', marginTop: 'auto' }}>
                                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                                                 {provider.serviceCount} service{provider.serviceCount !== 1 ? 's' : ''}
                                             </span>
                                             {provider.minPrice !== null && (
-                                                <span style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--charcoal)' }}>
-                                                    from ${provider.minPrice}
+                                                <span style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--gold-dark)' }}>
+                                                    from NAD {provider.minPrice}
                                                 </span>
                                             )}
                                         </div>
