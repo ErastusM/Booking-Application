@@ -933,6 +933,16 @@ const ProviderDashboard = () => {
         { label: 'Completed', value: counts.completed, Icon: TrendingUp },
     ];
 
+    // Personal, at-a-glance greeting for the dashboard landing (Fresha/iOS feel)
+    const _now = new Date();
+    const greeting = _now.getHours() < 12 ? 'Good morning' : _now.getHours() < 18 ? 'Good afternoon' : 'Good evening';
+    const firstName = (user?.name || '').trim().split(' ')[0];
+    const todayLabel = _now.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
+    const todaysCount = appointments.filter(a => {
+        const d = new Date(a.appointmentDate);
+        return d.toDateString() === _now.toDateString() && a.status !== 'cancelled';
+    }).length;
+
     const labelStyle = { display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', letterSpacing: '0.05em', textTransform: 'uppercase' };
 
     return (
@@ -951,16 +961,20 @@ const ProviderDashboard = () => {
             <div className="provider-header" style={{ background: 'var(--ink)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 70% 40%, rgba(201,168,76,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
-                    <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Your Bookings</p>
-                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.2rem, 4vw, 3.25rem)', fontWeight: '700', color: 'white', lineHeight: 1.05, marginBottom: '0.35rem' }}>Provider Dashboard</h1>
-                    <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: '0.98rem', maxWidth: '56ch', lineHeight: 1.65, marginBottom: '1rem' }}>
-                        Manage appointments, availability, services, and team operations from one calm workspace.
+                    <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>{todayLabel}</p>
+                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.2rem, 4vw, 3.25rem)', fontWeight: '700', color: 'white', lineHeight: 1.05, marginBottom: '0.5rem' }}>
+                        {greeting}{firstName ? <>, <span style={{ color: 'var(--gold)' }}>{firstName}</span></> : ''}
+                    </h1>
+                    <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: '0.98rem', maxWidth: '56ch', lineHeight: 1.65, marginBottom: '1.25rem' }}>
+                        {todaysCount > 0
+                            ? `You have ${todaysCount} appointment${todaysCount > 1 ? 's' : ''} today.`
+                            : 'No appointments scheduled for today.'}
                     </p>
                     <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    <Link to="/account" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: 'rgba(255,255,255,0.7)', fontFamily: 'Outfit, sans-serif', fontSize: '0.85rem', textDecoration: 'none', border: '1px solid rgba(255,255,255,0.2)', padding: '0.45rem 0.9rem', borderRadius: 'var(--radius-sm)', transition: 'all 0.2s' }}
+                    <Link to="/account" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', color: 'rgba(255,255,255,0.7)', fontFamily: 'Outfit, sans-serif', fontSize: '0.85rem', textDecoration: 'none', border: '1px solid rgba(255,255,255,0.2)', padding: '0.45rem 0.9rem', borderRadius: 'var(--radius-sm)', transition: 'all 0.2s' }}
                         onMouseEnter={e => e.currentTarget.style.color = 'white'}
                         onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}
-                    >👤 My Account</Link>
+                    ><UserCog size={15} strokeWidth={2} /> My Account</Link>
                     </div>
                 </div>
             </div>
