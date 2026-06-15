@@ -94,7 +94,7 @@ exports.register = async (req, res) => {
             '/bkplus-command'
         ).catch((err) => console.error('notifyAdmins failed:', err.message));
 
-        sendVerificationEmail(email, name, verificationToken)
+        sendVerificationEmail(email, name, verificationToken, assignedRole)
             .catch((err) => console.error('Verification email failed:', err.message));
 
         const token = generateToken(user._id, user.tokenVersion);
@@ -137,7 +137,7 @@ exports.resendVerification = async (req, res) => {
             user.verificationToken = crypto.randomBytes(32).toString('hex');
             user.verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
             await user.save();
-            sendVerificationEmail(user.email, user.name, user.verificationToken)
+            sendVerificationEmail(user.email, user.name, user.verificationToken, user.role)
                 .catch((err) => console.error('Resend verification failed:', err.message));
         }
         res.status(200).json({ success: true, message: 'If that account exists and is unverified, a new verification link is on its way.' });
@@ -479,10 +479,10 @@ exports.verifyEmail = async (req, res) => {
         user.verificationTokenExpiry = null;
         await user.save();
 
-        // Send welcome email
-        await sendWelcomeEmail(user.email, user.name);
+        // Send role-specific welcome email (fire-and-forget — must not block the redirect)
+        sendWelcomeEmail(user.email, user.name, user.role).catch(() => {});
 
-        return res.redirect(`${process.env.CLIENT_URL}/verify-email?status=success`);
+        return res.redirect(`${process.env.CLIENT_URL}/verify-email?status=success&role=${user.role}`);
     } catch (error) {
         return res.redirect(`${process.env.CLIENT_URL}/verify-email?status=error`);
     }

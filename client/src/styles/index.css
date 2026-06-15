@@ -228,6 +228,16 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; }
   .datetime-grid { grid-template-columns: 1fr !important; }
 }
 
+/* ── Register role-selection cards ── */
+.register-role-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+@media (max-width: 520px) {
+  .register-role-grid { grid-template-columns: 1fr; }
+}
+
 /* ── Select / Dropdown ── */
 select {
   appearance: none;

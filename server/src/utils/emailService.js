@@ -179,28 +179,48 @@ const p = (text) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.65;c
 
 /* ── Templates ─────────────────────────────────────────────────────────── */
 
-exports.sendVerificationEmail = async (email, name, token) => {
+exports.sendVerificationEmail = async (email, name, token, role) => {
     const url = `${process.env.SERVER_URL}/api/auth/verify-email?token=${token}`;
+    const isProvider = role === ‘provider’;
     await safeSend({
-        from: FROM, to: email, subject: 'Verify your Bookplus account',
+        from: FROM, to: email,
+        subject: isProvider
+            ? ‘Verify your email to list your business on Bookplus’
+            : ‘Verify your Bookplus account’,
         html: shell({
-            heading: `Hi ${escapeHtml(name)}, please verify your email`,
-            preheader: 'Confirm your email to activate your Bookplus account.',
-            inner: `${p('To keep your account secure we need to confirm this email address belongs to you. It only takes a second.')}
-                <div style="margin:24px 0;">${primaryButton(url, 'Verify email')}</div>
-                ${p(`<span style="color:${C.muted};font-size:13px;">This link expires in 24 hours. If you didn’t create a Bookplus account, you can ignore this email.</span>`)}`,
+            heading: isProvider
+                ? `Hi ${escapeHtml(name)}, one step to go`
+                : `Hi ${escapeHtml(name)}, please verify your email`,
+            preheader: isProvider
+                ? ‘Verify your email to activate your account and start receiving bookings.’
+                : ‘Confirm your email to activate your Bookplus account.’,
+            inner: isProvider
+                ? `${p("You’re almost ready to start listing your services and receiving bookings on Bookplus. Verify your email to activate your account and continue setting up your business.")}
+                   <div style="margin:24px 0;">${primaryButton(url, ‘Verify & set up my business’)}</div>
+                   ${p(`<span style="color:${C.muted};font-size:13px;">This link expires in 24 hours. If you didn’t create a Bookplus account, you can ignore this email.</span>`)}`
+                : `${p(‘To keep your account secure we need to confirm this email address belongs to you. It only takes a second.’)}
+                   <div style="margin:24px 0;">${primaryButton(url, ‘Verify & find providers’)}</div>
+                   ${p(`<span style="color:${C.muted};font-size:13px;">This link expires in 24 hours. If you didn’t create a Bookplus account, you can ignore this email.</span>`)}`,
         }),
     });
 };
 
-exports.sendWelcomeEmail = async (email, name) => {
+exports.sendWelcomeEmail = async (email, name, role) => {
+    const isProvider = role === ‘provider’;
     await safeSend({
-        from: FROM, to: email, subject: 'Welcome to Bookplus',
+        from: FROM, to: email,
+        subject: isProvider ? ‘Your business account is ready’ : ‘Welcome to Bookplus’,
         html: shell({
-            heading: `You’re all set,`, headingAccent: `${escapeHtml(name)}`,
-            preheader: 'Your Bookplus account is verified.',
-            inner: `${p('Your account is verified. You can now discover providers and book appointments in a few taps.')}
-                <div style="margin:24px 0;">${primaryButton(process.env.CLIENT_URL || '#', 'Browse providers')}</div>`,
+            heading: isProvider ? "You’re verified," : "You’re all set,",
+            headingAccent: escapeHtml(name),
+            preheader: isProvider
+                ? ‘Your Bookplus business account is active.’
+                : ‘Your Bookplus account is verified.’,
+            inner: isProvider
+                ? `${p("Your account is verified. Complete your business profile, add your services, and you’ll be ready to receive bookings.")}
+                   <div style="margin:24px 0;">${primaryButton(`${process.env.CLIENT_URL || ‘#’}/dashboard`, ‘Set up my business’)}</div>`
+                : `${p(‘Your account is verified. You can now discover providers and book appointments in a few taps.’)}
+                   <div style="margin:24px 0;">${primaryButton(`${process.env.CLIENT_URL || ‘#’}/providers`, ‘Find providers’)}</div>`,
         }),
     });
 };

@@ -1,14 +1,18 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Link } from 'react-router-dom';
+import { CheckCircle, Clock, XCircle, AlertTriangle, Loader } from 'lucide-react';
 
 const VerifyEmail = () => {
     const [searchParams] = useSearchParams();
     const [status, setStatus] = useState('loading');
+    const [role, setRole] = useState('customer');
     const navigate = useNavigate();
 
     useEffect(() => {
         const s = searchParams.get('status');
+        const r = searchParams.get('role');
+        if (r) setRole(r);
         if (s) {
             setStatus(s);
             if (s === 'success') {
@@ -17,25 +21,32 @@ const VerifyEmail = () => {
         }
     }, [searchParams]);
 
+    const successMessage = role === 'provider'
+        ? 'Your business account is active. Head to your dashboard to complete your profile and start receiving bookings.'
+        : 'Your account is verified. You can now discover providers and book appointments.';
+
     const config = {
         success: {
-            icon: '✅',
+            Icon: CheckCircle,
+            iconColor: '#0e7a4f',
             title: 'Email Verified!',
-            message: 'Your account has been verified successfully. Redirecting you to login...',
-            color: '#065f46',
-            bg: '#d1fae5',
+            message: successMessage,
+            color: '#0e7a4f',
+            bg: '#e7f6ee',
             border: '#6ee7b7',
         },
         expired: {
-            icon: '⏰',
+            Icon: Clock,
+            iconColor: '#92400e',
             title: 'Link Expired',
-            message: 'This verification link has expired. Please register again to get a new link.',
+            message: 'This verification link has expired. Please register again or use "resend the link" on the sign-up screen to get a new one.',
             color: '#92400e',
             bg: '#fef3c7',
             border: '#fcd34d',
         },
         invalid: {
-            icon: '❌',
+            Icon: XCircle,
+            iconColor: '#991b1b',
             title: 'Invalid Link',
             message: 'This verification link is invalid. Please check your email or register again.',
             color: '#991b1b',
@@ -43,7 +54,8 @@ const VerifyEmail = () => {
             border: '#fca5a5',
         },
         error: {
-            icon: '⚠️',
+            Icon: AlertTriangle,
+            iconColor: '#991b1b',
             title: 'Something went wrong',
             message: 'An error occurred during verification. Please try again later.',
             color: '#991b1b',
@@ -51,7 +63,8 @@ const VerifyEmail = () => {
             border: '#fca5a5',
         },
         loading: {
-            icon: null,
+            Icon: Loader,
+            iconColor: 'var(--text-muted)',
             title: 'Verifying...',
             message: 'Please wait while we verify your email.',
             color: 'var(--text-secondary)',
@@ -61,12 +74,12 @@ const VerifyEmail = () => {
     };
 
     const current = config[status] || config.loading;
+    const { Icon } = current;
 
     return (
         <div style={{ minHeight: '100vh', background: 'var(--off-white)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
             <div style={{ width: '100%', maxWidth: '480px', textAlign: 'center' }} className="fade-up">
 
-                {/* Logo */}
                 <Link to="/" style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: '700', color: 'var(--charcoal)', textDecoration: 'none', display: 'block', marginBottom: '2.5rem' }}>
                     Book<span style={{ color: 'var(--gold)' }}>plus</span>
                 </Link>
@@ -75,13 +88,12 @@ const VerifyEmail = () => {
                     <div style={{ height: '4px', background: 'linear-gradient(to right, var(--gold-dark), var(--gold-light))' }} />
                     <div style={{ padding: '3rem 2rem' }}>
 
-                        {status === 'loading' ? (
-                            <div style={{ margin: '0 auto 1.5rem' }}>
-                                <div style={{ width: '48px', height: '48px', border: '3px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto' }} />
-                            </div>
-                        ) : (
-                            <div style={{ fontSize: '3.5rem', marginBottom: '1.25rem' }}>{current.icon}</div>
-                        )}
+                        <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '1.25rem' }}>
+                            {status === 'loading'
+                                ? <div style={{ width: '48px', height: '48px', border: '3px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                                : <Icon size={52} strokeWidth={1.5} style={{ color: current.iconColor }} />
+                            }
+                        </div>
 
                         <h1 style={{ fontFamily: 'var(--font-body)', fontSize: '1.8rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
                             {current.title}
@@ -104,13 +116,13 @@ const VerifyEmail = () => {
 
                         {status !== 'loading' && status !== 'success' && (
                             <Link to="/register" className="btn-primary" style={{ display: 'inline-block', padding: '0.875rem 2rem', textDecoration: 'none' }}>
-                                Back to Register →
+                                Back to Register
                             </Link>
                         )}
 
                         {status === 'success' && (
                             <Link to="/login" className="btn-primary" style={{ display: 'inline-block', padding: '0.875rem 2rem', textDecoration: 'none' }}>
-                                Go to Login →
+                                Go to Login
                             </Link>
                         )}
                     </div>

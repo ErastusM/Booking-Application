@@ -92,17 +92,17 @@ const Register = () => {
     };
 
     const fields = [
-        { name: 'name', label: 'Full Name', type: 'text', placeholder: 'John Smith' },
-        { name: 'email', label: 'Email Address', type: 'email', placeholder: 'you@example.com' },
-        { name: 'phone', label: 'Phone Number', type: 'tel', placeholder: '+1 234 567 8900' },
-        { name: 'password', label: 'Password', type: 'password', placeholder: '••••••••' },
+        { name: 'name', label: 'Full Name', type: 'text', placeholder: 'John Smith', autoComplete: 'name', autoCapitalize: 'words', autoCorrect: 'off' },
+        { name: 'email', label: 'Email Address', type: 'email', placeholder: 'you@example.com', autoComplete: 'email', autoCapitalize: 'none', autoCorrect: 'off' },
+        { name: 'phone', label: 'Phone Number', type: 'tel', placeholder: '+264 81 234 5678', autoComplete: 'tel', autoCapitalize: 'none', autoCorrect: 'off' },
+        { name: 'password', label: 'Password', type: 'password', placeholder: '••••••••', autoComplete: 'new-password', autoCapitalize: 'none', autoCorrect: 'off' },
     ];
 
     return (
         <div style={{ minHeight: '100vh', background: 'var(--off-white)', display: 'flex', flexDirection: 'column' }}>
 
             {/* Navbar */}
-            <div style={{ padding: '1.5rem 2rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
                 <Link to="/" style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', textDecoration: 'none' }}>
                     Book<span style={{ color: 'var(--gold)' }}>plus</span>
                 </Link>
@@ -139,7 +139,7 @@ const Register = () => {
                             </p>
                         </div>
 
-                        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                        <div className="register-role-grid">
                             {roles.map(role => (
                                 <button
                                     key={role.value}
@@ -216,6 +216,9 @@ const Register = () => {
                                         required
                                         placeholder={field.placeholder}
                                         className="input"
+                                        autoComplete={field.autoComplete}
+                                        autoCapitalize={field.autoCapitalize}
+                                        autoCorrect={field.autoCorrect}
                                         onFocus={() => field.name === 'password' && setPasswordFocused(true)}
                                         onBlur={() => field.name === 'password' && setPasswordFocused(false)}
                                         style={field.name === 'password' && formData.password ? {
