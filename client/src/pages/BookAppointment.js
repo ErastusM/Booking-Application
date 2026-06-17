@@ -639,7 +639,7 @@ const BookAppointment = () => {
                                             No available slots on this day.
                                         </p>
                                     ) : (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(86px, 1fr))', gap: '0.5rem' }}>
                                             {timeSlots.map((slot, i) => {
                                                 const isSelected = formData.startTime === slot.time;
                                                 return (
@@ -647,39 +647,33 @@ const BookAppointment = () => {
                                                         key={i}
                                                         type="button"
                                                         data-testid={slot.isBooked ? 'booking-time-booked' : 'booking-time'}
-                                                        onClick={() => {
-                                                            if (slot.isBooked) {
-                                                                handleTimeSelect(slot.time);
-                                                            } else {
-                                                                handleTimeSelect(slot.time);
-                                                            }
-                                                        }}
+                                                        onClick={() => handleTimeSelect(slot.time)}
+                                                        title={slot.isBooked ? 'Taken — tap to join the waiting list' : undefined}
                                                         style={{
-                                                            width: '100%',
-                                                            padding: '1rem 1.25rem',
-                                                            borderRadius: '12px',
-                                                            border: `2px solid ${slot.isBooked ? '#e5e7eb' : isSelected ? 'var(--gold)' : 'var(--border)'}`,
-                                                            background: slot.isBooked ? '#f9fafb' : isSelected ? 'rgba(201,168,76,0.08)' : 'white',
-                                                            color: slot.isBooked ? '#9ca3af' : isSelected ? 'var(--gold-dark)' : 'var(--charcoal)',
-                                                            fontWeight: isSelected ? '600' : '400',
-                                                            fontSize: '1rem',
+                                                            padding: '0.65rem 0.5rem',
+                                                            borderRadius: '10px',
+                                                            border: `1.5px solid ${isSelected ? 'var(--gold)' : 'var(--border)'}`,
+                                                            background: slot.isBooked ? 'var(--surface-sunken)' : isSelected ? 'var(--gold)' : 'var(--card-bg)',
+                                                            color: slot.isBooked ? 'var(--text-muted)' : isSelected ? 'var(--ink)' : 'var(--charcoal)',
+                                                            fontWeight: isSelected ? '700' : '500',
+                                                            fontSize: '0.9rem',
                                                             cursor: 'pointer',
                                                             fontFamily: 'Outfit, sans-serif',
-                                                            textAlign: 'left',
-                                                            display: 'flex',
-                                                            alignItems: 'center',
-                                                            justifyContent: 'space-between',
-                                                            transition: 'all 0.15s',
+                                                            textAlign: 'center',
+                                                            textDecoration: slot.isBooked ? 'line-through' : 'none',
+                                                            transition: 'all 0.12s',
                                                         }}
                                                     >
-                                                        <span>{slot.time}</span>
-                                                        {slot.isBooked && (
-                                                            <span style={{ fontSize: '0.72rem', color: '#9ca3af', fontStyle: 'italic' }}>Taken — tap to join waitlist</span>
-                                                        )}
+                                                        {slot.time}
                                                     </button>
                                                 );
                                             })}
                                         </div>
+                                        {timeSlots.some(s => s.isBooked) && (
+                                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.6rem', fontFamily: 'Outfit, sans-serif' }}>
+                                                Struck-through times are taken — tap one to join the waiting list.
+                                            </p>
+                                        )}
                                     )}
                                 </div>
                             )}
