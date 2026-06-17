@@ -20,11 +20,19 @@ const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
         <Link
             to={`/providers/${p._id}`}
             className="home-provider-card"
-            style={{ flex: '0 0 200px', width: '200px', display: 'block', textDecoration: 'none' }}
+            style={{
+                flex: '0 0 210px', width: '210px', display: 'block', textDecoration: 'none',
+                scrollSnapAlign: 'start',
+                background: 'var(--card-bg)', border: '1px solid var(--border)',
+                borderRadius: '18px', overflow: 'hidden', boxShadow: 'var(--shadow-sm)',
+                transition: 'transform 0.18s var(--ease-out, ease), box-shadow 0.18s ease',
+            }}
+            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md, 0 12px 28px rgba(0,0,0,0.16))'; }}
+            onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}
         >
-            <div style={{ position: 'relative', height: '140px', borderRadius: 'var(--radius-lg, 16px)', overflow: 'hidden', background: cover ? 'var(--warm-gray)' : 'linear-gradient(135deg, #2a2a44 0%, #1a1a2e 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ position: 'relative', height: '150px', background: cover ? 'var(--warm-gray)' : 'linear-gradient(135deg, #2a2a44 0%, #1a1a2e 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 {cover
-                    ? <img src={cover} alt={p.businessName || p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    ? <img src={cover} alt={p.businessName || p.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                     : <span style={{ fontFamily: 'var(--font-display)', fontSize: '2.6rem', fontWeight: '700', color: 'var(--gold)' }}>{initial}</span>}
                 {badge && (
                     <span style={{ position: 'absolute', top: '10px', left: '10px', background: badge === 'New' ? 'var(--ink)' : 'rgba(255,255,255,0.95)', color: badge === 'New' ? '#fff' : 'var(--charcoal)', fontSize: '0.7rem', fontWeight: '700', padding: '3px 10px', borderRadius: '999px' }}>{badge}</span>
@@ -33,14 +41,14 @@ const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
                     type="button"
                     aria-label={isFav ? 'Remove from saved' : 'Save to favorites'}
                     onClick={(e) => onToggleFav(e, String(p._id))}
-                    style={{ position: 'absolute', top: '8px', right: '8px', width: '30px', height: '30px', borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
+                    style={{ position: 'absolute', top: '8px', right: '8px', width: '30px', height: '30px', borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }}
                 >
                     <Heart size={16} strokeWidth={2} fill={isFav ? '#e0245e' : 'none'} color={isFav ? '#e0245e' : '#52525b'} />
                 </button>
             </div>
-            <div style={{ padding: '0.6rem 0.15rem 0' }}>
+            <div style={{ padding: '0.7rem 0.85rem 0.85rem' }}>
                 <p style={{ fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.95rem', margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.businessName || p.name}</p>
-                {loc && <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{loc}</p>}
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{loc || ' '}</p>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                     <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {p.providerCategory ? `${p.providerCategory} · ` : ''}{reviews}
@@ -175,7 +183,7 @@ const Home = () => {
                                         View all <ArrowRight size={15} strokeWidth={2} />
                                     </Link>
                                 </div>
-                                <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingBottom: '0.5rem', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                                <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingTop: '0.25rem', paddingBottom: '0.75rem', scrollbarWidth: 'none', msOverflowStyle: 'none', scrollSnapType: 'x proximity', WebkitOverflowScrolling: 'touch', scrollBehavior: 'smooth' }}>
                                     {row.items.map(p => (
                                         <ProviderCard key={p._id} p={p} badge={row.badge} isFav={favSet.has(String(p._id))} onToggleFav={toggleFav} />
                                     ))}
