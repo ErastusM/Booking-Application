@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { appointmentService, serviceService, waitingListService, providerMarketService, availabilityService } from '../services';
 import { Calendar, Clock, CalendarX2 } from 'lucide-react';
+import { buildTimeSlots } from '../utils/bookingSlots';
 
 const BookAppointment = () => {
     const { user } = useAuthContext();
@@ -249,13 +250,11 @@ const BookAppointment = () => {
     const calNavBtn = (enabled) => ({ background: 'var(--surface-sunken)', border: '1px solid var(--border)', borderRadius: '8px', width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: enabled ? 'pointer' : 'not-allowed', opacity: enabled ? 1 : 0.4, color: 'var(--charcoal)', fontSize: '1.05rem' });
 
     // Generate time slot pills from provider availability (or 08:00–20:00 fallback).
-    // Slots step by the selected service duration, span EVERY working block of the day
-    // (so split shifts / lunch breaks are honoured), and never appear in the past.
+    // Slots are hourly by default; a half-hour start (e.g. 4:30) appears only when the
+    // first half of an hour is booked, the rest is free, and the service is ≤ 30 min.
+    // Spans EVERY working block of the day (split shifts) and never appears in the past.
     const generateTimeSlots = (dateStr) => {
         const duration = totalDuration || 30;
-        // Offer slots on the hour regardless of service length (45 min, 1h15m, etc.).
-        // The appointment still spans the real duration; bookings just start on the hour.
-        const interval = 60;
 
         // Working blocks for the day — supports multiple slots (e.g. 09:00–12:00, 13:00–17:00)
         let blocks = [{ start: 8 * 60, end: 20 * 60 }];
@@ -289,18 +288,7 @@ const BookAppointment = () => {
         const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
         if (dateStr === todayStr) minStart = now.getHours() * 60 + now.getMinutes();
 
-        const slots = [];
-        blocks.forEach(block => {
-            for (let mins = block.start; mins + duration <= block.end; mins += interval) {
-                if (mins < minStart) continue;
-                const slotEnd = mins + duration;
-                const isBooked = bookedRanges.some(b => mins < b.end && slotEnd > b.start);
-                const h = Math.floor(mins / 60);
-                const min = mins % 60;
-                slots.push({ time: `${String(h).padStart(2, '0')}:${String(min).padStart(2, '0')}`, isBooked });
-            }
-        });
-        return slots;
+        return buildTimeSlots({ blocks, bookedRanges, duration, minStart });
     };
 
     const timeSlots = generateTimeSlots(formData.appointmentDate);
