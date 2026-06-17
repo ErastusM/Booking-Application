@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
-import { appointmentService, reviewService, availabilityService, messageService } from '../services';
+import { appointmentService, reviewService, messageService } from '../services';
 import ReviewModal from '../components/ReviewModal';
 import IntakeFormModal from '../components/IntakeFormModal';
 import { useAuthContext } from '../context/AuthContext';
@@ -40,12 +40,7 @@ const MyAppointments = () => {
     const [success, setSuccess] = useState('');
     const [reviewedIds, setReviewedIds] = useState([]);
     const [selectedAppointment, setSelectedAppointment] = useState(null);
-    const [reschedulingAppointment, setReschedulingAppointment] = useState(null);
-    const [rescheduleForm, setRescheduleForm] = useState({ appointmentDate: '', startTime: '' });
-    const [rescheduling, setRescheduling] = useState(false);
     const [activeFilter, setActiveFilter] = useState('all');
-    const [providerSchedule, setProviderSchedule] = useState(null);
-    const [rescheduleAvailError, setRescheduleAvailError] = useState('');
     const [showCancelModal, setShowCancelModal] = useState(null); // appointment object
     const [showConfirmedBanner, setShowConfirmedBanner] = useState(justConfirmed);
     const [showWaitlistedBanner, setShowWaitlistedBanner] = useState(justWaitlisted);
@@ -75,41 +70,6 @@ const MyAppointments = () => {
         }, 15000);
         return () => clearTimeout(t);
     }, []);
-
-    useEffect(() => {
-        if (!reschedulingAppointment) {
-            setProviderSchedule(null);
-            setRescheduleAvailError('');
-            return;
-        }
-        availabilityService.getProviderAvailability(reschedulingAppointment.provider)
-            .then(res => setProviderSchedule(res.data.data.schedule))
-            .catch(() => {});
-    }, [reschedulingAppointment]);
-
-    useEffect(() => {
-        if (!providerSchedule || !rescheduleForm.appointmentDate || !rescheduleForm.startTime) {
-            setRescheduleAvailError('');
-            return;
-        }
-        const [y, m, d] = rescheduleForm.appointmentDate.split('-').map(Number);
-        const dayIndex = new Date(y, m - 1, d).getDay();
-        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-        const daySchedule = providerSchedule[dayNames[dayIndex]];
-        if (!daySchedule || !daySchedule.enabled) {
-            setRescheduleAvailError('This provider is not available at this time.');
-            return;
-        }
-        const isWithinSlot = daySchedule.slots.some(slot =>
-            rescheduleForm.startTime >= slot.start && rescheduleForm.startTime < slot.end
-        );
-        if (!isWithinSlot) {
-            const ranges = daySchedule.slots.map(slot => `${slot.start}–${slot.end}`).join(', ');
-            setRescheduleAvailError(`This provider is not available at this time. Working hours: ${ranges}`);
-            return;
-        }
-        setRescheduleAvailError('');
-    }, [providerSchedule, rescheduleForm.appointmentDate, rescheduleForm.startTime]);
 
     const fetchData = async () => {
         try {
@@ -178,24 +138,6 @@ const MyAppointments = () => {
         navigate(`/book-appointment?reschedule=${a._id}&providerId=${providerId}&serviceId=${serviceId}`);
     };
 
-    const handleReschedule = async (e) => {
-        e.preventDefault();
-        if (!rescheduleForm.appointmentDate || !rescheduleForm.startTime) return;
-        setRescheduling(true);
-        try {
-            const res = await appointmentService.rescheduleAppointment(reschedulingAppointment._id, rescheduleForm);
-            setAppointments(appointments.map(a => a._id === reschedulingAppointment._id ? { ...a, ...res.data.data } : a));
-            setReschedulingAppointment(null);
-            setRescheduleForm({ appointmentDate: '', startTime: '' });
-            setSuccess('Appointment rescheduled successfully!');
-            setTimeout(() => setSuccess(''), 15000);
-        } catch (err) {
-            setError(err.response?.data?.message || 'Failed to reschedule appointment');
-        } finally {
-            setRescheduling(false);
-        }
-    };
-
     const filters = ['all', 'pending', 'confirmed', 'completed', 'cancelled'];
     const filtered = activeFilter === 'all' ? appointments : appointments.filter(a => a.status === activeFilter);
     const counts = filters.reduce((acc, f) => {
@@ -203,7 +145,6 @@ const MyAppointments = () => {
         return acc;
     }, {});
 
-    const today = new Date().toISOString().split('T')[0];
     const labelStyle = { fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.25rem' };
 
     if (loading) return (
@@ -505,47 +446,6 @@ const MyAppointments = () => {
                                 Go Back
                             </button>
                         </div>
-                    </div>
-                </div>
-            )}
-
-            {/* Reschedule Modal */}
-            {reschedulingAppointment && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.6)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', padding: '2rem', width: '100%', maxWidth: '440px', boxShadow: 'var(--shadow-lg)' }}>
-                        <h2 style={{ fontFamily: 'var(--font-body)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
-                            Reschedule Appointment
-                        </h2>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-                            Rescheduling: <strong style={{ color: 'var(--charcoal)' }}>{reschedulingAppointment.service?.name}</strong>
-                        </p>
-
-                        <form onSubmit={handleReschedule} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>New Date</label>
-                                <input type="date" value={rescheduleForm.appointmentDate} onChange={e => setRescheduleForm(prev => ({ ...prev, appointmentDate: e.target.value }))} min={today} required className="input" />
-                            </div>
-                            <div>
-                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>New Start Time</label>
-                                <input type="time" value={rescheduleForm.startTime} onChange={e => setRescheduleForm(prev => ({ ...prev, startTime: e.target.value }))} required className="input" />
-                                {rescheduleAvailError && (
-                                    <div style={{ marginTop: '0.5rem', background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.6rem 0.875rem', borderRadius: 'var(--radius-sm)', fontSize: '0.82rem' }}>
-                                        {rescheduleAvailError}
-                                    </div>
-                                )}
-                            </div>
-                            <div style={{ background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '0.875rem 1rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                                ℹ️ Rescheduling will reset the appointment status to <strong>Pending</strong> for provider confirmation.
-                            </div>
-                            <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                <button type="button" onClick={() => setReschedulingAppointment(null)} style={{ flex: 1, padding: '0.875rem', background: 'none', border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', fontWeight: '600', fontSize: '0.9rem' }}>
-                                    Cancel
-                                </button>
-                                <button type="submit" disabled={rescheduling || !!rescheduleAvailError} className="btn-primary" style={{ flex: 2, padding: '0.875rem' }}>
-                                    {rescheduling ? 'Rescheduling...' : 'Confirm Reschedule →'}
-                                </button>
-                            </div>
-                        </form>
                     </div>
                 </div>
             )}
