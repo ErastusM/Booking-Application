@@ -7,7 +7,7 @@ import SuggestionBox from './SuggestionBox';
 import BrandMark from './BrandMark';
 
 const Navbar = () => {
-    const { user, logout } = useAuthContext();
+    const { user, logout, activeRole, switchRole } = useAuthContext();
     const { darkMode, toggleDarkMode } = useTheme();
     const navigate = useNavigate();
     const location = useLocation();
@@ -89,12 +89,12 @@ const Navbar = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }} className="hidden-mobile">
                     {navLink('/', 'Home')}
                     {navLink('/services', 'Services')}
-                    {user?.role === 'customer' && navLink('/book-appointment', 'Book')}
-                    {user?.role === 'customer' && navLink('/appointments', 'Appointments')}
-                    {user?.role === 'customer' && navLink('/waiting-list', 'Waiting List')}
-                    {user?.role === 'customer' && navLink('/become-provider', 'List your business')}
-                    {user?.role === 'provider' && navLink('/dashboard', 'Dashboard')}
-                    {user?.role === 'provider' && navLink('/appointments', 'My bookings')}
+                    {activeRole === 'customer' && navLink('/book-appointment', 'Book')}
+                    {activeRole === 'customer' && navLink('/appointments', 'Appointments')}
+                    {activeRole === 'customer' && navLink('/waiting-list', 'Waiting List')}
+                    {activeRole === 'customer' && user?.role === 'customer' && navLink('/become-provider', 'List your business')}
+                    {activeRole === 'provider' && navLink('/dashboard', 'Dashboard')}
+                    {activeRole === 'provider' && navLink('/appointments', 'My bookings')}
                     {user?.role === 'admin' && navLink('/bkplus-command', 'Dashboard')}
                     {user?.role === 'admin' && navLink('/bkplus-command/insights', 'Analytics')}
                 </div>
@@ -119,6 +119,25 @@ const Navbar = () => {
 
                     {user ? (
                         <>
+                            {/* Role switcher — only visible for provider accounts */}
+                            {user.role === 'provider' && (
+                                <div style={{ display: 'flex', background: isTransparent ? 'rgba(255,255,255,0.12)' : 'var(--warm-gray,#f4f4f0)', borderRadius: '99px', border: `1px solid ${isTransparent ? 'rgba(255,255,255,0.2)' : 'var(--border)'}`, padding: '3px', gap: '2px' }}>
+                                    {['provider', 'customer'].map(r => (
+                                        <button
+                                            key={r}
+                                            onClick={() => switchRole(r)}
+                                            style={{
+                                                padding: '4px 12px', borderRadius: '99px', border: 'none',
+                                                cursor: 'pointer', fontSize: '0.72rem', fontWeight: '600',
+                                                fontFamily: 'Outfit, sans-serif', textTransform: 'capitalize',
+                                                transition: 'all 0.15s',
+                                                background: activeRole === r ? (isTransparent ? 'rgba(255,255,255,0.9)' : 'var(--charcoal,#1a1a2e)') : 'transparent',
+                                                color: activeRole === r ? (isTransparent ? 'var(--charcoal,#1a1a2e)' : 'var(--gold,#c9a84c)') : (isTransparent ? 'rgba(255,255,255,0.65)' : 'var(--text-muted)'),
+                                            }}
+                                        >{r}</button>
+                                    ))}
+                                </div>
+                            )}
                             <button
                                 onClick={() => setShowSuggestion(true)}
                                 title="Send a suggestion"
@@ -130,7 +149,7 @@ const Navbar = () => {
                                 <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.9c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0012 2z"/></svg>
                             </button>
                             <NotificationBell isTransparent={isTransparent} />
-                            <Link to={user.role === 'provider' ? '/account' : '/profile'} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: isTransparent ? 'white' : 'var(--text-primary)', fontSize: '0.9rem', fontWeight: '500' }}>
+                            <Link to={activeRole === 'provider' ? '/account' : '/profile'} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: isTransparent ? 'white' : 'var(--text-primary)', fontSize: '0.9rem', fontWeight: '500' }}>
                                 <div style={{ width: '34px', height: '34px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)', fontWeight: '700', fontSize: '0.8rem', flexShrink: 0 }}>
                                     {user.avatar
                                         ? <img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -218,33 +237,54 @@ const Navbar = () => {
                     )}
 
                     {user && (
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.2rem', background: 'rgba(201,168,76,0.07)', borderBottom: '1px solid var(--border)' }}>
-                            <div style={{ width: '38px', height: '38px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)', fontWeight: '700', fontSize: '0.9rem', flexShrink: 0 }}>
-                                {user.avatar
-                                    ? <img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                    : user.name?.charAt(0).toUpperCase()
-                                }
+                        <div style={{ background: 'rgba(201,168,76,0.07)', borderBottom: '1px solid var(--border)' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.2rem' }}>
+                                <div style={{ width: '38px', height: '38px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)', fontWeight: '700', fontSize: '0.9rem', flexShrink: 0 }}>
+                                    {user.avatar
+                                        ? <img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                        : user.name?.charAt(0).toUpperCase()
+                                    }
+                                </div>
+                                <div style={{ minWidth: 0 }}>
+                                    <p style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--charcoal)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</p>
+                                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0, textTransform: 'capitalize' }}>{activeRole} mode</p>
+                                </div>
                             </div>
-                            <div style={{ minWidth: 0 }}>
-                                <p style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--charcoal)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</p>
-                                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0, textTransform: 'capitalize' }}>{user.role}</p>
-                            </div>
+                            {/* Role switcher pill — only for provider accounts */}
+                            {user.role === 'provider' && (
+                                <div style={{ display: 'flex', gap: '0.5rem', padding: '0 1.2rem 0.85rem' }}>
+                                    {['provider', 'customer'].map(r => (
+                                        <button
+                                            key={r}
+                                            onClick={() => { switchRole(r); setMenuOpen(false); }}
+                                            style={{
+                                                flex: 1, padding: '0.42rem', borderRadius: '99px',
+                                                border: `1.5px solid ${activeRole === r ? 'var(--gold)' : 'var(--border)'}`,
+                                                background: activeRole === r ? 'rgba(201,168,76,0.12)' : 'transparent',
+                                                color: activeRole === r ? 'var(--gold-dark,#a07830)' : 'var(--text-muted)',
+                                                fontSize: '0.75rem', fontWeight: '600',
+                                                fontFamily: 'Outfit, sans-serif', textTransform: 'capitalize',
+                                                cursor: 'pointer',
+                                            }}
+                                        >{r}</button>
+                                    ))}
+                                </div>
+                            )}
                         </div>
                     )}
 
                     <div style={{ flex: 1, padding: '0.6rem 0' }}>
                         {mobileLink('/', 'Home')}
                         {mobileLink('/services', 'Services')}
-                        {user?.role === 'customer' && mobileLink('/book-appointment', 'Book Appointment')}
-                        {user?.role === 'customer' && mobileLink('/appointments', 'My Appointments')}
-                        {user?.role === 'customer' && mobileLink('/waiting-list', 'Waiting List')}
-                        {user?.role === 'customer' && mobileLink('/become-provider', 'List your business')}
-                        {user?.role === 'provider' && mobileLink('/dashboard', 'Dashboard')}
-                        {user?.role === 'provider' && mobileLink('/book-appointment', 'Book a service')}
-                        {user?.role === 'provider' && mobileLink('/appointments', 'My bookings')}
+                        {activeRole === 'customer' && mobileLink('/book-appointment', 'Book Appointment')}
+                        {activeRole === 'customer' && mobileLink('/appointments', 'My Appointments')}
+                        {activeRole === 'customer' && mobileLink('/waiting-list', 'Waiting List')}
+                        {activeRole === 'customer' && user?.role === 'customer' && mobileLink('/become-provider', 'List your business')}
+                        {activeRole === 'provider' && mobileLink('/dashboard', 'Dashboard')}
+                        {activeRole === 'provider' && mobileLink('/appointments', 'My bookings')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command/insights', 'Analytics')}
-                        {user && mobileLink(user.role === 'provider' ? '/account' : '/profile', 'My Profile')}
+                        {user && mobileLink(activeRole === 'provider' ? '/account' : '/profile', 'My Profile')}
                     </div>
 
                     {/* Suggest a feature — pinned to the bottom, above the toggle */}
@@ -302,7 +342,7 @@ const Navbar = () => {
                 display: 'flex', alignItems: 'stretch',
                 height: '62px', paddingBottom: 'env(safe-area-inset-bottom)',
             }}>
-                {user.role === 'provider' && [
+                {activeRole === 'provider' && [
                     { to: '/services', icon: (
                         <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
                     ), label: 'Services' },
@@ -338,7 +378,7 @@ const Navbar = () => {
                         </Link>
                     );
                 })}
-                {user.role === 'customer' && [
+                {activeRole === 'customer' && [
                     { to: '/', icon: (
                         <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
                     ), label: 'Home' },
@@ -360,7 +400,7 @@ const Navbar = () => {
                         </Link>
                     );
                 })}
-                {user.role === 'customer' && (
+                {activeRole === 'customer' && (
                 <button onClick={() => setShowSuggestion(true)} className={`bnav-item ${showSuggestion ? 'is-active' : ''}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', background: 'none', border: 'none', cursor: 'pointer', color: showSuggestion ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: showSuggestion ? '700' : '500', fontFamily: 'Outfit, sans-serif', padding: 0 }}>
                     <span className="bnav-icon">
                         <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M22 12h-6l-2 3H10l-2-3H2"/><path strokeLinecap="round" strokeLinejoin="round" d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>

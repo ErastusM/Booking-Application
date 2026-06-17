@@ -34,6 +34,10 @@ const BecomeProvider = () => {
             const res = await authService.becomeProvider({
                 providerCategory: category === 'Other' ? customCategory.trim() : category,
             });
+            // The account just became a provider — default the active view to
+            // 'provider' so the dashboard/nav reflect the new role immediately,
+            // instead of the stale 'customer' value left over from login.
+            localStorage.setItem('activeRole', 'provider');
             setUser(res.data.data);
             navigate('/dashboard');
         } catch (err) {
