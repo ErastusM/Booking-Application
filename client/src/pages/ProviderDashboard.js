@@ -1225,7 +1225,18 @@ const ProviderDashboard = () => {
                         </div>
 
                         <div style={{ marginBottom: '1.5rem' }}>
-                            <input value={catalogueSearch} onChange={e => setCatalogueSearch(e.target.value)} placeholder="🔍 Search service name" className="input" style={{ maxWidth: '360px' }} />
+                            <div style={{ position: 'relative', maxWidth: '360px' }}>
+                                <svg
+                                    width="16" height="16" viewBox="0 0 24 24" fill="none"
+                                    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                                    aria-hidden="true"
+                                    style={{ position: 'absolute', left: '0.875rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }}
+                                >
+                                    <circle cx="11" cy="11" r="8" />
+                                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
+                                </svg>
+                                <input value={catalogueSearch} onChange={e => setCatalogueSearch(e.target.value)} placeholder="Search service name" aria-label="Search services" className="input" style={{ paddingLeft: '2.5rem' }} />
+                            </div>
                         </div>
 
                         {showServiceForm && (

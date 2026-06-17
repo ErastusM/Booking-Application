@@ -6,8 +6,8 @@ exports.generateToken = (id, tokenVersion = 0) => {
     });
 };
 
-exports.generateRefreshToken = (id) => {
-    return jwt.sign({ id }, process.env.REFRESH_TOKEN_SECRET, {
+exports.generateRefreshToken = (id, tokenVersion = 0) => {
+    return jwt.sign({ id, tokenVersion }, process.env.REFRESH_TOKEN_SECRET, {
         expiresIn: process.env.REFRESH_TOKEN_EXPIRE
     });
 };

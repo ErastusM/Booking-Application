@@ -5,6 +5,7 @@ const {
     register,
     login,
     logout,
+    refresh,
     getProfile,
     updateProfile,
     updatePortfolio,
@@ -29,6 +30,7 @@ const User = require('../models/User');
 router.post('/register', registerRules, register);
 router.post('/login', loginRules, login);
 router.post('/logout', auth, logout);
+router.post('/refresh', refresh);
 router.get('/profile', auth, getProfile);
 router.put('/profile', auth, updateProfileRules, updateProfile);
 router.put('/portfolio', auth, updatePortfolio);

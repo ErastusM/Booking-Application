@@ -39,6 +39,18 @@ describe('generateRefreshToken', () => {
         const token = generateRefreshToken('user456');
         expect(() => jwt.verify(token, process.env.JWT_SECRET)).toThrow();
     });
+
+    it('embeds tokenVersion so logout / reset can revoke it', () => {
+        const token = generateRefreshToken('user456', 4);
+        const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
+        expect(decoded.tokenVersion).toBe(4);
+    });
+
+    it('defaults tokenVersion to 0 when omitted', () => {
+        const token = generateRefreshToken('user456');
+        const decoded = jwt.verify(token, process.env.REFRESH_TOKEN_SECRET);
+        expect(decoded.tokenVersion).toBe(0);
+    });
 });
 
 describe('validateEmail', () => {

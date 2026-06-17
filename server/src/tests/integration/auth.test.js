@@ -234,6 +234,64 @@ describe('POST /api/auth/logout + token revocation', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// REFRESH ACCESS TOKEN
+// ─────────────────────────────────────────────────────────────────────────────
+describe('POST /api/auth/refresh', () => {
+    const creds = { email: 'refresh@example.com', password: 'Password1!' };
+
+    beforeEach(async () => {
+        await makeUser({ ...creds, isVerified: true });
+    });
+
+    const loginAndGetTokens = async () => {
+        const res = await request(app).post('/api/auth/login').send(creds);
+        return res.body.data; // { token, refreshToken, user }
+    };
+
+    it('exchanges a valid refresh token for a fresh, working access token', async () => {
+        const { refreshToken } = await loginAndGetTokens();
+
+        const res = await request(app).post('/api/auth/refresh').send({ refreshToken });
+        expect(res.status).toBe(200);
+        expect(res.body.data.token).toBeTruthy();
+        expect(res.body.data.refreshToken).toBeTruthy();
+
+        // The newly minted access token must authenticate a real request
+        const profile = await request(app)
+            .get('/api/auth/profile')
+            .set('Authorization', `Bearer ${res.body.data.token}`);
+        expect(profile.status).toBe(200);
+    });
+
+    it('returns 400 when no refresh token is supplied', async () => {
+        const res = await request(app).post('/api/auth/refresh').send({});
+        expect(res.status).toBe(400);
+    });
+
+    it('returns 401 for a malformed refresh token', async () => {
+        const res = await request(app).post('/api/auth/refresh').send({ refreshToken: 'not-a-real-token' });
+        expect(res.status).toBe(401);
+    });
+
+    it('rejects an access token used as a refresh token (wrong secret)', async () => {
+        const { token } = await loginAndGetTokens();
+        const res = await request(app).post('/api/auth/refresh').send({ refreshToken: token });
+        expect(res.status).toBe(401);
+    });
+
+    it('revokes the refresh token after logout (tokenVersion bump)', async () => {
+        const { token, refreshToken } = await loginAndGetTokens();
+
+        // Logout bumps tokenVersion, which the refresh token carries
+        await request(app).post('/api/auth/logout').set('Authorization', `Bearer ${token}`);
+
+        const res = await request(app).post('/api/auth/refresh').send({ refreshToken });
+        expect(res.status).toBe(401);
+        expect(res.body.message).toMatch(/revoked/i);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // EXCHANGE OAUTH CODE
 // ─────────────────────────────────────────────────────────────────────────────
 describe('POST /api/auth/exchange-code', () => {

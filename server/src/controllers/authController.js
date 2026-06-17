@@ -2,6 +2,7 @@ const User = require('../models/User');
 const Category = require('../models/Category');
 const { generateToken, generateRefreshToken } = require('../utils/helpers');
 const crypto = require('crypto');
+const jwt = require('jsonwebtoken');
 const { sendVerificationEmail, sendWelcomeEmail } = require('../utils/emailService');
 const MAIN_CATEGORIES = require('../constants/mainCategories');
 const { notifyAdmins } = require('../utils/notificationhelper');
@@ -98,7 +99,7 @@ exports.register = async (req, res) => {
             .catch((err) => console.error('Verification email failed:', err.message));
 
         const token = generateToken(user._id, user.tokenVersion);
-        const refreshToken = generateRefreshToken(user._id);
+        const refreshToken = generateRefreshToken(user._id, user.tokenVersion);
 
         res.status(201).json({
             success: true,
@@ -189,7 +190,7 @@ exports.login = async (req, res) => {
         }
 
         const token = generateToken(user._id, user.tokenVersion);
-        const refreshToken = generateRefreshToken(user._id);
+        const refreshToken = generateRefreshToken(user._id, user.tokenVersion);
 
         res.status(200).json({
             success: true,
@@ -238,7 +239,7 @@ exports.exchangeOAuthCode = async (req, res) => {
         await user.save();
 
         const token = generateToken(user._id, user.tokenVersion);
-        const refreshToken = generateRefreshToken(user._id);
+        const refreshToken = generateRefreshToken(user._id, user.tokenVersion);
 
         res.status(200).json({
             success: true,
@@ -260,6 +261,56 @@ exports.exchangeOAuthCode = async (req, res) => {
         });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Authentication failed' });
+    }
+};
+
+/**
+ * =========================
+ * REFRESH ACCESS TOKEN
+ * =========================
+ * Exchanges a valid refresh token for a fresh access token (and rotates the
+ * refresh token). This is what keeps people signed in: when the short-lived
+ * access token expires the client silently refreshes instead of logging out.
+ * Refresh tokens carry the user's tokenVersion, so logout / password reset
+ * (which bump tokenVersion) revoke them too.
+ */
+exports.refresh = async (req, res) => {
+    try {
+        const { refreshToken } = req.body;
+        if (!refreshToken) {
+            return res.status(400).json({ success: false, message: 'Refresh token required' });
+        }
+
+        let decoded;
+        try {
+            decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+        } catch (err) {
+            return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
+        }
+
+        const user = await User.findById(decoded.id);
+        if (!user) {
+            return res.status(401).json({ success: false, message: 'Invalid refresh token' });
+        }
+
+        if (user.isActive === false) {
+            return res.status(403).json({ success: false, message: 'Your account has been suspended. Please contact support.' });
+        }
+
+        // Revoked by a logout / password reset since this refresh token was issued
+        if (decoded.tokenVersion !== undefined && decoded.tokenVersion !== user.tokenVersion) {
+            return res.status(401).json({ success: false, message: 'Refresh token has been revoked' });
+        }
+
+        const token = generateToken(user._id, user.tokenVersion);
+        const newRefreshToken = generateRefreshToken(user._id, user.tokenVersion);
+
+        res.status(200).json({
+            success: true,
+            data: { token, refreshToken: newRefreshToken }
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 
