@@ -79,6 +79,8 @@ const ProviderProfilePage = () => {
     if (!data) return null;
 
     const { provider, categories, reviews } = data;
+    const businessName = provider.businessProfile?.businessName || provider.name;
+    const address = provider.address || provider.businessProfile?.address || '';
     const categoryKeys = Object.keys(categories);
     const activeServices = categories[activeCategory]?.services || [];
 
@@ -103,12 +105,17 @@ const ProviderProfilePage = () => {
                         )}
                         <div>
                             <h1 style={{ fontFamily: 'var(--font-body)', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', fontWeight: '700', color: 'white', marginBottom: '0.5rem' }}>
-                                {provider.name}
+                                {businessName}
                             </h1>
                             {provider.providerCategory && (
                                 <span style={{ display: 'inline-block', fontSize: '0.7rem', fontWeight: '600', padding: '0.2rem 0.7rem', borderRadius: '99px', background: 'rgba(201,168,76,0.15)', color: 'var(--gold)', border: '1px solid rgba(201,168,76,0.4)', marginBottom: '0.6rem' }}>
                                     {provider.providerCategory}
                                 </span>
+                            )}
+                            {address && (
+                                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.85rem', margin: '0 0 0.6rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                    <span aria-hidden="true">📍</span> {address}
+                                </p>
                             )}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                                 {provider.avgRating && (
@@ -217,6 +224,12 @@ const ProviderProfilePage = () => {
                                     <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Services</span>
                                     <span style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>{provider.serviceCount}</span>
                                 </div>
+                                {address && (
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
+                                        <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', flexShrink: 0 }}>Address</span>
+                                        <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}`} target="_blank" rel="noreferrer" style={{ fontSize: '0.82rem', color: 'var(--gold-dark)', textAlign: 'right', fontWeight: '500', textDecoration: 'none' }}>{address}</a>
+                                    </div>
+                                )}
                                 {schedule && (() => {
                                     const groups = formatSchedule(schedule);
                                     if (!groups.length) return null;

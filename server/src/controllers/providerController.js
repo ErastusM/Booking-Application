@@ -57,6 +57,7 @@ exports.getAllProviders = async (req, res) => {
             return {
                 _id: p._id,
                 name: p.name,
+                businessName: p.businessProfile?.businessName || p.name,
                 avatar: p.avatar,
                 providerCategory: p.providerCategory || null,
                 serviceCount: services.length,

@@ -66,7 +66,7 @@ const ProvidersPage = () => {
         let result = providers;
         if (search) {
             result = result.filter(p =>
-                p.name.toLowerCase().includes(search.toLowerCase()) ||
+                (p.businessName || p.name).toLowerCase().includes(search.toLowerCase()) ||
                 p.location?.toLowerCase().includes(search.toLowerCase())
             );
         }
@@ -240,7 +240,7 @@ const ProvidersPage = () => {
                                     </div>
 
                                     <div style={{ padding: '1.25rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>{provider.name}</h3>
+                                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>{provider.businessName || provider.name}</h3>
 
                                         {provider.providerCategory && (
                                             <span style={{ display: 'inline-block', fontSize: '0.7rem', fontWeight: '600', padding: '0.2rem 0.6rem', borderRadius: '99px', background: 'rgba(201,168,76,0.1)', color: 'var(--gold-dark)', border: '1px solid rgba(201,168,76,0.3)', marginBottom: '0.5rem' }}>
