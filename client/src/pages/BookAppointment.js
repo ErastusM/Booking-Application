@@ -42,6 +42,13 @@ const BookAppointment = () => {
         ? effectiveDuration + selectedAddOns.reduce((sum, a) => sum + (a.duration || 0), 0)
         : 0;
 
+    // Which provider are we booking? Prefer the URL, but fall back to the selected
+    // service's owner so availability + booked slots still load in the generic
+    // (no ?providerId) flow — otherwise the time list silently shows a generic
+    // 08:00–20:00 window instead of the provider's real working hours.
+    const urlProviderId = searchParams.get('providerId');
+    const effectiveProviderId = urlProviderId || selectedService?.provider?._id || selectedService?.provider || null;
+
     const handleServiceSelect = (service) => {
         if (service.options && service.options.length > 0) {
             setOptionSheet(service); // show picker first
@@ -70,12 +77,20 @@ const BookAppointment = () => {
     };
 
     useEffect(() => {
-        const providerId = searchParams.get('providerId');
-        if (!providerId) return;
-        availabilityService.getProviderAvailability(providerId)
+        if (!effectiveProviderId) { setProviderAvailability(null); return; }
+        availabilityService.getProviderAvailability(effectiveProviderId)
             .then(res => setProviderAvailability(res.data.data.schedule))
-            .catch(() => {});
-    }, []);
+            .catch(() => setProviderAvailability(null));
+    }, [effectiveProviderId]);
+
+    // Load booked slots for the chosen provider + date. Re-runs if the provider only
+    // becomes known once a service is selected (generic flow), keeping "taken" slots accurate.
+    useEffect(() => {
+        if (!effectiveProviderId || !formData.appointmentDate) { setBookedSlots([]); return; }
+        appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate)
+            .then(res => setBookedSlots(res.data.data || []))
+            .catch(() => setBookedSlots([]));
+    }, [effectiveProviderId, formData.appointmentDate]);
 
     useEffect(() => {
         if (!providerAvailability || !formData.appointmentDate || !formData.startTime) {
@@ -151,13 +166,7 @@ const BookAppointment = () => {
 
     const handleDateSelect = (dateStr) => {
         setFormData(prev => ({ ...prev, appointmentDate: dateStr, startTime: '', endTime: '' }));
-        // Fetch already-booked slots for this provider+date
-        const providerId = searchParams.get('providerId');
-        if (providerId) {
-            appointmentService.getBookedSlots(providerId, dateStr)
-                .then(res => setBookedSlots(res.data.data || []))
-                .catch(() => setBookedSlots([]));
-        }
+        // Booked slots are loaded by the effect keyed on (provider, date).
     };
 
     const handleTimeSelect = (time) => {
@@ -202,7 +211,7 @@ const BookAppointment = () => {
         }
         setError('');
         try {
-            await waitingListService.join({ service: formData.service, provider: searchParams.get('providerId') || undefined, appointmentDate: formData.appointmentDate, startTime: formData.startTime, endTime: formData.endTime });
+            await waitingListService.join({ service: formData.service, provider: effectiveProviderId || undefined, appointmentDate: formData.appointmentDate, startTime: formData.startTime, endTime: formData.endTime });
             const target = '/waiting-list?joined=1';
             navigate(target, { replace: true });
             // Fallback in case SPA navigation is interrupted by stale client chunks in production.
