@@ -1,10 +1,9 @@
 const Service = require('../models/Service');
 
-// Get all services — customers see all active, providers see their own
+// Public catalogue — returns every active service to anyone (no auth, no role filter).
 exports.getAllServices = async (req, res) => {
     try {
-        let query = { isActive: true };
-        const services = await Service.find(query)
+        const services = await Service.find({ isActive: true })
             .populate('provider', 'name avatar')
             .populate('createdBy', 'name')
             .sort({ createdAt: -1 });
