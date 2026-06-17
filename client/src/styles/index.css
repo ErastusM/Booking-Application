@@ -484,9 +484,12 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
 }
 
 /* ── Dark mode surface overrides ──
-   For pages that use inline background: white, this provides broad coverage */
+   Scoped to real card-surface classes. NOT a [class*="card"] substring match —
+   that leaked onto anything with "card" in its name (e.g. the flat discovery
+   cards). Inline `background: white` cards are covered by the rule below. */
 body.dark-mode .card,
-body.dark-mode [class*="card"] { background: var(--card-bg); }
+body.dark-mode .provider-card,
+body.dark-mode .review-modal-card { background: var(--card-bg); }
 
 body.dark-mode .input,
 body.dark-mode input:not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"]),
