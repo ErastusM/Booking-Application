@@ -1579,9 +1579,9 @@ const ProviderDashboard = () => {
                                                 const max = byService[0]?.count || 1;
                                                 return (
                                                     <div key={i}>
-                                                        <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                                                            <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: '500' }}>{s.name}</span>
-                                                            <span style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--charcoal)' }}>{s.count} booking{s.count !== 1 ? 's' : ''}</span>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                                                            <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: '500', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                                                            <span style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--charcoal)', flexShrink: 0, whiteSpace: 'nowrap' }}>{s.count} booking{s.count !== 1 ? 's' : ''}</span>
                                                         </div>
                                                         <div style={{ height: '6px', borderRadius: '99px', background: 'var(--warm-gray)', overflow: 'hidden' }}>
                                                             <div style={{ height: '100%', borderRadius: '99px', background: 'var(--gold)', width: `${(s.count / max) * 100}%`, transition: 'width 0.5s ease' }} />
@@ -1908,9 +1908,9 @@ const ProviderDashboard = () => {
                                                     const max = earnings.byService[0]?.earned || 1;
                                                     return (
                                                         <div key={i}>
-                                                            <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.3rem' }}>
-                                                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500' }}>{s.name}</span>
-                                                                <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+                                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                                                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                                                                <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexShrink: 0, whiteSpace: 'nowrap' }}>
                                                                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{s.count} job{s.count !== 1 ? 's' : ''}</span>
                                                                     <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {s.earned.toLocaleString()}</span>
                                                                 </div>
@@ -1932,11 +1932,11 @@ const ProviderDashboard = () => {
                                                 {earnings.topClients.map((c, i) => (
                                                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                                         <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: i === 0 ? 'var(--gold)' : 'var(--warm-gray)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: '700', color: i === 0 ? 'var(--ink)' : 'var(--text-muted)', flexShrink: 0 }}>{i + 1}</div>
-                                                        <div style={{ flex: 1 }}>
-                                                            <p style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>{c.name}</p>
+                                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                                            <p style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</p>
                                                             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{c.count} visit{c.count !== 1 ? 's' : ''}</p>
                                                         </div>
-                                                        <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {c.earned.toLocaleString()}</span>
+                                                        <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)', flexShrink: 0, whiteSpace: 'nowrap' }}>NAD {c.earned.toLocaleString()}</span>
                                                     </div>
                                                 ))}
                                             </div>

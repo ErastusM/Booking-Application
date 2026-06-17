@@ -554,6 +554,9 @@ body.dark-mode .bottom-nav {
   gap: 1.5rem;
   align-items: start;
 }
+/* Let the two columns shrink instead of overflowing on narrow tablets
+   (the 641–768px band, before they stack to one column at 640px). */
+.provider-profile-two-col > div { min-width: 0; }
 
 @media (max-width: 640px) {
   .provider-profile-two-col {
