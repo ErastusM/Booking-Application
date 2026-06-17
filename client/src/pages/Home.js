@@ -4,6 +4,13 @@ import { useAuthContext } from '../context/AuthContext';
 import { providerMarketService, favoriteService } from '../services';
 import { Search, Star, ShieldCheck, CalendarCheck, Clock, Zap, ArrowRight, Heart } from 'lucide-react';
 
+// Ask Cloudinary for a right-sized, retina-aware, modern-format crop so card
+// images stay crisp instead of being browser-upscaled. Non-Cloudinary URLs pass through.
+const cloudinaryThumb = (url, w = 600, h = 450) => {
+    if (!url || typeof url !== 'string' || !url.includes('/image/upload/')) return url;
+    return url.replace('/image/upload/', `/image/upload/c_fill,g_auto,ar_${w}:${h},w_${w},q_auto,f_auto,dpr_auto/`);
+};
+
 const features = [
     { Icon: ShieldCheck, title: 'Trusted professionals', description: 'Top-rated providers across beauty, wellness, automotive, training and more.' },
     { Icon: CalendarCheck, title: 'Book in seconds', description: 'Pick a time and confirm instantly — no phone calls, no waiting rooms.' },
@@ -20,19 +27,11 @@ const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
         <Link
             to={`/providers/${p._id}`}
             className="home-provider-card"
-            style={{
-                flex: '0 0 210px', width: '210px', display: 'block', textDecoration: 'none',
-                scrollSnapAlign: 'start',
-                background: 'var(--card-bg)', border: '1px solid var(--border)',
-                borderRadius: '18px', overflow: 'hidden', boxShadow: 'var(--shadow-sm)',
-                transition: 'transform 0.18s var(--ease-out, ease), box-shadow 0.18s ease',
-            }}
-            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-3px)'; e.currentTarget.style.boxShadow = 'var(--shadow-md, 0 12px 28px rgba(0,0,0,0.16))'; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}
+            style={{ flex: '0 0 210px', width: '210px', display: 'block', textDecoration: 'none', scrollSnapAlign: 'start' }}
         >
-            <div style={{ position: 'relative', height: '150px', background: cover ? 'var(--warm-gray)' : 'linear-gradient(135deg, #2a2a44 0%, #1a1a2e 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div className="home-provider-card__media" style={{ position: 'relative', aspectRatio: '4 / 3', borderRadius: '16px', overflow: 'hidden', background: cover ? 'var(--warm-gray)' : 'linear-gradient(135deg, #2a2a44 0%, #1a1a2e 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}>
                 {cover
-                    ? <img src={cover} alt={p.businessName || p.name} style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    ? <img src={cloudinaryThumb(cover, 600, 450)} alt={p.businessName || p.name} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                     : <span style={{ fontFamily: 'var(--font-display)', fontSize: '2.6rem', fontWeight: '700', color: 'var(--gold)' }}>{initial}</span>}
                 {badge && (
                     <span style={{ position: 'absolute', top: '10px', left: '10px', background: badge === 'New' ? 'var(--ink)' : 'rgba(255,255,255,0.95)', color: badge === 'New' ? '#fff' : 'var(--charcoal)', fontSize: '0.7rem', fontWeight: '700', padding: '3px 10px', borderRadius: '999px' }}>{badge}</span>
@@ -46,7 +45,7 @@ const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
                     <Heart size={16} strokeWidth={2} fill={isFav ? '#e0245e' : 'none'} color={isFav ? '#e0245e' : '#52525b'} />
                 </button>
             </div>
-            <div style={{ padding: '0.7rem 0.85rem 0.85rem' }}>
+            <div style={{ padding: '0.6rem 0.15rem 0' }}>
                 <p style={{ fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.95rem', margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.businessName || p.name}</p>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{loc || ' '}</p>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
@@ -183,7 +182,7 @@ const Home = () => {
                                         View all <ArrowRight size={15} strokeWidth={2} />
                                     </Link>
                                 </div>
-                                <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingTop: '0.25rem', paddingBottom: '0.75rem', scrollbarWidth: 'none', msOverflowStyle: 'none', scrollSnapType: 'x proximity', WebkitOverflowScrolling: 'touch', scrollBehavior: 'smooth' }}>
+                                <div className="discovery-row">
                                     {row.items.map(p => (
                                         <ProviderCard key={p._id} p={p} badge={row.badge} isFav={favSet.has(String(p._id))} onToggleFav={toggleFav} />
                                     ))}

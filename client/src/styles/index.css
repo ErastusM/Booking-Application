@@ -177,6 +177,29 @@ p, li, label, input, textarea, select, button, a {
 }
 .card:hover { box-shadow: var(--shadow-md); transform: translateY(-2px); }
 
+/* Discovery feed carousel — smooth momentum scroll, gentle snap, no scrollbar.
+   overscroll-behavior-x:contain stops the swipe from chaining to the page (the
+   main cause of janky horizontal scrolling on mobile); no scroll-behavior:smooth
+   so native flick momentum stays buttery. */
+.discovery-row {
+  display: flex;
+  gap: 1rem;
+  overflow-x: auto;
+  padding: 0.25rem 0 0.75rem;
+  scroll-snap-type: x proximity;
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior-x: contain;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.discovery-row::-webkit-scrollbar { display: none; }
+.home-provider-card { transition: transform 0.18s ease; }
+.home-provider-card__media { transition: box-shadow 0.18s ease; }
+@media (hover: hover) {
+  .home-provider-card:hover { transform: translateY(-3px); }
+  .home-provider-card:hover .home-provider-card__media { box-shadow: var(--shadow-md, 0 12px 28px rgba(0,0,0,0.16)); }
+}
+
 .input {
   width: 100%;
   padding: 0.75rem 1rem;

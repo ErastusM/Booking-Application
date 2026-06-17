@@ -1030,6 +1030,29 @@ const ProviderDashboard = () => {
         return out.length ? out : false;
     })();
 
+    // Span the calendar to the provider's ACTUAL working hours (widening the default
+    // 07:00–22:00 window if needed) so availability they set — and slots customers can
+    // book — are never hidden above/below the visible grid.
+    const calendarTimeRange = (() => {
+        let minM = 7 * 60, maxM = 22 * 60;
+        if (availability) {
+            Object.values(availability).forEach(cfg => {
+                if (cfg?.enabled && Array.isArray(cfg.slots)) {
+                    cfg.slots.forEach(s => {
+                        const [sh, sm] = String(s?.start || '').split(':').map(Number);
+                        const [eh, em] = String(s?.end || '').split(':').map(Number);
+                        if (Number.isFinite(sh)) minM = Math.min(minM, sh * 60 + (sm || 0));
+                        if (Number.isFinite(eh)) maxM = Math.max(maxM, eh * 60 + (em || 0));
+                    });
+                }
+            });
+        }
+        const pad = (n) => String(n).padStart(2, '0');
+        const minH = Math.max(0, Math.floor(minM / 60));
+        const maxH = Math.min(24, Math.ceil(maxM / 60));
+        return { min: `${pad(minH)}:00:00`, max: `${pad(maxH)}:00:00` };
+    })();
+
     const labelStyle = { display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', letterSpacing: '0.05em', textTransform: 'uppercase' };
 
     return (
@@ -2055,8 +2078,8 @@ const ProviderDashboard = () => {
                                 eventDurationEditable
                                 eventResizableFromStart
                                 dayMaxEvents={3}
-                                slotMinTime="07:00:00"
-                                slotMaxTime="22:00:00"
+                                slotMinTime={calendarTimeRange.min}
+                                slotMaxTime={calendarTimeRange.max}
                                 slotDuration="00:15:00"
                                 slotLabelInterval="01:00:00"
                                 slotLabelFormat={{ hour: 'numeric', minute: '2-digit', meridiem: 'short' }}
