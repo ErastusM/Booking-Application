@@ -135,6 +135,10 @@ const ProviderDashboard = () => {
         if (tab && validTabs.includes(tab)) {
             setActiveTab(tab);
             setSelectedDay(null);
+        } else if (!tab) {
+            // Bare /dashboard (e.g. the bottom-nav Dashboard button) → default view
+            setActiveTab('calendar');
+            setSelectedDay(null);
         }
     }, [location.search]);
 
@@ -1131,7 +1135,7 @@ const ProviderDashboard = () => {
                         transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
                     }}><History size={15} strokeWidth={2} /> History</button>
                     {/* Other feature tabs */}
-                    {[['services','Catalogue',Scissors],['availability','Availability',CalendarClock],['overview','Overview',LayoutDashboard],['earnings','Earnings',TrendingUp],['insights','Insights',BarChart3],['clients','Clients',Users],['forms','Forms',ClipboardList],['messages','Messages',MessageSquare],['memberships','Memberships',Ticket],['team','Team',UserCog]].map(([tab, label, Icon]) => (
+                    {[['services','Catalogue',Scissors],['availability','Availability',CalendarClock],['overview','Overview',LayoutDashboard],['insights','Insights',BarChart3],['clients','Clients',Users],['forms','Forms',ClipboardList],['messages','Messages',MessageSquare],['memberships','Memberships',Ticket],['team','Team',UserCog]].map(([tab, label, Icon]) => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
                             display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
                             padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(201,168,76,0.12)' : 'transparent', border: '1px solid',

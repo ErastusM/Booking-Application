@@ -352,9 +352,9 @@ const Navbar = () => {
                 height: '62px', paddingBottom: 'env(safe-area-inset-bottom)',
             }}>
                 {activeRole === 'provider' && [
-                    { to: '/services', icon: (
-                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 1v4M12 19v4M4.22 4.22l2.83 2.83M16.95 16.95l2.83 2.83M1 12h4M19 12h4M4.22 19.78l2.83-2.83M16.95 7.05l2.83-2.83"/></svg>
-                    ), label: 'Services' },
+                    { to: '/dashboard?tab=earnings', icon: (
+                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                    ), label: 'Earnings' },
                     { to: '/dashboard', fab: true, icon: (
                         <svg width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
                     ), label: 'Dashboard' },
@@ -362,7 +362,10 @@ const Navbar = () => {
                         <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                     ), label: 'Account' },
                 ].map(({ to, icon, label, fab }) => {
-                    const active = isActive(to.split('?')[0]);
+                    const [toPath, toQs] = to.split('?');
+                    const toTab = toQs ? new URLSearchParams(toQs).get('tab') : null;
+                    const curTab = new URLSearchParams(location.search).get('tab');
+                    const active = location.pathname === toPath && (toTab ? curTab === toTab : !(toPath === '/dashboard' && curTab === 'earnings'));
                     if (fab) {
                         return (
                             <Link key={to} to={to} aria-label="Dashboard" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', textDecoration: 'none', position: 'relative' }}>
