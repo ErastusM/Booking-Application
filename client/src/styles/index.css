@@ -355,6 +355,10 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
   body { overflow-x: hidden; }
 
   .home-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
+
+  /* Discovery feed: show exactly two cards per screen on mobile.
+     calc(50% - 0.5rem): two cards + the 1rem row gap fill the width. */
+  .home-provider-card { flex: 0 0 calc(50% - 0.5rem) !important; width: calc(50% - 0.5rem) !important; }
   .providers-search-filters { flex-direction: column !important; }
   .providers-search-filters > div { width: 100% !important; min-width: 0 !important; flex: 1 1 auto !important; }
   .providers-grid { grid-template-columns: 1fr !important; }
