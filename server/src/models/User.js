@@ -77,6 +77,8 @@ const userSchema = new mongoose.Schema(
             images: [{ type: String }],
             instagramUrl: { type: String, default: '' },
         },
+        // Providers this user has saved (customer-facing favorites)
+        favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
         oauthCode: { type: String, default: null, select: false },
         oauthCodeExpiry: { type: Date, default: null, select: false },
         passwordResetToken: { type: String, default: null, select: false },

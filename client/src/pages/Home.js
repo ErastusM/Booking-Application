@@ -1,8 +1,8 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
-import { providerMarketService } from '../services';
-import { Search, Star, MapPin, ShieldCheck, CalendarCheck, Clock, Zap, ArrowRight } from 'lucide-react';
+import { providerMarketService, favoriteService } from '../services';
+import { Search, Star, ShieldCheck, CalendarCheck, Clock, Zap, ArrowRight, Heart } from 'lucide-react';
 
 const features = [
     { Icon: ShieldCheck, title: 'Trusted professionals', description: 'Top-rated providers across beauty, wellness, automotive, training and more.' },
@@ -11,38 +11,45 @@ const features = [
     { Icon: Zap, title: 'Instant confirmation', description: 'Real-time confirmations and reminders, straight to your inbox.' },
 ];
 
-const ProviderCard = ({ p }) => {
-    const initial = (p.name || '?').charAt(0).toUpperCase();
-    const priceFrom = p.minPrice != null ? `from NAD ${p.minPrice}` : null;
+const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
+    const cover = p.coverImage || p.avatar || null;
+    const initial = (p.businessName || p.name || '?').charAt(0).toUpperCase();
+    const loc = p.location || p.businessProfile?.address || '';
+    const reviews = p.reviewCount > 0 ? `${p.reviewCount} review${p.reviewCount !== 1 ? 's' : ''}` : 'No reviews yet';
     return (
         <Link
-            to={`/book-appointment?providerId=${p._id}`}
+            to={`/providers/${p._id}`}
             className="home-provider-card"
-            style={{ display: 'block', textDecoration: 'none', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg, 18px)', overflow: 'hidden', boxShadow: 'var(--shadow-sm)', transition: 'transform 0.2s var(--ease-out, ease), box-shadow 0.2s ease' }}
-            onMouseEnter={e => { e.currentTarget.style.transform = 'translateY(-4px)'; e.currentTarget.style.boxShadow = 'var(--shadow-lg, 0 12px 32px rgba(26,26,46,0.14))'; }}
-            onMouseLeave={e => { e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; }}
+            style={{ flex: '0 0 200px', width: '200px', display: 'block', textDecoration: 'none' }}
         >
-            <div style={{ height: '132px', position: 'relative', background: p.avatar ? 'var(--warm-gray)' : 'linear-gradient(135deg, #2a2a44 0%, #1a1a2e 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', overflow: 'hidden' }}>
-                {p.avatar
-                    ? <img src={p.avatar} alt={p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                    : <span style={{ fontFamily: 'var(--font-display)', fontSize: '3rem', fontWeight: '700', color: 'var(--gold)' }}>{initial}</span>}
-                {p.avgRating != null && (
-                    <span style={{ position: 'absolute', top: '10px', right: '10px', display: 'inline-flex', alignItems: 'center', gap: '3px', background: 'rgba(255,255,255,0.95)', color: '#1a1a2e', fontSize: '0.75rem', fontWeight: '700', padding: '3px 8px', borderRadius: '999px' }}>
-                        <Star size={12} fill="#c9a84c" strokeWidth={0} /> {p.avgRating}
-                    </span>
+            <div style={{ position: 'relative', height: '140px', borderRadius: 'var(--radius-lg, 16px)', overflow: 'hidden', background: cover ? 'var(--warm-gray)' : 'linear-gradient(135deg, #2a2a44 0%, #1a1a2e 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                {cover
+                    ? <img src={cover} alt={p.businessName || p.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                    : <span style={{ fontFamily: 'var(--font-display)', fontSize: '2.6rem', fontWeight: '700', color: 'var(--gold)' }}>{initial}</span>}
+                {badge && (
+                    <span style={{ position: 'absolute', top: '10px', left: '10px', background: badge === 'New' ? 'var(--ink)' : 'rgba(255,255,255,0.95)', color: badge === 'New' ? '#fff' : 'var(--charcoal)', fontSize: '0.7rem', fontWeight: '700', padding: '3px 10px', borderRadius: '999px' }}>{badge}</span>
                 )}
+                <button
+                    type="button"
+                    aria-label={isFav ? 'Remove from saved' : 'Save to favorites'}
+                    onClick={(e) => onToggleFav(e, String(p._id))}
+                    style={{ position: 'absolute', top: '8px', right: '8px', width: '30px', height: '30px', borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
+                >
+                    <Heart size={16} strokeWidth={2} fill={isFav ? '#e0245e' : 'none'} color={isFav ? '#e0245e' : '#52525b'} />
+                </button>
             </div>
-            <div style={{ padding: '0.9rem 1rem 1.1rem' }}>
-                <p style={{ fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.98rem', margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.name}</p>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 0.6rem' }}>{p.providerCategory || 'Service provider'}</p>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
-                    {(p.businessProfile?.address || p.location) ? (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--text-secondary)', fontSize: '0.78rem', minWidth: 0 }}>
-                            <MapPin size={13} strokeWidth={2} style={{ flexShrink: 0 }} />
-                            <span style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.location || p.businessProfile?.address}</span>
+            <div style={{ padding: '0.6rem 0.15rem 0' }}>
+                <p style={{ fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.95rem', margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.businessName || p.name}</p>
+                {loc && <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{loc}</p>}
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                        {p.providerCategory ? `${p.providerCategory} · ` : ''}{reviews}
+                    </span>
+                    {p.avgRating && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.8rem', fontWeight: '700', color: 'var(--charcoal)', flexShrink: 0 }}>
+                            <Star size={13} fill="#c9a84c" strokeWidth={0} /> {p.avgRating}
                         </span>
-                    ) : <span />}
-                    {priceFrom && <span style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', whiteSpace: 'nowrap' }}>{priceFrom}</span>}
+                    )}
                 </div>
             </div>
         </Link>
@@ -54,14 +61,45 @@ const Home = () => {
     const navigate = useNavigate();
     const [query, setQuery] = useState('');
     const [providers, setProviders] = useState([]);
+    const [favorites, setFavorites] = useState([]);
     const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         providerMarketService.getAllProviders()
-            .then(res => setProviders((res.data.data || []).slice(0, 8)))
+            .then(res => setProviders(res.data.data || []))
             .catch(() => setProviders([]))
             .finally(() => setLoading(false));
     }, []);
+
+    useEffect(() => {
+        if (!user) { setFavorites([]); return; }
+        favoriteService.list()
+            .then(res => setFavorites((res.data.data || []).map(String)))
+            .catch(() => {});
+    }, [user]);
+
+    const favSet = useMemo(() => new Set(favorites), [favorites]);
+
+    const toggleFav = async (e, id) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (!user) { navigate('/login'); return; }
+        setFavorites(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+        try {
+            const res = await favoriteService.toggle(id);
+            setFavorites((res.data.data || []).map(String));
+        } catch {
+            favoriteService.list().then(r => setFavorites((r.data.data || []).map(String))).catch(() => {});
+        }
+    };
+
+    const sections = useMemo(() => {
+        const featured = [...providers].filter(p => p.avgRating).sort((a, b) => b.avgRating - a.avgRating).slice(0, 10);
+        const newest = [...providers].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 10);
+        const trending = [...providers].filter(p => p.reviewCount > 0).sort((a, b) => b.reviewCount - a.reviewCount).slice(0, 10);
+        const saved = providers.filter(p => favSet.has(String(p._id)));
+        return { saved, featured, newest, trending };
+    }, [providers, favSet]);
 
     const handleSearch = (e) => {
         e.preventDefault();
@@ -106,36 +144,44 @@ const Home = () => {
                 </div>
             </section>
 
-            {/* ── Recommended providers ── */}
+            {/* ── Discovery feed ── */}
             <section style={{ paddingBottom: '3.5rem' }}>
                 <div className="container">
-                    <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '1.5rem', gap: '1rem' }}>
-                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.5rem, 3vw, 2rem)', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Recommended</h2>
-                        <Link to="/services" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: 'var(--gold-dark)', fontWeight: '600', fontSize: '0.9rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                            View all <ArrowRight size={15} strokeWidth={2} />
-                        </Link>
-                    </div>
-
                     {loading ? (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '1.25rem' }}>
-                            {[0, 1, 2, 3].map(i => (
-                                <div key={i} style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg, 18px)', overflow: 'hidden' }}>
-                                    <div style={{ height: '132px', background: 'var(--warm-gray)' }} />
-                                    <div style={{ padding: '1rem' }}>
-                                        <div style={{ height: '12px', width: '70%', background: 'var(--warm-gray)', borderRadius: '6px', marginBottom: '8px' }} />
-                                        <div style={{ height: '10px', width: '45%', background: 'var(--warm-gray)', borderRadius: '6px' }} />
-                                    </div>
+                        <div style={{ display: 'flex', gap: '1rem', overflow: 'hidden' }}>
+                            {[0, 1, 2, 3, 4].map(i => (
+                                <div key={i} style={{ flex: '0 0 200px' }}>
+                                    <div style={{ height: '140px', background: 'var(--warm-gray)', borderRadius: 'var(--radius-lg, 16px)', marginBottom: '0.6rem' }} />
+                                    <div style={{ height: '12px', width: '70%', background: 'var(--warm-gray)', borderRadius: '6px', marginBottom: '8px' }} />
+                                    <div style={{ height: '10px', width: '45%', background: 'var(--warm-gray)', borderRadius: '6px' }} />
                                 </div>
                             ))}
                         </div>
-                    ) : providers.length > 0 ? (
-                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(230px, 1fr))', gap: '1.25rem' }}>
-                            {providers.map(p => <ProviderCard key={p._id} p={p} />)}
-                        </div>
-                    ) : (
+                    ) : providers.length === 0 ? (
                         <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                             <p style={{ margin: 0, fontSize: '0.95rem' }}>New providers are joining soon. Check back shortly.</p>
                         </div>
+                    ) : (
+                        [
+                            { title: 'Saved', items: sections.saved, badge: null },
+                            { title: 'Featured', items: sections.featured, badge: 'Featured' },
+                            { title: 'New on Bookplus', items: sections.newest, badge: 'New' },
+                            { title: 'Trending', items: sections.trending, badge: null },
+                        ].filter(row => row.items.length > 0).map(row => (
+                            <div key={row.title} style={{ marginBottom: '2.5rem' }}>
+                                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '1rem', gap: '1rem' }}>
+                                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>{row.title}</h2>
+                                    <Link to="/services" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: 'var(--gold-dark)', fontWeight: '600', fontSize: '0.9rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                                        View all <ArrowRight size={15} strokeWidth={2} />
+                                    </Link>
+                                </div>
+                                <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', paddingBottom: '0.5rem', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
+                                    {row.items.map(p => (
+                                        <ProviderCard key={p._id} p={p} badge={row.badge} isFav={favSet.has(String(p._id))} onToggleFav={toggleFav} />
+                                    ))}
+                                </div>
+                            </div>
+                        ))
                     )}
                 </div>
             </section>

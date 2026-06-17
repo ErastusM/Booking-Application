@@ -69,6 +69,36 @@ exports.deleteUser = async (req, res) => {
     }
 };
 
+// ── Favorites (saved providers) — available to any signed-in user ──
+exports.getFavorites = async (req, res) => {
+    try {
+        const me = await User.findById(req.user.id).select('favorites');
+        res.status(200).json({ success: true, data: me?.favorites || [] });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+exports.toggleFavorite = async (req, res) => {
+    try {
+        const { providerId } = req.params;
+        const provider = await User.findOne({ _id: providerId, role: 'provider' }).select('_id');
+        if (!provider) return res.status(404).json({ success: false, message: 'Provider not found' });
+
+        const me = await User.findById(req.user.id).select('favorites');
+        if (!me) return res.status(404).json({ success: false, message: 'User not found' });
+
+        const idx = me.favorites.findIndex(f => f.toString() === providerId);
+        if (idx >= 0) me.favorites.splice(idx, 1);
+        else me.favorites.push(provider._id);
+        await me.save();
+
+        res.status(200).json({ success: true, data: me.favorites });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
 exports.updateUserRole = async (req, res) => {
     try {
         const { role } = req.body;

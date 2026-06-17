@@ -14,7 +14,7 @@ exports.getAllProviders = async (req, res) => {
         const providers = await User.find({
             _id: { $in: providerIds },
             role: 'provider',
-        }).select('name avatar providerCategory businessProfile');
+        }).select('name avatar providerCategory businessProfile portfolio createdAt');
 
         // Batch: fetch all services for these providers in ONE query
         const allServices = await Service.find({
@@ -59,6 +59,8 @@ exports.getAllProviders = async (req, res) => {
                 name: p.name,
                 businessName: p.businessProfile?.businessName || p.name,
                 avatar: p.avatar,
+                coverImage: p.portfolio?.images?.[0] || null,
+                createdAt: p.createdAt,
                 providerCategory: p.providerCategory || null,
                 serviceCount: services.length,
                 reviewCount: ratings.length,

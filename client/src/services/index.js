@@ -49,6 +49,11 @@ export const userService = {
     toggleUserActive: (id) => API.put(`/users/${id}/active`),
 };
 
+export const favoriteService = {
+    list: () => API.get('/users/favorites'),
+    toggle: (providerId) => API.put(`/users/favorites/${providerId}`),
+};
+
 export const waitingListService = {
     join: (data) => API.post('/waitinglist', data),
     getMyList: () => API.get('/waitinglist'),
