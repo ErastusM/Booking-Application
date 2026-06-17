@@ -1,10 +1,12 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import PushToggle from '../components/PushToggle';
 
 const Profile = () => {
-    const { user, setUser } = useAuthContext();
+    const { user, setUser, switchRole } = useAuthContext();
+    const navigate = useNavigate();
     const [formData, setFormData] = useState({
         name: user?.name || '',
         phone: user?.phone || '',
@@ -78,6 +80,27 @@ const Profile = () => {
             </div>
 
             <div className="container" style={{ paddingTop: '3rem', paddingBottom: '5rem' }}>
+
+                {/* Account mode — keep switching / upgrading discoverable (not buried in the menu) */}
+                {user?.role === 'customer' && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', background: 'var(--card-bg)', border: '1px solid var(--border)', borderLeft: '3px solid var(--gold)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', marginBottom: '2rem' }}>
+                        <div>
+                            <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1.05rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.2rem' }}>Grow your business on Bookplus</h3>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>List your services and take bookings — you keep this customer account too.</p>
+                        </div>
+                        <button onClick={() => navigate('/become-provider')} className="btn-primary" style={{ padding: '0.7rem 1.5rem', whiteSpace: 'nowrap' }}>Become a provider →</button>
+                    </div>
+                )}
+                {user?.role === 'provider' && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', background: 'var(--card-bg)', border: '1px solid var(--border)', borderLeft: '3px solid var(--gold)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', marginBottom: '2rem' }}>
+                        <div>
+                            <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1.05rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.2rem' }}>You're in customer view</h3>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>Browsing and booking as a customer. Switch back to manage your business.</p>
+                        </div>
+                        <button onClick={() => { switchRole('provider'); navigate('/dashboard'); }} className="btn-primary" style={{ padding: '0.7rem 1.5rem', whiteSpace: 'nowrap' }}>Switch to provider view →</button>
+                    </div>
+                )}
+
                 <div className="profile-grid" style={{
                     display: 'grid',
                     gridTemplateColumns: '300px 1fr',

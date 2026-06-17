@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { authService, reviewService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -37,7 +37,8 @@ const sidebarItems = [
 ];
 
 const ProviderAccount = () => {
-    const { user, setUser } = useAuthContext();
+    const { user, setUser, switchRole } = useAuthContext();
+    const navigate = useNavigate();
     const { darkMode: darkModeOn, toggleDarkMode } = useTheme();
     const [section, setSection] = useState('profile');
 
@@ -223,6 +224,15 @@ const ProviderAccount = () => {
                                 {item.label}
                             </button>
                         ))}
+                        {/* Switch to customer view — surfaced here so it isn't buried in the menu */}
+                        <div style={{ borderTop: '1px solid var(--border)', marginTop: '0.75rem', paddingTop: '0.75rem' }}>
+                            <button
+                                onClick={() => { switchRole('customer'); navigate('/'); }}
+                                style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 0.75rem', background: 'none', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.875rem', fontWeight: '600', color: 'var(--gold-dark)' }}
+                            >
+                                ⇄ Switch to customer view
+                            </button>
+                        </div>
                     </div>
 
                     {/* Content */}
