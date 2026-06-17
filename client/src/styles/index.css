@@ -399,9 +399,16 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
   }
 
   /* Stats: 2x2 grid on mobile */
-  .stats-grid { grid-template-columns: repeat(2, 1fr) !important; gap: 0.65rem !important; }
-  .stats-grid > div { padding: 0.9rem 1rem !important; }
-  .stats-grid > div p:last-child { font-size: 1.3rem !important; }
+  .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)) !important; gap: 0.65rem !important; }
+  /* minmax(0,…) + min-width:0 let each card (and its text block) shrink inside
+     its track instead of forcing the row wider than the viewport — otherwise the
+     right-hand column gets clipped by body{overflow-x:hidden}. */
+  .stats-grid > div { padding: 0.9rem !important; gap: 0.65rem !important; min-width: 0; }
+  .stats-grid > div > div { min-width: 0; }
+  .stats-grid > div p { overflow-wrap: break-word; }
+  /* Enlarge the value line only. These cards are label + value + sub, so target
+     the 2nd <p>; :last-child would blow the sub-caption up to 1.3rem. */
+  .stats-grid > div p:nth-child(2) { font-size: 1.3rem !important; }
 
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .table-scroll table { min-width: 600px; }
