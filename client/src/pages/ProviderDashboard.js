@@ -1031,23 +1031,27 @@ const ProviderDashboard = () => {
         return out.length ? out : false;
     })();
 
-    // Span the calendar to the provider's ACTUAL working hours (widening the default
-    // 07:00–22:00 window if needed) so availability they set — and slots customers can
-    // book — are never hidden above/below the visible grid.
+    // Span the calendar to the provider's ACTUAL working hours AND anything already
+    // scheduled outside them (appointments / blocked times), widening the default
+    // 07:00–22:00 window as needed — so nothing bookable or booked is hidden off-grid.
     const calendarTimeRange = (() => {
         let minM = 7 * 60, maxM = 22 * 60;
+        const consider = (start, end) => {
+            const [sh, sm] = String(start || '').split(':').map(Number);
+            const [eh, em] = String(end || '').split(':').map(Number);
+            if (Number.isFinite(sh)) minM = Math.min(minM, sh * 60 + (sm || 0));
+            if (Number.isFinite(eh)) maxM = Math.max(maxM, eh * 60 + (em || 0));
+        };
         if (availability) {
             Object.values(availability).forEach(cfg => {
                 if (cfg?.enabled && Array.isArray(cfg.slots)) {
-                    cfg.slots.forEach(s => {
-                        const [sh, sm] = String(s?.start || '').split(':').map(Number);
-                        const [eh, em] = String(s?.end || '').split(':').map(Number);
-                        if (Number.isFinite(sh)) minM = Math.min(minM, sh * 60 + (sm || 0));
-                        if (Number.isFinite(eh)) maxM = Math.max(maxM, eh * 60 + (em || 0));
-                    });
+                    cfg.slots.forEach(s => consider(s?.start, s?.end));
                 }
             });
         }
+        (appointments || []).forEach(a => consider(a.startTime, a.endTime));
+        (blockedTimes || []).forEach(b => consider(b.startTime, b.endTime));
+
         const pad = (n) => String(n).padStart(2, '0');
         const minH = Math.max(0, Math.floor(minM / 60));
         const maxH = Math.min(24, Math.ceil(maxM / 60));
