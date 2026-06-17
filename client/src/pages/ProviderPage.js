@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { providerMarketService } from '../services';
+import { cloudinaryAvatar } from '../utils/cloudinary';
 
 const StarDisplay = ({ rating }) => (
     <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
@@ -231,7 +232,7 @@ const ProvidersPage = () => {
                                     <div style={{ height: '140px', background: 'linear-gradient(135deg, var(--charcoal) 0%, var(--charcoal-light) 100%)', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                         <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 70% 30%, rgba(201,168,76,0.15) 0%, transparent 60%)' }} />
                                         {provider.avatar ? (
-                                            <img src={provider.avatar} alt={provider.name} style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', position: 'relative', zIndex: 1 }} />
+                                            <img src={cloudinaryAvatar(provider.avatar)} alt={provider.name} style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', position: 'relative', zIndex: 1 }} />
                                         ) : (
                                             <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-body)', fontSize: '2rem', fontWeight: '700', color: 'var(--ink)', border: '3px solid rgba(255,255,255,0.2)', position: 'relative', zIndex: 1 }}>
                                                 {getInitials(provider.name)}

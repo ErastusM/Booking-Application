@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { authService } from '../services';
 import MAIN_CATEGORIES from '../constants/mainCategories';
+import { cloudinaryAvatar } from '../utils/cloudinary';
 
 const CompleteProfile = () => {
     const { user, setUser } = useAuthContext();
@@ -61,7 +62,7 @@ const CompleteProfile = () => {
                         {/* Avatar */}
                         <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
                             {user?.avatar ? (
-                                <img src={user.avatar} alt={user.name} style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', margin: '0 auto', display: 'block', marginBottom: '1rem' }} />
+                                <img src={cloudinaryAvatar(user.avatar)} alt={user.name} style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', margin: '0 auto', display: 'block', marginBottom: '1rem' }} />
                             ) : (
                                 <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-body)', fontSize: '2rem', fontWeight: '700', color: 'var(--ink)', margin: '0 auto', marginBottom: '1rem' }}>
                                     {getInitials(user?.name)}

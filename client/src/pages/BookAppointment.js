@@ -4,6 +4,7 @@ import { useAuthContext } from '../context/AuthContext';
 import { appointmentService, serviceService, waitingListService, providerMarketService, availabilityService } from '../services';
 import { Calendar, Clock, CalendarX2 } from 'lucide-react';
 import { buildTimeSlots } from '../utils/bookingSlots';
+import { cloudinaryAvatar } from '../utils/cloudinary';
 
 const BookAppointment = () => {
     const { user } = useAuthContext();
@@ -345,7 +346,7 @@ const BookAppointment = () => {
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', paddingBottom: '1.25rem', borderBottom: '1px solid var(--border)', marginBottom: '1.25rem' }}>
                                             <div style={{ width: '56px', height: '56px', borderRadius: '50%', overflow: 'hidden', background: 'var(--warm-gray)', flexShrink: 0 }}>
                                                 {providerInfo.avatar
-                                                    ? <img src={providerInfo.avatar} alt={providerInfo.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                    ? <img src={cloudinaryAvatar(providerInfo.avatar)} alt={providerInfo.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                     : <div style={{ width: '100%', height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--gold)', fontWeight: '600' }}>{providerInfo.name?.charAt(0)}</div>
                                                 }
                                             </div>

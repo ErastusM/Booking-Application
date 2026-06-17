@@ -10,6 +10,7 @@ import OnboardingWizard from '../components/OnboardingWizard';
 import FormsManager from '../components/FormsManager';
 import ApptFormsView from '../components/ApptFormsView';
 import { Calendar, History, Scissors, CalendarClock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban } from 'lucide-react';
+import { cloudinaryAvatar } from '../utils/cloudinary';
 
 const statusConfig = {
     pending: { label: 'Pending', bg: '#fef3c7', color: '#92400e' },
@@ -2974,7 +2975,7 @@ const ProviderDashboard = () => {
                                         return (
                                             <div key={ci} style={{ padding:'0.75rem 0.5rem', textAlign:'center', borderLeft:'1px solid var(--border)', display:'flex', flexDirection:'column', alignItems:'center', gap:'0.35rem' }}>
                                                 <div style={{ width:'36px', height:'36px', borderRadius:'50%', background:col.avatar?'transparent':(col.color||'#c9a84c'), display:'flex', alignItems:'center', justifyContent:'center', overflow:'hidden', border:isToday&&ci===0?`2px solid ${col.color||'#c9a84c'}`:'2px solid transparent' }}>
-                                                    {col.avatar?<img src={col.avatar} alt={col.name} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{color:'white',fontWeight:'700',fontSize:'0.85rem'}}>{(col.name||'?')[0]}</span>}
+                                                    {col.avatar?<img src={cloudinaryAvatar(col.avatar)} alt={col.name} style={{width:'100%',height:'100%',objectFit:'cover'}}/>:<span style={{color:'white',fontWeight:'700',fontSize:'0.85rem'}}>{(col.name||'?')[0]}</span>}
                                                 </div>
                                                 <span style={{ fontSize:'0.78rem', fontWeight:'600', color:'var(--charcoal)' }}>{col.name}</span>
                                                 {ci===0 && <span style={{ fontSize:'0.65rem', color:'var(--text-muted)' }}>{getAppointmentsForDate(currentDate).length} appts</span>}
@@ -3715,7 +3716,7 @@ const ProviderDashboard = () => {
                                 <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Team member</label>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem 0.875rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--warm-gray)' }}>
                                     <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: user?.avatar ? 'transparent' : 'var(--charcoal)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                        {user?.avatar ? <img src={user.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ color: 'var(--gold)', fontWeight: '700', fontSize: '0.8rem' }}>{user?.name?.[0]}</span>}
+                                        {user?.avatar ? <img src={cloudinaryAvatar(user.avatar)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ color: 'var(--gold)', fontWeight: '700', fontSize: '0.8rem' }}>{user?.name?.[0]}</span>}
                                     </div>
                                     <span style={{ fontSize: '0.875rem', color: 'var(--charcoal)', fontFamily: 'Outfit, sans-serif', fontWeight: '500' }}>{user?.name}</span>
                                 </div>

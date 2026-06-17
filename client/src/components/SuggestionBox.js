@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { suggestionService } from '../services';
+import { cloudinaryAvatar } from '../utils/cloudinary';
 
 const CATEGORIES = ['Feature Request', 'Bug Report', 'Improvement', 'Compliment', 'General'];
 
@@ -158,7 +159,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                             {user && (
                                 <div style={{ background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '0.75rem 1rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                     <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)', fontWeight: '700', fontSize: '0.85rem', flexShrink: 0 }}>
-                                        {user.avatar ? <img src={user.avatar} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : user.name?.[0]?.toUpperCase()}
+                                        {user.avatar ? <img src={cloudinaryAvatar(user.avatar)} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : user.name?.[0]?.toUpperCase()}
                                     </div>
                                     <div>
                                         <p style={{ margin: 0, fontWeight: '600', fontSize: '0.85rem', color: 'var(--charcoal)' }}>{user.name}</p>

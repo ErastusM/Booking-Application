@@ -4,6 +4,7 @@ import { authService, reviewService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import PushToggle from '../components/PushToggle';
+import { cloudinaryAvatar } from '../utils/cloudinary';
 
 const CLOUDINARY_CLOUD = 'dktit6s95';
 const CLOUDINARY_PRESET = 'bookplus';
@@ -254,7 +255,7 @@ const ProviderAccount = () => {
                                     <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '2rem', textAlign: 'center' }}>
                                         <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem', fontSize: '2rem', fontWeight: '700', color: 'var(--ink)' }}>
                                             {user?.avatar
-                                                ? <img src={user.avatar} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                ? <img src={cloudinaryAvatar(user.avatar)} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                 : user?.name?.charAt(0).toUpperCase()
                                             }
                                         </div>
@@ -434,7 +435,7 @@ const ProviderAccount = () => {
                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                                             <div style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '0.8rem', color: 'var(--ink)', flexShrink: 0, overflow: 'hidden' }}>
                                                                 {r.customer?.avatar
-                                                                    ? <img src={r.customer.avatar} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                                    ? <img src={cloudinaryAvatar(r.customer.avatar)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                                     : r.customer?.name?.charAt(0).toUpperCase()
                                                                 }
                                                             </div>

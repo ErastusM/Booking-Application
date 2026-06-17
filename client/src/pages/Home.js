@@ -3,13 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { providerMarketService, favoriteService } from '../services';
 import { Search, Star, ShieldCheck, CalendarCheck, Clock, Zap, ArrowRight, Heart } from 'lucide-react';
-
-// Ask Cloudinary for a right-sized, retina-aware, modern-format crop so card
-// images stay crisp instead of being browser-upscaled. Non-Cloudinary URLs pass through.
-const cloudinaryThumb = (url, w = 600, h = 450) => {
-    if (!url || typeof url !== 'string' || !url.includes('/image/upload/')) return url;
-    return url.replace('/image/upload/', `/image/upload/c_fill,g_auto,ar_${w}:${h},w_${w},q_auto,f_auto,dpr_auto/`);
-};
+import { cloudinaryThumb } from '../utils/cloudinary';
 
 const features = [
     { Icon: ShieldCheck, title: 'Trusted professionals', description: 'Top-rated providers across beauty, wellness, automotive, training and more.' },
