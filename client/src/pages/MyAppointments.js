@@ -60,6 +60,14 @@ const MyAppointments = () => {
     useEffect(() => { fetchData(); }, []);
 
     useEffect(() => {
+        if (searchParams.get('rescheduled') === '1') {
+            setSuccess('Appointment rescheduled — pending provider confirmation.');
+            const t = setTimeout(() => setSuccess(''), 12000);
+            return () => clearTimeout(t);
+        }
+    }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
         if (!justConfirmed && !justWaitlisted) return;
         const t = setTimeout(() => {
             setShowConfirmedBanner(false);
@@ -160,6 +168,14 @@ const MyAppointments = () => {
             setError('Failed to send message');
         }
         setSendingMsg(false);
+    };
+
+    // Reschedule now reuses the booking calendar (availability-aware) instead of
+    // a free-form date/time modal, so customers can only pick genuinely open slots.
+    const goReschedule = (a) => {
+        const providerId = a.provider?._id || a.provider || '';
+        const serviceId = a.service?._id || a.service || '';
+        navigate(`/book-appointment?reschedule=${a._id}&providerId=${providerId}&serviceId=${serviceId}`);
     };
 
     const handleReschedule = async (e) => {
@@ -341,7 +357,7 @@ const MyAppointments = () => {
                                             return (
                                                 <>
                                                     {(a.status === 'pending' || a.status === 'confirmed') && (
-                                                        <button onClick={() => { setReschedulingAppointment(a); setRescheduleForm({ appointmentDate: '', startTime: '' }); }} style={gold}>
+                                                        <button onClick={() => goReschedule(a)} style={gold}>
                                                             <CalendarClock size={15} strokeWidth={2} /> Reschedule
                                                         </button>
                                                     )}
@@ -467,8 +483,7 @@ const MyAppointments = () => {
                                 onClick={() => {
                                     const appt = showCancelModal;
                                     setShowCancelModal(null);
-                                    setReschedulingAppointment(appt);
-                                    setRescheduleForm({ appointmentDate: '', startTime: '' });
+                                    goReschedule(appt);
                                 }}
                                 className="btn-primary"
                                 style={{ padding: '0.9rem', fontSize: '0.95rem', textAlign: 'center' }}

@@ -8,6 +8,7 @@ const BookAppointment = () => {
     const { user } = useAuthContext();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
+    const rescheduleId = searchParams.get('reschedule'); // present → reschedule mode
 
     // â"€â"€ data â"€â"€
     const [services, setServices] = useState([]);
@@ -174,11 +175,19 @@ const BookAppointment = () => {
         setLoading(true);
         setError('');
         try {
-            await appointmentService.createAppointment({ ...formData, selectedAddOns });
-            const providerName = providerInfo?.name || '';
-            navigate(`/appointments?confirmed=1&provider=${encodeURIComponent(providerName)}`);
+            if (rescheduleId) {
+                await appointmentService.rescheduleAppointment(rescheduleId, {
+                    appointmentDate: formData.appointmentDate,
+                    startTime: formData.startTime,
+                });
+                navigate('/appointments?rescheduled=1');
+            } else {
+                await appointmentService.createAppointment({ ...formData, selectedAddOns });
+                const providerName = providerInfo?.name || '';
+                navigate(`/appointments?confirmed=1&provider=${encodeURIComponent(providerName)}`);
+            }
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to book appointment');
+            setError(err.response?.data?.message || (rescheduleId ? 'Failed to reschedule appointment' : 'Failed to book appointment'));
             setStep('form');
         } finally {
             setLoading(false);
@@ -424,7 +433,7 @@ const BookAppointment = () => {
                                     style={{ width: '100%', padding: '0.875rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.95rem', fontWeight: '600', fontFamily: 'Outfit, sans-serif', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, letterSpacing: '0.03em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem' }}
                                 >
                                     {loading && <span style={{ display: 'inline-block', width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
-                                    {loading ? 'Confirming...' : 'Confirm'}
+                                    {loading ? 'Confirming...' : rescheduleId ? 'Confirm reschedule' : 'Confirm'}
                                 </button>
                             </div>
                         </div>
@@ -439,7 +448,7 @@ const BookAppointment = () => {
                     </div>
                     <button data-testid="booking-confirm-mobile" onClick={handleConfirm} disabled={loading} style={{ padding: '0.875rem 2rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '700', fontFamily: 'Outfit, sans-serif', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         {loading && <span style={{ display: 'inline-block', width: '15px', height: '15px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
-                        {loading ? 'Confirming...' : 'Confirm'}
+                        {loading ? 'Confirming...' : rescheduleId ? 'Confirm reschedule' : 'Confirm'}
                     </button>
                 </div>
             </div>
@@ -453,8 +462,8 @@ const BookAppointment = () => {
             <div style={{ background: 'var(--ink)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 20% 50%, rgba(201,168,76,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
-                    <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Schedule Your Visit</p>
-                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '600', color: 'white' }}>Book an Appointment</h1>
+                    <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>{rescheduleId ? 'Reschedule' : 'Schedule Your Visit'}</p>
+                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '600', color: 'white' }}>{rescheduleId ? 'Reschedule your appointment' : 'Book an Appointment'}</h1>
                 </div>
             </div>
 
