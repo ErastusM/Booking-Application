@@ -33,7 +33,7 @@ passport.use(new GoogleStrategy({
                     isVerified: true,
                 });
                 // Welcome email for new social sign-ups (providers and customers alike)
-                sendWelcomeEmail(user.email, user.name).catch(() => {});
+                sendWelcomeEmail(user.email, user.name, user.role).catch(() => {});
             }
         }
         return done(null, user);

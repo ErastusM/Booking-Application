@@ -75,6 +75,12 @@ function assertRequiredEnv() {
 
 const app = express();
 
+// Trust the first proxy hop (Nginx) so express-rate-limit reads the real
+// client IP from X-Forwarded-For instead of the proxy IP. Without this,
+// every request appears to come from the same IP and the whole bucket is
+// shared across all users.
+app.set('trust proxy', 1);
+
 // Structured logger — pretty in dev, JSON in production/test
 const logger = pino({
     level: process.env.LOG_LEVEL || 'info',
@@ -85,7 +91,7 @@ module.exports.logger = logger;
 // Rate limiters — disabled in test environment to prevent 429s during test runs
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes
-    max: process.env.NODE_ENV === 'test' ? 10000 : 20,
+    max: process.env.NODE_ENV === 'test' ? 10000 : 50,
     message: { success: false, message: 'Too many requests, please try again later.' },
     standardHeaders: true,
     legacyHeaders: false,
