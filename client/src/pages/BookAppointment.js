@@ -27,6 +27,7 @@ const BookAppointment = () => {
     const [providerAvailability, setProviderAvailability] = useState(null);
     const [availabilityError, setAvailabilityError] = useState('');
     const [bookedSlots, setBookedSlots] = useState([]); // [{startTime, endTime}]
+    const [calendarMonth, setCalendarMonth] = useState(() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; });
 
     const effectivePrice    = selectedOption ? selectedOption.price    : (selectedService?.price    ?? 0);
     const effectiveDuration = selectedOption ? selectedOption.duration : (selectedService?.duration ?? 0);
@@ -205,20 +206,38 @@ const BookAppointment = () => {
         }
     };
 
-    const today = new Date().toISOString().split('T')[0];
+    // ── Booking calendar: navigable month grid, today → MONTHS_AHEAD months out ──
+    const MONTHS_AHEAD = 4;
+    const startOfToday = (() => { const d = new Date(); d.setHours(0, 0, 0, 0); return d; })();
+    const maxDate = (() => { const d = new Date(startOfToday); d.setMonth(d.getMonth() + MONTHS_AHEAD); return d; })();
+    const firstVisibleMonth = (() => { const d = new Date(startOfToday); d.setDate(1); return d; })();
+    const lastVisibleMonth = (() => { const d = new Date(firstVisibleMonth); d.setMonth(d.getMonth() + MONTHS_AHEAD); return d; })();
 
-    // Date strip — next 6 months (~180 days)
-    const dateStrip = (() => {
-        const days = [];
-        const now = new Date();
-        now.setHours(0, 0, 0, 0);
-        for (let i = 0; i < 180; i++) {
-            const d = new Date(now);
-            d.setDate(now.getDate() + i);
-            days.push(d);
-        }
-        return days;
-    })();
+    const fmtDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
+    // Build a month's day cells, padded with leading nulls so the 1st lands on its weekday.
+    const monthMatrix = (monthDate) => {
+        const year = monthDate.getFullYear();
+        const month = monthDate.getMonth();
+        const firstWeekday = new Date(year, month, 1).getDay();
+        const daysInMonth = new Date(year, month + 1, 0).getDate();
+        const cells = [];
+        for (let i = 0; i < firstWeekday; i++) cells.push(null);
+        for (let day = 1; day <= daysInMonth; day++) cells.push(new Date(year, month, day));
+        return cells;
+    };
+
+    // A day is bookable only on weekdays the provider actually works (when known).
+    const dayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const providerWorksOn = (d) => {
+        if (!providerAvailability) return true; // schedule unknown (generic booking) → leave enabled
+        const sched = providerAvailability[dayKeys[d.getDay()]];
+        return !!(sched?.enabled && (sched.slots || []).some(s => s?.start && s?.end));
+    };
+
+    const canGoPrevMonth = calendarMonth > firstVisibleMonth;
+    const canGoNextMonth = calendarMonth < lastVisibleMonth;
+    const calNavBtn = (enabled) => ({ background: 'var(--surface-sunken)', border: '1px solid var(--border)', borderRadius: '8px', width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: enabled ? 'pointer' : 'not-allowed', opacity: enabled ? 1 : 0.4, color: 'var(--charcoal)', fontSize: '1.05rem' });
 
     // Generate time slot pills from provider availability (or 08:00–20:00 fallback).
     // Slots step by the selected service duration, span EVERY working block of the day
@@ -552,40 +571,62 @@ const BookAppointment = () => {
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)' }}>Pick a Date & Time</h2>
                             </div>
 
-                            {/* Horizontal date strip */}
+                            {/* Month calendar — navigate up to 4 months ahead */}
                             <div style={{ marginBottom: '1.5rem' }}>
                                 <label style={labelStyle}>Select a date</label>
-                                <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem', scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                                    {dateStrip.map((d, i) => {
-                                        const dateStr = `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
-                                        const isSelected = formData.appointmentDate === dateStr;
-                                        return (
-                                            <button
-                                                key={i}
-                                                type="button"
-                                                data-testid="booking-date"
-                                                onClick={() => handleDateSelect(dateStr)}
-                                                style={{
-                                                    flexShrink: 0,
-                                                    display: 'flex', flexDirection: 'column', alignItems: 'center',
-                                                    padding: '0.6rem 0.75rem', borderRadius: '12px',
-                                                    border: `2px solid ${isSelected ? 'var(--gold)' : 'var(--border)'}`,
-                                                    background: isSelected ? 'var(--gold)' : 'white',
-                                                    color: 'var(--charcoal)',
-                                                    cursor: 'pointer', minWidth: '52px', transition: 'all 0.15s',
-                                                    fontFamily: 'Outfit, sans-serif',
-                                                }}
-                                            >
-                                                <span style={{ fontSize: '0.62rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', opacity: 0.7 }}>
-                                                    {d.toLocaleDateString('en-US', { weekday: 'short' })}
-                                                </span>
-                                                <span style={{ fontSize: '1.2rem', fontWeight: '700', lineHeight: 1.2 }}>{d.getDate()}</span>
-                                                <span style={{ fontSize: '0.62rem', opacity: 0.7 }}>
-                                                    {d.toLocaleDateString('en-US', { month: 'short' })}
-                                                </span>
-                                            </button>
-                                        );
-                                    })}
+                                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem', background: 'var(--card-bg)', maxWidth: '420px' }}>
+                                    {/* Month header + nav */}
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
+                                        <button type="button" aria-label="Previous month" disabled={!canGoPrevMonth}
+                                            onClick={() => canGoPrevMonth && setCalendarMonth(m => { const d = new Date(m); d.setMonth(d.getMonth() - 1); return d; })}
+                                            style={calNavBtn(canGoPrevMonth)}>←</button>
+                                        <span style={{ fontFamily: 'var(--font-display)', fontWeight: '600', fontSize: '1.05rem', color: 'var(--charcoal)' }}>
+                                            {calendarMonth.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}
+                                        </span>
+                                        <button type="button" aria-label="Next month" disabled={!canGoNextMonth}
+                                            onClick={() => canGoNextMonth && setCalendarMonth(m => { const d = new Date(m); d.setMonth(d.getMonth() + 1); return d; })}
+                                            style={calNavBtn(canGoNextMonth)}>→</button>
+                                    </div>
+                                    {/* Weekday headers */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px', marginBottom: '4px' }}>
+                                        {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map(d => (
+                                            <div key={d} style={{ textAlign: 'center', fontSize: '0.64rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em', padding: '4px 0' }}>{d}</div>
+                                        ))}
+                                    </div>
+                                    {/* Day grid */}
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '4px' }}>
+                                        {monthMatrix(calendarMonth).map((d, i) => {
+                                            if (!d) return <div key={i} />;
+                                            const dateStr = fmtDate(d);
+                                            const disabled = d < startOfToday || d > maxDate || !providerWorksOn(d);
+                                            const isSelected = formData.appointmentDate === dateStr;
+                                            const isToday = dateStr === fmtDate(startOfToday);
+                                            return (
+                                                <button
+                                                    key={i}
+                                                    type="button"
+                                                    data-testid="booking-date"
+                                                    disabled={disabled}
+                                                    onClick={() => !disabled && handleDateSelect(dateStr)}
+                                                    style={{
+                                                        aspectRatio: '1 / 1',
+                                                        display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                                        border: `1.5px solid ${isSelected ? 'var(--gold)' : 'transparent'}`,
+                                                        borderRadius: '10px',
+                                                        background: isSelected ? 'var(--gold)' : isToday ? 'var(--surface-sunken)' : 'transparent',
+                                                        color: disabled ? 'var(--text-muted)' : isSelected ? 'var(--ink)' : 'var(--charcoal)',
+                                                        opacity: disabled ? 0.3 : 1,
+                                                        cursor: disabled ? 'not-allowed' : 'pointer',
+                                                        fontFamily: 'Outfit, sans-serif', fontSize: '0.9rem',
+                                                        fontWeight: isSelected || isToday ? '700' : '500',
+                                                        transition: 'all 0.12s',
+                                                    }}
+                                                >
+                                                    {d.getDate()}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
                                 </div>
                             </div>
 

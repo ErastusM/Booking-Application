@@ -23,9 +23,9 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     if (!user) return <Navigate to="/login" replace />;
 
     if (allowedRoles && !allowedRoles.includes(user.role)) {
-        // Redirect to their rightful home
-        if (user.role === 'admin') return <Navigate to="/admin/dashboard" replace />;
-        if (user.role === 'provider') return <Navigate to="/provider/dashboard" replace />;
+        // Redirect to their rightful home (must match the real routes in App.js)
+        if (user.role === 'admin') return <Navigate to="/bkplus-command" replace />;
+        if (user.role === 'provider') return <Navigate to="/dashboard" replace />;
         return <Navigate to="/" replace />;
     }
 

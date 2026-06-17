@@ -17,9 +17,8 @@ test.describe('Customer booking', () => {
         // 1) Service
         await page.getByTestId('booking-service').first().click();
 
-        // 2) Date — pick the second day in the strip (avoids any partial "today")
-        const dates = page.getByTestId('booking-date');
-        await dates.nth(1).click();
+        // 2) Date — first selectable day in the calendar (skips past/closed days)
+        await page.locator('[data-testid="booking-date"]:not([disabled])').first().click();
 
         // 3) Time — first available (non-booked) slot
         await page.getByTestId('booking-time').first().click();

@@ -14,7 +14,7 @@ const StarDisplay = ({ rating }) => (
 const ProviderProfilePage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { user } = useAuthContext();
+    const { user, activeRole } = useAuthContext();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeCategory, setActiveCategory] = useState('featured');
@@ -177,7 +177,7 @@ const ProviderProfilePage = () => {
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.75rem', flexShrink: 0 }}>
                                             <span style={{ fontFamily: 'var(--font-body)', fontSize: '1.2rem', fontWeight: '700', color: 'var(--charcoal)' }}>${service.price}</span>
-                                            {user?.role === 'customer' && (
+                                            {activeRole !== 'provider' && (
                                                 <button
                                                     onClick={() => navigate(`/book-appointment?serviceId=${service._id}&providerId=${provider._id}`)}
                                                     className="btn-primary"
@@ -236,7 +236,7 @@ const ProviderProfilePage = () => {
                                 })()}
                             </div>
 
-                            {user?.role === 'customer' && (
+                            {activeRole !== 'provider' && (
                                 <button
                                     onClick={() => navigate(`/book-appointment?providerId=${provider._id}`)}
                                     className="btn-primary"
