@@ -270,6 +270,15 @@ const Navbar = () => {
                                     ))}
                                 </div>
                             )}
+                            {/* Customers get an explicit switch-to-providing entry here too */}
+                            {user.role === 'customer' && (
+                                <div style={{ padding: '0 1.2rem 0.85rem' }}>
+                                    <button
+                                        onClick={() => { setMenuOpen(false); navigate('/become-provider'); }}
+                                        style={{ width: '100%', padding: '0.5rem', borderRadius: '99px', border: '1.5px solid var(--gold)', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark,#a07830)', fontSize: '0.78rem', fontWeight: '600', fontFamily: 'Outfit, sans-serif', cursor: 'pointer' }}
+                                    >Become a provider →</button>
+                                </div>
+                            )}
                         </div>
                     )}
 

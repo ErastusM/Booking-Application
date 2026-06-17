@@ -253,7 +253,9 @@ const BookAppointment = () => {
     // (so split shifts / lunch breaks are honoured), and never appear in the past.
     const generateTimeSlots = (dateStr) => {
         const duration = totalDuration || 30;
-        const interval = duration;
+        // Offer slots on the hour regardless of service length (45 min, 1h15m, etc.).
+        // The appointment still spans the real duration; bookings just start on the hour.
+        const interval = 60;
 
         // Working blocks for the day — supports multiple slots (e.g. 09:00–12:00, 13:00–17:00)
         let blocks = [{ start: 8 * 60, end: 20 * 60 }];
