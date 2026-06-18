@@ -19,7 +19,7 @@ jest.mock('../../utils/emailService', () => ({
 
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
-const { makeProvider, makeService, authHeader } = require('../helpers/factories');
+const { makeProvider, makeService, makeUser, authHeader } = require('../helpers/factories');
 
 beforeAll(() => testDb.connect());
 afterAll(() => testDb.closeDatabase());
@@ -50,5 +50,43 @@ describe('Provider creates an appointment from the calendar', () => {
             });
         expect(res.status).toBe(201);
         expect(res.body.data.walkInName).toBe('Walk-in Client');
+    });
+
+    it('books an existing registered client (customerId) — appointment is for the client, not the provider', async () => {
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id, { duration: 30 });
+        const client = await makeUser({ name: 'Existing Client', email: 'existing@test.com' });
+
+        const res = await request(app)
+            .post('/api/appointments')
+            .set(authHeader(provider))
+            .send({
+                service: svc._id.toString(),
+                appointmentDate: nextWeekday(),
+                startTime: '11:00',
+                endTime: '11:30',
+                customerId: client._id.toString(),
+            });
+
+        expect(res.status).toBe(201);
+        // The booking belongs to the chosen client, with no walk-in name
+        expect(res.body.data.customer._id).toBe(client._id.toString());
+        expect(res.body.data.walkInName).toBeNull();
+    });
+
+    it('returns 404 when booking a customerId that does not exist', async () => {
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id, { duration: 30 });
+        const res = await request(app)
+            .post('/api/appointments')
+            .set(authHeader(provider))
+            .send({
+                service: svc._id.toString(),
+                appointmentDate: nextWeekday(),
+                startTime: '12:00',
+                endTime: '12:30',
+                customerId: '64b7f0000000000000000000', // valid ObjectId, no such user
+            });
+        expect(res.status).toBe(404);
     });
 });

@@ -188,7 +188,7 @@ const advanceDate = (date, type) => {
 
 exports.createAppointment = async (req, res) => {
     try {
-        const { service, appointmentDate, startTime, endTime, notes, selectedAddOns, walkInName,
+        const { service, appointmentDate, startTime, endTime, notes, selectedAddOns, walkInName, customerId,
                 isRecurring, recurrenceType, recurrenceEndDate, teamMember } = req.body;
         if (!service || !appointmentDate || !startTime || !endTime) {
             return res.status(400).json({ success: false, message: 'Please provide all required fields' });
@@ -198,6 +198,19 @@ exports.createAppointment = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Service not found' });
         }
         const isProviderBooking = req.user.role === 'provider';
+
+        // A provider booking from their calendar can either log a walk-in (free-text
+        // name) or book on behalf of an existing registered client (customerId).
+        // Resolve who the appointment is actually FOR, so the confirmation email,
+        // reminders and in-app notice reach the real client — not the provider.
+        let bookingClient = req.user;
+        if (isProviderBooking && customerId) {
+            const client = await User.findById(customerId).select('name email phone');
+            if (!client) {
+                return res.status(404).json({ success: false, message: 'Selected client not found' });
+            }
+            bookingClient = client;
+        }
 
         // Customers cannot book a time that has already passed. Providers/admins may
         // back-date (e.g. logging a walk-in that just happened).
@@ -264,7 +277,7 @@ exports.createAppointment = async (req, res) => {
 
         const basePrice = (svc.price || 0) + (Array.isArray(selectedAddOns) ? selectedAddOns.reduce((sum, a) => sum + (a.price || 0), 0) : 0);
         const baseDoc = {
-            customer: req.user._id,
+            customer: bookingClient._id,
             service,
             provider: svc.provider || null,
             startTime,
@@ -274,7 +287,8 @@ exports.createAppointment = async (req, res) => {
             totalPrice: basePrice,
             status: 'confirmed',
             statusHistory: [{ status: 'confirmed', changedBy: req.user._id }],
-            walkInName: isProviderBooking ? (walkInName?.trim() || null) : null,
+            // Walk-in name only when the provider didn't pick a registered client.
+            walkInName: isProviderBooking && !customerId ? (walkInName?.trim() || null) : null,
             teamMember: teamMember || null,
             manageToken: randomUUID(),
         };
@@ -340,16 +354,30 @@ exports.createAppointment = async (req, res) => {
         setImmediate(async () => {
             try {
                 const bookingDate = new Date(appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                // Who the booking is for, in human terms — the registered client, the
+                // walk-in's name, or (for a self-booking) the customer themselves.
+                const clientLabel = isProviderBooking
+                    ? (customerId ? bookingClient.name : (walkInName?.trim() || 'a walk-in client'))
+                    : req.user.name;
                 if (svc.provider) {
                     await createNotification(
                         svc.provider,
-                        `New booking: ${req.user.name} booked ${svc.name} on ${bookingDate} at ${startTime}`,
+                        `New booking: ${clientLabel} booked ${svc.name} on ${bookingDate} at ${startTime}`,
                         'appointment',
                         '/dashboard'
                     );
                 }
+                // When a provider books an existing client, let that client know.
+                if (isProviderBooking && customerId) {
+                    await createNotification(
+                        bookingClient._id,
+                        `${req.user.name} booked you in for ${svc.name} on ${bookingDate} at ${startTime}`,
+                        'appointment',
+                        '/appointments'
+                    );
+                }
                 await notifyAdmins(
-                    `New booking: ${svc.name} by ${req.user.name} on ${bookingDate} at ${startTime}`,
+                    `New booking: ${svc.name} by ${clientLabel} on ${bookingDate} at ${startTime}`,
                     'system',
                     '/bkplus-command'
                 );
@@ -379,9 +407,11 @@ exports.createAppointment = async (req, res) => {
                     venue: providerDoc?.name || undefined,
                     address: address || undefined,
                 };
+                // Send the confirmation to whoever the booking is for: the registered
+                // client when a provider booked on their behalf, otherwise the requester.
                 await sendAppointmentConfirmed(
-                    req.user.email,
-                    req.user.name,
+                    bookingClient.email,
+                    bookingClient.name,
                     svc.name,
                     dateStr,
                     timeStr,

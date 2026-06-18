@@ -72,7 +72,8 @@ const ProviderDashboard = () => {
     const [savingAdjustHours, setSavingAdjustHours] = useState(false);
     const [recurringMode, setRecurringMode] = useState('this');
     const [showApptModal, setShowApptModal] = useState(false);
-    const [apptForm, setApptForm] = useState({ serviceId: '', date: '', startTime: '', clientName: '', notes: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', isGroup: false, groupClients: [{ name: '' }], teamMember: '' });
+    const [apptForm, setApptForm] = useState({ serviceId: '', date: '', startTime: '', clientMode: 'existing', customerId: '', clientName: '', notes: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', isGroup: false, groupClients: [{ name: '' }], teamMember: '' });
+    const [clientPickerSearch, setClientPickerSearch] = useState('');
     const [calendarStaffFilter, setCalendarStaffFilter] = useState('all'); // 'all' | teamMember _id
     const [savingAppt, setSavingAppt] = useState(false);
     const [apptError, setApptError] = useState('');
@@ -192,6 +193,12 @@ const ProviderDashboard = () => {
         // Team needed for staff assignment + the calendar staff filter
         if (activeTab === 'calendar' && teamMembers.length === 0) fetchTeam();
     }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Load the provider's client list when the New Appointment modal opens, so the
+    // "existing client" picker is populated (the Clients tab may not have been opened).
+    useEffect(() => { // eslint-disable-line react-hooks/exhaustive-deps
+        if (showApptModal && clients.length === 0) fetchClients();
+    }, [showApptModal]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const fetchAppointments = async () => {
         // Don't block the whole page — only set loading on first load
@@ -3502,6 +3509,9 @@ const ProviderDashboard = () => {
                             setApptError('');
                             const svc = myServices.find(s => s._id === apptForm.serviceId);
                             if (!svc) { setApptError('Please select a service'); return; }
+                            if (!apptForm.isGroup && apptForm.clientMode === 'existing' && !apptForm.customerId) {
+                                setApptError('Please choose a client, or switch to Walk-in.'); return;
+                            }
                             const [h, m] = apptForm.startTime.split(':').map(Number);
                             const endMins = h * 60 + m + (svc.duration || 30);
                             const endTime = `${String(Math.floor(endMins / 60)).padStart(2,'0')}:${String(endMins % 60).padStart(2,'0')}`;
@@ -3524,7 +3534,8 @@ const ProviderDashboard = () => {
                                         appointmentDate: apptForm.date,
                                         startTime: apptForm.startTime,
                                         endTime,
-                                        walkInName: apptForm.clientName.trim() || undefined,
+                                        customerId: apptForm.clientMode === 'existing' ? (apptForm.customerId || undefined) : undefined,
+                                        walkInName: apptForm.clientMode === 'walkin' ? (apptForm.clientName.trim() || undefined) : undefined,
                                         notes: apptForm.notes,
                                         teamMember: apptForm.teamMember || undefined,
                                         isRecurring: apptForm.isRecurring,
@@ -3582,8 +3593,55 @@ const ProviderDashboard = () => {
                                         </div>
                                     ) : (
                                         <div>
-                                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional)</span></label>
-                                            <input type="text" value={apptForm.clientName} onChange={e => setApptForm(f => ({ ...f, clientName: e.target.value }))} placeholder="e.g. John Smith" className="input" style={{ width: '100%' }} />
+                                            {/* Choose between an existing registered client and a walk-in */}
+                                            <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                                                {[{ mode: 'existing', label: 'Existing client' }, { mode: 'walkin', label: 'Walk-in client' }].map(opt => {
+                                                    const active = apptForm.clientMode === opt.mode;
+                                                    return (
+                                                        <button key={opt.mode} type="button" onClick={() => setApptForm(f => ({ ...f, clientMode: opt.mode }))} style={{
+                                                            flex: 1, padding: '0.5rem 0.4rem', borderRadius: 'var(--radius-sm)',
+                                                            border: `1.5px solid ${active ? 'var(--gold)' : 'var(--border)'}`,
+                                                            background: active ? 'rgba(201,168,76,0.1)' : 'white',
+                                                            color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                                                            fontWeight: active ? '700' : '500', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                                                        }}>{opt.label}</button>
+                                                    );
+                                                })}
+                                            </div>
+                                            {apptForm.clientMode === 'existing' ? (
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client</label>
+                                                    {clients.length === 0 ? (
+                                                        <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
+                                                            {loadingClients ? 'Loading your clients…' : 'No saved clients yet — switch to Walk-in to book by name.'}
+                                                        </p>
+                                                    ) : (
+                                                        <>
+                                                            <input type="text" value={clientPickerSearch} onChange={e => setClientPickerSearch(e.target.value)} placeholder="Search by name or email" className="input" style={{ width: '100%', marginBottom: '0.4rem' }} />
+                                                            <select value={apptForm.customerId} onChange={e => setApptForm(f => ({ ...f, customerId: e.target.value }))} required className="input" style={{ width: '100%' }}>
+                                                                <option value="">Select a client</option>
+                                                                {clients
+                                                                    .filter(c => c.customer && c.customer._id !== user?._id)
+                                                                    .filter(c => {
+                                                                        const q = clientPickerSearch.trim().toLowerCase();
+                                                                        if (!q) return true;
+                                                                        return (c.customer.name || '').toLowerCase().includes(q) || (c.customer.email || '').toLowerCase().includes(q);
+                                                                    })
+                                                                    .map(c => (
+                                                                        <option key={c.customer._id} value={c.customer._id}>
+                                                                            {c.customer.name}{c.customer.email ? ` — ${c.customer.email}` : ''}
+                                                                        </option>
+                                                                    ))}
+                                                            </select>
+                                                        </>
+                                                    )}
+                                                </div>
+                                            ) : (
+                                                <div>
+                                                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional)</span></label>
+                                                    <input type="text" value={apptForm.clientName} onChange={e => setApptForm(f => ({ ...f, clientName: e.target.value }))} placeholder="e.g. John Smith" className="input" style={{ width: '100%' }} />
+                                                </div>
+                                            )}
                                         </div>
                                     )}
                                 </div>

@@ -98,6 +98,13 @@ const createAppointmentRules = [
     body('selectedAddOns')
         .optional()
         .isArray().withMessage('Add-ons must be an array'),
+    body('customerId')
+        .optional({ nullable: true })
+        .isMongoId().withMessage('Invalid client ID'),
+    body('walkInName')
+        .optional({ nullable: true })
+        .trim()
+        .isLength({ max: 100 }).withMessage('Client name cannot exceed 100 characters'),
     handleValidationErrors,
 ];
 
