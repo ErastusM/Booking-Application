@@ -756,7 +756,9 @@ exports.rescheduleAppointment = async (req, res) => {
         appointment.appointmentDate = new Date(appointmentDate);
         appointment.startTime = startTime;
         appointment.endTime = endTime;
-        appointment.status = 'pending';
+        // The slot already passed the schedule + conflict checks above, so it's free —
+        // auto-confirm instead of dropping back to pending (no provider action needed).
+        appointment.status = 'confirmed';
         await appointment.save();
 
         try {
@@ -932,7 +934,9 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
         appt.appointmentDate = new Date(appointmentDate);
         appt.startTime = startTime;
         appt.endTime = endTime;
-        appt.statusHistory.push({ status: appt.status, changedBy: appt.customer?._id || null });
+        // Free slot (checked above) → auto-confirm rather than await provider approval.
+        appt.status = 'confirmed';
+        appt.statusHistory.push({ status: 'confirmed', changedBy: appt.customer?._id || null });
         await appt.save();
 
         setImmediate(async () => {
