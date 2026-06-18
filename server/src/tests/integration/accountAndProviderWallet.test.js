@@ -18,6 +18,8 @@ const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeProvider, makeAdmin, makeUser, makeService, makeAppointment, authHeader } = require('../helpers/factories');
 const User = require('../../models/User');
+const Appointment = require('../../models/Appointment');
+const Wallet = require('../../models/Wallet');
 
 beforeAll(() => testDb.connect());
 afterAll(() => testDb.closeDatabase());
@@ -119,6 +121,30 @@ describe('Account deactivation and deletion', () => {
         const ghost = await User.findById(login.body.data.user.id);
         expect(ghost.name).toBe('Deleted user');
         expect(ghost.deletedAt).toBeTruthy();
+    });
+
+    it('deleting cancels upcoming bookings and releases held wallet funds', async () => {
+        const provider = await makeProvider({ walletSettings: { enabled: true, bookingPaymentMode: 'wallet_required' } });
+        const svc = await makeService(provider._id, { price: 100, duration: 30 });
+        const customer = await makeUser({ password: 'Password1!', isVerified: true });
+
+        // Fund the wallet, then book (reserves 100)
+        const topup = await request(app).post('/api/wallet/topup').set(authHeader(customer)).send({ providerId: provider._id.toString(), amount: 300 });
+        await request(app).post(`/api/wallet/topups/${topup.body.data._id}/approve`).set(authHeader(provider));
+        const booking = await request(app).post('/api/appointments').set(authHeader(customer)).send({
+            service: svc._id.toString(), appointmentDate: futureDate(), startTime: '10:00', endTime: '10:30',
+        });
+        expect(booking.status).toBe(201);
+        expect((await Wallet.findOne({ customer: customer._id, provider: provider._id })).reservedBalance).toBe(100);
+
+        // Delete the account
+        const login = await request(app).post('/api/auth/login').send({ email: customer.email, password: 'Password1!' });
+        const del = await request(app).delete('/api/auth/account').set('Authorization', `Bearer ${login.body.data.token}`).send({ password: 'Password1!' });
+        expect(del.status).toBe(200);
+
+        // The booking is cancelled and the held funds were released
+        expect((await Appointment.findById(booking.body.data._id)).status).toBe('cancelled');
+        expect((await Wallet.findOne({ customer: customer._id, provider: provider._id })).reservedBalance).toBe(0);
     });
 });
 

@@ -542,6 +542,34 @@ exports.deleteAccount = async (req, res) => {
             if (!ok) return res.status(401).json({ success: false, message: 'Password is incorrect' });
         }
 
+        // Cancel the user's upcoming appointments (whether they're the customer or
+        // the provider), release any held wallet funds, and notify the other party.
+        // Wrapped so a cleanup hiccup can never block the deletion itself.
+        try {
+            const Appointment = require('../models/Appointment');
+            const walletService = require('../utils/walletService');
+            const { createNotification } = require('../utils/notificationhelper');
+            const today = new Date(); today.setHours(0, 0, 0, 0);
+            const upcoming = await Appointment.find({
+                $or: [{ customer: user._id }, { provider: user._id }],
+                status: { $in: ['pending', 'confirmed'] },
+                appointmentDate: { $gte: today },
+            }).populate('service', 'name');
+            for (const appt of upcoming) {
+                appt.status = 'cancelled';
+                appt.cancellationReason = 'Account closed';
+                appt.statusHistory.push({ status: 'cancelled', changedBy: user._id });
+                await appt.save();
+                try { await walletService.releaseReservation({ appointmentId: appt._id, resolvedBy: user._id }); } catch (_) {}
+                const otherId = appt.customer?.toString() === user._id.toString() ? appt.provider : appt.customer;
+                if (otherId) {
+                    createNotification(otherId, `An appointment for ${appt.service?.name || 'a service'} was cancelled because the other party closed their account.`, 'appointment', '/appointments');
+                }
+            }
+        } catch (cleanupErr) {
+            console.error('Account deletion cleanup failed:', cleanupErr.message);
+        }
+
         const anonEmail = `deleted_${crypto.randomBytes(8).toString('hex')}@deleted.bookplus`;
         await User.updateOne({ _id: user._id }, {
             $set: {
