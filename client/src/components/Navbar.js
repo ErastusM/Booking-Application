@@ -188,18 +188,30 @@ const Navbar = () => {
                     </button>
                 )}
 
-                {/* Mobile hamburger */}
-                <button
-                    onClick={() => setMenuOpen(prev => !prev)}
-                    className="show-mobile"
-                    aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'white' : 'var(--charcoal)', padding: '0.5rem', minWidth: '44px', minHeight: '44px', alignItems: 'center', justifyContent: 'center' }}>
-                    <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
-                        {menuOpen
-                            ? <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                            : <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />}
-                    </svg>
-                </button>
+                {/* Mobile right cluster — notifications + suggestion + menu (both roles) */}
+                <div className="show-mobile" style={{ alignItems: 'center', gap: '0.1rem' }}>
+                    {user && <NotificationBell isTransparent={isTransparent} />}
+                    {user && (
+                        <button
+                            onClick={() => setShowSuggestion(true)}
+                            aria-label="Send a suggestion"
+                            title="Send a suggestion"
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'white' : 'var(--text-secondary)', padding: '0.5rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                        </button>
+                    )}
+                    <button
+                        onClick={() => setMenuOpen(prev => !prev)}
+                        aria-label={menuOpen ? 'Close menu' : 'Open menu'}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'white' : 'var(--charcoal)', padding: '0.5rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            {menuOpen
+                                ? <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                : <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />}
+                        </svg>
+                    </button>
+                </div>
             </div>
         </nav>
 
