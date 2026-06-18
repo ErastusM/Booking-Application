@@ -10,7 +10,12 @@ const fmtDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2
 // bookings page. Reuses the same slot rules as the booking calendar.
 const RescheduleModal = ({ appointment, onClose, onDone }) => {
     const providerId = appointment?.provider?._id || appointment?.provider || '';
-    const duration = appointment?.service?.duration || 30;
+    // Prefer the service's duration; fall back to the booked span, then 30, so slot
+    // conflict detection (and greying) is accurate even if service isn't populated.
+    const toMin = (t) => { const [h, m] = String(t || '').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+    const duration = appointment?.service?.duration
+        || (appointment?.startTime && appointment?.endTime ? toMin(appointment.endTime) - toMin(appointment.startTime) : 0)
+        || 30;
 
     const [schedule, setSchedule] = useState(null);
     const [selectedDate, setSelectedDate] = useState(null);
@@ -129,13 +134,15 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                             ) : (
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: '0.5rem' }}>
                                     {slots.map((s, i) => (
-                                        <button key={i} disabled={s.isBooked || busy} onClick={() => confirm(s.time)} style={{
+                                        <button key={i} disabled={s.isBooked || busy} onClick={() => confirm(s.time)} title={s.isBooked ? 'Already booked' : ''} style={{
                                             padding: '0.6rem 0.4rem', borderRadius: 'var(--radius-sm)', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.9rem',
                                             border: `1.5px solid ${s.isBooked ? 'var(--border)' : 'var(--gold)'}`,
                                             background: s.isBooked ? 'var(--surface-sunken)' : 'white',
                                             color: s.isBooked ? 'var(--text-muted)' : 'var(--gold-dark)',
-                                            cursor: s.isBooked || busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.6 : 1,
-                                        }}>{s.time}{s.isBooked ? '' : ''}</button>
+                                            textDecoration: s.isBooked ? 'line-through' : 'none',
+                                            opacity: s.isBooked ? 0.55 : (busy ? 0.6 : 1),
+                                            cursor: s.isBooked || busy ? 'not-allowed' : 'pointer',
+                                        }}>{s.time}</button>
                                     ))}
                                 </div>
                             )}
