@@ -1034,28 +1034,23 @@ const ProviderDashboard = () => {
     // Span the calendar to the provider's ACTUAL working hours AND anything already
     // scheduled outside them (appointments / blocked times), widening the default
     // 07:00–22:00 window as needed — so nothing bookable or booked is hidden off-grid.
-    const calendarTimeRange = (() => {
-        let minM = 7 * 60, maxM = 22 * 60;
-        const consider = (start, end) => {
-            const [sh, sm] = String(start || '').split(':').map(Number);
-            const [eh, em] = String(end || '').split(':').map(Number);
-            if (Number.isFinite(sh)) minM = Math.min(minM, sh * 60 + (sm || 0));
-            if (Number.isFinite(eh)) maxM = Math.max(maxM, eh * 60 + (em || 0));
-        };
+    // The calendar shows the full 24h day (non-working hours are greyed via
+    // businessHours below); open it scrolled to the earliest hour the provider
+    // works, falling back to 07:00.
+    const calendarScrollTime = (() => {
+        let minM = 7 * 60;
         if (availability) {
             Object.values(availability).forEach(cfg => {
                 if (cfg?.enabled && Array.isArray(cfg.slots)) {
-                    cfg.slots.forEach(s => consider(s?.start, s?.end));
+                    cfg.slots.forEach(s => {
+                        const [sh, sm] = String(s?.start || '').split(':').map(Number);
+                        if (Number.isFinite(sh)) minM = Math.min(minM, sh * 60 + (sm || 0));
+                    });
                 }
             });
         }
-        (appointments || []).forEach(a => consider(a.startTime, a.endTime));
-        (blockedTimes || []).forEach(b => consider(b.startTime, b.endTime));
-
-        const pad = (n) => String(n).padStart(2, '0');
-        const minH = Math.max(0, Math.floor(minM / 60));
-        const maxH = Math.min(24, Math.ceil(maxM / 60));
-        return { min: `${pad(minH)}:00:00`, max: `${pad(maxH)}:00:00` };
+        const h = Math.max(0, Math.floor(minM / 60));
+        return `${String(h).padStart(2, '0')}:00:00`;
     })();
 
     const labelStyle = { display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', letterSpacing: '0.05em', textTransform: 'uppercase' };
@@ -2083,14 +2078,14 @@ const ProviderDashboard = () => {
                                 eventDurationEditable
                                 eventResizableFromStart
                                 dayMaxEvents={3}
-                                slotMinTime={calendarTimeRange.min}
-                                slotMaxTime={calendarTimeRange.max}
+                                slotMinTime="00:00:00"
+                                slotMaxTime="24:00:00"
                                 slotDuration="00:15:00"
                                 slotLabelInterval="01:00:00"
                                 slotLabelFormat={{ hour: 'numeric', minute: '2-digit', meridiem: 'short' }}
                                 allDaySlot={false}
                                 nowIndicator
-                                scrollTime={`${new Date().getHours().toString().padStart(2,'0')}:00:00`}
+                                scrollTime={calendarScrollTime}
                                 select={handleFullCalendarSelect}
                                 dateClick={handleCalendarDateClick}
                                 eventClick={handleFullCalendarEventClick}
