@@ -3,6 +3,7 @@ import { useNavigate, useSearchParams } from 'react-router-dom';
 import { appointmentService, reviewService, messageService } from '../services';
 import ReviewModal from '../components/ReviewModal';
 import IntakeFormModal from '../components/IntakeFormModal';
+import RescheduleModal from '../components/RescheduleModal';
 import { useAuthContext } from '../context/AuthContext';
 import { CalendarClock, CalendarPlus, MessageSquare, ClipboardList, Star, X, RefreshCw } from 'lucide-react';
 
@@ -42,6 +43,7 @@ const MyAppointments = () => {
     const [selectedAppointment, setSelectedAppointment] = useState(null);
     const [activeFilter, setActiveFilter] = useState('all');
     const [showCancelModal, setShowCancelModal] = useState(null); // appointment object
+    const [rescheduleAppt, setRescheduleAppt] = useState(null); // appointment being rescheduled (popup)
     const [showConfirmedBanner, setShowConfirmedBanner] = useState(justConfirmed);
     const [showWaitlistedBanner, setShowWaitlistedBanner] = useState(justWaitlisted);
     const [msgModal, setMsgModal] = useState(null);       // appointment object
@@ -56,7 +58,7 @@ const MyAppointments = () => {
 
     useEffect(() => {
         if (searchParams.get('rescheduled') === '1') {
-            setSuccess('Appointment rescheduled — pending provider confirmation.');
+            setSuccess('Appointment rescheduled and confirmed.');
             const t = setTimeout(() => setSuccess(''), 12000);
             return () => clearTimeout(t);
         }
@@ -130,13 +132,9 @@ const MyAppointments = () => {
         setSendingMsg(false);
     };
 
-    // Reschedule now reuses the booking calendar (availability-aware) instead of
-    // a free-form date/time modal, so customers can only pick genuinely open slots.
-    const goReschedule = (a) => {
-        const providerId = a.provider?._id || a.provider || '';
-        const serviceId = a.service?._id || a.service || '';
-        navigate(`/book-appointment?reschedule=${a._id}&providerId=${providerId}&serviceId=${serviceId}`);
-    };
+    // Reschedule opens an availability-aware popup right here (no navigating/scrolling).
+    // It can only pick genuinely open slots and auto-confirms when the slot is free.
+    const goReschedule = (a) => setRescheduleAppt(a);
 
     const filters = ['all', 'pending', 'confirmed', 'completed', 'cancelled'];
     const filtered = activeFilter === 'all' ? appointments : appointments.filter(a => a.status === activeFilter);
@@ -456,6 +454,14 @@ const MyAppointments = () => {
 
             {formsModalApptId && (
                 <IntakeFormModal appointmentId={formsModalApptId} onClose={() => setFormsModalApptId(null)} />
+            )}
+
+            {rescheduleAppt && (
+                <RescheduleModal
+                    appointment={rescheduleAppt}
+                    onClose={() => setRescheduleAppt(null)}
+                    onDone={() => { setRescheduleAppt(null); setSuccess('Appointment rescheduled and confirmed.'); fetchData(); }}
+                />
             )}
 
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
