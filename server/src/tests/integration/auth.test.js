@@ -367,3 +367,65 @@ describe('POST /api/auth/exchange-code', () => {
         expect(replay.status).toBe(400);
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CHANGE PASSWORD + SESSION REVOCATION
+// ─────────────────────────────────────────────────────────────────────────────
+describe('PUT /api/auth/change-password', () => {
+    const creds = { email: 'changepw@example.com', password: 'Password1!' };
+
+    beforeEach(async () => {
+        await makeUser({ ...creds, isVerified: true });
+    });
+
+    const login = async () => {
+        const res = await request(app).post('/api/auth/login').send(creds);
+        return res.body.data; // { token, refreshToken }
+    };
+
+    it('changes the password and lets the user sign in with the new one', async () => {
+        const { token } = await login();
+        const res = await request(app)
+            .put('/api/auth/change-password')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ currentPassword: 'Password1!', newPassword: 'NewPass1!' });
+        expect(res.status).toBe(200);
+
+        const relogin = await request(app).post('/api/auth/login').send({ email: creds.email, password: 'NewPass1!' });
+        expect(relogin.status).toBe(200);
+    });
+
+    it('rejects a wrong current password', async () => {
+        const { token } = await login();
+        const res = await request(app)
+            .put('/api/auth/change-password')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ currentPassword: 'WrongPass1!', newPassword: 'NewPass1!' });
+        expect(res.status).toBe(401);
+    });
+
+    it('revokes existing sessions — the old access token stops working', async () => {
+        const { token } = await login();
+        const before = await request(app).get('/api/auth/profile').set('Authorization', `Bearer ${token}`);
+        expect(before.status).toBe(200);
+
+        await request(app)
+            .put('/api/auth/change-password')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ currentPassword: 'Password1!', newPassword: 'NewPass1!' });
+
+        const after = await request(app).get('/api/auth/profile').set('Authorization', `Bearer ${token}`);
+        expect(after.status).toBe(401);
+    });
+
+    it('revokes the old refresh token after a password change', async () => {
+        const { token, refreshToken } = await login();
+        await request(app)
+            .put('/api/auth/change-password')
+            .set('Authorization', `Bearer ${token}`)
+            .send({ currentPassword: 'Password1!', newPassword: 'NewPass1!' });
+
+        const res = await request(app).post('/api/auth/refresh').send({ refreshToken });
+        expect(res.status).toBe(401);
+    });
+});

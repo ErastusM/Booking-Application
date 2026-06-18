@@ -26,6 +26,19 @@ describe('generateToken', () => {
         const expiresInDays = (decoded.exp - decoded.iat) / 86400;
         expect(expiresInDays).toBeCloseTo(7, 0);
     });
+
+    it('falls back to a short expiry when JWT_EXPIRE is unset (never non-expiring)', () => {
+        const saved = process.env.JWT_EXPIRE;
+        delete process.env.JWT_EXPIRE;
+        try {
+            const decoded = jwt.decode(generateToken('abc', 0));
+            expect(decoded.exp).toBeDefined();
+            const minutes = (decoded.exp - decoded.iat) / 60;
+            expect(minutes).toBeCloseTo(15, 0);
+        } finally {
+            process.env.JWT_EXPIRE = saved;
+        }
+    });
 });
 
 describe('generateRefreshToken', () => {

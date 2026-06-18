@@ -459,6 +459,9 @@ exports.changePassword = async (req, res) => {
             return res.status(400).json({ success: false, message: 'New password must be at least 8 characters and include an uppercase letter, a number and a special character' });
         }
         user.password = newPassword;
+        // Invalidate all existing sessions (access + refresh tokens carry tokenVersion),
+        // so changing the password signs out other devices — same as a reset.
+        user.tokenVersion = (user.tokenVersion || 0) + 1;
         await user.save();
         res.status(200).json({ success: true, message: 'Password updated successfully' });
     } catch (error) {
