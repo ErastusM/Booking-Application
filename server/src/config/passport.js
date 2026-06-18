@@ -31,6 +31,7 @@ passport.use(new GoogleStrategy({
                     role: requestedRole,
                     password: undefined,
                     isVerified: true,
+                    consentedAt: new Date(), // consent gated on the "Continue with Google" button
                 });
                 // Welcome email for new social sign-ups (providers and customers alike)
                 sendWelcomeEmail(user.email, user.name, user.role).catch(() => {});

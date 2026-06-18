@@ -77,6 +77,7 @@ exports.register = async (req, res) => {
             isVerified: false,
             verificationToken,
             verificationTokenExpiry,
+            consentedAt: new Date(), // consent captured at sign-up (gated in the UI)
         });
 
         if (assignedRole === 'provider') {

@@ -29,6 +29,7 @@ const Register = () => {
     const [error, setError] = useState('');
     const [passwordFocused, setPasswordFocused] = useState(false);
     const [resendMsg, setResendMsg] = useState('');
+    const [consented, setConsented] = useState(false);
 
     const handleChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
@@ -71,6 +72,10 @@ const Register = () => {
         }
         if (!passwordValid) {
             setError('Please meet all password requirements');
+            return;
+        }
+        if (!consented) {
+            setError('Please agree to the Terms of Service and Privacy Policy to continue');
             return;
         }
         setLoading(true);
@@ -270,17 +275,26 @@ const Register = () => {
                                 </div>
                             )}
 
+                            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5, cursor: 'pointer', marginTop: '0.25rem' }}>
+                                <input
+                                    type="checkbox"
+                                    checked={consented}
+                                    onChange={e => setConsented(e.target.checked)}
+                                    aria-label="Agree to Terms of Service and Privacy Policy"
+                                    style={{ marginTop: '0.15rem', width: '16px', height: '16px', flexShrink: 0, accentColor: 'var(--gold)', cursor: 'pointer' }}
+                                />
+                                <span>
+                                    I have read and agree to the <Link to="/terms" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold-dark)', textDecoration: 'underline' }}>Terms of Service</Link> and <Link to="/privacy-policy" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold-dark)', textDecoration: 'underline' }}>Privacy Policy</Link>, and consent to the processing of my personal information as described.
+                                </span>
+                            </label>
                             <button
                                 type="submit"
-                                disabled={loading || !passwordValid}
+                                disabled={loading || !passwordValid || !consented}
                                 className="btn-primary"
                                 style={{ width: '100%', marginTop: '0.5rem', padding: '0.875rem' }}
                             >
                                 {loading ? 'Creating account...' : 'Create Account →'}
                             </button>
-                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', textAlign: 'center', lineHeight: 1.5 }}>
-                                By signing up you agree to our <Link to="/terms" style={{ color: 'inherit', textDecoration: 'underline' }}>Terms of Service</Link> and <Link to="/privacy-policy" style={{ color: 'inherit', textDecoration: 'underline' }}>Privacy Policy</Link>.
-                            </p>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', margin: '0.5rem 0' }}>
                                 <div style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
                                 <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', whiteSpace: 'nowrap' }}>or continue with</span>
@@ -289,6 +303,8 @@ const Register = () => {
 
                             <a
                                 href={`${API_BASE}/api/auth/google?role=${selectedRole || 'customer'}`}
+                                onClick={(e) => { if (!consented) { e.preventDefault(); setError('Please agree to the Terms of Service and Privacy Policy to continue'); } }}
+                                aria-disabled={!consented}
                                 style={{
                                     display: 'flex',
                                     alignItems: 'center',
@@ -304,6 +320,7 @@ const Register = () => {
                                     fontSize: '0.9rem',
                                     textDecoration: 'none',
                                     fontFamily: 'Outfit, sans-serif',
+                                    opacity: consented ? 1 : 0.55,
                                     transition: 'all 0.2s',
                                 }}
                                 onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--gold)'}

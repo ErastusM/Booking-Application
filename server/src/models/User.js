@@ -63,6 +63,7 @@ const userSchema = new mongoose.Schema(
         googleId: { type: String, default: null },
         avatar: { type: String, default: null },
         tokenVersion: { type: Number, default: 0 },
+        consentedAt: { type: Date, default: null }, // when the user accepted Terms + Privacy Policy
         providerSetupComplete: { type: Boolean, default: false },
         googleCalendarEmbedUrl: { type: String, default: '' },
         businessProfile: {
