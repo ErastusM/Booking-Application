@@ -4,6 +4,7 @@ import { appointmentService, reviewService, messageService } from '../services';
 import ReviewModal from '../components/ReviewModal';
 import IntakeFormModal from '../components/IntakeFormModal';
 import RescheduleModal from '../components/RescheduleModal';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { useAuthContext } from '../context/AuthContext';
 import { CalendarClock, CalendarPlus, MessageSquare, ClipboardList, Star, X, RefreshCw } from 'lucide-react';
 
@@ -55,6 +56,10 @@ const MyAppointments = () => {
     const msgEndRef = React.useRef(null);
 
     useEffect(() => { fetchData(); }, []);
+
+    // Live updates — refresh the bookings list on an interval and when the tab
+    // regains focus, so status changes (confirm/cancel/reschedule) appear on their own.
+    useLiveRefresh(() => fetchData(), { intervalMs: 30000 });
 
     useEffect(() => {
         if (searchParams.get('rescheduled') === '1') {

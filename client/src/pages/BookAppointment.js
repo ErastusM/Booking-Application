@@ -5,6 +5,7 @@ import { appointmentService, serviceService, waitingListService, providerMarketS
 import { Calendar, Clock, CalendarX2 } from 'lucide-react';
 import { buildTimeSlots } from '../utils/bookingSlots';
 import { cloudinaryAvatar } from '../utils/cloudinary';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
 const BookAppointment = () => {
     const { user } = useAuthContext();
@@ -92,6 +93,14 @@ const BookAppointment = () => {
             .then(res => setBookedSlots(res.data.data || []))
             .catch(() => setBookedSlots([]));
     }, [effectiveProviderId, formData.appointmentDate]);
+
+    // Live updates — while a date is open, keep its taken/free slots current so a
+    // slot freed or grabbed by someone else reflects without a manual refresh.
+    useLiveRefresh(() => {
+        appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate)
+            .then(res => setBookedSlots(res.data.data || []))
+            .catch(() => {});
+    }, { intervalMs: 20000, enabled: !!(effectiveProviderId && formData.appointmentDate) });
 
     useEffect(() => {
         if (!providerAvailability || !formData.appointmentDate || !formData.startTime) {

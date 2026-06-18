@@ -11,6 +11,7 @@ import FormsManager from '../components/FormsManager';
 import ApptFormsView from '../components/ApptFormsView';
 import { Calendar, History, Scissors, CalendarClock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban } from 'lucide-react';
 import { cloudinaryAvatar } from '../utils/cloudinary';
+import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
 const statusConfig = {
     pending: { label: 'Pending', bg: '#fef3c7', color: '#92400e' },
@@ -153,6 +154,10 @@ const ProviderDashboard = () => {
             fetchBlockedTimes(),
         ]);
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Live updates — keep the calendar/bookings fresh while the tab is open, so a
+    // reschedule, new booking or cancellation shows up without a manual refresh.
+    useLiveRefresh(() => { fetchAppointments(); fetchBlockedTimes(); }, { intervalMs: 25000 });
 
     // Cancel any in-progress drag if mouse is released outside a column
     useEffect(() => {
