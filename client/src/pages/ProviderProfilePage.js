@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { providerMarketService, availabilityService } from '../services';
+import { providerMarketService, availabilityService, authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { mapsUrl } from '../utils/maps';
@@ -21,6 +21,23 @@ const ProviderProfilePage = () => {
     const [loading, setLoading] = useState(true);
     const [activeCategory, setActiveCategory] = useState('featured');
     const [schedule, setSchedule] = useState(null);
+    const [blocked, setBlocked] = useState(false);
+
+    useEffect(() => {
+        if (!user) return;
+        authService.getBlockedUsers()
+            .then((r) => setBlocked((r.data.data || []).some((u) => u._id === id)))
+            .catch(() => {});
+    }, [id, user]);
+
+    const toggleBlock = async () => {
+        try {
+            if (blocked) { await authService.unblockUser(id); setBlocked(false); }
+            else if (window.confirm('Block this provider? You won’t be able to book or message each other.')) {
+                await authService.blockUser(id); setBlocked(true);
+            }
+        } catch { /* ignore */ }
+    };
 
     useEffect(() => {
         const fetch = async () => {
@@ -93,9 +110,16 @@ const ProviderProfilePage = () => {
             <div style={{ background: 'var(--ink)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 30% 60%, rgba(201,168,76,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
-                    <button onClick={() => navigate('/services')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontFamily: 'var(--font-body)', marginBottom: '1.5rem', padding: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                        ← Back to Services
-                    </button>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '1rem' }}>
+                        <button onClick={() => navigate('/services')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontFamily: 'var(--font-body)', padding: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                            ← Back to Services
+                        </button>
+                        {user && activeRole === 'customer' && (
+                            <button onClick={toggleBlock} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '0.78rem', fontFamily: 'var(--font-body)', padding: '0.35rem 0.85rem', borderRadius: '99px' }}>
+                                {blocked ? 'Unblock provider' : 'Block provider'}
+                            </button>
+                        )}
+                    </div>
 
                     <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
                         {provider.avatar ? (

@@ -4,6 +4,7 @@ import { authService, reviewService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import PushToggle from '../components/PushToggle';
+import AccountDangerZone from '../components/AccountDangerZone';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 
 const CLOUDINARY_CLOUD = 'dktit6s95';
@@ -602,6 +603,7 @@ const ProviderAccount = () => {
                                         )}
                                     </div>
 
+                                    <AccountDangerZone />
                                 </div>
                             </div>
                         )}

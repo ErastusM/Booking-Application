@@ -1,5 +1,6 @@
 const Message = require('../models/Message');
 const Appointment = require('../models/Appointment');
+const User = require('../models/User');
 const { createNotification } = require('../utils/notificationhelper');
 
 // Get all conversations for the logged-in user (grouped by appointment)
@@ -107,6 +108,15 @@ exports.sendMessage = async (req, res) => {
             : appointment.customer;
 
         if (!recipientId) return res.status(400).json({ success: false, message: 'No recipient found for this appointment' });
+
+        // Block check — no messaging in either direction once someone has blocked.
+        const [meDoc, recipDoc] = await Promise.all([
+            User.findById(userId).select('blockedUsers'),
+            User.findById(recipientId).select('blockedUsers'),
+        ]);
+        const isBlocked = (meDoc?.blockedUsers || []).map(String).includes(recipientId.toString())
+            || (recipDoc?.blockedUsers || []).map(String).includes(userId.toString());
+        if (isBlocked) return res.status(403).json({ success: false, message: 'Messaging is unavailable between you and this user.' });
 
         const message = await Message.create({
             sender: userId,

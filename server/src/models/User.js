@@ -92,6 +92,13 @@ const userSchema = new mongoose.Schema(
         },
         // Providers this user has saved (customer-facing favorites)
         favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+        // Users this account has blocked — blocks bookings + messaging both ways.
+        blockedUsers: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
+        // Set when the user deletes their account (PII anonymised, sign-in disabled).
+        deletedAt: { type: Date, default: null },
+        // Set when the user self-deactivates — signing in again reactivates the
+        // account (distinct from an admin suspension, which stays blocked).
+        deactivatedAt: { type: Date, default: null },
         oauthCode: { type: String, default: null, select: false },
         oauthCodeExpiry: { type: Date, default: null, select: false },
         passwordResetToken: { type: String, default: null, select: false },

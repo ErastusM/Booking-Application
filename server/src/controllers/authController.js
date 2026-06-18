@@ -208,10 +208,17 @@ exports.login = async (req, res) => {
         }
 
         if (user.isActive === false) {
-            return res.status(403).json({
-                success: false,
-                message: 'Your account has been suspended. Please contact support.'
-            });
+            // Self-deactivated accounts reactivate on a successful sign-in; an admin
+            // suspension (no deactivatedAt) stays blocked.
+            if (user.deactivatedAt) {
+                user.isActive = true;
+                user.deactivatedAt = null;
+            } else {
+                return res.status(403).json({
+                    success: false,
+                    message: 'Your account has been suspended. Please contact support.'
+                });
+            }
         }
 
         const { token, refreshToken } = await issueAuthTokens(user);
@@ -499,6 +506,95 @@ exports.changePassword = async (req, res) => {
         user.refreshTokenJtis = []; // drop tracked refresh tokens too
         await user.save();
         res.status(200).json({ success: true, message: 'Password updated successfully' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * Self-service account deactivation (reversible). Blocks sign-in and revokes
+ * sessions; the next successful login reactivates the account.
+ */
+exports.deactivateAccount = async (req, res) => {
+    try {
+        await User.findByIdAndUpdate(req.user._id, {
+            $set: { isActive: false, deactivatedAt: new Date() },
+            $inc: { tokenVersion: 1 },
+        });
+        res.status(200).json({ success: true, message: 'Your account has been deactivated. Sign in again any time to reactivate it.' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * Self-service account deletion (irreversible). We anonymise personal data and
+ * disable sign-in rather than hard-deleting the row, so existing bookings keep
+ * their integrity. Local accounts must confirm with their password.
+ */
+exports.deleteAccount = async (req, res) => {
+    try {
+        const user = await User.findById(req.user._id).select('+password');
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+        if (user.password) {
+            const ok = req.body.password && await user.matchPassword(req.body.password);
+            if (!ok) return res.status(401).json({ success: false, message: 'Password is incorrect' });
+        }
+
+        const anonEmail = `deleted_${crypto.randomBytes(8).toString('hex')}@deleted.bookplus`;
+        await User.updateOne({ _id: user._id }, {
+            $set: {
+                name: 'Deleted user', email: anonEmail, phone: 'deleted',
+                avatar: null, googleId: null, isActive: false, deletedAt: new Date(),
+                favorites: [], blockedUsers: [],
+            },
+            $unset: { password: '', refreshTokenJtis: '', verificationToken: '', passwordResetToken: '' },
+            $inc: { tokenVersion: 1 },
+        });
+
+        // A deleted provider should no longer appear in the marketplace.
+        if (user.role === 'provider') {
+            try { await require('../models/Service').updateMany({ provider: user._id }, { isActive: false }); } catch (_) {}
+        }
+
+        res.status(200).json({ success: true, message: 'Your account has been deleted.' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/** Block another user — prevents bookings and messaging in both directions. */
+exports.blockUser = async (req, res) => {
+    try {
+        const { userId } = req.body;
+        if (!userId || userId.toString() === req.user._id.toString()) {
+            return res.status(400).json({ success: false, message: 'Invalid user' });
+        }
+        const target = await User.findById(userId).select('_id');
+        if (!target) return res.status(404).json({ success: false, message: 'User not found' });
+        await User.findByIdAndUpdate(req.user._id, { $addToSet: { blockedUsers: userId } });
+        res.status(200).json({ success: true, message: 'User blocked' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/** Unblock a previously blocked user. */
+exports.unblockUser = async (req, res) => {
+    try {
+        await User.findByIdAndUpdate(req.user._id, { $pull: { blockedUsers: req.params.userId } });
+        res.status(200).json({ success: true, message: 'User unblocked' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/** List the users the current account has blocked. */
+exports.getBlockedUsers = async (req, res) => {
+    try {
+        const me = await User.findById(req.user._id).populate('blockedUsers', 'name avatar role');
+        res.status(200).json({ success: true, data: me?.blockedUsers || [] });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

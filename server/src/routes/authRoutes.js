@@ -17,6 +17,11 @@ const {
     exchangeOAuthCode,
     forgotPassword,
     resetPassword,
+    deactivateAccount,
+    deleteAccount,
+    blockUser,
+    unblockUser,
+    getBlockedUsers,
 } = require('../controllers/authController');
 const { auth } = require('../middleware/auth');
 const {
@@ -37,6 +42,11 @@ router.put('/portfolio', auth, updatePortfolio);
 router.post('/provider-setup', auth, completeProviderSetup);
 router.put('/become-provider', auth, becomeProvider);
 router.put('/change-password', auth, changePassword);
+router.post('/deactivate', auth, deactivateAccount);
+router.delete('/account', auth, deleteAccount);
+router.get('/blocked-users', auth, getBlockedUsers);
+router.post('/block', auth, blockUser);
+router.delete('/block/:userId', auth, unblockUser);
 router.post('/forgot-password', forgotPassword);
 router.post('/reset-password', resetPassword);
 router.get('/verify-email', verifyEmail);

@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import PushToggle from '../components/PushToggle';
+import AccountDangerZone from '../components/AccountDangerZone';
 
 const Profile = () => {
     const { user, setUser, switchRole } = useAuthContext();
@@ -235,6 +236,8 @@ const Profile = () => {
                         <div style={{ borderTop: '1px solid var(--border)', marginTop: '1.5rem', paddingTop: '0.5rem' }}>
                             <PushToggle />
                         </div>
+
+                        <AccountDangerZone />
                     </div>
                 </div>
             </div>
