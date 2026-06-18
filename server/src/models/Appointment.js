@@ -73,6 +73,7 @@ const appointmentSchema = new mongoose.Schema(
             default: [],
         },
         reminderSent24h: { type: Boolean, default: false },
+        reminderSent5h:  { type: Boolean, default: false },
         reminderSent1h:  { type: Boolean, default: false },
         walkInName: { type: String, default: null },
         /* Staff member performing the appointment (multi-chair scheduling) */
@@ -99,6 +100,7 @@ appointmentSchema.index({ appointmentDate: 1, status: 1 });
 appointmentSchema.index({ provider: 1, appointmentDate: -1 });
 appointmentSchema.index({ paymentStatus: 1 });
 appointmentSchema.index({ reminderSent24h: 1, appointmentDate: 1, status: 1 });
+appointmentSchema.index({ reminderSent5h: 1, appointmentDate: 1, status: 1 });
 appointmentSchema.index({ reminderSent1h: 1, appointmentDate: 1, status: 1 });
 appointmentSchema.index({ recurrenceGroupId: 1, appointmentDate: 1 });
 
