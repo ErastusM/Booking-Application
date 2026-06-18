@@ -119,7 +119,7 @@ const NotificationBell = () => {
 
             {/* Dropdown — inline styles + CSS vars so it themes in dark mode */}
             {open && (
-                <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', width: '320px', maxWidth: '90vw', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-lg, 0 12px 40px rgba(0,0,0,0.18))', zIndex: 1000, overflow: 'hidden' }}>
+                <div className="notif-dropdown" style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', width: '320px', maxWidth: '90vw', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-lg, 0 12px 40px rgba(0,0,0,0.18))', zIndex: 1000, overflow: 'hidden' }}>
                     {/* Header */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem', borderBottom: '1px solid var(--border)' }}>
                         <h3 style={{ fontWeight: '700', color: 'var(--charcoal)', fontFamily: 'var(--font-display)', fontSize: '1rem', margin: 0 }}>Notifications</h3>

@@ -382,6 +382,17 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
   /* Discovery feed: show exactly two cards per screen on mobile.
      calc(50% - 0.5rem): two cards + the 1rem row gap fill the width. */
   .home-provider-card { flex: 0 0 calc(50% - 0.5rem) !important; width: calc(50% - 0.5rem) !important; }
+
+  /* Notification dropdown: anchor to the viewport (not the bell, which now sits
+     left of other top-bar icons) so it can't overflow/clip off the screen edge. */
+  .notif-dropdown {
+    position: fixed !important;
+    top: 64px !important;
+    right: 8px !important;
+    left: auto !important;
+    width: calc(100vw - 16px) !important;
+    max-width: 380px !important;
+  }
   .providers-search-filters { flex-direction: column !important; }
   .providers-search-filters > div { width: 100% !important; min-width: 0 !important; flex: 1 1 auto !important; }
   .providers-grid { grid-template-columns: 1fr !important; }
