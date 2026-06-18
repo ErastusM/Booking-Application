@@ -31,7 +31,7 @@ const PrivacyPolicy = () => {
                 <li style={li}><strong>Account details</strong> — name, email address, phone number, password (stored encrypted), and your role (customer or provider).</li>
                 <li style={li}><strong>Provider details</strong> — business name, category, location/address, services, pricing, availability, and any portfolio images you upload.</li>
                 <li style={li}><strong>Booking information</strong> — appointments, dates and times, notes, and booking history between you and a provider.</li>
-                <li style={li}><strong>Payment information</strong> — processed by our payment partner (Stripe). We do not store full card numbers on our servers.</li>
+                <li style={li}><strong>Payment information</strong> — wallet top-ups are funded directly with your provider (bank transfer, eWallet, PayToday or cash) and approved manually. Card payments are processed by our payment partner DPO Pay (DPO Group) and are coming soon; we do not store full card numbers on our servers.</li>
                 <li style={li}><strong>Technical data</strong> — basic device, log and usage data needed to operate and secure the service.</li>
             </ul>
 
@@ -109,7 +109,7 @@ const PrivacyPolicy = () => {
             <h2 style={sectionTitle}>12. Contact us</h2>
             <p style={para}>
                 Questions about this policy or your information? Contact us at{' '}
-                <a href="mailto:support@bookplus.pro" style={{ color: 'var(--gold-dark)' }}>support@bookplus.pro</a>. Bookplus is operated in the Republic of Namibia.
+                <a href="mailto:info@bookplus.pro" style={{ color: 'var(--gold-dark)' }}>info@bookplus.pro</a>. Bookplus is operated in the Republic of Namibia.
             </p>
         </div>
     );

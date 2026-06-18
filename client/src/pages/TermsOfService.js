@@ -57,9 +57,11 @@ const TermsOfService = () => {
 
             <h2 style={sectionTitle}>6. Payments and fees</h2>
             <p style={para}>
-                Payments are processed by our third-party payment partner. Any platform or service fees will be
-                disclosed to you before they apply. You are responsible for your own taxes arising from your use
-                of, or earnings on, the platform.
+                Bookplus uses a prepaid wallet. You fund your wallet with a provider directly — by bank transfer,
+                eWallet, PayToday or cash — and the provider approves the top-up. Card payments via our payment
+                partner DPO Pay (DPO Group) are coming soon. Any platform or service fees will be disclosed to you
+                before they apply. You are responsible for your own taxes arising from your use of, or earnings on,
+                the platform. All amounts are in Namibian Dollars (NAD).
             </p>
 
             <h2 style={sectionTitle}>7. Acceptable use</h2>
@@ -104,7 +106,7 @@ const TermsOfService = () => {
             <h2 style={sectionTitle}>13. Changes and contact</h2>
             <p style={para}>
                 We may update these Terms from time to time; the "Last updated" date will change accordingly.
-                Questions? Contact <a href="mailto:support@bookplus.pro" style={{ color: 'var(--gold-dark)' }}>support@bookplus.pro</a>.
+                Questions? Contact <a href="mailto:info@bookplus.pro" style={{ color: 'var(--gold-dark)' }}>info@bookplus.pro</a>.
             </p>
         </div>
     );
