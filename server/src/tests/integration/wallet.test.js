@@ -18,6 +18,7 @@ jest.mock('../../utils/emailService', () => ({
 
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
+const walletService = require('../../utils/walletService');
 const { makeProvider, makeService, makeUser, authHeader } = require('../helpers/factories');
 
 beforeAll(() => testDb.connect());
@@ -207,6 +208,34 @@ describe('Manual adjustments (provider proposes, client approves)', () => {
 
         const wallet = await getWallet(client, provider._id);
         expect(wallet.totalBalance).toBe(100); // untouched
+    });
+});
+
+describe('Reservation adjustment (service change, §8)', () => {
+    it('raises and lowers the held amount, and completion deducts the adjusted value', async () => {
+        const { provider, svc, client } = await setup({ price: 100, fund: 500 });
+        const booking = await book(client, svc); // reserves 100
+        const apptId = booking.body.data._id;
+
+        let r = await walletService.adjustReservation({ appointmentId: apptId, newAmount: 150 });
+        expect(r.ok).toBe(true);
+        expect((await getWallet(client, provider._id)).reservedBalance).toBe(150);
+
+        await walletService.adjustReservation({ appointmentId: apptId, newAmount: 60 });
+        expect((await getWallet(client, provider._id)).reservedBalance).toBe(60);
+
+        await request(app).put(`/api/appointments/${apptId}/status`).set(authHeader(provider)).send({ status: 'completed' });
+        const w = await getWallet(client, provider._id);
+        expect(w.totalBalance).toBe(440); // 500 − adjusted 60
+        expect(w.reservedBalance).toBe(0);
+    });
+
+    it('refuses an increase the wallet cannot cover', async () => {
+        const { provider, svc, client } = await setup({ price: 100, fund: 120 });
+        const booking = await book(client, svc); // reserves 100, leaves 20 available
+        const r = await walletService.adjustReservation({ appointmentId: booking.body.data._id, newAmount: 1000 });
+        expect(r.ok).toBe(false);
+        expect((await getWallet(client, provider._id)).reservedBalance).toBe(100); // unchanged
     });
 });
 

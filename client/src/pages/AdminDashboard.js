@@ -1,6 +1,8 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { appointmentService, serviceService, userService } from '../services';
+import { appointmentService, serviceService, userService, providerWalletService } from '../services';
 import { CalendarDays, Scissors, Users, Clock } from 'lucide-react';
+
+const nMoney = (n) => `N$${Number(n || 0).toFixed(2)}`;
 
 const statusConfig = {
     pending: { label: 'Pending', bg: '#fef3c7', color: '#92400e' },
@@ -57,6 +59,32 @@ const AdminDashboard = () => {
     const [apptStatusFilter, setApptStatusFilter] = useState('');
     const [apptPage, setApptPage] = useState(1);
     const [apptMeta, setApptMeta] = useState({ total: 0, pages: 1 });
+
+    // Provider-platform wallet (admin oversight)
+    const [pwSummary, setPwSummary] = useState(null);
+    const [pwTopups, setPwTopups] = useState([]);
+    const [pwWallets, setPwWallets] = useState([]);
+    const [pwAdjust, setPwAdjust] = useState(null); // provider wallet being adjusted
+
+    const fetchProviderWalletData = async () => {
+        try {
+            const [s, t, w] = await Promise.all([
+                providerWalletService.getAdminSummary(),
+                providerWalletService.getTopUps(),
+                providerWalletService.getAllWallets(),
+            ]);
+            setPwSummary(s.data.data); setPwTopups(t.data.data || []); setPwWallets(w.data.data || []);
+        } catch { /* ignore */ }
+    };
+
+    useEffect(() => { if (activeTab === 'wallet') fetchProviderWalletData(); }, [activeTab]);
+
+    const resolveProviderTopUp = async (id, approve) => {
+        try {
+            approve ? await providerWalletService.approveTopUp(id) : await providerWalletService.rejectTopUp(id);
+            fetchProviderWalletData();
+        } catch (err) { alert(err.response?.data?.message || 'Could not update top-up'); }
+    };
 
     const fetchUsers = async () => {
         try {
@@ -193,7 +221,7 @@ const AdminDashboard = () => {
         }
     };
 
-    const tabs = ['appointments', 'services', 'users'];
+    const tabs = ['appointments', 'services', 'users', 'wallet'];
     const stats = [
         { label: 'Total Appointments', value: apptMeta.total, Icon: CalendarDays },
         { label: 'Total Services', value: services.length, Icon: Scissors },
@@ -546,8 +574,135 @@ const AdminDashboard = () => {
                         )}
                     </div>
                 )}
+
+                {activeTab === 'wallet' && (
+                    <div>
+                        {/* Provider account balances the platform holds */}
+                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                            {[
+                                { label: 'Total provider funds', val: nMoney(pwSummary?.totalHeld), accent: true },
+                                { label: 'Provider accounts', val: pwSummary?.walletCount ?? 0 },
+                                { label: 'Pending top-ups', val: pwSummary?.pendingTopUps ?? 0 },
+                            ].map((c) => (
+                                <div key={c.label} style={{ background: c.accent ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.1rem 1.25rem' }}>
+                                    <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>{c.label}</div>
+                                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: c.accent ? 'var(--gold-dark)' : 'var(--charcoal)' }}>{c.val}</div>
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Provider top-up requests (with proof) */}
+                        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', marginBottom: '1.5rem' }}>
+                            <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Provider top-up requests</h3>
+                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{pwTopups.filter((t) => t.status === 'pending').length} pending</span>
+                            </div>
+                            {pwTopups.length === 0 ? (
+                                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No top-up requests yet.</div>
+                            ) : pwTopups.slice(0, 40).map((t) => (
+                                <div key={t._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.9rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
+                                    <div style={{ minWidth: 0 }}>
+                                        <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>{t.provider?.name || 'Provider'} · {nMoney(t.amount)}</p>
+                                        <p style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                            {new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{t.method === 'cash' ? ' · cash' : ''}{t.reference ? ` · ${t.reference}` : ''}
+                                            {t.proofUrl && <> · <a href={t.proofUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--gold-dark)' }}>View {t.proofType === 'pdf' ? 'PDF' : 'proof'}</a></>}
+                                        </p>
+                                    </div>
+                                    {t.status === 'pending' ? (
+                                        <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+                                            <button onClick={() => resolveProviderTopUp(t._id, true)} className="btn-primary" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}>Approve</button>
+                                            <button onClick={() => resolveProviderTopUp(t._id, false)} className="btn-outline" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}>Reject</button>
+                                        </div>
+                                    ) : (
+                                        <span style={{ fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.6rem', borderRadius: '99px', textTransform: 'capitalize', background: t.status === 'approved' ? '#d1fae5' : '#fee2e2', color: t.status === 'approved' ? '#065f46' : '#991b1b' }}>{t.status}</span>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Provider balances + manual credit/debit */}
+                        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                            <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
+                                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Provider balances</h3>
+                            </div>
+                            {pwWallets.length === 0 ? (
+                                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No provider wallets yet.</div>
+                            ) : (
+                                <div style={{ overflowX: 'auto' }}>
+                                    <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                        <thead><tr style={{ background: 'var(--warm-gray)', textAlign: 'left' }}>{['Provider', 'Balance', ''].map((h) => <th key={h} style={{ padding: '0.6rem 1rem', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>{h}</th>)}</tr></thead>
+                                        <tbody>
+                                            {pwWallets.map((w) => (
+                                                <tr key={w._id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                    <td style={{ padding: '0.7rem 1rem' }}><div style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{w.provider?.name || '—'}</div><div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{w.provider?.email}</div></td>
+                                                    <td style={{ padding: '0.7rem 1rem', fontWeight: '700', color: 'var(--gold-dark)' }}>{nMoney(w.balance)}</td>
+                                                    <td style={{ padding: '0.7rem 1rem', textAlign: 'right' }}><button onClick={() => setPwAdjust(w)} className="btn-outline" style={{ padding: '0.3rem 0.8rem', fontSize: '0.78rem' }}>Credit / Debit</button></td>
+                                                </tr>
+                                            ))}
+                                        </tbody>
+                                    </table>
+                                </div>
+                            )}
+                        </div>
+
+                        {pwAdjust && (
+                            <AdminAdjustModal
+                                wallet={pwAdjust}
+                                onClose={() => setPwAdjust(null)}
+                                onDone={() => { setPwAdjust(null); fetchProviderWalletData(); }}
+                            />
+                        )}
+                    </div>
+                )}
             </div>
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+    );
+};
+
+// Admin credits or debits a provider's platform balance (applies immediately).
+const AdminAdjustModal = ({ wallet, onClose, onDone }) => {
+    const [direction, setDirection] = useState('credit');
+    const [amount, setAmount] = useState('');
+    const [reason, setReason] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+    const submit = async (e) => {
+        e.preventDefault();
+        const amt = parseFloat(amount);
+        if (!(amt > 0)) { setError('Enter a valid amount'); return; }
+        setBusy(true); setError('');
+        try {
+            await providerWalletService.adjustBalance({ providerId: wallet.provider?._id || wallet.provider, amount: amt, direction, reason });
+            onDone();
+        } catch (err) { setError(err.response?.data?.message || 'Could not adjust'); setBusy(false); }
+    };
+    return (
+        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '400px', overflow: 'hidden' }}>
+                <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Adjust · {wallet.provider?.name}</h2>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>Current balance {nMoney(wallet.balance)}</p>
+                </div>
+                <form onSubmit={submit} style={{ padding: '1.25rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                        {[{ v: 'credit', t: 'Credit (add)' }, { v: 'debit', t: 'Debit (remove)' }].map((o) => (
+                            <button key={o.v} type="button" onClick={() => setDirection(o.v)} style={{
+                                flex: 1, padding: '0.55rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.82rem',
+                                border: `1.5px solid ${direction === o.v ? 'var(--gold)' : 'var(--border)'}`,
+                                background: direction === o.v ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)', color: direction === o.v ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                            }}>{o.t}</button>
+                        ))}
+                    </div>
+                    <input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Amount (N$)" className="input" style={{ width: '100%', marginBottom: '0.75rem' }} required />
+                    <input type="text" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (e.g. manual deposit, correction)" className="input" style={{ width: '100%', marginBottom: '1rem' }} maxLength={200} />
+                    {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button type="submit" disabled={busy} className="btn-primary" style={{ flex: 1, padding: '0.75rem' }}>{busy ? 'Saving…' : 'Apply'}</button>
+                        <button type="button" onClick={onClose} className="btn-outline" style={{ padding: '0.75rem 1.1rem' }}>Cancel</button>
+                    </div>
+                </form>
+            </div>
         </div>
     );
 };

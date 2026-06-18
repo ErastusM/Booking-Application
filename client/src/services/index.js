@@ -13,6 +13,11 @@ export const authService = {
     resendVerification: (email) => API.post('/auth/resend-verification', { email }),
     forgotPassword: (email) => API.post('/auth/forgot-password', { email }),
     resetPassword: (data) => API.post('/auth/reset-password', data),
+    deactivateAccount: () => API.post('/auth/deactivate'),
+    deleteAccount: (password) => API.delete('/auth/account', { data: { password } }),
+    getBlockedUsers: () => API.get('/auth/blocked-users'),
+    blockUser: (userId) => API.post('/auth/block', { userId }),
+    unblockUser: (userId) => API.delete(`/auth/block/${userId}`),
 };
 
 export const serviceService = {
@@ -187,6 +192,20 @@ export const walletService = {
     getProviderTransactions: (customerId) => API.get('/wallet/provider/transactions', { params: customerId ? { customerId } : {} }),
     getSettings: () => API.get('/wallet/settings'),
     updateSettings: (data) => API.put('/wallet/settings', data),
+};
+
+export const providerWalletService = {
+    // Provider — own platform balance
+    getMyBalance: () => API.get('/provider-wallet/me'),
+    submitTopUp: (data) => API.post('/provider-wallet/topup', data),
+    // Admin
+    getAdminSummary: () => API.get('/provider-wallet/admin/summary'),
+    getAllWallets: () => API.get('/provider-wallet/admin/wallets'),
+    getTopUps: (status) => API.get('/provider-wallet/admin/topups', { params: status ? { status } : {} }),
+    approveTopUp: (id) => API.post(`/provider-wallet/admin/topups/${id}/approve`),
+    rejectTopUp: (id, reason) => API.post(`/provider-wallet/admin/topups/${id}/reject`, { reason }),
+    adjustBalance: (data) => API.post('/provider-wallet/admin/adjust', data),
+    getProviderDetail: (providerId) => API.get(`/provider-wallet/admin/provider/${providerId}`),
 };
 
 export const formService = {

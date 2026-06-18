@@ -140,13 +140,61 @@ const deductForCompletion = async ({ appointmentId, resolvedBy }) => {
     return { ok: true, deducted: amount, wallet: updated, transaction };
 };
 
+/**
+ * Adjust a live reservation to a new amount — e.g. the booking's service was
+ * swapped for a cheaper/dearer one (spec §8). The difference is reserved or
+ * released atomically; a debit increase that can't be covered is refused.
+ * Idempotent-friendly: no live reservation → no-op. Ready to call from a future
+ * "change service on an existing booking" flow.
+ */
+const adjustReservation = async ({ appointmentId, newAmount, resolvedBy }) => {
+    if (!appointmentId || !(newAmount >= 0)) return { ok: true, delta: 0 };
+    const reservation = await WalletTransaction.findOne({
+        appointment: appointmentId, type: 'reservation', status: 'reserved',
+    });
+    if (!reservation) return { ok: true, delta: 0 };
+    const delta = newAmount - reservation.amount;
+    if (delta === 0) return { ok: true, delta: 0 };
+
+    const wallet = await Wallet.findById(reservation.wallet);
+    if (!wallet) return { ok: true, delta: 0 };
+    const before = snap(wallet);
+    let updated;
+
+    if (delta > 0) {
+        updated = await Wallet.findOneAndUpdate(
+            { _id: wallet._id, $expr: { $gte: [{ $subtract: ['$totalBalance', '$reservedBalance'] }, delta] } },
+            { $inc: { reservedBalance: delta } },
+            { new: true }
+        );
+        if (!updated) return { ok: false, reason: 'insufficient_balance' };
+    } else {
+        updated = await Wallet.findByIdAndUpdate(
+            wallet._id,
+            [{ $set: { reservedBalance: { $max: [0, { $add: ['$reservedBalance', delta] }] } } }],
+            { new: true }
+        );
+    }
+
+    reservation.amount = newAmount; // later release/deduction follows the new amount
+    await reservation.save();
+
+    await WalletTransaction.create({
+        wallet: wallet._id, customer: reservation.customer, provider: reservation.provider,
+        type: 'reservation', status: 'reserved', direction: delta > 0 ? 'reserve' : 'release', amount: Math.abs(delta),
+        appointment: appointmentId, balanceBefore: before, balanceAfter: snap(updated),
+        initiatedBy: resolvedBy || null, reason: 'Reservation adjusted (service changed)',
+    });
+    return { ok: true, delta };
+};
+
 /** Client submits a top-up request (no balance change until a provider approves). */
-const createTopUp = async ({ customer, provider, amount, reference, proofUrl }) => {
+const createTopUp = async ({ customer, provider, amount, reference, proofUrl, method }) => {
     const wallet = await getOrCreateWallet(customer, provider);
     return WalletTransaction.create({
         wallet: wallet._id, customer, provider,
         type: 'topup', status: 'pending', direction: 'credit', amount,
-        reference: reference || '', proofUrl: proofUrl || '',
+        reference: reference || '', proofUrl: proofUrl || '', method: method || 'manual',
         initiatedBy: customer,
     });
 };
@@ -249,6 +297,7 @@ module.exports = {
     reserveFunds,
     releaseReservation,
     deductForCompletion,
+    adjustReservation,
     createTopUp,
     approveTopUp,
     rejectTopUp,

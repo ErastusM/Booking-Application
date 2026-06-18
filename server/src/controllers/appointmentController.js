@@ -213,6 +213,16 @@ exports.createAppointment = async (req, res) => {
             bookingClient = client;
         }
 
+        // Respect blocks — once either party blocks the other, no booking between them.
+        if (req.user.role === 'customer' && svc.provider) {
+            const prov = await User.findById(svc.provider).select('blockedUsers');
+            const iBlocked = (req.user.blockedUsers || []).map(String).includes(svc.provider.toString());
+            const blockedByProvider = (prov?.blockedUsers || []).map(String).includes(req.user._id.toString());
+            if (iBlocked || blockedByProvider) {
+                return res.status(403).json({ success: false, message: 'Booking is unavailable between you and this provider.' });
+            }
+        }
+
         // Customers cannot book a time that has already passed. Providers/admins may
         // back-date (e.g. logging a walk-in that just happened).
         if (req.user.role === 'customer' && isPastSlot(appointmentDate, startTime)) {
@@ -348,31 +358,38 @@ exports.createAppointment = async (req, res) => {
             }
         }
 
-        // Wallet reservation (Option A providers): when a CLIENT books with a
-        // provider whose wallet is "required", hold the service price. The reserve
-        // is atomic — if the client can't cover it we roll the booking back so no
-        // slot or funds are left dangling (spec §12). Provider-made bookings
-        // (walk-ins / on behalf of a client) and recurring series skip this.
-        if (req.user.role === 'customer' && svc.provider && !isRecurring) {
+        // Wallet reservation (Option A providers): hold the service price from the
+        // CLIENT's wallet when the provider requires wallet funds. The reserve is
+        // atomic (spec §12). A client self-booking that can't cover it is rolled
+        // back; a provider booking on a registered client's behalf reserves when
+        // possible but is never blocked (the provider is overriding). Walk-ins
+        // (no client account) and recurring series skip this.
+        const reservationClientId = req.user.role === 'customer'
+            ? req.user._id
+            : (isProviderBooking && customerId ? bookingClient._id : null);
+        if (reservationClientId && svc.provider && !isRecurring) {
             try {
                 const providerDoc = await User.findById(svc.provider).select('walletSettings');
                 const ws = providerDoc?.walletSettings;
                 if (ws?.enabled && ws.bookingPaymentMode === 'wallet_required') {
                     const result = await walletService.reserveFunds({
-                        customer: req.user._id, provider: svc.provider,
+                        customer: reservationClientId, provider: svc.provider,
                         amount: basePrice, appointmentId: appointment._id, initiatedBy: req.user._id,
                     });
                     if (!result.ok) {
-                        await Appointment.deleteOne({ _id: appointment._id });
-                        const avail = result.wallet ? Math.max(0, result.wallet.totalBalance - result.wallet.reservedBalance) : 0;
-                        return res.status(400).json({
-                            success: false,
-                            code: 'INSUFFICIENT_WALLET',
-                            message: `Insufficient wallet balance. This service costs N$${basePrice.toFixed(2)} and you have N$${avail.toFixed(2)} available — please top up your wallet with this provider first.`,
-                        });
+                        if (req.user.role === 'customer') {
+                            await Appointment.deleteOne({ _id: appointment._id });
+                            const avail = result.wallet ? Math.max(0, result.wallet.totalBalance - result.wallet.reservedBalance) : 0;
+                            return res.status(400).json({
+                                success: false,
+                                code: 'INSUFFICIENT_WALLET',
+                                message: `Insufficient wallet balance. This service costs N$${basePrice.toFixed(2)} and you have N$${avail.toFixed(2)} available — please top up your wallet with this provider first.`,
+                            });
+                        }
+                        // Provider override: keep the booking even though funds were short.
+                    } else {
+                        createNotification(reservationClientId, `N$${basePrice.toFixed(2)} reserved for your ${svc.name} booking`, 'wallet', '/wallet');
                     }
-                    // Tell the client their funds were held for this booking.
-                    createNotification(req.user._id, `N$${basePrice.toFixed(2)} reserved for your ${svc.name} booking`, 'wallet', '/wallet');
                 }
             } catch (walletErr) {
                 logger.error({ err: walletErr }, 'Wallet reservation failed');

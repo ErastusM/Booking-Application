@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { walletService } from '../services';
-import { uploadToCloudinary } from '../utils/uploadImage';
+import { uploadProof } from '../utils/uploadImage';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { Wallet as WalletIcon, Clock, Upload, X, Check, ChevronDown, ChevronUp } from 'lucide-react';
 
@@ -232,8 +232,8 @@ const TopUpModal = ({ wallet, onClose, onDone }) => {
         const file = e.target.files?.[0];
         if (!file) return;
         setUploading(true); setError('');
-        try { setProofUrl(await uploadToCloudinary(file)); }
-        catch { setError('Could not upload that image — try again.'); }
+        try { const { url } = await uploadProof(file); setProofUrl(url); }
+        catch { setError('Could not upload that file — try again.'); }
         finally { setUploading(false); }
     };
 
@@ -243,13 +243,15 @@ const TopUpModal = ({ wallet, onClose, onDone }) => {
         if (!(amt > 0)) { setError('Enter a valid amount'); return; }
         setBusy(true); setError('');
         try {
-            await walletService.topUp({ providerId, amount: amt, reference, proofUrl });
+            await walletService.topUp({ providerId, amount: amt, reference, proofUrl, method });
             onDone();
         } catch (err) {
             setError(err.response?.data?.message || 'Could not submit top-up');
             setBusy(false);
         }
     };
+
+    const isPdf = /\.pdf($|\?)/i.test(proofUrl);
 
     return (
         <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
@@ -259,27 +261,31 @@ const TopUpModal = ({ wallet, onClose, onDone }) => {
                     <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
                 </div>
                 <form onSubmit={submit} style={{ padding: '1.25rem' }}>
-                    {/* Funding method — online is parked until the payment gateway is live */}
+                    {/* Funding method — card via DPO is parked until the gateway is live */}
                     <label style={labelStyle}>Funding method</label>
-                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
-                        <button type="button" onClick={() => setMethod('manual')} style={{
-                            flex: 1, padding: '0.6rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.82rem',
-                            border: `1.5px solid ${method === 'manual' ? 'var(--gold)' : 'var(--border)'}`,
-                            background: method === 'manual' ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)', color: method === 'manual' ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                        }}>Bank transfer / deposit</button>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                        {[{ v: 'manual', t: 'Bank transfer / deposit' }, { v: 'cash', t: 'Cash' }].map((o) => (
+                            <button key={o.v} type="button" onClick={() => setMethod(o.v)} style={{
+                                flex: '1 1 40%', padding: '0.6rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.82rem',
+                                border: `1.5px solid ${method === o.v ? 'var(--gold)' : 'var(--border)'}`,
+                                background: method === o.v ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)', color: method === o.v ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                            }}>{o.t}</button>
+                        ))}
                         <button type="button" disabled title="Coming soon" style={{
-                            flex: 1, padding: '0.6rem', borderRadius: 'var(--radius-sm)', cursor: 'not-allowed', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.82rem',
-                            border: '1.5px dashed var(--border)', background: 'var(--warm-gray)', color: 'var(--text-muted)', position: 'relative',
+                            flex: '1 1 40%', padding: '0.6rem', borderRadius: 'var(--radius-sm)', cursor: 'not-allowed', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.82rem',
+                            border: '1.5px dashed var(--border)', background: 'var(--warm-gray)', color: 'var(--text-muted)',
                         }}>
-                            Pay online
+                            Card (DPO)
                             <span style={{ display: 'block', fontSize: '0.62rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Coming soon</span>
                         </button>
                     </div>
 
                     <div style={{ background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '0.85rem 1rem', marginBottom: '1rem', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
-                        {instructions
-                            ? <><strong style={{ color: 'var(--charcoal)' }}>How to pay {wallet.provider?.name}:</strong><br />{instructions.split('\n').map((l, i) => <span key={i}>{l}<br /></span>)}</>
-                            : <>Pay {wallet.provider?.name} directly (bank transfer, eWallet, PayToday or cash deposit), then submit this request with your reference. They’ll approve it once the money arrives.</>}
+                        {method === 'cash'
+                            ? <>Pay {wallet.provider?.name} in cash, then submit this request. They’ll confirm receipt and your balance will update.</>
+                            : instructions
+                                ? <><strong style={{ color: 'var(--charcoal)' }}>How to pay {wallet.provider?.name}:</strong><br />{instructions.split('\n').map((l, i) => <span key={i}>{l}<br /></span>)}</>
+                                : <>Pay {wallet.provider?.name} directly (bank transfer, eWallet, PayToday or cash deposit), then submit this request with your reference. They’ll approve it once the money arrives.</>}
                     </div>
 
                     <label style={labelStyle}>Amount (N$)</label>
@@ -288,11 +294,11 @@ const TopUpModal = ({ wallet, onClose, onDone }) => {
                     <label style={labelStyle}>Payment reference</label>
                     <input type="text" value={reference} onChange={(e) => setReference(e.target.value)} className="input" style={{ width: '100%', marginBottom: '1rem' }} />
 
-                    <label style={labelStyle}>Proof of payment (optional)</label>
+                    <label style={labelStyle}>Proof of payment (optional — image or PDF)</label>
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1rem', border: '1.5px dashed var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: proofUrl ? 'var(--gold-dark)' : 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
                         {proofUrl ? <Check size={16} /> : <Upload size={16} />}
-                        {uploading ? 'Uploading…' : proofUrl ? 'Proof uploaded — tap to replace' : 'Upload a screenshot or receipt'}
-                        <input type="file" accept="image/*" onChange={handleProof} style={{ display: 'none' }} />
+                        {uploading ? 'Uploading…' : proofUrl ? (isPdf ? 'PDF uploaded — tap to replace' : 'Proof uploaded — tap to replace') : 'Upload a screenshot, receipt or PDF'}
+                        <input type="file" accept="image/*,application/pdf" onChange={handleProof} style={{ display: 'none' }} />
                     </label>
 
                     {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}

@@ -4,7 +4,8 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService, waitingListService, earningsService, analyticsService, walletService } from '../services';
+import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService, waitingListService, earningsService, analyticsService, walletService, providerWalletService, authService } from '../services';
+import { uploadProof } from '../utils/uploadImage';
 import { useAuthContext } from '../context/AuthContext';
 import OnboardingWizard from '../components/OnboardingWizard';
 import FormsManager from '../components/FormsManager';
@@ -107,6 +108,9 @@ const ProviderDashboard = () => {
     const [walletLoading, setWalletLoading] = useState(false);
     const [walletSaving, setWalletSaving] = useState(false);
     const [adjustModal, setAdjustModal] = useState(null); // { wallet } for the adjustment composer
+    const [providerBalance, setProviderBalance] = useState(null); // provider's own platform balance
+    const [providerWalletTxns, setProviderWalletTxns] = useState([]);
+    const [showAccountTopUp, setShowAccountTopUp] = useState(false);
 
     // CRM / Messages / Packages / Retention
     const [clients, setClients] = useState([]);
@@ -392,18 +396,21 @@ const ProviderDashboard = () => {
     const fetchWalletData = async () => {
         setWalletLoading(true);
         try {
-            const [summary, settings, topups, cw, adj] = await Promise.all([
+            const [summary, settings, topups, cw, adj, mine] = await Promise.all([
                 walletService.getProviderSummary(),
                 walletService.getSettings(),
                 walletService.getProviderTopups(),
                 walletService.getProviderWallets(),
                 walletService.getProviderAdjustments(),
+                providerWalletService.getMyBalance(),
             ]);
             setWalletSummary(summary.data.data);
             setWalletSettings(settings.data.data);
             setWalletTopups(topups.data.data || []);
             setWalletClientWallets(cw.data.data || []);
             setWalletAdjustments(adj.data.data || []);
+            setProviderBalance(mine.data.data?.wallet || null);
+            setProviderWalletTxns(mine.data.data?.transactions || []);
         } catch { /* ignore */ } finally { setWalletLoading(false); }
     };
 
@@ -3217,7 +3224,18 @@ const ProviderDashboard = () => {
                         <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', position: 'sticky', top: '100px' }}>
                             <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>{selectedClient.customer?.name}</h3>
-                                <button onClick={() => { setSelectedClient(null); setClientDetail(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.2rem' }}>×</button>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                                    <button
+                                        onClick={async () => {
+                                            const id = selectedClient.customer?._id;
+                                            if (id && window.confirm('Block this client? You won’t be able to book or message each other. You can unblock them in Account settings.')) {
+                                                try { await authService.blockUser(id); alert('Client blocked.'); } catch { alert('Could not block client.'); }
+                                            }
+                                        }}
+                                        style={{ background: 'none', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.72rem', padding: '0.25rem 0.6rem', borderRadius: 'var(--radius-sm)' }}
+                                    >Block</button>
+                                    <button onClick={() => { setSelectedClient(null); setClientDetail(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.2rem' }}>×</button>
+                                </div>
                             </div>
                             <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '70vh', overflowY: 'auto' }}>
                                 <div>
@@ -3423,6 +3441,35 @@ const ProviderDashboard = () => {
                         <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading wallet…</div>
                     ) : (
                         <>
+                            {/* Your Bookplus account balance (provider ↔ platform) */}
+                            <div style={{ background: 'linear-gradient(135deg, var(--ink), #2a2a45)', borderRadius: 'var(--radius)', padding: '1.25rem 1.5rem', marginBottom: '1.5rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <div>
+                                    <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.5)', marginBottom: '0.2rem' }}>Your Bookplus account balance</div>
+                                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: '700', color: 'var(--gold)' }}>{nMoney(providerBalance?.balance)}</div>
+                                    <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', marginTop: '0.15rem' }}>Topped up by Bookplus once your payment is verified</div>
+                                </div>
+                                <button onClick={() => setShowAccountTopUp(true)} className="btn-primary" style={{ padding: '0.6rem 1.4rem' }}>Top up account</button>
+                            </div>
+
+                            {/* Recent account top-ups (provider ↔ platform) */}
+                            {providerWalletTxns.length > 0 && (
+                                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', marginBottom: '1.5rem' }}>
+                                    <div style={{ padding: '0.85rem 1.25rem', borderBottom: '1px solid var(--border)', fontSize: '0.78rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Your account activity</div>
+                                    {providerWalletTxns.slice(0, 8).map((t) => (
+                                        <div key={t._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 1.25rem', borderBottom: '1px solid var(--border)', fontSize: '0.82rem' }}>
+                                            <span style={{ color: 'var(--charcoal)' }}>
+                                                {t.type === 'topup' ? 'Top-up' : t.type === 'credit' ? 'Credit' : 'Debit'}{t.reason ? ` · ${t.reason}` : ''}
+                                                <span style={{ color: 'var(--text-muted)', marginLeft: '0.4rem' }}>{new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
+                                            </span>
+                                            <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                                <strong style={{ color: t.type === 'debit' ? '#b91c1c' : '#15803d' }}>{t.type === 'debit' ? '−' : '+'}{nMoney(t.amount)}</strong>
+                                                <span style={{ fontSize: '0.68rem', fontWeight: '600', padding: '0.1rem 0.5rem', borderRadius: '99px', textTransform: 'capitalize', background: t.status === 'approved' ? '#d1fae5' : t.status === 'pending' ? '#fef3c7' : '#fee2e2', color: t.status === 'approved' ? '#065f46' : t.status === 'pending' ? '#92400e' : '#991b1b' }}>{t.status}</span>
+                                            </span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+
                             {/* Headline figures */}
                             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
                                 {[
@@ -3574,6 +3621,12 @@ const ProviderDashboard = () => {
                             refundsAllowed={walletSettings?.refundsAllowed}
                             onClose={() => setAdjustModal(null)}
                             onSubmit={submitAdjustment}
+                        />
+                    )}
+                    {showAccountTopUp && (
+                        <ProviderAccountTopUpModal
+                            onClose={() => setShowAccountTopUp(false)}
+                            onDone={() => { setShowAccountTopUp(false); fetchWalletData(); }}
                         />
                     )}
                 </div>
@@ -4221,6 +4274,74 @@ const ProviderDashboard = () => {
                     </div>
                 </>
             )}
+        </div>
+    );
+};
+
+// Provider tops up their own Bookplus account balance — pays the platform
+// out-of-band and attaches proof (image or PDF) for an admin to approve.
+const ProviderAccountTopUpModal = ({ onClose, onDone }) => {
+    const [amount, setAmount] = useState('');
+    const [reference, setReference] = useState('');
+    const [method, setMethod] = useState('manual');
+    const [proofUrl, setProofUrl] = useState('');
+    const [proofType, setProofType] = useState('');
+    const [uploading, setUploading] = useState(false);
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+
+    const handleProof = async (e) => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        setUploading(true); setError('');
+        try { const { url, kind } = await uploadProof(file); setProofUrl(url); setProofType(kind); }
+        catch { setError('Could not upload that file — try again.'); }
+        finally { setUploading(false); }
+    };
+
+    const submit = async (e) => {
+        e.preventDefault();
+        const amt = parseFloat(amount);
+        if (!(amt > 0)) { setError('Enter a valid amount'); return; }
+        setBusy(true); setError('');
+        try {
+            await providerWalletService.submitTopUp({ amount: amt, reference, method, proofUrl, proofType });
+            onDone();
+        } catch (err) { setError(err.response?.data?.message || 'Could not submit'); setBusy(false); }
+    };
+
+    const lbl = { display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' };
+    return (
+        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
+            <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '420px', maxHeight: '90vh', overflowY: 'auto' }}>
+                <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Top up your Bookplus account</h2>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>Pay Bookplus, attach proof, and we’ll verify and credit your account.</p>
+                </div>
+                <form onSubmit={submit} style={{ padding: '1.25rem' }}>
+                    <label style={lbl}>Funding method</label>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                        {[{ v: 'manual', t: 'Bank transfer' }, { v: 'cash', t: 'Cash' }].map((o) => (
+                            <button key={o.v} type="button" onClick={() => setMethod(o.v)} style={{
+                                flex: 1, padding: '0.55rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.82rem',
+                                border: `1.5px solid ${method === o.v ? 'var(--gold)' : 'var(--border)'}`,
+                                background: method === o.v ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)', color: method === o.v ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                            }}>{o.t}</button>
+                        ))}
+                    </div>
+                    <label style={lbl}>Amount (N$)</label>
+                    <input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 500" className="input" style={{ width: '100%', marginBottom: '1rem' }} required />
+                    <label style={lbl}>Payment reference</label>
+                    <input type="text" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Your deposit / transfer reference" className="input" style={{ width: '100%', marginBottom: '1rem' }} />
+                    <label style={lbl}>Proof of payment (image or PDF)</label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1rem', border: '1.5px dashed var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: proofUrl ? 'var(--gold-dark)' : 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                        {uploading ? 'Uploading…' : proofUrl ? `${proofType === 'pdf' ? 'PDF' : 'Proof'} uploaded — tap to replace` : 'Upload a screenshot, receipt or PDF'}
+                        <input type="file" accept="image/*,application/pdf" onChange={handleProof} style={{ display: 'none' }} />
+                    </label>
+                    {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
+                    <button type="submit" disabled={busy || uploading} className="btn-primary" style={{ width: '100%', padding: '0.85rem' }}>{busy ? 'Submitting…' : 'Submit for approval'}</button>
+                </form>
+            </div>
         </div>
     );
 };

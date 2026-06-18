@@ -72,7 +72,7 @@ exports.getMyWalletWithProvider = async (req, res) => {
 // POST /api/wallet/topup — client requests a top-up (pending until approved).
 exports.createTopUp = async (req, res) => {
     try {
-        const { providerId, amount, reference, proofUrl } = req.body;
+        const { providerId, amount, reference, proofUrl, method } = req.body;
         if (!mongoose.isValidObjectId(providerId)) {
             return res.status(400).json({ success: false, message: 'Invalid provider id' });
         }
@@ -86,11 +86,12 @@ exports.createTopUp = async (req, res) => {
             customer: req.user._id, provider: providerId, amount,
             reference: (reference || '').toString().slice(0, 60),
             proofUrl: (proofUrl || '').toString().slice(0, 500),
+            method: ['manual', 'cash'].includes(method) ? method : 'manual',
         });
 
         createNotification(
             providerId,
-            `New wallet top-up request: ${money(amount)} from ${req.user.name}`,
+            `New ${method === 'cash' ? 'cash ' : ''}wallet top-up request: ${money(amount)} from ${req.user.name}`,
             'wallet', '/dashboard'
         );
 

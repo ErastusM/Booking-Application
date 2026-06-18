@@ -37,7 +37,8 @@ const walletTransactionSchema = new mongoose.Schema(
         amount: { type: Number, required: true, min: 0 },
 
         reference: { type: String, default: '' }, // client payment ref, e.g. BP-12345
-        proofUrl: { type: String, default: '' },   // uploaded proof of payment (Cloudinary)
+        proofUrl: { type: String, default: '' },   // uploaded proof of payment (image or PDF)
+        method: { type: String, enum: ['manual', 'cash', 'online'], default: 'manual' }, // how the client funded the top-up
         reason: { type: String, default: '' },      // adjustment / refund / note
 
         appointment: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment', default: null },

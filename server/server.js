@@ -33,7 +33,9 @@ const suggestionRoutes = require('./src/routes/suggestionRoutes');
 const formRoutes = require('./src/routes/formRoutes');
 const pushRoutes = require('./src/routes/pushRoutes');
 const walletRoutes = require('./src/routes/walletRoutes');
+const providerWalletRoutes = require('./src/routes/providerWalletRoutes');
 const startReminderJob = require('./src/utils/reminderService');
+const startWalletExpiryJob = require('./src/utils/walletExpiryService');
 const passport = require('./src/config/passport');
 const User = require('./src/models/User');
 
@@ -164,6 +166,7 @@ app.use('/api/suggestions', writeLimiter, suggestionRoutes);
 app.use('/api/forms', writeLimiter, formRoutes);
 app.use('/api/push', writeLimiter, pushRoutes);
 app.use('/api/wallet', writeLimiter, walletRoutes);
+app.use('/api/provider-wallet', writeLimiter, providerWalletRoutes);
 
 
 // Health check — includes DB connectivity
@@ -192,6 +195,7 @@ if (require.main === module) {
         const server = app.listen(PORT, () => {
             logger.info({ port: PORT }, 'Server running');
             startReminderJob();
+            startWalletExpiryJob();
         });
 
         const shutdown = async (signal) => {
