@@ -63,6 +63,9 @@ const userSchema = new mongoose.Schema(
         googleId: { type: String, default: null },
         avatar: { type: String, default: null },
         tokenVersion: { type: Number, default: 0 },
+        // Hashes of recently-issued refresh-token ids (jti). A refresh token whose jti
+        // isn't here is rejected (rotated-away / forged). undefined = legacy, untracked.
+        refreshTokenJtis: { type: [String], default: undefined, select: false },
         consentedAt: { type: Date, default: null }, // when the user accepted Terms + Privacy Policy
         providerSetupComplete: { type: Boolean, default: false },
         googleCalendarEmbedUrl: { type: String, default: '' },

@@ -7,6 +7,31 @@ const { sendVerificationEmail, sendWelcomeEmail } = require('../utils/emailServi
 const MAIN_CATEGORIES = require('../constants/mainCategories');
 const { notifyAdmins } = require('../utils/notificationhelper');
 
+// How many recent refresh-token ids (jti hashes) to remember per user. Enough to
+// cover a handful of concurrent devices without growing unbounded.
+const MAX_REFRESH_JTIS = 10;
+
+const hashJti = (jti) => crypto.createHash('sha256').update(jti).digest('hex');
+
+/**
+ * Issue a fresh access + refresh token pair for a user and record the new refresh
+ * token's id (jti hash) on the account. Keeping a capped list of valid jtis lets
+ * /refresh reject a refresh token that was rotated away or forged: its jti won't
+ * be in the list. We never mass-revoke here (that would log out every device on a
+ * benign double-refresh race) — rejection is per-token via the jti check.
+ *
+ * `user` must have been loaded with `.select('+refreshTokenJtis')`.
+ */
+const issueAuthTokens = async (user) => {
+    const jti = crypto.randomBytes(16).toString('hex');
+    const token = generateToken(user._id, user.tokenVersion);
+    const refreshToken = generateRefreshToken(user._id, user.tokenVersion, jti);
+    const list = Array.isArray(user.refreshTokenJtis) ? user.refreshTokenJtis : [];
+    user.refreshTokenJtis = [...list, hashJti(jti)].slice(-MAX_REFRESH_JTIS);
+    await user.save();
+    return { token, refreshToken };
+};
+
 /**
  * =========================
  * REGISTER (LOCAL ONLY)
@@ -99,8 +124,7 @@ exports.register = async (req, res) => {
         sendVerificationEmail(email, name, verificationToken, assignedRole)
             .catch((err) => console.error('Verification email failed:', err.message));
 
-        const token = generateToken(user._id, user.tokenVersion);
-        const refreshToken = generateRefreshToken(user._id, user.tokenVersion);
+        const { token, refreshToken } = await issueAuthTokens(user);
 
         res.status(201).json({
             success: true,
@@ -165,7 +189,7 @@ exports.login = async (req, res) => {
             });
         }
 
-        const user = await User.findOne({ email }).select('+password');
+        const user = await User.findOne({ email }).select('+password +refreshTokenJtis');
 
         if (!user) {
             return res.status(401).json({
@@ -190,8 +214,7 @@ exports.login = async (req, res) => {
             });
         }
 
-        const token = generateToken(user._id, user.tokenVersion);
-        const refreshToken = generateRefreshToken(user._id, user.tokenVersion);
+        const { token, refreshToken } = await issueAuthTokens(user);
 
         res.status(200).json({
             success: true,
@@ -231,16 +254,14 @@ exports.exchangeOAuthCode = async (req, res) => {
 
         const codeHash = crypto.createHash('sha256').update(code).digest('hex');
         const user = await User.findOne({ oauthCode: codeHash, oauthCodeExpiry: { $gt: new Date() } })
-            .select('+oauthCode +oauthCodeExpiry');
+            .select('+oauthCode +oauthCodeExpiry +refreshTokenJtis');
 
         if (!user) return res.status(400).json({ success: false, message: 'Invalid or expired code' });
 
         user.oauthCode = null;
         user.oauthCodeExpiry = null;
-        await user.save();
 
-        const token = generateToken(user._id, user.tokenVersion);
-        const refreshToken = generateRefreshToken(user._id, user.tokenVersion);
+        const { token, refreshToken } = await issueAuthTokens(user);
 
         res.status(200).json({
             success: true,
@@ -289,7 +310,7 @@ exports.refresh = async (req, res) => {
             return res.status(401).json({ success: false, message: 'Invalid or expired refresh token' });
         }
 
-        const user = await User.findById(decoded.id);
+        const user = await User.findById(decoded.id).select('+refreshTokenJtis');
         if (!user) {
             return res.status(401).json({ success: false, message: 'Invalid refresh token' });
         }
@@ -303,8 +324,20 @@ exports.refresh = async (req, res) => {
             return res.status(401).json({ success: false, message: 'Refresh token has been revoked' });
         }
 
-        const token = generateToken(user._id, user.tokenVersion);
-        const newRefreshToken = generateRefreshToken(user._id, user.tokenVersion);
+        // Reuse / rotation check: a tracked account only accepts a refresh token
+        // whose jti is still in its valid list. A token that was already rotated
+        // away (or forged) won't be there, so it's rejected. Tokens predating this
+        // feature carry no jti and the account has no list yet — those are allowed
+        // through (legacy grace) until their first rotation starts tracking them.
+        if (Array.isArray(user.refreshTokenJtis) && user.refreshTokenJtis.length > 0) {
+            if (!decoded.jti || !user.refreshTokenJtis.includes(hashJti(decoded.jti))) {
+                return res.status(401).json({ success: false, message: 'Refresh token has been revoked' });
+            }
+            // Consume the presented jti so it cannot be replayed after rotation.
+            user.refreshTokenJtis = user.refreshTokenJtis.filter((h) => h !== hashJti(decoded.jti));
+        }
+
+        const { token, refreshToken: newRefreshToken } = await issueAuthTokens(user);
 
         res.status(200).json({
             success: true,
@@ -322,7 +355,7 @@ exports.refresh = async (req, res) => {
  */
 exports.logout = async (req, res) => {
     try {
-        await User.findByIdAndUpdate(req.user._id, { $inc: { tokenVersion: 1 } });
+        await User.findByIdAndUpdate(req.user._id, { $inc: { tokenVersion: 1 }, $set: { refreshTokenJtis: [] } });
         res.status(200).json({ success: true, message: 'Logged out successfully' });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Logout failed' });
@@ -463,6 +496,7 @@ exports.changePassword = async (req, res) => {
         // Invalidate all existing sessions (access + refresh tokens carry tokenVersion),
         // so changing the password signs out other devices — same as a reset.
         user.tokenVersion = (user.tokenVersion || 0) + 1;
+        user.refreshTokenJtis = []; // drop tracked refresh tokens too
         await user.save();
         res.status(200).json({ success: true, message: 'Password updated successfully' });
     } catch (error) {
@@ -613,6 +647,7 @@ exports.resetPassword = async (req, res) => {
         user.passwordResetExpiry = null;
         // Invalidate all existing sessions
         user.tokenVersion = (user.tokenVersion || 0) + 1;
+        user.refreshTokenJtis = []; // drop tracked refresh tokens too
         await user.save();
 
         return res.status(200).json({ success: true, message: 'Password reset successfully. You can now sign in.' });

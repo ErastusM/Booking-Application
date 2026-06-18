@@ -263,6 +263,40 @@ describe('POST /api/auth/refresh', () => {
         expect(profile.status).toBe(200);
     });
 
+    it('rejects the original refresh token once it has been rotated (reuse detection)', async () => {
+        const { refreshToken } = await loginAndGetTokens();
+
+        // First refresh succeeds and rotates the token (old jti is consumed)
+        const first = await request(app).post('/api/auth/refresh').send({ refreshToken });
+        expect(first.status).toBe(200);
+        const rotated = first.body.data.refreshToken;
+
+        // Replaying the ORIGINAL (now-rotated) refresh token must be rejected
+        const replay = await request(app).post('/api/auth/refresh').send({ refreshToken });
+        expect(replay.status).toBe(401);
+        expect(replay.body.message).toMatch(/revoked/i);
+
+        // ...while the freshly rotated token still works
+        const ok = await request(app).post('/api/auth/refresh').send({ refreshToken: rotated });
+        expect(ok.status).toBe(200);
+    });
+
+    it('rejects a validly-signed refresh token whose jti was never issued (forged)', async () => {
+        // Logging in first makes the account tracked (it gets a jti list)
+        const { refreshToken } = await loginAndGetTokens();
+        const decoded = jwt.verify(refreshToken, process.env.REFRESH_TOKEN_SECRET);
+
+        // Same user + tokenVersion, but a jti the server never minted
+        const forged = jwt.sign(
+            { id: decoded.id, tokenVersion: decoded.tokenVersion, jti: crypto.randomBytes(16).toString('hex') },
+            process.env.REFRESH_TOKEN_SECRET,
+            { expiresIn: '30d' }
+        );
+        const res = await request(app).post('/api/auth/refresh').send({ refreshToken: forged });
+        expect(res.status).toBe(401);
+        expect(res.body.message).toMatch(/revoked/i);
+    });
+
     it('returns 400 when no refresh token is supplied', async () => {
         const res = await request(app).post('/api/auth/refresh').send({});
         expect(res.status).toBe(400);

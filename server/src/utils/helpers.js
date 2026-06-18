@@ -8,8 +8,10 @@ exports.generateToken = (id, tokenVersion = 0) => {
     });
 };
 
-exports.generateRefreshToken = (id, tokenVersion = 0) => {
-    return jwt.sign({ id, tokenVersion }, process.env.REFRESH_TOKEN_SECRET, {
+exports.generateRefreshToken = (id, tokenVersion = 0, jti) => {
+    const payload = { id, tokenVersion };
+    if (jti) payload.jti = jti; // token id, tracked per-user for rotation / reuse rejection
+    return jwt.sign(payload, process.env.REFRESH_TOKEN_SECRET, {
         expiresIn: process.env.REFRESH_TOKEN_EXPIRE || '30d'
     });
 };
