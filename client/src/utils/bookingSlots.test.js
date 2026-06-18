@@ -85,4 +85,25 @@ describe('buildTimeSlots', () => {
         });
         expect(times(slots)).toEqual(['09:00', '10:00', '13:00', '14:00']);
     });
+
+    // The same rule must apply to every short service (5/10/15/20/25/30 min):
+    // hourly by default, half-hour only when the first half is booked.
+    test.each([5, 10, 15, 20, 25, 30])('free hour shows only the hour start for a %i-min service', (duration) => {
+        const slots = buildTimeSlots({
+            blocks: [{ start: H(4), end: H(6) }],
+            bookedRanges: [],
+            duration,
+        });
+        expect(times(slots)).toEqual(['04:00', '05:00']); // never 04:15 / 04:30 / 05:30
+    });
+
+    test.each([5, 10, 15, 20, 25, 30])('first half booked → offers 04:30 for a %i-min service', (duration) => {
+        const slots = buildTimeSlots({
+            blocks: [{ start: H(4), end: H(6) }],
+            bookedRanges: [{ start: H(4), end: H(4, 30) }], // 4:00–4:30 booked
+            duration,
+        });
+        expect(times(slots)).toEqual(['04:30', '05:00']);
+        expect(slots.every((s) => !s.isBooked)).toBe(true);
+    });
 });
