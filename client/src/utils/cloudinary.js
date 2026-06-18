@@ -1,17 +1,33 @@
-// Cloudinary URL helpers — request right-sized, retina-aware, modern-format
-// derivatives so images stay crisp and light instead of shipping the raw upload.
-// Non-Cloudinary URLs (or empty values) are returned unchanged.
+// Cloudinary / Google URL helpers — request right-sized, modern-format derivatives
+// so images stay crisp instead of shipping a tiny or unoptimized source.
+//
+// Notes:
+//  - We request generous pixel widths and let the browser downscale, rather than
+//    relying on `dpr_auto` (which needs Client-Hints that aren't enabled here, so
+//    it silently serves 1x and looks soft on hi-DPI phones).
+//  - Google OAuth avatars come through as ".../photo.jpg=s96-c" (only 96px); we
+//    rewrite the size segment so they aren't blurry when shown larger.
+//  - Unknown / empty URLs are returned unchanged.
 
 const isCloudinary = (url) => typeof url === 'string' && url.includes('/image/upload/');
+const isGooglePhoto = (url) => typeof url === 'string' && url.includes('googleusercontent.com');
 
-// Landscape-ish crop for cover/card imagery (default 4:3).
-export const cloudinaryThumb = (url, w = 600, h = 450) => {
+// Landscape 4:3 crop for cover / card imagery.
+export const cloudinaryThumb = (url, w = 800) => {
     if (!isCloudinary(url)) return url;
-    return url.replace('/image/upload/', `/image/upload/c_fill,g_auto,ar_${w}:${h},w_${w},q_auto,f_auto,dpr_auto/`);
+    return url.replace('/image/upload/', `/image/upload/c_fill,g_auto,ar_4:3,w_${w},q_auto:good,f_auto/`);
 };
 
-// Square, face-aware crop for avatars / profile photos.
-export const cloudinaryAvatar = (url, size = 160) => {
-    if (!isCloudinary(url)) return url;
-    return url.replace('/image/upload/', `/image/upload/c_fill,g_face,ar_1:1,w_${size},q_auto,f_auto,dpr_auto/`);
+// Square avatar / profile photo. Handles Cloudinary uploads and Google OAuth photos.
+export const cloudinaryAvatar = (url, size = 256) => {
+    if (isCloudinary(url)) {
+        return url.replace('/image/upload/', `/image/upload/c_fill,g_face,ar_1:1,w_${size},q_auto:good,f_auto/`);
+    }
+    if (isGooglePhoto(url)) {
+        // e.g. "...=s96-c" → "...=s256-c"; append one if no size segment is present.
+        return /=s\d+(-c)?$/.test(url)
+            ? url.replace(/=s\d+(-c)?$/, `=s${size}-c`)
+            : `${url}=s${size}-c`;
+    }
+    return url;
 };
