@@ -159,6 +159,14 @@ const ProviderDashboard = () => {
     // reschedule, new booking or cancellation shows up without a manual refresh.
     useLiveRefresh(() => { fetchAppointments(); fetchBlockedTimes(); }, { intervalMs: 25000 });
 
+    // Live chat — refresh the open conversation so new messages appear without reload.
+    useLiveRefresh(() => {
+        if (activeTab === 'messages' && selectedConversation) {
+            messageService.getMessages(selectedConversation.appointment._id)
+                .then(res => setConversationMessages(res.data.data)).catch(() => {});
+        }
+    }, { intervalMs: 8000, enabled: activeTab === 'messages' && !!selectedConversation });
+
     // Cancel any in-progress drag if mouse is released outside a column
     useEffect(() => {
         const up = () => {

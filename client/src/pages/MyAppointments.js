@@ -61,6 +61,14 @@ const MyAppointments = () => {
     // regains focus, so status changes (confirm/cancel/reschedule) appear on their own.
     useLiveRefresh(() => fetchData(), { intervalMs: 30000 });
 
+    // Live chat — refresh the open message thread so replies appear without reload.
+    useLiveRefresh(() => {
+        if (msgModal) {
+            messageService.getMessages(msgModal._id)
+                .then(res => setMsgThread(res.data.data || [])).catch(() => {});
+        }
+    }, { intervalMs: 8000, enabled: !!msgModal });
+
     useEffect(() => {
         if (searchParams.get('rescheduled') === '1') {
             setSuccess('Appointment rescheduled and confirmed.');
