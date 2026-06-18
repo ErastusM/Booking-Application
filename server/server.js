@@ -32,6 +32,7 @@ const teamMemberRoutes = require('./src/routes/teamMemberRoutes');
 const suggestionRoutes = require('./src/routes/suggestionRoutes');
 const formRoutes = require('./src/routes/formRoutes');
 const pushRoutes = require('./src/routes/pushRoutes');
+const walletRoutes = require('./src/routes/walletRoutes');
 const startReminderJob = require('./src/utils/reminderService');
 const passport = require('./src/config/passport');
 const User = require('./src/models/User');
@@ -162,6 +163,7 @@ app.use('/api/team', writeLimiter, teamMemberRoutes);
 app.use('/api/suggestions', writeLimiter, suggestionRoutes);
 app.use('/api/forms', writeLimiter, formRoutes);
 app.use('/api/push', writeLimiter, pushRoutes);
+app.use('/api/wallet', writeLimiter, walletRoutes);
 
 
 // Health check — includes DB connectivity

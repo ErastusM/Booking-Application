@@ -4,14 +4,16 @@ import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
 import interactionPlugin from '@fullcalendar/interaction';
-import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService, waitingListService, earningsService, analyticsService } from '../services';
+import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService, waitingListService, earningsService, analyticsService, walletService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import OnboardingWizard from '../components/OnboardingWizard';
 import FormsManager from '../components/FormsManager';
 import ApptFormsView from '../components/ApptFormsView';
-import { Calendar, History, Scissors, CalendarClock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban } from 'lucide-react';
+import { Calendar, History, Scissors, CalendarClock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban, Wallet as WalletIcon } from 'lucide-react';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
+
+const nMoney = (n) => `N$${Number(n || 0).toFixed(2)}`;
 
 const statusConfig = {
     pending: { label: 'Pending', bg: '#fef3c7', color: '#92400e' },
@@ -96,6 +98,16 @@ const ProviderDashboard = () => {
     const [apptDetailError, setApptDetailError] = useState('');
     const swipeGestureRef = useRef({ tracking: false, startX: 0, startY: 0, dx: 0, dy: 0, locked: false });
 
+    // Wallet (prepaid balances the provider holds for clients)
+    const [walletSummary, setWalletSummary] = useState(null);
+    const [walletSettings, setWalletSettings] = useState(null);
+    const [walletTopups, setWalletTopups] = useState([]);
+    const [walletClientWallets, setWalletClientWallets] = useState([]);
+    const [walletAdjustments, setWalletAdjustments] = useState([]);
+    const [walletLoading, setWalletLoading] = useState(false);
+    const [walletSaving, setWalletSaving] = useState(false);
+    const [adjustModal, setAdjustModal] = useState(null); // { wallet } for the adjustment composer
+
     // CRM / Messages / Packages / Retention
     const [clients, setClients] = useState([]);
     const [loadingClients, setLoadingClients] = useState(false);
@@ -134,7 +146,7 @@ const ProviderDashboard = () => {
 
     useEffect(() => {
         const tab = new URLSearchParams(location.search).get('tab');
-        const validTabs = ['calendar', 'pending', 'confirmed', 'completed', 'cancelled', 'history', 'services', 'availability', 'overview', 'earnings', 'insights', 'clients', 'messages', 'memberships', 'team', 'forms'];
+        const validTabs = ['calendar', 'pending', 'confirmed', 'completed', 'cancelled', 'history', 'services', 'availability', 'overview', 'earnings', 'insights', 'clients', 'messages', 'memberships', 'team', 'forms', 'wallet'];
         if (tab && validTabs.includes(tab)) {
             setActiveTab(tab);
             setSelectedDay(null);
@@ -192,6 +204,7 @@ const ProviderDashboard = () => {
         if (activeTab === 'history' && history.length === 0) fetchHistory(1);
         // Team needed for staff assignment + the calendar staff filter
         if (activeTab === 'calendar' && teamMembers.length === 0) fetchTeam();
+        if (activeTab === 'wallet') fetchWalletData();
     }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Load the provider's client list when the New Appointment modal opens, so the
@@ -374,6 +387,47 @@ const ProviderDashboard = () => {
             const res = await clientCRMService.getMyClients();
             setClients(res.data.data);
         } catch { /* ignore */ } finally { setLoadingClients(false); }
+    };
+
+    const fetchWalletData = async () => {
+        setWalletLoading(true);
+        try {
+            const [summary, settings, topups, cw, adj] = await Promise.all([
+                walletService.getProviderSummary(),
+                walletService.getSettings(),
+                walletService.getProviderTopups(),
+                walletService.getProviderWallets(),
+                walletService.getProviderAdjustments(),
+            ]);
+            setWalletSummary(summary.data.data);
+            setWalletSettings(settings.data.data);
+            setWalletTopups(topups.data.data || []);
+            setWalletClientWallets(cw.data.data || []);
+            setWalletAdjustments(adj.data.data || []);
+        } catch { /* ignore */ } finally { setWalletLoading(false); }
+    };
+
+    const saveWalletSettings = async (patch) => {
+        setWalletSaving(true);
+        try {
+            const res = await walletService.updateSettings({ ...walletSettings, ...patch });
+            setWalletSettings(res.data.data);
+        } catch (err) {
+            setError(err.response?.data?.message || 'Could not save wallet settings');
+        } finally { setWalletSaving(false); }
+    };
+
+    const resolveTopUp = async (id, approve) => {
+        try {
+            approve ? await walletService.approveTopUp(id) : await walletService.rejectTopUp(id);
+            await fetchWalletData();
+        } catch (err) { alert(err.response?.data?.message || 'Could not update top-up'); }
+    };
+
+    const submitAdjustment = async ({ customerId, amount, direction, reason, isRefund }) => {
+        await walletService.createAdjustment({ customerId, amount, direction, reason, isRefund });
+        setAdjustModal(null);
+        await fetchWalletData();
     };
 
     // Resolve a preset (or custom range) into {from, to} YYYY-MM-DD strings
@@ -1178,7 +1232,7 @@ const ProviderDashboard = () => {
                         transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
                     }}><History size={15} strokeWidth={2} /> History</button>
                     {/* Other feature tabs */}
-                    {[['services','Catalogue',Scissors],['availability','Availability',CalendarClock],['overview','Overview',LayoutDashboard],['insights','Insights',BarChart3],['clients','Clients',Users],['forms','Forms',ClipboardList],['messages','Messages',MessageSquare],['memberships','Memberships',Ticket],['team','Team',UserCog]].map(([tab, label, Icon]) => (
+                    {[['services','Catalogue',Scissors],['availability','Availability',CalendarClock],['overview','Overview',LayoutDashboard],['insights','Insights',BarChart3],['clients','Clients',Users],['wallet','Wallet',WalletIcon],['forms','Forms',ClipboardList],['messages','Messages',MessageSquare],['memberships','Memberships',Ticket],['team','Team',UserCog]].map(([tab, label, Icon]) => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
                             display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
                             padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(201,168,76,0.12)' : 'transparent', border: '1px solid',
@@ -3362,6 +3416,169 @@ const ProviderDashboard = () => {
                 </div>
             )}
 
+            {/* ── WALLET TAB ── */}
+            {activeTab === 'wallet' && (
+                <div>
+                    {walletLoading && !walletSummary ? (
+                        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading wallet…</div>
+                    ) : (
+                        <>
+                            {/* Headline figures */}
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                                {[
+                                    { label: 'Funds held', val: walletSummary?.fundsHeld, accent: true },
+                                    { label: 'Reserved', val: walletSummary?.totalReserved },
+                                    { label: 'Available to clients', val: walletSummary?.totalAvailable },
+                                    { label: 'Total deducted', val: walletSummary?.totalDeducted },
+                                ].map((c) => (
+                                    <div key={c.label} style={{ background: c.accent ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.1rem 1.25rem' }}>
+                                        <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>{c.label}</div>
+                                        <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: c.accent ? 'var(--gold-dark)' : 'var(--charcoal)' }}>{nMoney(c.val)}</div>
+                                    </div>
+                                ))}
+                            </div>
+
+                            {/* Settings */}
+                            <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', marginBottom: '1.5rem' }}>
+                                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '600', color: 'var(--charcoal)', margin: '0 0 0.25rem' }}>Wallet settings</h3>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 1rem' }}>Let clients prepay you and hold funds for upcoming bookings. You approve every deposit.</p>
+
+                                <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.75rem 0', borderTop: '1px solid var(--border)' }}>
+                                    <div><div style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>Enable wallet</div><div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Turn the prepaid wallet on for your clients</div></div>
+                                    <button type="button" onClick={() => saveWalletSettings({ enabled: !walletSettings?.enabled })} disabled={walletSaving} style={{ width: '48px', height: '26px', borderRadius: '99px', border: 'none', cursor: 'pointer', background: walletSettings?.enabled ? 'var(--gold)' : '#d1d5db', position: 'relative', flexShrink: 0 }}>
+                                        <span style={{ position: 'absolute', top: '3px', left: walletSettings?.enabled ? '25px' : '3px', width: '20px', height: '20px', borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
+                                    </button>
+                                </label>
+
+                                <div style={{ padding: '0.75rem 0', borderTop: '1px solid var(--border)', opacity: walletSettings?.enabled ? 1 : 0.5, pointerEvents: walletSettings?.enabled ? 'auto' : 'none' }}>
+                                    <div style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Booking payment</div>
+                                    {[
+                                        { v: 'wallet_required', t: 'Require wallet funds to book', d: 'Clients must have enough available balance (recommended)' },
+                                        { v: 'wallet_optional', t: 'Wallet optional', d: 'Clients can book without funds and pay later' },
+                                    ].map((opt) => (
+                                        <label key={opt.v} onClick={() => saveWalletSettings({ bookingPaymentMode: opt.v })} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', padding: '0.5rem 0', cursor: 'pointer' }}>
+                                            <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: `2px solid ${walletSettings?.bookingPaymentMode === opt.v ? 'var(--gold)' : '#cbd5e1'}`, background: walletSettings?.bookingPaymentMode === opt.v ? 'var(--gold)' : 'white', flexShrink: 0, marginTop: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{walletSettings?.bookingPaymentMode === opt.v && <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'white' }} />}</div>
+                                            <div><div style={{ fontSize: '0.85rem', color: 'var(--charcoal)', fontWeight: walletSettings?.bookingPaymentMode === opt.v ? '600' : '400' }}>{opt.t}</div><div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{opt.d}</div></div>
+                                        </label>
+                                    ))}
+                                </div>
+
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.75rem 0', borderTop: '1px solid var(--border)' }}>
+                                    <div><div style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>Allow refunds</div><div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Offer wallet refunds to clients</div></div>
+                                    <button type="button" onClick={() => saveWalletSettings({ refundsAllowed: !walletSettings?.refundsAllowed })} disabled={walletSaving} style={{ width: '48px', height: '26px', borderRadius: '99px', border: 'none', cursor: 'pointer', background: walletSettings?.refundsAllowed ? 'var(--gold)' : '#d1d5db', position: 'relative', flexShrink: 0 }}>
+                                        <span style={{ position: 'absolute', top: '3px', left: walletSettings?.refundsAllowed ? '25px' : '3px', width: '20px', height: '20px', borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
+                                    </button>
+                                </div>
+
+                                <div style={{ padding: '0.75rem 0', borderTop: '1px solid var(--border)' }}>
+                                    <label style={{ display: 'block', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem', marginBottom: '0.4rem' }}>Balance expiry</label>
+                                    <select value={walletSettings?.expiryMonths ?? ''} onChange={(e) => saveWalletSettings({ expiryMonths: e.target.value === '' ? null : Number(e.target.value) })} className="input" style={{ width: '100%', maxWidth: '260px' }}>
+                                        <option value="">Never expire</option>
+                                        <option value="6">Expire after 6 months</option>
+                                        <option value="12">Expire after 12 months</option>
+                                        <option value="24">Expire after 24 months</option>
+                                    </select>
+                                </div>
+
+                                <div style={{ padding: '0.75rem 0 0', borderTop: '1px solid var(--border)' }}>
+                                    <label style={{ display: 'block', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem', marginBottom: '0.4rem' }}>Payment instructions for clients</label>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0 0 0.5rem' }}>Shown when a client tops up — your bank account, eWallet, PayToday or deposit details.</p>
+                                    <textarea defaultValue={walletSettings?.paymentInstructions || ''} key={walletSettings?.paymentInstructions} onBlur={(e) => { if (e.target.value !== (walletSettings?.paymentInstructions || '')) saveWalletSettings({ paymentInstructions: e.target.value }); }} rows={4} placeholder={'e.g.\nBank Windhoek · Acc 1234567890\nPayToday: 081 234 5678'} className="input" style={{ width: '100%', resize: 'vertical' }} />
+                                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.35rem 0 0' }}>Saved when you click away. Online card payment is coming soon.</p>
+                                </div>
+                            </div>
+
+                            {/* Pending top-up requests */}
+                            <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', marginBottom: '1.5rem' }}>
+                                <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Top-up requests</h3>
+                                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{walletTopups.filter((t) => t.status === 'pending').length} pending</span>
+                                </div>
+                                {walletTopups.length === 0 ? (
+                                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No top-up requests yet.</div>
+                                ) : (
+                                    <div>
+                                        {walletTopups.slice(0, 30).map((t) => (
+                                            <div key={t._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.9rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
+                                                <div style={{ minWidth: 0 }}>
+                                                    <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>{t.customer?.name || 'Client'} · {nMoney(t.amount)}</p>
+                                                    <p style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                                        {new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{t.reference ? ` · ${t.reference}` : ''}
+                                                        {t.proofUrl && <> · <a href={t.proofUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--gold-dark)' }}>View proof</a></>}
+                                                    </p>
+                                                </div>
+                                                {t.status === 'pending' ? (
+                                                    <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+                                                        <button onClick={() => resolveTopUp(t._id, true)} className="btn-primary" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}>Approve</button>
+                                                        <button onClick={() => resolveTopUp(t._id, false)} className="btn-outline" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}>Reject</button>
+                                                    </div>
+                                                ) : (
+                                                    <span style={{ fontSize: '0.75rem', fontWeight: '600', padding: '0.2rem 0.6rem', borderRadius: '99px', textTransform: 'capitalize', background: t.status === 'approved' ? '#d1fae5' : '#fee2e2', color: t.status === 'approved' ? '#065f46' : '#991b1b' }}>{t.status}</span>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Client balances */}
+                            <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', marginBottom: '1.5rem' }}>
+                                <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
+                                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Client balances</h3>
+                                </div>
+                                {walletClientWallets.length === 0 ? (
+                                    <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No client wallets yet.</div>
+                                ) : (
+                                    <div style={{ overflowX: 'auto' }}>
+                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
+                                            <thead><tr style={{ background: 'var(--warm-gray)', textAlign: 'left' }}>{['Client', 'Available', 'Reserved', 'Total', ''].map((h) => <th key={h} style={{ padding: '0.6rem 1rem', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>{h}</th>)}</tr></thead>
+                                            <tbody>
+                                                {walletClientWallets.map((w) => (
+                                                    <tr key={w._id} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                        <td style={{ padding: '0.7rem 1rem' }}><div style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{w.customer?.name || '—'}</div><div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{w.customer?.email}</div></td>
+                                                        <td style={{ padding: '0.7rem 1rem', fontWeight: '600', color: 'var(--gold-dark)' }}>{nMoney(w.availableBalance)}</td>
+                                                        <td style={{ padding: '0.7rem 1rem', color: 'var(--text-secondary)' }}>{nMoney(w.reservedBalance)}</td>
+                                                        <td style={{ padding: '0.7rem 1rem', color: 'var(--charcoal)' }}>{nMoney(w.totalBalance)}</td>
+                                                        <td style={{ padding: '0.7rem 1rem', textAlign: 'right' }}><button onClick={() => setAdjustModal({ wallet: w })} className="btn-outline" style={{ padding: '0.3rem 0.8rem', fontSize: '0.78rem' }}>Adjust</button></td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Adjustment history */}
+                            {walletAdjustments.length > 0 && (
+                                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                                    <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
+                                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Adjustments</h3>
+                                    </div>
+                                    {walletAdjustments.slice(0, 30).map((a) => (
+                                        <div key={a._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.8rem 1.5rem', borderBottom: '1px solid var(--border)', gap: '1rem' }}>
+                                            <div style={{ minWidth: 0 }}>
+                                                <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--charcoal)', fontWeight: '500' }}>{a.customer?.name} · {a.direction === 'credit' ? 'Credit' : 'Debit'} {nMoney(a.amount)}{a.type === 'refund' ? ' (refund)' : ''}</p>
+                                                {a.reason && <p style={{ margin: '0.1rem 0 0', fontSize: '0.74rem', color: 'var(--text-muted)' }}>{a.reason}</p>}
+                                            </div>
+                                            <span style={{ fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.6rem', borderRadius: '99px', textTransform: 'capitalize', background: a.status === 'approved' ? '#d1fae5' : a.status === 'pending' ? '#fef3c7' : '#fee2e2', color: a.status === 'approved' ? '#065f46' : a.status === 'pending' ? '#92400e' : '#991b1b' }}>{a.status}</span>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </>
+                    )}
+
+                    {adjustModal && (
+                        <WalletAdjustmentModal
+                            wallet={adjustModal.wallet}
+                            refundsAllowed={walletSettings?.refundsAllowed}
+                            onClose={() => setAdjustModal(null)}
+                            onSubmit={submitAdjustment}
+                        />
+                    )}
+                </div>
+            )}
+
             {/* ── TEAM TAB ── */}
             {activeTab === 'forms' && <FormsManager />}
 
@@ -4004,6 +4221,72 @@ const ProviderDashboard = () => {
                     </div>
                 </>
             )}
+        </div>
+    );
+};
+
+// Provider composes a manual wallet credit/debit (or refund) for a client.
+// It's proposed only — the client must approve before any balance changes.
+const WalletAdjustmentModal = ({ wallet, refundsAllowed, onClose, onSubmit }) => {
+    const [direction, setDirection] = useState('credit');
+    const [isRefund, setIsRefund] = useState(false);
+    const [amount, setAmount] = useState('');
+    const [reason, setReason] = useState('');
+    const [busy, setBusy] = useState(false);
+    const [error, setError] = useState('');
+
+    const submit = async (e) => {
+        e.preventDefault();
+        const amt = parseFloat(amount);
+        if (!(amt > 0)) { setError('Enter a valid amount'); return; }
+        setBusy(true); setError('');
+        try {
+            await onSubmit({ customerId: wallet.customer?._id || wallet.customer, amount: amt, direction: isRefund ? 'credit' : direction, reason, isRefund });
+        } catch (err) {
+            setError(err.response?.data?.message || 'Could not propose adjustment');
+            setBusy(false);
+        }
+    };
+
+    return (
+        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
+            <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(26,26,46,0.3)', overflow: 'hidden' }}>
+                <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Adjust wallet · {wallet.customer?.name}</h2>
+                    <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>Proposed — your client approves before it applies.</p>
+                </div>
+                <form onSubmit={submit} style={{ padding: '1.25rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                        {[{ v: 'credit', t: 'Credit (add)' }, { v: 'debit', t: 'Debit (remove)' }].map((o) => (
+                            <button key={o.v} type="button" disabled={isRefund} onClick={() => setDirection(o.v)} style={{
+                                flex: 1, padding: '0.55rem', borderRadius: 'var(--radius-sm)', cursor: isRefund ? 'not-allowed' : 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.82rem',
+                                border: `1.5px solid ${!isRefund && direction === o.v ? 'var(--gold)' : 'var(--border)'}`,
+                                background: !isRefund && direction === o.v ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)',
+                                color: !isRefund && direction === o.v ? 'var(--gold-dark)' : 'var(--text-secondary)', opacity: isRefund ? 0.5 : 1,
+                            }}>{o.t}</button>
+                        ))}
+                    </div>
+
+                    {refundsAllowed && (
+                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1rem', fontSize: '0.85rem', color: 'var(--charcoal)', cursor: 'pointer' }}>
+                            <input type="checkbox" checked={isRefund} onChange={(e) => setIsRefund(e.target.checked)} />
+                            Mark as a refund (credit)
+                        </label>
+                    )}
+
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Amount (N$)</label>
+                    <input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 50" className="input" style={{ width: '100%', marginBottom: '1rem' }} required />
+
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Reason</label>
+                    <input type="text" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Loyalty credit, no-show penalty" className="input" style={{ width: '100%', marginBottom: '1rem' }} maxLength={200} />
+
+                    {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button type="submit" disabled={busy} className="btn-primary" style={{ flex: 1, padding: '0.75rem' }}>{busy ? 'Sending…' : 'Propose to client'}</button>
+                        <button type="button" onClick={onClose} className="btn-outline" style={{ padding: '0.75rem 1.1rem' }}>Cancel</button>
+                    </div>
+                </form>
+            </div>
         </div>
     );
 };

@@ -81,6 +81,15 @@ const userSchema = new mongoose.Schema(
             images: [{ type: String }],
             instagramUrl: { type: String, default: '' },
         },
+        // Prepaid wallet config (providers). Opt-in: off until the provider sets it up.
+        walletSettings: {
+            enabled: { type: Boolean, default: false },
+            // wallet_required = client must have funds to book; wallet_optional = pay later
+            bookingPaymentMode: { type: String, enum: ['wallet_required', 'wallet_optional'], default: 'wallet_required' },
+            refundsAllowed: { type: Boolean, default: true },
+            expiryMonths: { type: Number, default: null }, // null = balances never expire
+            paymentInstructions: { type: String, default: '' }, // bank / eWallet / PayToday details shown to clients
+        },
         // Providers this user has saved (customer-facing favorites)
         favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
         oauthCode: { type: String, default: null, select: false },

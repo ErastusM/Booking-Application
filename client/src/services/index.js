@@ -167,6 +167,28 @@ export const pushService = {
     unsubscribe: (endpoint) => API.post('/push/unsubscribe', { endpoint }),
 };
 
+export const walletService = {
+    // Client
+    getMyWallets: () => API.get('/wallet/mine'),
+    getMyWalletWithProvider: (providerId) => API.get(`/wallet/mine/${providerId}`),
+    topUp: (data) => API.post('/wallet/topup', data),
+    getMyTransactions: (providerId) => API.get('/wallet/transactions', { params: providerId ? { providerId } : {} }),
+    getMyPendingAdjustments: () => API.get('/wallet/adjustments/pending'),
+    approveAdjustment: (id) => API.post(`/wallet/adjustments/${id}/approve`),
+    rejectAdjustment: (id) => API.post(`/wallet/adjustments/${id}/reject`),
+    // Provider
+    getProviderSummary: () => API.get('/wallet/provider/summary'),
+    getProviderWallets: () => API.get('/wallet/provider/wallets'),
+    getProviderTopups: (status) => API.get('/wallet/provider/topups', { params: status ? { status } : {} }),
+    approveTopUp: (id) => API.post(`/wallet/topups/${id}/approve`),
+    rejectTopUp: (id, reason) => API.post(`/wallet/topups/${id}/reject`, { reason }),
+    createAdjustment: (data) => API.post('/wallet/provider/adjustments', data),
+    getProviderAdjustments: (status) => API.get('/wallet/provider/adjustments', { params: status ? { status } : {} }),
+    getProviderTransactions: (customerId) => API.get('/wallet/provider/transactions', { params: customerId ? { customerId } : {} }),
+    getSettings: () => API.get('/wallet/settings'),
+    updateSettings: (data) => API.put('/wallet/settings', data),
+};
+
 export const formService = {
     // Provider
     getMyTemplates: () => API.get('/forms/templates'),

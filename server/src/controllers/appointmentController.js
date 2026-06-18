@@ -6,6 +6,7 @@ const Availability = require('../models/Availability');
 const Service = require('../models/Service');
 const User = require('../models/User');
 const { createNotification, notifyAdmins } = require('../utils/notificationhelper');
+const walletService = require('../utils/walletService');
 const {
     sendAppointmentConfirmed,
     sendAppointmentCompleted,
@@ -347,6 +348,37 @@ exports.createAppointment = async (req, res) => {
             }
         }
 
+        // Wallet reservation (Option A providers): when a CLIENT books with a
+        // provider whose wallet is "required", hold the service price. The reserve
+        // is atomic — if the client can't cover it we roll the booking back so no
+        // slot or funds are left dangling (spec §12). Provider-made bookings
+        // (walk-ins / on behalf of a client) and recurring series skip this.
+        if (req.user.role === 'customer' && svc.provider && !isRecurring) {
+            try {
+                const providerDoc = await User.findById(svc.provider).select('walletSettings');
+                const ws = providerDoc?.walletSettings;
+                if (ws?.enabled && ws.bookingPaymentMode === 'wallet_required') {
+                    const result = await walletService.reserveFunds({
+                        customer: req.user._id, provider: svc.provider,
+                        amount: basePrice, appointmentId: appointment._id, initiatedBy: req.user._id,
+                    });
+                    if (!result.ok) {
+                        await Appointment.deleteOne({ _id: appointment._id });
+                        const avail = result.wallet ? Math.max(0, result.wallet.totalBalance - result.wallet.reservedBalance) : 0;
+                        return res.status(400).json({
+                            success: false,
+                            code: 'INSUFFICIENT_WALLET',
+                            message: `Insufficient wallet balance. This service costs N$${basePrice.toFixed(2)} and you have N$${avail.toFixed(2)} available — please top up your wallet with this provider first.`,
+                        });
+                    }
+                    // Tell the client their funds were held for this booking.
+                    createNotification(req.user._id, `N$${basePrice.toFixed(2)} reserved for your ${svc.name} booking`, 'wallet', '/wallet');
+                }
+            } catch (walletErr) {
+                logger.error({ err: walletErr }, 'Wallet reservation failed');
+            }
+        }
+
         // Respond immediately — notifications and email run in the background
         res.status(201).json({ success: true, message: 'Appointment confirmed', data: appointment });
 
@@ -497,6 +529,14 @@ exports.cancelAppointment = async (req, res) => {
         appointment.statusHistory.push({ status: 'cancelled', changedBy: req.user._id });
         await appointment.save();
 
+        // Release any held wallet funds back to available (idempotent; spec §6).
+        try {
+            const r = await walletService.releaseReservation({ appointmentId: appointment._id, resolvedBy: req.user._id });
+            if (r.released > 0) createNotification(appointment.customer._id, `N$${r.released.toFixed(2)} released back to your wallet`, 'wallet', '/wallet');
+        } catch (walletErr) {
+            logger.error({ err: walletErr }, 'Wallet release on cancel failed');
+        }
+
         const { promoteFromWaitingList } = require('../utils/waitingListHelper');
         await promoteFromWaitingList(
             appointment.service._id,
@@ -622,6 +662,21 @@ exports.updateAppointmentStatus = async (req, res) => {
         appointment.status = status;
         appointment.statusHistory.push({ status, changedBy: req.user._id });
         await appointment.save();
+
+        // Wallet money movement on status change — idempotent, and a no-op when the
+        // booking carried no reservation. Completing turns the hold into a permanent
+        // deduction (spec §5); cancelling releases it back to available (spec §6).
+        try {
+            if (status === 'completed') {
+                const r = await walletService.deductForCompletion({ appointmentId: appointment._id, resolvedBy: req.user._id });
+                if (r.deducted > 0) createNotification(appointment.customer._id, `N$${r.deducted.toFixed(2)} deducted from your wallet for ${appointment.service?.name}`, 'wallet', '/wallet');
+            } else if (status === 'cancelled') {
+                const r = await walletService.releaseReservation({ appointmentId: appointment._id, resolvedBy: req.user._id });
+                if (r.released > 0) createNotification(appointment.customer._id, `N$${r.released.toFixed(2)} released back to your wallet`, 'wallet', '/wallet');
+            }
+        } catch (walletErr) {
+            logger.error({ err: walletErr }, 'Wallet update on status change failed');
+        }
 
         // If cancelling via status update, promote waiting list just like direct cancel
         if (status === 'cancelled') {
@@ -904,6 +959,11 @@ exports.cancelAppointmentByToken = async (req, res) => {
         appt.cancellationReason = 'Cancelled by client via link';
         appt.statusHistory.push({ status: 'cancelled', changedBy: appt.customer?._id || null });
         await appt.save();
+
+        // Release any held wallet funds back to available (idempotent; spec §6).
+        try {
+            await walletService.releaseReservation({ appointmentId: appt._id, resolvedBy: appt.customer?._id || null });
+        } catch (err) { logger.error({ err }, 'Wallet release after token-cancel failed'); }
 
         // Open the slot to the waiting list, like any other cancellation
         try {

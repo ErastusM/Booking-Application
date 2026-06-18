@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
-import { appointmentService, serviceService, waitingListService, providerMarketService, availabilityService } from '../services';
+import { appointmentService, serviceService, waitingListService, providerMarketService, availabilityService, walletService } from '../services';
 import { Calendar, Clock, CalendarX2 } from 'lucide-react';
 import { buildTimeSlots } from '../utils/bookingSlots';
 import { cloudinaryAvatar } from '../utils/cloudinary';
@@ -33,6 +33,7 @@ const BookAppointment = () => {
     const [availabilityError, setAvailabilityError] = useState('');
     const [bookedSlots, setBookedSlots] = useState([]); // [{startTime, endTime}]
     const [calendarMonth, setCalendarMonth] = useState(() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; });
+    const [wallet, setWallet] = useState(null); // this provider's wallet + settings (when wallet is enabled)
 
     const effectivePrice    = selectedOption ? selectedOption.price    : (selectedService?.price    ?? 0);
     const effectiveDuration = selectedOption ? selectedOption.duration : (selectedService?.duration ?? 0);
@@ -84,6 +85,15 @@ const BookAppointment = () => {
         availabilityService.getProviderAvailability(effectiveProviderId)
             .then(res => setProviderAvailability(res.data.data.schedule))
             .catch(() => setProviderAvailability(null));
+    }, [effectiveProviderId]);
+
+    // Load this provider's wallet (balance + settings) so we can show the prepaid
+    // balance and warn before a wallet-required booking that can't be covered.
+    useEffect(() => {
+        if (!effectiveProviderId) { setWallet(null); return; }
+        walletService.getMyWalletWithProvider(effectiveProviderId)
+            .then(res => setWallet(res.data.data))
+            .catch(() => setWallet(null));
     }, [effectiveProviderId]);
 
     // Load booked slots for the chosen provider + date. Re-runs if the provider only
@@ -736,6 +746,25 @@ const BookAppointment = () => {
                                 {selectedService ? `NAD ${totalPrice}` : '—'}
                             </span>
                         </div>
+
+                        {/* Wallet — shown when this provider requires prepaid funds to book */}
+                        {wallet?.settings?.enabled && wallet?.settings?.bookingPaymentMode === 'wallet_required' && (() => {
+                            const available = wallet.wallet?.availableBalance ?? 0;
+                            const short = selectedService && totalPrice > available;
+                            return (
+                                <div style={{ marginBottom: '1.25rem', padding: '0.85rem 1rem', borderRadius: 'var(--radius-sm)', border: `1px solid ${short ? '#fcd34d' : 'var(--border)'}`, background: short ? '#fef3c7' : 'var(--warm-gray)' }}>
+                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
+                                        <span style={{ color: 'var(--text-secondary)', fontFamily: 'Outfit, sans-serif' }}>Wallet balance</span>
+                                        <strong style={{ color: 'var(--charcoal)' }}>NAD {available.toFixed(2)}</strong>
+                                    </div>
+                                    {short
+                                        ? <p style={{ margin: '0.4rem 0 0.5rem', fontSize: '0.78rem', color: '#92400e' }}>This provider requires prepaid funds. You need NAD {(totalPrice - available).toFixed(2)} more to book this service.</p>
+                                        : <p style={{ margin: '0.4rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>NAD {totalPrice || 0} will be reserved when you book.</p>}
+                                    {short && <Link to="/wallet" style={{ display: 'inline-block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--gold-dark)', textDecoration: 'none' }}>Top up your wallet →</Link>}
+                                </div>
+                            );
+                        })()}
+
                         <button
                             data-testid="booking-continue"
                             onClick={() => { setError(''); setStep('review'); }}

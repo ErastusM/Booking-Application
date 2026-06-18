@@ -28,6 +28,7 @@ const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const ManageBooking = lazy(() => import('./pages/ManageBooking'));
+const Wallet = lazy(() => import('./pages/Wallet'));
 
 const RouteFallback = () => (
     <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -75,6 +76,11 @@ function AppRoutes() {
                     <Route path="/waiting-list" element={
                         <ProtectedRoute allowedRoles={['customer', 'provider']}>
                             <MyWaitingList />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/wallet" element={
+                        <ProtectedRoute allowedRoles={['customer', 'provider']}>
+                            <Wallet />
                         </ProtectedRoute>
                     } />
                     <Route path="/become-provider" element={

@@ -92,6 +92,7 @@ const Navbar = () => {
                     {navLink('/services', 'Services')}
                     {activeRole === 'customer' && navLink('/book-appointment', 'Book')}
                     {activeRole === 'customer' && navLink('/appointments', 'Appointments')}
+                    {activeRole === 'customer' && navLink('/wallet', 'Wallet')}
                     {activeRole === 'customer' && navLink('/waiting-list', 'Waiting List')}
                     {activeRole === 'customer' && user?.role === 'customer' && navLink('/become-provider', 'List your business')}
                     {activeRole === 'provider' && navLink('/dashboard', 'Dashboard')}
@@ -300,6 +301,7 @@ const Navbar = () => {
                         {mobileLink('/services', 'Services')}
                         {activeRole === 'customer' && mobileLink('/book-appointment', 'Book Appointment')}
                         {activeRole === 'customer' && mobileLink('/appointments', 'My Appointments')}
+                        {activeRole === 'customer' && mobileLink('/wallet', 'Wallet')}
                         {activeRole === 'customer' && mobileLink('/waiting-list', 'Waiting List')}
                         {activeRole === 'customer' && user?.role === 'customer' && mobileLink('/become-provider', 'List your business')}
                         {activeRole === 'provider' && mobileLink('/dashboard', 'Dashboard')}
