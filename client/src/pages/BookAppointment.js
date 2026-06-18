@@ -5,6 +5,7 @@ import { appointmentService, serviceService, waitingListService, providerMarketS
 import { Calendar, Clock, CalendarX2 } from 'lucide-react';
 import { buildTimeSlots } from '../utils/bookingSlots';
 import { cloudinaryAvatar } from '../utils/cloudinary';
+import { mapsUrl } from '../utils/maps';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 
 const BookAppointment = () => {
@@ -362,7 +363,7 @@ const BookAppointment = () => {
                                             <div>
                                                 <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)' }}>{providerInfo.name}</div>
                                                 {providerInfo.providerCategory && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{providerInfo.providerCategory}</div>}
-                                                {providerInfo.businessProfile?.address && <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '3px' }}>{providerInfo.businessProfile.address}</div>}
+                                                {providerInfo.businessProfile?.address && <a href={mapsUrl(providerInfo.businessProfile.address)} target="_blank" rel="noopener noreferrer" style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '3px', textDecoration: 'underline' }}>{providerInfo.businessProfile.address}</a>}
                                             </div>
                                         </div>
                                     </>

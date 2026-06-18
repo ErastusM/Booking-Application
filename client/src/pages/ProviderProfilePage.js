@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { providerMarketService, availabilityService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { cloudinaryAvatar } from '../utils/cloudinary';
+import { mapsUrl } from '../utils/maps';
 
 const StarDisplay = ({ rating }) => (
     <div style={{ display: 'flex', gap: '2px' }}>
@@ -115,7 +116,8 @@ const ProviderProfilePage = () => {
                             )}
                             {address && (
                                 <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.85rem', margin: '0 0 0.6rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                    <span aria-hidden="true">📍</span> {address}
+                                    <span aria-hidden="true">📍</span>{' '}
+                                    <a href={mapsUrl(address)} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>{address}</a>
                                 </p>
                             )}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
