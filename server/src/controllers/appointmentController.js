@@ -165,7 +165,13 @@ exports.getMyAppointments = async (req, res) => {
     try {
         const appointments = await Appointment.find({ customer: req.user._id })
             .populate('customer', 'name email phone')
-            .populate('service', 'name price duration')
+            .populate({
+                path: 'service',
+                select: 'name price duration provider',
+                // Pull the provider's business location so the customer's booking
+                // view can show "Getting there" (address + map + directions).
+                populate: { path: 'provider', select: 'name providerProfile.businessName providerProfile.address providerProfile.locationType' },
+            })
             .sort({ appointmentDate: -1 });
 
         res.status(200).json({

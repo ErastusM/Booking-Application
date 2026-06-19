@@ -376,6 +376,9 @@ const AdminDashboard = () => {
                                                     <td style={{ padding: '0.875rem 1rem' }}>
                                                         <p style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.875rem' }}>{a.customer?.name}</p>
                                                         <p style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{a.customer?.email}</p>
+                                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.7rem', fontFamily: 'monospace', letterSpacing: '0.05em', marginTop: '0.15rem' }}>
+                                                            Ref {a.bookingReference || (a._id ? a._id.slice(-8).toUpperCase() : '—')}
+                                                        </p>
                                                     </td>
                                                     <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{a.service?.name}</td>
                                                     <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{new Date(a.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>

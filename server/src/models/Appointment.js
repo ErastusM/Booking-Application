@@ -1,7 +1,29 @@
 const mongoose = require('mongoose');
+const crypto = require('crypto');
+
+// Short, human-quotable booking reference (like "K7P2QF4D"). Uses an unambiguous
+// alphabet — no 0/O, 1/I/L, U — so customers can read it over the phone and
+// support can look it up without confusion. Generated in write-time hooks (below)
+// rather than a schema `default`, because a default is re-applied when Mongoose
+// hydrates older docs that lack the field — which would change the reference on
+// every read. Hooks run only on write, so a stored reference stays stable.
+const REF_ALPHABET = '23456789ABCDEFGHJKMNPQRSTVWXYZ';
+const genBookingReference = () => {
+    const bytes = crypto.randomBytes(8);
+    let out = '';
+    for (let i = 0; i < 8; i++) out += REF_ALPHABET[bytes[i] % REF_ALPHABET.length];
+    return out;
+};
 
 const appointmentSchema = new mongoose.Schema(
     {
+        // Customer-facing reference for support ("quote your booking ID").
+        bookingReference: {
+            type: String,
+            unique: true,
+            sparse: true,
+            uppercase: true,
+        },
         customer: {
             type: mongoose.Schema.ObjectId,
             ref: 'User',
@@ -106,5 +128,23 @@ appointmentSchema.index({ reminderSent24h: 1, appointmentDate: 1, status: 1 });
 appointmentSchema.index({ reminderSent5h: 1, appointmentDate: 1, status: 1 });
 appointmentSchema.index({ reminderSent1h: 1, appointmentDate: 1, status: 1 });
 appointmentSchema.index({ recurrenceGroupId: 1, appointmentDate: 1 });
+
+// Stamp a booking reference on creation. Two hooks cover the two creation paths:
+// single create()/save(), and bulk insertMany() (recurring + group bookings),
+// which bypasses document middleware. Only new docs get one — existing bookings
+// keep showing the stable id-derived fallback the UI uses.
+appointmentSchema.pre('save', function (next) {
+    if (this.isNew && !this.bookingReference) this.bookingReference = genBookingReference();
+    next();
+});
+
+appointmentSchema.pre('insertMany', function (next, docs) {
+    if (Array.isArray(docs)) {
+        for (const doc of docs) {
+            if (doc && !doc.bookingReference) doc.bookingReference = genBookingReference();
+        }
+    }
+    next();
+});
 
 module.exports = mongoose.model('Appointment', appointmentSchema);

@@ -6,7 +6,8 @@ import IntakeFormModal from '../components/IntakeFormModal';
 import RescheduleModal from '../components/RescheduleModal';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { useAuthContext } from '../context/AuthContext';
-import { CalendarClock, CalendarPlus, MessageSquare, ClipboardList, Star, X, RefreshCw } from 'lucide-react';
+import { mapsUrl } from '../utils/maps';
+import { CalendarClock, CalendarPlus, MessageSquare, ClipboardList, Star, X, RefreshCw, MapPin, Copy, Check, ChevronDown } from 'lucide-react';
 
 const statusConfig = {
     pending:   { label: 'Pending',   bg: '#fef3c7', color: '#92400e' },
@@ -53,7 +54,18 @@ const MyAppointments = () => {
     const [msgText, setMsgText] = useState('');
     const [loadingMsgs, setLoadingMsgs] = useState(false);
     const [sendingMsg, setSendingMsg] = useState(false);
+    const [gettingThere, setGettingThere] = useState(null); // appointment id whose map is expanded
+    const [copiedRef, setCopiedRef] = useState(null);        // booking ref just copied
     const msgEndRef = React.useRef(null);
+
+    // Booking reference: stable, human-quotable code for support. New bookings carry
+    // a stored reference; older ones fall back to a deterministic slice of their id.
+    const bookingRef = (a) => a.bookingReference || (a._id ? a._id.slice(-8).toUpperCase() : '—');
+    const copyRef = (ref) => {
+        try { navigator.clipboard?.writeText(ref); } catch (_) { /* clipboard may be blocked */ }
+        setCopiedRef(ref);
+        setTimeout(() => setCopiedRef((c) => (c === ref ? null : c)), 1800);
+    };
 
     useEffect(() => { fetchData(); }, []);
 
@@ -350,6 +362,58 @@ const MyAppointments = () => {
                                             );
                                         })()}
                                     </div>
+
+                                    {/* Footer: booking reference + "Getting there" (kept a <footer>, not a
+                                        div, so the responsive .appt-row rules still target the actions column) */}
+                                    {(() => {
+                                        const prof = a.service?.provider?.providerProfile;
+                                        const address = prof?.address || '';
+                                        const bizName = prof?.businessName || a.service?.provider?.name || '';
+                                        const ref = bookingRef(a);
+                                        const open = gettingThere === a._id;
+                                        return (
+                                            <footer style={{ gridColumn: '1 / -1', marginTop: '1.25rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                                                    <button
+                                                        onClick={() => copyRef(ref)}
+                                                        title="Copy booking reference"
+                                                        aria-label={`Copy booking reference ${ref}`}
+                                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', minHeight: '36px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'Outfit, sans-serif', fontSize: '0.78rem' }}
+                                                    >
+                                                        <span style={{ textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>Booking ref</span>
+                                                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--charcoal)', letterSpacing: '0.08em' }}>{ref}</span>
+                                                        {copiedRef === ref ? <Check size={14} color="#059669" /> : <Copy size={13} color="var(--text-muted)" />}
+                                                    </button>
+                                                    {address && (
+                                                        <button
+                                                            onClick={() => setGettingThere(open ? null : a._id)}
+                                                            aria-expanded={open}
+                                                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', minHeight: '36px', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.4rem 0.7rem', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'Outfit, sans-serif', fontSize: '0.78rem', fontWeight: 600 }}
+                                                        >
+                                                            <MapPin size={14} /> Getting there
+                                                            <ChevronDown size={14} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+                                                        </button>
+                                                    )}
+                                                </div>
+                                                {open && address && (
+                                                    <div style={{ marginTop: '1rem' }}>
+                                                        {bizName && <p style={{ fontWeight: 700, color: 'var(--charcoal)', fontSize: '0.9rem', margin: '0 0 0.2rem', fontFamily: 'var(--font-body)' }}>{bizName}</p>}
+                                                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: '0 0 0.75rem', fontFamily: 'Outfit, sans-serif', lineHeight: 1.5 }}>{address}</p>
+                                                        <iframe
+                                                            title={`Map to ${bizName || 'appointment location'}`}
+                                                            src={`https://maps.google.com/maps?q=${encodeURIComponent(address)}&z=15&output=embed`}
+                                                            loading="lazy"
+                                                            referrerPolicy="no-referrer-when-downgrade"
+                                                            style={{ width: '100%', height: '200px', border: 0, borderRadius: 'var(--radius-sm)', display: 'block' }}
+                                                        />
+                                                        <a href={mapsUrl(address)} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', minHeight: '44px', marginTop: '0.5rem', color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.85rem', textDecoration: 'none', fontFamily: 'Outfit, sans-serif' }}>
+                                                            Get directions →
+                                                        </a>
+                                                    </div>
+                                                )}
+                                            </footer>
+                                        );
+                                    })()}
                                 </div>
                             );
                         })}

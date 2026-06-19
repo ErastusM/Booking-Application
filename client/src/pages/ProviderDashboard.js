@@ -10,7 +10,7 @@ import { useAuthContext } from '../context/AuthContext';
 import OnboardingWizard from '../components/OnboardingWizard';
 import FormsManager from '../components/FormsManager';
 import ApptFormsView from '../components/ApptFormsView';
-import { Calendar, History, Scissors, CalendarClock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban, Wallet as WalletIcon, Phone, Mail } from 'lucide-react';
+import { Calendar, History, Scissors, CalendarClock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban, Wallet as WalletIcon, Phone, Mail, ChevronDown } from 'lucide-react';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { buildTimeSlots } from '../utils/bookingSlots';
@@ -126,6 +126,7 @@ const ProviderDashboard = () => {
     const [savingApptDetail, setSavingApptDetail] = useState(false);
     const [apptDetailError, setApptDetailError] = useState('');
     const [showReschedule, setShowReschedule] = useState(false); // reschedule form is collapsed by default to keep actions reachable
+    const [showApptContact, setShowApptContact] = useState(false); // contact options reveal when the provider taps the client name
     const swipeGestureRef = useRef({ tracking: false, startX: 0, startY: 0, dx: 0, dy: 0, locked: false });
 
     // Wallet (prepaid balances the provider holds for clients)
@@ -1001,6 +1002,7 @@ const ProviderDashboard = () => {
         });
         setApptDetailError('');
         setShowReschedule(false);
+        setShowApptContact(false);
         setApptDetailModal(event.extendedProps.raw || null);
     };
 
@@ -4233,34 +4235,48 @@ const ProviderDashboard = () => {
                             <button onClick={() => setApptDetailModal(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0 }}>&times;</button>
                         </div>
 
-                        {/* Client card - name links to the full profile; quick call / email / chat */}
+                        {/* Client card - tap the name to reveal contact options (call / email / chat) */}
                         {(() => {
                             const cust = apptDetailModal.customer;
                             const isRegistered = !!cust?._id;
                             const displayName = apptDetailModal.walkInName || cust?.name || 'Walk-in';
                             const subtitle = cust?.phone || cust?.email || (isRegistered ? '' : 'Walk-in - no saved contact');
+                            const canContact = isRegistered || cust?.phone || cust?.email;
                             return (
                                 <div style={{ padding: '1.1rem 1.5rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.85rem' }}>
-                                        <div style={{ minWidth: 0 }}>
-                                            {isRegistered ? (
-                                                <button onClick={() => openClientProfile(cust)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', display: 'block', maxWidth: '100%' }}>
-                                                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: 700, color: 'var(--charcoal)', display: 'block', textDecoration: 'underline', textDecorationColor: 'var(--border)', textUnderlineOffset: '3px' }}>{displayName}</span>
-                                                </button>
-                                            ) : (
-                                                <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: 700, color: 'var(--charcoal)' }}>{displayName}</span>
-                                            )}
-                                            {subtitle && <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Outfit, sans-serif' }}>{subtitle}</div>}
-                                        </div>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
+                                        {canContact ? (
+                                            <button
+                                                onClick={() => setShowApptContact(v => !v)}
+                                                aria-expanded={showApptContact}
+                                                aria-label={`${showApptContact ? 'Hide' : 'Show'} contact options for ${displayName}`}
+                                                style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
+                                            >
+                                                <span style={{ minWidth: 0 }}>
+                                                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: 700, color: 'var(--charcoal)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
+                                                    {subtitle && <span style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Outfit, sans-serif' }}>{subtitle}</span>}
+                                                </span>
+                                                <ChevronDown size={16} color="var(--text-muted)" style={{ flexShrink: 0, transform: showApptContact ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+                                            </button>
+                                        ) : (
+                                            <div style={{ minWidth: 0 }}>
+                                                <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: 700, color: 'var(--charcoal)', display: 'block' }}>{displayName}</span>
+                                                {subtitle && <span style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>{subtitle}</span>}
+                                            </div>
+                                        )}
                                         {isRegistered && (
-                                            <button onClick={() => openClientProfile(cust)} style={{ flexShrink: 0, fontSize: '0.72rem', fontWeight: 600, color: 'var(--gold-dark)', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.6rem', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap' }}>Profile</button>
+                                            <button onClick={() => openClientProfile(cust)} style={{ flexShrink: 0, fontSize: '0.72rem', fontWeight: 600, color: 'var(--gold-dark)', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 'var(--radius-sm)', padding: '0.4rem 0.6rem', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap', minHeight: '36px' }}>Profile</button>
                                         )}
                                     </div>
-                                    <ContactActions
-                                        phone={cust?.phone}
-                                        email={cust?.email}
-                                        onMessage={isRegistered ? () => openChatForAppointment(apptDetailModal) : undefined}
-                                    />
+                                    {showApptContact && canContact && (
+                                        <div style={{ marginTop: '0.85rem' }}>
+                                            <ContactActions
+                                                phone={cust?.phone}
+                                                email={cust?.email}
+                                                onMessage={isRegistered ? () => openChatForAppointment(apptDetailModal) : undefined}
+                                            />
+                                        </div>
+                                    )}
                                 </div>
                             );
                         })()}
@@ -4269,12 +4285,12 @@ const ProviderDashboard = () => {
                             {/* Details */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
                                 {[
-                                    ['Client',    apptDetailModal.walkInName || apptDetailModal.customer?.name || '—'],
                                     ['Service',   apptDetailModal.service?.name || '—'],
                                     ['Date',      apptDetailModal.appointmentDate ? new Date(apptDetailModal.appointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—'],
                                     ['Time',      `${apptDetailModal.startTime} – ${apptDetailModal.endTime}`],
                                     ['Duration',  apptDetailModal.service?.duration ? `${apptDetailModal.service.duration} min` : '—'],
                                     ['Price',     apptDetailModal.totalPrice ? `NAD ${apptDetailModal.totalPrice}` : '—'],
+                                    ['Booking ref', apptDetailModal.bookingReference || (apptDetailModal._id ? apptDetailModal._id.slice(-8).toUpperCase() : '—')],
                                 ].map(([label, value]) => (
                                     <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.7rem 0', borderBottom: '1px solid var(--border)' }}>
                                         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>{label}</span>
