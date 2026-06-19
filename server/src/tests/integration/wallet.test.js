@@ -147,6 +147,29 @@ describe('Reservation on booking (wallet_required)', () => {
     });
 });
 
+describe('Client payment-method choice', () => {
+    const bookWith = (client, svc, paymentMethod, startTime = '12:00', endTime = '12:30') =>
+        request(app).post('/api/appointments').set(authHeader(client)).send({
+            service: svc._id.toString(), appointmentDate: futureDate(), startTime, endTime, paymentMethod,
+        });
+
+    it('lets a client pay cash even when the provider prefers wallet (no reservation)', async () => {
+        const { provider, svc, client } = await setup({ mode: 'wallet_required', price: 100, fund: 500 });
+        const res = await bookWith(client, svc, 'cash');
+        expect(res.status).toBe(201);
+        expect(res.body.data.paymentMethod).toBe('cash');
+        expect((await getWallet(client, provider._id)).reservedBalance).toBe(0);
+    });
+
+    it('lets a client pay from wallet on a wallet-optional provider (reserves)', async () => {
+        const { provider, svc, client } = await setup({ mode: 'wallet_optional', price: 100, fund: 500 });
+        const res = await bookWith(client, svc, 'wallet');
+        expect(res.status).toBe(201);
+        expect(res.body.data.paymentMethod).toBe('wallet');
+        expect((await getWallet(client, provider._id)).reservedBalance).toBe(100);
+    });
+});
+
 describe('Completion and cancellation', () => {
     it('completion turns the reservation into a permanent deduction', async () => {
         const { provider, svc, client } = await setup({ price: 100, fund: 500 });

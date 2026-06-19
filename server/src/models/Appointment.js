@@ -76,6 +76,8 @@ const appointmentSchema = new mongoose.Schema(
         reminderSent5h:  { type: Boolean, default: false },
         reminderSent1h:  { type: Boolean, default: false },
         walkInName: { type: String, default: null },
+        /* How the client pays: from their prepaid wallet, or cash at the appointment */
+        paymentMethod: { type: String, enum: ['cash', 'wallet'], default: 'cash' },
         /* Staff member performing the appointment (multi-chair scheduling) */
         teamMember: { type: mongoose.Schema.Types.ObjectId, ref: 'TeamMember', default: null },
         /* Opaque token for no-login "manage my booking" links */

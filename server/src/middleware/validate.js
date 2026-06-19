@@ -114,6 +114,9 @@ const createAppointmentRules = [
     body('recurrenceEndDate')
         .optional({ nullable: true, checkFalsy: true })
         .isISO8601().withMessage('Invalid recurrence end date'),
+    body('paymentMethod')
+        .optional({ nullable: true })
+        .isIn(['cash', 'wallet']).withMessage('Invalid payment method'),
     handleValidationErrors,
 ];
 

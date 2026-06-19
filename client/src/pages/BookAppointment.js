@@ -36,6 +36,7 @@ const BookAppointment = () => {
     const [calendarMonth, setCalendarMonth] = useState(() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; });
     const [wallet, setWallet] = useState(null); // this provider's wallet + settings (when wallet is enabled)
     const [recurrence, setRecurrence] = useState({ isRecurring: false, recurrenceType: 'weekly', recurrenceInterval: 1, recurrenceEndDate: '' });
+    const [paymentMethod, setPaymentMethod] = useState('cash'); // 'wallet' | 'cash' (when the provider's wallet is on)
 
     const effectivePrice    = selectedOption ? selectedOption.price    : (selectedService?.price    ?? 0);
     const effectiveDuration = selectedOption ? selectedOption.duration : (selectedService?.duration ?? 0);
@@ -94,7 +95,12 @@ const BookAppointment = () => {
     useEffect(() => {
         if (!effectiveProviderId) { setWallet(null); return; }
         walletService.getMyWalletWithProvider(effectiveProviderId)
-            .then(res => setWallet(res.data.data))
+            .then(res => {
+                setWallet(res.data.data);
+                const s = res.data.data?.settings;
+                // Default the payment method to the provider's preference; the client can switch.
+                if (s?.enabled) setPaymentMethod(s.bookingPaymentMode === 'wallet_required' ? 'wallet' : 'cash');
+            })
             .catch(() => setWallet(null));
     }, [effectiveProviderId]);
 
@@ -218,6 +224,7 @@ const BookAppointment = () => {
                 await appointmentService.createAppointment({
                     ...formData,
                     selectedAddOns,
+                    ...(wallet?.settings?.enabled ? { paymentMethod } : {}),
                     ...(recurrence.isRecurring ? {
                         isRecurring: true,
                         recurrenceType: recurrence.recurrenceType,
@@ -765,20 +772,33 @@ const BookAppointment = () => {
                             </span>
                         </div>
 
-                        {/* Wallet — shown when this provider requires prepaid funds to book */}
-                        {wallet?.settings?.enabled && wallet?.settings?.bookingPaymentMode === 'wallet_required' && (() => {
+                        {/* Payment method — let the client pay from their wallet or in cash */}
+                        {wallet?.settings?.enabled && (() => {
                             const available = wallet.wallet?.availableBalance ?? 0;
-                            const short = selectedService && totalPrice > available;
+                            const short = paymentMethod === 'wallet' && selectedService && totalPrice > available;
                             return (
-                                <div style={{ marginBottom: '1.25rem', padding: '0.85rem 1rem', borderRadius: 'var(--radius-sm)', border: `1px solid ${short ? '#fcd34d' : 'var(--border)'}`, background: short ? '#fef3c7' : 'var(--warm-gray)' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                                        <span style={{ color: 'var(--text-secondary)', fontFamily: 'Outfit, sans-serif' }}>Wallet balance</span>
-                                        <strong style={{ color: 'var(--charcoal)' }}>NAD {available.toFixed(2)}</strong>
+                                <div style={{ marginBottom: '1.25rem' }}>
+                                    <span style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '0.5rem', fontFamily: 'Outfit, sans-serif' }}>Payment method</span>
+                                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                        {[{ v: 'wallet', t: 'Wallet', sub: `NAD ${available.toFixed(2)}` }, { v: 'cash', t: 'Cash', sub: 'Pay at visit' }].map((o) => {
+                                            const active = paymentMethod === o.v;
+                                            return (
+                                                <button key={o.v} type="button" onClick={() => setPaymentMethod(o.v)} style={{
+                                                    flex: 1, padding: '0.6rem 0.5rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                                                    border: `1.5px solid ${active ? 'var(--gold)' : 'var(--border)'}`,
+                                                    background: active ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)', color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                                                }}>
+                                                    <div style={{ fontWeight: '700', fontSize: '0.85rem' }}>{o.t}</div>
+                                                    <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{o.sub}</div>
+                                                </button>
+                                            );
+                                        })}
                                     </div>
-                                    {short
-                                        ? <p style={{ margin: '0.4rem 0 0.5rem', fontSize: '0.78rem', color: '#92400e' }}>This provider requires prepaid funds. You need NAD {(totalPrice - available).toFixed(2)} more to book this service.</p>
-                                        : <p style={{ margin: '0.4rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>NAD {totalPrice || 0} will be reserved when you book.</p>}
-                                    {short && <Link to="/wallet" style={{ display: 'inline-block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--gold-dark)', textDecoration: 'none' }}>Top up your wallet →</Link>}
+                                    {paymentMethod === 'wallet' && (
+                                        short
+                                            ? <p style={{ margin: '0.5rem 0 0', fontSize: '0.78rem', color: '#92400e' }}>Not enough balance — you need NAD {(totalPrice - available).toFixed(2)} more. <Link to="/wallet" style={{ fontWeight: '600', color: 'var(--gold-dark)' }}>Top up</Link> or choose Cash.</p>
+                                            : <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>NAD {totalPrice || 0} will be reserved from your wallet.</p>
+                                    )}
                                 </div>
                             );
                         })()}

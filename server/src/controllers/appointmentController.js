@@ -191,7 +191,7 @@ const advanceDate = (date, type, interval = 1) => {
 exports.createAppointment = async (req, res) => {
     try {
         const { service, appointmentDate, startTime, endTime, notes, selectedAddOns, walkInName, customerId,
-                isRecurring, recurrenceType, recurrenceInterval, recurrenceEndDate, teamMember } = req.body;
+                isRecurring, recurrenceType, recurrenceInterval, recurrenceEndDate, teamMember, paymentMethod } = req.body;
         if (!service || !appointmentDate || !startTime || !endTime) {
             return res.status(400).json({ success: false, message: 'Please provide all required fields' });
         }
@@ -288,6 +288,22 @@ exports.createAppointment = async (req, res) => {
         }
 
         const basePrice = (svc.price || 0) + (Array.isArray(selectedAddOns) ? selectedAddOns.reduce((sum, a) => sum + (a.price || 0), 0) : 0);
+
+        // Resolve how this booking is paid. When the provider's wallet is on, the
+        // client picks wallet or cash (falling back to the provider's default);
+        // otherwise it's a plain cash/pay-later booking.
+        let walletCfg = null;
+        let chosenMethod = 'cash';
+        if (svc.provider) {
+            const provWallet = await User.findById(svc.provider).select('walletSettings');
+            walletCfg = provWallet?.walletSettings || null;
+            if (walletCfg?.enabled) {
+                chosenMethod = (paymentMethod === 'wallet' || paymentMethod === 'cash')
+                    ? paymentMethod
+                    : (walletCfg.bookingPaymentMode === 'wallet_required' ? 'wallet' : 'cash');
+            }
+        }
+
         const baseDoc = {
             customer: bookingClient._id,
             service,
@@ -302,6 +318,7 @@ exports.createAppointment = async (req, res) => {
             // Walk-in name only when the provider didn't pick a registered client.
             walkInName: isProviderBooking && !customerId ? (walkInName?.trim() || null) : null,
             teamMember: teamMember || null,
+            paymentMethod: chosenMethod,
             manageToken: randomUUID(),
         };
 
@@ -361,38 +378,33 @@ exports.createAppointment = async (req, res) => {
             }
         }
 
-        // Wallet reservation (Option A providers): hold the service price from the
-        // CLIENT's wallet when the provider requires wallet funds. The reserve is
-        // atomic (spec §12). A client self-booking that can't cover it is rolled
-        // back; a provider booking on a registered client's behalf reserves when
-        // possible but is never blocked (the provider is overriding). Walk-ins
-        // (no client account) and recurring series skip this.
+        // Wallet reservation: when the booking is paid by wallet, hold the service
+        // price from the CLIENT's wallet. The reserve is atomic (spec §12). A client
+        // self-booking that can't cover it is rolled back (they can switch to cash or
+        // top up); a provider booking on a client's behalf reserves when possible but
+        // is never blocked. Cash bookings, walk-ins and recurring series skip this.
         const reservationClientId = req.user.role === 'customer'
             ? req.user._id
             : (isProviderBooking && customerId ? bookingClient._id : null);
-        if (reservationClientId && svc.provider && !isRecurring) {
+        if (reservationClientId && svc.provider && !isRecurring && walletCfg?.enabled && chosenMethod === 'wallet') {
             try {
-                const providerDoc = await User.findById(svc.provider).select('walletSettings');
-                const ws = providerDoc?.walletSettings;
-                if (ws?.enabled && ws.bookingPaymentMode === 'wallet_required') {
-                    const result = await walletService.reserveFunds({
-                        customer: reservationClientId, provider: svc.provider,
-                        amount: basePrice, appointmentId: appointment._id, initiatedBy: req.user._id,
-                    });
-                    if (!result.ok) {
-                        if (req.user.role === 'customer') {
-                            await Appointment.deleteOne({ _id: appointment._id });
-                            const avail = result.wallet ? Math.max(0, result.wallet.totalBalance - result.wallet.reservedBalance) : 0;
-                            return res.status(400).json({
-                                success: false,
-                                code: 'INSUFFICIENT_WALLET',
-                                message: `Insufficient wallet balance. This service costs N$${basePrice.toFixed(2)} and you have N$${avail.toFixed(2)} available — please top up your wallet with this provider first.`,
-                            });
-                        }
-                        // Provider override: keep the booking even though funds were short.
-                    } else {
-                        createNotification(reservationClientId, `N$${basePrice.toFixed(2)} reserved for your ${svc.name} booking`, 'wallet', '/wallet');
+                const result = await walletService.reserveFunds({
+                    customer: reservationClientId, provider: svc.provider,
+                    amount: basePrice, appointmentId: appointment._id, initiatedBy: req.user._id,
+                });
+                if (!result.ok) {
+                    if (req.user.role === 'customer') {
+                        await Appointment.deleteOne({ _id: appointment._id });
+                        const avail = result.wallet ? Math.max(0, result.wallet.totalBalance - result.wallet.reservedBalance) : 0;
+                        return res.status(400).json({
+                            success: false,
+                            code: 'INSUFFICIENT_WALLET',
+                            message: `Insufficient wallet balance. This service costs N$${basePrice.toFixed(2)} and you have N$${avail.toFixed(2)} available — top up your wallet or choose cash payment instead.`,
+                        });
                     }
+                    // Provider override: keep the booking even though funds were short.
+                } else {
+                    createNotification(reservationClientId, `N$${basePrice.toFixed(2)} reserved for your ${svc.name} booking`, 'wallet', '/wallet');
                 }
             } catch (walletErr) {
                 logger.error({ err: walletErr }, 'Wallet reservation failed');
