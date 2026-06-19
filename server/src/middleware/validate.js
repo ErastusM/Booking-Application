@@ -105,6 +105,15 @@ const createAppointmentRules = [
         .optional({ nullable: true })
         .trim()
         .isLength({ max: 100 }).withMessage('Client name cannot exceed 100 characters'),
+    body('recurrenceType')
+        .optional({ nullable: true })
+        .isIn(['daily', 'weekly', 'monthly']).withMessage('Invalid recurrence type'),
+    body('recurrenceInterval')
+        .optional({ nullable: true })
+        .isInt({ min: 1, max: 52 }).withMessage('Repeat interval must be between 1 and 52'),
+    body('recurrenceEndDate')
+        .optional({ nullable: true, checkFalsy: true })
+        .isISO8601().withMessage('Invalid recurrence end date'),
     handleValidationErrors,
 ];
 

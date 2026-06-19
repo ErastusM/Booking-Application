@@ -13,6 +13,9 @@ import ApptFormsView from '../components/ApptFormsView';
 import { Calendar, History, Scissors, CalendarClock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban, Wallet as WalletIcon } from 'lucide-react';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
+import { buildTimeSlots } from '../utils/bookingSlots';
+import MiniCalendar from '../components/MiniCalendar';
+import RecurrenceFields from '../components/RecurrenceFields';
 
 const nMoney = (n) => `N$${Number(n || 0).toFixed(2)}`;
 
@@ -75,7 +78,7 @@ const ProviderDashboard = () => {
     const [savingAdjustHours, setSavingAdjustHours] = useState(false);
     const [recurringMode, setRecurringMode] = useState('this');
     const [showApptModal, setShowApptModal] = useState(false);
-    const [apptForm, setApptForm] = useState({ serviceId: '', date: '', startTime: '', clientMode: 'existing', customerId: '', clientName: '', notes: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', isGroup: false, groupClients: [{ name: '' }], teamMember: '' });
+    const [apptForm, setApptForm] = useState({ serviceId: '', date: '', startTime: '', clientMode: 'existing', customerId: '', clientName: '', notes: '', isRecurring: false, recurrenceType: 'weekly', recurrenceInterval: 1, recurrenceEndDate: '', isGroup: false, groupClients: [{ name: '' }], teamMember: '' });
     const [clientPickerSearch, setClientPickerSearch] = useState('');
     const [calendarStaffFilter, setCalendarStaffFilter] = useState('all'); // 'all' | teamMember _id
     const [savingAppt, setSavingAppt] = useState(false);
@@ -211,10 +214,12 @@ const ProviderDashboard = () => {
         if (activeTab === 'wallet') fetchWalletData();
     }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // Load the provider's client list when the New Appointment modal opens, so the
-    // "existing client" picker is populated (the Clients tab may not have been opened).
+    // When the New Appointment modal opens, load the client list (for the "existing
+    // client" picker) and the availability schedule (so the time picker matches the
+    // app's availability-aware slots).
     useEffect(() => { // eslint-disable-line react-hooks/exhaustive-deps
         if (showApptModal && clients.length === 0) fetchClients();
+        if (showApptModal && !availability) fetchAvailability();
     }, [showApptModal]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const fetchAppointments = async () => {
@@ -3782,6 +3787,8 @@ const ProviderDashboard = () => {
                             if (!apptForm.isGroup && apptForm.clientMode === 'existing' && !apptForm.customerId) {
                                 setApptError('Please choose a client, or switch to Walk-in.'); return;
                             }
+                            if (!apptForm.date) { setApptError('Please pick a date'); return; }
+                            if (!apptForm.startTime) { setApptError('Please pick a start time'); return; }
                             const [h, m] = apptForm.startTime.split(':').map(Number);
                             const endMins = h * 60 + m + (svc.duration || 30);
                             const endTime = `${String(Math.floor(endMins / 60)).padStart(2,'0')}:${String(endMins % 60).padStart(2,'0')}`;
@@ -3810,6 +3817,7 @@ const ProviderDashboard = () => {
                                         teamMember: apptForm.teamMember || undefined,
                                         isRecurring: apptForm.isRecurring,
                                         recurrenceType: apptForm.isRecurring ? apptForm.recurrenceType : undefined,
+                                        recurrenceInterval: apptForm.isRecurring ? apptForm.recurrenceInterval : undefined,
                                         recurrenceEndDate: apptForm.isRecurring && apptForm.recurrenceEndDate ? apptForm.recurrenceEndDate : undefined,
                                     });
                                 }
@@ -3917,43 +3925,65 @@ const ProviderDashboard = () => {
                                 </div>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date</label>
-                                    <input type="date" value={apptForm.date} onChange={e => setApptForm(f => ({ ...f, date: e.target.value }))} required className="input" style={{ width: '100%' }} min={new Date().toISOString().split('T')[0]} />
+                                    <MiniCalendar value={apptForm.date} onChange={ds => setApptForm(f => ({ ...f, date: ds, startTime: '' }))} min={new Date().toISOString().split('T')[0]} />
                                 </div>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Start Time</label>
-                                    <input type="time" value={apptForm.startTime} onChange={e => setApptForm(f => ({ ...f, startTime: e.target.value }))} required className="input" style={{ width: '100%' }} />
+                                    {(() => {
+                                        if (!apptForm.date) return <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>Pick a date first.</p>;
+                                        const svc = myServices.find(s => s._id === apptForm.serviceId);
+                                        const duration = svc?.duration || 30;
+                                        let blocks = [{ start: 8 * 60, end: 20 * 60 }];
+                                        if (availability) {
+                                            const [yy, mm, dd] = apptForm.date.split('-').map(Number);
+                                            const dayName = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][new Date(yy, mm - 1, dd).getDay()];
+                                            const cfg = availability[dayName];
+                                            if (cfg?.enabled && Array.isArray(cfg.slots)) {
+                                                const b = cfg.slots.filter(s => s?.start && s?.end).map(s => { const [sh, sm] = s.start.split(':').map(Number); const [eh, em] = s.end.split(':').map(Number); return { start: sh * 60 + sm, end: eh * 60 + em }; }).filter(x => x.end > x.start);
+                                                if (b.length) blocks = b;
+                                            }
+                                        }
+                                        const bookedRanges = (appointments || []).filter(a => {
+                                            const ad = new Date(a.appointmentDate);
+                                            const ds = `${ad.getFullYear()}-${String(ad.getMonth() + 1).padStart(2, '0')}-${String(ad.getDate()).padStart(2, '0')}`;
+                                            const tm = a.teamMember?._id || a.teamMember || '';
+                                            return ds === apptForm.date && a.status !== 'cancelled' && (apptForm.teamMember ? String(tm) === String(apptForm.teamMember) : true);
+                                        }).map(a => { const [sh, sm] = (a.startTime || '0:0').split(':').map(Number); const [eh, em] = (a.endTime || '0:0').split(':').map(Number); return { start: sh * 60 + sm, end: eh * 60 + em }; });
+                                        let minStart = -1;
+                                        const now = new Date();
+                                        const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+                                        if (apptForm.date === todayStr) minStart = now.getHours() * 60 + now.getMinutes();
+                                        const slots = buildTimeSlots({ blocks, bookedRanges, duration, minStart });
+                                        if (slots.length === 0) return <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>No open times that day.</p>;
+                                        return (
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: '0.4rem', maxHeight: '180px', overflowY: 'auto' }}>
+                                                {slots.map((s, i) => {
+                                                    const sel = apptForm.startTime === s.time;
+                                                    return (
+                                                        <button key={i} type="button" disabled={s.isBooked} onClick={() => setApptForm(f => ({ ...f, startTime: s.time }))} style={{
+                                                            padding: '0.5rem 0.3rem', borderRadius: 'var(--radius-sm)', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.82rem',
+                                                            border: `1.5px solid ${sel ? 'var(--gold)' : 'var(--border)'}`,
+                                                            background: sel ? 'var(--gold)' : s.isBooked ? 'var(--surface-sunken)' : 'var(--card-bg)',
+                                                            color: sel ? 'var(--ink)' : s.isBooked ? 'var(--text-muted)' : 'var(--charcoal)',
+                                                            textDecoration: s.isBooked ? 'line-through' : 'none', opacity: s.isBooked ? 0.6 : 1, cursor: s.isBooked ? 'not-allowed' : 'pointer',
+                                                        }}>{s.time}</button>
+                                                    );
+                                                })}
+                                            </div>
+                                        );
+                                    })()}
                                 </div>
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Notes <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional)</span></label>
                                     <textarea value={apptForm.notes} onChange={e => setApptForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Any notes for this appointment..." className="input" style={{ width: '100%', resize: 'vertical' }} />
                                 </div>
-                                {/* Recurring toggle */}
+                                {/* Recurring — shared controls (Custom frequency + app calendar) */}
                                 <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: apptForm.isRecurring ? '0.75rem' : 0 }}>
-                                        <div>
-                                            <p style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Repeat appointment</p>
-                                            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.1rem 0 0' }}>Schedule this as a recurring series</p>
-                                        </div>
-                                        <button type="button" onClick={() => setApptForm(f => ({ ...f, isRecurring: !f.isRecurring }))} style={{ width: '48px', height: '26px', borderRadius: '99px', border: 'none', cursor: 'pointer', background: apptForm.isRecurring ? 'var(--gold)' : '#d1d5db', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
-                                            <span style={{ position: 'absolute', top: '3px', left: apptForm.isRecurring ? '25px' : '3px', width: '20px', height: '20px', borderRadius: '50%', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s' }} />
-                                        </button>
-                                    </div>
-                                    {apptForm.isRecurring && (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                            <div>
-                                                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Frequency</label>
-                                                <select value={apptForm.recurrenceType} onChange={e => setApptForm(f => ({ ...f, recurrenceType: e.target.value }))} className="input" style={{ width: '100%' }}>
-                                                    <option value="daily">Daily</option>
-                                                    <option value="weekly">Weekly</option>
-                                                    <option value="monthly">Monthly</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>End date <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional, default 3 months)</span></label>
-                                                <input type="date" value={apptForm.recurrenceEndDate} onChange={e => setApptForm(f => ({ ...f, recurrenceEndDate: e.target.value }))} className="input" style={{ width: '100%' }} min={apptForm.date || new Date().toISOString().split('T')[0]} />
-                                            </div>
-                                        </div>
-                                    )}
+                                    <RecurrenceFields
+                                        value={{ isRecurring: apptForm.isRecurring, recurrenceType: apptForm.recurrenceType, recurrenceInterval: apptForm.recurrenceInterval || 1, recurrenceEndDate: apptForm.recurrenceEndDate }}
+                                        onChange={(v) => setApptForm(f => ({ ...f, isRecurring: v.isRecurring, recurrenceType: v.recurrenceType, recurrenceInterval: v.recurrenceInterval, recurrenceEndDate: v.recurrenceEndDate }))}
+                                        minDate={apptForm.date || undefined}
+                                    />
                                 </div>
                                 {apptError && <p style={{ color: '#dc2626', fontSize: '0.85rem', margin: 0 }}>{apptError}</p>}
                                 <button type="submit" disabled={savingAppt} style={{ width: '100%', padding: '0.9rem', background: savingAppt ? '#9ca3af' : 'var(--charcoal)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontFamily: 'Outfit, sans-serif', fontSize: '0.95rem', fontWeight: '700', cursor: savingAppt ? 'not-allowed' : 'pointer' }}>

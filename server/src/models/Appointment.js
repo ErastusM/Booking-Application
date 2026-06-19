@@ -86,6 +86,7 @@ const appointmentSchema = new mongoose.Schema(
         /* Recurring appointment fields */
         isRecurring:        { type: Boolean, default: false },
         recurrenceType:     { type: String, enum: ['daily', 'weekly', 'monthly', null], default: null },
+        recurrenceInterval: { type: Number, default: 1 }, // repeat every N units (custom frequency)
         recurrenceGroupId:  { type: String, default: null },
         recurrenceEndDate:  { type: Date, default: null },
     },

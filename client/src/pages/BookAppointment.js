@@ -7,6 +7,7 @@ import { buildTimeSlots } from '../utils/bookingSlots';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { mapsUrl } from '../utils/maps';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
+import RecurrenceFields from '../components/RecurrenceFields';
 
 const BookAppointment = () => {
     const { user } = useAuthContext();
@@ -34,6 +35,7 @@ const BookAppointment = () => {
     const [bookedSlots, setBookedSlots] = useState([]); // [{startTime, endTime}]
     const [calendarMonth, setCalendarMonth] = useState(() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; });
     const [wallet, setWallet] = useState(null); // this provider's wallet + settings (when wallet is enabled)
+    const [recurrence, setRecurrence] = useState({ isRecurring: false, recurrenceType: 'weekly', recurrenceInterval: 1, recurrenceEndDate: '' });
 
     const effectivePrice    = selectedOption ? selectedOption.price    : (selectedService?.price    ?? 0);
     const effectiveDuration = selectedOption ? selectedOption.duration : (selectedService?.duration ?? 0);
@@ -213,7 +215,16 @@ const BookAppointment = () => {
                 });
                 navigate('/appointments?rescheduled=1');
             } else {
-                await appointmentService.createAppointment({ ...formData, selectedAddOns });
+                await appointmentService.createAppointment({
+                    ...formData,
+                    selectedAddOns,
+                    ...(recurrence.isRecurring ? {
+                        isRecurring: true,
+                        recurrenceType: recurrence.recurrenceType,
+                        recurrenceInterval: recurrence.recurrenceInterval,
+                        recurrenceEndDate: recurrence.recurrenceEndDate || undefined,
+                    } : {}),
+                });
                 const providerName = providerInfo?.name || '';
                 navigate(`/appointments?confirmed=1&provider=${encodeURIComponent(providerName)}`);
             }
@@ -719,6 +730,13 @@ const BookAppointment = () => {
                                     {availabilityError}
                                 </div>
                             )}
+
+                        {/* Recurring booking — same calendar/time UI as the rest of the app */}
+                        {!rescheduleId && formData.startTime && (
+                            <div style={{ marginTop: '1.5rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.25rem', background: 'var(--card-bg)' }}>
+                                <RecurrenceFields value={recurrence} onChange={setRecurrence} minDate={formData.appointmentDate} />
+                            </div>
+                        )}
                         </div>
                     </div>
 

@@ -178,19 +178,20 @@ exports.getMyAppointments = async (req, res) => {
     }
 };
 
-/* Helper: advance a date by one recurrence interval */
-const advanceDate = (date, type) => {
+/* Helper: advance a date by `interval` recurrence units (every N days/weeks/months) */
+const advanceDate = (date, type, interval = 1) => {
     const d = new Date(date);
-    if (type === 'daily')   d.setDate(d.getDate() + 1);
-    if (type === 'weekly')  d.setDate(d.getDate() + 7);
-    if (type === 'monthly') d.setMonth(d.getMonth() + 1);
+    const n = Math.max(1, parseInt(interval, 10) || 1);
+    if (type === 'daily')   d.setDate(d.getDate() + n);
+    if (type === 'weekly')  d.setDate(d.getDate() + 7 * n);
+    if (type === 'monthly') d.setMonth(d.getMonth() + n);
     return d;
 };
 
 exports.createAppointment = async (req, res) => {
     try {
         const { service, appointmentDate, startTime, endTime, notes, selectedAddOns, walkInName, customerId,
-                isRecurring, recurrenceType, recurrenceEndDate, teamMember } = req.body;
+                isRecurring, recurrenceType, recurrenceInterval, recurrenceEndDate, teamMember } = req.body;
         if (!service || !appointmentDate || !startTime || !endTime) {
             return res.status(400).json({ success: false, message: 'Please provide all required fields' });
         }
@@ -308,6 +309,8 @@ exports.createAppointment = async (req, res) => {
 
         if (isRecurring && recurrenceType && ['daily', 'weekly', 'monthly'].includes(recurrenceType)) {
             const groupId = randomUUID();
+            // Repeat every N units (the "Custom" frequency); defaults to every 1.
+            const interval = Math.min(52, Math.max(1, parseInt(recurrenceInterval, 10) || 1));
             const seriesEnd = recurrenceEndDate ? new Date(recurrenceEndDate) : (() => {
                 const d = new Date(appointmentDate);
                 d.setMonth(d.getMonth() + 3);
@@ -315,10 +318,10 @@ exports.createAppointment = async (req, res) => {
             })();
             const docs = [];
             let cur = new Date(appointmentDate);
-            const MAX = 52;
+            const MAX = 60;
             while (cur <= seriesEnd && docs.length < MAX) {
-                docs.push({ ...baseDoc, appointmentDate: new Date(cur), isRecurring: true, recurrenceType, recurrenceGroupId: groupId, recurrenceEndDate: seriesEnd, manageToken: randomUUID() });
-                cur = advanceDate(cur, recurrenceType);
+                docs.push({ ...baseDoc, appointmentDate: new Date(cur), isRecurring: true, recurrenceType, recurrenceInterval: interval, recurrenceGroupId: groupId, recurrenceEndDate: seriesEnd, manageToken: randomUUID() });
+                cur = advanceDate(cur, recurrenceType, interval);
             }
             const created = await Appointment.insertMany(docs);
             appointment = created[0];

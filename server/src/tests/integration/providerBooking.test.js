@@ -20,6 +20,7 @@ jest.mock('../../utils/emailService', () => ({
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeProvider, makeService, makeUser, authHeader } = require('../helpers/factories');
+const Appointment = require('../../models/Appointment');
 
 beforeAll(() => testDb.connect());
 afterAll(() => testDb.closeDatabase());
@@ -50,6 +51,28 @@ describe('Provider creates an appointment from the calendar', () => {
             });
         expect(res.status).toBe(201);
         expect(res.body.data.walkInName).toBe('Walk-in Client');
+    });
+
+    it('creates a custom recurring series (every 2 weeks)', async () => {
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id, { duration: 30 });
+        const start = nextWeekday();
+        const [y, m, d] = start.split('-').map(Number);
+        const endDt = new Date(Date.UTC(y, m - 1, d)); endDt.setUTCDate(endDt.getUTCDate() + 42); // ~6 weeks
+        const pad = (n) => String(n).padStart(2, '0');
+        const end = `${endDt.getUTCFullYear()}-${pad(endDt.getUTCMonth() + 1)}-${pad(endDt.getUTCDate())}`;
+
+        const res = await request(app).post('/api/appointments').set(authHeader(provider)).send({
+            service: svc._id.toString(), appointmentDate: start, startTime: '10:00', endTime: '10:30',
+            walkInName: 'Recurring Client', isRecurring: true, recurrenceType: 'weekly', recurrenceInterval: 2, recurrenceEndDate: end,
+        });
+        expect(res.status).toBe(201);
+
+        const series = await Appointment.find({ recurrenceGroupId: res.body.data.recurrenceGroupId }).sort({ appointmentDate: 1 });
+        expect(series.length).toBeGreaterThanOrEqual(3); // every 2 weeks across ~6 weeks
+        expect(series[0].recurrenceInterval).toBe(2);
+        const gapDays = Math.round((new Date(series[1].appointmentDate) - new Date(series[0].appointmentDate)) / 86400000);
+        expect(gapDays).toBe(14);
     });
 
     it('books an existing registered client (customerId) — appointment is for the client, not the provider', async () => {
