@@ -617,8 +617,14 @@ const AdminDashboard = () => {
                                     <div style={{ minWidth: 0 }}>
                                         <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>{t.provider?.name || 'Provider'} · {nMoney(t.amount)}</p>
                                         <p style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                            {new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{t.method === 'cash' ? ' · cash' : ''}{t.reference ? ` · ${t.reference}` : ''}
-                                            {t.proofUrl && <> · <a href={t.proofUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--gold-dark)' }}>View {t.proofType === 'pdf' ? 'PDF' : 'proof'}</a></>}
+                                            {new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{t.reference ? ` · ${t.reference}` : ''}
+                                            {t.method === 'cash' ? (
+                                                <span style={{ display: 'inline-block', marginLeft: '0.4rem', fontSize: '0.68rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '99px', background: '#fef3c7', color: '#92400e' }}>Cash · no proof needed</span>
+                                            ) : t.proofUrl ? (
+                                                <> · <a href={t.proofUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--gold-dark)' }}>View {t.proofType === 'pdf' ? 'PDF' : 'proof'}</a></>
+                                            ) : (
+                                                <span style={{ marginLeft: '0.4rem' }}>· no proof attached</span>
+                                            )}
                                         </p>
                                     </div>
                                     {t.status === 'pending' ? (
@@ -646,8 +652,14 @@ const AdminDashboard = () => {
                                     <div style={{ minWidth: 0 }}>
                                         <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>{t.customer?.name || 'Client'} → {t.provider?.name || 'Provider'} · {nMoney(t.amount)}</p>
                                         <p style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
-                                            {new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{t.method === 'cash' ? ' · cash' : ''}{t.reference ? ` · ${t.reference}` : ''}
-                                            {t.proofUrl && <> · <a href={t.proofUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--gold-dark)' }}>View proof</a></>}
+                                            {new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{t.reference ? ` · ${t.reference}` : ''}
+                                            {t.method === 'cash' ? (
+                                                <span style={{ display: 'inline-block', marginLeft: '0.4rem', fontSize: '0.68rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '99px', background: '#fef3c7', color: '#92400e' }}>Cash · no proof needed</span>
+                                            ) : t.proofUrl ? (
+                                                <> · <a href={t.proofUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--gold-dark)' }}>View proof</a></>
+                                            ) : (
+                                                <span style={{ marginLeft: '0.4rem' }}>· no proof attached</span>
+                                            )}
                                         </p>
                                     </div>
                                     {t.status === 'pending' ? (

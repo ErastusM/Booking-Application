@@ -10,7 +10,7 @@ import { useAuthContext } from '../context/AuthContext';
 import OnboardingWizard from '../components/OnboardingWizard';
 import FormsManager from '../components/FormsManager';
 import ApptFormsView from '../components/ApptFormsView';
-import { Calendar, History, Scissors, CalendarClock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban, Wallet as WalletIcon, Phone, Mail, ChevronDown } from 'lucide-react';
+import { Calendar, History, Scissors, CalendarClock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban, Wallet as WalletIcon, Phone, Mail, ChevronDown, ChevronLeft, Send } from 'lucide-react';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { buildTimeSlots } from '../utils/bookingSlots';
@@ -50,6 +50,23 @@ const ContactActions = ({ phone, email, onMessage }) => {
             </button>
         </div>
     );
+};
+
+// Initials avatar + relative time for the iOS-style Messages list.
+const initialsOf = (name) => ((name || '?').trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase() || '?');
+const Avatar = ({ name, size = 40 }) => (
+    <div aria-hidden="true" style={{ flexShrink: 0, width: size, height: size, borderRadius: '50%', background: 'linear-gradient(135deg, var(--gold), var(--gold-dark))', color: 'var(--ink)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: size * 0.4, fontFamily: 'Outfit, sans-serif' }}>
+        {initialsOf(name)}
+    </div>
+);
+const fmtConvTime = (ts) => {
+    if (!ts) return '';
+    const d = new Date(ts);
+    const now = new Date();
+    if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    const yest = new Date(now); yest.setDate(now.getDate() - 1);
+    if (d.toDateString() === yest.toDateString()) return 'Yesterday';
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
 };
 
 const ProviderDashboard = () => {
@@ -3242,8 +3259,8 @@ const ProviderDashboard = () => {
 
             {/* Clients tab */}
             {activeTab === 'clients' && (
-                <div style={{ display: 'grid', gridTemplateColumns: selectedClient ? '1fr 380px' : '1fr', gap: '1.5rem', alignItems: 'start' }}>
-                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                <div className={`clients-grid${selectedClient ? ' has-selection' : ''}`} style={{ display: 'grid', gridTemplateColumns: selectedClient ? '1fr 380px' : '1fr', gap: '1.5rem', alignItems: 'start' }}>
+                    <div className="clients-list" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                         <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>My Clients</h2>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{clients.length} total</span>
@@ -3280,7 +3297,7 @@ const ProviderDashboard = () => {
                         )}
                     </div>
                     {selectedClient && clientDetail && (
-                        <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', position: 'sticky', top: '100px' }}>
+                        <div className="client-detail-panel" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', position: 'sticky', top: '100px' }}>
                             <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>{selectedClient.customer?.name}</h3>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -3360,44 +3377,84 @@ const ProviderDashboard = () => {
 
             {/* Messages tab */}
             {activeTab === 'messages' && (
-                <div style={{ display: 'grid', gridTemplateColumns: '280px 1fr', gap: '1.5rem', minHeight: '500px' }}>
-                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                <div className={`messages-grid${selectedConversation ? ' has-selection' : ''}`} style={{ display: 'grid', gridTemplateColumns: '330px 1fr', gap: '1.5rem', minHeight: '560px' }}>
+                    {/* Conversation list */}
+                    <div className="messages-list" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
-                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Conversations</h3>
+                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Messages</h3>
                         </div>
-                        {loadingConversations ? <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div> : (
-                            <div>
-                                {conversations.length === 0 && <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No messages yet</div>}
-                                {conversations.map((conv, i) => (
-                                    <div key={i} onClick={() => openConversation(conv)} style={{ padding: '0.875rem 1.25rem', borderBottom: '1px solid var(--border)', cursor: 'pointer', background: selectedConversation?.appointment?._id === conv.appointment?._id ? 'rgba(201,168,76,0.06)' : 'white', transition: 'background 0.1s' }}>
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-                                            <span style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.875rem' }}>{conv.appointment?.customer?.name || conv.lastMessage?.sender?.name}</span>
-                                            {conv.unread > 0 && <span style={{ background: 'var(--gold)', color: 'var(--ink)', fontSize: '0.68rem', fontWeight: '700', padding: '0.1rem 0.45rem', borderRadius: '99px' }}>{conv.unread}</span>}
-                                        </div>
-                                        <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.2rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{conv.lastMessage?.content}</div>
-                                        <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.15rem' }}>{conv.appointment?.service?.name}</div>
-                                    </div>
-                                ))}
+                        {loadingConversations ? (
+                            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>
+                        ) : conversations.length === 0 ? (
+                            <div style={{ padding: '3.5rem 2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                <MessageSquare size={28} style={{ opacity: 0.35 }} />
+                                <p style={{ margin: '0.75rem 0 0', fontSize: '0.9rem' }}>No messages yet</p>
+                            </div>
+                        ) : (
+                            <div style={{ overflowY: 'auto', flex: 1 }}>
+                                {conversations.map((conv, i) => {
+                                    const name = conv.appointment?.customer?.name || conv.lastMessage?.sender?.name || 'Client';
+                                    const active = selectedConversation?.appointment?._id === conv.appointment?._id;
+                                    return (
+                                        <button key={i} onClick={() => openConversation(conv)} style={{
+                                            width: '100%', textAlign: 'left', display: 'flex', gap: '0.75rem', alignItems: 'center',
+                                            padding: '0.8rem 1rem', borderTop: 'none', borderLeft: 'none', borderRight: 'none',
+                                            borderBottom: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                                            background: active ? 'rgba(201,168,76,0.08)' : 'transparent',
+                                        }}>
+                                            <Avatar name={name} />
+                                            <div style={{ minWidth: 0, flex: 1 }}>
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.5rem' }}>
+                                                    <span style={{ fontWeight: 700, color: 'var(--charcoal)', fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                                                    {conv.lastMessage?.createdAt && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', flexShrink: 0 }}>{fmtConvTime(conv.lastMessage.createdAt)}</span>}
+                                                </div>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.15rem' }}>
+                                                    <span style={{ flex: 1, minWidth: 0, fontSize: '0.8rem', color: conv.unread > 0 ? 'var(--charcoal)' : 'var(--text-muted)', fontWeight: conv.unread > 0 ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                                                        {conv.lastMessage?.content || conv.appointment?.service?.name}
+                                                    </span>
+                                                    {conv.unread > 0 && <span style={{ flexShrink: 0, minWidth: '18px', height: '18px', padding: '0 5px', borderRadius: '99px', background: 'var(--gold)', color: 'var(--ink)', fontSize: '0.68rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{conv.unread}</span>}
+                                                </div>
+                                            </div>
+                                        </button>
+                                    );
+                                })}
                             </div>
                         )}
                     </div>
-                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', display: 'flex', flexDirection: 'column' }}>
+
+                    {/* Thread */}
+                    <div className="messages-thread" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', display: 'flex', flexDirection: 'column', minHeight: '560px' }}>
                         {!selectedConversation ? (
-                            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.9rem' }}>Select a conversation</div>
+                            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.9rem', gap: '0.6rem' }}>
+                                <MessageSquare size={32} style={{ opacity: 0.3 }} />
+                                Select a conversation
+                            </div>
                         ) : (
                             <>
-                                <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
-                                    <span style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{selectedConversation.appointment?.customer?.name}</span>
-                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginLeft: '0.5rem' }}>· {selectedConversation.appointment?.service?.name}</span>
+                                {/* Header (back button shows on mobile) */}
+                                <div style={{ padding: '0.8rem 1rem', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                    <button className="messages-back" onClick={() => setSelectedConversation(null)} aria-label="Back to conversations" style={{ display: 'none', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--gold-dark)', padding: '0.25rem', marginLeft: '-0.25rem' }}>
+                                        <ChevronLeft size={24} />
+                                    </button>
+                                    <Avatar name={selectedConversation.appointment?.customer?.name || 'Client'} size={38} />
+                                    <div style={{ minWidth: 0 }}>
+                                        <div style={{ fontWeight: 700, color: 'var(--charcoal)', fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedConversation.appointment?.customer?.name}</div>
+                                        <div style={{ color: 'var(--text-muted)', fontSize: '0.76rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedConversation.appointment?.service?.name}</div>
+                                    </div>
                                 </div>
-                                <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', minHeight: '300px', maxHeight: '420px' }}>
+                                {/* Messages */}
+                                <div style={{ flex: 1, overflowY: 'auto', padding: '1.25rem 1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem', minHeight: '300px' }}>
                                     {conversationMessages.map((msg, i) => {
                                         const isMe = msg.sender?._id === selectedConversation.appointment?.provider?._id || msg.sender?.name === selectedConversation.appointment?.provider?.name;
                                         return (
                                             <div key={i} style={{ display: 'flex', justifyContent: isMe ? 'flex-end' : 'flex-start' }}>
-                                                <div style={{ maxWidth: '70%', padding: '0.5rem 0.875rem', borderRadius: '12px', background: isMe ? 'var(--gold)' : 'var(--warm-gray)', color: isMe ? 'var(--charcoal)' : 'var(--charcoal)', fontSize: '0.875rem' }}>
+                                                <div style={{
+                                                    maxWidth: '78%', padding: '0.5rem 0.8rem', fontSize: '0.9rem', lineHeight: 1.4,
+                                                    borderRadius: isMe ? '18px 18px 5px 18px' : '18px 18px 18px 5px',
+                                                    background: isMe ? 'var(--gold)' : 'var(--warm-gray)', color: 'var(--charcoal)',
+                                                }}>
                                                     {msg.content}
-                                                    <div style={{ fontSize: '0.65rem', color: isMe ? 'rgba(26,26,46,0.6)' : 'var(--text-muted)', marginTop: '0.25rem', textAlign: 'right' }}>
+                                                    <div style={{ fontSize: '0.62rem', color: isMe ? 'rgba(26,26,46,0.55)' : 'var(--text-muted)', marginTop: '0.2rem', textAlign: 'right' }}>
                                                         {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </div>
                                                 </div>
@@ -3405,9 +3462,12 @@ const ProviderDashboard = () => {
                                         );
                                     })}
                                 </div>
-                                <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border)', display: 'flex', gap: '0.75rem' }}>
-                                    <input value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSendMessage()} placeholder="Type a message..." className="input" style={{ flex: 1 }} />
-                                    <button onClick={handleSendMessage} disabled={sendingMessage || !newMessage.trim()} className="btn-primary" style={{ padding: '0.6rem 1.25rem' }}>Send</button>
+                                {/* Composer */}
+                                <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--border)', display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
+                                    <input value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSendMessage()} placeholder="Message…" className="input" style={{ flex: 1, borderRadius: '999px', padding: '0.6rem 1rem' }} />
+                                    <button onClick={handleSendMessage} disabled={sendingMessage || !newMessage.trim()} aria-label="Send message" style={{ flexShrink: 0, width: '42px', height: '42px', borderRadius: '50%', border: 'none', background: newMessage.trim() ? 'var(--gold)' : 'var(--border)', color: 'var(--ink)', cursor: newMessage.trim() ? 'pointer' : 'not-allowed', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}>
+                                        <Send size={18} />
+                                    </button>
                                 </div>
                             </>
                         )}
@@ -4478,7 +4538,7 @@ const ProviderAccountTopUpModal = ({ onClose, onDone }) => {
                     <label style={lbl}>Funding method</label>
                     <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
                         {[{ v: 'manual', t: 'Bank transfer' }, { v: 'cash', t: 'Cash' }].map((o) => (
-                            <button key={o.v} type="button" onClick={() => setMethod(o.v)} style={{
+                            <button key={o.v} type="button" onClick={() => { setMethod(o.v); if (o.v === 'cash') { setProofUrl(''); setProofType(''); } }} style={{
                                 flex: 1, padding: '0.55rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.82rem',
                                 border: `1.5px solid ${method === o.v ? 'var(--gold)' : 'var(--border)'}`,
                                 background: method === o.v ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)', color: method === o.v ? 'var(--gold-dark)' : 'var(--text-secondary)',
@@ -4489,11 +4549,19 @@ const ProviderAccountTopUpModal = ({ onClose, onDone }) => {
                     <input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 500" className="input" style={{ width: '100%', marginBottom: '1rem' }} required />
                     <label style={lbl}>Payment reference</label>
                     <input type="text" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Your deposit / transfer reference" className="input" style={{ width: '100%', marginBottom: '1rem' }} />
-                    <label style={lbl}>Proof of payment (image or PDF)</label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1rem', border: '1.5px dashed var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: proofUrl ? 'var(--gold-dark)' : 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
-                        {uploading ? 'Uploading…' : proofUrl ? `${proofType === 'pdf' ? 'PDF' : 'Proof'} uploaded — tap to replace` : 'Upload a screenshot, receipt or PDF'}
-                        <input type="file" accept="image/*,application/pdf" onChange={handleProof} style={{ display: 'none' }} />
-                    </label>
+                    {method === 'cash' ? (
+                        <div style={{ background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '0.85rem 1rem', marginBottom: '1rem', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                            Paying in cash? No proof of payment needed — just submit and an admin will verify and credit your account.
+                        </div>
+                    ) : (
+                        <>
+                            <label style={lbl}>Proof of payment (image or PDF)</label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1rem', border: '1.5px dashed var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: proofUrl ? 'var(--gold-dark)' : 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                                {uploading ? 'Uploading…' : proofUrl ? `${proofType === 'pdf' ? 'PDF' : 'Proof'} uploaded — tap to replace` : 'Upload a screenshot, receipt or PDF'}
+                                <input type="file" accept="image/*,application/pdf" onChange={handleProof} style={{ display: 'none' }} />
+                            </label>
+                        </>
+                    )}
                     {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
                     <button type="submit" disabled={busy || uploading} className="btn-primary" style={{ width: '100%', padding: '0.85rem' }}>{busy ? 'Submitting…' : 'Submit for approval'}</button>
                 </form>

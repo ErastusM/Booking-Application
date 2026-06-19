@@ -62,7 +62,7 @@ const WalletTopUpModal = ({ providerId, providerName, onClose, onDone }) => {
                     <label style={labelStyle}>Funding method</label>
                     <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
                         {[{ v: 'manual', t: 'Bank transfer / deposit' }, { v: 'cash', t: 'Cash' }].map((o) => (
-                            <button key={o.v} type="button" onClick={() => setMethod(o.v)} style={{
+                            <button key={o.v} type="button" onClick={() => { setMethod(o.v); if (o.v === 'cash') setProofUrl(''); }} style={{
                                 flex: '1 1 40%', padding: '0.6rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.82rem',
                                 border: `1.5px solid ${method === o.v ? 'var(--gold)' : 'var(--border)'}`,
                                 background: method === o.v ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)', color: method === o.v ? 'var(--gold-dark)' : 'var(--text-secondary)',
@@ -91,12 +91,16 @@ const WalletTopUpModal = ({ providerId, providerName, onClose, onDone }) => {
                     <label style={labelStyle}>Payment reference</label>
                     <input type="text" value={reference} onChange={(e) => setReference(e.target.value)} className="input" style={{ width: '100%', marginBottom: '1rem' }} />
 
-                    <label style={labelStyle}>Proof of payment (optional — image or PDF)</label>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1rem', border: '1.5px dashed var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: proofUrl ? 'var(--gold-dark)' : 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
-                        {proofUrl ? <Check size={16} /> : <Upload size={16} />}
-                        {uploading ? 'Uploading…' : proofUrl ? (isPdf ? 'PDF uploaded — tap to replace' : 'Proof uploaded — tap to replace') : 'Upload a screenshot, receipt or PDF'}
-                        <input type="file" accept="image/*,application/pdf" onChange={handleProof} style={{ display: 'none' }} />
-                    </label>
+                    {method !== 'cash' && (
+                        <>
+                            <label style={labelStyle}>Proof of payment (optional — image or PDF)</label>
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1rem', border: '1.5px dashed var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: proofUrl ? 'var(--gold-dark)' : 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                                {proofUrl ? <Check size={16} /> : <Upload size={16} />}
+                                {uploading ? 'Uploading…' : proofUrl ? (isPdf ? 'PDF uploaded — tap to replace' : 'Proof uploaded — tap to replace') : 'Upload a screenshot, receipt or PDF'}
+                                <input type="file" accept="image/*,application/pdf" onChange={handleProof} style={{ display: 'none' }} />
+                            </label>
+                        </>
+                    )}
 
                     {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
 

@@ -420,6 +420,20 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
   .profile-grid { grid-template-columns: 1fr !important; }
   .profile-sticky { position: relative !important; top: auto !important; }
 
+  /* Clients master/detail: on mobile, selecting a client shows the detail
+     full-width (hide the list) instead of squeezing a 380px column beside it */
+  .clients-grid { grid-template-columns: 1fr !important; }
+  .clients-grid.has-selection .clients-list { display: none; }
+  .client-detail-panel { position: static !important; top: auto !important; }
+
+  /* Messages: iOS-style single pane. Show the list, or the open thread with a
+     back button — never both squeezed side by side. */
+  .messages-grid { grid-template-columns: 1fr !important; }
+  .messages-grid .messages-thread { display: none !important; }
+  .messages-grid.has-selection .messages-list { display: none !important; }
+  .messages-grid.has-selection .messages-thread { display: flex !important; }
+  .messages-back { display: inline-flex !important; }
+
   /* Appointment cards: stack to 2 cols then full width for actions */
   .appt-row { grid-template-columns: 1fr 1fr !important; gap: 0.75rem !important; padding: 1.25rem !important; }
   .appt-row > div:last-child {
