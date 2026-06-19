@@ -4,6 +4,7 @@ import { providerMarketService, availabilityService, authService } from '../serv
 import { useAuthContext } from '../context/AuthContext';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { mapsUrl } from '../utils/maps';
+import WalletTopUpModal from '../components/WalletTopUpModal';
 
 const StarDisplay = ({ rating }) => (
     <div style={{ display: 'flex', gap: '2px' }}>
@@ -22,6 +23,7 @@ const ProviderProfilePage = () => {
     const [activeCategory, setActiveCategory] = useState('featured');
     const [schedule, setSchedule] = useState(null);
     const [blocked, setBlocked] = useState(false);
+    const [showTopUp, setShowTopUp] = useState(false);
 
     useEffect(() => {
         if (!user) return;
@@ -115,9 +117,14 @@ const ProviderProfilePage = () => {
                             ← Back to Services
                         </button>
                         {user && activeRole === 'customer' && (
-                            <button onClick={toggleBlock} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '0.78rem', fontFamily: 'var(--font-body)', padding: '0.35rem 0.85rem', borderRadius: '99px' }}>
-                                {blocked ? 'Unblock provider' : 'Block provider'}
-                            </button>
+                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                <button onClick={() => setShowTopUp(true)} style={{ background: 'rgba(201,168,76,0.15)', border: '1px solid var(--gold)', color: 'var(--gold)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', fontFamily: 'var(--font-body)', padding: '0.35rem 0.95rem', borderRadius: '99px' }}>
+                                    Top up wallet
+                                </button>
+                                <button onClick={toggleBlock} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '0.78rem', fontFamily: 'var(--font-body)', padding: '0.35rem 0.85rem', borderRadius: '99px' }}>
+                                    {blocked ? 'Unblock provider' : 'Block provider'}
+                                </button>
+                            </div>
                         )}
                     </div>
 
@@ -308,6 +315,15 @@ const ProviderProfilePage = () => {
                 </div>
             </div>
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+
+            {showTopUp && (
+                <WalletTopUpModal
+                    providerId={id}
+                    providerName={businessName}
+                    onClose={() => setShowTopUp(false)}
+                    onDone={() => setShowTopUp(false)}
+                />
+            )}
         </div>
     );
 };
