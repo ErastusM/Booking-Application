@@ -208,7 +208,7 @@ const ProviderAccount = () => {
     });
 
     return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100vh', paddingTop: '5rem' }}>
+        <div style={{ background: 'var(--off-white)', minHeight: '100dvh', paddingTop: '5rem' }}>
             <div className="container" style={{ paddingTop: '2rem', paddingBottom: '7.5rem' }}>
 
                 {/* Back to dashboard */}

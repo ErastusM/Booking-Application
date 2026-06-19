@@ -7,7 +7,7 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
 
     if (loading) {
         return (
-            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                 <div style={{
                     width: '40px', height: '40px',
                     border: '3px solid var(--border)',

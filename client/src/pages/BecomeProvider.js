@@ -48,7 +48,7 @@ const BecomeProvider = () => {
     };
 
     return (
-        <div style={{ minHeight: '100vh', background: 'var(--off-white)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6rem 1rem 3rem' }}>
+        <div style={{ minHeight: '100dvh', background: 'var(--off-white)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6rem 1rem 3rem' }}>
             <div style={{ width: '100%', maxWidth: '460px' }} className="fade-up">
                 <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)', overflow: 'hidden' }}>
                     <div style={{ height: '4px', background: 'linear-gradient(to right, var(--gold-dark), var(--gold-light))' }} />

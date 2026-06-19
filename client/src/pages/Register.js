@@ -104,7 +104,7 @@ const Register = () => {
     ];
 
     return (
-        <div style={{ minHeight: '100vh', background: 'var(--off-white)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ minHeight: '100dvh', background: 'var(--off-white)', display: 'flex', flexDirection: 'column' }}>
 
             {/* Navbar */}
             <div style={{ padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>

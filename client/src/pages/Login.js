@@ -35,7 +35,7 @@ const Login = () => {
 
     return (
         <div style={{
-            minHeight: '100vh',
+            minHeight: '100dvh',
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
             background: 'var(--off-white)',

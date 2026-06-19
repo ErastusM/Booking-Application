@@ -42,7 +42,7 @@ const MyWaitingList = () => {
     };
 
     if (loading) return (
-        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ textAlign: 'center' }}>
                 <div style={{
                     width: '40px', height: '40px',
@@ -59,7 +59,7 @@ const MyWaitingList = () => {
     );
 
     return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100vh' }}>
+        <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
 
             {/* Header */}
             <div style={{

@@ -1193,7 +1193,7 @@ const ProviderDashboard = () => {
     const labelStyle = { display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', letterSpacing: '0.05em', textTransform: 'uppercase' };
 
     return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100vh' }}>
+        <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
             {showWizard && (
                 <OnboardingWizard
                     user={user}

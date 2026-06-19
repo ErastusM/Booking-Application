@@ -50,7 +50,7 @@ const Profile = () => {
     const roleStyle = roleColors[user?.role] || roleColors.customer;
 
     return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100vh' }}>
+        <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
 
             {/* Header */}
             <div style={{

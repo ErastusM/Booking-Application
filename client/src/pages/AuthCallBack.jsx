@@ -49,7 +49,7 @@ const AuthCallback = () => {
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     return (
-        <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--off-white)' }}>
+        <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--off-white)' }}>
             <div style={{ textAlign: 'center' }}>
                 {error ? (
                     <>

@@ -40,7 +40,7 @@ const ResetPassword = () => {
 
     if (!token) {
         return (
-            <div style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--off-white)' }}>
+            <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--off-white)' }}>
                 <div style={{ textAlign: 'center', maxWidth: '400px', padding: '2rem' }}>
                     <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
                     <h2 style={{ fontFamily: 'var(--font-body)', color: 'var(--charcoal)', marginBottom: '1rem' }}>Invalid reset link</h2>
@@ -55,7 +55,7 @@ const ResetPassword = () => {
 
     return (
         <div style={{
-            minHeight: '100vh',
+            minHeight: '100dvh',
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
             background: 'var(--off-white)',

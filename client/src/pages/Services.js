@@ -267,7 +267,7 @@ const Services = () => {
 
     if (loading) return (
         <div style={{
-            minHeight: '100vh',
+            minHeight: '100dvh',
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
@@ -289,7 +289,7 @@ const Services = () => {
     );
 
     return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100vh' }}>
+        <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
 
             {/* Page header */}
             <div style={{
