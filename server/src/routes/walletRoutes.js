@@ -7,6 +7,11 @@ const wallet = require('../controllers/walletController');
 router.get('/settings', auth, authorize('provider', 'admin'), wallet.getSettings);
 router.put('/settings', auth, authorize('provider', 'admin'), wallet.updateSettings);
 
+// Admin oversight of client wallet top-ups
+router.get('/admin/topups', auth, authorize('admin'), wallet.adminGetClientTopUps);
+router.post('/admin/topups/:id/approve', auth, authorize('admin'), wallet.adminApproveTopUp);
+router.post('/admin/topups/:id/reject', auth, authorize('admin'), wallet.adminRejectTopUp);
+
 router.get('/provider/summary', auth, authorize('provider', 'admin'), wallet.getProviderSummary);
 router.get('/provider/wallets', auth, authorize('provider', 'admin'), wallet.getProviderWallets);
 router.get('/provider/topups', auth, authorize('provider', 'admin'), wallet.getProviderTopups);

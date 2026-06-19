@@ -192,6 +192,10 @@ export const walletService = {
     getProviderTransactions: (customerId) => API.get('/wallet/provider/transactions', { params: customerId ? { customerId } : {} }),
     getSettings: () => API.get('/wallet/settings'),
     updateSettings: (data) => API.put('/wallet/settings', data),
+    // Admin oversight of client wallet top-ups
+    adminGetClientTopUps: (status) => API.get('/wallet/admin/topups', { params: status ? { status } : {} }),
+    adminApproveClientTopUp: (id) => API.post(`/wallet/admin/topups/${id}/approve`),
+    adminRejectClientTopUp: (id, reason) => API.post(`/wallet/admin/topups/${id}/reject`, { reason }),
 };
 
 export const providerWalletService = {

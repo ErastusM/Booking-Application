@@ -200,8 +200,12 @@ const createTopUp = async ({ customer, provider, amount, reference, proofUrl, me
 };
 
 /** Provider approves a pending top-up → credit total balance. */
-const approveTopUp = async ({ transactionId, providerId }) => {
-    const txn = await WalletTransaction.findOne({ _id: transactionId, provider: providerId, type: 'topup' });
+// Allocate a pending top-up → credit total balance. The approver is the wallet's
+// provider OR an admin (providerId omitted means an admin is allocating).
+const approveTopUp = async ({ transactionId, providerId, resolvedBy }) => {
+    const query = { _id: transactionId, type: 'topup' };
+    if (providerId) query.provider = providerId;
+    const txn = await WalletTransaction.findOne(query);
     if (!txn) return { ok: false, reason: 'not_found' };
     if (txn.status !== 'pending') return { ok: false, reason: 'already_resolved' };
 
@@ -212,20 +216,22 @@ const approveTopUp = async ({ transactionId, providerId }) => {
     txn.status = 'approved';
     txn.balanceBefore = before;
     txn.balanceAfter = snap(updated);
-    txn.resolvedBy = providerId;
+    txn.resolvedBy = resolvedBy || providerId || null;
     txn.resolvedAt = new Date();
     await txn.save();
     return { ok: true, transaction: txn, wallet: updated };
 };
 
-/** Provider rejects a pending top-up → no balance change. */
-const rejectTopUp = async ({ transactionId, providerId, reason }) => {
-    const txn = await WalletTransaction.findOne({ _id: transactionId, provider: providerId, type: 'topup' });
+/** Reject a pending top-up → no balance change (provider or admin). */
+const rejectTopUp = async ({ transactionId, providerId, resolvedBy, reason }) => {
+    const query = { _id: transactionId, type: 'topup' };
+    if (providerId) query.provider = providerId;
+    const txn = await WalletTransaction.findOne(query);
     if (!txn) return { ok: false, reason: 'not_found' };
     if (txn.status !== 'pending') return { ok: false, reason: 'already_resolved' };
     txn.status = 'rejected';
     txn.reason = reason || txn.reason;
-    txn.resolvedBy = providerId;
+    txn.resolvedBy = resolvedBy || providerId || null;
     txn.resolvedAt = new Date();
     await txn.save();
     return { ok: true, transaction: txn };

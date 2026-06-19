@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { appointmentService, serviceService, userService, providerWalletService } from '../services';
+import { appointmentService, serviceService, userService, providerWalletService, walletService } from '../services';
 import { CalendarDays, Scissors, Users, Clock } from 'lucide-react';
 
 const nMoney = (n) => `N$${Number(n || 0).toFixed(2)}`;
@@ -64,16 +64,19 @@ const AdminDashboard = () => {
     const [pwSummary, setPwSummary] = useState(null);
     const [pwTopups, setPwTopups] = useState([]);
     const [pwWallets, setPwWallets] = useState([]);
+    const [clientTopUps, setClientTopUps] = useState([]); // consumer wallet top-ups awaiting allocation
     const [pwAdjust, setPwAdjust] = useState(null); // provider wallet being adjusted
 
     const fetchProviderWalletData = async () => {
         try {
-            const [s, t, w] = await Promise.all([
+            const [s, t, w, ct] = await Promise.all([
                 providerWalletService.getAdminSummary(),
                 providerWalletService.getTopUps(),
                 providerWalletService.getAllWallets(),
+                walletService.adminGetClientTopUps(),
             ]);
             setPwSummary(s.data.data); setPwTopups(t.data.data || []); setPwWallets(w.data.data || []);
+            setClientTopUps(ct.data.data || []);
         } catch { /* ignore */ }
     };
 
@@ -82,6 +85,13 @@ const AdminDashboard = () => {
     const resolveProviderTopUp = async (id, approve) => {
         try {
             approve ? await providerWalletService.approveTopUp(id) : await providerWalletService.rejectTopUp(id);
+            fetchProviderWalletData();
+        } catch (err) { alert(err.response?.data?.message || 'Could not update top-up'); }
+    };
+
+    const resolveClientTopUp = async (id, approve) => {
+        try {
+            approve ? await walletService.adminApproveClientTopUp(id) : await walletService.adminRejectClientTopUp(id);
             fetchProviderWalletData();
         } catch (err) { alert(err.response?.data?.message || 'Could not update top-up'); }
     };
@@ -612,6 +622,35 @@ const AdminDashboard = () => {
                                         <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
                                             <button onClick={() => resolveProviderTopUp(t._id, true)} className="btn-primary" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}>Approve</button>
                                             <button onClick={() => resolveProviderTopUp(t._id, false)} className="btn-outline" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}>Reject</button>
+                                        </div>
+                                    ) : (
+                                        <span style={{ fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.6rem', borderRadius: '99px', textTransform: 'capitalize', background: t.status === 'approved' ? '#d1fae5' : '#fee2e2', color: t.status === 'approved' ? '#065f46' : '#991b1b' }}>{t.status}</span>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+
+                        {/* Client (consumer) wallet top-up requests — admin can allocate too */}
+                        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', marginBottom: '1.5rem' }}>
+                            <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Client wallet top-ups</h3>
+                                <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{clientTopUps.filter((t) => t.status === 'pending').length} pending</span>
+                            </div>
+                            {clientTopUps.length === 0 ? (
+                                <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No client top-up requests yet.</div>
+                            ) : clientTopUps.slice(0, 40).map((t) => (
+                                <div key={t._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', padding: '0.9rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
+                                    <div style={{ minWidth: 0 }}>
+                                        <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>{t.customer?.name || 'Client'} → {t.provider?.name || 'Provider'} · {nMoney(t.amount)}</p>
+                                        <p style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                                            {new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{t.method === 'cash' ? ' · cash' : ''}{t.reference ? ` · ${t.reference}` : ''}
+                                            {t.proofUrl && <> · <a href={t.proofUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--gold-dark)' }}>View proof</a></>}
+                                        </p>
+                                    </div>
+                                    {t.status === 'pending' ? (
+                                        <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
+                                            <button onClick={() => resolveClientTopUp(t._id, true)} className="btn-primary" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}>Approve</button>
+                                            <button onClick={() => resolveClientTopUp(t._id, false)} className="btn-outline" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}>Reject</button>
                                         </div>
                                     ) : (
                                         <span style={{ fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.6rem', borderRadius: '99px', textTransform: 'capitalize', background: t.status === 'approved' ? '#d1fae5' : '#fee2e2', color: t.status === 'approved' ? '#065f46' : '#991b1b' }}>{t.status}</span>

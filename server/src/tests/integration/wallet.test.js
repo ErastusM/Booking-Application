@@ -19,7 +19,7 @@ jest.mock('../../utils/emailService', () => ({
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const walletService = require('../../utils/walletService');
-const { makeProvider, makeService, makeUser, authHeader } = require('../helpers/factories');
+const { makeProvider, makeService, makeUser, makeAdmin, authHeader } = require('../helpers/factories');
 
 beforeAll(() => testDb.connect());
 afterAll(() => testDb.closeDatabase());
@@ -85,6 +85,18 @@ describe('Wallet top-up flow', () => {
 
         const wallet = await getWallet(client, provider._id);
         expect(wallet.totalBalance).toBe(0);
+    });
+
+    it('an admin can allocate (approve) a client top-up', async () => {
+        const { provider, client } = await setup();
+        const admin = await makeAdmin();
+        const topup = await request(app).post('/api/wallet/topup')
+            .set(authHeader(client)).send({ providerId: provider._id.toString(), amount: 250 });
+        const approve = await request(app).post(`/api/wallet/admin/topups/${topup.body.data._id}/approve`).set(authHeader(admin));
+        expect(approve.status).toBe(200);
+
+        const wallet = await getWallet(client, provider._id);
+        expect(wallet.totalBalance).toBe(250);
     });
 
     it('a top-up cannot be approved twice', async () => {

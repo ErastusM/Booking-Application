@@ -3,7 +3,7 @@ const Wallet = require('../models/Wallet');
 const WalletTransaction = require('../models/WalletTransaction');
 const User = require('../models/User');
 const walletService = require('../utils/walletService');
-const { createNotification } = require('../utils/notificationhelper');
+const { createNotification, notifyAdmins } = require('../utils/notificationhelper');
 
 const money = (n) => `N$${Number(n || 0).toFixed(2)}`;
 const isPositiveAmount = (v) => typeof v === 'number' && isFinite(v) && v > 0 && v <= 1_000_000;
@@ -89,11 +89,10 @@ exports.createTopUp = async (req, res) => {
             method: ['manual', 'cash'].includes(method) ? method : 'manual',
         });
 
-        createNotification(
-            providerId,
-            `New ${method === 'cash' ? 'cash ' : ''}wallet top-up request: ${money(amount)} from ${req.user.name}`,
-            'wallet', '/dashboard'
-        );
+        const note = `New ${method === 'cash' ? 'cash ' : ''}wallet top-up request: ${money(amount)} from ${req.user.name}`;
+        createNotification(providerId, note, 'wallet', '/dashboard');
+        // The admin can also see and allocate top-ups.
+        notifyAdmins(`${note} (for ${provider.name})`, 'wallet', '/bkplus-command');
 
         res.status(201).json({ success: true, message: 'Top-up request submitted for approval', data: txn });
     } catch (error) {
@@ -366,6 +365,48 @@ exports.updateSettings = async (req, res) => {
         user.markModified('walletSettings');
         await user.save();
         res.status(200).json({ success: true, message: 'Wallet settings saved', data: settingsOf(user) });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/* ───────────────────── ADMIN oversight of client top-ups ───────────────────── */
+
+// GET /api/wallet/admin/topups?status=pending — client wallet top-ups across all providers.
+exports.adminGetClientTopUps = async (req, res) => {
+    try {
+        const query = { type: 'topup' };
+        if (req.query.status) query.status = req.query.status;
+        const txns = await WalletTransaction.find(query)
+            .populate('customer', 'name email avatar')
+            .populate('provider', 'name')
+            .sort({ createdAt: -1 })
+            .limit(200);
+        res.status(200).json({ success: true, data: txns });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+// POST /api/wallet/admin/topups/:id/approve — admin allocates a client top-up.
+exports.adminApproveTopUp = async (req, res) => {
+    try {
+        const result = await walletService.approveTopUp({ transactionId: req.params.id, resolvedBy: req.user._id });
+        if (!result.ok) return res.status(result.reason === 'not_found' ? 404 : 409).json({ success: false, message: result.reason === 'already_resolved' ? 'This top-up was already resolved' : 'Top-up not found' });
+        createNotification(result.transaction.customer, `Your ${money(result.transaction.amount)} top-up was approved — it's now in your wallet`, 'wallet', '/wallet');
+        res.status(200).json({ success: true, message: 'Top-up approved', data: result.transaction });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+// POST /api/wallet/admin/topups/:id/reject
+exports.adminRejectTopUp = async (req, res) => {
+    try {
+        const result = await walletService.rejectTopUp({ transactionId: req.params.id, resolvedBy: req.user._id, reason: (req.body.reason || '').toString().slice(0, 200) });
+        if (!result.ok) return res.status(result.reason === 'not_found' ? 404 : 409).json({ success: false, message: result.reason === 'already_resolved' ? 'This top-up was already resolved' : 'Top-up not found' });
+        createNotification(result.transaction.customer, `Your ${money(result.transaction.amount)} top-up request was rejected`, 'wallet', '/wallet');
+        res.status(200).json({ success: true, message: 'Top-up rejected', data: result.transaction });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
