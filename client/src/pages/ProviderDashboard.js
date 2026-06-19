@@ -10,7 +10,7 @@ import { useAuthContext } from '../context/AuthContext';
 import OnboardingWizard from '../components/OnboardingWizard';
 import FormsManager from '../components/FormsManager';
 import ApptFormsView from '../components/ApptFormsView';
-import { Calendar, History, Scissors, CalendarClock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban, Wallet as WalletIcon } from 'lucide-react';
+import { Calendar, History, Scissors, CalendarClock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban, Wallet as WalletIcon, Phone, Mail } from 'lucide-react';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { buildTimeSlots } from '../utils/bookingSlots';
@@ -25,6 +25,31 @@ const statusConfig = {
     completed: { label: 'Completed', bg: '#d1fae5', color: '#065f46' },
     cancelled: { label: 'Cancelled', bg: '#fee2e2', color: '#991b1b' },
     'no-show': { label: 'No-show', bg: '#ede9fe', color: '#5b21b6' },
+};
+
+// Quick-contact row reused by the appointment drawer and the client profile so a
+// provider can call, email, or open an in-app chat with a client in one tap.
+const ContactActions = ({ phone, email, onMessage }) => {
+    const btn = {
+        flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem',
+        padding: '0.55rem 0.5rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)',
+        background: 'var(--card-bg)', color: 'var(--charcoal)', fontSize: '0.8rem', fontWeight: 600,
+        fontFamily: 'Outfit, sans-serif', cursor: 'pointer', textDecoration: 'none', whiteSpace: 'nowrap',
+    };
+    const disabled = { ...btn, opacity: 0.4, cursor: 'not-allowed', pointerEvents: 'none' };
+    return (
+        <div style={{ display: 'flex', gap: '0.5rem' }}>
+            <a href={phone ? `tel:${phone}` : undefined} style={phone ? btn : disabled} aria-label="Call client" title={phone || 'No phone on file'}>
+                <Phone size={15} /> Call
+            </a>
+            <a href={email ? `mailto:${email}` : undefined} style={email ? btn : disabled} aria-label="Email client" title={email || 'No email on file'}>
+                <Mail size={15} /> Email
+            </a>
+            <button type="button" onClick={onMessage} style={onMessage ? btn : disabled} aria-label="Message client">
+                <MessageSquare size={15} /> Chat
+            </button>
+        </div>
+    );
 };
 
 const ProviderDashboard = () => {
@@ -100,6 +125,7 @@ const ProviderDashboard = () => {
     const [apptRescheduleForm, setApptRescheduleForm] = useState({ appointmentDate: '', startTime: '' });
     const [savingApptDetail, setSavingApptDetail] = useState(false);
     const [apptDetailError, setApptDetailError] = useState('');
+    const [showReschedule, setShowReschedule] = useState(false); // reschedule form is collapsed by default to keep actions reachable
     const swipeGestureRef = useRef({ tracking: false, startX: 0, startY: 0, dx: 0, dy: 0, locked: false });
 
     // Wallet (prepaid balances the provider holds for clients)
@@ -574,6 +600,27 @@ const ProviderDashboard = () => {
         } catch { /* ignore */ } finally { setSendingMessage(false); }
     };
 
+    // Jump from an appointment (or a client name) straight into that client's
+    // full profile in the Clients tab.
+    const openClientProfile = (customer) => {
+        if (!customer?._id) return;
+        setSelectedClient({ customer });
+        fetchClientDetail(customer._id);
+        setApptDetailModal(null);
+        setActiveTab('clients');
+    };
+
+    // Open the in-app chat thread for a given appointment. `provider` is stamped
+    // so the message bubbles align correctly (mine vs. the client's).
+    const openChatForAppointment = (appt) => {
+        if (!appt?._id) return;
+        fetchConversations();
+        openConversation({ appointment: { ...appt, provider: { _id: user?._id, name: user?.name } } });
+        setApptDetailModal(null);
+        setSelectedClient(null);
+        setActiveTab('messages');
+    };
+
     const fetchMyPackages = async () => {
         setLoadingPackages(true);
         try {
@@ -926,6 +973,7 @@ const ProviderDashboard = () => {
 
     const getFullCalendarView = () => {
         if (calendarView === 'day') return 'timeGridDay';
+        if (calendarView === '3day') return 'timeGridThreeDay';
         if (calendarView === 'week') return 'timeGridWeek';
         return 'dayGridMonth';
     };
@@ -952,6 +1000,7 @@ const ProviderDashboard = () => {
             startTime: toTimeKey(event.start),
         });
         setApptDetailError('');
+        setShowReschedule(false);
         setApptDetailModal(event.extendedProps.raw || null);
     };
 
@@ -2097,7 +2146,7 @@ const ProviderDashboard = () => {
                     <div>
                         <div className="fc-toolbar-shell" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
                             <div style={{ display: 'inline-flex', background: 'var(--surface-sunken)', border: '1px solid var(--border)', borderRadius: '10px', padding: '3px', gap: '2px' }}>
-                                {[['day', 'Day'], ['week', 'Week'], ['month', 'Month']].map(([view, label]) => {
+                                {[['day', 'Day'], ['3day', '3 Day'], ['week', 'Week'], ['month', 'Month']].map(([view, label]) => {
                                     const isActive = calendarView === view;
                                     return (
                                         <button
@@ -2151,6 +2200,7 @@ const ProviderDashboard = () => {
                                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
                                 initialView={getFullCalendarView()}
                                 initialDate={currentDate}
+                                views={{ timeGridThreeDay: { type: 'timeGrid', duration: { days: 3 }, buttonText: '3 day' } }}
                                 headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
                                 height={calendarView === 'month' ? 'auto' : 680}
                                 events={fullCalendarEvents}
@@ -2169,6 +2219,8 @@ const ProviderDashboard = () => {
                                 slotDuration="00:15:00"
                                 slotLabelInterval="01:00:00"
                                 slotLabelFormat={{ hour: 'numeric', minute: '2-digit', meridiem: 'short' }}
+                                eventMinHeight={42}
+                                eventShortHeight={64}
                                 allDaySlot={false}
                                 nowIndicator
                                 scrollTime={calendarScrollTime}
@@ -3243,6 +3295,25 @@ const ProviderDashboard = () => {
                                 </div>
                             </div>
                             <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '70vh', overflowY: 'auto' }}>
+                                {/* Quick contact - call / email / chat */}
+                                {(() => {
+                                    const cust = selectedClient.customer;
+                                    const latest = clientDetail.appointments?.[0];
+                                    return (
+                                        <div>
+                                            {(cust?.phone || cust?.email) && (
+                                                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', margin: '0 0 0.6rem', fontFamily: 'Outfit, sans-serif', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    {[cust?.phone, cust?.email].filter(Boolean).join('  /  ')}
+                                                </p>
+                                            )}
+                                            <ContactActions
+                                                phone={cust?.phone}
+                                                email={cust?.email}
+                                                onMessage={latest ? () => openChatForAppointment({ ...latest, customer: cust }) : undefined}
+                                            />
+                                        </div>
+                                    );
+                                })()}
                                 <div>
                                     <p style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>
                                         Visit History {clientDetail.appointments?.length ? `(${clientDetail.appointments.length})` : ''}
@@ -4162,6 +4233,38 @@ const ProviderDashboard = () => {
                             <button onClick={() => setApptDetailModal(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0 }}>&times;</button>
                         </div>
 
+                        {/* Client card - name links to the full profile; quick call / email / chat */}
+                        {(() => {
+                            const cust = apptDetailModal.customer;
+                            const isRegistered = !!cust?._id;
+                            const displayName = apptDetailModal.walkInName || cust?.name || 'Walk-in';
+                            const subtitle = cust?.phone || cust?.email || (isRegistered ? '' : 'Walk-in - no saved contact');
+                            return (
+                                <div style={{ padding: '1.1rem 1.5rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.85rem' }}>
+                                        <div style={{ minWidth: 0 }}>
+                                            {isRegistered ? (
+                                                <button onClick={() => openClientProfile(cust)} style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left', display: 'block', maxWidth: '100%' }}>
+                                                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: 700, color: 'var(--charcoal)', display: 'block', textDecoration: 'underline', textDecorationColor: 'var(--border)', textUnderlineOffset: '3px' }}>{displayName}</span>
+                                                </button>
+                                            ) : (
+                                                <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: 700, color: 'var(--charcoal)' }}>{displayName}</span>
+                                            )}
+                                            {subtitle && <div style={{ fontSize: '0.76rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'Outfit, sans-serif' }}>{subtitle}</div>}
+                                        </div>
+                                        {isRegistered && (
+                                            <button onClick={() => openClientProfile(cust)} style={{ flexShrink: 0, fontSize: '0.72rem', fontWeight: 600, color: 'var(--gold-dark)', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.6rem', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap' }}>Profile</button>
+                                        )}
+                                    </div>
+                                    <ContactActions
+                                        phone={cust?.phone}
+                                        email={cust?.email}
+                                        onMessage={isRegistered ? () => openChatForAppointment(apptDetailModal) : undefined}
+                                    />
+                                </div>
+                            );
+                        })()}
+
                         <div style={{ padding: '1.5rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             {/* Details */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
@@ -4189,10 +4292,15 @@ const ProviderDashboard = () => {
                             {/* Intake / consent forms for this appointment */}
                             <ApptFormsView appointmentId={apptDetailModal._id} />
 
-                            {/* Reschedule section */}
+                            {/* Reschedule - collapsed by default so it doesn't push the actions down */}
                             {apptDetailModal.status !== 'cancelled' && apptDetailModal.status !== 'completed' && (
-                                <div style={{ background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '1rem' }}>
-                                    <p style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--charcoal)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.85rem', fontFamily: 'Outfit, sans-serif' }}>Reschedule</p>
+                                <div style={{ background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
+                                    <button onClick={() => setShowReschedule(s => !s)} aria-expanded={showReschedule} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.85rem 1rem', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'Outfit, sans-serif' }}>
+                                        <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--charcoal)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Reschedule</span>
+                                        <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', transform: showReschedule ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>{'▾'}</span>
+                                    </button>
+                                    {showReschedule && (
+                                    <div style={{ padding: '0 1rem 1rem' }}>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.85rem' }}>
                                         <div>
                                             <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontFamily: 'Outfit, sans-serif' }}>New date</label>
@@ -4211,6 +4319,8 @@ const ProviderDashboard = () => {
                                     >
                                         {savingApptDetail ? 'Saving...' : 'Save new time \u2192'}
                                     </button>
+                                    </div>
+                                    )}
                                 </div>
                             )}
 
