@@ -958,6 +958,14 @@ exports.getAppointmentByToken = async (req, res) => {
             .populate('provider', 'name businessProfile')
             .populate('teamMember', 'name');
         if (!appt) return res.status(404).json({ success: false, message: 'Booking not found' });
+        // Provider's working hours so the reschedule picker can offer controlled
+        // (hourly) slots instead of an arbitrary time input. Not sensitive — it's
+        // the same availability shown publicly on the booking page.
+        let schedule = null;
+        if (appt.provider?._id) {
+            const availabilityDoc = await Availability.findOne({ provider: appt.provider._id });
+            schedule = availabilityDoc?.schedule || null;
+        }
         // Only expose what a guest needs — never the full document
         res.status(200).json({
             success: true,
@@ -971,6 +979,7 @@ exports.getAppointmentByToken = async (req, res) => {
                 provider: appt.provider ? { name: appt.provider.name, address: appt.provider.businessProfile?.address || '' } : null,
                 staff: appt.teamMember ? appt.teamMember.name : null,
                 clientName: appt.walkInName || null,
+                schedule,
             },
         });
     } catch (error) {

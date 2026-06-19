@@ -1,7 +1,23 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { appointmentService } from '../services';
+import { buildTimeSlots } from '../utils/bookingSlots';
 import { Calendar, Clock, MapPin, Scissors, User, CheckCircle2, XCircle } from 'lucide-react';
+
+const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const toMin = (t) => { const [h, m] = String(t || '').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+// Working blocks for a date from the provider's schedule (falls back to 08:00–20:00).
+const blocksFor = (dateStr, schedule) => {
+    if (!dateStr) return [];
+    if (!schedule) return [{ start: 8 * 60, end: 20 * 60 }];
+    const [y, m, d] = dateStr.split('-').map(Number);
+    const cfg = schedule[DAY_NAMES[new Date(y, m - 1, d).getDay()]];
+    if (!cfg?.enabled || !Array.isArray(cfg.slots)) return [];
+    return cfg.slots
+        .filter((s) => s?.start && s?.end)
+        .map((s) => ({ start: toMin(s.start), end: toMin(s.end) }))
+        .filter((b) => b.end > b.start);
+};
 
 const statusBadge = {
     pending:   { label: 'Pending',   cls: 'badge-warning' },
@@ -117,15 +133,38 @@ const ManageBooking = () => {
                                     {showReschedule ? (
                                         <form onSubmit={reschedule} style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                                             <label style={{ fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>New date</label>
-                                            <input type="date" value={rDate} min={today} onChange={e => setRDate(e.target.value)} className="input" required />
+                                            <input type="date" value={rDate} min={today} onChange={e => { setRDate(e.target.value); setRTime(''); }} className="input" required />
                                             <label style={{ fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>New start time</label>
-                                            <input type="time" value={rTime} onChange={e => setRTime(e.target.value)} className="input" required />
-                                            <button type="submit" disabled={savingR} className="btn-primary" style={{ width: '100%', marginTop: '0.35rem' }}>{savingR ? 'Saving…' : 'Confirm new time →'}</button>
+                                            {(() => {
+                                                // Controlled hourly slots (no arbitrary minute starts), within the
+                                                // provider's hours. Half-hour starts surface server-side conflict rules.
+                                                const duration = appt.service?.duration || (toMin(appt.endTime) - toMin(appt.startTime)) || 30;
+                                                const blocks = blocksFor(rDate, appt.schedule);
+                                                const minStart = rDate === today ? (new Date().getHours() * 60 + new Date().getMinutes()) : -1;
+                                                const slots = rDate ? buildTimeSlots({ blocks, bookedRanges: [], duration, minStart }) : [];
+                                                if (!rDate) return <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>Pick a date first.</p>;
+                                                if (slots.length === 0) return <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>No available times on this day.</p>;
+                                                return (
+                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: '0.4rem' }}>
+                                                        {slots.map((s, i) => {
+                                                            const sel = rTime === s.time;
+                                                            return (
+                                                                <button key={i} type="button" onClick={() => setRTime(s.time)} style={{
+                                                                    padding: '0.55rem 0.3rem', borderRadius: 'var(--radius-sm)', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.85rem',
+                                                                    border: `1.5px solid ${sel ? 'var(--gold)' : 'var(--border)'}`,
+                                                                    background: sel ? 'var(--gold)' : 'var(--card-bg)', color: sel ? 'var(--ink)' : 'var(--charcoal)', cursor: 'pointer',
+                                                                }}>{s.time}</button>
+                                                            );
+                                                        })}
+                                                    </div>
+                                                );
+                                            })()}
+                                            <button type="submit" disabled={savingR || !rTime} className="btn-primary" style={{ width: '100%', marginTop: '0.35rem', opacity: rTime ? 1 : 0.5 }}>{savingR ? 'Saving…' : 'Confirm new time →'}</button>
                                             <button type="button" onClick={() => { setShowReschedule(false); setError(''); }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.85rem' }}>Back</button>
                                         </form>
                                     ) : (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginTop: '1.5rem' }}>
-                                            <button onClick={() => { setShowReschedule(true); setRDate(toInputDate(appt.appointmentDate)); setRTime(appt.startTime); setError(''); }} className="btn-primary" style={{ width: '100%' }}>Reschedule</button>
+                                            <button onClick={() => { setShowReschedule(true); setRDate(toInputDate(appt.appointmentDate)); setRTime(''); setError(''); }} className="btn-primary" style={{ width: '100%' }}>Reschedule</button>
                                             <button onClick={cancel} disabled={cancelling} className="btn btn--danger-soft btn-block btn-lg">
                                                 {cancelling ? 'Cancelling…' : 'Cancel booking'}
                                             </button>
