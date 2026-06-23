@@ -296,6 +296,30 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
 
 /* Mobile sticky bottom bar for booking — hidden on desktop */
 .booking-mobile-bar { display: none; }
+/* Floating "back to top" button used on the booking page to escape the long
+   calendar / time-slot scroll. Sits below the mobile booking bar (z 100) and the
+   option sheet overlay (z 900) so it never covers them. */
+.scroll-top-fab {
+  position: fixed;
+  right: 16px;
+  bottom: 24px;
+  z-index: 95;
+  width: 46px;
+  height: 46px;
+  border-radius: 50%;
+  background: var(--gold);
+  color: var(--charcoal);
+  border: none;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
+  cursor: pointer;
+  font-size: 1.35rem;
+  line-height: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: filter 0.15s ease, transform 0.15s ease;
+}
+.scroll-top-fab:hover { filter: brightness(0.96); transform: translateY(-1px); }
 .fade-up { animation: fadeUp 0.5s ease forwards; }
 .fade-up-delay-1 { animation-delay: 0.1s; opacity: 0; }
 .fade-up-delay-2 { animation-delay: 0.2s; opacity: 0; }
@@ -494,6 +518,8 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
     z-index: 100;
     box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
   }
+  /* Clear both the bottom nav (62px) and the sticky booking bar above it. */
+  .scroll-top-fab { bottom: 140px; }
 }
 
 @media (min-width: 769px) {

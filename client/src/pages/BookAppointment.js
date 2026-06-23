@@ -37,6 +37,10 @@ const BookAppointment = () => {
     const [wallet, setWallet] = useState(null); // this provider's wallet + settings (when wallet is enabled)
     const [recurrence, setRecurrence] = useState({ isRecurring: false, recurrenceType: 'weekly', recurrenceInterval: 1, recurrenceEndDate: '' });
     const [paymentMethod, setPaymentMethod] = useState('cash'); // 'wallet' | 'cash' (when the provider's wallet is on)
+    // The long date grid + time-slot list can scroll well past the top, and on
+    // mobile the fixed bottom bar makes it easy to get stranded — show a "back to
+    // top" button once the user has scrolled down so they can always return.
+    const [showScrollTop, setShowScrollTop] = useState(false);
 
     const effectivePrice    = selectedOption ? selectedOption.price    : (selectedService?.price    ?? 0);
     const effectiveDuration = selectedOption ? selectedOption.duration : (selectedService?.duration ?? 0);
@@ -120,6 +124,19 @@ const BookAppointment = () => {
             .then(res => setBookedSlots(res.data.data || []))
             .catch(() => {});
     }, { intervalMs: 20000, enabled: !!(effectiveProviderId && formData.appointmentDate) });
+
+    // Toggle the floating "back to top" button based on how far the page is scrolled.
+    useEffect(() => {
+        const onScroll = () => setShowScrollTop(window.scrollY > 320);
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+        return () => window.removeEventListener('scroll', onScroll);
+    }, []);
+
+    const scrollToTop = () => {
+        try { window.scrollTo({ top: 0, left: 0, behavior: 'smooth' }); }
+        catch { window.scrollTo(0, 0); }
+    };
 
     useEffect(() => {
         if (!providerAvailability || !formData.appointmentDate || !formData.startTime) {
@@ -856,6 +873,11 @@ const BookAppointment = () => {
                     )}
                 </div>
             )}
+        {/* Floating "back to top" — escapes the calendar / time-slot scroll deadzone */}
+        {showScrollTop && (
+            <button type="button" onClick={scrollToTop} className="scroll-top-fab" aria-label="Back to top" title="Back to top">↑</button>
+        )}
+
         {/* ── Service options bottom sheet (Fresha-style) ── */}
         {optionSheet && (
             <>
