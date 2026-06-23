@@ -17,7 +17,10 @@ const Navbar = () => {
     const [showSuggestion, setShowSuggestion] = useState(false);
 
     const isHome = location.pathname === '/';
-    const isTransparent = isHome && !scrolled;
+    // The transparent navbar uses white text/icons, which only reads on a DARK hero.
+    // The home hero is light in light mode, so only go transparent in dark mode —
+    // otherwise the white icons vanish against the light hero (scrolled-to-top bug).
+    const isTransparent = isHome && !scrolled && darkMode;
 
     useEffect(() => {
         const handleScroll = () => setScrolled(window.scrollY > 20);

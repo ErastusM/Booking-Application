@@ -67,9 +67,9 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
         <Link to={`/providers/${p._id}`} style={{ display: 'block', textDecoration: 'none', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '18px', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
             <div style={{ position: 'relative' }}>
                 {photos.length > 0 ? (
-                    <div className="feed-carousel" style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', aspectRatio: '4 / 3' }}>
+                    <div className="feed-carousel" style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory' }}>
                         {photos.map((src, i) => (
-                            <img key={i} src={cloudinaryThumb(src, 900)} alt={`${p.businessName || p.name} photo ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" style={{ flex: '0 0 100%', width: '100%', height: '100%', objectFit: 'cover', scrollSnapAlign: 'start', display: 'block' }} />
+                            <img key={i} src={cloudinaryThumb(src, 900)} alt={`${p.businessName || p.name} photo ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" style={{ flex: '0 0 100%', width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', scrollSnapAlign: 'start', display: 'block', background: 'var(--warm-gray)' }} />
                         ))}
                     </div>
                 ) : (

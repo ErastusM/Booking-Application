@@ -2192,6 +2192,16 @@ const ProviderDashboard = () => {
                 {/* Calendar tab */}
                 {activeTab === 'calendar' && (
                     <div>
+                        {/* Floating scroll-to-top — FullCalendar captures touch gestures, so once
+                            you reach the bottom it's hard to swipe the page back up. */}
+                        <button
+                            type="button"
+                            aria-label="Scroll to top"
+                            onClick={() => { try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (_) { window.scrollTo(0, 0); } }}
+                            style={{ position: 'fixed', right: '16px', bottom: 'calc(78px + env(safe-area-inset-bottom, 0px))', zIndex: 950, width: '44px', height: '44px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--charcoal)', boxShadow: 'var(--shadow-md)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                        >
+                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 15l-6-6-6 6" /></svg>
+                        </button>
                         <div className="fc-toolbar-shell" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
                             <div style={{ display: 'inline-flex', background: 'var(--surface-sunken)', border: '1px solid var(--border)', borderRadius: '10px', padding: '3px', gap: '2px' }}>
                                 {[['day', 'Day'], ['3day', '3 Day'], ['week', 'Week'], ['month', 'Month']].map(([view, label]) => {
