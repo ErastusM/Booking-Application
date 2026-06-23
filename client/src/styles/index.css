@@ -336,15 +336,6 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
   }
 }
 
-/* Calendar alignment helpers */
-:root { --time-col-width: 64px; }
-.cal-grid-header, .cal-grid-body { box-sizing: border-box; }
-.cal-grid-header > div, .cal-grid-body > div { box-sizing: border-box; padding: 0.6rem; }
-.cal-grid-header { overflow: hidden; }
-.cal-grid-body { overflow: auto; scrollbar-gutter: stable both-edges; }
-/* Make calendar columns touch-friendly and prevent native scrolling during drag */
-.cal-grid-body > div { touch-action: none; }
-
 /* Appointment block visuals for Fresha-like look */
 
 .appt-block { border-radius: 6px; padding: 6px 8px; box-shadow: 0 8px 18px rgba(16,24,40,0.06); transition: transform 0.12s cubic-bezier(.2,.9,.3,1), box-shadow 0.12s cubic-bezier(.2,.9,.3,1); }
@@ -1087,9 +1078,14 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
    APP SHELL — navigation + route transitions (Stage B)
    ============================================================================ */
 
-/* Route transition — fade + subtle rise on every navigation */
+/* Route transition — fade + subtle rise on every navigation.
+   fill-mode is `backwards` (NOT `both`/`forwards`): we want the pre-animation offset,
+   but we must NOT retain a transform after it finishes. A lingering `transform: translateY(0)`
+   turns .route-view into a containing block + stacking context, which (a) re-anchors any
+   in-page `position: fixed` modal/bar to this wrapper instead of the viewport and (b) traps
+   those modals beneath the fixed bottom nav. backwards reverts to `transform: none` on end. */
 @keyframes routeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-.route-view { animation: routeIn var(--dur-slow) var(--ease-out) both; }
+.route-view { animation: routeIn var(--dur-slow) var(--ease-out) backwards; }
 @media (prefers-reduced-motion: reduce) { .route-view { animation: none; } }
 
 /* Desktop nav links — pill hover/active */

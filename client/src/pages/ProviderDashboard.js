@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -941,53 +941,60 @@ const ProviderDashboard = () => {
         return new Date(`${dateStr}T${timeValue}:00`);
     };
 
-    const appointmentEvents = appointments.filter(matchesStaffFilter).map(a => {
-        const start = mergeDateAndTime(a.appointmentDate, a.startTime);
-        const end = mergeDateAndTime(a.appointmentDate, a.endTime);
-        const colors = statusCalendarColors[a.status] || statusCalendarColors.pending;
-        if (!start || !end) return null;
-        return {
-            id: `appt_${a._id}`,
-            title: a.service?.name || 'Appointment',
-            start,
-            end,
-            backgroundColor: colors.bg,
-            borderColor: colors.borderColor || colors.bg,
-            textColor: colors.text,
-            extendedProps: {
-                kind: 'appointment',
-                appointmentId: a._id,
-                customerName: a.customer?.name || '',
-                startTime: a.startTime,
-                endTime: a.endTime,
-                status: a.status,
-                raw: a,
-            },
-        };
-    }).filter(Boolean);
+    // Memoized so re-renders that DON'T change the underlying data (e.g. typing in the
+    // reschedule form, which lives in this same big component) don't hand FullCalendar a
+    // brand-new events array each render and force it to re-process the whole calendar.
+    // That per-keystroke re-processing on the main thread was what froze the dashboard.
+    const fullCalendarEvents = useMemo(() => {
+        const appointmentEvents = appointments.filter(matchesStaffFilter).map(a => {
+            const start = mergeDateAndTime(a.appointmentDate, a.startTime);
+            const end = mergeDateAndTime(a.appointmentDate, a.endTime);
+            const colors = statusCalendarColors[a.status] || statusCalendarColors.pending;
+            if (!start || !end) return null;
+            return {
+                id: `appt_${a._id}`,
+                title: a.service?.name || 'Appointment',
+                start,
+                end,
+                backgroundColor: colors.bg,
+                borderColor: colors.borderColor || colors.bg,
+                textColor: colors.text,
+                extendedProps: {
+                    kind: 'appointment',
+                    appointmentId: a._id,
+                    customerName: a.customer?.name || '',
+                    startTime: a.startTime,
+                    endTime: a.endTime,
+                    status: a.status,
+                    raw: a,
+                },
+            };
+        }).filter(Boolean);
 
-    const blockedEvents = blockedTimes.map(b => {
-        const start = mergeDateAndTime(b.date, b.startTime);
-        const end = mergeDateAndTime(b.date, b.endTime);
-        if (!start || !end) return null;
-        return {
-            id: `block_${b._id}`,
-            title: b.reason || b.title || 'Blocked',
-            start,
-            end,
-            backgroundColor: '#e5e7eb',
-            borderColor: '#d1d5db',
-            textColor: '#374151',
-            editable: false,
-            extendedProps: {
-                kind: 'blocked',
-                blockedId: b._id,
-                raw: b,
-            },
-        };
-    }).filter(Boolean);
+        const blockedEvents = blockedTimes.map(b => {
+            const start = mergeDateAndTime(b.date, b.startTime);
+            const end = mergeDateAndTime(b.date, b.endTime);
+            if (!start || !end) return null;
+            return {
+                id: `block_${b._id}`,
+                title: b.reason || b.title || 'Blocked',
+                start,
+                end,
+                backgroundColor: '#e5e7eb',
+                borderColor: '#d1d5db',
+                textColor: '#374151',
+                editable: false,
+                extendedProps: {
+                    kind: 'blocked',
+                    blockedId: b._id,
+                    raw: b,
+                },
+            };
+        }).filter(Boolean);
 
-    const fullCalendarEvents = [...appointmentEvents, ...blockedEvents];
+        return [...appointmentEvents, ...blockedEvents];
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [appointments, blockedTimes, calendarStaffFilter]);
 
     const getFullCalendarView = () => {
         if (calendarView === 'day') return 'timeGridDay';
@@ -1173,7 +1180,7 @@ const ProviderDashboard = () => {
 
     // Build FullCalendar businessHours from the provider's availability so the
     // calendar greys out non-working time (and constrains drag/resize to it).
-    const businessHoursConfig = (() => {
+    const businessHoursConfig = useMemo(() => {
         if (!availability) return false;
         const idx = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
         const out = [];
@@ -1183,7 +1190,7 @@ const ProviderDashboard = () => {
             }
         });
         return out.length ? out : false;
-    })();
+    }, [availability]);
 
     // Span the calendar to the provider's ACTUAL working hours AND anything already
     // scheduled outside them (appointments / blocked times), widening the default
@@ -1191,7 +1198,7 @@ const ProviderDashboard = () => {
     // The calendar shows the full 24h day (non-working hours are greyed via
     // businessHours below); open it scrolled to the earliest hour the provider
     // works, falling back to 07:00.
-    const calendarScrollTime = (() => {
+    const calendarScrollTime = useMemo(() => {
         let minM = 7 * 60;
         if (availability) {
             Object.values(availability).forEach(cfg => {
@@ -1205,7 +1212,7 @@ const ProviderDashboard = () => {
         }
         const h = Math.max(0, Math.floor(minM / 60));
         return `${String(h).padStart(2, '0')}:00:00`;
-    })();
+    }, [availability]);
 
     const labelStyle = { display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', letterSpacing: '0.05em', textTransform: 'uppercase' };
 
