@@ -57,7 +57,7 @@ const MiniCalendar = ({ value, onChange, min, max }) => {
                                 background: isSel ? 'var(--gold)' : isToday ? 'var(--surface-sunken)' : 'transparent',
                                 color: disabled ? 'var(--text-muted)' : isSel ? 'var(--ink)' : 'var(--charcoal)',
                                 opacity: disabled ? 0.3 : 1, cursor: disabled ? 'not-allowed' : 'pointer',
-                                fontFamily: 'Outfit, sans-serif', fontSize: '0.8rem', fontWeight: isSel || isToday ? '700' : '500',
+                                fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.8rem', fontWeight: isSel || isToday ? '700' : '500',
                             }}
                         >{d.getDate()}</button>
                     );

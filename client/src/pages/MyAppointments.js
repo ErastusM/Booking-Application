@@ -220,7 +220,7 @@ const MyAppointments = () => {
             <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
 
                 {showConfirmedBanner && (
-                    <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '1rem 1.25rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontFamily: 'Outfit, sans-serif' }}>
+                    <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '1rem 1.25rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                         <span style={{ fontSize: '1.2rem' }}>✅</span>
                         <div>
                             <strong>{confirmedHeadline}</strong>
@@ -230,7 +230,7 @@ const MyAppointments = () => {
                 )}
 
                 {showWaitlistedBanner && (
-                    <div style={{ background: '#dbeafe', border: '1px solid #93c5fd', color: '#1e40af', padding: '1rem 1.25rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontFamily: 'Outfit, sans-serif' }}>
+                    <div style={{ background: '#dbeafe', border: '1px solid #93c5fd', color: '#1e40af', padding: '1rem 1.25rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                         <span style={{ fontSize: '1.2rem' }}>🔔</span>
                         <div><strong>Added to waiting list.</strong> We'll notify you if a slot opens up.</div>
                     </div>
@@ -419,7 +419,7 @@ const MyAppointments = () => {
                                                         onClick={() => copyRef(ref)}
                                                         title="Copy booking reference"
                                                         aria-label={`Copy booking reference ${ref}`}
-                                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', minHeight: '36px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'Outfit, sans-serif', fontSize: '0.78rem' }}
+                                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', minHeight: '36px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.78rem' }}
                                                     >
                                                         <span style={{ textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>Booking ref</span>
                                                         <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--charcoal)', letterSpacing: '0.08em' }}>{ref}</span>
@@ -429,7 +429,7 @@ const MyAppointments = () => {
                                                         <button
                                                             onClick={() => setGettingThere(open ? null : a._id)}
                                                             aria-expanded={open}
-                                                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', minHeight: '36px', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.4rem 0.7rem', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'Outfit, sans-serif', fontSize: '0.78rem', fontWeight: 600 }}
+                                                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', minHeight: '36px', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.4rem 0.7rem', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.78rem', fontWeight: 600 }}
                                                         >
                                                             <MapPin size={14} /> Getting there
                                                             <ChevronDown size={14} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
@@ -439,7 +439,7 @@ const MyAppointments = () => {
                                                 {open && address && (
                                                     <div style={{ marginTop: '1rem' }}>
                                                         {bizName && <p style={{ fontWeight: 700, color: 'var(--charcoal)', fontSize: '0.9rem', margin: '0 0 0.2rem', fontFamily: 'var(--font-body)' }}>{bizName}</p>}
-                                                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: '0 0 0.75rem', fontFamily: 'Outfit, sans-serif', lineHeight: 1.5 }}>{address}</p>
+                                                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: '0 0 0.75rem', fontFamily: 'Plus Jakarta Sans, sans-serif', lineHeight: 1.5 }}>{address}</p>
                                                         <iframe
                                                             title={`Map to ${bizName || 'appointment location'}`}
                                                             src={`https://maps.google.com/maps?q=${encodeURIComponent(address)}&z=15&output=embed`}
@@ -447,7 +447,7 @@ const MyAppointments = () => {
                                                             referrerPolicy="no-referrer-when-downgrade"
                                                             style={{ width: '100%', height: '200px', border: 0, borderRadius: 'var(--radius-sm)', display: 'block' }}
                                                         />
-                                                        <a href={mapsUrl(address)} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', minHeight: '44px', marginTop: '0.5rem', color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.85rem', textDecoration: 'none', fontFamily: 'Outfit, sans-serif' }}>
+                                                        <a href={mapsUrl(address)} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', minHeight: '44px', marginTop: '0.5rem', color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.85rem', textDecoration: 'none', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                                                             Get directions →
                                                         </a>
                                                     </div>
@@ -472,7 +472,7 @@ const MyAppointments = () => {
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>
                                     Message Provider
                                 </h2>
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.2rem 0 0', fontFamily: 'Outfit, sans-serif' }}>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.2rem 0 0', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                                     {msgModal.service?.name} · {new Date(msgModal.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                 </p>
                             </div>
@@ -494,11 +494,11 @@ const MyAppointments = () => {
                                             borderRadius: isMine ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
                                             background: isMine ? 'var(--charcoal)' : 'var(--warm-gray)',
                                             color: isMine ? 'white' : 'var(--charcoal)',
-                                            fontSize: '0.875rem', lineHeight: '1.45', fontFamily: 'Outfit, sans-serif',
+                                            fontSize: '0.875rem', lineHeight: '1.45', fontFamily: 'Plus Jakarta Sans, sans-serif',
                                         }}>
                                             {m.content}
                                         </div>
-                                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '3px', fontFamily: 'Outfit, sans-serif' }}>
+                                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '3px', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                                             {new Date(m.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                                         </span>
                                     </div>
@@ -531,7 +531,7 @@ const MyAppointments = () => {
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
                     <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', padding: '2rem', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(26,26,46,0.25)' }}>
                         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>What would you like to do?</h2>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem', fontFamily: 'Outfit, sans-serif', lineHeight: '1.5' }}>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem', fontFamily: 'Plus Jakarta Sans, sans-serif', lineHeight: '1.5' }}>
                             <strong style={{ color: 'var(--charcoal)' }}>{showCancelModal.service?.name}</strong> on{' '}
                             {new Date(showCancelModal.appointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at {showCancelModal.startTime}.
                         </p>
@@ -549,7 +549,7 @@ const MyAppointments = () => {
                             </button>
                             <button
                                 onClick={confirmCancel}
-                                style={{ padding: '0.9rem', background: 'none', border: '1.5px solid #fca5a5', color: '#dc2626', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: '600', fontFamily: 'Outfit, sans-serif', transition: 'background 0.2s' }}
+                                style={{ padding: '0.9rem', background: 'none', border: '1.5px solid #fca5a5', color: '#dc2626', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: '600', fontFamily: 'Plus Jakarta Sans, sans-serif', transition: 'background 0.2s' }}
                                 onMouseEnter={e => e.currentTarget.style.background = '#fff1f2'}
                                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
                             >
@@ -557,7 +557,7 @@ const MyAppointments = () => {
                             </button>
                             <button
                                 onClick={() => setShowCancelModal(null)}
-                                style={{ padding: '0.75rem', background: 'none', border: '1.5px solid var(--border)', color: 'var(--text-muted)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.875rem', fontFamily: 'Outfit, sans-serif' }}
+                                style={{ padding: '0.75rem', background: 'none', border: '1.5px solid var(--border)', color: 'var(--text-muted)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}
                             >
                                 Go Back
                             </button>

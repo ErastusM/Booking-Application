@@ -131,7 +131,7 @@ const Navbar = () => {
                                             style={{
                                                 padding: '4px 12px', borderRadius: '99px', border: 'none',
                                                 cursor: 'pointer', fontSize: '0.72rem', fontWeight: '600',
-                                                fontFamily: 'Outfit, sans-serif', textTransform: 'capitalize',
+                                                fontFamily: 'Plus Jakarta Sans, sans-serif', textTransform: 'capitalize',
                                                 transition: 'all 0.15s',
                                                 background: activeRole === r ? (isTransparent ? 'rgba(255,255,255,0.9)' : 'var(--charcoal,#1a1a2e)') : 'transparent',
                                                 color: activeRole === r ? (isTransparent ? 'var(--charcoal,#1a1a2e)' : 'var(--gold,#c9a84c)') : (isTransparent ? 'rgba(255,255,255,0.65)' : 'var(--text-muted)'),
@@ -166,7 +166,7 @@ const Navbar = () => {
                                 color: isTransparent ? 'white' : 'var(--text-secondary)',
                                 padding: '0.4rem 1rem', borderRadius: 'var(--radius-sm)',
                                 cursor: 'pointer', fontSize: '0.85rem',
-                                fontFamily: 'Outfit, sans-serif', transition: 'all 0.2s ease',
+                                fontFamily: 'Plus Jakarta Sans, sans-serif', transition: 'all 0.2s ease',
                             }}
                                 onMouseEnter={e => { e.target.style.borderColor = '#ef4444'; e.target.style.color = '#ef4444'; }}
                                 onMouseLeave={e => { e.target.style.borderColor = isTransparent ? 'rgba(255,255,255,0.4)' : 'var(--border)'; e.target.style.color = isTransparent ? 'white' : 'var(--text-secondary)'; }}
@@ -277,7 +277,7 @@ const Navbar = () => {
                                                 background: activeRole === r ? 'rgba(201,168,76,0.12)' : 'transparent',
                                                 color: activeRole === r ? 'var(--gold-dark,#a07830)' : 'var(--text-muted)',
                                                 fontSize: '0.75rem', fontWeight: '600',
-                                                fontFamily: 'Outfit, sans-serif', textTransform: 'capitalize',
+                                                fontFamily: 'Plus Jakarta Sans, sans-serif', textTransform: 'capitalize',
                                                 cursor: 'pointer',
                                             }}
                                         >{r}</button>
@@ -289,7 +289,7 @@ const Navbar = () => {
                                 <div style={{ padding: '0 1.2rem 0.85rem' }}>
                                     <button
                                         onClick={() => { setMenuOpen(false); navigate('/become-provider'); }}
-                                        style={{ width: '100%', padding: '0.5rem', borderRadius: '99px', border: '1.5px solid var(--gold)', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark,#a07830)', fontSize: '0.78rem', fontWeight: '600', fontFamily: 'Outfit, sans-serif', cursor: 'pointer' }}
+                                        style={{ width: '100%', padding: '0.5rem', borderRadius: '99px', border: '1.5px solid var(--gold)', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark,#a07830)', fontSize: '0.78rem', fontWeight: '600', fontFamily: 'Plus Jakarta Sans, sans-serif', cursor: 'pointer' }}
                                     >Become a provider →</button>
                                 </div>
                             )}
@@ -315,7 +315,7 @@ const Navbar = () => {
                     {user && (
                         <button
                             onClick={() => { setMenuOpen(false); setShowSuggestion(true); }}
-                            style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', padding: '0.95rem 1.2rem', fontSize: '0.95rem', color: 'var(--text-primary)', fontFamily: 'Outfit, sans-serif', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.6rem' }}
+                            style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', padding: '0.95rem 1.2rem', fontSize: '0.95rem', color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.6rem' }}
                         >
                             <svg width="16" height="16" fill="none" stroke="var(--text-muted)" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.9c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0012 2z"/></svg>
                             Suggest a feature
@@ -350,7 +350,7 @@ const Navbar = () => {
 
                     {user && (
                         <div style={{ padding: '1rem 1.2rem' }}>
-                            <button onClick={handleLogout} style={{ width: '100%', padding: '0.78rem', background: '#fee2e2', border: 'none', borderRadius: 'var(--radius-sm)', color: '#dc2626', fontWeight: '600', cursor: 'pointer', fontFamily: 'Outfit, sans-serif', fontSize: '0.9rem' }}>
+                            <button onClick={handleLogout} style={{ width: '100%', padding: '0.78rem', background: '#fee2e2', border: 'none', borderRadius: 'var(--radius-sm)', color: '#dc2626', fontWeight: '600', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.9rem' }}>
                                 Logout
                             </button>
                         </div>
@@ -399,7 +399,7 @@ const Navbar = () => {
                         );
                     }
                     return (
-                        <Link key={to} to={to} className={`bnav-item ${active ? 'is-active' : ''}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', textDecoration: 'none', color: active ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: active ? '700' : '500', fontFamily: 'Outfit, sans-serif' }}>
+                        <Link key={to} to={to} className={`bnav-item ${active ? 'is-active' : ''}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', textDecoration: 'none', color: active ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: active ? '700' : '500', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                             <span className="bnav-icon">{icon}</span>
                             {label}
                         </Link>
@@ -421,14 +421,14 @@ const Navbar = () => {
                 ].map(({ to, icon, label }) => {
                     const active = isActive(to);
                     return (
-                        <Link key={to} to={to} className={`bnav-item ${active ? 'is-active' : ''}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', textDecoration: 'none', color: active ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: active ? '700' : '500', fontFamily: 'Outfit, sans-serif' }}>
+                        <Link key={to} to={to} className={`bnav-item ${active ? 'is-active' : ''}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', textDecoration: 'none', color: active ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: active ? '700' : '500', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                             <span className="bnav-icon">{icon}</span>
                             {label}
                         </Link>
                     );
                 })}
                 {activeRole === 'customer' && (
-                <button onClick={() => setShowSuggestion(true)} className={`bnav-item ${showSuggestion ? 'is-active' : ''}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', background: 'none', border: 'none', cursor: 'pointer', color: showSuggestion ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: showSuggestion ? '700' : '500', fontFamily: 'Outfit, sans-serif', padding: 0 }}>
+                <button onClick={() => setShowSuggestion(true)} className={`bnav-item ${showSuggestion ? 'is-active' : ''}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', background: 'none', border: 'none', cursor: 'pointer', color: showSuggestion ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: showSuggestion ? '700' : '500', fontFamily: 'Plus Jakarta Sans, sans-serif', padding: 0 }}>
                     <span className="bnav-icon">
                         <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M22 12h-6l-2 3H10l-2-3H2"/><path strokeLinecap="round" strokeLinejoin="round" d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
                     </span>

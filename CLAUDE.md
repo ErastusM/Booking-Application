@@ -3,7 +3,7 @@
 ## Stack
 - Backend: Node/Express, MongoDB/Mongoose, JWT auth, Stripe
 - Frontend: React 18, React Router v6
-- Fonts: Cormorant Garamond (headings) + Outfit (body)
+- Fonts: Plus Jakarta Sans (display + body) — one typeface, via var(--font-display)/var(--font-body)
 - Colors: gold #c9a84c, charcoal #1a1a2e, off-white #fafaf8
 - Working branch: beef
 
@@ -307,8 +307,8 @@ Add this block after the earnings tab block and before the closing `</div>` of t
 ```
 
 ## Design system
-- All headings: `fontFamily: 'Cormorant Garamond, serif'`
-- Body font: `fontFamily: 'Outfit, sans-serif'`
+- All headings: `fontFamily: 'var(--font-display)'` (Plus Jakarta Sans)
+- Body font: `fontFamily: 'var(--font-body)'` (Plus Jakarta Sans)
 - CSS variables: var(--gold), var(--charcoal), var(--border), var(--radius), var(--shadow-sm), var(--warm-gray), var(--text-muted), var(--text-secondary), var(--gold-dark)
 - Cards: white background, `border: '1px solid var(--border)'`, `borderRadius: 'var(--radius)'`
 - Buttons: `className="btn-primary"` or `className="btn-outline"`

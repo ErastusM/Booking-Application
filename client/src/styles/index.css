@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&display=swap');
 
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -48,8 +48,8 @@
   --ink: #1a1a2e;
   --on-ink: #fafaf8;
   /* One elegant sans for the whole product — no serif/sans mixing */
-  --font-display: 'Outfit', sans-serif;
-  --font-body: 'Outfit', sans-serif;
+  --font-display: 'Plus Jakarta Sans', sans-serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
   /* Semantic status tokens */
   --success: #10b981; --success-bg: #d1fae5; --success-fg: #065f46;
   --info: #3b82f6;    --info-bg: #dbeafe;    --info-fg: #1e40af;
@@ -82,7 +82,7 @@ html { scroll-behavior: smooth; }
 html, body, #root { width: 100%; overflow-x: hidden; }
 
 body {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Plus Jakarta Sans', sans-serif;
   line-height: 1.55;
   background-color: var(--off-white);
   color: var(--text-primary);
@@ -104,7 +104,7 @@ h1, h2, h3, h4 {
 .tnum, .stat-value, td.num, .price { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
 
 p, li, label, input, textarea, select, button, a {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Plus Jakarta Sans', sans-serif;
 }
 
 ::selection {
@@ -156,7 +156,7 @@ p, li, label, input, textarea, select, button, a {
   justify-content: center;
   background: #ef4444;
   color: white;
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Plus Jakarta Sans', sans-serif;
   font-weight: 600;
   font-size: 0.9rem;
   padding: 0.75rem 1.75rem;
@@ -205,7 +205,7 @@ p, li, label, input, textarea, select, button, a {
   padding: 0.75rem 1rem;
   border: 1.5px solid var(--border);
   border-radius: var(--radius-sm);
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Plus Jakarta Sans', sans-serif;
   font-size: 0.95rem;
   color: var(--text-primary);
   background: var(--input-bg);
@@ -671,7 +671,7 @@ body.dark-mode .booking-confirm-mobile {
    FullCalendar — Fresha-style overrides
    ────────────────────────────────────────────────── */
 .fc-bookplus-wrapper .fc {
-  font-family: 'Outfit', sans-serif;
+  font-family: 'Plus Jakarta Sans', sans-serif;
   color: var(--charcoal);
   --fc-non-business-color: rgba(26, 26, 46, 0.05);
 }
@@ -699,7 +699,7 @@ body.dark-mode .booking-confirm-mobile {
   text-transform: capitalize;
   font-size: 0.8rem !important;
   font-weight: 600 !important;
-  font-family: 'Outfit', sans-serif !important;
+  font-family: 'Plus Jakarta Sans', sans-serif !important;
   border-radius: 8px !important;
   padding: 0.35rem 0.75rem !important;
   transition: background 0.15s, border-color 0.15s;
@@ -999,7 +999,7 @@ body.dark-mode .fc-bookplus-wrapper .fc-timegrid-slot-minor {
 /* Button system */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
-  font-family: 'Outfit', sans-serif; font-weight: 600; font-size: 0.9rem; line-height: 1;
+  font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; font-size: 0.9rem; line-height: 1;
   padding: 0 1.25rem; height: 44px; border-radius: var(--radius-sm); border: 1.5px solid transparent;
   cursor: pointer; white-space: nowrap; user-select: none; position: relative;
   transition: transform var(--dur-fast) var(--ease-out), background-color var(--dur) ease,
@@ -1041,7 +1041,7 @@ textarea.input { min-height: 88px; resize: vertical; line-height: 1.55; padding-
 
 /* Segmented control */
 .segmented { display: inline-flex; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px; gap: 2px; }
-.segmented button { appearance: none; border: none; background: transparent; cursor: pointer; font-family: 'Outfit', sans-serif;
+.segmented button { appearance: none; border: none; background: transparent; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif;
   font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); padding: 0.4rem 0.9rem; border-radius: 6px; transition: all var(--dur) var(--ease-out); white-space: nowrap; }
 .segmented button:hover { color: var(--charcoal); }
 .segmented button[aria-pressed="true"], .segmented button.is-active { background: var(--card-bg); color: var(--charcoal); box-shadow: var(--shadow-xs); }

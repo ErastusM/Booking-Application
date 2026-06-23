@@ -150,7 +150,7 @@ const ManageBooking = () => {
                                                             const sel = rTime === s.time;
                                                             return (
                                                                 <button key={i} type="button" onClick={() => setRTime(s.time)} style={{
-                                                                    padding: '0.55rem 0.3rem', borderRadius: 'var(--radius-sm)', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.85rem',
+                                                                    padding: '0.55rem 0.3rem', borderRadius: 'var(--radius-sm)', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '600', fontSize: '0.85rem',
                                                                     border: `1.5px solid ${sel ? 'var(--gold)' : 'var(--border)'}`,
                                                                     background: sel ? 'var(--gold)' : 'var(--card-bg)', color: sel ? 'var(--ink)' : 'var(--charcoal)', cursor: 'pointer',
                                                                 }}>{s.time}</button>

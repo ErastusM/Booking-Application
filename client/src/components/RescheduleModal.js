@@ -115,7 +115,7 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                                     flex: '0 0 auto', minWidth: '58px', padding: '0.5rem 0.4rem', borderRadius: 'var(--radius-sm)',
                                     border: `1.5px solid ${active ? 'var(--gold)' : 'var(--border)'}`,
                                     background: active ? 'rgba(201,168,76,0.12)' : 'transparent', cursor: 'pointer',
-                                    color: active ? 'var(--gold-dark)' : 'var(--text-secondary)', fontFamily: 'Outfit, sans-serif',
+                                    color: active ? 'var(--gold-dark)' : 'var(--text-secondary)', fontFamily: 'Plus Jakarta Sans, sans-serif',
                                 }}>
                                     <div style={{ fontSize: '0.66rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{d.toLocaleDateString('en-US', { weekday: 'short' })}</div>
                                     <div style={{ fontSize: '1.05rem', fontWeight: '700' }}>{d.getDate()}</div>
@@ -135,7 +135,7 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: '0.5rem' }}>
                                     {slots.map((s, i) => (
                                         <button key={i} disabled={s.isBooked || busy} onClick={() => confirm(s.time)} title={s.isBooked ? 'Already booked' : ''} style={{
-                                            padding: '0.6rem 0.4rem', borderRadius: 'var(--radius-sm)', fontFamily: 'Outfit, sans-serif', fontWeight: '600', fontSize: '0.9rem',
+                                            padding: '0.6rem 0.4rem', borderRadius: 'var(--radius-sm)', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '600', fontSize: '0.9rem',
                                             border: `1.5px solid ${s.isBooked ? 'var(--border)' : 'var(--gold)'}`,
                                             background: s.isBooked ? 'var(--surface-sunken)' : 'white',
                                             color: s.isBooked ? 'var(--text-muted)' : 'var(--gold-dark)',

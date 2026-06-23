@@ -220,7 +220,7 @@ const Login = () => {
                                 fontWeight: '600',
                                 fontSize: '0.9rem',
                                 textDecoration: 'none',
-                                fontFamily: 'Outfit, sans-serif',
+                                fontFamily: 'Plus Jakarta Sans, sans-serif',
                                 transition: 'all 0.2s',
                             }}
                             onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--gold)'}

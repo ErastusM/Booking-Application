@@ -384,7 +384,7 @@ const BookAppointment = () => {
                 <div style={{ background: 'var(--ink)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
                     <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 20% 50%, rgba(201,168,76,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
                     <div className="container" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <button onClick={() => setStep('form')} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 'var(--radius-sm)', padding: '0.5rem 1rem', color: 'white', cursor: 'pointer', fontSize: '0.85rem', fontFamily: 'Outfit, sans-serif' }}>&larr; Back</button>
+                        <button onClick={() => setStep('form')} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 'var(--radius-sm)', padding: '0.5rem 1rem', color: 'white', cursor: 'pointer', fontSize: '0.85rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>&larr; Back</button>
                         <div>
                             <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.25rem' }}>Almost there</p>
                             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: '600', color: 'white' }}>Review & Confirm</h1>
@@ -423,11 +423,11 @@ const BookAppointment = () => {
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                         <Calendar size={16} strokeWidth={2} style={{ color: 'var(--gold-dark)', flexShrink: 0 }} />
-                                        <span style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--charcoal)', fontWeight: '500' }}>{formattedDate}</span>
+                                        <span style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', color: 'var(--charcoal)', fontWeight: '500' }}>{formattedDate}</span>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                         <Clock size={16} strokeWidth={2} style={{ color: 'var(--gold-dark)', flexShrink: 0 }} />
-                                        <span style={{ fontFamily: 'Outfit, sans-serif', color: 'var(--charcoal)', fontWeight: '500' }}>
+                                        <span style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', color: 'var(--charcoal)', fontWeight: '500' }}>
                                             {formData.startTime}-{formData.endTime}
                                             <span style={{ color: 'var(--text-muted)', fontWeight: '400' }}> ({totalDuration} min)</span>
                                         </span>
@@ -439,35 +439,35 @@ const BookAppointment = () => {
                             <div style={cardStyle}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '1rem', borderBottom: '1px solid var(--border)', marginBottom: '1rem' }}>
                                     <div>
-                                        <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem' }}>{selectedService?.name}{selectedOption ? ` — ${selectedOption.name}` : ''}</div>
+                                        <div style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem' }}>{selectedService?.name}{selectedOption ? ` — ${selectedOption.name}` : ''}</div>
                                         <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{effectiveDuration} min{providerInfo ? ` with ${providerInfo.name}` : ''}</div>
                                     </div>
-                                    <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {effectivePrice}</span>
+                                    <span style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {effectivePrice}</span>
                                 </div>
                                 {selectedAddOns.map((addOn, i) => (
                                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: i < selectedAddOns.length - 1 ? '1px solid var(--border)' : 'none', marginBottom: i < selectedAddOns.length - 1 ? '0.75rem' : 0 }}>
                                         <div>
-                                            <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '500', color: 'var(--charcoal)', fontSize: '0.9rem' }}>{addOn.name}</div>
+                                            <div style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '500', color: 'var(--charcoal)', fontSize: '0.9rem' }}>{addOn.name}</div>
                                             {addOn.duration > 0 && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>+{addOn.duration} min</div>}
                                         </div>
-                                        <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '600', color: 'var(--charcoal)' }}>NAD {addOn.price}</span>
+                                        <span style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '600', color: 'var(--charcoal)' }}>NAD {addOn.price}</span>
                                     </div>
                                 ))}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1rem', borderTop: '1px solid var(--border)', marginTop: '0.5rem' }}>
-                                    <span style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '700', color: 'var(--charcoal)' }}>Total</span>
+                                    <span style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '700', color: 'var(--charcoal)' }}>Total</span>
                                     <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {totalPrice}</span>
                                 </div>
                             </div>
 
                             {/* Cancellation policy */}
                             <div style={cardStyle}>
-                                <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.4rem' }}>Cancellation policy</div>
-                                <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>Cancel for free anytime.</div>
+                                <div style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.4rem' }}>Cancellation policy</div>
+                                <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Cancel for free anytime.</div>
                             </div>
 
                             {/* Notes */}
                             <div style={cardStyle}>
-                                <div style={{ fontFamily: 'Outfit, sans-serif', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>Comments or requests</div>
+                                <div style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>Comments or requests</div>
                                 <textarea
                                     name="notes"
                                     value={formData.notes}
@@ -475,7 +475,7 @@ const BookAppointment = () => {
                                     rows="3"
                                     placeholder="Anything you'd like us to know?"
                                     className="input"
-                                    style={{ resize: 'vertical', fontFamily: 'Outfit, sans-serif' }}
+                                    style={{ resize: 'vertical', fontFamily: 'Plus Jakarta Sans, sans-serif' }}
                                 />
                             </div>
                         </div>
@@ -486,12 +486,12 @@ const BookAppointment = () => {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.35rem' }}>
                                     <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {totalPrice}</span>
                                 </div>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', marginBottom: '1.25rem' }}>Estimated total</div>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: '1.25rem' }}>Estimated total</div>
                                 <button
                                     data-testid="booking-confirm"
                                     onClick={handleConfirm}
                                     disabled={loading}
-                                    style={{ width: '100%', padding: '0.875rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.95rem', fontWeight: '600', fontFamily: 'Outfit, sans-serif', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, letterSpacing: '0.03em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem' }}
+                                    style={{ width: '100%', padding: '0.875rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.95rem', fontWeight: '600', fontFamily: 'Plus Jakarta Sans, sans-serif', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, letterSpacing: '0.03em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem' }}
                                 >
                                     {loading && <span style={{ display: 'inline-block', width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
                                     {loading ? 'Confirming...' : rescheduleId ? 'Confirm reschedule' : 'Confirm'}
@@ -505,9 +505,9 @@ const BookAppointment = () => {
                 <div className="booking-confirm-mobile" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--card-bg)', borderTop: '1px solid var(--border)', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 200, boxShadow: '0 -4px 20px rgba(0,0,0,0.08)' }}>
                     <div>
                         <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {totalPrice}</div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>Estimated total</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Estimated total</div>
                     </div>
-                    <button data-testid="booking-confirm-mobile" onClick={handleConfirm} disabled={loading} style={{ padding: '0.875rem 2rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '700', fontFamily: 'Outfit, sans-serif', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <button data-testid="booking-confirm-mobile" onClick={handleConfirm} disabled={loading} style={{ padding: '0.875rem 2rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '700', fontFamily: 'Plus Jakarta Sans, sans-serif', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         {loading && <span style={{ display: 'inline-block', width: '15px', height: '15px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
                         {loading ? 'Confirming...' : rescheduleId ? 'Confirm reschedule' : 'Confirm'}
                     </button>
@@ -588,7 +588,7 @@ const BookAppointment = () => {
                                             <button key={service._id} type="button" data-testid="booking-service" onClick={() => handleServiceSelect(service)} style={{
                                                 position: 'relative', padding: '1rem', border: '2px solid', cursor: 'pointer', textAlign: 'left', minHeight: '76px',
                                                 transition: 'transform var(--dur-fast) var(--ease-out), border-color var(--dur) ease, background var(--dur) ease, box-shadow var(--dur) ease',
-                                                fontFamily: 'Outfit, sans-serif', borderRadius: 'var(--radius)',
+                                                fontFamily: 'Plus Jakarta Sans, sans-serif', borderRadius: 'var(--radius)',
                                                 borderColor: sel ? 'var(--gold)' : 'var(--border)',
                                                 background: sel ? 'rgba(201,168,76,0.08)' : 'var(--card-bg)',
                                                 boxShadow: sel ? 'var(--shadow-sm)' : 'none',
@@ -614,7 +614,7 @@ const BookAppointment = () => {
                             <div style={cardStyle}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
                                     {stepBadge(2)}
-                                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)' }}>Add-ons <span style={{ fontSize: '0.8rem', fontWeight: '400', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>(optional)</span></h2>
+                                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)' }}>Add-ons <span style={{ fontSize: '0.8rem', fontWeight: '400', color: 'var(--text-muted)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>(optional)</span></h2>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                                     {selectedService.addOns.map((addOn, i) => {
@@ -623,10 +623,10 @@ const BookAppointment = () => {
                                             <label key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem', border: `2px solid ${checked ? 'var(--gold)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: checked ? 'rgba(201,168,76,0.08)' : 'var(--card-bg)', transition: 'border-color var(--dur) ease, background var(--dur) ease' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                                     <input type="checkbox" checked={checked} onChange={() => toggleAddOn(addOn)} style={{ accentColor: 'var(--gold)', width: '16px', height: '16px' }} />
-                                                    <span style={{ fontWeight: '500', color: 'var(--charcoal)', fontSize: '0.9rem', fontFamily: 'Outfit, sans-serif' }}>{addOn.name}</span>
+                                                    <span style={{ fontWeight: '500', color: 'var(--charcoal)', fontSize: '0.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{addOn.name}</span>
                                                     {addOn.duration > 0 && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>+{addOn.duration} min</span>}
                                                 </div>
-                                                <span style={{ color: 'var(--gold-dark)', fontWeight: '700', fontFamily: 'Outfit, sans-serif' }}>+NAD {addOn.price}</span>
+                                                <span style={{ color: 'var(--gold-dark)', fontWeight: '700', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>+NAD {addOn.price}</span>
                                             </label>
                                         );
                                     })}
@@ -687,7 +687,7 @@ const BookAppointment = () => {
                                                         color: disabled ? 'var(--text-muted)' : isSelected ? 'var(--ink)' : 'var(--charcoal)',
                                                         opacity: disabled ? 0.3 : 1,
                                                         cursor: disabled ? 'not-allowed' : 'pointer',
-                                                        fontFamily: 'Outfit, sans-serif', fontSize: '0.9rem',
+                                                        fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.9rem',
                                                         fontWeight: isSelected || isToday ? '700' : '500',
                                                         transition: 'all 0.12s',
                                                     }}
@@ -705,7 +705,7 @@ const BookAppointment = () => {
                                 <div>
                                     <label style={labelStyle}>Pick a time</label>
                                     {timeSlots.length === 0 ? (
-                                        <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', padding: '0.75rem 0', fontFamily: 'Outfit, sans-serif' }}>
+                                        <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', padding: '0.75rem 0', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                                             No available slots on this day.
                                         </p>
                                     ) : (
@@ -728,7 +728,7 @@ const BookAppointment = () => {
                                                             fontWeight: isSelected ? '600' : '400',
                                                             fontSize: '1rem',
                                                             cursor: 'pointer',
-                                                            fontFamily: 'Outfit, sans-serif',
+                                                            fontFamily: 'Plus Jakarta Sans, sans-serif',
                                                             textAlign: 'left',
                                                             display: 'flex',
                                                             alignItems: 'center',
@@ -750,7 +750,7 @@ const BookAppointment = () => {
 
                         {/* Show waitlist prompt if selected slot is taken */}
                         {selectedSlotBooked && (
-                            <div style={{ marginTop: '1rem', background: '#fef3c7', border: '1px solid #fcd34d', color: '#92400e', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', fontFamily: 'Outfit, sans-serif' }}>
+                            <div style={{ marginTop: '1rem', background: '#fef3c7', border: '1px solid #fcd34d', color: '#92400e', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', fontSize: '0.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                                 <strong>This slot is already taken.</strong> You can join the waiting list and we'll notify you if it opens up.
                             </div>
                         )}
@@ -783,13 +783,13 @@ const BookAppointment = () => {
                                 { label: 'Time', value: formData.startTime ? `${formData.startTime} - ${formData.endTime}` : '—' },
                             ].map(({ label, value }) => (
                                 <div key={label} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.9rem' }}>
-                                    <span style={{ color: 'var(--text-secondary)', fontFamily: 'Outfit, sans-serif' }}>{label}</span>
-                                    <span style={{ fontWeight: '600', color: 'var(--charcoal)', fontFamily: 'Outfit, sans-serif' }}>{value}</span>
+                                    <span style={{ color: 'var(--text-secondary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{label}</span>
+                                    <span style={{ fontWeight: '600', color: 'var(--charcoal)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{value}</span>
                                 </div>
                             ))}
                         </div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem' }}>
-                            <span style={{ fontWeight: '600', color: 'var(--charcoal)', fontFamily: 'Outfit, sans-serif' }}>Total</span>
+                            <span style={{ fontWeight: '600', color: 'var(--charcoal)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Total</span>
                             <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)' }}>
                                 {selectedService ? `NAD ${totalPrice}` : '—'}
                             </span>
@@ -801,13 +801,13 @@ const BookAppointment = () => {
                             const short = paymentMethod === 'wallet' && selectedService && totalPrice > available;
                             return (
                                 <div style={{ marginBottom: '1.25rem' }}>
-                                    <span style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '0.5rem', fontFamily: 'Outfit, sans-serif' }}>Payment method</span>
+                                    <span style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '0.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Payment method</span>
                                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                                         {[{ v: 'wallet', t: 'Wallet', sub: `NAD ${available.toFixed(2)}` }, { v: 'cash', t: 'Cash', sub: 'Pay at visit' }].map((o) => {
                                             const active = paymentMethod === o.v;
                                             return (
                                                 <button key={o.v} type="button" onClick={() => setPaymentMethod(o.v)} style={{
-                                                    flex: 1, padding: '0.6rem 0.5rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                                                    flex: 1, padding: '0.6rem 0.5rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif',
                                                     border: `1.5px solid ${active ? 'var(--gold)' : 'var(--border)'}`,
                                                     background: active ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)', color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
                                                 }}>
@@ -840,7 +840,7 @@ const BookAppointment = () => {
                                 Join Waiting List
                             </button>
                         )}
-                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif', textAlign: 'center', marginTop: '1rem', lineHeight: 1.5 }}>
+                        <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'Plus Jakarta Sans, sans-serif', textAlign: 'center', marginTop: '1rem', lineHeight: 1.5 }}>
                             Free cancellation up to 24 hours before your appointment.
                         </p>
                     </div>
@@ -850,14 +850,14 @@ const BookAppointment = () => {
             {selectedService && (
                 <div className="booking-mobile-bar">
                     <div>
-                        <div style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--charcoal)', fontFamily: 'Outfit, sans-serif' }}>NAD {totalPrice}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'Outfit, sans-serif' }}>1 item · {totalDuration} min</div>
+                        <div style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--charcoal)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>NAD {totalPrice}</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>1 item · {totalDuration} min</div>
                     </div>
                     {selectedSlotBooked && formData.startTime ? (
                         <button
                             onClick={handleJoinWaitingList}
                             disabled={loading}
-                            style={{ background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', padding: '0.75rem 1.5rem', fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap' }}
+                            style={{ background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', padding: '0.75rem 1.5rem', fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap' }}
                         >
                             Join Waitlist
                         </button>
@@ -866,7 +866,7 @@ const BookAppointment = () => {
                             data-testid="booking-continue-mobile"
                             onClick={() => { setError(''); setStep('review'); }}
                             disabled={!canReview}
-                            style={{ background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', padding: '0.75rem 1.75rem', fontWeight: '600', cursor: canReview ? 'pointer' : 'not-allowed', opacity: canReview ? 1 : 0.5, fontSize: '0.95rem', fontFamily: 'Outfit, sans-serif', whiteSpace: 'nowrap' }}
+                            style={{ background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', padding: '0.75rem 1.75rem', fontWeight: '600', cursor: canReview ? 'pointer' : 'not-allowed', opacity: canReview ? 1 : 0.5, fontSize: '0.95rem', fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap' }}
                         >
                             Continue →
                         </button>
@@ -899,10 +899,10 @@ const BookAppointment = () => {
                                 style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '1.1rem 1.5rem', background: 'none', border: 'none', borderBottom: '1px solid var(--border)', cursor: 'pointer', textAlign: 'left', gap: '1rem' }}
                             >
                                 <div style={{ flex: 1 }}>
-                                    <div style={{ fontWeight: '600', color: 'var(--charcoal)', fontFamily: 'Outfit, sans-serif', fontSize: '0.95rem' }}>{opt.name}</div>
+                                    <div style={{ fontWeight: '600', color: 'var(--charcoal)', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.95rem' }}>{opt.name}</div>
                                     <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{opt.duration} min</div>
                                     {opt.description && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.5 }}>{opt.description}</div>}
-                                    <div style={{ fontWeight: '700', color: 'var(--charcoal)', marginTop: '6px', fontFamily: 'Outfit, sans-serif' }}>NAD {opt.price}</div>
+                                    <div style={{ fontWeight: '700', color: 'var(--charcoal)', marginTop: '6px', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>NAD {opt.price}</div>
                                 </div>
                                 <div style={{ width: '22px', height: '22px', borderRadius: '50%', border: '2px solid var(--border)', flexShrink: 0, marginTop: '2px' }} />
                             </button>
@@ -911,10 +911,10 @@ const BookAppointment = () => {
                     <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>from </span>
-                            <span style={{ fontWeight: '700', color: 'var(--charcoal)', fontFamily: 'Outfit, sans-serif' }}>NAD {Math.min(...optionSheet.options.map(o => o.price))}</span>
+                            <span style={{ fontWeight: '700', color: 'var(--charcoal)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>NAD {Math.min(...optionSheet.options.map(o => o.price))}</span>
                             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>{Math.min(...optionSheet.options.map(o => o.duration))} – {Math.max(...optionSheet.options.map(o => o.duration))} min</span>
                         </div>
-                        <button onClick={() => setOptionSheet(null)} style={{ padding: '0.65rem 1.5rem', background: 'var(--warm-gray)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: '600', color: 'var(--text-secondary)', fontFamily: 'Outfit, sans-serif' }}>Add</button>
+                        <button onClick={() => setOptionSheet(null)} style={{ padding: '0.65rem 1.5rem', background: 'var(--warm-gray)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: '600', color: 'var(--text-secondary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Add</button>
                     </div>
                 </div>
             </>

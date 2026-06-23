@@ -131,8 +131,8 @@ const FormsManager = () => {
                                 {t.services?.length ? `${t.services.length} service${t.services.length !== 1 ? 's' : ''}` : 'All bookings'}
                             </p>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <button onClick={() => openEdit(t)} style={{ flex: 1, padding: '0.5rem', background: 'var(--warm-gray)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', fontFamily: 'Outfit, sans-serif' }}>Edit</button>
-                                <button onClick={() => remove(t)} style={{ padding: '0.5rem 0.85rem', background: 'none', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', color: '#dc2626', fontFamily: 'Outfit, sans-serif' }}>Delete</button>
+                                <button onClick={() => openEdit(t)} style={{ flex: 1, padding: '0.5rem', background: 'var(--warm-gray)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Edit</button>
+                                <button onClick={() => remove(t)} style={{ padding: '0.5rem 0.85rem', background: 'none', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', color: '#dc2626', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Delete</button>
                             </div>
                         </div>
                     ))}
@@ -182,7 +182,7 @@ const FormsManager = () => {
                                             <button type="button" key={s._id} onClick={() => setForm(f => ({ ...f, services: on ? f.services.filter(id => id !== s._id) : [...f.services, s._id] }))} style={{
                                                 padding: '0.3rem 0.75rem', borderRadius: '99px', border: '1.5px solid', borderColor: on ? 'var(--gold)' : 'var(--border)',
                                                 background: on ? 'rgba(201,168,76,0.12)' : 'var(--card-bg)', color: on ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                                                fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Outfit, sans-serif',
+                                                fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif',
                                             }}>{s.name}</button>
                                         );
                                     })}
@@ -217,7 +217,7 @@ const FormsManager = () => {
                             </div>
 
                             <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
-                                <button type="button" onClick={() => setShowForm(false)} style={{ flex: 1, padding: '0.85rem', background: 'var(--warm-gray)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: '600', color: 'var(--text-secondary)', fontFamily: 'Outfit, sans-serif' }}>Cancel</button>
+                                <button type="button" onClick={() => setShowForm(false)} style={{ flex: 1, padding: '0.85rem', background: 'var(--warm-gray)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: '600', color: 'var(--text-secondary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Cancel</button>
                                 <button type="submit" disabled={saving} className="btn-primary" style={{ flex: 1, padding: '0.85rem', fontWeight: '700' }}>{saving ? 'Saving…' : editing ? 'Save changes' : 'Create form'}</button>
                             </div>
                         </form>
