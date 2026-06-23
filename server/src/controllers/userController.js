@@ -89,9 +89,14 @@ exports.toggleFavorite = async (req, res) => {
         if (!me) return res.status(404).json({ success: false, message: 'User not found' });
 
         const idx = me.favorites.findIndex(f => f.toString() === providerId);
+        const liked = idx < 0; // not yet saved → this toggle adds (saves + likes)
         if (idx >= 0) me.favorites.splice(idx, 1);
         else me.favorites.push(provider._id);
         await me.save();
+
+        // One heart = private save + public like. Keep the provider's public like count
+        // in step with the toggle (clamped to >= 0 on read in the card payload).
+        await User.updateOne({ _id: provider._id }, { $inc: { 'businessProfile.likesCount': liked ? 1 : -1 } });
 
         res.status(200).json({ success: true, data: me.favorites });
     } catch (error) {

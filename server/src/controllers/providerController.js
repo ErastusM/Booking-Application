@@ -60,6 +60,8 @@ exports.getAllProviders = async (req, res) => {
                 businessName: p.businessProfile?.businessName || p.name,
                 avatar: p.avatar,
                 coverImage: p.portfolio?.images?.[0] || null,
+                photos: (p.portfolio?.images || []).slice(0, 5),
+                likesCount: Math.max(0, p.businessProfile?.likesCount || 0),
                 createdAt: p.createdAt,
                 providerCategory: p.providerCategory || null,
                 serviceCount: services.length,

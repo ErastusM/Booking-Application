@@ -172,7 +172,7 @@ exports.getMyAppointments = async (req, res) => {
                 select: 'name price duration provider',
                 // Pull the provider's business location so the customer's booking
                 // view can show "Getting there" (address + map + directions).
-                populate: { path: 'provider', select: 'name providerProfile.businessName providerProfile.address providerProfile.locationType' },
+                populate: { path: 'provider', select: 'name businessProfile.businessName businessProfile.address businessProfile.locationType' },
             })
             .populate('teamMember', 'name')
             .sort({ appointmentDate: -1 });

@@ -76,6 +76,7 @@ const userSchema = new mongoose.Schema(
             address: { type: String, default: '' },
             currentSoftware: { type: String, default: '' },
             referralSource: { type: String, default: '' },
+            likesCount: { type: Number, default: 0 }, // public ❤️ count (one heart = private save + public like)
         },
         portfolio: {
             images: [{ type: String }],

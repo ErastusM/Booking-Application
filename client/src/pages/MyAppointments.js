@@ -197,7 +197,7 @@ const MyAppointments = () => {
     // Confirmation headline: name the COMPANY (business name), and if a specific team
     // member is on the booking, tell the client to ask for them when they arrive.
     const justBooked = appointments.find(a => a._id === justBookedId);
-    const confirmedCompany = justBooked?.service?.provider?.providerProfile?.businessName
+    const confirmedCompany = justBooked?.service?.provider?.businessProfile?.businessName
         || justBooked?.service?.provider?.name
         || confirmedProvider;
     const confirmedTeamMember = justBooked?.teamMember?.name;
@@ -320,7 +320,7 @@ const MyAppointments = () => {
                                     alignItems: 'center', gap: '1.5rem',
                                 }}>
                                     {(() => {
-                                        const company = a.service?.provider?.providerProfile?.businessName || a.service?.provider?.name || 'Provider';
+                                        const company = a.service?.provider?.businessProfile?.businessName || a.service?.provider?.name || 'Provider';
                                         return (
                                             <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
                                                 <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'rgba(201,168,76,0.15)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '1.1rem', flexShrink: 0, fontFamily: 'var(--font-display)' }}>
@@ -407,7 +407,7 @@ const MyAppointments = () => {
                                     {/* Footer: booking reference + "Getting there" (kept a <footer>, not a
                                         div, so the responsive .appt-row rules still target the actions column) */}
                                     {(() => {
-                                        const prof = a.service?.provider?.providerProfile;
+                                        const prof = a.service?.provider?.businessProfile;
                                         const address = prof?.address || '';
                                         const bizName = prof?.businessName || a.service?.provider?.name || '';
                                         const ref = bookingRef(a);

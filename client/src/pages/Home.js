@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { providerMarketService, favoriteService } from '../services';
-import { Search, Star, ShieldCheck, CalendarCheck, Clock, Zap, ArrowRight, Heart } from 'lucide-react';
+import { Search, Star, ShieldCheck, CalendarCheck, Clock, Zap, ArrowRight, Heart, MapPin } from 'lucide-react';
 import { cloudinaryThumb } from '../utils/cloudinary';
 
 const features = [
@@ -57,6 +57,59 @@ const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
     );
 };
 
+// Full-width, photo-rich card for the vertical "Discover" feed. The photo carousel owns
+// the horizontal axis here (the feed scrolls vertically), so per-card swipe works cleanly.
+const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
+    const photos = (p.photos && p.photos.length) ? p.photos : (p.coverImage ? [p.coverImage] : []);
+    const initial = (p.businessName || p.name || '?').charAt(0).toUpperCase();
+    const loc = p.location || p.businessProfile?.address || 'Namibia';
+    return (
+        <Link to={`/providers/${p._id}`} style={{ display: 'block', textDecoration: 'none', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '18px', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
+            <div style={{ position: 'relative' }}>
+                {photos.length > 0 ? (
+                    <div className="feed-carousel" style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', aspectRatio: '4 / 3' }}>
+                        {photos.map((src, i) => (
+                            <img key={i} src={cloudinaryThumb(src, 900)} alt={`${p.businessName || p.name} photo ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" style={{ flex: '0 0 100%', width: '100%', height: '100%', objectFit: 'cover', scrollSnapAlign: 'start', display: 'block' }} />
+                        ))}
+                    </div>
+                ) : (
+                    <div style={{ aspectRatio: '4 / 3', background: 'linear-gradient(135deg, #2a2a44 0%, #1a1a2e 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <span style={{ fontFamily: 'var(--font-display)', fontSize: '3rem', fontWeight: '700', color: 'var(--gold)' }}>{initial}</span>
+                    </div>
+                )}
+                {photos.length > 1 && (
+                    <div style={{ position: 'absolute', bottom: '10px', left: '50%', transform: 'translateX(-50%)', display: 'flex', gap: '5px', pointerEvents: 'none' }}>
+                        {photos.map((_, i) => <span key={i} style={{ width: '6px', height: '6px', borderRadius: '50%', background: 'rgba(255,255,255,0.9)', boxShadow: '0 1px 2px rgba(0,0,0,0.35)' }} />)}
+                    </div>
+                )}
+                <button
+                    type="button"
+                    aria-label={isFav ? 'Unlike' : 'Like'}
+                    onClick={(e) => onToggleFav(e, String(p._id))}
+                    style={{ position: 'absolute', top: '12px', right: '12px', display: 'inline-flex', alignItems: 'center', gap: '5px', border: 'none', background: 'rgba(255,255,255,0.95)', borderRadius: '999px', padding: '6px 11px', cursor: 'pointer', boxShadow: '0 1px 6px rgba(0,0,0,0.2)' }}
+                >
+                    <Heart size={17} strokeWidth={2} fill={isFav ? '#e0245e' : 'none'} color={isFav ? '#e0245e' : '#52525b'} />
+                    {likeCount > 0 && <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--charcoal)' }}>{likeCount}</span>}
+                </button>
+            </div>
+            <div style={{ padding: '0.85rem 1.1rem 1.05rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '10px' }}>
+                    <p style={{ fontFamily: 'var(--font-display)', fontWeight: '700', color: 'var(--charcoal)', fontSize: '1.05rem', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.businessName || p.name}</p>
+                    {p.avgRating && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)', flexShrink: 0 }}>
+                            <Star size={14} fill="#c9a84c" strokeWidth={0} /> {p.avgRating}
+                            <span style={{ color: 'var(--text-muted)', fontWeight: '500' }}>({p.reviewCount || 0})</span>
+                        </span>
+                    )}
+                </div>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '4px 0 0', display: 'flex', alignItems: 'center', gap: '4px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                    <MapPin size={13} style={{ flexShrink: 0 }} /> {loc}{p.providerCategory ? ` · ${p.providerCategory}` : ''}
+                </p>
+            </div>
+        </Link>
+    );
+};
+
 const Home = () => {
     const { user } = useAuthContext();
     const navigate = useNavigate();
@@ -81,16 +134,24 @@ const Home = () => {
 
     const favSet = useMemo(() => new Set(favorites), [favorites]);
 
+    // One heart = private save + public like. Optimistically flip the save state AND the
+    // displayed like count, then reconcile with the server (revert both on failure).
+    const bumpLike = (id, delta) => setProviders(prev => prev.map(p =>
+        String(p._id) === id ? { ...p, likesCount: Math.max(0, (p.likesCount || 0) + delta) } : p));
+
     const toggleFav = async (e, id) => {
         e.preventDefault();
         e.stopPropagation();
         if (!user) { navigate('/login'); return; }
-        setFavorites(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
+        const wasFav = favorites.includes(id);
+        setFavorites(prev => wasFav ? prev.filter(x => x !== id) : [...prev, id]);
+        bumpLike(id, wasFav ? -1 : 1);
         try {
             const res = await favoriteService.toggle(id);
             setFavorites((res.data.data || []).map(String));
         } catch {
             favoriteService.list().then(r => setFavorites((r.data.data || []).map(String))).catch(() => {});
+            bumpLike(id, wasFav ? 1 : -1); // revert the optimistic like
         }
     };
 
@@ -101,6 +162,14 @@ const Home = () => {
         const saved = providers.filter(p => favSet.has(String(p._id)));
         return { saved, featured, newest, trending };
     }, [providers, favSet]);
+
+    // Vertical "Discover" feed ranking: rating is primary, likes give a small capped
+    // boost, and providers with no rating yet get a neutral score so they're not buried
+    // on day one.
+    const discoverFeed = useMemo(() => {
+        const score = (x) => (x.avgRating || 4.2) + Math.min(0.5, (x.likesCount || 0) * 0.02);
+        return [...providers].sort((a, b) => score(b) - score(a));
+    }, [providers]);
 
     const handleSearch = (e) => {
         e.preventDefault();
@@ -186,6 +255,21 @@ const Home = () => {
                     )}
                 </div>
             </section>
+
+            {/* ── Discover feed (vertical, photo-rich) ── */}
+            {!loading && providers.length > 0 && (
+                <section style={{ paddingBottom: '3.5rem' }}>
+                    <div className="container">
+                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.4rem' }}>Discover</h2>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 1.5rem' }}>Browse businesses near you — swipe their photos, tap to book.</p>
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '540px', margin: '0 auto' }}>
+                            {discoverFeed.map(p => (
+                                <FeedCard key={p._id} p={p} isFav={favSet.has(String(p._id))} likeCount={p.likesCount || 0} onToggleFav={toggleFav} />
+                            ))}
+                        </div>
+                    </div>
+                </section>
+            )}
 
             {/* ── Why Bookplus ── */}
             <section style={{ background: 'var(--card-bg)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: 'clamp(3rem, 7vh, 5rem) 0' }}>

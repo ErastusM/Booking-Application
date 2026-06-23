@@ -193,6 +193,12 @@ p, li, label, input, textarea, select, button, a {
   -ms-overflow-style: none;
 }
 .discovery-row::-webkit-scrollbar { display: none; }
+
+/* Per-card photo carousel in the vertical Discover feed — swipeable, no scrollbar,
+   momentum scroll, and overscroll contained so a swipe doesn't chain to the page. */
+.feed-carousel { -webkit-overflow-scrolling: touch; overscroll-behavior-x: contain; scrollbar-width: none; -ms-overflow-style: none; }
+.feed-carousel::-webkit-scrollbar { display: none; }
+
 .home-provider-card { transition: transform 0.18s ease; }
 .home-provider-card__media { transition: box-shadow 0.18s ease; }
 @media (hover: hover) {
