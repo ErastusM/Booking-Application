@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { notificationService } from '../services';
 
-const NotificationBell = () => {
+const NotificationBell = ({ isTransparent }) => {
     const [notifications, setNotifications] = useState([]);
     const [unreadCount, setUnreadCount] = useState(0);
     const [open, setOpen] = useState(false);
@@ -104,7 +104,10 @@ const NotificationBell = () => {
             {/* Bell button */}
             <button
                 onClick={handleOpen}
-                className="relative p-1 text-white hover:text-yellow-400 transition"
+                aria-label="Notifications"
+                style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem', display: 'inline-flex', alignItems: 'center', color: isTransparent ? 'white' : 'var(--text-primary)', transition: 'color 0.2s' }}
+                onMouseEnter={e => { e.currentTarget.style.color = 'var(--gold)'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = isTransparent ? 'white' : 'var(--text-primary)'; }}
             >
                 <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
@@ -141,24 +144,37 @@ const NotificationBell = () => {
                                 <p style={{ fontSize: '0.875rem', margin: 0 }}>No notifications yet</p>
                             </div>
                         ) : (
-                            notifications.map(n => (
+                            notifications.map(n => {
+                                const initial = ((n.message || '').trim().charAt(0) || '•').toUpperCase();
+                                const pal = n.type === 'appointment'
+                                    ? { bg: '#fde2e9', fg: '#be123c' }
+                                    : n.type === 'waiting_list'
+                                        ? { bg: '#dcfce7', fg: '#15803d' }
+                                        : { bg: '#e0e7ff', fg: '#4338ca' };
+                                return (
                                 <div
                                     key={n._id}
                                     onClick={() => handleClick(n)}
-                                    style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.8rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border)', background: !n.read ? 'rgba(201,168,76,0.08)' : 'transparent', transition: 'background 0.15s' }}
+                                    style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.85rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border)', background: !n.read ? 'rgba(201,168,76,0.07)' : 'transparent', transition: 'background 0.15s', position: 'relative' }}
                                     onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
-                                    onMouseLeave={e => e.currentTarget.style.background = !n.read ? 'rgba(201,168,76,0.08)' : 'transparent'}
+                                    onMouseLeave={e => e.currentTarget.style.background = !n.read ? 'rgba(201,168,76,0.07)' : 'transparent'}
                                 >
-                                    <span style={{ fontSize: '1.25rem', marginTop: '1px', flexShrink: 0 }}>{typeIcon(n.type)}</span>
-                                    <div style={{ flex: 1, minWidth: 0 }}>
+                                    {/* Avatar with a small type badge, like the notifications feed */}
+                                    <div style={{ position: 'relative', flexShrink: 0 }}>
+                                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: pal.bg, color: pal.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '0.95rem' }}>{initial}</div>
+                                        <span style={{ position: 'absolute', bottom: '-2px', right: '-3px', fontSize: '0.65rem', background: 'var(--card-bg)', borderRadius: '50%', width: '17px', height: '17px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{typeIcon(n.type)}</span>
+                                    </div>
+                                    <div style={{ flex: 1, minWidth: 0, paddingRight: '1rem' }}>
                                         <p style={{ fontSize: '0.85rem', margin: 0, color: !n.read ? 'var(--charcoal)' : 'var(--text-secondary)', fontWeight: !n.read ? '600' : '400', lineHeight: 1.4 }}>
                                             {n.message}
                                         </p>
                                         <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>{timeAgo(n.createdAt)}</p>
                                     </div>
-                                    <button onClick={(e) => handleDelete(e, n._id)} aria-label="Delete" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.1rem', flexShrink: 0, lineHeight: 1 }}>×</button>
+                                    {!n.read && <span style={{ position: 'absolute', top: '0.95rem', right: '0.8rem', width: '8px', height: '8px', borderRadius: '50%', background: 'var(--gold)' }} />}
+                                    <button onClick={(e) => handleDelete(e, n._id)} aria-label="Delete" style={{ position: 'absolute', bottom: '0.45rem', right: '0.6rem', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1rem', lineHeight: 1, opacity: 0.55 }}>×</button>
                                 </div>
-                            ))
+                                );
+                            })
                         )}
                     </div>
                 </div>

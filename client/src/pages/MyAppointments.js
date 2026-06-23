@@ -164,21 +164,15 @@ const MyAppointments = () => {
 
     const filters = ['all', 'pending', 'confirmed', 'completed', 'cancelled'];
 
-    // Combine the appointment's calendar date with its start time into one sortable
-    // instant. setHours on the parsed date keeps it consistent with how the date is
-    // displayed elsewhere (both read the same local calendar day).
-    const apptStamp = (a) => {
-        const d = new Date(a.appointmentDate);
-        if (isNaN(d)) return 0;
-        const [h = 0, m = 0] = (a.startTime || '00:00').split(':').map(Number);
-        d.setHours(h, m, 0, 0);
-        return d.getTime();
+    // List by most recently MADE booking first (createdAt desc), so something the client
+    // just booked — even if it's months out — sits at the top and is quick to find and
+    // cancel. Falls back to the ObjectId timestamp if createdAt is somehow missing.
+    const madeStamp = (a) => {
+        const t = a?.createdAt ? new Date(a.createdAt).getTime() : NaN;
+        if (!isNaN(t)) return t;
+        return a?._id ? parseInt(String(a._id).substring(0, 8), 16) * 1000 : 0;
     };
-
-    // Sort strictly by date + time, earliest first, so the soonest booking is always at
-    // the top. Without this the list came back in arbitrary server order (e.g. Apr 30
-    // above Apr 25), which made it hard to scan.
-    const sortByDateTime = (list) => [...list].sort((a, b) => apptStamp(a) - apptStamp(b));
+    const sortByDateTime = (list) => [...list].sort((a, b) => madeStamp(b) - madeStamp(a));
 
     const filtered = sortByDateTime(
         activeFilter === 'all' ? appointments : appointments.filter(a => a.status === activeFilter)
@@ -325,6 +319,20 @@ const MyAppointments = () => {
                                     gridTemplateColumns: '1fr 1fr 1fr 1fr auto',
                                     alignItems: 'center', gap: '1.5rem',
                                 }}>
+                                    {(() => {
+                                        const company = a.service?.provider?.providerProfile?.businessName || a.service?.provider?.name || 'Provider';
+                                        return (
+                                            <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
+                                                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'rgba(201,168,76,0.15)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '1.1rem', flexShrink: 0, fontFamily: 'var(--font-display)' }}>
+                                                    {company.trim().charAt(0).toUpperCase()}
+                                                </div>
+                                                <div style={{ minWidth: 0 }}>
+                                                    <p style={{ margin: 0, fontWeight: '700', color: 'var(--charcoal)', fontSize: '1rem', fontFamily: 'var(--font-display)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{company}</p>
+                                                    {a.createdAt && <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Booked {new Date(a.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>}
+                                                </div>
+                                            </div>
+                                        );
+                                    })()}
                                     <div>
                                         <p style={labelStyle}>Service</p>
                                         <p style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', fontSize: '1rem' }}>{a.service?.name}</p>
