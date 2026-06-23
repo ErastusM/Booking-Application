@@ -174,18 +174,10 @@ const MyAppointments = () => {
         return d.getTime();
     };
 
-    // Sort by date + time so the list reads chronologically: upcoming appointments
-    // soonest-first, then past ones most-recent-first. Without this the list came back
-    // in arbitrary server order (e.g. Apr 30 above Apr 25), which made it hard to scan.
-    const sortByDateTime = (list) => {
-        const now = Date.now();
-        return [...list].sort((a, b) => {
-            const ta = apptStamp(a), tb = apptStamp(b);
-            const aUpcoming = ta >= now, bUpcoming = tb >= now;
-            if (aUpcoming !== bUpcoming) return aUpcoming ? -1 : 1;
-            return aUpcoming ? ta - tb : tb - ta;
-        });
-    };
+    // Sort strictly by date + time, earliest first, so the soonest booking is always at
+    // the top. Without this the list came back in arbitrary server order (e.g. Apr 30
+    // above Apr 25), which made it hard to scan.
+    const sortByDateTime = (list) => [...list].sort((a, b) => apptStamp(a) - apptStamp(b));
 
     const filtered = sortByDateTime(
         activeFilter === 'all' ? appointments : appointments.filter(a => a.status === activeFilter)

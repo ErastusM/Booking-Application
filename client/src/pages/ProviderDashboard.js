@@ -1155,7 +1155,17 @@ const ProviderDashboard = () => {
     };
 
     const appointmentTabs = ['pending', 'confirmed', 'completed', 'cancelled'];
-    const filtered = appointments.filter(a => a.status === activeTab);
+    // Earliest booking first (date + start time), so the soonest is always at the top.
+    const apptTime = (a) => {
+        const d = new Date(a.appointmentDate);
+        if (isNaN(d)) return 0;
+        const [h = 0, m = 0] = (a.startTime || '00:00').split(':').map(Number);
+        d.setHours(h, m, 0, 0);
+        return d.getTime();
+    };
+    const filtered = appointments
+        .filter(a => a.status === activeTab)
+        .sort((x, y) => apptTime(x) - apptTime(y));
     const counts = appointmentTabs.reduce((acc, t) => {
         acc[t] = appointments.filter(a => a.status === t).length;
         return acc;

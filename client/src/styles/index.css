@@ -628,7 +628,10 @@ body.dark-mode .bottom-nav {
     grid-template-columns: 1fr !important;
   }
   .booking-confirm-desktop { display: none !important; }
-  .booking-confirm-mobile { display: flex !important; }
+  /* Sit above the fixed bottom nav (62px + safe area) instead of bottom:0, otherwise
+     the nav (z-index 999) covers the Confirm button. Reset the safe-area padding since
+     the bar no longer touches the screen edge. */
+  .booking-confirm-mobile { display: flex !important; bottom: calc(62px + env(safe-area-inset-bottom, 0px)) !important; padding-bottom: 1rem !important; }
 }
 
 /* ── Booking mobile bar — dark mode ── */
