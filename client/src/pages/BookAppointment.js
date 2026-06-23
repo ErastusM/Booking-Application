@@ -221,7 +221,7 @@ const BookAppointment = () => {
                 });
                 navigate('/appointments?rescheduled=1');
             } else {
-                await appointmentService.createAppointment({
+                const res = await appointmentService.createAppointment({
                     ...formData,
                     selectedAddOns,
                     ...(wallet?.settings?.enabled ? { paymentMethod } : {}),
@@ -232,8 +232,13 @@ const BookAppointment = () => {
                         recurrenceEndDate: recurrence.recurrenceEndDate || undefined,
                     } : {}),
                 });
+                const created = res?.data?.data;
+                const newAppt = Array.isArray(created) ? created[0] : created;
                 const providerName = providerInfo?.name || '';
-                navigate(`/appointments?confirmed=1&provider=${encodeURIComponent(providerName)}`);
+                const params = new URLSearchParams({ confirmed: '1' });
+                if (newAppt?._id) params.set('apptId', newAppt._id);
+                if (providerName) params.set('provider', providerName);
+                navigate(`/appointments?${params.toString()}`);
             }
         } catch (err) {
             setError(err.response?.data?.message || (rescheduleId ? 'Failed to reschedule appointment' : 'Failed to book appointment'));

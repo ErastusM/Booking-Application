@@ -37,6 +37,7 @@ const MyAppointments = () => {
     const justConfirmed = searchParams.get('confirmed') === '1';
     const justWaitlisted = searchParams.get('waitlisted') === '1';
     const confirmedProvider = searchParams.get('provider') || '';
+    const justBookedId = searchParams.get('apptId') || '';
     const [appointments, setAppointments] = useState([]);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -199,6 +200,17 @@ const MyAppointments = () => {
         </div>
     );
 
+    // Confirmation headline: name the COMPANY (business name), and if a specific team
+    // member is on the booking, tell the client to ask for them when they arrive.
+    const justBooked = appointments.find(a => a._id === justBookedId);
+    const confirmedCompany = justBooked?.service?.provider?.providerProfile?.businessName
+        || justBooked?.service?.provider?.name
+        || confirmedProvider;
+    const confirmedTeamMember = justBooked?.teamMember?.name;
+    const confirmedHeadline = confirmedCompany
+        ? `Appointment booked with ${confirmedCompany}${confirmedTeamMember ? `, ask for ${confirmedTeamMember} when you get there` : ''}!`
+        : 'Appointment booked!';
+
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
 
@@ -217,7 +229,7 @@ const MyAppointments = () => {
                     <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '1rem 1.25rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontFamily: 'Outfit, sans-serif' }}>
                         <span style={{ fontSize: '1.2rem' }}>✅</span>
                         <div>
-                            <strong>Appointment confirmed{confirmedProvider ? ` with ${confirmedProvider}` : ''}!</strong>
+                            <strong>{confirmedHeadline}</strong>
                             {user?.name ? ` ${user.name.split(' ')[0]}, y` : ' Y'}ou'll receive a confirmation email shortly. See you there.
                         </div>
                     </div>
