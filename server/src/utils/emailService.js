@@ -52,6 +52,15 @@ const sendViaResend = async (mailOptions) => {
             html: mailOptions.html,
             text: mailOptions.text,
             ...(mailOptions.replyTo ? { reply_to: mailOptions.replyTo } : {}),
+            ...(mailOptions.attachments?.length ? {
+                attachments: mailOptions.attachments.map((a) => ({
+                    filename: a.filename,
+                    content: Buffer.isBuffer(a.content)
+                        ? a.content.toString('base64')
+                        : Buffer.from(String(a.content), 'utf-8').toString('base64'),
+                    ...(a.contentType ? { content_type: a.contentType } : {}),
+                })),
+            } : {}),
         }),
     });
     if (!res.ok) {
@@ -197,6 +206,14 @@ const shell = ({ heading, headingAccent, inner, preheader }) => `
 
 const p = (text) => `<p style="margin:0 0 14px;font-size:15px;line-height:1.65;color:${C.text};">${text}</p>`;
 
+// Build an .ics calendar attachment from a raw iCalendar string (see calendarHelper).
+// Lets recipients add the appointment to Google/Apple/Outlook calendars in one tap.
+const icsAttachment = (ics) => ({
+    filename: 'appointment.ics',
+    content: ics,
+    contentType: 'text/calendar; charset=utf-8; method=PUBLISH',
+});
+
 /* ── Templates ─────────────────────────────────────────────────────────── */
 
 exports.sendVerificationEmail = async (email, name, token, role) => {
@@ -246,7 +263,7 @@ exports.sendWelcomeEmail = async (email, name, role) => {
 };
 
 exports.sendAppointmentConfirmed = async (email, name, serviceName, date, time, gcalUrl, extras = {}) => {
-    const { staff, price, bookingRef, manageUrl, directionsUrl, venue, address } = extras;
+    const { staff, price, bookingRef, manageUrl, directionsUrl, venue, address, ics } = extras;
     const rows = [
         ['Service', escapeHtml(serviceName) + (staff ? ` · ${escapeHtml(staff)}` : '')],
         ['When', `${date}, ${time}`],
@@ -256,6 +273,7 @@ exports.sendAppointmentConfirmed = async (email, name, serviceName, date, time, 
     const total = price != null ? ['Total', `NAD ${price}`] : null;
     await safeSend({
         from: FROM, to: email, subject: 'Your appointment is confirmed',
+        attachments: ics ? [icsAttachment(ics)] : undefined,
         html: shell({
             heading: `Hi ${escapeHtml(name)}, your appointment is`, headingAccent: 'confirmed',
             preheader: `${serviceName} · ${date}, ${time}`,
@@ -306,6 +324,62 @@ exports.sendAppointmentRescheduled = async (email, providerName, customerName, s
             preheader: `${serviceName} · ${date}, ${time}`,
             inner: `${statusPill('rescheduled')}
                 ${detailsCard([['Client', escapeHtml(customerName)], ['Service', escapeHtml(serviceName)], ['New time', `${date}, ${time}`]])}`,
+        }),
+    });
+};
+
+// Customer-facing reschedule notice (the variant above goes to the provider).
+exports.sendAppointmentRescheduledClient = async (email, name, serviceName, date, time, extras = {}) => {
+    const { gcalUrl, manageUrl, ics } = extras;
+    await safeSend({
+        from: FROM, to: email, subject: 'Your appointment was rescheduled',
+        attachments: ics ? [icsAttachment(ics)] : undefined,
+        html: shell({
+            heading: 'Your appointment was', headingAccent: 'rescheduled',
+            preheader: `${serviceName} · now ${date}, ${time}`,
+            inner: `${statusPill('rescheduled')}
+                ${detailsCard([['Service', escapeHtml(serviceName)], ['New time', `${date}, ${time}`]])}
+                ${actionRow([
+                    gcalUrl && { href: gcalUrl, label: 'Add to calendar' },
+                    manageUrl && { href: manageUrl, label: 'Manage booking' },
+                ])}
+                <p style="margin:18px 0 0;font-size:13px;color:${C.muted};">Didn’t request this change? Use “Manage booking” or contact your provider.</p>`,
+        }),
+    });
+};
+
+exports.sendReminder24h = async (email, name, serviceName, date, time, extras = {}) => {
+    const { gcalUrl, manageUrl, ics } = extras;
+    await safeSend({
+        from: FROM, to: email, subject: `Reminder: ${serviceName} tomorrow`,
+        attachments: ics ? [icsAttachment(ics)] : undefined,
+        html: shell({
+            heading: `Hi ${escapeHtml(name)}, a quick reminder`,
+            preheader: `${serviceName} is tomorrow at ${time}`,
+            inner: `${p(`Your <strong>${escapeHtml(serviceName)}</strong> is coming up <strong>tomorrow</strong>. We look forward to seeing you.`)}
+                ${detailsCard([['Service', escapeHtml(serviceName)], ['When', `${date}, ${time}`]])}
+                ${actionRow([
+                    gcalUrl && { href: gcalUrl, label: 'Add to calendar' },
+                    manageUrl && { href: manageUrl, label: 'Manage booking' },
+                ])}
+                <p style="margin:18px 0 0;font-size:13px;color:${C.muted};">Need to make a change? Use “Manage booking”.</p>`,
+        }),
+    });
+};
+
+exports.sendReminder1h = async (email, name, serviceName, time, extras = {}) => {
+    const { gcalUrl, manageUrl, ics } = extras;
+    await safeSend({
+        from: FROM, to: email, subject: `Reminder: ${serviceName} in about an hour`,
+        attachments: ics ? [icsAttachment(ics)] : undefined,
+        html: shell({
+            heading: `Hi ${escapeHtml(name)}, see you soon`,
+            preheader: `${serviceName} is in about an hour, at ${time}`,
+            inner: `${p(`Your <strong>${escapeHtml(serviceName)}</strong> is in about an hour, at <strong>${time}</strong>. Please arrive a few minutes early.`)}
+                ${actionRow([
+                    gcalUrl && { href: gcalUrl, label: 'Add to calendar' },
+                    manageUrl && { href: manageUrl, label: 'Manage booking' },
+                ])}`,
         }),
     });
 };

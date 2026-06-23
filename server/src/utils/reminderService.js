@@ -1,7 +1,9 @@
 const cron = require('node-cron');
 const pino = require('pino');
 const Appointment = require('../models/Appointment');
+const Notification = require('../models/Notification');
 const { sendReminder24h, sendReminder1h } = require('./emailService');
+const { appointmentCalendar } = require('./calendarHelper');
 const pushService = require('./pushService');
 
 const log = pino({ level: process.env.LOG_LEVEL || 'info' });
@@ -26,6 +28,17 @@ const pushCustomer = (appt, body) => {
     // No-op unless VAPID is configured / the customer has subscribed.
     pushService.sendToUser(appt.customer._id, { title: 'Appointment reminder', body, url: '/appointments' }).catch(() => {});
 };
+// A persistent in-app reminder in the bell (separate from push so we never double-fire).
+const notifyInApp = (appt, message) => {
+    if (!appt.customer?._id) return;
+    Notification.create({ user: appt.customer._id, message, type: 'appointment', link: '/appointments' }).catch(() => {});
+};
+// Google Calendar link + .ics + manage link to attach to a reminder email.
+const calendarExtras = (appt) => {
+    const { gcalUrl, ics } = appointmentCalendar(appt, { description: 'Booked via Bookplus', status: 'CONFIRMED' });
+    const manageUrl = appt.manageToken && process.env.CLIENT_URL ? `${process.env.CLIENT_URL}/manage/${appt.manageToken}` : undefined;
+    return { gcalUrl, ics, manageUrl };
+};
 
 // Each rule fires once (guarded by its flag) when the appointment falls inside its
 // minute window before the start. Windows are ≥ the 15-min cron interval so they
@@ -34,10 +47,11 @@ const RULES = [
     {
         flag: 'reminderSent24h', lo: 23 * 60, hi: 25 * 60,
         run: async (a) => {
+            const dateStr = new Date(a.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
             if (a.customer?.email) {
-                const dateStr = new Date(a.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-                await sendReminder24h(a.customer.email, a.customer.name, svcName(a), dateStr, a.startTime);
+                await sendReminder24h(a.customer.email, a.customer.name, svcName(a), dateStr, a.startTime, calendarExtras(a));
             }
+            notifyInApp(a, `Reminder: ${svcName(a)} is tomorrow at ${a.startTime}.`);
             pushCustomer(a, `${svcName(a)} is tomorrow at ${a.startTime}.`);
         },
     },
@@ -48,7 +62,8 @@ const RULES = [
     {
         flag: 'reminderSent1h', lo: 45, hi: 75,
         run: async (a) => {
-            if (a.customer?.email) await sendReminder1h(a.customer.email, a.customer.name, svcName(a), a.startTime);
+            if (a.customer?.email) await sendReminder1h(a.customer.email, a.customer.name, svcName(a), a.startTime, calendarExtras(a));
+            notifyInApp(a, `${svcName(a)} is in about an hour, at ${a.startTime}.`);
             pushCustomer(a, `${svcName(a)} is in 1 hour, at ${a.startTime}.`);
         },
     },

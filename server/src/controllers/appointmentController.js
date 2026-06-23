@@ -12,8 +12,10 @@ const {
     sendAppointmentCompleted,
     sendAppointmentCancelled,
     sendAppointmentRescheduled,
+    sendAppointmentRescheduledClient,
     sendRebookingPrompt,
 } = require('../utils/emailService');
+const calendarHelper = require('../utils/calendarHelper');
 
 const defaultSchedule = {
     monday:    { enabled: true,  slots: [{ start: '09:00', end: '17:00' }] },
@@ -477,6 +479,12 @@ exports.createAppointment = async (req, res) => {
                     directionsUrl: address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : undefined,
                     venue: providerDoc?.name || undefined,
                     address: address || undefined,
+                    // Downloadable .ics so the booking drops straight into any calendar app.
+                    ics: calendarHelper.buildIcs({
+                        uid: `${appointment._id}@bookplus`, title: svc.name,
+                        appointmentDate, startTime, endTime,
+                        description: 'Booked via Bookplus', location: address || undefined, status: 'CONFIRMED',
+                    }),
                 };
                 // Send the confirmation to whoever the booking is for: the registered
                 // client when a provider booked on their behalf, otherwise the requester.
@@ -831,6 +839,23 @@ exports.providerRescheduleAppointment = async (req, res) => {
         appointment.endTime = endTime;
         await appointment.save();
         res.status(200).json({ success: true, data: appointment });
+
+        // Tell the client their provider moved the appointment (previously silent).
+        setImmediate(async () => {
+            try {
+                const customer = appointment.customer ? await User.findById(appointment.customer).select('name email') : null;
+                if (!customer) return; // walk-in / no account — nothing to notify
+                const dateStr = new Date(appointment.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+                await createNotification(customer._id, `Your ${appointment.service?.name || 'appointment'} was moved to ${dateStr} at ${startTime}.`, 'appointment', '/appointments');
+                if (customer.email) {
+                    const providerDoc = await User.findById(appointment.provider).select('name businessProfile');
+                    const location = providerDoc?.businessProfile?.address || undefined;
+                    const { gcalUrl, ics } = calendarHelper.appointmentCalendar(appointment, { description: 'Booked via Bookplus', location, status: 'CONFIRMED', sequence: 1 });
+                    const manageUrl = appointment.manageToken && process.env.CLIENT_URL ? `${process.env.CLIENT_URL}/manage/${appointment.manageToken}` : undefined;
+                    await sendAppointmentRescheduledClient(customer.email, customer.name, appointment.service?.name, dateStr, `${startTime} – ${endTime}`, { gcalUrl, ics, manageUrl });
+                }
+            } catch (err) { logger.error({ err }, 'Provider reschedule notification failed'); }
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -905,6 +930,23 @@ exports.rescheduleAppointment = async (req, res) => {
         }
 
         res.status(200).json({ success: true, data: appointment });
+
+        // Confirm the new time to the customer (in-app + push + email with updated
+        // calendar) and give the provider an in-app heads-up.
+        setImmediate(async () => {
+            try {
+                const dateStr = new Date(appointment.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+                await createNotification(appointment.customer._id, `Your ${appointment.service.name} is now ${dateStr} at ${startTime}.`, 'appointment', '/appointments');
+                if (appointment.provider) {
+                    await createNotification(appointment.provider, `${appointment.customer.name} rescheduled ${appointment.service.name} to ${dateStr} at ${startTime}.`, 'appointment', '/dashboard');
+                }
+                if (appointment.customer.email) {
+                    const { gcalUrl, ics } = calendarHelper.appointmentCalendar(appointment, { description: 'Booked via Bookplus', status: 'CONFIRMED', sequence: 1 });
+                    const manageUrl = appointment.manageToken && process.env.CLIENT_URL ? `${process.env.CLIENT_URL}/manage/${appointment.manageToken}` : undefined;
+                    await sendAppointmentRescheduledClient(appointment.customer.email, appointment.customer.name, appointment.service.name, dateStr, startTime, { gcalUrl, ics, manageUrl });
+                }
+            } catch (err) { logger.error({ err }, 'Customer reschedule notification failed'); }
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -1030,6 +1072,11 @@ exports.cancelAppointmentByToken = async (req, res) => {
                     const when = new Date(appt.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                     await createNotification(appt.provider, `${appt.customer?.name || appt.walkInName || 'A client'} cancelled ${appt.service?.name} on ${when}.`, 'appointment', '/dashboard');
                 }
+                // Email the client a cancellation confirmation (the logged-in path already does this).
+                if (appt.customer?.email) {
+                    const whenLong = new Date(appt.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+                    await sendAppointmentCancelled(appt.customer.email, appt.customer.name, appt.service?.name, whenLong);
+                }
             } catch (err) { logger.error({ err }, 'Cancel notification failed'); }
         });
 
@@ -1086,6 +1133,14 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
                 if (appt.provider) {
                     const when = new Date(appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                     await createNotification(appt.provider, `${appt.customer?.name || appt.walkInName || 'A client'} rescheduled ${appt.service?.name} to ${when} at ${startTime}.`, 'appointment', '/dashboard');
+                }
+                // Confirm the new time to the client with an updated calendar entry.
+                if (appt.customer?.email) {
+                    const dateStr = new Date(appt.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+                    const { gcalUrl, ics } = calendarHelper.appointmentCalendar(appt, { description: 'Booked via Bookplus', status: 'CONFIRMED', sequence: 1 });
+                    const manageUrl = process.env.CLIENT_URL ? `${process.env.CLIENT_URL}/manage/${req.params.token}` : undefined;
+                    await sendAppointmentRescheduledClient(appt.customer.email, appt.customer.name, appt.service?.name, dateStr, startTime, { gcalUrl, ics, manageUrl });
+                    if (appt.customer._id) await createNotification(appt.customer._id, `Your ${appt.service?.name} is now ${dateStr} at ${startTime}.`, 'appointment', '/appointments');
                 }
             } catch (err) { logger.error({ err }, 'Reschedule notification failed'); }
         });

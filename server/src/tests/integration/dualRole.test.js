@@ -14,6 +14,7 @@ jest.mock('../../utils/emailService', () => ({
     sendAppointmentCancelled: jest.fn().mockResolvedValue(true),
     sendAppointmentCompleted: jest.fn().mockResolvedValue(true),
     sendAppointmentRescheduled: jest.fn().mockResolvedValue(true),
+    sendAppointmentRescheduledClient: jest.fn().mockResolvedValue(true),
     sendRebookingPrompt: jest.fn().mockResolvedValue(true),
 }));
 
