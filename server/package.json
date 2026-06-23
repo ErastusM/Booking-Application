@@ -1,6 +1,6 @@
 {
     "name": "bookplus-server",
-    "version": "1.0.0-rc.2",
+    "version": "1.0.0-rc.3",
     "description": "Backend API for Bookplus multi-service booking application",
     "main": "server.js",
     "scripts": {
