@@ -33,17 +33,15 @@ describe('buildTimeSlots', () => {
         expect(times(slots)).toEqual(['04:00', '05:00', '06:00', '07:00']);
     });
 
-    test('no half-hour slot when the service is longer than 30 min', () => {
+    test('a partly-booked hour breaks down on the service grid — a 45-min service fills 04:45', () => {
         const slots = buildTimeSlots({
             blocks: [{ start: H(4), end: H(6) }],
             bookedRanges: [{ start: H(4), end: H(4, 30) }],
             duration: 45,
         });
-        // 4:00 can't fit (overlaps booking) and 4:30 is disallowed for >30 min,
-        // so the hour stays as a greyed (booked) pill; 5:00 is free.
-        expect(times(slots)).toEqual(['04:00', '05:00']);
-        expect(slots[0].isBooked).toBe(true);
-        expect(slots[1].isBooked).toBe(false);
+        // 4:00 overlaps the booking; the next 45-min grid start (4:45) is free and fits.
+        expect(times(slots)).toEqual(['04:45', '05:00']);
+        expect(slots.every((s) => !s.isBooked)).toBe(true);
     });
 
     test('first half free, second half booked → still the hour start, not 4:30', () => {
@@ -86,8 +84,8 @@ describe('buildTimeSlots', () => {
         expect(times(slots)).toEqual(['09:00', '10:00', '13:00', '14:00']);
     });
 
-    // The same rule must apply to every short service (5/10/15/20/25/30 min):
-    // hourly by default, half-hour only when the first half is booked.
+    // ── The breakdown only kicks in once an hour is partially occupied ──
+    // A free hour always shows just the hour start, whatever the service length.
     test.each([5, 10, 15, 20, 25, 30])('free hour shows only the hour start for a %i-min service', (duration) => {
         const slots = buildTimeSlots({
             blocks: [{ start: H(4), end: H(6) }],
@@ -97,13 +95,52 @@ describe('buildTimeSlots', () => {
         expect(times(slots)).toEqual(['04:00', '05:00']); // never 04:15 / 04:30 / 05:30
     });
 
-    test.each([5, 10, 15, 20, 25, 30])('first half booked → offers 04:30 for a %i-min service', (duration) => {
+    // Once 4:00–4:30 is booked, the rest of the hour fills on the service's own grid
+    // (anchored at the hour start) so every free minute can be used.
+    test.each([
+        [5,  ['04:30', '04:35', '04:40', '04:45', '04:50', '04:55', '05:00']],
+        [10, ['04:30', '04:40', '04:50', '05:00']],
+        [15, ['04:30', '04:45', '05:00']],
+        [20, ['04:40', '05:00']],
+        [25, ['04:50', '05:00']],
+        [30, ['04:30', '05:00']],
+    ])('first half booked → %i-min service fills the rest of the hour on its grid', (duration, expected) => {
         const slots = buildTimeSlots({
             blocks: [{ start: H(4), end: H(6) }],
             bookedRanges: [{ start: H(4), end: H(4, 30) }], // 4:00–4:30 booked
             duration,
         });
-        expect(times(slots)).toEqual(['04:30', '05:00']);
+        expect(times(slots)).toEqual(expected);
         expect(slots.every((s) => !s.isBooked)).toBe(true);
+    });
+
+    // ── The user's worked examples ──
+    test('book 4:00–4:15, then a 15-min service may start at 4:15, 4:30, 4:45', () => {
+        const slots = buildTimeSlots({
+            blocks: [{ start: H(4), end: H(5) }],
+            bookedRanges: [{ start: H(4), end: H(4, 15) }],
+            duration: 15,
+        });
+        expect(times(slots)).toEqual(['04:15', '04:30', '04:45']);
+    });
+
+    test('book 4:00–4:30, then a 30-min service may start at 4:30', () => {
+        const slots = buildTimeSlots({
+            blocks: [{ start: H(4), end: H(5) }],
+            bookedRanges: [{ start: H(4), end: H(4, 30) }],
+            duration: 30,
+        });
+        expect(times(slots)).toEqual(['04:30']);
+    });
+
+    // Never invent arbitrary intervals: a 20-min booking does not let a 15-min
+    // service start at 4:20 — starts stay on the :00/:15/:30/:45 grid.
+    test('a 20-min booking does not create an off-grid 4:20 start for a 15-min service', () => {
+        const slots = buildTimeSlots({
+            blocks: [{ start: H(4), end: H(5) }],
+            bookedRanges: [{ start: H(4), end: H(4, 20) }], // 4:00–4:20 booked
+            duration: 15,
+        });
+        expect(times(slots)).toEqual(['04:30', '04:45']); // not 04:20
     });
 });

@@ -162,7 +162,34 @@ const MyAppointments = () => {
     const goReschedule = (a) => setRescheduleAppt(a);
 
     const filters = ['all', 'pending', 'confirmed', 'completed', 'cancelled'];
-    const filtered = activeFilter === 'all' ? appointments : appointments.filter(a => a.status === activeFilter);
+
+    // Combine the appointment's calendar date with its start time into one sortable
+    // instant. setHours on the parsed date keeps it consistent with how the date is
+    // displayed elsewhere (both read the same local calendar day).
+    const apptStamp = (a) => {
+        const d = new Date(a.appointmentDate);
+        if (isNaN(d)) return 0;
+        const [h = 0, m = 0] = (a.startTime || '00:00').split(':').map(Number);
+        d.setHours(h, m, 0, 0);
+        return d.getTime();
+    };
+
+    // Sort by date + time so the list reads chronologically: upcoming appointments
+    // soonest-first, then past ones most-recent-first. Without this the list came back
+    // in arbitrary server order (e.g. Apr 30 above Apr 25), which made it hard to scan.
+    const sortByDateTime = (list) => {
+        const now = Date.now();
+        return [...list].sort((a, b) => {
+            const ta = apptStamp(a), tb = apptStamp(b);
+            const aUpcoming = ta >= now, bUpcoming = tb >= now;
+            if (aUpcoming !== bUpcoming) return aUpcoming ? -1 : 1;
+            return aUpcoming ? ta - tb : tb - ta;
+        });
+    };
+
+    const filtered = sortByDateTime(
+        activeFilter === 'all' ? appointments : appointments.filter(a => a.status === activeFilter)
+    );
     const counts = filters.reduce((acc, f) => {
         acc[f] = f === 'all' ? appointments.length : appointments.filter(a => a.status === f).length;
         return acc;
@@ -285,7 +312,9 @@ const MyAppointments = () => {
                             const isReviewed = reviewedIds.includes(a._id);
                             return (
                                 <div key={a._id} className="fade-up appt-row" style={{
-                                    animationDelay: `${i * 0.05}s`, opacity: 0,
+                                    // Cap the stagger so long lists don't leave cards far down
+                                    // the page stuck invisible (opacity:0) while you scroll.
+                                    animationDelay: `${Math.min(i, 8) * 0.05}s`, opacity: 0,
                                     background: 'var(--card-bg)', borderRadius: 'var(--radius)',
                                     border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)',
                                     padding: '1.5rem 2rem', display: 'grid',

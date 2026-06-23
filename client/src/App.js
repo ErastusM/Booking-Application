@@ -40,9 +40,15 @@ const RouteFallback = () => (
 function AppRoutes() {
     const location = useLocation();
 
-    // Scroll to top on every route change (premium app feel)
+    // Jump to the top on every route change. We force an instant jump so navigation
+    // feels immediate — without it the page's smooth scroll-behavior glided the whole
+    // way up on each route change, which read as sluggish/janky scrolling.
     React.useEffect(() => {
-        window.scrollTo({ top: 0, left: 0, behavior: 'instant' in window ? 'instant' : 'auto' });
+        try {
+            window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+        } catch {
+            window.scrollTo(0, 0);
+        }
     }, [location.pathname]);
 
     return (

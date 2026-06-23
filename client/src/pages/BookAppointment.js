@@ -298,8 +298,9 @@ const BookAppointment = () => {
     const calNavBtn = (enabled) => ({ background: 'var(--surface-sunken)', border: '1px solid var(--border)', borderRadius: '8px', width: '34px', height: '34px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: enabled ? 'pointer' : 'not-allowed', opacity: enabled ? 1 : 0.4, color: 'var(--charcoal)', fontSize: '1.05rem' });
 
     // Generate time slot pills from provider availability (or 08:00–20:00 fallback).
-    // Slots are hourly by default; a half-hour start (e.g. 4:30) appears only when the
-    // first half of an hour is booked, the rest is free, and the service is ≤ 30 min.
+    // Slots are hourly by default; once an hour is partially booked, its remaining free
+    // time is broken into slots the size of the selected service (anchored at the hour
+    // start) so the day fills efficiently — see buildTimeSlots for the exact rules.
     // Spans EVERY working block of the day (split shifts) and never appears in the past.
     const generateTimeSlots = (dateStr) => {
         const duration = totalDuration || 30;
