@@ -771,6 +771,18 @@ const ProviderDashboard = () => {
 
     const handleStatusUpdate = async (id, status) => {
         setError('');
+        // Completing a wallet-paid booking releases the client's reserved funds to
+        // you (the server finalises the reservation). Make that explicit first.
+        if (status === 'completed') {
+            const appt = appointments.find(a => a._id === id);
+            const isWallet = appt?.paymentMethod === 'wallet';
+            const amount = appt?.totalPrice ?? appt?.service?.price;
+            const who = appt?.customer?.name || 'the client';
+            const msg = isWallet && amount != null
+                ? `Mark this appointment complete?\n\nThis releases N$${Number(amount).toFixed(2)} from ${who}'s reserved balance to you. This can't be undone.`
+                : 'Mark this appointment as complete?';
+            if (!window.confirm(msg)) return;
+        }
         // optimistic
         setAppointments(prev => prev.map(a => a._id === id ? { ...a, status } : a));
         try {
