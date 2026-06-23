@@ -61,10 +61,15 @@ API.interceptors.response.use(
         const originalRequest = error.config;
         const status = error.response?.status;
 
-        // Only attempt a refresh for a genuine 401 on a normal request we haven't
-        // already retried — and never for the refresh call itself.
+        // A guest (no stored token) hitting a 401 just means "this endpoint needs
+        // auth" — they may simply be browsing public pages while a background call
+        // (notifications poll, favorites, etc.) probes an authed route. Never bounce
+        // them to the login screen. Only a real, expired session (we HAD a token)
+        // should attempt a silent refresh and, failing that, force logout.
+        const hadToken = !!localStorage.getItem('token');
         const shouldTryRefresh =
             status === 401 &&
+            hadToken &&
             originalRequest &&
             !originalRequest._retry &&
             !originalRequest.url?.includes('/auth/refresh');
