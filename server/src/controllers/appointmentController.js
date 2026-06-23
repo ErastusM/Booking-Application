@@ -919,8 +919,11 @@ exports.createGroupBooking = async (req, res) => {
         const svc = await Service.findById(service);
         if (!svc) return res.status(404).json({ success: false, message: 'Service not found' });
         const gid = randomUUID();
+        // `customer` is required on the model. Name-only group clients are walk-ins, so
+        // they belong to the provider — exactly how a single walk-in booking resolves the
+        // client to req.user. Passing null here was failing insertMany validation → 500.
         const docs = clients.map(c => ({
-            customer: c.customerId || null,
+            customer: c.customerId || req.user._id,
             walkInName: c.customerId ? null : (c.name || 'Group Client'),
             service,
             provider: req.user._id,
@@ -935,9 +938,10 @@ exports.createGroupBooking = async (req, res) => {
             teamMember: teamMember || null,
         }));
         const appointments = await Appointment.insertMany(docs);
-        await createNotification(req.user._id, `Group booking created: ${clients.length} client(s) for ${svc.name}`, 'appointment', '/provider-dashboard?tab=confirmed');
+        await createNotification(req.user._id, `Group booking created: ${clients.length} client(s) for ${svc.name}`, 'appointment', '/dashboard?tab=confirmed');
         res.status(201).json({ success: true, data: appointments });
     } catch (error) {
+        logger.error({ err: error }, 'Group booking failed');
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };

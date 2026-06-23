@@ -112,4 +112,28 @@ describe('Provider creates an appointment from the calendar', () => {
             });
         expect(res.status).toBe(404);
     });
+
+    it('creates a group booking for multiple walk-in clients (no 500)', async () => {
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id, { duration: 30 });
+        const res = await request(app)
+            .post('/api/appointments/group')
+            .set(authHeader(provider))
+            .send({
+                service: svc._id.toString(),
+                appointmentDate: nextWeekday(),
+                startTime: '14:00',
+                endTime: '14:30',
+                clients: [{ name: 'Alice' }, { name: 'Bob' }, { name: 'Carol' }],
+            });
+
+        expect(res.status).toBe(201);
+        expect(res.body.data).toHaveLength(3);
+        // Name-only group clients are walk-ins → owned by the provider (customer is
+        // required on the model; null here used to 500 the whole request).
+        expect(res.body.data.every(a => a.customer === provider._id.toString())).toBe(true);
+        expect(res.body.data.map(a => a.walkInName)).toEqual(['Alice', 'Bob', 'Carol']);
+        // All appointments in the group share one groupId.
+        expect(new Set(res.body.data.map(a => a.groupId)).size).toBe(1);
+    });
 });
