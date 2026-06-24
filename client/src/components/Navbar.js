@@ -79,6 +79,9 @@ const Navbar = () => {
 
     return (
     <>
+        {/* Dark backdrop behind the status bar so its white text stays legible in light mode too (installed PWA).
+            Height is the safe-area inset, so it collapses to nothing in a normal browser. */}
+        <div aria-hidden="true" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'env(safe-area-inset-top, 0px)', background: darkMode ? '#0f0f1a' : '#1a1a2e', zIndex: 1300, pointerEvents: 'none' }} />
         <nav style={navStyles}>
             <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '64px' }}>
 
