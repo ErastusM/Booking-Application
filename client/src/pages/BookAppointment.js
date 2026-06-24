@@ -481,7 +481,7 @@ const BookAppointment = () => {
                         </div>
 
                         {/* Right - sticky confirm panel (desktop only) */}
-                        <div className="booking-confirm-desktop" style={{ position: 'sticky', top: '100px' }}>
+                        <div className="booking-confirm-desktop" style={{ position: 'sticky', top: 'calc(100px + env(safe-area-inset-top, 0px))' }}>
                             <div style={{ ...cardStyle, padding: '1.5rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.35rem' }}>
                                     <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {totalPrice}</span>
@@ -771,7 +771,7 @@ const BookAppointment = () => {
                     </div>
 
                     {/* Right - summary + proceed */}
-                    <div className="booking-summary" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '2rem', boxShadow: 'var(--shadow-sm)', position: 'sticky', top: '100px' }}>
+                    <div className="booking-summary" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '2rem', boxShadow: 'var(--shadow-sm)', position: 'sticky', top: 'calc(100px + env(safe-area-inset-top, 0px))' }}>
                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1.5rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
                             Booking Summary
                         </h3>

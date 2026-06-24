@@ -208,8 +208,8 @@ const ProviderAccount = () => {
     });
 
     return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100dvh', paddingTop: '5rem' }}>
-            <div className="container" style={{ paddingTop: '2rem', paddingBottom: '7.5rem' }}>
+        <div style={{ background: 'var(--off-white)', minHeight: '100dvh', paddingTop: '4.5rem' }}>
+            <div className="container" style={{ paddingTop: '0.5rem', paddingBottom: '7.5rem' }}>
 
                 {/* Back to dashboard */}
                 <Link to="/dashboard" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: 'var(--gold-dark)', fontWeight: '600', textDecoration: 'none', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
@@ -219,7 +219,7 @@ const ProviderAccount = () => {
                 <div className="provider-account-grid" style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '2rem', alignItems: 'start' }}>
 
                     {/* Sidebar */}
-                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 0.75rem', position: 'sticky', top: '90px' }}>
+                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 0.75rem', position: 'sticky', top: 'calc(90px + env(safe-area-inset-top, 0px))' }}>
                         <p style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0 0.5rem', marginBottom: '0.5rem' }}>Your account</p>
                         {sidebarItems.map(item => (
                             <button key={item.id} onClick={() => setSection(item.id)} style={sideStyle(item.id)}>

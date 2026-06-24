@@ -273,7 +273,7 @@ const ProviderProfilePage = () => {
                     </div>
 
                     {/* Right — provider info card */}
-                    <div className="provider-profile-sidebar" style={{ position: 'sticky', top: '100px' }}>
+                    <div className="provider-profile-sidebar" style={{ position: 'sticky', top: 'calc(100px + env(safe-area-inset-top, 0px))' }}>
                         <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1rem' }}>
                             <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem' }}>About</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
