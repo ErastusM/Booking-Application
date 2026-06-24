@@ -53,7 +53,9 @@ const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
 // Full-width, photo-rich card for the vertical "Discover" feed. The photo carousel owns
 // the horizontal axis here (the feed scrolls vertically), so per-card swipe works cleanly.
 const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
-    const photos = (p.photos && p.photos.length) ? p.photos : (p.coverImage ? [p.coverImage] : []);
+    // Cap the swipeable gallery at five photos — keeps the carousel tight and matches
+    // the "five business photos" spec for the discovery card.
+    const photos = ((p.photos && p.photos.length) ? p.photos : (p.coverImage ? [p.coverImage] : [])).slice(0, 5);
     const initial = (p.businessName || p.name || '?').charAt(0).toUpperCase();
     const loc = p.location || p.businessProfile?.address || 'Namibia';
     return (

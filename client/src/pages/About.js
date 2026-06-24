@@ -1,6 +1,7 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { ShieldCheck, CalendarCheck, Clock, Zap, ArrowRight } from 'lucide-react';
+import { useAuthContext } from '../context/AuthContext';
 
 const features = [
     { Icon: ShieldCheck, title: 'Trusted professionals', description: 'Top-rated providers across beauty, wellness, automotive, training and more.' },
@@ -10,6 +11,8 @@ const features = [
 ];
 
 const About = () => {
+    const { user } = useAuthContext();
+    const isProvider = user?.role === 'provider';
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
             {/* Hero */}
@@ -38,7 +41,7 @@ const About = () => {
             <section style={{ background: 'var(--card-bg)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: 'clamp(3rem, 7vh, 5rem) 0' }}>
                 <div className="container">
                     <div style={{ textAlign: 'center', marginBottom: '2.75rem' }}>
-                        <p style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Why Bookplus</p>
+                        <p style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Why us</p>
                         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.7rem, 4vw, 2.6rem)', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Booking, done beautifully</h2>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '1.25rem' }}>
@@ -58,10 +61,16 @@ const About = () => {
             {/* CTA */}
             <section style={{ padding: 'clamp(3rem, 7vh, 5rem) 0', textAlign: 'center' }}>
                 <div className="container" style={{ maxWidth: '560px' }}>
-                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.6rem, 4vw, 2.4rem)', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 1rem' }}>Find your next appointment</h2>
-                    <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', lineHeight: 1.6, margin: '0 0 2rem' }}>Browse trusted local businesses and book in seconds.</p>
-                    <Link to="/services" className="btn-primary" style={{ fontSize: '1rem', padding: '0.9rem 2.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-                        Browse providers <ArrowRight size={18} strokeWidth={2} />
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.6rem, 4vw, 2.4rem)', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 1rem' }}>
+                        {isProvider ? 'Grow your business with Bookplus' : 'Find your next appointment'}
+                    </h2>
+                    <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', lineHeight: 1.6, margin: '0 0 2rem' }}>
+                        {isProvider
+                            ? 'Manage your bookings, clients and calendar from one elegant workspace.'
+                            : 'Browse trusted local businesses and book in seconds.'}
+                    </p>
+                    <Link to={user ? (isProvider ? '/dashboard' : '/services') : '/register'} className="btn-primary" style={{ fontSize: '1rem', padding: '0.9rem 2.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                        {user ? (isProvider ? 'Go to dashboard' : 'Browse providers') : 'Get started'} <ArrowRight size={18} strokeWidth={2} />
                     </Link>
                 </div>
             </section>
