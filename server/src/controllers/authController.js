@@ -417,6 +417,14 @@ exports.updateProfile = async (req, res) => {
             user.businessProfile.address = address.trim();
         }
 
+        // Let providers rename their business after onboarding — this is the name shown
+        // in search and on cards (falls back to their personal name when blank).
+        if (user.role === 'provider' && req.body.businessName !== undefined) {
+            if (!user.businessProfile) user.businessProfile = {};
+            user.businessProfile.businessName = req.body.businessName.trim();
+            user.markModified('businessProfile');
+        }
+
         if (user.role === 'provider' && providerCategory !== undefined) {
             if (!MAIN_CATEGORIES.includes(providerCategory)) {
                 return res.status(400).json({

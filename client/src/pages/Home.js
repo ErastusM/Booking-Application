@@ -155,14 +155,6 @@ const Home = () => {
         }
     };
 
-    const sections = useMemo(() => {
-        const featured = [...providers].filter(p => p.avgRating).sort((a, b) => b.avgRating - a.avgRating).slice(0, 10);
-        const newest = [...providers].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 10);
-        const trending = [...providers].filter(p => p.reviewCount > 0).sort((a, b) => b.reviewCount - a.reviewCount).slice(0, 10);
-        const saved = providers.filter(p => favSet.has(String(p._id)));
-        return { saved, featured, newest, trending };
-    }, [providers, favSet]);
-
     // Vertical "Discover" feed ranking: rating is primary, likes give a small capped
     // boost, and providers with no rating yet get a neutral score so they're not buried
     // on day one.
@@ -214,62 +206,34 @@ const Home = () => {
                 </div>
             </section>
 
-            {/* ── Discovery feed ── */}
-            <section style={{ paddingBottom: '3.5rem' }}>
+            {/* ── Discover feed (vertical, photo-rich) — the primary home feed ── */}
+            <section style={{ paddingTop: '0.5rem', paddingBottom: '3.5rem' }}>
                 <div className="container">
-                    {loading ? (
-                        <div style={{ display: 'flex', gap: '1rem', overflow: 'hidden' }}>
-                            {[0, 1, 2, 3, 4].map(i => (
-                                <div key={i} style={{ flex: '0 0 200px' }}>
-                                    <div style={{ height: '140px', background: 'var(--warm-gray)', borderRadius: 'var(--radius-lg, 16px)', marginBottom: '0.6rem' }} />
-                                    <div style={{ height: '12px', width: '70%', background: 'var(--warm-gray)', borderRadius: '6px', marginBottom: '8px' }} />
-                                    <div style={{ height: '10px', width: '45%', background: 'var(--warm-gray)', borderRadius: '6px' }} />
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.4rem' }}>Discover</h2>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 1.5rem' }}>Browse businesses near you — swipe their photos, tap to book.</p>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '540px', margin: '0 auto' }}>
+                        {loading ? (
+                            [0, 1, 2].map(i => (
+                                <div key={i} style={{ borderRadius: '18px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                                    <div style={{ aspectRatio: '4 / 3', background: 'var(--warm-gray)' }} />
+                                    <div style={{ padding: '0.85rem 1.1rem 1.05rem' }}>
+                                        <div style={{ height: '14px', width: '60%', background: 'var(--warm-gray)', borderRadius: '6px', marginBottom: '8px' }} />
+                                        <div style={{ height: '10px', width: '40%', background: 'var(--warm-gray)', borderRadius: '6px' }} />
+                                    </div>
                                 </div>
-                            ))}
-                        </div>
-                    ) : providers.length === 0 ? (
-                        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                            <p style={{ margin: 0, fontSize: '0.95rem' }}>New providers are joining soon. Check back shortly.</p>
-                        </div>
-                    ) : (
-                        [
-                            { title: 'Saved', items: sections.saved, badge: null },
-                            { title: 'Featured', items: sections.featured, badge: 'Featured' },
-                            { title: 'New on Bookplus', items: sections.newest, badge: 'New' },
-                            { title: 'Trending', items: sections.trending, badge: null },
-                        ].filter(row => row.items.length > 0).map(row => (
-                            <div key={row.title} style={{ marginBottom: '2.5rem' }}>
-                                <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '1rem', gap: '1rem' }}>
-                                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>{row.title}</h2>
-                                    <Link to="/services" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: 'var(--gold-dark)', fontWeight: '600', fontSize: '0.9rem', textDecoration: 'none', whiteSpace: 'nowrap' }}>
-                                        View all <ArrowRight size={15} strokeWidth={2} />
-                                    </Link>
-                                </div>
-                                <div className="discovery-row">
-                                    {row.items.map(p => (
-                                        <ProviderCard key={p._id} p={p} badge={row.badge} isFav={favSet.has(String(p._id))} onToggleFav={toggleFav} />
-                                    ))}
-                                </div>
+                            ))
+                        ) : providers.length === 0 ? (
+                            <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                <p style={{ margin: 0, fontSize: '0.95rem' }}>New providers are joining soon. Check back shortly.</p>
                             </div>
-                        ))
-                    )}
+                        ) : (
+                            discoverFeed.map(p => (
+                                <FeedCard key={p._id} p={p} isFav={favSet.has(String(p._id))} likeCount={p.likesCount || 0} onToggleFav={toggleFav} />
+                            ))
+                        )}
+                    </div>
                 </div>
             </section>
-
-            {/* ── Discover feed (vertical, photo-rich) ── */}
-            {!loading && providers.length > 0 && (
-                <section style={{ paddingBottom: '3.5rem' }}>
-                    <div className="container">
-                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.4rem' }}>Discover</h2>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 1.5rem' }}>Browse businesses near you — swipe their photos, tap to book.</p>
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '540px', margin: '0 auto' }}>
-                            {discoverFeed.map(p => (
-                                <FeedCard key={p._id} p={p} isFav={favSet.has(String(p._id))} likeCount={p.likesCount || 0} onToggleFav={toggleFav} />
-                            ))}
-                        </div>
-                    </div>
-                </section>
-            )}
 
             {/* ── Why Bookplus ── */}
             <section style={{ background: 'var(--card-bg)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: 'clamp(3rem, 7vh, 5rem) 0' }}>

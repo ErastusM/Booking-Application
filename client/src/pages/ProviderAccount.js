@@ -59,7 +59,7 @@ const ProviderAccount = () => {
     }, [user]);
 
     // Profile
-    const [profileForm, setProfileForm] = useState({ name: user?.name || '', phone: user?.phone || '', address: user?.businessProfile?.address || '' });
+    const [profileForm, setProfileForm] = useState({ name: user?.name || '', phone: user?.phone || '', address: user?.businessProfile?.address || '', businessName: user?.businessProfile?.businessName || '' });
     const [avatarUploading, setAvatarUploading] = useState(false);
     const [profileSaving, setProfileSaving] = useState(false);
     const [profileMsg, setProfileMsg] = useState('');
@@ -272,6 +272,11 @@ const ProviderAccount = () => {
                                         )}
 
                                         <form onSubmit={handleProfileSave} style={{ marginTop: '1.5rem', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Business name</label>
+                                                <input value={profileForm.businessName} onChange={e => setProfileForm(p => ({ ...p, businessName: e.target.value }))} className="input" placeholder="e.g. Vibe Barbershop" />
+                                                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.3rem 0 0' }}>This is the name customers see in search and on your card.</p>
+                                            </div>
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Full Name</label>
                                                 <input value={profileForm.name} onChange={e => setProfileForm(p => ({ ...p, name: e.target.value }))} className="input" />
