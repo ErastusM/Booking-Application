@@ -93,7 +93,7 @@ const Navbar = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }} className="hidden-mobile">
                     {navLink('/', 'Home')}
                     {navLink('/services', 'Services')}
-                    {navLink('/about', 'About')}
+                    {navLink('/about', 'About us')}
                     {activeRole === 'customer' && navLink('/book-appointment', 'Book')}
                     {activeRole === 'customer' && navLink('/appointments', 'Appointments')}
                     {activeRole === 'customer' && navLink('/wallet', 'Wallet')}

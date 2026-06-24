@@ -16,6 +16,7 @@ const Footer = () => {
                     © {new Date().getFullYear()} Bookplus · Made in Namibia
                 </div>
                 <nav style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', alignItems: 'center' }}>
+                    <Link to="/about" style={linkStyle}>About us</Link>
                     <Link to="/privacy-policy" style={linkStyle}>Privacy Policy</Link>
                     <Link to="/terms" style={linkStyle}>Terms of Service</Link>
                     <a href="mailto:info@bookplus.pro" style={linkStyle}>info@bookplus.pro</a>
