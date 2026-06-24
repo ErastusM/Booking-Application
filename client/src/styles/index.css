@@ -2,6 +2,14 @@
 
 @keyframes spin { to { transform: rotate(360deg); } }
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
+/* Double-tap "like" heart burst on discovery feed cards */
+@keyframes heartBurst {
+  0%   { transform: scale(0);    opacity: 0; }
+  15%  { transform: scale(1.15); opacity: 0.95; }
+  60%  { transform: scale(1);    opacity: 0.9; }
+  100% { transform: scale(1.05); opacity: 0; }
+}
+.heart-burst { animation: heartBurst 0.75s ease-out forwards; filter: drop-shadow(0 4px 14px rgba(0,0,0,0.35)); }
 @keyframes slideUp { from { transform: translateY(16px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
 
 @tailwind base;

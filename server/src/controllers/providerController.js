@@ -87,7 +87,7 @@ exports.getProviderProfile = async (req, res) => {
         const provider = await User.findOne({
             _id: req.params.id,
             role: 'provider',
-        }).select('name avatar providerCategory businessProfile');
+        }).select('name avatar providerCategory businessProfile portfolio phone email');
 
         if (!provider) {
             return res.status(404).json({ success: false, message: 'Provider not found' });
@@ -146,6 +146,12 @@ exports.getProviderProfile = async (req, res) => {
                     providerCategory: provider.providerCategory || null,
                     businessProfile: provider.businessProfile || null,
                     address: provider.businessProfile?.address || '',
+                    // Contact + visual fields for the social-style profile page
+                    phone: provider.phone || '',
+                    email: provider.email || '',
+                    photos: (provider.portfolio?.images || []).slice(0, 10),
+                    instagramUrl: provider.portfolio?.instagramUrl || '',
+                    likesCount: Math.max(0, provider.businessProfile?.likesCount || 0),
                     avgRating,
                     reviewCount,
                     serviceCount: services.length,

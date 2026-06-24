@@ -2,9 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { providerMarketService, availabilityService, authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
-import { cloudinaryAvatar } from '../utils/cloudinary';
+import { cloudinaryAvatar, cloudinaryThumb } from '../utils/cloudinary';
 import { mapsUrl } from '../utils/maps';
 import WalletTopUpModal from '../components/WalletTopUpModal';
+import { Phone, MessageCircle, Mail, MapPin, ChevronLeft, ChevronRight, X } from 'lucide-react';
 
 const StarDisplay = ({ rating }) => (
     <div style={{ display: 'flex', gap: '2px' }}>
@@ -13,6 +14,10 @@ const StarDisplay = ({ rating }) => (
         ))}
     </div>
 );
+
+const contactRowStyle = { display: 'flex', alignItems: 'center', gap: '0.6rem', textDecoration: 'none', color: 'var(--text-secondary)', fontSize: '0.85rem', fontWeight: '500' };
+const contactIconStyle = { width: '28px', height: '28px', borderRadius: '8px', background: 'var(--surface-sunken)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 };
+const lightboxBtnStyle = (pos) => ({ position: 'absolute', ...pos, top: pos.top || '50%', transform: pos.top ? 'none' : 'translateY(-50%)', width: '44px', height: '44px', borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.15)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(4px)' });
 
 const ProviderProfilePage = () => {
     const { id } = useParams();
@@ -24,6 +29,7 @@ const ProviderProfilePage = () => {
     const [schedule, setSchedule] = useState(null);
     const [blocked, setBlocked] = useState(false);
     const [showTopUp, setShowTopUp] = useState(false);
+    const [lightbox, setLightbox] = useState(-1); // index of the full-screen photo, -1 = closed
 
     useEffect(() => {
         if (!user) return;
@@ -60,6 +66,19 @@ const ProviderProfilePage = () => {
             .then(res => setSchedule(res.data.data.schedule))
             .catch(() => {});
     }, [id]);
+
+    // Keyboard control for the full-screen photo gallery
+    useEffect(() => {
+        if (lightbox < 0) return;
+        const total = data?.provider?.photos?.length || 0;
+        const onKey = (e) => {
+            if (e.key === 'Escape') setLightbox(-1);
+            else if (e.key === 'ArrowRight') setLightbox(i => Math.min(i + 1, total - 1));
+            else if (e.key === 'ArrowLeft') setLightbox(i => Math.max(i - 1, 0));
+        };
+        window.addEventListener('keydown', onKey);
+        return () => window.removeEventListener('keydown', onKey);
+    }, [lightbox, data]);
 
     const getInitials = (name) => name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?';
 
@@ -100,6 +119,7 @@ const ProviderProfilePage = () => {
     if (!data) return null;
 
     const { provider, categories, reviews } = data;
+    const photos = provider.photos || [];
     const businessName = provider.businessProfile?.businessName || provider.name;
     const address = provider.address || provider.businessProfile?.address || '';
     const categoryKeys = Object.keys(categories);
@@ -162,11 +182,29 @@ const ProviderProfilePage = () => {
                                 <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem' }}>
                                     {provider.serviceCount} service{provider.serviceCount !== 1 ? 's' : ''}
                                 </span>
+                                {provider.likesCount > 0 && (
+                                    <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                                        ❤️ {provider.likesCount} like{provider.likesCount !== 1 ? 's' : ''}
+                                    </span>
+                                )}
                             </div>
                         </div>
                     </div>
                 </div>
             </div>
+
+            {/* Photo gallery — tap any photo for the full-screen viewer */}
+            {photos.length > 0 && (
+                <div className="container" style={{ paddingTop: '1.5rem' }}>
+                    <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', scrollSnapType: 'x mandatory', paddingBottom: '0.35rem' }}>
+                        {photos.map((src, i) => (
+                            <button key={i} type="button" onClick={() => setLightbox(i)} aria-label={`View photo ${i + 1}`} style={{ flex: '0 0 auto', border: 'none', padding: 0, cursor: 'pointer', borderRadius: '14px', overflow: 'hidden', background: 'var(--warm-gray)', scrollSnapAlign: 'start', boxShadow: 'var(--shadow-sm)' }}>
+                                <img src={cloudinaryThumb(src, 700)} alt={`${businessName} photo ${i + 1}`} loading="lazy" decoding="async" style={{ height: '230px', width: 'auto', maxWidth: '360px', objectFit: 'cover', display: 'block' }} />
+                            </button>
+                        ))}
+                    </div>
+                </div>
+            )}
 
             <div className="container" style={{ paddingTop: '2rem', paddingBottom: '5rem' }}>
                 <div className="provider-profile-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '2rem', alignItems: 'start' }}>
@@ -294,6 +332,39 @@ const ProviderProfilePage = () => {
                             )}
                         </div>
 
+                        {/* Contact */}
+                        {(provider.phone || provider.email || address) && (
+                            <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1rem' }}>
+                                <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem' }}>Contact</h3>
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
+                                    {provider.phone && (
+                                        <a href={`tel:${provider.phone}`} style={contactRowStyle}>
+                                            <span style={contactIconStyle}><Phone size={15} /></span>
+                                            <span>{provider.phone}</span>
+                                        </a>
+                                    )}
+                                    {provider.phone && (
+                                        <a href={`https://wa.me/${provider.phone.replace(/\D/g, '')}`} target="_blank" rel="noopener noreferrer" style={contactRowStyle}>
+                                            <span style={{ ...contactIconStyle, background: 'rgba(37,211,102,0.12)', color: '#1f9d57' }}><MessageCircle size={15} /></span>
+                                            <span>WhatsApp</span>
+                                        </a>
+                                    )}
+                                    {provider.email && (
+                                        <a href={`mailto:${provider.email}`} style={contactRowStyle}>
+                                            <span style={contactIconStyle}><Mail size={15} /></span>
+                                            <span style={{ wordBreak: 'break-all' }}>{provider.email}</span>
+                                        </a>
+                                    )}
+                                    {address && (
+                                        <a href={mapsUrl(address)} target="_blank" rel="noopener noreferrer" style={contactRowStyle}>
+                                            <span style={contactIconStyle}><MapPin size={15} /></span>
+                                            <span>{address}</span>
+                                        </a>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Recent reviews */}
                         {reviews.length > 0 && (
                             <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
@@ -323,6 +394,21 @@ const ProviderProfilePage = () => {
                     onClose={() => setShowTopUp(false)}
                     onDone={() => setShowTopUp(false)}
                 />
+            )}
+
+            {/* Full-screen photo gallery */}
+            {lightbox >= 0 && photos[lightbox] && (
+                <div onClick={() => setLightbox(-1)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                    <button onClick={(e) => { e.stopPropagation(); setLightbox(-1); }} aria-label="Close" style={lightboxBtnStyle({ top: '1rem', right: '1rem' })}><X size={22} /></button>
+                    {lightbox > 0 && (
+                        <button onClick={(e) => { e.stopPropagation(); setLightbox(i => i - 1); }} aria-label="Previous photo" style={lightboxBtnStyle({ left: '0.75rem' })}><ChevronLeft size={26} /></button>
+                    )}
+                    <img src={cloudinaryThumb(photos[lightbox], 1400)} alt={`${businessName} photo ${lightbox + 1}`} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '92vw', maxHeight: '86vh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 12px 48px rgba(0,0,0,0.5)' }} />
+                    {lightbox < photos.length - 1 && (
+                        <button onClick={(e) => { e.stopPropagation(); setLightbox(i => i + 1); }} aria-label="Next photo" style={lightboxBtnStyle({ right: '0.75rem' })}><ChevronRight size={26} /></button>
+                    )}
+                    <div style={{ position: 'absolute', bottom: '1.1rem', left: '50%', transform: 'translateX(-50%)', color: 'rgba(255,255,255,0.85)', fontSize: '0.8rem', fontWeight: '600', background: 'rgba(0,0,0,0.4)', padding: '0.25rem 0.75rem', borderRadius: '99px' }}>{lightbox + 1} / {photos.length}</div>
+                </div>
             )}
         </div>
     );
