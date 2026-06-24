@@ -112,6 +112,17 @@ const Home = () => {
     const [providers, setProviders] = useState([]);
     const [favorites, setFavorites] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [scrolled, setScrolled] = useState(false);
+
+    // Collapse the hero copy as soon as the user starts scrolling, leaving just the
+    // navbar + sticky search over the feed. Hysteresis (collapse past 48px, expand
+    // again under 8px) keeps it from flickering as the copy's height animates away.
+    useEffect(() => {
+        const onScroll = () => setScrolled(prev => (prev ? window.scrollY > 8 : window.scrollY > 48));
+        window.addEventListener('scroll', onScroll, { passive: true });
+        onScroll();
+        return () => window.removeEventListener('scroll', onScroll);
+    }, []);
 
     useEffect(() => {
         providerMarketService.getAllProviders()
@@ -166,20 +177,42 @@ const Home = () => {
     return (
         <div style={{ background: 'var(--off-white)' }}>
 
-            {/* ── Hero ── */}
-            <section style={{ position: 'relative', overflow: 'hidden', background: 'var(--off-white)', paddingTop: 'clamp(7rem, 15vh, 11rem)', paddingBottom: 'clamp(2.5rem, 6vh, 4.5rem)' }}>
-                <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'radial-gradient(62% 48% at 50% -2%, rgba(201,168,76,0.16), transparent 72%)', pointerEvents: 'none' }} />
+            {/* ── Hero copy — collapses away once the user starts scrolling ── */}
+            <section style={{ position: 'relative', overflow: 'hidden', background: 'var(--off-white)', paddingTop: 'clamp(7rem, 15vh, 11rem)', paddingBottom: 0 }}>
+                <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'radial-gradient(62% 48% at 50% -2%, rgba(201,168,76,0.16), transparent 72%)', opacity: scrolled ? 0 : 1, transition: 'opacity 0.3s ease', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative', textAlign: 'center', maxWidth: '860px', marginLeft: 'auto', marginRight: 'auto' }}>
-                    <p className="fade-up" style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '1.1rem' }}>Premium booking, simplified</p>
-                    <h1 className="fade-up fade-up-delay-1" style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.6rem, 6.2vw, 4.6rem)', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1.05, letterSpacing: '-0.02em', margin: '0 0 1.25rem' }}>
-                        Book trusted <span style={{ color: 'var(--gold)' }}>local services</span>
-                    </h1>
-                    <p className="fade-up fade-up-delay-2" style={{ color: 'var(--text-secondary)', fontSize: 'clamp(1rem, 2vw, 1.2rem)', lineHeight: 1.65, maxWidth: '620px', margin: '0 auto 2rem' }}>
-                        Discover top-rated providers for beauty, wellness, automotive, training and more — booked in seconds, on your schedule.
-                    </p>
+                    <div style={{
+                        overflow: 'hidden',
+                        maxHeight: scrolled ? 0 : '520px',
+                        opacity: scrolled ? 0 : 1,
+                        transform: scrolled ? 'translateY(-14px)' : 'none',
+                        transition: 'max-height 0.45s ease, opacity 0.3s ease, transform 0.45s ease',
+                        pointerEvents: scrolled ? 'none' : 'auto',
+                    }}>
+                        <p className="fade-up" style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '1.1rem' }}>Premium booking, simplified</p>
+                        <h1 className="fade-up fade-up-delay-1" style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.6rem, 6.2vw, 4.6rem)', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1.05, letterSpacing: '-0.02em', margin: '0 0 1.25rem' }}>
+                            Book trusted <span style={{ color: 'var(--gold)' }}>local services</span>
+                        </h1>
+                        <p className="fade-up fade-up-delay-2" style={{ color: 'var(--text-secondary)', fontSize: 'clamp(1rem, 2vw, 1.2rem)', lineHeight: 1.65, maxWidth: '620px', margin: '0 auto 0.5rem' }}>
+                            Discover top-rated providers for beauty, wellness, automotive, training and more — booked in seconds, on your schedule.
+                        </p>
+                    </div>
+                </div>
+            </section>
 
-                    {/* Search */}
-                    <form onSubmit={handleSearch} className="fade-up fade-up-delay-3" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '999px', padding: '0.4rem 0.4rem 0.4rem 1.25rem', boxShadow: '0 10px 34px rgba(26,26,46,0.12)', maxWidth: '560px', margin: '0 auto' }}>
+            {/* ── Sticky search — stays pinned just under the navbar while the feed scrolls ── */}
+            <div style={{
+                position: 'sticky', top: '64px', zIndex: 100,
+                background: 'var(--off-white)',
+                paddingTop: scrolled ? '0.7rem' : '1.25rem',
+                paddingBottom: scrolled ? '0.7rem' : '0.5rem',
+                borderBottom: '1px solid',
+                borderColor: scrolled ? 'var(--border)' : 'transparent',
+                boxShadow: scrolled ? 'var(--shadow-sm)' : 'none',
+                transition: 'padding 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease',
+            }}>
+                <div className="container" style={{ maxWidth: '560px', marginLeft: 'auto', marginRight: 'auto' }}>
+                    <form onSubmit={handleSearch} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '999px', padding: '0.4rem 0.4rem 0.4rem 1.25rem', boxShadow: scrolled ? 'none' : '0 10px 34px rgba(26,26,46,0.12)', transition: 'box-shadow 0.3s ease' }}>
                         <Search size={19} strokeWidth={2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                         <input
                             value={query}
@@ -190,16 +223,23 @@ const Home = () => {
                         />
                         <button type="submit" className="btn-primary" style={{ borderRadius: '999px', padding: '0.7rem 1.6rem', flexShrink: 0 }}>Search</button>
                     </form>
-
-                    {/* Social proof */}
-                    <div className="fade-up fade-up-delay-3" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', marginTop: '1.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                        <span style={{ display: 'inline-flex', gap: '1px' }}>
-                            {[0, 1, 2, 3, 4].map(i => <Star key={i} size={14} fill="#c9a84c" strokeWidth={0} />)}
+                    {/* Social proof — fades out with the rest of the wording on scroll */}
+                    <div style={{
+                        textAlign: 'center', overflow: 'hidden',
+                        maxHeight: scrolled ? 0 : '40px',
+                        opacity: scrolled ? 0 : 1,
+                        marginTop: scrolled ? 0 : '1rem',
+                        transition: 'max-height 0.4s ease, opacity 0.3s ease, margin-top 0.4s ease',
+                    }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                            <span style={{ display: 'inline-flex', gap: '1px' }}>
+                                {[0, 1, 2, 3, 4].map(i => <Star key={i} size={14} fill="#c9a84c" strokeWidth={0} />)}
+                            </span>
+                            Loved by clients across Namibia
                         </span>
-                        Loved by clients across Namibia
                     </div>
                 </div>
-            </section>
+            </div>
 
             {/* ── Discover feed (vertical, photo-rich) — the primary home feed ── */}
             <section style={{ paddingTop: '0.5rem', paddingBottom: '3.5rem' }}>

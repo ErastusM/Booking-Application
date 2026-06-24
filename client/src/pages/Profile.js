@@ -2,20 +2,77 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
+import { cloudinaryAvatar } from '../utils/cloudinary';
 import PushToggle from '../components/PushToggle';
 import AccountDangerZone from '../components/AccountDangerZone';
+import { User, Lock, Bell, Globe, Info, Sun, Moon, Calendar, HelpCircle, ChevronRight, LogOut } from 'lucide-react';
+
+// ── Shared bits for the settings list ──────────────────────────────────────
+const iconTileStyle = {
+    width: '32px', height: '32px', borderRadius: '9px', background: 'var(--surface-sunken)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-secondary)', flexShrink: 0,
+};
+const fieldLabelStyle = { display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.35rem', letterSpacing: '0.04em', textTransform: 'uppercase' };
+const hintStyle = { fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem' };
+const okMsg = { background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '0.6rem 0.85rem', borderRadius: 'var(--radius-sm)', marginBottom: '0.85rem', fontSize: '0.85rem' };
+const errMsg = { background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.6rem 0.85rem', borderRadius: 'var(--radius-sm)', marginBottom: '0.85rem', fontSize: '0.85rem' };
+const panelStyle = { background: 'var(--surface-sunken)', borderBottom: '1px solid var(--border)', padding: '1.1rem 1.25rem' };
+
+const SectionLabel = ({ children }) => (
+    <p style={{ fontSize: '0.72rem', fontWeight: '700', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', margin: '0 0 0.6rem 0.4rem' }}>{children}</p>
+);
+
+const Card = ({ children, style }) => (
+    <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', marginBottom: '1.5rem', ...style }}>{children}</div>
+);
+
+const SettingRow = ({ icon: Icon, label, value, onClick, trailing, isLast, danger }) => {
+    const content = (
+        <>
+            <span style={iconTileStyle}><Icon size={17} strokeWidth={2} /></span>
+            <span style={{ flex: 1, textAlign: 'left', fontSize: '0.92rem', fontWeight: '500', color: danger ? '#dc2626' : 'var(--charcoal)' }}>{label}</span>
+            {value != null && <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{value}</span>}
+            {trailing === undefined ? (onClick ? <ChevronRight size={18} style={{ color: 'var(--text-muted)', flexShrink: 0 }} /> : null) : trailing}
+        </>
+    );
+    const baseStyle = {
+        display: 'flex', alignItems: 'center', gap: '0.85rem', width: '100%',
+        padding: '0.95rem 1.1rem', background: 'none', border: 'none',
+        borderBottom: isLast ? 'none' : '1px solid var(--border)',
+        textAlign: 'left', fontFamily: 'var(--font-body)', color: 'var(--charcoal)', transition: 'background 0.15s',
+    };
+    if (!onClick) return <div style={baseStyle}>{content}</div>;
+    return (
+        <button
+            type="button"
+            onClick={onClick}
+            style={{ ...baseStyle, cursor: 'pointer' }}
+            onMouseEnter={e => { e.currentTarget.style.background = 'var(--surface-sunken)'; }}
+            onMouseLeave={e => { e.currentTarget.style.background = 'none'; }}
+        >{content}</button>
+    );
+};
 
 const Profile = () => {
-    const { user, setUser, switchRole } = useAuthContext();
+    const { user, setUser, switchRole, logout } = useAuthContext();
+    const { darkMode, toggleDarkMode } = useTheme();
     const navigate = useNavigate();
-    const [formData, setFormData] = useState({
-        name: user?.name || '',
-        phone: user?.phone || '',
-        avatar: user?.avatar || '',
-    });
+
+    // Which inline panel is expanded ('profile' | 'password' | 'notifications' | null)
+    const [open, setOpen] = useState(null);
+    const toggleOpen = (key) => setOpen(o => (o === key ? null : key));
+
+    // Profile edit form
+    const [formData, setFormData] = useState({ name: user?.name || '', phone: user?.phone || '', avatar: user?.avatar || '' });
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState('');
     const [error, setError] = useState('');
+
+    // Change-password form
+    const [pw, setPw] = useState({ currentPassword: '', newPassword: '', confirm: '' });
+    const [pwBusy, setPwBusy] = useState(false);
+    const [pwMsg, setPwMsg] = useState({ type: '', text: '' });
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -24,13 +81,11 @@ const Profile = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        setLoading(true);
-        setSuccess('');
-        setError('');
+        setLoading(true); setSuccess(''); setError('');
         try {
             const response = await authService.updateProfile(formData);
             setUser(response.data.data);
-            setSuccess('Profile updated successfully!');
+            setSuccess('Profile updated successfully.');
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to update profile');
         } finally {
@@ -38,208 +93,163 @@ const Profile = () => {
         }
     };
 
-    const getInitials = (name) => name
-        ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2)
-        : '?';
-
-    const roleColors = {
-        admin: { bg: '#fef3c7', color: '#92400e' },
-        provider: { bg: '#dbeafe', color: '#1e40af' },
-        customer: { bg: '#d1fae5', color: '#065f46' },
+    const submitPassword = async (e) => {
+        e.preventDefault();
+        if (pw.newPassword !== pw.confirm) { setPwMsg({ type: 'error', text: 'New passwords do not match.' }); return; }
+        setPwBusy(true); setPwMsg({ type: '', text: '' });
+        try {
+            const res = await authService.changePassword({ currentPassword: pw.currentPassword, newPassword: pw.newPassword });
+            setPwMsg({ type: 'success', text: res.data?.message || 'Password updated successfully.' });
+            setPw({ currentPassword: '', newPassword: '', confirm: '' });
+        } catch (err) {
+            setPwMsg({ type: 'error', text: err.response?.data?.message || 'Could not update password' });
+        } finally {
+            setPwBusy(false);
+        }
     };
-    const roleStyle = roleColors[user?.role] || roleColors.customer;
+
+    const handleLogout = () => { logout(); navigate('/'); };
+
+    const getInitials = (name) => name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?';
+
+    const chevronFor = (key) => (
+        <ChevronRight size={18} style={{ color: 'var(--text-muted)', flexShrink: 0, transform: open === key ? 'rotate(90deg)' : 'none', transition: 'transform 0.18s' }} />
+    );
 
     return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+        <div style={{ background: 'var(--off-white)', minHeight: '100dvh', paddingBottom: '5rem' }}>
 
-            {/* Header */}
-            <div style={{
-                background: 'var(--ink)',
-                paddingTop: '9rem',
-                paddingBottom: '3rem',
-                position: 'relative',
-                overflow: 'hidden',
-            }}>
-                <div style={{
-                    position: 'absolute', inset: 0,
-                    backgroundImage: 'radial-gradient(ellipse at 30% 50%, rgba(201,168,76,0.05) 0%, transparent 60%)',
-                    pointerEvents: 'none',
-                }} />
-                <div className="container" style={{ position: 'relative' }}>
-                    <p style={{
-                        color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600',
-                        letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem',
-                    }}>Account</p>
-                    <h1 style={{
-                        fontFamily: 'var(--font-body)',
-                        fontSize: 'clamp(2rem, 4vw, 3rem)',
-                        fontWeight: '700', color: 'white',
-                    }}>
-                        My Profile
-                    </h1>
-                </div>
+            {/* Title */}
+            <div style={{ paddingTop: 'clamp(5.5rem, 12vh, 7rem)', paddingBottom: '1.5rem', textAlign: 'center' }}>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Profile</h1>
             </div>
 
-            <div className="container" style={{ paddingTop: '3rem', paddingBottom: '5rem' }}>
+            <div className="container" style={{ maxWidth: '640px' }}>
 
-                {/* Account mode — keep switching / upgrading discoverable (not buried in the menu) */}
-                {user?.role === 'customer' && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', background: 'var(--card-bg)', border: '1px solid var(--border)', borderLeft: '3px solid var(--gold)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', marginBottom: '2rem' }}>
-                        <div>
-                            <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1.05rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.2rem' }}>Grow your business on Bookplus</h3>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>List your services and take bookings — you keep this customer account too.</p>
+                {/* Header card — avatar, name, email */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', padding: '1.1rem 1.25rem', marginBottom: '1.5rem' }}>
+                    {user?.avatar ? (
+                        <img src={cloudinaryAvatar(user.avatar)} alt={user.name} style={{ width: '54px', height: '54px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--gold)', flexShrink: 0 }} onError={e => { e.target.style.display = 'none'; }} />
+                    ) : (
+                        <div style={{ width: '54px', height: '54px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', fontWeight: '700', color: 'var(--ink)', fontFamily: 'var(--font-body)', flexShrink: 0 }}>
+                            {getInitials(user?.name)}
                         </div>
-                        <button onClick={() => navigate('/become-provider')} className="btn-primary" style={{ padding: '0.7rem 1.5rem', whiteSpace: 'nowrap' }}>Become a provider →</button>
+                    )}
+                    <div style={{ minWidth: 0, flex: 1 }}>
+                        <h2 style={{ fontFamily: 'var(--font-body)', fontSize: '1.05rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name}</h2>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email}</p>
+                    </div>
+                    <span style={{ flexShrink: 0, fontSize: '0.68rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0.2rem 0.6rem', borderRadius: '99px', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark)', border: '1px solid rgba(201,168,76,0.25)' }}>{user?.role}</span>
+                </div>
+
+                {/* Account-mode banner — keep switching / upgrading discoverable */}
+                {user?.role === 'customer' && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', background: 'var(--card-bg)', border: '1px solid var(--border)', borderLeft: '3px solid var(--gold)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', padding: '1.1rem 1.25rem', marginBottom: '1.5rem' }}>
+                        <div>
+                            <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.2rem' }}>Grow your business on Bookplus</h3>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>List your services and take bookings — you keep this customer account too.</p>
+                        </div>
+                        <button onClick={() => navigate('/become-provider')} className="btn-primary" style={{ padding: '0.65rem 1.4rem', whiteSpace: 'nowrap' }}>Become a provider →</button>
                     </div>
                 )}
                 {user?.role === 'provider' && (
-                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', background: 'var(--card-bg)', border: '1px solid var(--border)', borderLeft: '3px solid var(--gold)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', marginBottom: '2rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', background: 'var(--card-bg)', border: '1px solid var(--border)', borderLeft: '3px solid var(--gold)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', padding: '1.1rem 1.25rem', marginBottom: '1.5rem' }}>
                         <div>
-                            <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1.05rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.2rem' }}>You're in customer view</h3>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>Browsing and booking as a customer. Switch back to manage your business.</p>
+                            <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.2rem' }}>You're in customer view</h3>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>Browsing and booking as a customer. Switch back to manage your business.</p>
                         </div>
-                        <button onClick={() => { switchRole('provider'); navigate('/dashboard'); }} className="btn-primary" style={{ padding: '0.7rem 1.5rem', whiteSpace: 'nowrap' }}>Switch to provider view →</button>
+                        <button onClick={() => { switchRole('provider'); navigate('/dashboard'); }} className="btn-primary" style={{ padding: '0.65rem 1.4rem', whiteSpace: 'nowrap' }}>Switch to provider view →</button>
                     </div>
                 )}
 
-                <div className="profile-grid" style={{
-                    display: 'grid',
-                    gridTemplateColumns: '300px 1fr',
-                    gap: '2rem',
-                    alignItems: 'start',
-                }}>
-
-                    {/* Left — avatar card */}
-                    <div className="profile-sticky" style={{
-                        background: 'var(--card-bg)',
-                        borderRadius: 'var(--radius)',
-                        border: '1px solid var(--border)',
-                        boxShadow: 'var(--shadow-sm)',
-                        padding: '2rem',
-                        textAlign: 'center',
-                        position: 'sticky',
-                        top: '100px',
-                    }}>
-                        <div style={{ marginBottom: '1.25rem' }}>
-                            {formData.avatar ? (
-                                <img
-                                    src={formData.avatar}
-                                    alt="Avatar"
-                                    style={{
-                                        width: '96px', height: '96px', borderRadius: '50%',
-                                        objectFit: 'cover', border: '3px solid var(--gold)',
-                                        margin: '0 auto', display: 'block',
-                                    }}
-                                    onError={e => { e.target.style.display = 'none'; }}
-                                />
-                            ) : (
-                                <div style={{
-                                    width: '96px', height: '96px', borderRadius: '50%',
-                                    background: 'var(--gold)', display: 'flex', alignItems: 'center',
-                                    justifyContent: 'center', fontSize: '2rem', fontWeight: '700',
-                                    color: 'var(--charcoal)', margin: '0 auto',
-                                    fontFamily: 'var(--font-body)',
-                                }}>
-                                    {getInitials(user?.name)}
+                {/* ── Account ── */}
+                <SectionLabel>Account</SectionLabel>
+                <Card>
+                    <SettingRow icon={User} label="Manage Profile" onClick={() => toggleOpen('profile')} trailing={chevronFor('profile')} />
+                    {open === 'profile' && (
+                        <div style={panelStyle}>
+                            {success && <div style={okMsg}>{success}</div>}
+                            {error && <div style={errMsg}>{error}</div>}
+                            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                                <div>
+                                    <label style={fieldLabelStyle}>Full name</label>
+                                    <input className="input" type="text" name="name" value={formData.name} onChange={handleChange} required />
                                 </div>
-                            )}
+                                <div>
+                                    <label style={fieldLabelStyle}>Email</label>
+                                    <input className="input" type="email" value={user?.email || ''} disabled style={{ background: 'var(--warm-gray)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
+                                    <p style={hintStyle}>Email address can't be changed.</p>
+                                </div>
+                                <div>
+                                    <label style={fieldLabelStyle}>Phone number</label>
+                                    <input className="input" type="tel" name="phone" value={formData.phone} onChange={handleChange} />
+                                </div>
+                                <div>
+                                    <label style={fieldLabelStyle}>Avatar URL</label>
+                                    <input className="input" type="url" name="avatar" value={formData.avatar} onChange={handleChange} placeholder="https://example.com/photo.jpg" />
+                                    <p style={hintStyle}>Paste a link to your profile photo.</p>
+                                </div>
+                                <button type="submit" disabled={loading} className="btn-primary" style={{ padding: '0.7rem 1.5rem', alignSelf: 'flex-start' }}>{loading ? 'Saving…' : 'Save changes'}</button>
+                            </form>
                         </div>
+                    )}
 
-                        <h2 style={{
-                            fontFamily: 'var(--font-body)', fontSize: '1.3rem',
-                            fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.25rem',
-                        }}>
-                            {user?.name}
-                        </h2>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
-                            {user?.email}
-                        </p>
-                        <span style={{
-                            display: 'inline-block', padding: '0.25rem 0.875rem',
-                            borderRadius: '99px', fontSize: '0.75rem', fontWeight: '600',
-                            textTransform: 'capitalize', background: roleStyle.bg, color: roleStyle.color,
-                        }}>
-                            {user?.role}
-                        </span>
-
-                        {user?.phone && (
-                            <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)' }}>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
-                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>📞</span>
-                                    <span style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{user.phone}</span>
+                    <SettingRow icon={Lock} label="Password & Security" onClick={() => toggleOpen('password')} trailing={chevronFor('password')} />
+                    {open === 'password' && (
+                        <div style={panelStyle}>
+                            {pwMsg.text && <div style={pwMsg.type === 'success' ? okMsg : errMsg}>{pwMsg.text}</div>}
+                            <form onSubmit={submitPassword} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
+                                <div>
+                                    <label style={fieldLabelStyle}>Current password</label>
+                                    <input className="input" type="password" autoComplete="current-password" value={pw.currentPassword} onChange={e => setPw(p => ({ ...p, currentPassword: e.target.value }))} required />
                                 </div>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Right — edit form */}
-                    <div style={{
-                        background: 'var(--card-bg)', borderRadius: 'var(--radius)',
-                        border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '2rem',
-                    }}>
-                        <h2 style={{
-                            fontFamily: 'var(--font-body)', fontSize: '1.3rem',
-                            fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem',
-                        }}>
-                            Edit Information
-                        </h2>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem' }}>
-                            Update your personal details below.
-                        </p>
-
-                        {success && (
-                            <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
-                                {success}
-                            </div>
-                        )}
-                        {error && (
-                            <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
-                                {error}
-                            </div>
-                        )}
-
-                        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
-                            {[
-                                { name: 'name', label: 'Full Name', type: 'text', disabled: false },
-                                { name: 'email', label: 'Email Address', type: 'email', disabled: true, hint: 'Email address cannot be changed.' },
-                                { name: 'phone', label: 'Phone Number', type: 'tel', disabled: false },
-                                { name: 'avatar', label: 'Avatar URL', type: 'url', disabled: false, placeholder: 'https://example.com/photo.jpg', hint: 'Paste a link to your profile photo.' },
-                            ].map(field => (
-                                <div key={field.name}>
-                                    <label style={{
-                                        display: 'block', fontSize: '0.8rem', fontWeight: '600',
-                                        color: 'var(--text-secondary)', marginBottom: '0.5rem',
-                                        letterSpacing: '0.05em', textTransform: 'uppercase',
-                                    }}>{field.label}</label>
-                                    <input
-                                        type={field.type}
-                                        name={field.name}
-                                        value={field.name === 'email' ? user?.email : formData[field.name]}
-                                        onChange={handleChange}
-                                        required={field.name === 'name'}
-                                        disabled={field.disabled}
-                                        placeholder={field.placeholder}
-                                        className="input"
-                                        style={field.disabled ? { background: 'var(--warm-gray)', color: 'var(--text-muted)', cursor: 'not-allowed' } : {}}
-                                    />
-                                    {field.hint && <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>{field.hint}</p>}
+                                <div>
+                                    <label style={fieldLabelStyle}>New password</label>
+                                    <input className="input" type="password" autoComplete="new-password" value={pw.newPassword} onChange={e => setPw(p => ({ ...p, newPassword: e.target.value }))} required />
+                                    <p style={hintStyle}>At least 8 characters, with an uppercase letter, a number and a special character.</p>
                                 </div>
-                            ))}
+                                <div>
+                                    <label style={fieldLabelStyle}>Confirm new password</label>
+                                    <input className="input" type="password" autoComplete="new-password" value={pw.confirm} onChange={e => setPw(p => ({ ...p, confirm: e.target.value }))} required />
+                                </div>
+                                <button type="submit" disabled={pwBusy} className="btn-primary" style={{ padding: '0.7rem 1.5rem', alignSelf: 'flex-start' }}>{pwBusy ? 'Updating…' : 'Update password'}</button>
+                            </form>
+                        </div>
+                    )}
 
-                            <div style={{ paddingTop: '0.5rem' }}>
-                                <button type="submit" disabled={loading} className="btn-primary" style={{ padding: '0.875rem 2.5rem' }}>
-                                    {loading ? 'Saving...' : 'Save Changes →'}
-                                </button>
-                            </div>
-                        </form>
-
-                        <div style={{ borderTop: '1px solid var(--border)', marginTop: '1.5rem', paddingTop: '0.5rem' }}>
+                    <SettingRow icon={Bell} label="Notifications" onClick={() => toggleOpen('notifications')} trailing={chevronFor('notifications')} />
+                    {open === 'notifications' && (
+                        <div style={panelStyle}>
                             <PushToggle />
+                            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
+                                Booking confirmations and reminders are sent to your email by default.
+                            </p>
                         </div>
+                    )}
 
-                        <AccountDangerZone />
-                    </div>
-                </div>
+                    <SettingRow icon={Globe} label="Language" value="English" isLast />
+                </Card>
+
+                {/* ── Preferences ── */}
+                <SectionLabel>Preferences</SectionLabel>
+                <Card>
+                    <SettingRow icon={Info} label="About Us" onClick={() => navigate('/about')} />
+                    <SettingRow icon={darkMode ? Moon : Sun} label="Theme" value={darkMode ? 'Dark' : 'Light'} onClick={toggleDarkMode} />
+                    <SettingRow icon={Calendar} label="Appointments" onClick={() => navigate('/appointments')} isLast />
+                </Card>
+
+                {/* ── Support ── */}
+                <SectionLabel>Support</SectionLabel>
+                <Card>
+                    <SettingRow icon={HelpCircle} label="Help Center" onClick={() => { window.location.href = 'mailto:info@bookplus.pro'; }} isLast />
+                </Card>
+
+                {/* Log out */}
+                <Card>
+                    <SettingRow icon={LogOut} label="Log out" danger onClick={handleLogout} trailing={null} isLast />
+                </Card>
+
+                <AccountDangerZone />
             </div>
         </div>
     );
