@@ -93,6 +93,7 @@ const Navbar = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }} className="hidden-mobile">
                     {navLink('/', 'Home')}
                     {navLink('/services', 'Services')}
+                    {navLink('/about', 'About')}
                     {activeRole === 'customer' && navLink('/book-appointment', 'Book')}
                     {activeRole === 'customer' && navLink('/appointments', 'Appointments')}
                     {activeRole === 'customer' && navLink('/wallet', 'Wallet')}
@@ -302,6 +303,7 @@ const Navbar = () => {
                     <div style={{ flex: 1, padding: '0.6rem 0' }}>
                         {mobileLink('/', 'Home')}
                         {mobileLink('/services', 'Services')}
+                        {mobileLink('/about', 'About us')}
                         {activeRole === 'customer' && mobileLink('/book-appointment', 'Book Appointment')}
                         {activeRole === 'customer' && mobileLink('/appointments', 'My Appointments')}
                         {activeRole === 'customer' && mobileLink('/wallet', 'Wallet')}

@@ -28,6 +28,7 @@ const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
+const About = lazy(() => import('./pages/About'));
 const ManageBooking = lazy(() => import('./pages/ManageBooking'));
 const Wallet = lazy(() => import('./pages/Wallet'));
 
@@ -60,6 +61,7 @@ function AppRoutes() {
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />
                     <Route path="/services" element={<ProvidersPage />} />
+                    <Route path="/about" element={<About />} />
                     <Route path="/providers/:id" element={<ProviderProfilePage />} />
                     <Route path="/auth/callback" element={<AuthCallback />} />
                     <Route path="/verify-email" element={<VerifyEmail />} />

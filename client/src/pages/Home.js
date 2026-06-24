@@ -2,15 +2,8 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { providerMarketService, favoriteService } from '../services';
-import { Search, Star, ShieldCheck, CalendarCheck, Clock, Zap, ArrowRight, Heart, MapPin } from 'lucide-react';
+import { Search, Star, ArrowRight, Heart, MapPin } from 'lucide-react';
 import { cloudinaryThumb } from '../utils/cloudinary';
-
-const features = [
-    { Icon: ShieldCheck, title: 'Trusted professionals', description: 'Top-rated providers across beauty, wellness, automotive, training and more.' },
-    { Icon: CalendarCheck, title: 'Book in seconds', description: 'Pick a time and confirm instantly — no phone calls, no waiting rooms.' },
-    { Icon: Clock, title: 'On your schedule', description: 'Early mornings or late evenings, find a slot that fits your day.' },
-    { Icon: Zap, title: 'Instant confirmation', description: 'Real-time confirmations and reminders, straight to your inbox.' },
-];
 
 const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
     const cover = p.coverImage || p.avatar || null;
@@ -235,26 +228,6 @@ const Home = () => {
                 </div>
             </section>
 
-            {/* ── Why Bookplus ── */}
-            <section style={{ background: 'var(--card-bg)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: 'clamp(3rem, 7vh, 5rem) 0' }}>
-                <div className="container">
-                    <div style={{ textAlign: 'center', marginBottom: '2.75rem' }}>
-                        <p style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Why Bookplus</p>
-                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.7rem, 4vw, 2.6rem)', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Booking, done beautifully</h2>
-                    </div>
-                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '1.25rem' }}>
-                        {features.map(({ Icon, title, description }, i) => (
-                            <div key={i} style={{ background: 'var(--off-white)', borderRadius: 'var(--radius-lg, 18px)', border: '1px solid var(--border)', padding: '1.75rem' }}>
-                                <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.1rem' }}>
-                                    <Icon size={22} strokeWidth={2} />
-                                </div>
-                                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.5rem' }}>{title}</h3>
-                                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.65, margin: 0 }}>{description}</p>
-                            </div>
-                        ))}
-                    </div>
-                </div>
-            </section>
 
             {/* ── CTA ── */}
             <section style={{ background: 'var(--ink)', padding: 'clamp(3.5rem, 8vh, 6rem) 0', position: 'relative', overflow: 'hidden' }}>
