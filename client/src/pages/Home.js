@@ -174,16 +174,30 @@ const Home = () => {
     const [providers, setProviders] = useState([]);
     const [favorites, setFavorites] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [scrolled, setScrolled] = useState(false);
+    const heroCopyRef = useRef(null);
+    const searchWrapRef = useRef(null);
 
-    // Collapse the hero copy as soon as the user starts scrolling, leaving just the
-    // navbar + sticky search over the feed. Hysteresis (collapse past 48px, expand
-    // again under 8px) keeps it from flickering as the copy's height animates away.
+    // Gently fade the hero copy as it scrolls away and let the search bar settle under
+    // the navbar with a soft shadow. Styles are written directly in a rAF callback (no
+    // per-frame re-render of the feed), so it tracks the scroll smoothly — no sudden snap.
     useEffect(() => {
-        const onScroll = () => setScrolled(prev => (prev ? window.scrollY > 8 : window.scrollY > 48));
+        let raf = 0;
+        const apply = () => {
+            raf = 0;
+            const y = window.scrollY;
+            const copy = heroCopyRef.current;
+            if (copy) copy.style.opacity = String(Math.max(0, 1 - y / 220));
+            const wrap = searchWrapRef.current;
+            if (wrap) {
+                const stuck = y > 6;
+                wrap.style.boxShadow = stuck ? 'var(--shadow-sm)' : 'none';
+                wrap.style.borderBottomColor = stuck ? 'var(--border)' : 'transparent';
+            }
+        };
+        const onScroll = () => { if (!raf) raf = requestAnimationFrame(apply); };
         window.addEventListener('scroll', onScroll, { passive: true });
-        onScroll();
-        return () => window.removeEventListener('scroll', onScroll);
+        apply();
+        return () => { window.removeEventListener('scroll', onScroll); if (raf) cancelAnimationFrame(raf); };
     }, []);
 
     useEffect(() => {
@@ -259,42 +273,36 @@ const Home = () => {
     return (
         <div style={{ background: 'var(--off-white)' }}>
 
-            {/* ── Hero copy — collapses away once the user starts scrolling ── */}
-            <section style={{ position: 'relative', overflow: 'hidden', background: 'var(--off-white)', paddingTop: 'clamp(7rem, 15vh, 11rem)', paddingBottom: 0 }}>
-                <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'radial-gradient(62% 48% at 50% -2%, rgba(201,168,76,0.16), transparent 72%)', opacity: scrolled ? 0 : 1, transition: 'opacity 0.3s ease', pointerEvents: 'none' }} />
-                <div className="container" style={{ position: 'relative', textAlign: 'center', maxWidth: '860px', marginLeft: 'auto', marginRight: 'auto' }}>
-                    <div style={{
-                        overflow: 'hidden',
-                        maxHeight: scrolled ? 0 : '520px',
-                        opacity: scrolled ? 0 : 1,
-                        transform: scrolled ? 'translateY(-14px)' : 'none',
-                        transition: 'max-height 0.45s ease, opacity 0.3s ease, transform 0.45s ease',
-                        pointerEvents: scrolled ? 'none' : 'auto',
-                    }}>
-                        <p className="fade-up" style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '1.1rem' }}>Premium booking, simplified</p>
-                        <h1 className="fade-up fade-up-delay-1" style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.6rem, 6.2vw, 4.6rem)', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1.05, letterSpacing: '-0.02em', margin: '0 0 1.25rem' }}>
-                            Book trusted <span style={{ color: 'var(--gold)' }}>local services</span>
-                        </h1>
-                        <p className="fade-up fade-up-delay-2" style={{ color: 'var(--text-secondary)', fontSize: 'clamp(1rem, 2vw, 1.2rem)', lineHeight: 1.65, maxWidth: '620px', margin: '0 auto 0.5rem' }}>
-                            Discover top-rated providers for beauty, wellness, automotive, training and more — booked in seconds, on your schedule.
-                        </p>
+            {/* ── Hero copy — fades and scrolls away gently as the feed takes over ── */}
+            <section style={{ position: 'relative', overflow: 'hidden', background: 'var(--off-white)', paddingTop: 'clamp(7rem, 15vh, 11rem)', paddingBottom: '1.5rem' }}>
+                <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'radial-gradient(62% 48% at 50% -2%, rgba(201,168,76,0.16), transparent 72%)', pointerEvents: 'none' }} />
+                <div ref={heroCopyRef} className="container" style={{ position: 'relative', textAlign: 'center', maxWidth: '860px', marginLeft: 'auto', marginRight: 'auto', willChange: 'opacity' }}>
+                    <p className="fade-up" style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '1.1rem' }}>Premium booking, simplified</p>
+                    <h1 className="fade-up fade-up-delay-1" style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.6rem, 6.2vw, 4.6rem)', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1.05, letterSpacing: '-0.02em', margin: '0 0 1.25rem' }}>
+                        Book trusted <span style={{ color: 'var(--gold)' }}>local services</span>
+                    </h1>
+                    <p className="fade-up fade-up-delay-2" style={{ color: 'var(--text-secondary)', fontSize: 'clamp(1rem, 2vw, 1.2rem)', lineHeight: 1.65, maxWidth: '620px', margin: '0 auto 1.25rem' }}>
+                        Discover top-rated providers for beauty, wellness, automotive, training and more — booked in seconds, on your schedule.
+                    </p>
+                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        <span style={{ display: 'inline-flex', gap: '1px' }}>
+                            {[0, 1, 2, 3, 4].map(i => <Star key={i} size={14} fill="#c9a84c" strokeWidth={0} />)}
+                        </span>
+                        Loved by clients across Namibia
                     </div>
                 </div>
             </section>
 
-            {/* ── Sticky search — stays pinned just under the navbar while the feed scrolls ── */}
-            <div style={{
+            {/* ── Sticky search — settles under the navbar while the feed scrolls ── */}
+            <div ref={searchWrapRef} style={{
                 position: 'sticky', top: '64px', zIndex: 100,
                 background: 'var(--off-white)',
-                paddingTop: scrolled ? '0.7rem' : '1.25rem',
-                paddingBottom: scrolled ? '0.7rem' : '0.5rem',
-                borderBottom: '1px solid',
-                borderColor: scrolled ? 'var(--border)' : 'transparent',
-                boxShadow: scrolled ? 'var(--shadow-sm)' : 'none',
-                transition: 'padding 0.3s ease, box-shadow 0.3s ease, border-color 0.3s ease',
+                padding: '0.75rem 0',
+                borderBottom: '1px solid transparent',
+                transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
             }}>
                 <div className="container" style={{ maxWidth: '560px', marginLeft: 'auto', marginRight: 'auto' }}>
-                    <form onSubmit={handleSearch} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '999px', padding: '0.4rem 0.4rem 0.4rem 1.25rem', boxShadow: scrolled ? 'none' : '0 10px 34px rgba(26,26,46,0.12)', transition: 'box-shadow 0.3s ease' }}>
+                    <form onSubmit={handleSearch} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '999px', padding: '0.4rem 0.4rem 0.4rem 1.25rem', boxShadow: '0 6px 22px rgba(26,26,46,0.10)' }}>
                         <Search size={19} strokeWidth={2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                         <input
                             value={query}
@@ -305,21 +313,6 @@ const Home = () => {
                         />
                         <button type="submit" className="btn-primary" style={{ borderRadius: '999px', padding: '0.7rem 1.6rem', flexShrink: 0 }}>Search</button>
                     </form>
-                    {/* Social proof — fades out with the rest of the wording on scroll */}
-                    <div style={{
-                        textAlign: 'center', overflow: 'hidden',
-                        maxHeight: scrolled ? 0 : '40px',
-                        opacity: scrolled ? 0 : 1,
-                        marginTop: scrolled ? 0 : '1rem',
-                        transition: 'max-height 0.4s ease, opacity 0.3s ease, margin-top 0.4s ease',
-                    }}>
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                            <span style={{ display: 'inline-flex', gap: '1px' }}>
-                                {[0, 1, 2, 3, 4].map(i => <Star key={i} size={14} fill="#c9a84c" strokeWidth={0} />)}
-                            </span>
-                            Loved by clients across Namibia
-                        </span>
-                    </div>
                 </div>
             </div>
 
@@ -363,31 +356,18 @@ const Home = () => {
             </section>
 
 
-            {/* ── CTA ── */}
-            <section style={{ background: 'var(--ink)', padding: 'clamp(3.5rem, 8vh, 6rem) 0', position: 'relative', overflow: 'hidden' }}>
-                <div aria-hidden="true" style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 70% 50%, rgba(201,168,76,0.07) 0%, transparent 70%)', pointerEvents: 'none' }} />
-                <div className="container" style={{ position: 'relative', textAlign: 'center', maxWidth: '640px' }}>
-                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', fontWeight: '700', color: 'white', margin: '0 0 1rem' }}>
-                        {user?.role === 'provider' ? 'Grow your business with Bookplus' : 'Ready when you are'}
-                    </h2>
-                    <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: '1.02rem', lineHeight: 1.6, margin: '0 0 2rem' }}>
-                        {user?.role === 'provider'
-                            ? 'Manage your calendar, clients and bookings from one elegant workspace.'
-                            : 'Find a provider, pick a time, and you’re booked. It’s that simple.'}
+            {/* ── CTA — thin inline strip, button sits right after the words ── */}
+            <section style={{ background: 'var(--ink)', padding: '1rem 0' }}>
+                <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem 1.25rem', flexWrap: 'wrap', textAlign: 'center' }}>
+                    <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: '0.95rem', margin: 0 }}>
+                        <span style={{ color: 'white', fontWeight: '700' }}>{user?.role === 'provider' ? 'Grow your business with Bookplus.' : 'Ready when you are.'}</span>{' '}
+                        {user?.role === 'provider' ? 'Run everything from one workspace.' : 'Find a provider, pick a time, and you’re booked.'}
                     </p>
-                    <Link to={user ? (user.role === 'provider' ? '/dashboard' : '/services') : '/register'} className="btn-primary" style={{ fontSize: '1rem', padding: '0.9rem 2.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-                        {user ? (user.role === 'provider' ? 'Go to dashboard' : 'Browse providers') : 'Get started'} <ArrowRight size={18} strokeWidth={2} />
+                    <Link to={user ? (user.role === 'provider' ? '/dashboard' : '/services') : '/register'} className="btn-primary" style={{ fontSize: '0.9rem', padding: '0.6rem 1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                        {user ? (user.role === 'provider' ? 'Go to dashboard' : 'Browse providers') : 'Get started'} <ArrowRight size={16} strokeWidth={2} />
                     </Link>
                 </div>
             </section>
-
-            {/* ── Footer ── */}
-            <footer style={{ background: '#111122', padding: '2rem 0', borderTop: '1px solid rgba(201,168,76,0.15)' }}>
-                <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1rem' }}>
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'white' }}>Book<span style={{ color: 'var(--gold)' }}>plus</span></span>
-                    <span style={{ color: 'rgba(255,255,255,0.4)', fontSize: '0.8rem' }}>© {new Date().getFullYear()} Bookplus. All rights reserved.</span>
-                </div>
-            </footer>
         </div>
     );
 };
