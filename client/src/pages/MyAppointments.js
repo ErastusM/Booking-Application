@@ -8,6 +8,7 @@ import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { useAuthContext } from '../context/AuthContext';
 import { mapsUrl } from '../utils/maps';
 import { CalendarClock, CalendarPlus, MessageSquare, ClipboardList, Star, X, RefreshCw, MapPin, Copy, Check, ChevronDown } from 'lucide-react';
+import EnablePushBanner from '../components/EnablePushBanner';
 
 const statusConfig = {
     pending:   { label: 'Pending',   bg: '#fef3c7', color: '#92400e' },
@@ -218,6 +219,8 @@ const MyAppointments = () => {
             </div>
 
             <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
+
+                <EnablePushBanner />
 
                 {showConfirmedBanner && (
                     <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '1rem 1.25rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>

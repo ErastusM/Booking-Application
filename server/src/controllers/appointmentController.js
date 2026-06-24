@@ -432,10 +432,11 @@ exports.createAppointment = async (req, res) => {
                 const clientLabel = isProviderBooking
                     ? (customerId ? bookingClient.name : (walkInName?.trim() || 'a walk-in client'))
                     : req.user.name;
+                const priceTag = Number.isFinite(basePrice) ? ` (N$${basePrice.toFixed(2)})` : '';
                 if (svc.provider) {
                     await createNotification(
                         svc.provider,
-                        `New booking: ${clientLabel} booked ${svc.name} on ${bookingDate} at ${startTime}`,
+                        `🎉 New booking — ${clientLabel} booked ${svc.name}${priceTag} on ${bookingDate} at ${startTime}`,
                         'appointment',
                         '/dashboard'
                     );
@@ -444,7 +445,7 @@ exports.createAppointment = async (req, res) => {
                 if (isProviderBooking && customerId) {
                     await createNotification(
                         bookingClient._id,
-                        `${req.user.name} booked you in for ${svc.name} on ${bookingDate} at ${startTime}`,
+                        `✅ You're booked — ${svc.name} with ${req.user.name} on ${bookingDate} at ${startTime}`,
                         'appointment',
                         '/appointments'
                     );

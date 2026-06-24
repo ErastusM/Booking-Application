@@ -10,6 +10,8 @@ import { useAuthContext } from '../context/AuthContext';
 import OnboardingWizard from '../components/OnboardingWizard';
 import FormsManager from '../components/FormsManager';
 import ApptFormsView from '../components/ApptFormsView';
+import EnablePushBanner from '../components/EnablePushBanner';
+import ProviderPhotosNudge from '../components/ProviderPhotosNudge';
 import { Calendar, History, Scissors, CalendarClock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban, Wallet as WalletIcon, Phone, Mail, ChevronDown, ChevronLeft, Send } from 'lucide-react';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
@@ -1273,6 +1275,9 @@ const ProviderDashboard = () => {
             </div>
 
             <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
+
+                <EnablePushBanner />
+                <ProviderPhotosNudge />
 
                 {/* Stats */}
                 <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
