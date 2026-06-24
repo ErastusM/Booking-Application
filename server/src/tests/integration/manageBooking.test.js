@@ -72,12 +72,15 @@ describe('Manage booking via token (no auth)', () => {
 
     it('rejects a token reschedule into the past', async () => {
         const appt = await createBooking();
-        const today = new Date();
+        // Yesterday noon — unambiguously in the past at any run time (avoids the midnight
+        // flake where "today 00:00" sits inside isPastSlot's 1-minute grace).
+        const past = new Date();
+        past.setDate(past.getDate() - 1);
         const pad = n => String(n).padStart(2, '0');
-        const todayStr = `${today.getFullYear()}-${pad(today.getMonth() + 1)}-${pad(today.getDate())}`;
+        const pastStr = `${past.getFullYear()}-${pad(past.getMonth() + 1)}-${pad(past.getDate())}`;
         const res = await request(app)
             .post(`/api/appointments/manage/${appt.manageToken}/reschedule`)
-            .send({ appointmentDate: todayStr, startTime: '00:00' });
+            .send({ appointmentDate: pastStr, startTime: '12:00' });
         expect(res.status).toBe(400);
     });
 

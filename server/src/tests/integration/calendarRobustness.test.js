@@ -49,9 +49,17 @@ const todayStr = () => {
     const pad = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
+// Unambiguously in the past at any run time. "Today 00:00" flaked in the first minute
+// after midnight because isPastSlot has a 1-minute grace; yesterday never does.
+const yesterdayStr = () => {
+    const d = new Date();
+    d.setDate(d.getDate() - 1);
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+};
 
 describe('Past-time protection', () => {
-    it('rejects a customer booking a time earlier today', async () => {
+    it('rejects a customer booking a time in the past', async () => {
         const customer = await makeUser();
         const provider = await makeProvider();
         const svc = await makeService(provider._id);
@@ -59,7 +67,7 @@ describe('Past-time protection', () => {
         const res = await request(app)
             .post('/api/appointments')
             .set(authHeader(customer))
-            .send({ service: svc._id.toString(), appointmentDate: todayStr(), startTime: '00:00', endTime: '00:30' });
+            .send({ service: svc._id.toString(), appointmentDate: yesterdayStr(), startTime: '12:00', endTime: '12:30' });
 
         expect(res.status).toBe(400);
         expect(res.body.message).toMatch(/passed/i);
