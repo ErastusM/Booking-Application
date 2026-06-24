@@ -54,7 +54,7 @@ function AppRoutes() {
 
     return (
         <Suspense fallback={<RouteFallback />}>
-            <div key={location.pathname} className="route-view">
+            <div key={location.pathname} className="route-view" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
                 <Routes location={location}>
                     {/* Public routes */}
                     <Route path="/" element={<Home />} />

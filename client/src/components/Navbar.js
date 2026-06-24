@@ -58,6 +58,7 @@ const Navbar = () => {
     const navStyles = {
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000,
         transition: 'all 0.3s ease',
+        paddingTop: 'env(safe-area-inset-top, 0px)',
         background: isTransparent ? 'transparent' : darkMode ? 'rgba(15,15,26,0.97)' : 'rgba(255,255,255,0.97)',
         backdropFilter: isTransparent ? 'none' : 'blur(12px)',
         boxShadow: isTransparent ? 'none' : 'var(--shadow-sm)',
@@ -226,6 +227,7 @@ const Navbar = () => {
                 <div onClick={() => setMenuOpen(false)} className="show-mobile" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.44)', zIndex: 1200, backdropFilter: 'blur(2px)' }} />
                 <aside className="show-mobile mobile-drawer" style={{
                     position: 'fixed', top: 0, left: 0, bottom: 0,
+                    paddingTop: 'env(safe-area-inset-top, 0px)',
                     width: '86vw', maxWidth: '330px',
                     zIndex: 1201,
                     display: 'flex', flexDirection: 'column',

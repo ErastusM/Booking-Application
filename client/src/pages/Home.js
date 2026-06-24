@@ -295,7 +295,7 @@ const Home = () => {
 
             {/* ── Sticky search — settles under the navbar while the feed scrolls ── */}
             <div ref={searchWrapRef} style={{
-                position: 'sticky', top: '64px', zIndex: 100,
+                position: 'sticky', top: 'calc(64px + env(safe-area-inset-top, 0px))', zIndex: 100,
                 background: 'var(--off-white)',
                 padding: '0.75rem 0',
                 borderBottom: '1px solid transparent',
