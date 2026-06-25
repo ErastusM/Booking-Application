@@ -154,14 +154,31 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
                 <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)' }}>
                     {p.avgRating
                         ? <><Star size={15} fill="#c9a84c" strokeWidth={0} /> {p.avgRating}<span style={{ color: 'var(--text-muted)', fontWeight: '500' }}>({p.reviewCount || 0})</span></>
-                        : <span style={{ color: 'var(--text-muted)', fontWeight: '500' }}>No reviews yet</span>}
+                        : <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--gold-dark)', fontWeight: '600' }}><Star size={14} fill="#c9a84c" strokeWidth={0} /> New on Bookplus</span>}
                 </span>
             </div>
 
             {/* Caption — tap to open profile */}
-            <div onClick={go} style={{ padding: '0.1rem 0.95rem 0.95rem', cursor: 'pointer' }}>
+            <div onClick={go} style={{ padding: '0.1rem 0.95rem 0.6rem', cursor: 'pointer' }}>
                 <span style={{ fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.9rem' }}>{p.businessName || p.name}</span>
-                {p.minPrice != null && <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}> · from ${p.minPrice}</span>}
+                {p.minPrice != null && <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}> · Starting at NAD {p.minPrice}</span>}
+                {p.serviceCount > 0 && (
+                    <p style={{ margin: '0.3rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        {p.serviceCount} {p.serviceCount === 1 ? 'service' : 'services'} available
+                    </p>
+                )}
+            </div>
+
+            {/* Primary action — the most obvious thing to do on the card */}
+            <div style={{ padding: '0 0.95rem 0.95rem' }}>
+                <Link
+                    to={`/book-appointment?providerId=${id}`}
+                    onClick={(e) => e.stopPropagation()}
+                    className="btn-primary"
+                    style={{ display: 'block', width: '100%', textAlign: 'center', padding: '0.65rem', fontSize: '0.88rem', fontWeight: '700', textDecoration: 'none' }}
+                >
+                    Book Appointment
+                </Link>
             </div>
         </article>
     );
@@ -274,7 +291,7 @@ const Home = () => {
         <div style={{ background: 'var(--off-white)' }}>
 
             {/* ── Hero copy — fades and scrolls away gently as the feed takes over ── */}
-            <section style={{ position: 'relative', overflow: 'hidden', background: 'var(--off-white)', paddingTop: 'clamp(7rem, 15vh, 11rem)', paddingBottom: '1.5rem' }}>
+            <section style={{ position: 'relative', overflow: 'hidden', background: 'var(--off-white)', paddingTop: 'clamp(5rem, 10vw, 9rem)', paddingBottom: '1.5rem' }}>
                 <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'radial-gradient(62% 48% at 50% -2%, rgba(201,168,76,0.16), transparent 72%)', pointerEvents: 'none' }} />
                 <div ref={heroCopyRef} className="container" style={{ position: 'relative', textAlign: 'center', maxWidth: '860px', marginLeft: 'auto', marginRight: 'auto', willChange: 'opacity' }}>
                     <p className="fade-up" style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '1.1rem' }}>Premium booking, simplified</p>

@@ -170,9 +170,10 @@ exports.getMyAppointments = async (req, res) => {
             .populate({
                 path: 'service',
                 select: 'name price duration provider',
-                // Pull the provider's business location so the customer's booking
-                // view can show "Getting there" (address + map + directions).
-                populate: { path: 'provider', select: 'name businessProfile.businessName businessProfile.address businessProfile.locationType' },
+                // Pull the provider's business location (for "Getting there") plus their
+                // avatar / first portfolio photo so the booking card can show the business
+                // image — same picture customers see on the home feed.
+                populate: { path: 'provider', select: 'name avatar businessProfile.businessName businessProfile.address businessProfile.locationType portfolio.images' },
             })
             .populate('teamMember', 'name')
             .sort({ appointmentDate: -1 });

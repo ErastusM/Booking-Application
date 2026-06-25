@@ -7,6 +7,7 @@ import RescheduleModal from '../components/RescheduleModal';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { useAuthContext } from '../context/AuthContext';
 import { mapsUrl } from '../utils/maps';
+import { cloudinaryThumb } from '../utils/cloudinary';
 import { CalendarClock, CalendarPlus, MessageSquare, ClipboardList, Star, X, RefreshCw, MapPin, Copy, Check, ChevronDown } from 'lucide-react';
 import EnablePushBanner from '../components/EnablePushBanner';
 
@@ -210,7 +211,7 @@ const MyAppointments = () => {
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
 
             {/* Header */}
-            <div style={{ background: 'var(--ink)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 50%, rgba(201,168,76,0.045) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Your Schedule</p>
@@ -323,11 +324,15 @@ const MyAppointments = () => {
                                     alignItems: 'center', gap: '1.5rem',
                                 }}>
                                     {(() => {
-                                        const company = a.service?.provider?.businessProfile?.businessName || a.service?.provider?.name || 'Provider';
+                                        const prov = a.service?.provider;
+                                        const company = prov?.businessProfile?.businessName || prov?.name || 'Provider';
+                                        const bizImg = prov?.avatar || prov?.portfolio?.images?.[0] || null;
                                         return (
                                             <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
-                                                <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'rgba(201,168,76,0.15)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '1.1rem', flexShrink: 0, fontFamily: 'var(--font-display)' }}>
-                                                    {company.trim().charAt(0).toUpperCase()}
+                                                <div style={{ width: '48px', height: '48px', borderRadius: '50%', overflow: 'hidden', background: 'rgba(201,168,76,0.15)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '1.1rem', flexShrink: 0, fontFamily: 'var(--font-display)' }}>
+                                                    {bizImg
+                                                        ? <img src={cloudinaryThumb(bizImg, 96)} alt={company} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                        : company.trim().charAt(0).toUpperCase()}
                                                 </div>
                                                 <div style={{ minWidth: 0 }}>
                                                     <p style={{ margin: 0, fontWeight: '700', color: 'var(--charcoal)', fontSize: '1rem', fontFamily: 'var(--font-display)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{company}</p>

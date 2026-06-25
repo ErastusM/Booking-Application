@@ -64,7 +64,7 @@ const MyWaitingList = () => {
             {/* Header */}
             <div style={{
                 background: 'var(--ink)',
-                paddingTop: '9rem',
+                paddingTop: 'var(--page-hero-pad-top)',
                 paddingBottom: '3rem',
                 position: 'relative',
                 overflow: 'hidden',

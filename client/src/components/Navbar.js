@@ -426,47 +426,66 @@ const Navbar = () => {
             </div>
         )}
 
-        {/* Mobile bottom navigation — customer: flat bar */}
+        {/* Mobile bottom navigation — customer: floating rounded card (matches the provider one so it doesn't bleed to the edges) */}
         {user && activeRole === 'customer' && (
-            <div className="show-mobile bottom-nav" style={{
-                position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 999,
-                display: 'flex', alignItems: 'stretch',
-                height: '62px', paddingBottom: 'env(safe-area-inset-bottom)',
+            <div className="show-mobile" style={{
+                position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
+                display: 'flex', justifyContent: 'center',
+                padding: '0 12px calc(10px + env(safe-area-inset-bottom, 0))',
+                pointerEvents: 'none',
             }}>
-                {[
-                    { to: '/', icon: (
-                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
-                    ), label: 'Home' },
-                    { to: '/services', icon: (
-                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
-                    ), label: 'Book' },
-                    { to: '/appointments', icon: (
-                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-                    ), label: 'Bookings' },
-                    { to: '/profile', icon: (
-                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                    ), label: 'Profile' },
-                ].map(({ to, icon, label }) => {
-                    const active = isActive(to);
-                    return (
-                        <Link key={to} to={to} className={`bnav-item ${active ? 'is-active' : ''}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', textDecoration: 'none', color: active ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: active ? '700' : '500', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                            <span className="bnav-icon">{icon}</span>
-                            {label}
-                        </Link>
-                    );
-                })}
-                {activeRole === 'customer' && (
-                <button onClick={() => setShowSuggestion(true)} className={`bnav-item ${showSuggestion ? 'is-active' : ''}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', background: 'none', border: 'none', cursor: 'pointer', color: showSuggestion ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: showSuggestion ? '700' : '500', fontFamily: 'Plus Jakarta Sans, sans-serif', padding: 0 }}>
-                    <span className="bnav-icon">
-                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M22 12h-6l-2 3H10l-2-3H2"/><path strokeLinecap="round" strokeLinejoin="round" d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
-                    </span>
-                    Suggest
-                </button>
-                )}
+                <div style={{
+                    pointerEvents: 'auto', width: '100%', maxWidth: '460px',
+                    display: 'flex', justifyContent: 'space-around', alignItems: 'flex-start',
+                    background: 'var(--card-bg)', border: '1px solid var(--border)',
+                    borderRadius: '26px', boxShadow: '0 12px 32px rgba(26,26,46,0.16)',
+                    padding: '12px 4px 10px',
+                }}>
+                    {[
+                        { to: '/', label: 'Home', icon: (
+                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+                        ) },
+                        { to: '/services', label: 'Book', icon: (
+                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
+                        ) },
+                        { to: '/appointments', label: 'Bookings', icon: (
+                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+                        ) },
+                        { to: '/profile', label: 'Profile', icon: (
+                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                        ) },
+                        { action: () => setShowSuggestion(true), label: 'Suggest', activeOverride: showSuggestion, icon: (
+                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M22 12h-6l-2 3H10l-2-3H2"/><path strokeLinecap="round" strokeLinejoin="round" d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
+                        ) },
+                    ].map(({ to, action, icon, label, activeOverride }) => {
+                        const active = activeOverride !== undefined ? activeOverride : isActive(to);
+                        const itemStyle = { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', textDecoration: 'none', minWidth: 0, WebkitTapHighlightColor: 'transparent', background: 'none', border: 'none', cursor: 'pointer', padding: 0 };
+                        const inner = (
+                            <>
+                                <span style={{
+                                    width: '46px', height: '46px', borderRadius: '50%',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    background: active ? 'rgba(201,168,76,0.20)' : 'rgba(201,168,76,0.09)',
+                                    color: active ? 'var(--gold-dark)' : 'var(--gold)',
+                                    transition: 'background 0.18s ease, color 0.18s ease',
+                                }}>{icon}</span>
+                                <span style={{
+                                    fontSize: '0.64rem', fontWeight: active ? '700' : '500',
+                                    color: active ? 'var(--gold-dark)' : 'var(--text-muted)',
+                                    fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap', lineHeight: 1.1,
+                                }}>{label}</span>
+                                <span style={{ width: '20px', height: '3px', borderRadius: '99px', background: active ? 'var(--gold)' : 'transparent', transition: 'background 0.18s ease' }} />
+                            </>
+                        );
+                        return action
+                            ? <button key={label} onClick={action} aria-label={label} style={itemStyle}>{inner}</button>
+                            : <Link key={to} to={to} aria-label={label} style={itemStyle}>{inner}</Link>;
+                    })}
+                </div>
             </div>
         )}
         {user && <SuggestionBox user={user} open={showSuggestion} onClose={() => setShowSuggestion(false)} />}
-        {user && <div className="show-mobile" style={{ height: activeRole === 'provider' ? '112px' : '62px' }} />}
+        {user && <div className="show-mobile" style={{ height: (activeRole === 'provider' || activeRole === 'customer') ? '112px' : '0px' }} />}
     </>
     );
 };

@@ -1132,6 +1132,12 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
 .route-view { animation: routeIn var(--dur-slow) var(--ease-out) backwards; }
 @media (prefers-reduced-motion: reduce) { .route-view { animation: none; } }
 
+/* Page hero top padding — generous on desktop, tight on mobile so the dark hero sits
+   just under the fixed navbar instead of leaving a big empty band. The .route-view
+   wrapper already adds the status-bar safe-area inset on top of this. */
+:root { --page-hero-pad-top: 9rem; }
+@media (max-width: 768px) { :root { --page-hero-pad-top: 5rem; } }
+
 /* Desktop nav links — pill hover/active */
 .nav-pill {
   position: relative; text-decoration: none; font-size: 0.9rem; font-weight: 500;

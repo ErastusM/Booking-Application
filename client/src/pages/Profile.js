@@ -120,7 +120,7 @@ const Profile = () => {
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh', paddingBottom: '5rem' }}>
 
             {/* Title */}
-            <div style={{ paddingTop: 'clamp(5.5rem, 12vh, 7rem)', paddingBottom: '1.5rem', textAlign: 'center' }}>
+            <div style={{ paddingTop: 'clamp(4.5rem, 9vw, 7rem)', paddingBottom: '1.5rem', textAlign: 'center' }}>
                 <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Profile</h1>
             </div>
 
@@ -222,7 +222,7 @@ const Profile = () => {
                         <div style={panelStyle}>
                             <PushToggle />
                             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
-                                Booking confirmations and reminders are sent to your email by default.
+                                Turn on push to get booking confirmations and reminders instantly on this device. We'll still email you as a backup.
                             </p>
                         </div>
                     )}

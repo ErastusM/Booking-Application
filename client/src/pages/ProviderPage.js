@@ -102,7 +102,7 @@ const ProvidersPage = () => {
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
 
             {/* Header */}
-            <div style={{ background: 'var(--ink)', paddingTop: '9rem', paddingBottom: '4rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '4rem', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 50%, rgba(201,168,76,0.045) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Discover</p>

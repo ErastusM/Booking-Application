@@ -23,6 +23,9 @@ const realStartMs = (appt) => {
 };
 
 const svcName = (appt) => appt.service?.name || 'your appointment';
+// Customer-facing reminder label — "Your Taper Fade appointment" when we know the
+// service, otherwise a plain "Your appointment".
+const apptLabel = (appt) => (appt.service?.name ? `Your ${appt.service.name} appointment` : 'Your appointment');
 const pushCustomer = (appt, body) => {
     if (!appt.customer?._id) return;
     // No-op unless VAPID is configured / the customer has subscribed.
@@ -51,20 +54,20 @@ const RULES = [
             if (a.customer?.email) {
                 await sendReminder24h(a.customer.email, a.customer.name, svcName(a), dateStr, a.startTime, calendarExtras(a));
             }
-            notifyInApp(a, `Reminder: ${svcName(a)} is tomorrow at ${a.startTime}.`);
-            pushCustomer(a, `${svcName(a)} is tomorrow at ${a.startTime}.`);
+            notifyInApp(a, `${apptLabel(a)} is tomorrow at ${a.startTime}.`);
+            pushCustomer(a, `${apptLabel(a)} is tomorrow at ${a.startTime}.`);
         },
     },
     {
         flag: 'reminderSent5h', lo: 4 * 60 + 45, hi: 5 * 60 + 15,
-        run: async (a) => { pushCustomer(a, `${svcName(a)} is in about 5 hours, at ${a.startTime}.`); },
+        run: async (a) => { pushCustomer(a, `${apptLabel(a)} is in about 5 hours (${a.startTime}).`); },
     },
     {
         flag: 'reminderSent1h', lo: 45, hi: 75,
         run: async (a) => {
             if (a.customer?.email) await sendReminder1h(a.customer.email, a.customer.name, svcName(a), a.startTime, calendarExtras(a));
-            notifyInApp(a, `${svcName(a)} is in about an hour, at ${a.startTime}.`);
-            pushCustomer(a, `${svcName(a)} is in 1 hour, at ${a.startTime}.`);
+            notifyInApp(a, `${apptLabel(a)} starts in about an hour (${a.startTime}).`);
+            pushCustomer(a, `${apptLabel(a)} starts in about an hour (${a.startTime}).`);
         },
     },
 ];
