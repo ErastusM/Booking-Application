@@ -200,7 +200,8 @@ const Navbar = () => {
                 {/* Mobile right cluster — notifications + suggestion + menu (both roles) */}
                 <div className="show-mobile" style={{ alignItems: 'center', gap: '0.1rem' }}>
                     {user && <NotificationBell isTransparent={isTransparent} />}
-                    {user && (
+                    {/* Customers reach Suggest from the bottom nav, so the top icon is provider-only to avoid a duplicate */}
+                    {user && activeRole !== 'customer' && (
                         <button
                             onClick={() => setShowSuggestion(true)}
                             aria-label="Send a suggestion"
@@ -369,53 +370,70 @@ const Navbar = () => {
             </>
         )}
 
-        {/* Mobile bottom navigation bar */}
-        {user && (
+        {/* Mobile bottom navigation — provider: floating rounded card (matches design mock) */}
+        {user && activeRole === 'provider' && (
+            <div className="show-mobile" style={{
+                position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
+                display: 'flex', justifyContent: 'center',
+                padding: '0 12px calc(10px + env(safe-area-inset-bottom, 0))',
+                pointerEvents: 'none',
+            }}>
+                <div style={{
+                    pointerEvents: 'auto', width: '100%', maxWidth: '440px',
+                    display: 'flex', justifyContent: 'space-around', alignItems: 'flex-start',
+                    background: 'var(--card-bg)', border: '1px solid var(--border)',
+                    borderRadius: '26px', boxShadow: '0 12px 32px rgba(26,26,46,0.16)',
+                    padding: '12px 6px 10px',
+                }}>
+                    {[
+                        { to: '/dashboard', label: 'Calendar', icon: (
+                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                        ) },
+                        { to: '/dashboard?tab=waitlist', label: 'Waiting List', icon: (
+                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 1.75"/></svg>
+                        ) },
+                        { to: '/dashboard?tab=earnings', label: 'Earnings', icon: (
+                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                        ) },
+                        { to: '/account', label: 'Account', icon: (
+                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                        ) },
+                    ].map(({ to, icon, label }) => {
+                        const [toPath, toQs] = to.split('?');
+                        const toTab = toQs ? new URLSearchParams(toQs).get('tab') : null;
+                        const curTab = new URLSearchParams(location.search).get('tab');
+                        // Calendar (no tab) is the dashboard default — it stays active for any tab that isn't another nav item's.
+                        const active = location.pathname === toPath && (toTab ? curTab === toTab : !(toPath === '/dashboard' && (curTab === 'earnings' || curTab === 'waitlist')));
+                        return (
+                            <Link key={to} to={to} aria-label={label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', textDecoration: 'none', minWidth: 0, WebkitTapHighlightColor: 'transparent' }}>
+                                <span style={{
+                                    width: '46px', height: '46px', borderRadius: '50%',
+                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                                    background: active ? 'rgba(201,168,76,0.20)' : 'rgba(201,168,76,0.09)',
+                                    color: active ? 'var(--gold-dark)' : 'var(--gold)',
+                                    transition: 'background 0.18s ease, color 0.18s ease',
+                                }}>{icon}</span>
+                                <span style={{
+                                    fontSize: '0.66rem', fontWeight: active ? '700' : '500',
+                                    color: active ? 'var(--gold-dark)' : 'var(--text-muted)',
+                                    fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap', lineHeight: 1.1,
+                                }}>{label}</span>
+                                <span style={{ width: '20px', height: '3px', borderRadius: '99px', background: active ? 'var(--gold)' : 'transparent', transition: 'background 0.18s ease' }} />
+                            </Link>
+                        );
+                    })}
+                </div>
+            </div>
+        )}
+
+        {/* Mobile bottom navigation — customer: flat bar */}
+        {user && activeRole === 'customer' && (
             <div className="show-mobile bottom-nav" style={{
                 position: 'fixed', bottom: 0, left: 0, right: 0, zIndex: 999,
                 display: 'flex', alignItems: 'stretch',
                 height: '62px', paddingBottom: 'env(safe-area-inset-bottom)',
             }}>
-                {activeRole === 'provider' && [
-                    { to: '/dashboard?tab=earnings', icon: (
-                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-                    ), label: 'Earnings' },
-                    { to: '/dashboard', fab: true, icon: (
-                        <svg width="26" height="26" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                    ), label: 'Dashboard' },
-                    { to: '/account', icon: (
-                        <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                    ), label: 'Account' },
-                ].map(({ to, icon, label, fab }) => {
-                    const [toPath, toQs] = to.split('?');
-                    const toTab = toQs ? new URLSearchParams(toQs).get('tab') : null;
-                    const curTab = new URLSearchParams(location.search).get('tab');
-                    const active = location.pathname === toPath && (toTab ? curTab === toTab : !(toPath === '/dashboard' && curTab === 'earnings'));
-                    if (fab) {
-                        return (
-                            <Link key={to} to={to} aria-label="Dashboard" style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-end', textDecoration: 'none', position: 'relative' }}>
-                                <span style={{
-                                    position: 'absolute', top: '-24px',
-                                    width: '58px', height: '58px', borderRadius: '50%',
-                                    background: 'var(--ink)', color: 'var(--gold)',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    boxShadow: '0 8px 20px rgba(26,26,46,0.40)',
-                                    border: '4px solid var(--card-bg)',
-                                    transition: 'transform var(--dur-fast,0.12s) var(--ease-out, ease)',
-                                    transform: active ? 'scale(1.04)' : 'none',
-                                }}>{icon}</span>
-                                <span style={{ fontSize: '0.62rem', fontWeight: active ? '700' : '600', color: active ? 'var(--gold)' : 'var(--text-secondary)', marginBottom: '7px' }}>{label}</span>
-                            </Link>
-                        );
-                    }
-                    return (
-                        <Link key={to} to={to} className={`bnav-item ${active ? 'is-active' : ''}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '2px', textDecoration: 'none', color: active ? 'var(--gold)' : 'var(--text-muted)', fontSize: '0.62rem', fontWeight: active ? '700' : '500', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                            <span className="bnav-icon">{icon}</span>
-                            {label}
-                        </Link>
-                    );
-                })}
-                {activeRole === 'customer' && [
+                {[
                     { to: '/', icon: (
                         <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
                     ), label: 'Home' },
@@ -448,7 +466,7 @@ const Navbar = () => {
             </div>
         )}
         {user && <SuggestionBox user={user} open={showSuggestion} onClose={() => setShowSuggestion(false)} />}
-        {user && <div className="show-mobile" style={{ height: '62px' }} />}
+        {user && <div className="show-mobile" style={{ height: activeRole === 'provider' ? '112px' : '62px' }} />}
     </>
     );
 };

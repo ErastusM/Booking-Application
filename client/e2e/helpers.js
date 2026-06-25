@@ -4,7 +4,7 @@ const SEED = {
     customer: { email: 'e2e-customer@bookplus.invalid', password: 'Password1!' },
     provider: { email: 'e2e-provider@bookplus.invalid', password: 'Password1!' },
     serviceName: 'E2E Haircut',
-    providerName: 'E2E Barber',
+    providerName: 'E2E Provider',
 };
 
 async function login(page, { email, password }) {

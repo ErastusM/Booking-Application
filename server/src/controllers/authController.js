@@ -420,6 +420,9 @@ exports.updateProfile = async (req, res) => {
         // Let providers rename their business after onboarding — this is the name shown
         // in search and on cards (falls back to their personal name when blank).
         if (user.role === 'provider' && req.body.businessName !== undefined) {
+            if (typeof req.body.businessName !== 'string') {
+                return res.status(400).json({ success: false, message: 'Business name must be a string' });
+            }
             if (!user.businessProfile) user.businessProfile = {};
             user.businessProfile.businessName = req.body.businessName.trim();
             user.markModified('businessProfile');

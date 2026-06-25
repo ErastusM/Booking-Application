@@ -368,7 +368,7 @@ docker-compose down   # To stop
 - [ ] Admin statistics dashboard
 - [ ] Revenue analytics
 - [ ] Customer management
-- [ ] Barber management
+- [ ] Staff management
 - [ ] Service management UI
 
 ### Phase 3 - Advanced Features
@@ -381,7 +381,7 @@ docker-compose down   # To stop
 
 ### Phase 4 - Enhancement
 - [ ] Customer reviews and ratings
-- [ ] Barber profiles with photos
+- [ ] Staff profiles with photos
 - [ ] Multi-location support
 - [ ] Loyalty program
 - [ ] Advanced search and filters

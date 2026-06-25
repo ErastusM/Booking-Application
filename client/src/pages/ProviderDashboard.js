@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -12,7 +12,7 @@ import FormsManager from '../components/FormsManager';
 import ApptFormsView from '../components/ApptFormsView';
 import EnablePushBanner from '../components/EnablePushBanner';
 import ProviderPhotosNudge from '../components/ProviderPhotosNudge';
-import { Calendar, History, Scissors, CalendarClock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban, Wallet as WalletIcon, Phone, Mail, ChevronDown, ChevronLeft, Send } from 'lucide-react';
+import { Calendar, History, Scissors, CalendarClock, Clock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban, Wallet as WalletIcon, Phone, Mail, ChevronDown, ChevronLeft, Send } from 'lucide-react';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { buildTimeSlots } from '../utils/bookingSlots';
@@ -106,10 +106,7 @@ const ProviderDashboard = () => {
     const [catalogueSearch, setCatalogueSearch] = useState('');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [calendarView, setCalendarView] = useState('day');
-    const [selectedDay, setSelectedDay] = useState(null);
     const [calendarToast, setCalendarToast] = useState(null); // { msg, type }
-    const [viewMenuOpen, setViewMenuOpen] = useState(false);
-    const [addMenuOpen, setAddMenuOpen] = useState(false);
     const [blockedTimes, setBlockedTimes] = useState([]);
     const [showBlockedTimeForm, setShowBlockedTimeForm] = useState(false);
     const [editingBlockedTime, setEditingBlockedTime] = useState(null);
@@ -124,7 +121,7 @@ const ProviderDashboard = () => {
     const [showApptModal, setShowApptModal] = useState(false);
     const [apptForm, setApptForm] = useState({ serviceId: '', date: '', startTime: '', clientMode: 'existing', customerId: '', clientName: '', notes: '', isRecurring: false, recurrenceType: 'weekly', recurrenceInterval: 1, recurrenceEndDate: '', isGroup: false, groupClients: [{ name: '' }], teamMember: '' });
     const [clientPickerSearch, setClientPickerSearch] = useState('');
-    const [calendarStaffFilter, setCalendarStaffFilter] = useState('all'); // 'all' | teamMember _id
+    const [calendarStaffFilter] = useState('all'); // 'all' | teamMember _id
     const [savingAppt, setSavingAppt] = useState(false);
     const [apptError, setApptError] = useState('');
     // Appointment history
@@ -135,18 +132,12 @@ const ProviderDashboard = () => {
     // Recurring series cancel modal
     const [seriesCancelModal, setSeriesCancelModal] = useState(null); // { appt, mode }
     const [seriesCancelMode, setSeriesCancelMode] = useState('this');
-    const [dragState, setDragState] = useState({ active: false, date: null, startY: 0, endY: 0 });
-    const [apptDrag, setApptDrag] = useState({ active: false, appt: null, offsetY: 0, currentY: 0, colDate: null, moved: false });
     const [apptDetailModal, setApptDetailModal] = useState(null);
-    const [resizing, setResizing] = useState({ active: false, appt: null, colRect: null, initialEndMins: 0 });
-    const snapInterval = 15; // minutes
-    const [tooltip, setTooltip] = useState({ visible: false, x: 0, y: 0, content: '' });
     const [apptRescheduleForm, setApptRescheduleForm] = useState({ appointmentDate: '', startTime: '' });
     const [savingApptDetail, setSavingApptDetail] = useState(false);
     const [apptDetailError, setApptDetailError] = useState('');
     const [showReschedule, setShowReschedule] = useState(false); // reschedule form is collapsed by default to keep actions reachable
     const [showApptContact, setShowApptContact] = useState(false); // contact options reveal when the provider taps the client name
-    const swipeGestureRef = useRef({ tracking: false, startX: 0, startY: 0, dx: 0, dy: 0, locked: false });
 
     // Wallet (prepaid balances the provider holds for clients)
     const [walletSummary, setWalletSummary] = useState(null);
@@ -199,14 +190,12 @@ const ProviderDashboard = () => {
 
     useEffect(() => {
         const tab = new URLSearchParams(location.search).get('tab');
-        const validTabs = ['calendar', 'pending', 'confirmed', 'completed', 'cancelled', 'history', 'services', 'availability', 'overview', 'earnings', 'insights', 'clients', 'messages', 'memberships', 'team', 'forms', 'wallet'];
+        const validTabs = ['calendar', 'pending', 'confirmed', 'completed', 'cancelled', 'history', 'services', 'availability', 'overview', 'waitlist', 'earnings', 'insights', 'clients', 'messages', 'memberships', 'team', 'forms', 'wallet'];
         if (tab && validTabs.includes(tab)) {
             setActiveTab(tab);
-            setSelectedDay(null);
         } else if (!tab) {
             // Bare /dashboard (e.g. the bottom-nav Dashboard button) → default view
             setActiveTab('calendar');
-            setSelectedDay(null);
         }
     }, [location.search]);
 
@@ -233,19 +222,9 @@ const ProviderDashboard = () => {
         }
     }, { intervalMs: 8000, enabled: activeTab === 'messages' && !!selectedConversation });
 
-    // Cancel any in-progress drag if mouse is released outside a column
-    useEffect(() => {
-        const up = () => {
-            setDragState(prev => prev.active ? { active: false, date: null, startY: 0, endY: 0 } : prev);
-            setApptDrag(prev => prev.active ? { active: false, appt: null, offsetY: 0, currentY: 0, colDate: null, moved: false } : prev);
-        };
-        window.addEventListener('mouseup', up);
-        return () => window.removeEventListener('mouseup', up);
-    }, []);
-
     useEffect(() => { // eslint-disable-line react-hooks/exhaustive-deps
         setError(''); // a stale error shouldn't follow the user across tabs
-        if (activeTab === 'overview') {
+        if (activeTab === 'overview' || activeTab === 'waitlist') {
             waitingListService.getProviderList().then(r => setProviderWaitlist(r.data.data || [])).catch(() => {});
         }
         if (activeTab === 'earnings' && !earnings) fetchEarnings();
@@ -873,56 +852,11 @@ const ProviderDashboard = () => {
         }
     };
 
-    const getDaysInMonth = (date) => {
-        const year = date.getFullYear();
-        const month = date.getMonth();
-        const firstDay = new Date(year, month, 1).getDay();
-        const daysInMonth = new Date(year, month + 1, 0).getDate();
-        const days = [];
-        for (let i = 0; i < firstDay; i++) days.push(null);
-        for (let i = 1; i <= daysInMonth; i++) days.push(i);
-        return days;
-    };
-
-    const getAppointmentsForDay = (day) => {
-        if (!day) return [];
-        return appointments.filter(a => {
-            const d = new Date(a.appointmentDate);
-            return (
-                d.getDate() === day &&
-                d.getMonth() === currentDate.getMonth() &&
-                d.getFullYear() === currentDate.getFullYear()
-            );
-        });
-    };
-
-    const getWeekDays = (date) => {
-        const start = new Date(date);
-        start.setDate(date.getDate() - date.getDay());
-        return Array.from({ length: 7 }, (_, i) => {
-            const d = new Date(start);
-            d.setDate(start.getDate() + i);
-            return d;
-        });
-    };
-
     const matchesStaffFilter = (a) => {
         if (calendarStaffFilter === 'all') return true;
         const tmId = a.teamMember?._id || a.teamMember || null;
         if (calendarStaffFilter === 'unassigned') return !tmId;
         return String(tmId) === String(calendarStaffFilter);
-    };
-
-    const getAppointmentsForDate = (date) => {
-        return appointments.filter(a => {
-            if (!matchesStaffFilter(a)) return false;
-            const d = new Date(a.appointmentDate);
-            return (
-                d.getDate() === date.getDate() &&
-                d.getMonth() === date.getMonth() &&
-                d.getFullYear() === date.getFullYear()
-            );
-        });
     };
 
     const statusCalendarColors = {
@@ -960,7 +894,9 @@ const ProviderDashboard = () => {
     // brand-new events array each render and force it to re-process the whole calendar.
     // That per-keystroke re-processing on the main thread was what froze the dashboard.
     const fullCalendarEvents = useMemo(() => {
-        const appointmentEvents = appointments.filter(matchesStaffFilter).map(a => {
+        // Cancelled appointments are dropped from the calendar entirely — they free the slot and
+        // the red blocks just add visual noise. They're still reachable via the Cancelled tab.
+        const appointmentEvents = appointments.filter(a => a.status !== 'cancelled').filter(matchesStaffFilter).map(a => {
             const start = mergeDateAndTime(a.appointmentDate, a.startTime);
             const end = mergeDateAndTime(a.appointmentDate, a.endTime);
             const colors = statusCalendarColors[a.status] || statusCalendarColors.pending;
@@ -1156,18 +1092,6 @@ const ProviderDashboard = () => {
         }
     };
 
-    const isOutsideWorkingHours = (date, hour) => {
-        if (!availability) return false;
-        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-        const daySchedule = availability[dayNames[date.getDay()]];
-        if (!daySchedule || !daySchedule.enabled) return true;
-        const slot = daySchedule.slots[0];
-        if (!slot) return true;
-        const startHour = parseInt(slot.start.split(':')[0]);
-        const endHour = parseInt(slot.end.split(':')[0]);
-        return hour < startHour || hour >= endHour;
-    };
-
     const appointmentTabs = ['pending', 'confirmed', 'completed', 'cancelled'];
     // Earliest booking first (date + start time), so the soonest is always at the top.
     const apptTime = (a) => {
@@ -1346,7 +1270,7 @@ const ProviderDashboard = () => {
                         transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
                     }}><History size={15} strokeWidth={2} /> History</button>
                     {/* Other feature tabs */}
-                    {[['services','Catalogue',Scissors],['availability','Availability',CalendarClock],['overview','Overview',LayoutDashboard],['insights','Insights',BarChart3],['clients','Clients',Users],['wallet','Wallet',WalletIcon],['forms','Forms',ClipboardList],['messages','Messages',MessageSquare],['memberships','Memberships',Ticket],['team','Team',UserCog]].map(([tab, label, Icon]) => (
+                    {[['services','Catalogue',Scissors],['availability','Availability',CalendarClock],['overview','Overview',LayoutDashboard],['waitlist','Waiting List',Clock],['insights','Insights',BarChart3],['clients','Clients',Users],['wallet','Wallet',WalletIcon],['forms','Forms',ClipboardList],['messages','Messages',MessageSquare],['memberships','Memberships',Ticket],['team','Team',UserCog]].map(([tab, label, Icon]) => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
                             display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
                             padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(201,168,76,0.12)' : 'transparent', border: '1px solid',
@@ -1888,6 +1812,35 @@ const ProviderDashboard = () => {
                     );
                 })()}
 
+                {/* Waiting List tab */}
+                {activeTab === 'waitlist' && (
+                    <div>
+                        <div style={{ marginBottom: '1.25rem' }}>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>Waiting List</h2>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>Clients waiting for a slot. They're promoted automatically when a matching time opens up.</p>
+                        </div>
+                        {providerWaitlist.length === 0 ? (
+                            <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '4rem 2rem', textAlign: 'center' }}>
+                                <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>⏳</div>
+                                <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No one's waiting right now</p>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>When you're fully booked, clients can join the waiting list and you'll see them here.</p>
+                            </div>
+                        ) : (
+                            <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '0.5rem 1.5rem' }}>
+                                {providerWaitlist.map((w, i) => (
+                                    <div key={w._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap', padding: '1rem 0', borderBottom: i < providerWaitlist.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                                        <div>
+                                            <p style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem', margin: 0 }}>{w.customer?.name}</p>
+                                            <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', margin: 0 }}>{w.service?.name} · {new Date(w.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })} at {w.startTime}</p>
+                                        </div>
+                                        <span style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', background: 'var(--warm-gray)', borderRadius: '99px', padding: '0.2rem 0.65rem', whiteSpace: 'nowrap' }}>#{w.position} in queue</span>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+                    </div>
+                )}
+
                 {/* Insights tab — operational (non-financial) analytics */}
                 {activeTab === 'insights' && (
                     <div>
@@ -2281,7 +2234,9 @@ const ProviderDashboard = () => {
                                 slotMaxTime="24:00:00"
                                 slotDuration="00:15:00"
                                 slotLabelInterval="01:00:00"
-                                slotLabelFormat={{ hour: 'numeric', minute: '2-digit', meridiem: 'short' }}
+                                slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
+                                eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
+                                slotEventOverlap={false}
                                 eventMinHeight={42}
                                 eventShortHeight={64}
                                 allDaySlot={false}

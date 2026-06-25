@@ -15,6 +15,6 @@ test.describe('Public pages', () => {
 
     test('provider discovery page lists the seeded provider', async ({ page }) => {
         await page.goto('/services');
-        await expect(page.getByText('E2E Barber', { exact: false })).toBeVisible({ timeout: 15_000 });
+        await expect(page.getByText('E2E Provider', { exact: false })).toBeVisible({ timeout: 15_000 });
     });
 });

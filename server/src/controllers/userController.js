@@ -95,8 +95,17 @@ exports.toggleFavorite = async (req, res) => {
         await me.save();
 
         // One heart = private save + public like. Keep the provider's public like count
-        // in step with the toggle (clamped to >= 0 on read in the card payload).
-        await User.updateOne({ _id: provider._id }, { $inc: { 'businessProfile.likesCount': liked ? 1 : -1 } });
+        // in step with the toggle. On un-like, only decrement when the count is already
+        // above 0 — favorites saved before this counter existed were never counted, so a
+        // blind $inc:-1 could otherwise drift the stored value negative.
+        if (liked) {
+            await User.updateOne({ _id: provider._id }, { $inc: { 'businessProfile.likesCount': 1 } });
+        } else {
+            await User.updateOne(
+                { _id: provider._id, 'businessProfile.likesCount': { $gt: 0 } },
+                { $inc: { 'businessProfile.likesCount': -1 } }
+            );
+        }
 
         res.status(200).json({ success: true, data: me.favorites });
     } catch (error) {

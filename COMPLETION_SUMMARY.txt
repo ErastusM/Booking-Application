@@ -312,7 +312,7 @@ LONG-TERM (Next Months):
   1. Payment integration (Stripe)
   2. Real-time notifications (Socket.io)
   3. Customer reviews system
-  4. Barber profiles with photos
+  4. Staff profiles with photos
   5. Multi-location support
 
 ═══════════════════════════════════════════════════════════════════════════════

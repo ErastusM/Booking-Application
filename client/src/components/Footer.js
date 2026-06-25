@@ -13,7 +13,7 @@ const Footer = () => {
         <footer style={{ borderTop: '1px solid var(--border)', background: 'var(--card-bg)', marginTop: '2rem' }}>
             <div className="container" style={{ padding: '0.85rem 1rem', display: 'flex', flexWrap: 'wrap', gap: '0.5rem 1rem', alignItems: 'center', justifyContent: 'space-between' }}>
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
-                    © {new Date().getFullYear()} Bookplus · Made in Namibia
+                    © {new Date().getFullYear()} Bookplus
                 </div>
                 <nav style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', alignItems: 'center' }}>
                     <Link to="/about" style={linkStyle}>About us</Link>

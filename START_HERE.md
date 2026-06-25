@@ -371,7 +371,7 @@ If a port is already in use:
 1. Payment integration
 2. Real-time notifications (Socket.io)
 3. Customer reviews system
-4. Barber profiles
+4. Staff profiles
 5. Multi-location support
 
 ---

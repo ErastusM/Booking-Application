@@ -33,9 +33,13 @@ const transporter = nodemailer.createTransport({
 if (EMAIL_API_KEY) {
     logger.info('Email configured via Resend HTTP API (port 443) — SMTP bypassed');
 } else if (process.env.EMAIL_USER && process.env.EMAIL_PASS) {
-    transporter.verify()
-        .then(() => logger.info({ host: EMAIL_HOST, port: EMAIL_PORT, user: process.env.EMAIL_USER }, 'SMTP ready'))
-        .catch((err) => logger.warn({ err: err.message, host: EMAIL_HOST }, 'SMTP verify failed — emails will be skipped/retried per-send'));
+    // Skip the live verify() under test — it opens a real socket to the SMTP host,
+    // which makes the suite hit the network (slow/flaky) and leaves open handles.
+    if (process.env.NODE_ENV !== 'test') {
+        transporter.verify()
+            .then(() => logger.info({ host: EMAIL_HOST, port: EMAIL_PORT, user: process.env.EMAIL_USER }, 'SMTP ready'))
+            .catch((err) => logger.warn({ err: err.message, host: EMAIL_HOST }, 'SMTP verify failed — emails will be skipped/retried per-send'));
+    }
 } else {
     logger.info('Email not configured (set EMAIL_API_KEY, or EMAIL_USER/EMAIL_PASS) — emails disabled');
 }
