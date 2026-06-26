@@ -2163,7 +2163,7 @@ const ProviderDashboard = () => {
                             type="button"
                             aria-label="Scroll to top"
                             onClick={() => { try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (_) { window.scrollTo(0, 0); } }}
-                            style={{ position: 'fixed', right: '16px', bottom: 'calc(78px + env(safe-area-inset-bottom, 0px))', zIndex: 950, width: '44px', height: '44px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--charcoal)', boxShadow: 'var(--shadow-md)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            style={{ position: 'fixed', right: '16px', bottom: 'calc(104px + env(safe-area-inset-bottom, 0px))', zIndex: 1001, width: '42px', height: '42px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--charcoal)', boxShadow: 'var(--shadow-md)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         >
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 15l-6-6-6 6" /></svg>
                         </button>

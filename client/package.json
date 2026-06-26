@@ -1,6 +1,6 @@
 {
     "name": "bookplus-client",
-    "version": "1.0.0-rc.16",
+    "version": "1.0.0-rc.17",
     "description": "Frontend for Bookplus multi-service booking application",
     "private": true,
     "dependencies": {

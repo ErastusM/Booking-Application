@@ -416,7 +416,7 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
      left of other top-bar icons) so it can't overflow/clip off the screen edge. */
   .notif-dropdown {
     position: fixed !important;
-    top: 64px !important;
+    top: 56px !important;
     right: 8px !important;
     left: auto !important;
     width: calc(100vw - 16px) !important;
@@ -671,7 +671,7 @@ body.dark-mode .bottom-nav {
   /* Sit above the fixed bottom nav (62px + safe area) instead of bottom:0, otherwise
      the nav (z-index 999) covers the Confirm button. Reset the safe-area padding since
      the bar no longer touches the screen edge. */
-  .booking-confirm-mobile { display: flex !important; bottom: calc(62px + env(safe-area-inset-bottom, 0px)) !important; padding-bottom: 1rem !important; }
+  .booking-confirm-mobile { display: flex !important; bottom: 0 !important; padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)) !important; }
 }
 
 /* ── Booking mobile bar — dark mode ── */
@@ -1136,7 +1136,7 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
    just under the fixed navbar instead of leaving a big empty band. The .route-view
    wrapper already adds the status-bar safe-area inset on top of this. */
 :root { --page-hero-pad-top: 9rem; }
-@media (max-width: 768px) { :root { --page-hero-pad-top: 5rem; } }
+@media (max-width: 768px) { :root { --page-hero-pad-top: 4rem; } }
 
 /* Desktop nav links — pill hover/active */
 .nav-pill {

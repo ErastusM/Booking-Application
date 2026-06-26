@@ -37,6 +37,8 @@ const Navbar = () => {
 
     const handleLogout = () => { setMenuOpen(false); logout(); navigate('/'); };
     const isActive = (path) => location.pathname === path;
+    // Hide the bottom nav while booking so it can't cover the sticky "Confirm booking" bar.
+    const onBookingPage = location.pathname === '/book-appointment';
 
     const navLink = (to, label) => {
         const active = isActive(to);
@@ -83,7 +85,7 @@ const Navbar = () => {
             Height is the safe-area inset, so it collapses to nothing in a normal browser. */}
         <div aria-hidden="true" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'env(safe-area-inset-top, 0px)', background: darkMode ? '#0f0f1a' : '#1a1a2e', zIndex: 1300, pointerEvents: 'none' }} />
         <nav style={navStyles}>
-            <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '64px' }}>
+            <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px' }}>
 
                 {/* Logo */}
                 <Link to="/" style={{ textDecoration: 'none', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '0.55rem' }}>
@@ -144,7 +146,7 @@ const Navbar = () => {
                                                 background: activeRole === r ? (isTransparent ? 'rgba(255,255,255,0.9)' : 'var(--charcoal,#1a1a2e)') : 'transparent',
                                                 color: activeRole === r ? (isTransparent ? 'var(--charcoal,#1a1a2e)' : 'var(--gold,#c9a84c)') : (isTransparent ? 'rgba(255,255,255,0.65)' : 'var(--text-muted)'),
                                             }}
-                                        >{r}</button>
+                                        >{r === 'provider' ? '🏢 Business' : '👤 Customer'}</button>
                                     ))}
                                 </div>
                             )}
@@ -208,7 +210,7 @@ const Navbar = () => {
                             title="Send a suggestion"
                             style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'white' : 'var(--text-secondary)', padding: '0.5rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         >
-                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                         </button>
                     )}
                     <button
@@ -247,7 +249,7 @@ const Navbar = () => {
                             </span>
                         </Link>
                         <button onClick={() => setMenuOpen(false)} aria-label="Close menu" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.55rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
+                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                             </svg>
                         </button>
@@ -271,7 +273,7 @@ const Navbar = () => {
                                 </div>
                                 <div style={{ minWidth: 0 }}>
                                     <p style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--charcoal)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</p>
-                                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0, textTransform: 'capitalize' }}>{activeRole} mode</p>
+                                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>{activeRole === 'provider' ? 'Business' : 'Customer'} mode</p>
                                 </div>
                             </div>
                             {/* Role switcher pill — only for provider accounts */}
@@ -290,7 +292,7 @@ const Navbar = () => {
                                                 fontFamily: 'Plus Jakarta Sans, sans-serif', textTransform: 'capitalize',
                                                 cursor: 'pointer',
                                             }}
-                                        >{r}</button>
+                                        >{r === 'provider' ? '🏢 Business' : '👤 Customer'}</button>
                                     ))}
                                 </div>
                             )}
@@ -300,7 +302,7 @@ const Navbar = () => {
                                     <button
                                         onClick={() => { setMenuOpen(false); navigate('/become-provider'); }}
                                         style={{ width: '100%', padding: '0.5rem', borderRadius: '99px', border: '1.5px solid var(--gold)', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark,#a07830)', fontSize: '0.78rem', fontWeight: '600', fontFamily: 'Plus Jakarta Sans, sans-serif', cursor: 'pointer' }}
-                                    >Become a provider →</button>
+                                    >Become a Business →</button>
                                 </div>
                             )}
                         </div>
@@ -371,32 +373,34 @@ const Navbar = () => {
         )}
 
         {/* Mobile bottom navigation — provider: floating rounded card (matches design mock) */}
-        {user && activeRole === 'provider' && (
+        {user && activeRole === 'provider' && !onBookingPage && (
             <div className="show-mobile" style={{
                 position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
                 display: 'flex', justifyContent: 'center',
-                padding: '0 12px calc(10px + env(safe-area-inset-bottom, 0))',
+                padding: '0 12px calc(3px + env(safe-area-inset-bottom, 0))',
                 pointerEvents: 'none',
             }}>
                 <div style={{
                     pointerEvents: 'auto', width: '100%', maxWidth: '440px',
                     display: 'flex', justifyContent: 'space-around', alignItems: 'flex-start',
-                    background: 'var(--card-bg)', border: '1px solid var(--border)',
-                    borderRadius: '26px', boxShadow: '0 12px 32px rgba(26,26,46,0.16)',
-                    padding: '12px 6px 10px',
+                    background: darkMode ? 'rgba(22,22,34,0.78)' : 'rgba(255,255,255,0.78)',
+                    backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+                    border: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid var(--border)',
+                    borderRadius: '20px', boxShadow: '0 8px 22px rgba(26,26,46,0.13)',
+                    padding: '7px 6px 6px',
                 }}>
                     {[
                         { to: '/dashboard', label: 'Calendar', icon: (
-                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
                         ) },
                         { to: '/dashboard?tab=waitlist', label: 'Waiting List', icon: (
-                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 1.75"/></svg>
+                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 1.75"/></svg>
                         ) },
                         { to: '/dashboard?tab=earnings', label: 'Earnings', icon: (
-                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
                         ) },
                         { to: '/account', label: 'Account', icon: (
-                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                         ) },
                     ].map(({ to, icon, label }) => {
                         const [toPath, toQs] = to.split('?');
@@ -407,18 +411,18 @@ const Navbar = () => {
                         return (
                             <Link key={to} to={to} aria-label={label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', textDecoration: 'none', minWidth: 0, WebkitTapHighlightColor: 'transparent' }}>
                                 <span style={{
-                                    width: '46px', height: '46px', borderRadius: '50%',
+                                    width: '38px', height: '38px', borderRadius: '50%',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     background: active ? 'rgba(201,168,76,0.20)' : 'rgba(201,168,76,0.09)',
                                     color: active ? 'var(--gold-dark)' : 'var(--gold)',
                                     transition: 'background 0.18s ease, color 0.18s ease',
                                 }}>{icon}</span>
                                 <span style={{
-                                    fontSize: '0.66rem', fontWeight: active ? '700' : '500',
+                                    fontSize: '0.6rem', fontWeight: active ? '700' : '500',
                                     color: active ? 'var(--gold-dark)' : 'var(--text-muted)',
                                     fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap', lineHeight: 1.1,
                                 }}>{label}</span>
-                                <span style={{ width: '20px', height: '3px', borderRadius: '99px', background: active ? 'var(--gold)' : 'transparent', transition: 'background 0.18s ease' }} />
+                                <span style={{ width: '16px', height: '2px', borderRadius: '99px', background: active ? 'var(--gold)' : 'transparent', transition: 'background 0.18s ease' }} />
                             </Link>
                         );
                     })}
@@ -427,35 +431,37 @@ const Navbar = () => {
         )}
 
         {/* Mobile bottom navigation — customer: floating rounded card (matches the provider one so it doesn't bleed to the edges) */}
-        {user && activeRole === 'customer' && (
+        {user && activeRole === 'customer' && !onBookingPage && (
             <div className="show-mobile" style={{
                 position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
                 display: 'flex', justifyContent: 'center',
-                padding: '0 12px calc(10px + env(safe-area-inset-bottom, 0))',
+                padding: '0 12px calc(3px + env(safe-area-inset-bottom, 0))',
                 pointerEvents: 'none',
             }}>
                 <div style={{
                     pointerEvents: 'auto', width: '100%', maxWidth: '460px',
                     display: 'flex', justifyContent: 'space-around', alignItems: 'flex-start',
-                    background: 'var(--card-bg)', border: '1px solid var(--border)',
-                    borderRadius: '26px', boxShadow: '0 12px 32px rgba(26,26,46,0.16)',
-                    padding: '12px 4px 10px',
+                    background: darkMode ? 'rgba(22,22,34,0.78)' : 'rgba(255,255,255,0.78)',
+                    backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+                    border: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid var(--border)',
+                    borderRadius: '20px', boxShadow: '0 8px 22px rgba(26,26,46,0.13)',
+                    padding: '7px 4px 6px',
                 }}>
                     {[
                         { to: '/', label: 'Home', icon: (
-                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
+                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
                         ) },
                         { to: '/services', label: 'Book', icon: (
-                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
+                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
                         ) },
                         { to: '/appointments', label: 'Bookings', icon: (
-                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
+                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
                         ) },
                         { to: '/profile', label: 'Profile', icon: (
-                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                         ) },
                         { action: () => setShowSuggestion(true), label: 'Suggest', activeOverride: showSuggestion, icon: (
-                            <svg width="22" height="22" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M22 12h-6l-2 3H10l-2-3H2"/><path strokeLinecap="round" strokeLinejoin="round" d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
+                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M22 12h-6l-2 3H10l-2-3H2"/><path strokeLinecap="round" strokeLinejoin="round" d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
                         ) },
                     ].map(({ to, action, icon, label, activeOverride }) => {
                         const active = activeOverride !== undefined ? activeOverride : isActive(to);
@@ -463,18 +469,18 @@ const Navbar = () => {
                         const inner = (
                             <>
                                 <span style={{
-                                    width: '46px', height: '46px', borderRadius: '50%',
+                                    width: '38px', height: '38px', borderRadius: '50%',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
                                     background: active ? 'rgba(201,168,76,0.20)' : 'rgba(201,168,76,0.09)',
                                     color: active ? 'var(--gold-dark)' : 'var(--gold)',
                                     transition: 'background 0.18s ease, color 0.18s ease',
                                 }}>{icon}</span>
                                 <span style={{
-                                    fontSize: '0.64rem', fontWeight: active ? '700' : '500',
+                                    fontSize: '0.6rem', fontWeight: active ? '700' : '500',
                                     color: active ? 'var(--gold-dark)' : 'var(--text-muted)',
                                     fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap', lineHeight: 1.1,
                                 }}>{label}</span>
-                                <span style={{ width: '20px', height: '3px', borderRadius: '99px', background: active ? 'var(--gold)' : 'transparent', transition: 'background 0.18s ease' }} />
+                                <span style={{ width: '16px', height: '2px', borderRadius: '99px', background: active ? 'var(--gold)' : 'transparent', transition: 'background 0.18s ease' }} />
                             </>
                         );
                         return action
@@ -485,7 +491,7 @@ const Navbar = () => {
             </div>
         )}
         {user && <SuggestionBox user={user} open={showSuggestion} onClose={() => setShowSuggestion(false)} />}
-        {user && <div className="show-mobile" style={{ height: (activeRole === 'provider' || activeRole === 'customer') ? '112px' : '0px' }} />}
+        {user && !onBookingPage && <div className="show-mobile" style={{ height: (activeRole === 'provider' || activeRole === 'customer') ? '88px' : '0px' }} />}
     </>
     );
 };

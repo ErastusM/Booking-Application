@@ -149,7 +149,7 @@ const Profile = () => {
                             <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.2rem' }}>Grow your business on Bookplus</h3>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>List your services and take bookings — you keep this customer account too.</p>
                         </div>
-                        <button onClick={() => navigate('/become-provider')} className="btn-primary" style={{ padding: '0.65rem 1.4rem', whiteSpace: 'nowrap' }}>Become a provider →</button>
+                        <button onClick={() => navigate('/become-provider')} className="btn-primary" style={{ padding: '0.65rem 1.4rem', whiteSpace: 'nowrap' }}>Become a Business →</button>
                     </div>
                 )}
                 {user?.role === 'provider' && (
@@ -158,7 +158,7 @@ const Profile = () => {
                             <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.2rem' }}>You're in customer view</h3>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>Browsing and booking as a customer. Switch back to manage your business.</p>
                         </div>
-                        <button onClick={() => { switchRole('provider'); navigate('/dashboard'); }} className="btn-primary" style={{ padding: '0.65rem 1.4rem', whiteSpace: 'nowrap' }}>Switch to provider view →</button>
+                        <button onClick={() => { switchRole('provider'); navigate('/dashboard'); }} className="btn-primary" style={{ padding: '0.65rem 1.4rem', whiteSpace: 'nowrap' }}>Switch to Business view →</button>
                     </div>
                 )}
 
