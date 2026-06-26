@@ -89,7 +89,7 @@ const Wallet = () => {
                 <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>My Wallet</h1>
             </div>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', margin: '0 0 1.75rem' }}>
-                Prepaid balances you hold with your providers. Top up by paying the provider directly — they approve it and your balance updates.
+                Prepaid balances you hold with your businesses. Top up by paying the business directly — they approve it and your balance updates.
             </p>
 
             {/* Adjustments awaiting the client's approval */}
@@ -122,9 +122,9 @@ const Wallet = () => {
                     <WalletIcon size={40} color="var(--text-muted)" style={{ marginBottom: '0.75rem' }} />
                     <h3 style={{ fontFamily: 'var(--font-display)', color: 'var(--charcoal)', margin: '0 0 0.4rem' }}>No wallets yet</h3>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 1.25rem' }}>
-                        A wallet is created the first time you top up with a provider or book a service that requires prepayment.
+                        A wallet is created the first time you top up with a business or book a service that requires prepayment.
                     </p>
-                    <Link to="/services" className="btn-primary" style={{ textDecoration: 'none', padding: '0.6rem 1.4rem' }}>Browse providers</Link>
+                    <Link to="/services" className="btn-primary" style={{ textDecoration: 'none', padding: '0.6rem 1.4rem' }}>Browse businesses</Link>
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -139,7 +139,7 @@ const Wallet = () => {
                                             ? <img src={cloudinaryAvatar(w.provider.avatar, 96)} alt="" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} />
                                             : <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--warm-gray)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', color: 'var(--gold-dark)' }}>{(w.provider?.name || '?')[0]}</div>}
                                         <div>
-                                            <p style={{ margin: 0, fontWeight: '700', color: 'var(--charcoal)' }}>{w.provider?.name || 'Provider'}</p>
+                                            <p style={{ margin: 0, fontWeight: '700', color: 'var(--charcoal)' }}>{w.provider?.name || 'Business'}</p>
                                             <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>{w.provider?.providerCategory || w.provider?.businessProfile?.businessName || ''}</p>
                                         </div>
                                     </div>
@@ -204,7 +204,7 @@ const Wallet = () => {
             {topUpFor && (
                 <WalletTopUpModal
                     providerId={topUpFor.provider?._id || topUpFor.provider}
-                    providerName={topUpFor.provider?.name || 'Provider'}
+                    providerName={topUpFor.provider?.name || 'Business'}
                     onClose={() => setTopUpFor(null)}
                     onDone={() => { setTopUpFor(null); setTxns({}); setExpanded(null); load(); }}
                 />

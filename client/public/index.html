@@ -7,6 +7,10 @@
     <meta name="description" content="Bookplus — premium appointment booking for salons, barbers, spas, and service businesses.">
     <meta name="theme-color" content="#1a1a2e">
 
+    <!-- Warm up the API connection early so the first request is faster -->
+    <link rel="preconnect" href="https://api.bookplus.pro" crossorigin>
+    <link rel="dns-prefetch" href="https://api.bookplus.pro">
+
     <!-- PWA -->
     <link rel="manifest" href="%PUBLIC_URL%/manifest.json">
     <link rel="icon" href="%PUBLIC_URL%/favicon.ico">

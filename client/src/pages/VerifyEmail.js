@@ -23,7 +23,7 @@ const VerifyEmail = () => {
 
     const successMessage = role === 'provider'
         ? 'Your business account is active. Head to your dashboard to complete your profile and start receiving bookings.'
-        : 'Your account is verified. You can now discover providers and book appointments.';
+        : 'Your account is verified. You can now discover businesses and book appointments.';
 
     const config = {
         success: {

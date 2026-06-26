@@ -303,7 +303,7 @@ const Home = () => {
                         Book trusted <span style={{ color: 'var(--gold)' }}>local services</span>
                     </h1>
                     <p className="fade-up fade-up-delay-2" style={{ color: 'var(--text-secondary)', fontSize: 'clamp(1rem, 2vw, 1.2rem)', lineHeight: 1.65, maxWidth: '620px', margin: '0 auto 1.25rem' }}>
-                        Discover top-rated providers for beauty, wellness, automotive, training and more — booked in seconds, on your schedule.
+                        Discover top-rated businesses for beauty, wellness, automotive, training and more — booked in seconds, on your schedule.
                     </p>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                         <span style={{ display: 'inline-flex', gap: '1px' }}>
@@ -328,8 +328,8 @@ const Home = () => {
                         <input
                             value={query}
                             onChange={e => setQuery(e.target.value)}
-                            placeholder="Search services or providers…"
-                            aria-label="Search services or providers"
+                            placeholder="Search services or businesses…"
+                            aria-label="Search services or businesses"
                             style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: '1rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}
                         />
                         <button type="submit" className="btn-primary" style={{ borderRadius: '999px', padding: '0.7rem 1.6rem', flexShrink: 0 }}>Search</button>
@@ -355,7 +355,7 @@ const Home = () => {
                             ))
                         ) : providers.length === 0 ? (
                             <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                                <p style={{ margin: 0, fontSize: '0.95rem' }}>New providers are joining soon. Check back shortly.</p>
+                                <p style={{ margin: 0, fontSize: '0.95rem' }}>New businesses are joining soon. Check back shortly.</p>
                             </div>
                         ) : (
                             <>
@@ -382,10 +382,10 @@ const Home = () => {
                 <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem 1.25rem', flexWrap: 'wrap', textAlign: 'center' }}>
                     <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: '0.95rem', margin: 0 }}>
                         <span style={{ color: 'white', fontWeight: '700' }}>{user?.role === 'provider' ? 'Grow your business with Bookplus.' : 'Ready when you are.'}</span>{' '}
-                        {user?.role === 'provider' ? 'Run everything from one workspace.' : 'Find a provider, pick a time, and you’re booked.'}
+                        {user?.role === 'provider' ? 'Run everything from one workspace.' : 'Find a business, pick a time, and you’re booked.'}
                     </p>
                     <Link to={user ? (user.role === 'provider' ? '/dashboard' : '/services') : '/register'} className="btn-primary" style={{ fontSize: '0.9rem', padding: '0.6rem 1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
-                        {user ? (user.role === 'provider' ? 'Go to dashboard' : 'Browse providers') : 'Get started'} <ArrowRight size={16} strokeWidth={2} />
+                        {user ? (user.role === 'provider' ? 'Go to dashboard' : 'Browse businesses') : 'Get started'} <ArrowRight size={16} strokeWidth={2} />
                     </Link>
                 </div>
             </section>

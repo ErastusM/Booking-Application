@@ -336,7 +336,7 @@ const ProviderAccount = () => {
 
                                         <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
                                             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>Online profile visibility</h3>
-                                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>Your profile is visible to clients searching for providers on Bookplus.</p>
+                                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>Your profile is visible to clients searching for businesses on Bookplus.</p>
                                             <Link to={`/providers/${user?.id}`} target="_blank" style={{ color: 'var(--gold-dark)', fontWeight: '600', textDecoration: 'none', fontSize: '0.875rem' }}>View public profile →</Link>
                                         </div>
                                     </div>

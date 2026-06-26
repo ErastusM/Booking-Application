@@ -325,7 +325,7 @@ const MyAppointments = () => {
                                 }}>
                                     {(() => {
                                         const prov = a.service?.provider;
-                                        const company = prov?.businessProfile?.businessName || prov?.name || 'Provider';
+                                        const company = prov?.businessProfile?.businessName || prov?.name || 'Business';
                                         const bizImg = prov?.avatar || prov?.portfolio?.images?.[0] || null;
                                         return (
                                             <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
@@ -478,7 +478,7 @@ const MyAppointments = () => {
                         <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                             <div>
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>
-                                    Message Provider
+                                    Message Business
                                 </h2>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.2rem 0 0', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
                                     {msgModal.service?.name} · {new Date(msgModal.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}

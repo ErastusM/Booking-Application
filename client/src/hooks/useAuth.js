@@ -2,11 +2,29 @@ import { useState, useCallback, useEffect } from 'react';
 import API from '../services/api';
 
 export const useAuth = () => {
-    const [user, setUser] = useState(null);
+    // Hydrate the user from cache so a returning client sees the app logged-in
+    // instantly — no spinner, no flash of the login page — while we re-validate the
+    // session in the background. Only hydrate when a token is also present.
+    const [user, setUser] = useState(() => {
+        try {
+            if (!localStorage.getItem('token')) return null;
+            const cached = localStorage.getItem('user');
+            return cached ? JSON.parse(cached) : null;
+        } catch { return null; }
+    });
     const [token, setToken] = useState(localStorage.getItem('token'));
-    const [loading, setLoading] = useState(true);
+    // Only block the UI when we have a token but no cached user to show yet.
+    const [loading, setLoading] = useState(() => !!localStorage.getItem('token') && !localStorage.getItem('user'));
     const [error, setError] = useState(null);
     const [activeRole, setActiveRole] = useState(null);
+
+    // Persist the user so reopening the app restores the session instantly.
+    useEffect(() => {
+        try {
+            if (user) localStorage.setItem('user', JSON.stringify(user));
+            else localStorage.removeItem('user');
+        } catch { /* storage disabled/full — non-fatal */ }
+    }, [user]);
 
     // Sync activeRole whenever the user record changes.
     // Providers can toggle between 'provider' and 'customer' views; the choice
@@ -21,27 +39,24 @@ export const useAuth = () => {
         }
     }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    // On app load, if a token exists, fetch the user profile to restore session
+    // On app load, validate/refresh the cached session in the BACKGROUND. We never
+    // block on this and never log out on a transient error (offline, slow API, 5xx) —
+    // only a genuine auth failure the API interceptor can't refresh away clears the
+    // session (via forceLogout → 'auth-logout'). This keeps clients signed in across
+    // reopens instead of bouncing them to login on any hiccup.
     useEffect(() => {
-        const restoreSession = async () => {
-            const savedToken = localStorage.getItem('token');
-            if (!savedToken) {
-                setLoading(false);
-                return;
-            }
-            try {
-                const response = await API.get('/auth/profile');
+        const savedToken = localStorage.getItem('token');
+        if (!savedToken) { setLoading(false); return; }
+        let cancelled = false;
+        API.get('/auth/profile')
+            .then((response) => {
+                if (cancelled) return;
                 setUser(response.data.data);
                 setToken(savedToken);
-            } catch (err) {
-                // Token is invalid or expired — clear it
-                window.dispatchEvent(new Event('auth-logout'));
-            } finally {
-                setLoading(false);
-            }
-        };
-
-        restoreSession();
+            })
+            .catch(() => { /* interceptor handles real auth failures; otherwise keep the cached session */ })
+            .finally(() => { if (!cancelled) setLoading(false); });
+        return () => { cancelled = true; };
     }, []);
 
     useEffect(() => {
@@ -49,6 +64,7 @@ export const useAuth = () => {
             localStorage.removeItem('token');
             localStorage.removeItem('refreshToken');
             localStorage.removeItem('activeRole');
+            localStorage.removeItem('user');
             setToken(null);
             setUser(null);
             setActiveRole(null);

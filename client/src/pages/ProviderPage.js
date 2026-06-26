@@ -93,7 +93,7 @@ const ProvidersPage = () => {
         <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ textAlign: 'center' }}>
                 <div style={{ width: '40px', height: '40px', border: '3px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 1rem' }} />
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Finding providers...</p>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Finding businesses...</p>
             </div>
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
@@ -108,7 +108,7 @@ const ProvidersPage = () => {
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Discover</p>
                     <h1 style={{ fontFamily: 'var(--font-body)', fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: '700', color: 'white', marginBottom: '2rem' }}>
-                        Find Your Provider
+                        Find a Business
                     </h1>
 
                     {/* Search bar */}
@@ -151,7 +151,7 @@ const ProvidersPage = () => {
                         <button
                             onClick={handleNearMe}
                             disabled={nearMeLoading}
-                            title="Find providers near your current location"
+                            title="Find businesses near your current location"
                             style={{
                                 padding: '0.875rem 1.25rem', border: 'none', borderRadius: 'var(--radius-sm)',
                                 background: nearMeCity ? 'var(--gold)' : 'white', color: nearMeCity ? 'var(--charcoal)' : 'var(--text-muted)',
@@ -199,7 +199,7 @@ const ProvidersPage = () => {
 
                 {/* Results count */}
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-                    {filtered.length} provider{filtered.length !== 1 ? 's' : ''} found
+                    {filtered.length} business{filtered.length !== 1 ? 'es' : ''} found
                     {search && ` for "${search}"`}
                     {categoryFilter && ` in ${categoryFilter}`}
                     {locationFilter && ` near ${locationFilter}`}
@@ -208,7 +208,7 @@ const ProvidersPage = () => {
                 {filtered.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '5rem 2rem', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
                         <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>💈</div>
-                        <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1.3rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>No providers found</h3>
+                        <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1.3rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>No businesses found</h3>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Try adjusting your search or location filter</p>
                     </div>
                 ) : (

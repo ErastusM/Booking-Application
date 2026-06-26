@@ -155,14 +155,14 @@ const BookAppointment = () => {
                 return `${day.charAt(0).toUpperCase() + day.slice(1, 3)}: ${hrs}`;
             }).join('; ');
         if (!daySchedule || !daySchedule.enabled) {
-            setAvailabilityError(`This provider is not available at this time. Working hours are ${allWorkingHours || 'not set'}`);
+            setAvailabilityError(`This business is not available at this time. Working hours are ${allWorkingHours || 'not set'}`);
             return;
         }
         // Valid if the chosen start falls within ANY working block that day (split shifts)
         const dayHours = (daySchedule.slots || []).filter(s => s?.start && s?.end);
         const within = dayHours.some(s => formData.startTime >= s.start && formData.startTime < s.end);
         if (!within) {
-            setAvailabilityError(`This provider is not available at this time. Working hours are ${dayHours.map(s => `${s.start}-${s.end}`).join(', ') || 'not set'}`);
+            setAvailabilityError(`This business is not available at this time. Working hours are ${dayHours.map(s => `${s.start}-${s.end}`).join(', ') || 'not set'}`);
             return;
         }
         setAvailabilityError('');

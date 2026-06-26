@@ -31,7 +31,7 @@ const About = () => {
                 <div className="container" style={{ maxWidth: '700px', marginLeft: 'auto', marginRight: 'auto' }}>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', color: 'var(--text-secondary)', fontSize: '1.05rem', lineHeight: 1.75 }}>
                         <p>Bookplus started with a simple frustration: finding and booking a good local service in Namibia meant a string of phone calls, missed messages, and "just come in and we'll see." The people doing brilliant work — barbers, stylists, car washes, trainers, therapists — were often the hardest to actually reach.</p>
-                        <p>We wanted to build <strong style={{ color: 'var(--charcoal)' }}>one local app that links everyone together</strong>: a single place where a customer can discover a business, see their work, and book a real time in seconds — and where a provider can run their whole day from one elegant workspace.</p>
+                        <p>We wanted to build <strong style={{ color: 'var(--charcoal)' }}>one local app that links everyone together</strong>: a single place where a customer can discover a business, see their work, and book a real time in seconds — and where a business can run their whole day from one elegant workspace.</p>
                         <p>That's the whole idea. Keep money and talent in the community, give small businesses the same polish as the big chains, and make booking feel effortless on both sides. Built in Namibia, for Namibia — growing one business at a time.</p>
                     </div>
                 </div>

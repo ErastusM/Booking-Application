@@ -359,7 +359,7 @@ const Services = () => {
                     <input
                         value={q}
                         onChange={e => onSearchChange(e.target.value)}
-                        placeholder="Search services, providers or categories…"
+                        placeholder="Search services, businesses or categories…"
                         aria-label="Search services"
                         style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: '0.95rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}
                     />

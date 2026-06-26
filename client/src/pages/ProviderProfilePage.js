@@ -42,7 +42,7 @@ const ProviderProfilePage = () => {
     const toggleBlock = async () => {
         try {
             if (blocked) { await authService.unblockUser(id); setBlocked(false); }
-            else if (window.confirm('Block this provider? You won’t be able to book or message each other.')) {
+            else if (window.confirm('Block this business? You won’t be able to book or message each other.')) {
                 await authService.blockUser(id); setBlocked(true);
             }
         } catch { /* ignore */ }
@@ -143,7 +143,7 @@ const ProviderProfilePage = () => {
                                     Top up wallet
                                 </button>
                                 <button onClick={toggleBlock} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '0.78rem', fontFamily: 'var(--font-body)', padding: '0.35rem 0.85rem', borderRadius: '99px' }}>
-                                    {blocked ? 'Unblock provider' : 'Block provider'}
+                                    {blocked ? 'Unblock business' : 'Block business'}
                                 </button>
                             </div>
                         )}
