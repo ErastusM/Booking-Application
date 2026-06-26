@@ -16,7 +16,7 @@ const About = () => {
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
             {/* Hero */}
-            <section style={{ position: 'relative', overflow: 'hidden', paddingTop: 'clamp(7rem, 14vh, 10rem)', paddingBottom: 'clamp(2rem, 5vh, 3.5rem)' }}>
+            <section style={{ position: 'relative', overflow: 'hidden', paddingTop: 'clamp(4rem, 10vh, 9rem)', paddingBottom: 'clamp(2rem, 5vh, 3.5rem)' }}>
                 <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'radial-gradient(60% 45% at 50% 0%, rgba(201,168,76,0.14), transparent 70%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative', maxWidth: '760px', marginLeft: 'auto', marginRight: 'auto', textAlign: 'center' }}>
                     <p style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '1rem' }}>About us</p>

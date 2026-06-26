@@ -37,8 +37,6 @@ const Navbar = () => {
 
     const handleLogout = () => { setMenuOpen(false); logout(); navigate('/'); };
     const isActive = (path) => location.pathname === path;
-    // Hide the bottom nav while booking so it can't cover the sticky "Confirm booking" bar.
-    const onBookingPage = location.pathname === '/book-appointment';
 
     const navLink = (to, label) => {
         const active = isActive(to);
@@ -373,7 +371,7 @@ const Navbar = () => {
         )}
 
         {/* Mobile bottom navigation — provider: floating rounded card (matches design mock) */}
-        {user && activeRole === 'provider' && !onBookingPage && (
+        {user && activeRole === 'provider' && (
             <div className="show-mobile" style={{
                 position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
                 display: 'flex', justifyContent: 'center',
@@ -431,7 +429,7 @@ const Navbar = () => {
         )}
 
         {/* Mobile bottom navigation — customer: floating rounded card (matches the provider one so it doesn't bleed to the edges) */}
-        {user && activeRole === 'customer' && !onBookingPage && (
+        {user && activeRole === 'customer' && (
             <div className="show-mobile" style={{
                 position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
                 display: 'flex', justifyContent: 'center',
@@ -491,7 +489,7 @@ const Navbar = () => {
             </div>
         )}
         {user && <SuggestionBox user={user} open={showSuggestion} onClose={() => setShowSuggestion(false)} />}
-        {user && !onBookingPage && <div className="show-mobile" style={{ height: (activeRole === 'provider' || activeRole === 'customer') ? '88px' : '0px' }} />}
+        {user && <div className="show-mobile" style={{ height: (activeRole === 'provider' || activeRole === 'customer') ? '88px' : '0px' }} />}
     </>
     );
 };

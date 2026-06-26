@@ -120,7 +120,7 @@ const Profile = () => {
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh', paddingBottom: '5rem' }}>
 
             {/* Title */}
-            <div style={{ paddingTop: 'clamp(4.5rem, 9vw, 7rem)', paddingBottom: '1.5rem', textAlign: 'center' }}>
+            <div style={{ paddingTop: 'clamp(3.75rem, 7vw, 4.75rem)', paddingBottom: '1.5rem', textAlign: 'center' }}>
                 <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Profile</h1>
             </div>
 

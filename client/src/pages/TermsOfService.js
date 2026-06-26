@@ -9,7 +9,7 @@ const li = { color: 'var(--text-secondary)', lineHeight: 1.7, fontSize: '0.95rem
 
 const TermsOfService = () => {
     return (
-        <div className="container" style={{ paddingTop: '7rem', paddingBottom: '4rem', maxWidth: '780px' }}>
+        <div className="container" style={{ paddingTop: 'clamp(4rem, 8vw, 7rem)', paddingBottom: '4rem', maxWidth: '780px' }}>
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.4rem' }}>Terms of Service</h1>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>Last updated: {LAST_UPDATED}</p>
 

@@ -372,6 +372,9 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
     z-index: 100;
     box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
   }
+  /* Tablet (769–900px): no bottom nav at this width, so the bar sits at bottom:0 —
+     lift the "back to top" button clear of it. */
+  .scroll-top-fab { bottom: 84px; }
 }
 
 /* Appointment block visuals for Fresha-like look */
@@ -431,7 +434,7 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
   .provider-service-row > div:last-child { width: 100% !important; align-items: flex-start !important; }
 
   /* Tighter header on mobile */
-  .provider-header { padding-top: 5rem !important; padding-bottom: 1.5rem !important; }
+  .provider-header { padding-top: 4rem !important; padding-bottom: 1.5rem !important; }
 
   .auth-left { display: none !important; }
   .auth-right {
@@ -517,11 +520,12 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
   /* Extra bottom padding so content clears the bottom nav bar */
   body { padding-bottom: 62px; }
 
-  /* Booking page mobile sticky bar */
+  /* Booking page mobile sticky bar — sits just above the floating bottom nav
+     (~88px incl. safe area) so the nav (z 999) never overlaps the Continue button. */
   .booking-mobile-bar {
     display: flex !important;
     position: fixed;
-    bottom: 62px;
+    bottom: calc(88px + env(safe-area-inset-bottom, 0px));
     left: 0;
     right: 0;
     background: white;
@@ -532,8 +536,9 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
     z-index: 100;
     box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
   }
-  /* Clear both the bottom nav (62px) and the sticky booking bar above it. */
-  .scroll-top-fab { bottom: 140px; }
+  /* Park the "back to top" button in the corner above the booking bar + nav,
+     not floating over the calendar / time-slot content. */
+  .scroll-top-fab { bottom: calc(156px + env(safe-area-inset-bottom, 0px)); }
 }
 
 @media (min-width: 769px) {
@@ -668,10 +673,10 @@ body.dark-mode .bottom-nav {
     grid-template-columns: 1fr !important;
   }
   .booking-confirm-desktop { display: none !important; }
-  /* Sit above the fixed bottom nav (62px + safe area) instead of bottom:0, otherwise
-     the nav (z-index 999) covers the Confirm button. Reset the safe-area padding since
-     the bar no longer touches the screen edge. */
-  .booking-confirm-mobile { display: flex !important; bottom: 0 !important; padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)) !important; }
+  /* Sit above the floating bottom nav (~88px incl. safe area) so the nav
+     (z-index 999) can't cover the Confirm button. The bar no longer touches the
+     screen edge, so it doesn't need its own safe-area padding. */
+  .booking-confirm-mobile { display: flex !important; bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important; padding-bottom: 1rem !important; }
 }
 
 /* ── Booking mobile bar — dark mode ── */
