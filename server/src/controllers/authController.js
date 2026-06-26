@@ -428,6 +428,16 @@ exports.updateProfile = async (req, res) => {
             user.markModified('businessProfile');
         }
 
+        // Short business tagline (shown on discovery cards + public profile).
+        if (user.role === 'provider' && req.body.description !== undefined) {
+            if (typeof req.body.description !== 'string') {
+                return res.status(400).json({ success: false, message: 'Description must be a string' });
+            }
+            if (!user.businessProfile) user.businessProfile = {};
+            user.businessProfile.description = req.body.description.trim().slice(0, 200);
+            user.markModified('businessProfile');
+        }
+
         if (user.role === 'provider' && providerCategory !== undefined) {
             if (!MAIN_CATEGORIES.includes(providerCategory)) {
                 return res.status(400).json({

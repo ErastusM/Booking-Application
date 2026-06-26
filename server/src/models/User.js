@@ -71,6 +71,8 @@ const userSchema = new mongoose.Schema(
         googleCalendarEmbedUrl: { type: String, default: '' },
         businessProfile: {
             businessName: { type: String, default: '' },
+            // Short tagline shown on discovery cards + the public profile.
+            description: { type: String, default: '', maxlength: 200 },
             teamSize: { type: String, default: '' },
             locationType: { type: String, default: '' },
             address: { type: String, default: '' },

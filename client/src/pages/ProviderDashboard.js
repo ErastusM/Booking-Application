@@ -14,6 +14,7 @@ import EnablePushBanner from '../components/EnablePushBanner';
 import ProviderPhotosNudge from '../components/ProviderPhotosNudge';
 import { Calendar, History, Scissors, CalendarClock, Clock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban, Wallet as WalletIcon, Phone, Mail, ChevronDown, ChevronLeft, Send } from 'lucide-react';
 import { cloudinaryAvatar } from '../utils/cloudinary';
+import { NAMIBIAN_TOWNS, normalizeTown } from '../utils/namibiaTowns';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { buildTimeSlots } from '../utils/bookingSlots';
 import MiniCalendar from '../components/MiniCalendar';
@@ -813,7 +814,7 @@ const ProviderDashboard = () => {
 
     const handleEditService = (s) => {
         setEditingService(s);
-        setServiceForm({ name: s.name, description: s.description, price: s.price, duration: s.duration, bufferBefore: s.bufferBefore || '', bufferAfter: s.bufferAfter || '', location: s.location || '', address: s.address || '', category: s.category?._id || s.category || '', options: s.options || [] });
+        setServiceForm({ name: s.name, description: s.description, price: s.price, duration: s.duration, bufferBefore: s.bufferBefore || '', bufferAfter: s.bufferAfter || '', location: normalizeTown(s.location || ''), address: s.address || '', category: s.category?._id || s.category || '', options: s.options || [] });
         setShowServiceForm(true);
     };
 
@@ -1401,8 +1402,14 @@ const ProviderDashboard = () => {
                                     <input type="number" min="0" max="120" value={serviceForm.bufferAfter} onChange={e => setServiceForm({ ...serviceForm, bufferAfter: e.target.value })} className="input" placeholder="0" />
                                 </div>
                                 <div>
-                                    <label style={labelStyle}>City / Area</label>
-                                    <input value={serviceForm.location} onChange={e => setServiceForm({ ...serviceForm, location: e.target.value })} className="input" placeholder="e.g. Windhoek" />
+                                    <label style={labelStyle}>City / Town</label>
+                                    <select value={serviceForm.location} onChange={e => setServiceForm({ ...serviceForm, location: e.target.value })} className="input">
+                                        <option value="">Select a town…</option>
+                                        {serviceForm.location && !NAMIBIAN_TOWNS.includes(serviceForm.location) && (
+                                            <option value={serviceForm.location}>{serviceForm.location}</option>
+                                        )}
+                                        {NAMIBIAN_TOWNS.map(t => <option key={t} value={t}>{t}</option>)}
+                                    </select>
                                 </div>
                                 <div>
                                     <label style={labelStyle}>Street Address</label>

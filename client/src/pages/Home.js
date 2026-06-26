@@ -4,6 +4,7 @@ import { useAuthContext } from '../context/AuthContext';
 import { providerMarketService, favoriteService } from '../services';
 import { Search, Star, ArrowRight, Heart, MapPin } from 'lucide-react';
 import { cloudinaryThumb } from '../utils/cloudinary';
+import { normalizeTown } from '../utils/namibiaTowns';
 
 const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
     const cover = p.coverImage || p.avatar || null;
@@ -59,7 +60,7 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
     const photos = ((p.photos && p.photos.length) ? p.photos : (p.coverImage ? [p.coverImage] : [])).slice(0, 5);
     const hasPhotos = photos.length > 0;
     const initial = (p.businessName || p.name || '?').charAt(0).toUpperCase();
-    const loc = p.location || p.businessProfile?.address || 'Namibia';
+    const loc = normalizeTown(p.location || p.businessProfile?.address || 'Namibia');
     const go = () => navigate(`/providers/${id}`);
 
     const [idx, setIdx] = useState(0);            // active carousel photo (for the dots)
@@ -166,6 +167,9 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
                     <p style={{ margin: '0.3rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                         {p.serviceCount} {p.serviceCount === 1 ? 'service' : 'services'} available
                     </p>
+                )}
+                {p.description && (
+                    <p style={{ margin: '0.35rem 0 0', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.4, display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{p.description}</p>
                 )}
             </div>
 

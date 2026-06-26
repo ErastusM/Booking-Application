@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { providerMarketService } from '../services';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { mapsUrl } from '../utils/maps';
+import { normalizeTown } from '../utils/namibiaTowns';
 
 const StarDisplay = ({ rating }) => (
     <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
@@ -250,9 +251,9 @@ const ProvidersPage = () => {
                                             </span>
                                         )}
                                         {provider.location && (
-                                            <a href={mapsUrl(provider.location)} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'flex-start', gap: '0.3rem', textDecoration: 'none' }}>
+                                            <a href={mapsUrl(normalizeTown(provider.location))} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'flex-start', gap: '0.3rem', textDecoration: 'none' }}>
                                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '2px' }}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
-                                                <span style={{ textDecoration: 'underline' }}>{provider.location}</span>
+                                                <span style={{ textDecoration: 'underline' }}>{normalizeTown(provider.location)}</span>
                                             </a>
                                         )}
 

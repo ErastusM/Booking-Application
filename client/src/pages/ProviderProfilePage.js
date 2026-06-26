@@ -6,6 +6,7 @@ import { cloudinaryAvatar, cloudinaryThumb } from '../utils/cloudinary';
 import { mapsUrl } from '../utils/maps';
 import WalletTopUpModal from '../components/WalletTopUpModal';
 import { Phone, MessageCircle, Mail, MapPin, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { normalizeTown } from '../utils/namibiaTowns';
 
 const StarDisplay = ({ rating }) => (
     <div style={{ display: 'flex', gap: '2px' }}>
@@ -165,6 +166,11 @@ const ProviderProfilePage = () => {
                                     {provider.providerCategory}
                                 </span>
                             )}
+                            {provider.businessProfile?.description && (
+                                <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.92rem', lineHeight: 1.5, maxWidth: '540px', margin: '0 0 0.7rem' }}>
+                                    {provider.businessProfile.description}
+                                </p>
+                            )}
                             {address && (
                                 <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.85rem', margin: '0 0 0.6rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                                     <span aria-hidden="true">📍</span>{' '}
@@ -251,7 +257,7 @@ const ProviderProfilePage = () => {
                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '0.5rem' }}>{service.description}</p>
                                             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
                                                 <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{service.duration} min</span>
-                                                {service.location && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>📍 {service.location}</span>}
+                                                {service.location && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>📍 {normalizeTown(service.location)}</span>}
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.75rem', flexShrink: 0 }}>

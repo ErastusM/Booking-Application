@@ -58,6 +58,7 @@ exports.getAllProviders = async (req, res) => {
                 _id: p._id,
                 name: p.name,
                 businessName: p.businessProfile?.businessName || p.name,
+                description: p.businessProfile?.description || '',
                 avatar: p.avatar,
                 coverImage: p.portfolio?.images?.[0] || null,
                 photos: (p.portfolio?.images || []).slice(0, 5),
