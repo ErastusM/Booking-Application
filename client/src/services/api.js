@@ -115,9 +115,13 @@ API.interceptors.response.use(
             originalRequest.headers.Authorization = `Bearer ${newToken}`;
             return API(originalRequest);
         } catch (refreshError) {
-            // Refresh failed — release any queued requests and log out for real.
+            // Release any queued requests. Only force logout when the refresh was
+            // genuinely REJECTED (401/403 = invalid / expired / revoked). A network
+            // or 5xx failure is transient — keep the session so a blip doesn't sign
+            // the user out; a later request will retry the refresh.
             onRefreshed(null);
-            forceLogout();
+            const st = refreshError.response?.status;
+            if (st === 401 || st === 403) forceLogout();
             return Promise.reject(refreshError);
         } finally {
             isRefreshing = false;
