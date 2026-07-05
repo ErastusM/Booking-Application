@@ -32,7 +32,7 @@ Works as a fully responsive website **and** an installable, app-like PWA with bo
 cd apps/api && npm install
 
 # Client
-cd client && npm install
+pnpm install   # repo root — installs client + shared packages (pnpm workspace)
 ```
 
 ### Environment Variables

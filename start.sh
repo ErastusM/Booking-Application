@@ -64,14 +64,13 @@ install_deps() {
     cd ../..
 
     echo ""
-    echo "Installing frontend dependencies..."
-    cd client
-    
-    if [ -d "node_modules" ]; then
-        echo "Frontend dependencies already installed."
-    else
-        npm install
+    echo "Installing frontend dependencies (pnpm workspace: client + packages)..."
+    if ! command -v pnpm >/dev/null 2>&1; then
+        echo "[ERROR] pnpm is required for the frontend workspace. Install it with: npm install -g pnpm"
+        exit 1
     fi
+    pnpm install
+    cd client
     
     if [ -f ".env" ]; then
         echo ".env file exists."

@@ -1,5 +1,5 @@
 // Shared helpers + seeded credentials for E2E specs.
-// These accounts are created by server/e2e-server.js on boot.
+// These accounts are created by apps/api/e2e-server.js on boot.
 const SEED = {
     customer: { email: 'e2e-customer@bookplus.dev', password: 'Password1!' },
     provider: { email: 'e2e-provider@bookplus.dev', password: 'Password1!' },

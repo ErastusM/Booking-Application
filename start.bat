@@ -62,13 +62,14 @@ if exist ".env" (
 cd ..\..
 
 echo.
-echo Installing frontend dependencies...
-cd client
-if exist "node_modules" (
-    echo Frontend dependencies already installed.
-) else (
-    npm install
+echo Installing frontend dependencies (pnpm workspace: client + packages)...
+where pnpm >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] pnpm is required for the frontend workspace. Install it with: npm install -g pnpm
+    exit /b 1
 )
+call pnpm install
+cd client
 
 if exist ".env" (
     echo .env file exists.

@@ -21,7 +21,7 @@ chmod +x start.sh
 cd apps/api && npm install && npm run dev
 
 # Terminal 2 - Frontend
-cd client && npm install && npm start
+pnpm install && cd client && npm start
 ```
 
 ---
@@ -115,9 +115,9 @@ npm test             # Run tests
 
 ### Frontend Commands
 ```bash
-cd client
+pnpm install         # Install dependencies (run at the REPO ROOT — pnpm workspace)
 
-npm install          # Install dependencies
+cd client
 npm start            # Start dev server
 npm run build        # Build for production
 npm test             # Run tests

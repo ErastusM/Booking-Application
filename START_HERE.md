@@ -66,8 +66,8 @@ npm install
 npm run dev
 
 # Terminal 2 - Install and run frontend
+pnpm install   # repo root — pnpm workspace (client + shared packages)
 cd client
-npm install
 npm start
 ```
 
@@ -212,8 +212,7 @@ npm install package-name
 
 **Frontend:**
 ```bash
-cd client
-npm install package-name
+pnpm --filter bookplus-client add package-name   # from the repo root
 ```
 
 ### Running Backend Only

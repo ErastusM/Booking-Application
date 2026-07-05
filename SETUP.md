@@ -104,16 +104,18 @@ docker run -d -p 27017:27017 --name bookplus-mongo mongo:6.0
 
 ### 4. Frontend Setup
 
-Navigate to the client directory:
+Install dependencies from the **repo root** (pnpm workspace — covers the
+client plus the shared `packages/*`; `npm install` inside `client/` will fail
+on the `workspace:*` dependencies):
 
 ```bash
-cd ../client
+pnpm install
 ```
 
-Install dependencies:
+Then navigate to the client directory:
 
 ```bash
-npm install
+cd client
 ```
 
 Create a `.env` file:
