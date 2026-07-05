@@ -1,0 +1,16 @@
+# Root .dockerignore for images built from the repo-root context (client).
+# apps/api builds from its own context (./apps/api) with its own .dockerignore.
+**/node_modules
+**/build
+**/dist
+**/coverage
+**/.env
+**/.env.*
+!**/.env.example
+apps/
+certbot/
+nginx/
+.git/
+.github/
+client/test-results/
+client/e2e/

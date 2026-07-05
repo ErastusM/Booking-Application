@@ -1,0 +1,17 @@
+{
+    "name": "@bookplus/design-tokens",
+    "version": "0.1.0",
+    "private": true,
+    "description": "Bookplus design tokens — single source of truth for color, type, spacing, elevation, and motion across all apps.",
+    "main": "index.js",
+    "exports": {
+        ".": "./index.js",
+        "./tokens.css": "./tokens.css",
+        "./tailwind-preset": "./tailwind-preset.js"
+    },
+    "files": [
+        "index.js",
+        "tokens.css",
+        "tailwind-preset.js"
+    ]
+}

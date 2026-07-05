@@ -1,7 +1,6 @@
 packages:
+  - 'client'
   - 'packages/*'
 # Transition plan (Epic 0):
-# - client joins the workspace in task 0.2, when it first consumes a workspace
-#   package (design-tokens) and its CI/Docker install switches to pnpm with it.
 # - apps/api stays npm-managed (own package-lock.json) so CI and the Docker
 #   image install exactly what ships today. It joins the workspace in Epic 1.
