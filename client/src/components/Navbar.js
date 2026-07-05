@@ -5,7 +5,7 @@ import { useTheme } from '../context/ThemeContext';
 import NotificationBell from './NotificationBell';
 import SuggestionBox from './SuggestionBox';
 import { cloudinaryAvatar } from '../utils/cloudinary';
-import BrandMark from './BrandMark';
+import { BrandMark } from '@bookplus/ui';
 
 const Navbar = () => {
     const { user, logout, activeRole, switchRole } = useAuthContext();
