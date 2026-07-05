@@ -13,7 +13,7 @@ Before you begin, ensure you have the following installed on your system:
 
 ```
 Booking Application/
-├── server/                 # Backend API (Node.js + Express)
+├── apps/api/                 # Backend API (Node.js + Express)
 │   ├── src/
 │   │   ├── models/        # Database models (User, Service, Appointment)
 │   │   ├── routes/        # API routes
@@ -52,10 +52,10 @@ cd "Booking Application"
 
 ### 2. Backend Setup
 
-Navigate to the server directory:
+Navigate to the API directory:
 
 ```bash
-cd server
+cd apps/api
 ```
 
 Install dependencies:
@@ -133,7 +133,7 @@ REACT_APP_API_URL=http://localhost:5000
 **Terminal 1 - Start Backend:**
 
 ```bash
-cd server
+cd apps/api
 npm run dev
 ```
 
@@ -160,7 +160,7 @@ npm run build
 **Start Backend:**
 
 ```bash
-cd server
+cd apps/api
 npm start
 ```
 
@@ -330,7 +330,7 @@ Content-Type: application/json
 - Verify MongoDB is listening on port 27017
 
 ### Port Already in Use
-- Change the PORT in server/.env
+- Change the PORT in apps/api/.env
 - Change the port for client in package.json dev script
 
 ### Module Not Found

@@ -61,7 +61,7 @@ chmod +x start.sh
 **Option C: Manual Setup**
 ```bash
 # Terminal 1 - Install and run backend
-cd server
+cd apps/api
 npm install
 npm run dev
 
@@ -99,7 +99,7 @@ The .env.example files are already created. Just copy them:
 
 **Backend (.env)**
 ```bash
-cd server
+cd apps/api
 copy .env.example .env  # Windows
 # or
 cp .env.example .env    # macOS/Linux
@@ -132,7 +132,7 @@ cp .env.example .env    # macOS/Linux
 - **QUICK_REFERENCE.md** - Commands, URLs, troubleshooting
 - **START_HERE.md** - This file
 
-### Backend Files (`server/`)
+### Backend Files (`apps/api/`)
 ```
 server.js                    # Main entry point
 src/models/                  # Database schemas
@@ -206,7 +206,7 @@ start.sh                     # Unix quick start
 
 **Backend:**
 ```bash
-cd server
+cd apps/api
 npm install package-name
 ```
 
@@ -218,7 +218,7 @@ npm install package-name
 
 ### Running Backend Only
 ```bash
-cd server
+cd apps/api
 npm run dev  # With auto-reload
 # or
 npm start    # Production mode
@@ -309,7 +309,7 @@ Code comments (In-file documentation)
 
 ### Port Conflicts
 If a port is already in use:
-1. Change PORT in `server/.env`
+1. Change PORT in `apps/api/.env`
 2. Or kill the process using that port
 
 ### MongoDB Not Connecting
@@ -328,7 +328,7 @@ If a port is already in use:
 3. Check console (F12) for errors
 
 ### API Not Responding
-1. Check if backend is running: `npm run dev` in server folder
+1. Check if backend is running: `npm run dev` in the apps/api folder
 2. Verify http://localhost:5000/api/health returns OK
 3. Check REACT_APP_API_URL in client `.env`
 

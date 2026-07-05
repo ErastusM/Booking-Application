@@ -28,7 +28,7 @@ module.exports = defineConfig({
     webServer: [
         {
             command: 'npm run e2e:server',
-            cwd: '../server',
+            cwd: '../apps/api',
             port: Number(API_PORT),
             reuseExistingServer: !process.env.CI,
             timeout: 120_000,

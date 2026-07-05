@@ -46,7 +46,7 @@ esac
 install_deps() {
     echo ""
     echo "Installing backend dependencies..."
-    cd server
+    cd apps/api
     
     if [ -d "node_modules" ]; then
         echo "Backend dependencies already installed."
@@ -61,8 +61,8 @@ install_deps() {
         cp .env.example .env
     fi
     
-    cd ..
-    
+    cd ../..
+
     echo ""
     echo "Installing frontend dependencies..."
     cd client
@@ -93,11 +93,11 @@ start_servers() {
     echo ""
     
     # Start backend server
-    cd server
+    cd apps/api
     echo "Starting Backend Server on port 5000..."
     npm run dev &
     BACKEND_PID=$!
-    cd ..
+    cd ../..
     
     # Give backend time to start
     sleep 2
