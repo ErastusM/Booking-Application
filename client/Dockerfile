@@ -6,14 +6,15 @@ RUN npm install -g pnpm@10
 
 WORKDIR /repo
 
-# Manifests first so dependency install stays in the Docker layer cache.
+# Manifests + package sources first so dependency install stays in the Docker
+# layer cache (packages/* are tiny; the api-client's prepare script compiles
+# during install and needs its src/ present).
 COPY package.json pnpm-workspace.yaml pnpm-lock.yaml .npmrc ./
+COPY packages/ packages/
 COPY client/package.json client/
-COPY packages/design-tokens/package.json packages/design-tokens/
 
 RUN pnpm install --frozen-lockfile --filter bookplus-client...
 
-COPY packages/ packages/
 COPY client/ client/
 
 ARG REACT_APP_API_URL
@@ -21,7 +22,9 @@ ENV REACT_APP_API_URL=$REACT_APP_API_URL
 # Don't ship source maps in production — they expose the unminified source.
 ENV GENERATE_SOURCEMAP=false
 
-RUN pnpm --filter bookplus-client run build
+# Explicit package build (idempotent with the install-time prepare) keeps the
+# pipeline deterministic even if lifecycle-script behavior changes.
+RUN pnpm --filter "@bookplus/*" build && pnpm --filter bookplus-client run build
 
 FROM node:18-alpine
 

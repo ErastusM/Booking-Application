@@ -38,6 +38,7 @@ jobs:
           REACT_APP_API_URL: https://api.bookplus.pro
         run: |
           pnpm install --frozen-lockfile
+          pnpm --filter "@bookplus/*" build
           pnpm --filter bookplus-client run build
 
   # 2) On push to main only: build & push both images to Docker Hub
