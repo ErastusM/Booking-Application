@@ -32,9 +32,20 @@ const userSchema = new mongoose.Schema(
         },
         role: {
             type: String,
-            enum: ['customer', 'provider', 'admin'],
+            enum: ['customer', 'provider', 'staff', 'admin'],
             default: 'customer'
         },
+        // staff-only: which business (provider User) this staff account works for.
+        // null for every other role.
+        staffOf: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'User',
+            default: null,
+            index: true,
+        },
+        // Owner-assigned permission flags, e.g. ['calendar:self','clients:assigned'].
+        // Presets map onto these flags so granular control needs no schema change.
+        staffPermissions: { type: [String], default: [] },
         providerCategory: {
             type: String,
             default: null,

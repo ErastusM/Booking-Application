@@ -414,3 +414,18 @@ exports.sendPasswordResetEmail = async (email, name, token) => {
         }),
     });
 };
+
+// Staff invite — same set-password mechanics as the reset flow, invite copy.
+exports.sendStaffInviteEmail = async (email, name, businessName, token) => {
+    const url = `${process.env.CLIENT_URL}/reset-password?token=${token}`;
+    await safeSend({
+        from: FROM, to: email, subject: `You’ve been invited to join ${businessName} on Bookplus`,
+        html: shell({
+            heading: `Hi ${escapeHtml(name)}, you’re invited`,
+            preheader: `Join ${businessName} on Bookplus.`,
+            inner: `${p(`${escapeHtml(businessName)} added you to their team on Bookplus. Set a password to log in and see your calendar.`)}
+                <div style="margin:24px 0;">${primaryButton(url, 'Set your password')}</div>
+                ${p(`<span style="color:${C.muted};font-size:13px;">This link expires in 7 days. If you weren’t expecting this, you can safely ignore it.</span>`)}`,
+        }),
+    });
+};

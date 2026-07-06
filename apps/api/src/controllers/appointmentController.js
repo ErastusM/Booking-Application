@@ -16,6 +16,7 @@ const {
     sendRebookingPrompt,
 } = require('../utils/emailService');
 const calendarHelper = require('../utils/calendarHelper');
+const { resolveBookingStaff } = require('../utils/staffBooking');
 
 const defaultSchedule = {
     monday:    { enabled: true,  slots: [{ start: '09:00', end: '17:00' }] },
@@ -90,7 +91,7 @@ const hasConflictingAppointment = async (providerId, appointmentDate, startTime,
  */
 exports.getBookedSlots = async (req, res) => {
     try {
-        const { providerId, date } = req.query;
+        const { providerId, date, teamMember } = req.query;
         if (!providerId || !date) {
             return res.status(400).json({ success: false, message: 'providerId and date are required' });
         }
@@ -99,11 +100,17 @@ exports.getBookedSlots = async (req, res) => {
         const end = new Date(date);
         end.setHours(23, 59, 59, 999);
 
-        const appointments = await Appointment.find({
+        const query = {
             provider: providerId,
             appointmentDate: { $gte: start, $lte: end },
             status: { $nin: ['cancelled'] },
-        }).select('startTime endTime -_id');
+        };
+        // Additive: scope busy times to one staff member. Without it the query
+        // stays provider-wide, exactly as before.
+        if (teamMember) query.teamMember = teamMember;
+
+        const appointments = await Appointment.find(query)
+            .select('startTime endTime teamMember -_id');
 
         res.status(200).json({ success: true, data: appointments });
     } catch (error) {
@@ -256,6 +263,23 @@ exports.createAppointment = async (req, res) => {
             }
         }
 
+        // Per-staff resolution (spec §3.6): validates a requested member
+        // (ownership, active, performs the service, staff hours, blocked time,
+        // their existing bookings) and resolves "any available" for customer
+        // bookings when the business has staff. Zero-staff businesses resolve
+        // to null — the legacy provider-level path, unchanged.
+        let resolvedTeamMember = teamMember || null;
+        if (providerId) {
+            const resolution = await resolveBookingStaff({
+                svc, providerId, appointmentDate, startTime, endTime,
+                requestedTeamMember: teamMember || null, requester: req.user,
+            });
+            if (resolution.error) {
+                return res.status(resolution.status).json({ success: false, message: resolution.error });
+            }
+            resolvedTeamMember = resolution.teamMember;
+        }
+
         if (providerId) {
             const [newSH, newSM] = startTime.split(':').map(Number);
             const [newEH, newEM] = endTime.split(':').map(Number);
@@ -266,13 +290,14 @@ exports.createAppointment = async (req, res) => {
             const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
             // Per-staff conflicts: different team members can be booked concurrently.
             // When a staff member is set, only their bookings count; otherwise the
-            // provider's own (unassigned) bookings count.
+            // provider's own (unassigned) bookings count. Runs AFTER resolution so
+            // it re-checks the resolved member — the race backstop.
             const overlapQuery = {
                 provider: providerId,
                 appointmentDate: { $gte: dayStart, $lte: dayEnd },
                 status: { $nin: ['cancelled'] },
             };
-            overlapQuery.teamMember = teamMember || null;
+            overlapQuery.teamMember = resolvedTeamMember;
             const existing = await Appointment.find(overlapQuery).select('startTime endTime');
             const hasOverlap = existing.some(a => {
                 const [aSH, aSM] = a.startTime.split(':').map(Number);
@@ -327,7 +352,7 @@ exports.createAppointment = async (req, res) => {
             statusHistory: [{ status: 'confirmed', changedBy: req.user._id }],
             // Walk-in name only when the provider didn't pick a registered client.
             walkInName: isProviderBooking && !customerId ? (walkInName?.trim() || null) : null,
-            teamMember: teamMember || null,
+            teamMember: resolvedTeamMember,
             paymentMethod: chosenMethod,
             manageToken: randomUUID(),
         };
@@ -369,7 +394,7 @@ exports.createAppointment = async (req, res) => {
                 provider: providerId,
                 appointmentDate: { $gte: dayStart, $lte: dayEnd },
                 status: { $nin: ['cancelled'] },
-                teamMember: teamMember || null,
+                teamMember: resolvedTeamMember,
                 _id: { $ne: appointment._id },
             }).select('startTime endTime _id');
             const [nSH, nSM] = startTime.split(':').map(Number);

@@ -2,6 +2,28 @@ const User = require('../models/User');
 const Service = require('../models/Service');
 const Review = require('../models/Review');
 const Category = require('../models/Category');
+const TeamMember = require('../models/TeamMember');
+
+/**
+ * GET /api/providers/:id/staff?serviceId=
+ * Public — bookable staff for a business, optionally narrowed to those who
+ * perform a given service (empty services array = performs all of them).
+ * Powers the staff-selection step in the customer booking flow.
+ */
+exports.getProviderStaff = async (req, res) => {
+    try {
+        const query = { provider: req.params.id, isActive: true };
+        if (req.query.serviceId) {
+            query.$or = [{ services: { $size: 0 } }, { services: req.query.serviceId }];
+        }
+        const staff = await TeamMember.find(query)
+            .select('name role color services') // public: no email/phone/user
+            .sort({ createdAt: 1 });
+        res.status(200).json({ success: true, data: staff });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
 
 exports.getAllProviders = async (req, res) => {
     try {

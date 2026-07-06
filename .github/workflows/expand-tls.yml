@@ -1,0 +1,26 @@
+name: Expand TLS certificate (one-off)
+
+# Manually triggered after the app./business. DNS records resolve: expands the
+# Let's Encrypt certificate to cover the dual-app subdomains, then reloads
+# nginx. Safe to re-run (certbot no-ops when the cert already has the SANs).
+on:
+  workflow_dispatch:
+
+jobs:
+  expand:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Expand certificate over SSH
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          script: |
+            cd /app
+            docker compose run --rm --entrypoint certbot certbot certonly \
+              --webroot -w /var/www/certbot --expand --non-interactive --agree-tos \
+              --cert-name bookplus.pro \
+              -d bookplus.pro -d www.bookplus.pro -d api.bookplus.pro \
+              -d app.bookplus.pro -d business.bookplus.pro
+            docker compose exec nginx nginx -s reload
