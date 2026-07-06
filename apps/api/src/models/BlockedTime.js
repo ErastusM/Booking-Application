@@ -7,6 +7,13 @@ const blockedTimeSchema = new mongoose.Schema({
         required: true,
         index: true,
     },
+    // null = business-wide block (today's behavior); set = blocks only this staff member.
+    teamMember: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'TeamMember',
+        default: null,
+        index: true,
+    },
     date: { type: String, required: true },         // 'YYYY-MM-DD'
     startTime: { type: String, required: true },    // 'HH:MM'
     endTime: { type: String, required: true },      // 'HH:MM'
