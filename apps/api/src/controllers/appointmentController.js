@@ -90,7 +90,7 @@ const hasConflictingAppointment = async (providerId, appointmentDate, startTime,
  */
 exports.getBookedSlots = async (req, res) => {
     try {
-        const { providerId, date } = req.query;
+        const { providerId, date, teamMember } = req.query;
         if (!providerId || !date) {
             return res.status(400).json({ success: false, message: 'providerId and date are required' });
         }
@@ -99,11 +99,17 @@ exports.getBookedSlots = async (req, res) => {
         const end = new Date(date);
         end.setHours(23, 59, 59, 999);
 
-        const appointments = await Appointment.find({
+        const query = {
             provider: providerId,
             appointmentDate: { $gte: start, $lte: end },
             status: { $nin: ['cancelled'] },
-        }).select('startTime endTime -_id');
+        };
+        // Additive: scope busy times to one staff member. Without it the query
+        // stays provider-wide, exactly as before.
+        if (teamMember) query.teamMember = teamMember;
+
+        const appointments = await Appointment.find(query)
+            .select('startTime endTime teamMember -_id');
 
         res.status(200).json({ success: true, data: appointments });
     } catch (error) {

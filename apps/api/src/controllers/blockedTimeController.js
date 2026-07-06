@@ -28,7 +28,12 @@ function generateOccurrences(startDate, recurrenceType, recurrenceEndDate) {
 
 exports.getMyBlockedTimes = async (req, res) => {
     try {
-        const blocked = await BlockedTime.find({ provider: req.user._id })
+        const query = { provider: req.user._id };
+        // ?teamMember=<id> → only that member's blocks; ?teamMember=business →
+        // only business-wide blocks; absent → everything (existing behavior).
+        if (req.query.teamMember === 'business') query.teamMember = null;
+        else if (req.query.teamMember) query.teamMember = req.query.teamMember;
+        const blocked = await BlockedTime.find(query)
             .sort({ date: 1, startTime: 1 });
         res.status(200).json({ success: true, data: blocked });
     } catch (error) {
@@ -38,7 +43,7 @@ exports.getMyBlockedTimes = async (req, res) => {
 
 exports.createBlockedTime = async (req, res) => {
     try {
-        const { date, startTime, endTime, reason, isRecurring, recurrenceType, recurrenceEndDate } = req.body;
+        const { date, startTime, endTime, reason, isRecurring, recurrenceType, recurrenceEndDate, teamMember } = req.body;
 
         if (!date || !startTime || !endTime) {
             return res.status(400).json({ success: false, message: 'date, startTime and endTime are required' });
@@ -47,11 +52,24 @@ exports.createBlockedTime = async (req, res) => {
             return res.status(400).json({ success: false, message: 'endTime must be after startTime' });
         }
 
+        // Optional staff scope (null/absent = business-wide, today's behavior).
+        // The member must belong to this provider.
+        let teamMemberId = null;
+        if (teamMember) {
+            const TeamMember = require('../models/TeamMember');
+            const member = await TeamMember.findOne({ _id: teamMember, provider: req.user._id });
+            if (!member) {
+                return res.status(400).json({ success: false, message: 'Unknown team member' });
+            }
+            teamMemberId = member._id;
+        }
+
         if (isRecurring && recurrenceType) {
             const groupId = randomUUID();
             const occurrences = generateOccurrences(date, recurrenceType, recurrenceEndDate);
             const docs = occurrences.map(d => ({
                 provider: req.user._id,
+                teamMember: teamMemberId,
                 date: d,
                 startTime,
                 endTime,
@@ -67,6 +85,7 @@ exports.createBlockedTime = async (req, res) => {
 
         const blocked = await BlockedTime.create({
             provider: req.user._id,
+            teamMember: teamMemberId,
             date,
             startTime,
             endTime,
