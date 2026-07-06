@@ -186,6 +186,7 @@ const Navbar = () => {
                         </>
                     ) : (
                         <>
+                            <a href={BUSINESS_URL} style={{ color: isTransparent ? 'rgba(255,255,255,0.85)' : 'var(--text-secondary)', textDecoration: 'none', fontSize: '0.9rem', fontWeight: '600', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--gold)'} onMouseLeave={e => e.currentTarget.style.color = isTransparent ? 'rgba(255,255,255,0.85)' : 'var(--text-secondary)'}>For business</a>
                             <Link to="/login" style={{ color: isTransparent ? 'white' : 'var(--text-primary)', textDecoration: 'none', fontSize: '0.9rem', fontWeight: '500', transition: 'color 0.2s' }}>Login</Link>
                             <Link to="/register" className="btn-primary" style={{ padding: '0.5rem 1.25rem' }}>Sign Up</Link>
                         </>
@@ -259,6 +260,7 @@ const Navbar = () => {
                         <div style={{ padding: '1rem 1.2rem', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                             <Link to="/login" onClick={() => setMenuOpen(false)} style={{ width: '100%', textAlign: 'center', textDecoration: 'none', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', color: 'var(--charcoal)', fontWeight: '600', fontSize: '0.92rem' }}>Log in</Link>
                             <Link to="/register" onClick={() => setMenuOpen(false)} className="btn-primary" style={{ width: '100%', padding: '0.8rem 1rem', textAlign: 'center', textDecoration: 'none' }}>Sign Up</Link>
+                            <a href={BUSINESS_URL} style={{ width: '100%', textAlign: 'center', textDecoration: 'none', padding: '0.7rem 1rem', color: 'var(--gold-dark)', fontWeight: '600', fontSize: '0.9rem' }}>List your business →</a>
                         </div>
                     )}
 
