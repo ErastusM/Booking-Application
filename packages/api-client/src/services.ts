@@ -35,7 +35,8 @@ export const makeServices = (API: AxiosInstance) => ({
     appointmentService: {
         getAllAppointments: (params?: any) => API.get('/appointments', { params }),
         getCustomerAppointments: () => API.get('/appointments/my-appointments'),
-        getBookedSlots: (providerId: string, date: string) => API.get('/appointments/booked-slots', { params: { providerId, date } }),
+        getBookedSlots: (providerId: string, date: string, teamMember?: string) =>
+            API.get('/appointments/booked-slots', { params: teamMember ? { providerId, date, teamMember } : { providerId, date } }),
         createAppointment: (data: any) => API.post('/appointments', data),
         updateAppointment: (id: string, data: any) => API.put(`/appointments/${id}`, data),
         cancelAppointment: (id: string, reason?: string) => API.delete(`/appointments/${id}`, { data: { cancellationReason: reason } }),
@@ -111,6 +112,9 @@ export const makeServices = (API: AxiosInstance) => ({
     providerMarketService: {
         getAllProviders: () => API.get('/providers'),
         getProviderProfile: (id: string) => API.get(`/providers/${id}`),
+        // Bookable staff for the customer staff-selection step (public).
+        getProviderStaff: (id: string, serviceId?: string) =>
+            API.get(`/providers/${id}/staff`, { params: serviceId ? { serviceId } : {} }),
     },
 
     categoryService: {
@@ -164,6 +168,11 @@ export const makeServices = (API: AxiosInstance) => ({
         addMember: (data: any) => API.post('/team', data),
         updateMember: (id: string, data: any) => API.put(`/team/${id}`, data),
         deleteMember: (id: string) => API.delete(`/team/${id}`),
+        // Epic 2 staff management
+        inviteMember: (id: string, data?: any) => API.post(`/team/${id}/invite`, data || {}),
+        setMemberServices: (id: string, services: string[]) => API.put(`/team/${id}/services`, { services }),
+        getMemberAvailability: (id: string) => API.get(`/team/${id}/availability`),
+        updateMemberAvailability: (id: string, schedule: any) => API.put(`/team/${id}/availability`, { schedule }),
     },
 
     suggestionService: {

@@ -243,6 +243,43 @@ describe('GET /api/providers/:id/staff (public)', () => {
     });
 });
 
+describe('GET /api/appointments — staff sees ONLY their own column', () => {
+    it('scopes a staff principal to their TeamMember; never the whole platform', async () => {
+        const owner = await makeProvider();
+        const otherOwner = await makeProvider();
+        const svc = await makeService(owner._id);
+        const otherSvc = await makeService(otherOwner._id);
+        const customer = await makeUser();
+
+        const mine = await makeMember(owner, { name: 'Mine' });
+        const colleague = await makeMember(owner, { name: 'Colleague' });
+        const staffUser = await makeUser({ role: 'staff', staffOf: owner._id });
+        mine.user = staffUser._id;
+        await mine.save();
+
+        const date = new Date(); date.setDate(date.getDate() + 3);
+        const mk = (provider, service, teamMember, startTime) => Appointment.create({
+            customer: customer._id, service: service._id, provider: provider._id,
+            appointmentDate: date, startTime, endTime: '23:59', status: 'confirmed',
+            teamMember, totalPrice: 50,
+        });
+        await mk(owner, svc, mine._id, '09:00');       // theirs
+        await mk(owner, svc, colleague._id, '10:00');  // same business, other staff
+        await mk(owner, svc, null, '11:00');           // owner column
+        await mk(otherOwner, otherSvc, null, '12:00'); // another business entirely
+
+        const res = await request(app).get('/api/appointments').set(authHeader(staffUser));
+        expect(res.status).toBe(200);
+        expect(res.body.data).toHaveLength(1);
+        expect(res.body.data[0].startTime).toBe('09:00');
+
+        // A staff user with no linked roster row sees nothing (not everything).
+        const orphan = await makeUser({ role: 'staff', staffOf: owner._id });
+        const empty = await request(app).get('/api/appointments').set(authHeader(orphan));
+        expect(empty.body.data).toHaveLength(0);
+    });
+});
+
 describe('Staff principal — login + profile (spec §4.2 auth)', () => {
     it('a staff user logs in and profile exposes staffOf + staffPermissions', async () => {
         const owner = await makeProvider();
