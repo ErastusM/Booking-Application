@@ -42,14 +42,14 @@ const Navbar = () => {
 
     const navLink = (to, label) => {
         const active = isActive(to);
-        const baseColor = active ? 'var(--gold-dark)' : isTransparent ? 'rgba(255,255,255,0.92)' : 'var(--text-secondary)';
+        const baseColor = active ? 'var(--gold-light)' : 'rgba(255,255,255,0.78)';
         return (
             <Link to={to} className="nav-pill" style={{
                 color: baseColor,
                 fontWeight: active ? '600' : '500',
-                background: active ? (isTransparent ? 'rgba(255,255,255,0.14)' : 'rgba(240,62,22,0.12)') : 'transparent',
+                background: active ? 'rgba(240,62,22,0.22)' : 'transparent',
             }}
-                onMouseEnter={e => { if (!active) { e.currentTarget.style.color = isTransparent ? 'white' : 'var(--gold-dark)'; e.currentTarget.style.background = isTransparent ? 'rgba(255,255,255,0.10)' : 'var(--surface-sunken)'; } }}
+                onMouseEnter={e => { if (!active) { e.currentTarget.style.color = '#fff'; e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; } }}
                 onMouseLeave={e => { if (!active) { e.currentTarget.style.color = baseColor; e.currentTarget.style.background = 'transparent'; } }}
             >
                 {label}
@@ -61,11 +61,13 @@ const Navbar = () => {
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000,
         transition: 'all 0.3s ease',
         paddingTop: 'env(safe-area-inset-top, 0px)',
-        background: isTransparent ? 'transparent' : darkMode ? 'rgba(10,10,11,0.97)' : 'rgba(255,255,255,0.97)',
-        backdropFilter: isTransparent ? 'none' : 'blur(12px)',
-        boxShadow: isTransparent ? 'none' : 'var(--shadow-sm)',
-        borderBottom: isTransparent ? 'none' : '1px solid var(--border)',
-        color: isTransparent ? 'white' : 'var(--text-primary)',
+        // Always-ink chrome: the business product is visually distinct from the
+        // customer site at a glance, in both themes.
+        background: darkMode ? 'rgba(10,10,11,0.97)' : 'rgba(4,5,5,0.97)',
+        backdropFilter: 'blur(12px)',
+        boxShadow: 'var(--shadow-sm)',
+        borderBottom: '1px solid rgba(255,255,255,0.10)',
+        color: '#fff',
     };
 
     const mobileLink = (to, label) => (
@@ -91,18 +93,18 @@ const Navbar = () => {
                 <Link to="/" style={{ textDecoration: 'none', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '0.55rem' }}>
                     <BrandMark size={30} />
                     <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', letterSpacing: '-0.02em' }}>
-                        <span style={{ color: isTransparent ? 'white' : 'var(--charcoal)' }}>Book</span><span style={{ color: 'var(--gold)' }}>plus</span>
+                        <span style={{ color: '#fff' }}>Book</span><span style={{ color: 'var(--gold)' }}>plus</span>
                     </span>
+                    <span style={{ marginLeft: '0.15rem', fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-light)', border: '1px solid rgba(240,62,22,0.5)', borderRadius: '999px', padding: '0.2rem 0.5rem', flexShrink: 0 }}>Business</span>
                 </Link>
 
                 {/* Desktop links */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }} className="hidden-mobile">
                     {/* Business app: no marketplace here — providers manage, customers browse
                         on the customer site (cross-app link below). */}
-                    <a className="nav-pill" href={CUSTOMER_URL} style={{ color: 'var(--text-secondary)', fontWeight: '500' }}>Customer site</a>
+                    <a className="nav-pill" href={CUSTOMER_URL} style={{ color: 'rgba(255,255,255,0.78)', fontWeight: '500' }}>Customer site</a>
                     {activeRole === 'provider' && navLink('/dashboard', 'Dashboard')}
                     {activeRole === 'provider' && navLink('/team', 'Team')}
-                    {activeRole === 'provider' && navLink('/appointments', 'My bookings')}
                     {user?.role === 'admin' && navLink('/bkplus-command', 'Dashboard')}
                     {user?.role === 'admin' && navLink('/bkplus-command/insights', 'Analytics')}
                 </div>
@@ -114,9 +116,9 @@ const Navbar = () => {
                         onClick={toggleDarkMode}
                         title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
                         aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)', padding: '0.4rem', display: 'flex', alignItems: 'center', borderRadius: 'var(--radius-sm)', transition: 'color 0.2s' }}
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', padding: '0.4rem', display: 'flex', alignItems: 'center', borderRadius: 'var(--radius-sm)', transition: 'color 0.2s' }}
                         onMouseEnter={e => e.currentTarget.style.color = 'var(--gold)'}
-                        onMouseLeave={e => e.currentTarget.style.color = isTransparent ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)'}
+                        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}
                     >
                         {darkMode ? (
                             <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
@@ -127,37 +129,18 @@ const Navbar = () => {
 
                     {user ? (
                         <>
-                            {/* Role switcher — only visible for provider accounts */}
-                            {user.role === 'provider' && (
-                                <div style={{ display: 'flex', background: isTransparent ? 'rgba(255,255,255,0.12)' : 'var(--warm-gray,#dcdedd)', borderRadius: '99px', border: `1px solid ${isTransparent ? 'rgba(255,255,255,0.2)' : 'var(--border)'}`, padding: '3px', gap: '2px' }}>
-                                    {['provider', 'customer'].map(r => (
-                                        <button
-                                            key={r}
-                                            onClick={() => switchRole(r)}
-                                            style={{
-                                                padding: '4px 12px', borderRadius: '99px', border: 'none',
-                                                cursor: 'pointer', fontSize: '0.72rem', fontWeight: '600',
-                                                fontFamily: 'Plus Jakarta Sans, sans-serif', textTransform: 'capitalize',
-                                                transition: 'all 0.15s',
-                                                background: activeRole === r ? (isTransparent ? 'rgba(255,255,255,0.9)' : 'var(--charcoal,#040505)') : 'transparent',
-                                                color: activeRole === r ? (isTransparent ? 'var(--charcoal,#040505)' : 'var(--gold,#f03e16)') : (isTransparent ? 'rgba(255,255,255,0.65)' : 'var(--text-muted)'),
-                                            }}
-                                        >{r === 'provider' ? '🏢 Business' : '👤 Customer'}</button>
-                                    ))}
-                                </div>
-                            )}
                             <button
                                 onClick={() => setShowSuggestion(true)}
                                 title="Send a suggestion"
                                 aria-label="Send a suggestion"
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)', padding: '0.4rem', display: 'flex', alignItems: 'center', borderRadius: 'var(--radius-sm)', transition: 'color 0.2s' }}
+                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', padding: '0.4rem', display: 'flex', alignItems: 'center', borderRadius: 'var(--radius-sm)', transition: 'color 0.2s' }}
                                 onMouseEnter={e => e.currentTarget.style.color = 'var(--gold)'}
-                                onMouseLeave={e => e.currentTarget.style.color = isTransparent ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)'}
+                                onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}
                             >
                                 <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.9c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0012 2z"/></svg>
                             </button>
                             <NotificationBell isTransparent={isTransparent} />
-                            <Link to={activeRole === 'provider' ? '/account' : '/profile'} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: isTransparent ? 'white' : 'var(--text-primary)', fontSize: '0.9rem', fontWeight: '500' }}>
+                            <Link to={activeRole === 'provider' ? '/account' : '/profile'} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: '#fff', fontSize: '0.9rem', fontWeight: '500' }}>
                                 <div style={{ width: '34px', height: '34px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)', fontWeight: '700', fontSize: '0.8rem', flexShrink: 0 }}>
                                     {user.avatar
                                         ? <img src={cloudinaryAvatar(user.avatar)} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -182,7 +165,7 @@ const Navbar = () => {
                         </>
                     ) : (
                         <>
-                            <Link to="/login" style={{ color: isTransparent ? 'white' : 'var(--text-primary)', textDecoration: 'none', fontSize: '0.9rem', fontWeight: '500', transition: 'color 0.2s' }}>Login</Link>
+                            <Link to="/login" style={{ color: '#fff', textDecoration: 'none', fontSize: '0.9rem', fontWeight: '500', transition: 'color 0.2s' }}>Login</Link>
                             <Link to="/register" className="btn-primary" style={{ padding: '0.5rem 1.25rem' }}>Sign Up</Link>
                         </>
                     )}
@@ -212,7 +195,7 @@ const Navbar = () => {
                     <button
                         onClick={() => setMenuOpen(prev => !prev)}
                         aria-label={menuOpen ? 'Close menu' : 'Open menu'}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'white' : 'var(--charcoal)', padding: '0.5rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: '#fff', padding: '0.5rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                             {menuOpen
                                 ? <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -269,27 +252,13 @@ const Navbar = () => {
                                 </div>
                                 <div style={{ minWidth: 0 }}>
                                     <p style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--charcoal)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</p>
-                                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>{activeRole === 'provider' ? 'Business' : 'Customer'} mode</p>
+                                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>Business account</p>
                                 </div>
                             </div>
-                            {/* Role switcher pill — only for provider accounts */}
+                            {/* Booking as a customer happens on the customer site. */}
                             {user.role === 'provider' && (
-                                <div style={{ display: 'flex', gap: '0.5rem', padding: '0 1.2rem 0.85rem' }}>
-                                    {['provider', 'customer'].map(r => (
-                                        <button
-                                            key={r}
-                                            onClick={() => { switchRole(r); setMenuOpen(false); }}
-                                            style={{
-                                                flex: 1, padding: '0.42rem', borderRadius: '99px',
-                                                border: `1.5px solid ${activeRole === r ? 'var(--gold)' : 'var(--border)'}`,
-                                                background: activeRole === r ? 'rgba(240,62,22,0.12)' : 'transparent',
-                                                color: activeRole === r ? 'var(--gold-dark,#b32c0d)' : 'var(--text-muted)',
-                                                fontSize: '0.75rem', fontWeight: '600',
-                                                fontFamily: 'Plus Jakarta Sans, sans-serif', textTransform: 'capitalize',
-                                                cursor: 'pointer',
-                                            }}
-                                        >{r === 'provider' ? '🏢 Business' : '👤 Customer'}</button>
-                                    ))}
+                                <div style={{ padding: '0 1.2rem 0.85rem' }}>
+                                    <a href={CUSTOMER_URL} style={{ display: 'block', textAlign: 'center', padding: '0.5rem', borderRadius: '99px', border: '1.5px solid var(--border)', color: 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: '600', textDecoration: 'none' }}>Book as a customer →</a>
                                 </div>
                             )}
                             {/* Customers get an explicit switch-to-providing entry here too */}
@@ -307,7 +276,6 @@ const Navbar = () => {
                     <div style={{ flex: 1, padding: '0.6rem 0' }}>
                         <a href={CUSTOMER_URL} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500', fontSize: '0.95rem', padding: '0.85rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'block' }}>Customer site</a>
                         {activeRole === 'provider' && mobileLink('/dashboard', 'Dashboard')}
-                        {activeRole === 'provider' && mobileLink('/appointments', 'My bookings')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command/insights', 'Analytics')}
                         {user && mobileLink(activeRole === 'provider' ? '/account' : '/profile', 'My Profile')}
