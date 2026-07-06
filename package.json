@@ -8,7 +8,7 @@
     "scripts": {
         "api:dev": "npm --prefix apps/api run dev",
         "api:test": "npm --prefix apps/api test",
-        "client:start": "npm --prefix client start",
-        "client:build": "npm --prefix client run build"
+        "customer:dev": "pnpm --filter @bookplus/customer dev",
+        "business:dev": "pnpm --filter @bookplus/business dev"
     }
 }

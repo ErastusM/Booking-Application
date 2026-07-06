@@ -21,7 +21,7 @@ chmod +x start.sh
 cd apps/api && npm install && npm run dev
 
 # Terminal 2 - Frontend
-pnpm install && cd client && npm start
+pnpm install && cd apps/customer && npx vite --port 3002
 ```
 
 ---
@@ -108,7 +108,7 @@ db.users.find()
 cd apps/api
 
 npm install          # Install dependencies
-npm start            # Run production
+npx vite --port 3002            # Run production
 npm run dev          # Run with auto-reload (nodemon)
 npm test             # Run tests
 ```
@@ -117,8 +117,8 @@ npm test             # Run tests
 ```bash
 pnpm install         # Install dependencies (run at the REPO ROOT — pnpm workspace)
 
-cd client
-npm start            # Start dev server
+cd apps/customer
+npx vite --port 3002            # Start dev server
 npm run build        # Build for production
 npm test             # Run tests
 ```

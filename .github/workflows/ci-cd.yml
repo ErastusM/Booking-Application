@@ -30,16 +30,11 @@ jobs:
           npm ci
           npm test
 
-      - name: Client — install & build
-        env:
-          CI: false            # don't fail the build on ESLint warnings
-          GENERATE_SOURCEMAP: false
-          REACT_APP_API_URL: https://api.bookplus.pro
+      - name: Workspace — install & build packages
         run: |
           pnpm install --frozen-lockfile
           pnpm --filter "@bookplus/api-client" build
           pnpm --filter "@bookplus/ui" build
-          pnpm --filter bookplus-client run build
 
       # Epic 1 apps (Vite) — build-only until they deploy in Epic 1.4
       - name: Customer + Business apps — build
@@ -70,21 +65,6 @@ jobs:
           platforms: linux/amd64
           push: true
           tags: erastusm/bookplus-server:latest
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-
-      # Root context: the client consumes workspace packages (packages/*),
-      # which live outside ./client — the Dockerfile installs with pnpm.
-      - name: Build & push client
-        uses: docker/build-push-action@v6
-        with:
-          context: .
-          file: ./client/Dockerfile
-          platforms: linux/amd64
-          push: true
-          tags: erastusm/bookplus-client:latest
-          build-args: |
-            REACT_APP_API_URL=https://api.bookplus.pro
           cache-from: type=gha
           cache-to: type=gha,mode=max
 

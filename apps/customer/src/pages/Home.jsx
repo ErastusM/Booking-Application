@@ -266,6 +266,17 @@ const Home = () => {
         return [...providers].sort((a, b) => score(b) - score(a));
     }, [providers]);
 
+    // Fresha-style desktop sections — all computed from the one providers payload,
+    // so they light up automatically as data grows. Overlap while data is sparse
+    // is deliberate (Fresha does the same); each section renders only when it
+    // has something to show.
+    const homeSections = useMemo(() => ([
+        { key: 'recommended', title: 'Recommended', sub: 'Top-rated businesses, picked for you', items: discoverFeed.slice(0, 8) },
+        { key: 'new', title: 'New on Bookplus', sub: 'Fresh businesses that just joined', items: [...providers].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 8) },
+        { key: 'trending', title: 'Trending now', sub: 'Getting the most love right now', items: [...providers].sort((a, b) => (b.likesCount || 0) - (a.likesCount || 0) || (b.reviewCount || 0) - (a.reviewCount || 0)).slice(0, 8) },
+        { key: 'top', title: 'Top rated', sub: 'The highest scores from real clients', items: providers.filter(x => x.avgRating != null).sort((a, b) => b.avgRating - a.avgRating).slice(0, 8) },
+    ]).filter(sec => sec.items.length > 0), [providers, discoverFeed]);
+
     // Infinite scroll: reveal the feed in chunks and pull in more as a sentinel near the
     // bottom scrolls into view — no pagination, no "next page" buttons.
     const PAGE = 6;
@@ -337,8 +348,30 @@ const Home = () => {
                 </div>
             </div>
 
-            {/* ── Discover feed (vertical, photo-rich) — the primary home feed ── */}
-            <section style={{ paddingTop: '0.5rem', paddingBottom: '3.5rem' }}>
+            {/* ── Desktop: Fresha-style sections (hidden on mobile) ── */}
+            <section className="home-sections-desktop" style={{ paddingTop: '0.75rem', paddingBottom: '3rem' }}>
+                <div className="container">
+                    {!loading && providers.length === 0 && (
+                        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                            <p style={{ margin: 0, fontSize: '0.95rem' }}>New businesses are joining soon. Check back shortly.</p>
+                        </div>
+                    )}
+                    {!loading && homeSections.map(sec => (
+                        <div key={sec.key} style={{ marginBottom: '2.75rem' }}>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.55rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.25rem' }}>{sec.title}</h2>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: '0 0 1.1rem' }}>{sec.sub}</p>
+                            <div className="home-section-grid">
+                                {sec.items.map(x => (
+                                    <FeedCard key={`${sec.key}-${x._id}`} p={x} isFav={favSet.has(String(x._id))} likeCount={x.likesCount || 0} onToggleFav={toggleFav} />
+                                ))}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </section>
+
+            {/* ── Discover feed (vertical, photo-rich) — the primary MOBILE home feed ── */}
+            <section className="home-feed-mobile" style={{ paddingTop: '0.5rem', paddingBottom: '3.5rem' }}>
                 <div className="container">
                     <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.4rem' }}>Discover</h2>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 1.5rem' }}>Browse businesses near you — swipe their photos, tap to book.</p>

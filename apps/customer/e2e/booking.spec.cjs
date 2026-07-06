@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { SEED, login } = require('./helpers');
+const { SEED, login } = require('./helpers.cjs');
 
 test.describe('Customer booking', () => {
     test('customer books the seeded service end to end (no payment)', async ({ page }) => {

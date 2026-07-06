@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { SEED, login } = require('./helpers');
+const { SEED, login } = require('./helpers.cjs');
 
 // No page may overflow horizontally — the #1 cause of a "janky" mobile feel.
 const VIEWPORTS = [
@@ -37,11 +37,6 @@ test.describe('Responsiveness — no horizontal overflow', () => {
         await expectNoHorizontalScroll(page);
     });
 
-    test('provider dashboard fits 375px', async ({ page }) => {
-        await page.setViewportSize({ width: 375, height: 667 });
-        await login(page, SEED.provider);
-        await page.goto('/dashboard');
-        await page.waitForLoadState('networkidle');
-        await expectNoHorizontalScroll(page);
-    });
+    // The provider dashboard lives in apps/business now — its responsive
+    // coverage belongs to that app's future suite.
 });

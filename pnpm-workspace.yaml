@@ -1,5 +1,4 @@
 packages:
-  - 'client'
   - 'apps/customer'
   - 'apps/business'
   - 'packages/*'

@@ -1142,3 +1142,16 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
   }
   .discover-feed .feed-media-img { aspect-ratio: 4 / 3 !important; }
 }
+
+/* ── Home: Fresha-style desktop sections; the vertical feed stays mobile-only ── */
+.home-sections-desktop { display: none; }
+@media (min-width: 1024px) {
+  .home-feed-mobile { display: none; }
+  .home-sections-desktop { display: block; }
+  .home-section-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
+    gap: 1.5rem 1.25rem;
+    align-items: start;
+  }
+}
