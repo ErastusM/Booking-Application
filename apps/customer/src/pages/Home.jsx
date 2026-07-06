@@ -116,7 +116,7 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
                 {hasPhotos ? (
                     <div className="feed-carousel" onScroll={e => setIdx(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))} style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', cursor: 'pointer' }}>
                         {photos.map((src, i) => (
-                            <img key={i} src={cloudinaryThumb(src, 1000)} alt={`${p.businessName || p.name} photo ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" style={{ flex: '0 0 100%', width: '100%', aspectRatio: '4 / 5', objectFit: 'cover', scrollSnapAlign: 'start', display: 'block', background: 'var(--warm-gray)' }} />
+                            <img key={i} src={cloudinaryThumb(src, 1000)} alt={`${p.businessName || p.name} photo ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" className="feed-media-img" style={{ flex: '0 0 100%', width: '100%', aspectRatio: '4 / 5', objectFit: 'cover', scrollSnapAlign: 'start', display: 'block', background: 'var(--warm-gray)' }} />
                         ))}
                     </div>
                 ) : (
@@ -295,15 +295,15 @@ const Home = () => {
         <div style={{ background: 'var(--off-white)' }}>
 
             {/* ── Hero copy — fades and scrolls away gently as the feed takes over ── */}
-            <section style={{ position: 'relative', overflow: 'hidden', background: 'var(--off-white)', paddingTop: 'clamp(4rem, 8vw, 9rem)', paddingBottom: '1.5rem' }}>
+            <section className="home-hero" style={{ position: 'relative', overflow: 'hidden', background: 'var(--off-white)' }}>
                 <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'radial-gradient(62% 48% at 50% -2%, rgba(240,62,22,0.16), transparent 72%)', pointerEvents: 'none' }} />
                 <div ref={heroCopyRef} className="container" style={{ position: 'relative', textAlign: 'center', maxWidth: '860px', marginLeft: 'auto', marginRight: 'auto', willChange: 'opacity' }}>
-                    <p className="fade-up" style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '1.1rem' }}>Premium booking, simplified</p>
+                    <p className="fade-up home-hero-eyebrow" style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '1.1rem' }}>Premium booking, simplified</p>
                     <h1 className="fade-up fade-up-delay-1" style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.6rem, 6.2vw, 4.6rem)', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1.05, letterSpacing: '-0.02em', margin: '0 0 1.25rem' }}>
                         Book trusted <span style={{ color: 'var(--gold)' }}>local services</span>
                     </h1>
-                    <p className="fade-up fade-up-delay-2" style={{ color: 'var(--text-secondary)', fontSize: 'clamp(1rem, 2vw, 1.2rem)', lineHeight: 1.65, maxWidth: '620px', margin: '0 auto 1.25rem' }}>
-                        Discover top-rated businesses for beauty, wellness, automotive, training and more — booked in seconds, on your schedule.
+                    <p className="fade-up fade-up-delay-2 home-hero-sub" style={{ color: 'var(--text-secondary)', fontSize: 'clamp(1rem, 2vw, 1.2rem)', lineHeight: 1.65, maxWidth: '680px', margin: '0 auto 1.25rem' }}>
+                        Discover top-rated salons, barbers, wellness studios, automotive services and more — booked in seconds.
                     </p>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                         <span style={{ display: 'inline-flex', gap: '1px' }}>
@@ -322,7 +322,7 @@ const Home = () => {
                 borderBottom: '1px solid transparent',
                 transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
             }}>
-                <div className="container" style={{ maxWidth: '560px', marginLeft: 'auto', marginRight: 'auto' }}>
+                <div className="container home-search-inner" style={{ marginLeft: 'auto', marginRight: 'auto' }}>
                     <form onSubmit={handleSearch} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '999px', padding: '0.4rem 0.4rem 0.4rem 1.25rem', boxShadow: '0 6px 22px rgba(4,5,5,0.10)' }}>
                         <Search size={19} strokeWidth={2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                         <input
@@ -342,7 +342,7 @@ const Home = () => {
                 <div className="container">
                     <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.4rem' }}>Discover</h2>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 1.5rem' }}>Browse businesses near you — swipe their photos, tap to book.</p>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', maxWidth: '540px', margin: '0 auto' }}>
+                    <div className="discover-feed">
                         {loading ? (
                             [0, 1, 2].map(i => (
                                 <div key={i} style={{ borderRadius: '18px', overflow: 'hidden', border: '1px solid var(--border)' }}>
