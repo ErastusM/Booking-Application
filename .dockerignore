@@ -7,7 +7,7 @@
 **/.env
 **/.env.*
 !**/.env.example
-apps/
+apps/api/
 certbot/
 nginx/
 .git/
