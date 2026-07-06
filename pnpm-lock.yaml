@@ -19,6 +19,24 @@ importers:
       '@bookplus/ui':
         specifier: workspace:*
         version: link:../../packages/ui
+      '@fullcalendar/core':
+        specifier: ^6.1.20
+        version: 6.1.21
+      '@fullcalendar/daygrid':
+        specifier: ^6.1.20
+        version: 6.1.21(@fullcalendar/core@6.1.21)
+      '@fullcalendar/interaction':
+        specifier: ^6.1.20
+        version: 6.1.21(@fullcalendar/core@6.1.21)
+      '@fullcalendar/react':
+        specifier: ^6.1.20
+        version: 6.1.21(@fullcalendar/core@6.1.21)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
+      '@fullcalendar/timegrid':
+        specifier: ^6.1.20
+        version: 6.1.21(@fullcalendar/core@6.1.21)
+      lucide-react:
+        specifier: ^1.18.0
+        version: 1.23.0(react@18.3.1)
       react:
         specifier: ^18.2.0
         version: 18.3.1
