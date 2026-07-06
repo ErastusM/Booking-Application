@@ -59,7 +59,7 @@ const Navbar = () => {
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000,
         transition: 'all 0.3s ease',
         paddingTop: 'env(safe-area-inset-top, 0px)',
-        background: isTransparent ? 'transparent' : darkMode ? 'rgba(15,15,26,0.97)' : 'rgba(255,255,255,0.97)',
+        background: isTransparent ? 'transparent' : darkMode ? 'rgba(10,10,11,0.97)' : 'rgba(255,255,255,0.97)',
         backdropFilter: isTransparent ? 'none' : 'blur(12px)',
         boxShadow: isTransparent ? 'none' : 'var(--shadow-sm)',
         borderBottom: isTransparent ? 'none' : '1px solid var(--border)',
@@ -285,7 +285,7 @@ const Navbar = () => {
                                                 flex: 1, padding: '0.42rem', borderRadius: '99px',
                                                 border: `1.5px solid ${activeRole === r ? 'var(--gold)' : 'var(--border)'}`,
                                                 background: activeRole === r ? 'rgba(240,62,22,0.12)' : 'transparent',
-                                                color: activeRole === r ? 'var(--gold-dark,#a07830)' : 'var(--text-muted)',
+                                                color: activeRole === r ? 'var(--gold-dark,#b32c0d)' : 'var(--text-muted)',
                                                 fontSize: '0.75rem', fontWeight: '600',
                                                 fontFamily: 'Plus Jakarta Sans, sans-serif', textTransform: 'capitalize',
                                                 cursor: 'pointer',
@@ -299,7 +299,7 @@ const Navbar = () => {
                                 <div style={{ padding: '0 1.2rem 0.85rem' }}>
                                     <button
                                         onClick={() => { setMenuOpen(false); navigate('/become-provider'); }}
-                                        style={{ width: '100%', padding: '0.5rem', borderRadius: '99px', border: '1.5px solid var(--gold)', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark,#a07830)', fontSize: '0.78rem', fontWeight: '600', fontFamily: 'Plus Jakarta Sans, sans-serif', cursor: 'pointer' }}
+                                        style={{ width: '100%', padding: '0.5rem', borderRadius: '99px', border: '1.5px solid var(--gold)', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark,#b32c0d)', fontSize: '0.78rem', fontWeight: '600', fontFamily: 'Plus Jakarta Sans, sans-serif', cursor: 'pointer' }}
                                     >Become a Business →</button>
                                 </div>
                             )}
@@ -381,7 +381,7 @@ const Navbar = () => {
                 <div style={{
                     pointerEvents: 'auto', width: '100%', maxWidth: '440px',
                     display: 'flex', justifyContent: 'space-around', alignItems: 'flex-start',
-                    background: darkMode ? 'rgba(22,22,34,0.78)' : 'rgba(255,255,255,0.78)',
+                    background: darkMode ? 'rgba(20,20,22,0.78)' : 'rgba(255,255,255,0.78)',
                     backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
                     border: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid var(--border)',
                     borderRadius: '20px', boxShadow: '0 8px 22px rgba(4,5,5,0.13)',
@@ -439,7 +439,7 @@ const Navbar = () => {
                 <div style={{
                     pointerEvents: 'auto', width: '100%', maxWidth: '460px',
                     display: 'flex', justifyContent: 'space-around', alignItems: 'flex-start',
-                    background: darkMode ? 'rgba(22,22,34,0.78)' : 'rgba(255,255,255,0.78)',
+                    background: darkMode ? 'rgba(20,20,22,0.78)' : 'rgba(255,255,255,0.78)',
                     backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
                     border: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid var(--border)',
                     borderRadius: '20px', boxShadow: '0 8px 22px rgba(4,5,5,0.13)',

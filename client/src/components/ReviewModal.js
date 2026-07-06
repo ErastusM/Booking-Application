@@ -66,7 +66,7 @@ const ReviewModal = ({ appointment, onClose, onSubmitted }) => {
             onClick={onClose}
             style={{
                 position: 'fixed', inset: 0, zIndex: 1000,
-                background: 'rgba(15,15,25,0.55)', backdropFilter: 'blur(3px)',
+                background: 'rgba(4,5,5,0.55)', backdropFilter: 'blur(3px)',
                 display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
                 padding: '0', animation: 'fadeIn 0.18s ease',
             }}

@@ -17,7 +17,7 @@ epics, acceptance criteria) before working on that initiative.**
   services, TypeScript), `packages/ui` (shared components), `packages/config`
   (shared tsconfig)
 - Fonts: Plus Jakarta Sans only, via `var(--font-display)` / `var(--font-body)`
-- Colors: gold `#c9a84c`, charcoal `#1a1a2e`, off-white `#fafaf8`
+- Colors: orange `#f03e16`, black `#040505`, white `#e6e8e7`
 
 ## Commands
 - Install: `pnpm install` (root; covers client + packages), `npm ci` in `apps/api`

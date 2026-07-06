@@ -46,11 +46,11 @@ exports.submitSuggestion = async (req, res) => {
                     <div style="display: inline-block; padding: 0.25rem 0.75rem; border-radius: 99px; background: ${badgeColor}18; color: ${badgeColor}; font-size: 0.75rem; font-weight: 700; letter-spacing: 0.05em; text-transform: uppercase; margin-bottom: 1.25rem;">${safeCategory}</div>
                     <h2 style="font-family: Georgia, serif; color: #040505; font-size: 1.35rem; margin: 0 0 1.5rem;">A new suggestion has been submitted</h2>
                     <table style="width: 100%; border-collapse: collapse; margin-bottom: 1.5rem; font-size: 0.875rem;">
-                        <tr style="border-bottom: 1px solid #f0ede8;">
+                        <tr style="border-bottom: 1px solid #dcdedd;">
                             <td style="padding: 0.6rem 0; color: #6b7280; width: 110px; font-weight: 600;">From</td>
                             <td style="padding: 0.6rem 0; color: #040505;">${safeName}</td>
                         </tr>
-                        <tr style="border-bottom: 1px solid #f0ede8;">
+                        <tr style="border-bottom: 1px solid #dcdedd;">
                             <td style="padding: 0.6rem 0; color: #6b7280; font-weight: 600;">Email</td>
                             <td style="padding: 0.6rem 0; color: #040505;">${safeEmail}</td>
                         </tr>
