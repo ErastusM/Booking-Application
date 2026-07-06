@@ -104,6 +104,7 @@ const Navbar = () => {
                     {activeRole === 'customer' && navLink('/waiting-list', 'Waiting List')}
                     {activeRole === 'customer' && user?.role === 'customer' && navLink('/become-provider', 'List your business')}
                     {activeRole === 'provider' && navLink('/dashboard', 'Dashboard')}
+                    {activeRole === 'provider' && navLink('/team', 'Team')}
                     {activeRole === 'provider' && navLink('/appointments', 'My bookings')}
                     {user?.role === 'admin' && navLink('/bkplus-command', 'Dashboard')}
                     {user?.role === 'admin' && navLink('/bkplus-command/insights', 'Analytics')}

@@ -12,6 +12,8 @@ import Login from './pages/Login';
 // routes is a follow-up refactor. Admin stays a role-gated area here (locked
 // decision §8.3). Customer-side routes live in apps/customer.
 const ProviderDashboard = lazy(() => import('./pages/ProviderDashboard'));
+const Team = lazy(() => import('./pages/Team'));
+const MySchedule = lazy(() => import('./pages/MySchedule'));
 const ProviderAccount = lazy(() => import('./pages/ProviderAccount'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const AnalyticsDashboard = lazy(() => import('./pages/AnalyticsDashboard'));
@@ -52,6 +54,16 @@ function AppRoutes() {
                     <Route path="/dashboard" element={
                         <ProtectedRoute allowedRoles={['provider']}>
                             <ProviderDashboard />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/team" element={
+                        <ProtectedRoute allowedRoles={['provider', 'admin']}>
+                            <Team />
+                        </ProtectedRoute>
+                    } />
+                    <Route path="/my-schedule" element={
+                        <ProtectedRoute allowedRoles={['staff']}>
+                            <MySchedule />
                         </ProtectedRoute>
                     } />
                     <Route path="/account" element={

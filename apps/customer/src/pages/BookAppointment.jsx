@@ -21,6 +21,8 @@ const BookAppointment = () => {
 
     // â"€â"€ selections â"€â"€
     const [selectedService, setSelectedService] = useState(null);
+    const [staffList, setStaffList] = useState([]);
+    const [selectedStaff, setSelectedStaff] = useState(null); // null = any available professional
     const [selectedAddOns, setSelectedAddOns] = useState([]);
     const [selectedOption, setSelectedOption] = useState(null); // sub-option (mutually exclusive variant)
     const [optionSheet, setOptionSheet] = useState(null); // service pending option selection
@@ -108,19 +110,36 @@ const BookAppointment = () => {
             .catch(() => setWallet(null));
     }, [effectiveProviderId]);
 
+    // Bookable staff for this provider + service (Epic 2.5). Empty list = the
+    // business has no roster — the picker stays hidden and booking behaves
+    // exactly as before (owner-column, any-available on the server).
+    useEffect(() => {
+        if (!effectiveProviderId) { setStaffList([]); setSelectedStaff(null); return; }
+        providerMarketService.getProviderStaff(effectiveProviderId, selectedService?._id)
+            .then(res => {
+                const list = res.data.data || [];
+                setStaffList(list);
+                // Keep a still-valid selection — resetting unconditionally races
+                // a click made while the refetch was in flight and silently
+                // reverts the user's pick to "any professional".
+                setSelectedStaff(prev => (prev && list.some(m => m._id === prev._id)) ? prev : null);
+            })
+            .catch(() => { setStaffList([]); setSelectedStaff(null); });
+    }, [effectiveProviderId, selectedService?._id]);
+
     // Load booked slots for the chosen provider + date. Re-runs if the provider only
     // becomes known once a service is selected (generic flow), keeping "taken" slots accurate.
     useEffect(() => {
         if (!effectiveProviderId || !formData.appointmentDate) { setBookedSlots([]); return; }
-        appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate)
+        appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate, selectedStaff?._id || undefined)
             .then(res => setBookedSlots(res.data.data || []))
             .catch(() => setBookedSlots([]));
-    }, [effectiveProviderId, formData.appointmentDate]);
+    }, [effectiveProviderId, formData.appointmentDate, selectedStaff]);
 
     // Live updates — while a date is open, keep its taken/free slots current so a
     // slot freed or grabbed by someone else reflects without a manual refresh.
     useLiveRefresh(() => {
-        appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate)
+        appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate, selectedStaff?._id || undefined)
             .then(res => setBookedSlots(res.data.data || []))
             .catch(() => {});
     }, { intervalMs: 20000, enabled: !!(effectiveProviderId && formData.appointmentDate) });
@@ -241,6 +260,7 @@ const BookAppointment = () => {
                 const res = await appointmentService.createAppointment({
                     ...formData,
                     selectedAddOns,
+                    ...(selectedStaff?._id ? { teamMember: selectedStaff._id } : {}),
                     ...(wallet?.settings?.enabled ? { paymentMethod } : {}),
                     ...(recurrence.isRecurring ? {
                         isRecurring: true,
@@ -640,6 +660,30 @@ const BookAppointment = () => {
                                 {stepBadge(selectedService?.addOns?.length > 0 ? 3 : 2)}
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)' }}>Pick a Date & Time</h2>
                             </div>
+
+                            {staffList.length > 0 && (
+                                <div style={{ marginBottom: '1.5rem' }}>
+                                    <label style={labelStyle}>Choose your professional</label>
+                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                        <button type="button" data-testid="booking-staff-any"
+                                            onClick={() => setSelectedStaff(null)}
+                                            style={{ padding: '0.5rem 1rem', borderRadius: '999px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: '0.85rem', border: `1.5px solid ${!selectedStaff ? 'var(--gold)' : 'var(--border)'}`, background: !selectedStaff ? 'rgba(240,62,22,0.10)' : 'var(--card-bg)', color: !selectedStaff ? 'var(--gold-dark)' : 'var(--text-secondary)' }}>
+                                            Any professional
+                                        </button>
+                                        {staffList.map(st => {
+                                            const sel = selectedStaff?._id === st._id;
+                                            return (
+                                                <button key={st._id} type="button" data-testid="booking-staff"
+                                                    onClick={() => setSelectedStaff(st)}
+                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.5rem 1rem', borderRadius: '999px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: '0.85rem', border: `1.5px solid ${sel ? 'var(--gold)' : 'var(--border)'}`, background: sel ? 'rgba(240,62,22,0.10)' : 'var(--card-bg)', color: sel ? 'var(--gold-dark)' : 'var(--text-secondary)' }}>
+                                                    <span aria-hidden="true" style={{ width: '10px', height: '10px', borderRadius: '50%', background: st.color || 'var(--gold)', flexShrink: 0 }} />
+                                                    {st.name}
+                                                </button>
+                                            );
+                                        })}
+                                    </div>
+                                </div>
+                            )}
 
                             {/* Month calendar — navigate up to 4 months ahead */}
                             <div style={{ marginBottom: '1.5rem' }}>

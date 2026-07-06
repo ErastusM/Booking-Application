@@ -123,6 +123,13 @@ exports.getAllAppointments = async (req, res) => {
         let query = {};
         if (req.user.role === 'customer') {
             query = { customer: req.user._id };
+        } else if (req.user.role === 'staff') {
+            // A staff principal sees ONLY their own column at their business —
+            // never the whole platform (the bare fall-through is admin-only).
+            const TeamMember = require('../models/TeamMember');
+            const member = await TeamMember.findOne({ user: req.user._id, provider: req.user.staffOf });
+            if (!member) return res.status(200).json({ success: true, data: [] });
+            query = { provider: req.user.staffOf, teamMember: member._id };
         } else if (req.user.role === 'provider') {
             query = { provider: req.user._id };
         }

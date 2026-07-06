@@ -25,7 +25,8 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     if (allowedRoles && !allowedRoles.includes(user.role)) {
         // Redirect to their rightful home inside the business app…
         if (user.role === 'admin') return <Navigate to="/bkplus-command" replace />;
-        if (user.role === 'provider' || user.role === 'staff') return <Navigate to="/dashboard" replace />;
+        if (user.role === 'staff') return <Navigate to="/my-schedule" replace />;
+        if (user.role === 'provider') return <Navigate to="/dashboard" replace />;
         // …customers belong in the customer app (cross-app hand-off).
         window.location.replace(import.meta.env.VITE_CUSTOMER_URL || 'http://localhost:3002');
         return null;
