@@ -17,6 +17,7 @@ const {
 } = require('../utils/emailService');
 const calendarHelper = require('../utils/calendarHelper');
 const { resolveBookingStaff } = require('../utils/staffBooking');
+const { primaryOrigin } = require('../utils/origins');
 
 const defaultSchedule = {
     monday:    { enabled: true,  slots: [{ start: '09:00', end: '17:00' }] },
@@ -505,7 +506,7 @@ exports.createAppointment = async (req, res) => {
                 // Extras for the confirmation email: venue, manage link, directions
                 const providerDoc = svc.provider ? await User.findById(svc.provider).select('name businessProfile') : null;
                 const address = providerDoc?.businessProfile?.address || '';
-                const clientBase = process.env.CLIENT_URL || '';
+                const clientBase = primaryOrigin() || '';
                 const extras = {
                     price: basePrice,
                     bookingRef: String(appointment._id).slice(-8).toUpperCase(),
@@ -885,7 +886,7 @@ exports.providerRescheduleAppointment = async (req, res) => {
                     const providerDoc = await User.findById(appointment.provider).select('name businessProfile');
                     const location = providerDoc?.businessProfile?.address || undefined;
                     const { gcalUrl, ics } = calendarHelper.appointmentCalendar(appointment, { description: 'Booked via Bookplus', location, status: 'CONFIRMED', sequence: 1 });
-                    const manageUrl = appointment.manageToken && process.env.CLIENT_URL ? `${process.env.CLIENT_URL}/manage/${appointment.manageToken}` : undefined;
+                    const manageUrl = appointment.manageToken && primaryOrigin() ? `${primaryOrigin()}/manage/${appointment.manageToken}` : undefined;
                     await sendAppointmentRescheduledClient(customer.email, customer.name, appointment.service?.name, dateStr, `${startTime} – ${endTime}`, { gcalUrl, ics, manageUrl });
                 }
             } catch (err) { logger.error({ err }, 'Provider reschedule notification failed'); }
@@ -976,7 +977,7 @@ exports.rescheduleAppointment = async (req, res) => {
                 }
                 if (appointment.customer.email) {
                     const { gcalUrl, ics } = calendarHelper.appointmentCalendar(appointment, { description: 'Booked via Bookplus', status: 'CONFIRMED', sequence: 1 });
-                    const manageUrl = appointment.manageToken && process.env.CLIENT_URL ? `${process.env.CLIENT_URL}/manage/${appointment.manageToken}` : undefined;
+                    const manageUrl = appointment.manageToken && primaryOrigin() ? `${primaryOrigin()}/manage/${appointment.manageToken}` : undefined;
                     await sendAppointmentRescheduledClient(appointment.customer.email, appointment.customer.name, appointment.service.name, dateStr, startTime, { gcalUrl, ics, manageUrl });
                 }
             } catch (err) { logger.error({ err }, 'Customer reschedule notification failed'); }
@@ -1172,7 +1173,7 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
                 if (appt.customer?.email) {
                     const dateStr = new Date(appt.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
                     const { gcalUrl, ics } = calendarHelper.appointmentCalendar(appt, { description: 'Booked via Bookplus', status: 'CONFIRMED', sequence: 1 });
-                    const manageUrl = process.env.CLIENT_URL ? `${process.env.CLIENT_URL}/manage/${req.params.token}` : undefined;
+                    const manageUrl = primaryOrigin() ? `${primaryOrigin()}/manage/${req.params.token}` : undefined;
                     await sendAppointmentRescheduledClient(appt.customer.email, appt.customer.name, appt.service?.name, dateStr, startTime, { gcalUrl, ics, manageUrl });
                     if (appt.customer._id) await createNotification(appt.customer._id, `Your ${appt.service?.name} is now ${dateStr} at ${startTime}.`, 'appointment', '/appointments');
                 }
