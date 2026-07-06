@@ -263,22 +263,42 @@ describe('POST /api/auth/refresh', () => {
         expect(profile.status).toBe(200);
     });
 
-    it('rejects the original refresh token once it has been rotated (reuse detection)', async () => {
+    it('tolerates concurrent refreshes with the same token (race-tolerant rotation, spec §4.3)', async () => {
         const { refreshToken } = await loginAndGetTokens();
 
-        // First refresh succeeds and rotates the token (old jti is consumed)
-        const first = await request(app).post('/api/auth/refresh').send({ refreshToken });
-        expect(first.status).toBe(200);
-        const rotated = first.body.data.refreshToken;
+        // Two tabs / two apps refreshing with the same stored token must BOTH
+        // succeed — hard-consuming the jti made a benign double-refresh revoke
+        // the session (the "login every time" bug).
+        const [a, b] = await Promise.all([
+            request(app).post('/api/auth/refresh').send({ refreshToken }),
+            request(app).post('/api/auth/refresh').send({ refreshToken }),
+        ]);
+        expect(a.status).toBe(200);
+        expect(b.status).toBe(200);
 
-        // Replaying the ORIGINAL (now-rotated) refresh token must be rejected
-        const replay = await request(app).post('/api/auth/refresh').send({ refreshToken });
-        expect(replay.status).toBe(401);
-        expect(replay.body.message).toMatch(/revoked/i);
+        // The original token stays valid until it ages out of the capped list…
+        const again = await request(app).post('/api/auth/refresh').send({ refreshToken });
+        expect(again.status).toBe(200);
 
-        // ...while the freshly rotated token still works
-        const ok = await request(app).post('/api/auth/refresh').send({ refreshToken: rotated });
+        // …and the rotated tokens work too.
+        const ok = await request(app).post('/api/auth/refresh').send({ refreshToken: a.body.data.refreshToken });
         expect(ok.status).toBe(200);
+    });
+
+    it('evicts old refresh tokens once the capped jti list rolls over', async () => {
+        const { refreshToken } = await loginAndGetTokens();
+
+        // Each refresh appends a new jti; the list is capped at 10. After 10
+        // rotations the ORIGINAL login token has aged out and must be rejected.
+        let current = refreshToken;
+        for (let i = 0; i < 10; i++) {
+            const r = await request(app).post('/api/auth/refresh').send({ refreshToken: current });
+            expect(r.status).toBe(200);
+            current = r.body.data.refreshToken;
+        }
+        const evicted = await request(app).post('/api/auth/refresh').send({ refreshToken });
+        expect(evicted.status).toBe(401);
+        expect(evicted.body.message).toMatch(/revoked/i);
     });
 
     it('rejects a validly-signed refresh token whose jti was never issued (forged)', async () => {

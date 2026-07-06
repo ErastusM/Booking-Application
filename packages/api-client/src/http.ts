@@ -35,9 +35,35 @@ const forceLogout = () => {
     }
 };
 
+/**
+ * Cross-subdomain session bootstrap (SSO): when this app has no stored token
+ * but the browser carries the parent-domain refresh cookie from a login made
+ * on a sibling app, exchange it for tokens. Returns true when a session is
+ * (already or newly) available.
+ */
+export const bootstrapSession = async (apiBase: string): Promise<boolean> => {
+    if (typeof window === 'undefined') return false;
+    if (localStorage.getItem('token')) return true;
+    try {
+        const { data } = await axios.post(`${apiBase}/api/auth/refresh`, {}, { withCredentials: true });
+        const token = data?.data?.token;
+        if (!token) return false;
+        localStorage.setItem('token', token);
+        if (data?.data?.refreshToken) localStorage.setItem('refreshToken', data.data.refreshToken);
+        return true;
+    } catch {
+        return false;
+    }
+};
+
 export const createHttp = (apiBase: string): AxiosInstance => {
     const API = axios.create({
-        baseURL: `${apiBase}/api`
+        baseURL: `${apiBase}/api`,
+        // Credentialed requests: without this the browser DISCARDS the SSO
+        // refresh cookie set by login/refresh responses (cross-origin XHR only
+        // stores cookies when the request itself carried credentials). The API
+        // whitelists exact origins with credentials:true, so this is safe.
+        withCredentials: true,
     });
 
     // Add token to requests
@@ -83,11 +109,11 @@ export const createHttp = (apiBase: string): AxiosInstance => {
                 return Promise.reject(error);
             }
 
+            // No locally stored refresh token can still mean a valid session:
+            // the SSO cookie (set by a login on a sibling subdomain) is sent
+            // withCredentials and the server accepts it in place of the body
+            // token. Only give up when the refresh itself is rejected.
             const refreshToken = localStorage.getItem('refreshToken');
-            if (!refreshToken) {
-                forceLogout();
-                return Promise.reject(error);
-            }
 
             originalRequest._retry = true;
 
@@ -108,7 +134,12 @@ export const createHttp = (apiBase: string): AxiosInstance => {
             isRefreshing = true;
             try {
                 // Bare axios call so we don't recurse back through this interceptor.
-                const { data } = await axios.post(`${apiBase}/api/auth/refresh`, { refreshToken });
+                // withCredentials carries the SSO refresh cookie (and stores its rotation).
+                const { data } = await axios.post(
+                    `${apiBase}/api/auth/refresh`,
+                    refreshToken ? { refreshToken } : {},
+                    { withCredentials: true }
+                );
                 const newToken = data?.data?.token;
                 const newRefreshToken = data?.data?.refreshToken;
                 if (!newToken) throw new Error('No token in refresh response');
