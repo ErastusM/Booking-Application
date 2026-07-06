@@ -99,4 +99,6 @@ jobs:
             cd /app
             docker compose pull
             docker compose up -d --force-recreate
+            # One-off data migrations, all idempotent — safe on every deploy.
+            docker compose exec -T server node scripts/migrate_team_colors.js || true
             docker image prune -f
