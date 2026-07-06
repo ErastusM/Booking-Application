@@ -26,10 +26,42 @@ const issueAuthTokens = async (user) => {
     const jti = crypto.randomBytes(16).toString('hex');
     const token = generateToken(user._id, user.tokenVersion);
     const refreshToken = generateRefreshToken(user._id, user.tokenVersion, jti);
-    const list = Array.isArray(user.refreshTokenJtis) ? user.refreshTokenJtis : [];
-    user.refreshTokenJtis = [...list, hashJti(jti)].slice(-MAX_REFRESH_JTIS);
-    await user.save();
+    // Atomic append-with-cap: concurrent refreshes (two tabs, or two apps
+    // sharing the SSO cookie) must not collide on a document save — the old
+    // load-modify-save pattern threw a VersionError on the loser.
+    await User.updateOne(
+        { _id: user._id },
+        { $push: { refreshTokenJtis: { $each: [hashJti(jti)], $slice: -MAX_REFRESH_JTIS } } }
+    );
     return { token, refreshToken };
+};
+
+/**
+ * SSO across subdomains (spec §8): the refresh token also travels in an
+ * httpOnly cookie so app.bookplus.pro and business.bookplus.pro can each
+ * bootstrap a session from a login made on the other. Subdomains of one
+ * registrable domain are same-site, so SameSite=Lax suffices; production
+ * sets COOKIE_DOMAIN=.bookplus.pro (localhost needs no Domain attribute —
+ * cookies there are port-agnostic, which is what local dev needs).
+ * The JSON body keeps returning both tokens — existing clients unchanged.
+ */
+const REFRESH_COOKIE = 'bp_rt';
+const refreshCookieAttrs = () => {
+    const parts = ['HttpOnly', 'Path=/api/auth', 'SameSite=Lax'];
+    if (process.env.COOKIE_DOMAIN) parts.push(`Domain=${process.env.COOKIE_DOMAIN}`);
+    if (process.env.NODE_ENV === 'production') parts.push('Secure');
+    return parts;
+};
+const setRefreshCookie = (res, refreshToken) => {
+    const maxAge = 30 * 24 * 60 * 60; // matches REFRESH_TOKEN_EXPIRE default
+    res.append('Set-Cookie', [`${REFRESH_COOKIE}=${encodeURIComponent(refreshToken)}`, `Max-Age=${maxAge}`, ...refreshCookieAttrs()].join('; '));
+};
+const clearRefreshCookie = (res) => {
+    res.append('Set-Cookie', [`${REFRESH_COOKIE}=`, 'Max-Age=0', ...refreshCookieAttrs()].join('; '));
+};
+const readRefreshCookie = (req) => {
+    const match = (req.headers.cookie || '').match(/(?:^|;\s*)bp_rt=([^;]+)/);
+    return match ? decodeURIComponent(match[1]) : null;
 };
 
 /**
@@ -125,6 +157,7 @@ exports.register = async (req, res) => {
             .catch((err) => console.error('Verification email failed:', err.message));
 
         const { token, refreshToken } = await issueAuthTokens(user);
+        setRefreshCookie(res, refreshToken);
 
         res.status(201).json({
             success: true,
@@ -213,6 +246,9 @@ exports.login = async (req, res) => {
             if (user.deactivatedAt) {
                 user.isActive = true;
                 user.deactivatedAt = null;
+                // issueAuthTokens no longer saves the doc (atomic jti update) —
+                // persist the reactivation explicitly.
+                await user.save();
             } else {
                 return res.status(403).json({
                     success: false,
@@ -222,6 +258,7 @@ exports.login = async (req, res) => {
         }
 
         const { token, refreshToken } = await issueAuthTokens(user);
+        setRefreshCookie(res, refreshToken);
 
         res.status(200).json({
             success: true,
@@ -267,8 +304,12 @@ exports.exchangeOAuthCode = async (req, res) => {
 
         user.oauthCode = null;
         user.oauthCodeExpiry = null;
+        // issueAuthTokens no longer saves the doc (atomic jti update) — persist
+        // the consumed one-time code explicitly so it can't be replayed.
+        await user.save();
 
         const { token, refreshToken } = await issueAuthTokens(user);
+        setRefreshCookie(res, refreshToken);
 
         res.status(200).json({
             success: true,
@@ -305,7 +346,9 @@ exports.exchangeOAuthCode = async (req, res) => {
  */
 exports.refresh = async (req, res) => {
     try {
-        const { refreshToken } = req.body;
+        // Body token from the app's own storage, or the SSO cookie set by a
+        // login on a sibling subdomain (spec §8).
+        const refreshToken = req.body?.refreshToken || readRefreshCookie(req);
         if (!refreshToken) {
             return res.status(400).json({ success: false, message: 'Refresh token required' });
         }
@@ -340,11 +383,16 @@ exports.refresh = async (req, res) => {
             if (!decoded.jti || !user.refreshTokenJtis.includes(hashJti(decoded.jti))) {
                 return res.status(401).json({ success: false, message: 'Refresh token has been revoked' });
             }
-            // Consume the presented jti so it cannot be replayed after rotation.
-            user.refreshTokenJtis = user.refreshTokenJtis.filter((h) => h !== hashJti(decoded.jti));
+            // Race-tolerant rotation (spec §4.3): the presented jti is NOT
+            // consumed — two tabs (or two apps sharing the SSO cookie) that
+            // refresh with the same token both succeed instead of revoking
+            // each other. Old tokens age out of the capped list as new ones
+            // are issued; logout/password-change still revokes everything at
+            // once via tokenVersion + clearing the list.
         }
 
         const { token, refreshToken: newRefreshToken } = await issueAuthTokens(user);
+        setRefreshCookie(res, newRefreshToken);
 
         res.status(200).json({
             success: true,
@@ -363,6 +411,7 @@ exports.refresh = async (req, res) => {
 exports.logout = async (req, res) => {
     try {
         await User.findByIdAndUpdate(req.user._id, { $inc: { tokenVersion: 1 }, $set: { refreshTokenJtis: [] } });
+        clearRefreshCookie(res);
         res.status(200).json({ success: true, message: 'Logged out successfully' });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Logout failed' });

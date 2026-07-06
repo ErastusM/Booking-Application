@@ -1,10 +1,12 @@
 const jwt = require('jsonwebtoken');
 
 exports.generateToken = (id, tokenVersion = 0) => {
-    // Fall back to a short-lived access token if unset — never issue a token with
-    // no expiry (jwt.sign treats expiresIn: undefined as "never expires").
+    // 7 days by default (spec §4.3): normal reopens within a week skip the
+    // refresh round-trip — most of the "login every time" pain. Never issue a
+    // token with no expiry (jwt.sign treats expiresIn: undefined as forever);
+    // tokenVersion still revokes instantly on logout/password change.
     return jwt.sign({ id, tokenVersion }, process.env.JWT_SECRET, {
-        expiresIn: process.env.JWT_EXPIRE || '15m'
+        expiresIn: process.env.JWT_EXPIRE || '7d'
     });
 };
 

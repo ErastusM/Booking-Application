@@ -1,5 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import API from '../services/api';
+import client from '../services/client';
 
 export const useAuth = () => {
     // Hydrate the user from cache so a returning client sees the app logged-in
@@ -14,7 +15,10 @@ export const useAuth = () => {
     });
     const [token, setToken] = useState(localStorage.getItem('token'));
     // Only block the UI when we have a token but no cached user to show yet.
-    const [loading, setLoading] = useState(() => !!localStorage.getItem('token') && !localStorage.getItem('user'));
+    // Guests also start 'loading' until the SSO bootstrap settles, so a
+    // protected route doesn't bounce to /login while the sibling-app cookie
+    // is being exchanged (resolves in one fast round-trip).
+    const [loading, setLoading] = useState(() => !(localStorage.getItem('token') && localStorage.getItem('user')));
     const [error, setError] = useState(null);
     const [activeRole, setActiveRole] = useState(null);
 
@@ -45,9 +49,16 @@ export const useAuth = () => {
     // session (via forceLogout → 'auth-logout'). This keeps clients signed in across
     // reopens instead of bouncing them to login on any hiccup.
     useEffect(() => {
-        const savedToken = localStorage.getItem('token');
-        if (!savedToken) { setLoading(false); return; }
         let cancelled = false;
+        (async () => {
+        let savedToken = localStorage.getItem('token');
+        // SSO (spec §8): no local session — a login on the sibling app may have
+        // left the parent-domain refresh cookie; exchange it for tokens.
+        if (!savedToken && client.bootstrapSession) {
+            const ok = await client.bootstrapSession();
+            if (ok) savedToken = localStorage.getItem('token');
+        }
+        if (!savedToken || cancelled) { if (!cancelled) setLoading(false); return; }
         API.get('/auth/profile')
             .then((response) => {
                 if (cancelled) return;
@@ -56,6 +67,7 @@ export const useAuth = () => {
             })
             .catch(() => { /* interceptor handles real auth failures; otherwise keep the cached session */ })
             .finally(() => { if (!cancelled) setLoading(false); });
+        })();
         return () => { cancelled = true; };
     }, []);
 
