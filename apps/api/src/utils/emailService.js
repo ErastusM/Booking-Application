@@ -1,6 +1,7 @@
 const nodemailer = require('nodemailer');
 const pino = require('pino');
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+const { primaryOrigin } = require('./origins');
 
 // Resend HTTP API (https://resend.com) — sends over port 443, so email works
 // even when the host firewalls outbound SMTP ports (465/587). Preferred when set.
@@ -259,9 +260,9 @@ exports.sendWelcomeEmail = async (email, name, role) => {
                 : 'Your Bookplus account is verified.',
             inner: isProvider
                 ? `${p("Your account is verified. Complete your business profile, add your services, and you’ll be ready to receive bookings.")}
-                   <div style="margin:24px 0;">${primaryButton(`${process.env.CLIENT_URL || '#'}/dashboard`, 'Set up my business')}</div>`
+                   <div style="margin:24px 0;">${primaryButton(`${primaryOrigin() || '#'}/dashboard`, 'Set up my business')}</div>`
                 : `${p('Your account is verified. You can now discover providers and book appointments in a few taps.')}
-                   <div style="margin:24px 0;">${primaryButton(`${process.env.CLIENT_URL || '#'}/providers`, 'Find providers')}</div>`,
+                   <div style="margin:24px 0;">${primaryButton(`${primaryOrigin() || '#'}/providers`, 'Find providers')}</div>`,
         }),
     });
 };
@@ -301,7 +302,7 @@ exports.sendAppointmentCompleted = async (email, name, serviceName) => {
             heading: `Thanks, ${escapeHtml(name)}!`,
             preheader: `How was your ${serviceName}?`,
             inner: `${p(`Your <strong>${escapeHtml(serviceName)}</strong> appointment is complete. We’d love your feedback.`)}
-                <div style="margin:24px 0;">${primaryButton(`${process.env.CLIENT_URL || '#'}/appointments`, 'Leave a review')}</div>`,
+                <div style="margin:24px 0;">${primaryButton(`${primaryOrigin() || '#'}/appointments`, 'Leave a review')}</div>`,
         }),
     });
 };
@@ -315,7 +316,7 @@ exports.sendAppointmentCancelled = async (email, name, serviceName, date) => {
             inner: `${statusPill('cancelled')}
                 ${detailsCard([['Service', escapeHtml(serviceName)], ['When', date]])}
                 ${p(`<span style="margin-top:16px;display:inline-block;">Changed your mind? You can rebook anytime.</span>`)}
-                <div style="margin:18px 0 0;">${primaryButton(`${process.env.CLIENT_URL || '#'}/services`, 'Book again')}</div>`,
+                <div style="margin:18px 0 0;">${primaryButton(`${primaryOrigin() || '#'}/services`, 'Book again')}</div>`,
         }),
     });
 };
@@ -389,7 +390,7 @@ exports.sendReminder1h = async (email, name, serviceName, time, extras = {}) => 
 };
 
 exports.sendRebookingPrompt = async (email, name, serviceName, providerName, providerId) => {
-    const href = `${process.env.CLIENT_URL || '#'}/book-appointment?providerId=${providerId || ''}`;
+    const href = `${primaryOrigin() || '#'}/book-appointment?providerId=${providerId || ''}`;
     await safeSend({
         from: FROM, to: email, subject: `Time for another ${serviceName}?`,
         html: shell({
@@ -402,7 +403,7 @@ exports.sendRebookingPrompt = async (email, name, serviceName, providerName, pro
 };
 
 exports.sendPasswordResetEmail = async (email, name, token) => {
-    const url = `${process.env.CLIENT_URL}/reset-password?token=${token}`;
+    const url = `${primaryOrigin()}/reset-password?token=${token}`;
     await safeSend({
         from: FROM, to: email, subject: 'Reset your Bookplus password',
         html: shell({
@@ -417,7 +418,7 @@ exports.sendPasswordResetEmail = async (email, name, token) => {
 
 // Staff invite — same set-password mechanics as the reset flow, invite copy.
 exports.sendStaffInviteEmail = async (email, name, businessName, token) => {
-    const url = `${process.env.CLIENT_URL}/reset-password?token=${token}`;
+    const url = `${primaryOrigin()}/reset-password?token=${token}`;
     await safeSend({
         from: FROM, to: email, subject: `You’ve been invited to join ${businessName} on Bookplus`,
         html: shell({

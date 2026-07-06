@@ -1,5 +1,6 @@
 const express = require('express');
 const router = express.Router();
+const { primaryOrigin } = require('../utils/origins');
 const crypto = require('crypto');
 const {
     register,
@@ -64,7 +65,7 @@ router.get('/google', (req, res, next) => {
 // Google redirects here — issue a short-lived one-time code; client exchanges it for tokens
 router.get('/google/callback',
     passport.authenticate('google', {
-        failureRedirect: `${process.env.CLIENT_URL}/login?error=google_failed`,
+        failureRedirect: `${primaryOrigin()}/login?error=google_failed`,
         session: false,
     }),
     async (req, res) => {
@@ -75,9 +76,9 @@ router.get('/google/callback',
                 oauthCode: codeHash,
                 oauthCodeExpiry: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
             });
-            res.redirect(`${process.env.CLIENT_URL}/auth/callback?code=${code}`);
+            res.redirect(`${primaryOrigin()}/auth/callback?code=${code}`);
         } catch (err) {
-            res.redirect(`${process.env.CLIENT_URL}/login?error=google_failed`);
+            res.redirect(`${primaryOrigin()}/login?error=google_failed`);
         }
     }
 );

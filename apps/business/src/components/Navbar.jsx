@@ -7,6 +7,8 @@ import SuggestionBox from './SuggestionBox';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { BrandMark } from '@bookplus/ui';
 
+const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'http://localhost:3002';
+
 const Navbar = () => {
     const { user, logout, activeRole, switchRole } = useAuthContext();
     const { darkMode, toggleDarkMode } = useTheme();
@@ -95,14 +97,9 @@ const Navbar = () => {
 
                 {/* Desktop links */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }} className="hidden-mobile">
-                    {navLink('/', 'Home')}
-                    {navLink('/services', 'Services')}
-                    {navLink('/about', 'About us')}
-                    {activeRole === 'customer' && navLink('/book-appointment', 'Book')}
-                    {activeRole === 'customer' && navLink('/appointments', 'Appointments')}
-                    {activeRole === 'customer' && navLink('/wallet', 'Wallet')}
-                    {activeRole === 'customer' && navLink('/waiting-list', 'Waiting List')}
-                    {activeRole === 'customer' && user?.role === 'customer' && navLink('/become-provider', 'List your business')}
+                    {/* Business app: no marketplace here — providers manage, customers browse
+                        on the customer site (cross-app link below). */}
+                    <a className="nav-pill" href={CUSTOMER_URL} style={{ color: 'var(--text-secondary)', fontWeight: '500' }}>Customer site</a>
                     {activeRole === 'provider' && navLink('/dashboard', 'Dashboard')}
                     {activeRole === 'provider' && navLink('/team', 'Team')}
                     {activeRole === 'provider' && navLink('/appointments', 'My bookings')}
@@ -308,14 +305,7 @@ const Navbar = () => {
                     )}
 
                     <div style={{ flex: 1, padding: '0.6rem 0' }}>
-                        {mobileLink('/', 'Home')}
-                        {mobileLink('/services', 'Services')}
-                        {mobileLink('/about', 'About us')}
-                        {activeRole === 'customer' && mobileLink('/book-appointment', 'Book Appointment')}
-                        {activeRole === 'customer' && mobileLink('/appointments', 'My Appointments')}
-                        {activeRole === 'customer' && mobileLink('/wallet', 'Wallet')}
-                        {activeRole === 'customer' && mobileLink('/waiting-list', 'Waiting List')}
-                        {activeRole === 'customer' && user?.role === 'customer' && mobileLink('/become-provider', 'List your business')}
+                        <a href={CUSTOMER_URL} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500', fontSize: '0.95rem', padding: '0.85rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'block' }}>Customer site</a>
                         {activeRole === 'provider' && mobileLink('/dashboard', 'Dashboard')}
                         {activeRole === 'provider' && mobileLink('/appointments', 'My bookings')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}
