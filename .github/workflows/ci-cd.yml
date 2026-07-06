@@ -148,6 +148,9 @@ jobs:
           key: ${{ secrets.DEPLOY_SSH_KEY }}
           script: |
             cd /app
+            # Dual-app env (idempotent): SSO cookie scope + the new app origins.
+            grep -q '^COOKIE_DOMAIN=' .env.production || echo 'COOKIE_DOMAIN=.bookplus.pro' >> .env.production
+            grep -q 'app.bookplus.pro' .env.production || sed -i '/^CLIENT_URL=/ s|$|,https://app.bookplus.pro,https://business.bookplus.pro|' .env.production
             docker compose pull
             docker compose up -d --force-recreate
             docker image prune -f
