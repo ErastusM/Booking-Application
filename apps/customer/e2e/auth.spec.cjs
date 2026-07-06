@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { SEED, login } = require('./helpers');
+const { SEED, login } = require('./helpers.cjs');
 
 test.describe('Authentication', () => {
     test('seeded customer can log in', async ({ page }) => {
@@ -8,10 +8,11 @@ test.describe('Authentication', () => {
         await expect(page.getByRole('button', { name: /^sign in/i })).toHaveCount(0);
     });
 
-    test('seeded provider lands on the dashboard', async ({ page }) => {
+    test('seeded provider gets the business-app hand-off in the nav', async ({ page }) => {
+        // The customer app has no /dashboard — providers manage their business
+        // at business.bookplus.pro; the navbar carries the cross-app link.
         await login(page, SEED.provider);
-        await page.goto('/dashboard');
-        await expect(page).toHaveURL(/\/dashboard/);
+        await expect(page.getByRole('link', { name: 'Dashboard' }).first()).toBeVisible();
     });
 
     test('wrong password shows an error and stays on login', async ({ page }) => {

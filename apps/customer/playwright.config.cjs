@@ -1,13 +1,14 @@
 // @ts-check
 const { defineConfig, devices } = require('@playwright/test');
 
-const CLIENT_PORT = process.env.E2E_CLIENT_PORT || 3100;
-const API_PORT = process.env.E2E_API_PORT || 5050;
+const CLIENT_PORT = process.env.E2E_CLIENT_PORT || 3102;
+const API_PORT = process.env.E2E_API_PORT || 5052;
 const BASE_URL = `http://localhost:${CLIENT_PORT}`;
 
 /**
- * E2E config. Boots a self-contained API (in-memory Mongo) and the CRA
- * dev server, then runs the specs in client/e2e against a real browser.
+ * E2E config for the customer app (moved here when the legacy CRA client
+ * retired). Boots a self-contained API (in-memory Mongo) and the Vite dev
+ * server, then runs the specs in ./e2e against a real browser.
  */
 module.exports = defineConfig({
     testDir: './e2e',
@@ -28,22 +29,20 @@ module.exports = defineConfig({
     webServer: [
         {
             command: 'npm run e2e:server',
-            cwd: '../apps/api',
+            cwd: '../api',
             port: Number(API_PORT),
             reuseExistingServer: !process.env.CI,
             timeout: 120_000,
             env: { PORT: String(API_PORT), CLIENT_URL: BASE_URL },
         },
         {
-            command: 'npm start',
+            command: `npx vite --port ${CLIENT_PORT} --strictPort`,
             port: Number(CLIENT_PORT),
             reuseExistingServer: !process.env.CI,
-            timeout: 180_000,
+            timeout: 120_000,
             env: {
-                PORT: String(CLIENT_PORT),
-                BROWSER: 'none',
-                // api.js appends "/api", so the base must NOT include it
-                REACT_APP_API_URL: `http://localhost:${API_PORT}`,
+                // The api-client appends /api itself — origin only.
+                VITE_API_URL: `http://localhost:${API_PORT}`,
             },
         },
     ],

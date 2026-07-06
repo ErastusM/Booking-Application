@@ -19,15 +19,6 @@ services:
     env_file:
       - .env.production
 
-  client:
-    image: erastusm/bookplus-client:latest
-    container_name: bookplus-client
-    restart: always
-    depends_on:
-      - server
-    env_file:
-      - .env.production
-
   # Dual-app split (Epic 1): customer marketplace + business suite.
   customer:
     image: erastusm/bookplus-customer:latest
@@ -55,7 +46,6 @@ services:
       - ./certbot/conf:/etc/letsencrypt
       - ./certbot/www:/var/www/certbot
     depends_on:
-      - client
       - server
       - customer
       - business

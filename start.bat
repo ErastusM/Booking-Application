@@ -62,14 +62,14 @@ if exist ".env" (
 cd ..\..
 
 echo.
-echo Installing frontend dependencies (pnpm workspace: client + packages)...
+echo Installing frontend dependencies (pnpm workspace: apps + packages)...
 where pnpm >nul 2>&1
 if errorlevel 1 (
     echo [ERROR] pnpm is required for the frontend workspace. Install it with: npm install -g pnpm
     exit /b 1
 )
 call pnpm install
-cd client
+cd apps\customer
 
 if exist ".env" (
     echo .env file exists.
@@ -98,9 +98,9 @@ start cmd /k "echo Starting Backend Server... && npm run dev"
 
 cd ..\..
 
-REM Start frontend server
-cd client
-start cmd /k "echo Starting Frontend Server... && npm start"
+REM Start frontend server (customer app)
+cd apps\customer
+start cmd /k "echo Starting Customer App... && npx vite --port 3002"
 
 cd ..
 

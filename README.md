@@ -20,7 +20,8 @@ Brand: orange `#f03e16` · black `#040505` · white `#e6e8e7`, Plus Jakarta Sans
 ```
 ├── apps/
 │   └── api/                # Express + MongoDB backend (npm-managed)
-├── client/                 # React 18 web app (CRA; workspace member)
+│   ├── customer/           # customer marketplace app (Vite)
+│   └── business/           # business management app (Vite)
 ├── packages/
 │   ├── design-tokens/      # tokens.css + tailwind preset — color/type/spacing source of truth
 │   ├── api-client/         # TypeScript axios client + auth refresh + domain services
@@ -71,8 +72,8 @@ Server (`apps/api/.env` — see `apps/api/.env.example`):
 | `EMAIL_API_KEY` | Resend HTTP email (optional — emails skipped when absent) |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY` | Web push (optional — push disabled when absent) |
 
-Client (`client/.env`): `REACT_APP_API_URL` — API **origin** only, e.g.
-`http://localhost:5000` (the api-client appends `/api` itself).
+Apps (`apps/customer/.env`, `apps/business/.env`): `VITE_API_URL` — API **origin**
+only, e.g. `http://localhost:5050` (the api-client appends `/api` itself).
 
 ### Run
 
@@ -80,8 +81,9 @@ Client (`client/.env`): `REACT_APP_API_URL` — API **origin** only, e.g.
 # Terminal 1 — API
 cd apps/api && npm run dev
 
-# Terminal 2 — web app
-cd client && npm start
+# Terminal 2 — customer app (:3002) / business app (:3003)
+pnpm customer:dev
+pnpm business:dev
 ```
 
 Or `start.bat` / `start.sh` → option 3 starts both.
@@ -91,11 +93,12 @@ Or `start.bat` / `start.sh` → option 3 starts both.
 ```bash
 cd apps/api && npm test              # API suite (in-memory MongoDB)
 
-cd client && npx playwright install chromium   # first run only
-cd client && npm run test:e2e        # e2e — boots its own API + dev server
-cd client && npm run test:e2e:ui    # interactive mode
+cd apps/customer && npx playwright install chromium   # first run only
+pnpm --filter @bookplus/customer test:e2e    # e2e — boots its own API + dev server
+pnpm --filter @bookplus/customer test:e2e:ui # interactive mode
 
-pnpm --filter bookplus-client build  # production client build
+pnpm --filter @bookplus/customer build       # production builds
+pnpm --filter @bookplus/business build
 ```
 
 ### Docker

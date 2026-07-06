@@ -67,8 +67,8 @@ npm run dev
 
 # Terminal 2 - Install and run frontend
 pnpm install   # repo root — pnpm workspace (client + shared packages)
-cd client
-npm start
+cd apps/customer
+npx vite --port 3002
 ```
 
 **Option D: Docker Setup**
@@ -107,7 +107,7 @@ cp .env.example .env    # macOS/Linux
 
 **Frontend (.env)**
 ```bash
-cd client
+cd apps/customer
 copy .env.example .env  # Windows
 # or
 cp .env.example .env    # macOS/Linux
@@ -220,13 +220,13 @@ pnpm --filter bookplus-client add package-name   # from the repo root
 cd apps/api
 npm run dev  # With auto-reload
 # or
-npm start    # Production mode
+npx vite --port 3002    # Production mode
 ```
 
 ### Running Frontend Only
 ```bash
-cd client
-npm start    # Development with auto-reload
+cd apps/customer
+npx vite --port 3002    # Development with auto-reload
 # or
 npm run build  # Production build
 ```
@@ -322,7 +322,7 @@ If a port is already in use:
 3. Run `npm install` again
 
 ### Frontend Not Loading
-1. Check if `npm start` is running
+1. Check if `npx vite --port 3002` is running
 2. Visit http://localhost:3000
 3. Check console (F12) for errors
 

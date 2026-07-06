@@ -64,13 +64,13 @@ install_deps() {
     cd ../..
 
     echo ""
-    echo "Installing frontend dependencies (pnpm workspace: client + packages)..."
+    echo "Installing frontend dependencies (pnpm workspace: apps + packages)..."
     if ! command -v pnpm >/dev/null 2>&1; then
         echo "[ERROR] pnpm is required for the frontend workspace. Install it with: npm install -g pnpm"
         exit 1
     fi
     pnpm install
-    cd client
+    cd apps/customer
     
     if [ -f ".env" ]; then
         echo ".env file exists."
@@ -101,10 +101,10 @@ start_servers() {
     # Give backend time to start
     sleep 2
     
-    # Start frontend server
-    cd client
-    echo "Starting Frontend Server on port 3000..."
-    npm start &
+    # Start frontend server (customer app)
+    cd apps/customer
+    echo "Starting Customer App on port 3002..."
+    npx vite --port 3002 &
     FRONTEND_PID=$!
     cd ..
     

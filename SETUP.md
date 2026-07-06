@@ -115,7 +115,7 @@ pnpm install
 Then navigate to the client directory:
 
 ```bash
-cd client
+cd apps/customer
 ```
 
 Create a `.env` file:
@@ -144,8 +144,8 @@ This will start the server on `http://localhost:5000` and watch for file changes
 **Terminal 2 - Start Frontend:**
 
 ```bash
-cd client
-npm start
+cd apps/customer
+npx vite --port 3002
 ```
 
 This will start the React development server on `http://localhost:3000` and open it in your browser.
@@ -155,7 +155,7 @@ This will start the React development server on `http://localhost:3000` and open
 **Build Frontend:**
 
 ```bash
-cd client
+cd apps/customer
 npm run build
 ```
 
@@ -163,7 +163,7 @@ npm run build
 
 ```bash
 cd apps/api
-npm start
+npx vite --port 3002
 ```
 
 ## Using Docker Compose (Recommended)
