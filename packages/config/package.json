@@ -2,5 +2,8 @@
     "name": "@bookplus/config",
     "version": "0.1.0",
     "private": true,
-    "description": "Shared build/lint configuration for Bookplus apps and packages."
+    "description": "Shared build/lint configuration for Bookplus apps and packages.",
+    "dependencies": {
+        "@vitejs/plugin-react": "^4.3.0"
+    }
 }

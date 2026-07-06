@@ -28,6 +28,21 @@ services:
     env_file:
       - .env.production
 
+  # Dual-app split (Epic 1): customer marketplace + business suite.
+  customer:
+    image: erastusm/bookplus-customer:latest
+    container_name: bookplus-customer
+    restart: always
+    depends_on:
+      - server
+
+  business:
+    image: erastusm/bookplus-business:latest
+    container_name: bookplus-business
+    restart: always
+    depends_on:
+      - server
+
   nginx:
     image: nginx:alpine
     container_name: bookplus-nginx
@@ -42,6 +57,8 @@ services:
     depends_on:
       - client
       - server
+      - customer
+      - business
     command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
 
   certbot:

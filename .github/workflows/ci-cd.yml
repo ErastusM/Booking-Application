@@ -37,8 +37,17 @@ jobs:
           REACT_APP_API_URL: https://api.bookplus.pro
         run: |
           pnpm install --frozen-lockfile
-          pnpm --filter "@bookplus/*" build
+          pnpm --filter "@bookplus/api-client" build
+          pnpm --filter "@bookplus/ui" build
           pnpm --filter bookplus-client run build
+
+      # Epic 1 apps (Vite) — build-only until they deploy in Epic 1.4
+      - name: Customer + Business apps — build
+        env:
+          VITE_API_URL: https://api.bookplus.pro
+        run: |
+          pnpm --filter "@bookplus/customer" build
+          pnpm --filter "@bookplus/business" build
 
   # 2) On push to main only: build & push both images to Docker Hub
   build-and-push:
@@ -79,6 +88,34 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      - name: Build & push customer app
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./apps/customer/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: erastusm/bookplus-customer:latest
+          build-args: |
+            VITE_API_URL=https://api.bookplus.pro
+            VITE_BUSINESS_URL=https://business.bookplus.pro
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Build & push business app
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./apps/business/Dockerfile
+          platforms: linux/amd64
+          push: true
+          tags: erastusm/bookplus-business:latest
+          build-args: |
+            VITE_API_URL=https://api.bookplus.pro
+            VITE_CUSTOMER_URL=https://app.bookplus.pro
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
   # 3) On push to main: pull the new images on the server and restart.
   #    Skipped automatically unless the DEPLOY_HOST secret is configured.
   deploy:
@@ -88,6 +125,20 @@ jobs:
     env:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
     steps:
+      - uses: actions/checkout@v4
+      # Keep the droplet's compose + nginx config in lockstep with the repo —
+      # new services/subdomains would otherwise require a manual copy.
+      - name: Sync compose + nginx config to the host
+        if: env.DEPLOY_HOST != ''
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.DEPLOY_HOST }}
+          username: ${{ secrets.DEPLOY_USER }}
+          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          source: "docker-compose.yml,nginx/conf.d/bookplus.conf"
+          target: /app
+          overwrite: true
+
       - name: Deploy over SSH (compose pull + up)
         if: env.DEPLOY_HOST != ''
         uses: appleboy/ssh-action@v1.2.0
