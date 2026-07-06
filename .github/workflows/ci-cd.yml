@@ -37,8 +37,17 @@ jobs:
           REACT_APP_API_URL: https://api.bookplus.pro
         run: |
           pnpm install --frozen-lockfile
-          pnpm --filter "@bookplus/*" build
+          pnpm --filter "@bookplus/api-client" build
+          pnpm --filter "@bookplus/ui" build
           pnpm --filter bookplus-client run build
+
+      # Epic 1 apps (Vite) — build-only until they deploy in Epic 1.4
+      - name: Customer + Business apps — build
+        env:
+          VITE_API_URL: https://api.bookplus.pro
+        run: |
+          pnpm --filter "@bookplus/customer" build
+          pnpm --filter "@bookplus/business" build
 
   # 2) On push to main only: build & push both images to Docker Hub
   build-and-push:

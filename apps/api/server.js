@@ -125,6 +125,10 @@ const allowedOrigins = new Set([
     ...(process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map(o => o.trim()).filter(Boolean) : []),
     'http://localhost:3000',
     'http://localhost:3001',
+    // Epic 1 app shells (customer 3002 / business 3003) in local dev.
+    // Production subdomains are added via the comma-separated CLIENT_URL env.
+    'http://localhost:3002',
+    'http://localhost:3003',
 ]);
 
 app.use(cors({
