@@ -3,8 +3,7 @@ name: CI/CD
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+  pull_request:   # no branch filter — stacked PRs (feature -> epic branch) need CI too
 
 jobs:
   # 1) Always: run server tests + verify the client builds (PRs and pushes)
