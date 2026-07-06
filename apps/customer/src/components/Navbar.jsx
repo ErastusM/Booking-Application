@@ -7,6 +7,8 @@ import SuggestionBox from './SuggestionBox';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { BrandMark } from '@bookplus/ui';
 
+const BUSINESS_URL = import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003';
+
 const Navbar = () => {
     const { user, logout, activeRole, switchRole } = useAuthContext();
     const { darkMode, toggleDarkMode } = useTheme();
@@ -103,7 +105,7 @@ const Navbar = () => {
                     {activeRole === 'customer' && navLink('/wallet', 'Wallet')}
                     {activeRole === 'customer' && navLink('/waiting-list', 'Waiting List')}
                     {activeRole === 'customer' && user?.role === 'customer' && navLink('/become-provider', 'List your business')}
-                    {activeRole === 'provider' && navLink('/dashboard', 'Dashboard')}
+                    {activeRole === 'provider' && <a className="nav-pill" href={`${BUSINESS_URL}/dashboard`} style={{ color: 'var(--text-secondary)', fontWeight: '500' }}>Dashboard</a>}
                     {activeRole === 'provider' && navLink('/appointments', 'My bookings')}
                     {user?.role === 'admin' && navLink('/bkplus-command', 'Dashboard')}
                     {user?.role === 'admin' && navLink('/bkplus-command/insights', 'Analytics')}
@@ -315,7 +317,7 @@ const Navbar = () => {
                         {activeRole === 'customer' && mobileLink('/wallet', 'Wallet')}
                         {activeRole === 'customer' && mobileLink('/waiting-list', 'Waiting List')}
                         {activeRole === 'customer' && user?.role === 'customer' && mobileLink('/become-provider', 'List your business')}
-                        {activeRole === 'provider' && mobileLink('/dashboard', 'Dashboard')}
+                        {activeRole === 'provider' && <a href={`${BUSINESS_URL}/dashboard`} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500', fontSize: '0.95rem', padding: '0.85rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'block' }}>Dashboard</a>}
                         {activeRole === 'provider' && mobileLink('/appointments', 'My bookings')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command/insights', 'Analytics')}
