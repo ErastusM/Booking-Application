@@ -92,7 +92,7 @@ jobs:
           tags: erastusm/bookplus-business:latest
           build-args: |
             VITE_API_URL=https://api.bookplus.pro
-            VITE_CUSTOMER_URL=https://app.bookplus.pro
+            VITE_CUSTOMER_URL=https://www.bookplus.pro
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -130,7 +130,8 @@ jobs:
             cd /app
             # Dual-app env (idempotent): SSO cookie scope + the new app origins.
             grep -q '^COOKIE_DOMAIN=' .env.production || echo 'COOKIE_DOMAIN=.bookplus.pro' >> .env.production
-            grep -q 'app.bookplus.pro' .env.production || sed -i '/^CLIENT_URL=/ s|$|,https://app.bookplus.pro,https://business.bookplus.pro|' .env.production
+            sed -i '/^CLIENT_URL=/ s|,https://app.bookplus.pro||' .env.production
+            grep -q 'business.bookplus.pro' .env.production || sed -i '/^CLIENT_URL=/ s|$|,https://business.bookplus.pro|' .env.production
             docker compose pull
             docker compose up -d --force-recreate
             # One-off data migrations, all idempotent — safe on every deploy.

@@ -9,7 +9,7 @@ migrations.
 ## Owner steps (one-time, BEFORE merging the Epic 1 branch)
 
 1. **DNS** — add two A records pointing at the droplet's IP:
-   - `app.bookplus.pro`
+   - `www.bookplus.pro`
    - `business.bookplus.pro`
 
 2. **TLS** — the existing certificate only covers the current three names.
@@ -26,7 +26,7 @@ migrations.
    ```bash
    COOKIE_DOMAIN=.bookplus.pro     # SSO refresh cookie scope
    # CLIENT_URL is comma-separable; add the new origins:
-   CLIENT_URL=https://www.bookplus.pro,https://bookplus.pro,https://app.bookplus.pro,https://business.bookplus.pro
+   CLIENT_URL=https://www.bookplus.pro,https://bookplus.pro,https://www.bookplus.pro,https://business.bookplus.pro
    ```
 
 ## What ships where
@@ -34,7 +34,7 @@ migrations.
 | Origin | Serves | Image |
 |---|---|---|
 | `www.bookplus.pro` | legacy single app (retires after parity sign-off) | `bookplus-client` |
-| `app.bookplus.pro` | customer marketplace (Vite) | `bookplus-customer` |
+| `www.bookplus.pro` | customer marketplace (Vite) | `bookplus-customer` |
 | `business.bookplus.pro` | provider/staff/admin suite (Vite) | `bookplus-business` |
 | `api.bookplus.pro` | the one shared API | `bookplus-server` |
 
