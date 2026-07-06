@@ -45,7 +45,7 @@ const Navbar = () => {
             <Link to={to} className="nav-pill" style={{
                 color: baseColor,
                 fontWeight: active ? '600' : '500',
-                background: active ? (isTransparent ? 'rgba(255,255,255,0.14)' : 'rgba(201,168,76,0.12)') : 'transparent',
+                background: active ? (isTransparent ? 'rgba(255,255,255,0.14)' : 'rgba(240,62,22,0.12)') : 'transparent',
             }}
                 onMouseEnter={e => { if (!active) { e.currentTarget.style.color = isTransparent ? 'white' : 'var(--gold-dark)'; e.currentTarget.style.background = isTransparent ? 'rgba(255,255,255,0.10)' : 'var(--surface-sunken)'; } }}
                 onMouseLeave={e => { if (!active) { e.currentTarget.style.color = baseColor; e.currentTarget.style.background = 'transparent'; } }}
@@ -72,7 +72,7 @@ const Navbar = () => {
             textDecoration: 'none', fontWeight: isActive(to) ? '600' : '500',
             fontSize: '0.95rem', padding: '0.85rem 1.5rem',
             borderBottom: '1px solid var(--border)', display: 'block',
-            background: isActive(to) ? 'rgba(201,168,76,0.07)' : 'transparent',
+            background: isActive(to) ? 'rgba(240,62,22,0.07)' : 'transparent',
             borderLeft: isActive(to) ? '3px solid var(--gold)' : '3px solid transparent',
         }}>{label}</Link>
     );
@@ -81,7 +81,7 @@ const Navbar = () => {
     <>
         {/* Dark backdrop behind the status bar so its white text stays legible in light mode too (installed PWA).
             Height is the safe-area inset, so it collapses to nothing in a normal browser. */}
-        <div aria-hidden="true" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'env(safe-area-inset-top, 0px)', background: darkMode ? '#0f0f1a' : '#1a1a2e', zIndex: 1300, pointerEvents: 'none' }} />
+        <div aria-hidden="true" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'env(safe-area-inset-top, 0px)', background: darkMode ? '#0a0a0b' : '#040505', zIndex: 1300, pointerEvents: 'none' }} />
         <nav style={navStyles}>
             <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px' }}>
 
@@ -131,7 +131,7 @@ const Navbar = () => {
                         <>
                             {/* Role switcher — only visible for provider accounts */}
                             {user.role === 'provider' && (
-                                <div style={{ display: 'flex', background: isTransparent ? 'rgba(255,255,255,0.12)' : 'var(--warm-gray,#f4f4f0)', borderRadius: '99px', border: `1px solid ${isTransparent ? 'rgba(255,255,255,0.2)' : 'var(--border)'}`, padding: '3px', gap: '2px' }}>
+                                <div style={{ display: 'flex', background: isTransparent ? 'rgba(255,255,255,0.12)' : 'var(--warm-gray,#dcdedd)', borderRadius: '99px', border: `1px solid ${isTransparent ? 'rgba(255,255,255,0.2)' : 'var(--border)'}`, padding: '3px', gap: '2px' }}>
                                     {['provider', 'customer'].map(r => (
                                         <button
                                             key={r}
@@ -141,8 +141,8 @@ const Navbar = () => {
                                                 cursor: 'pointer', fontSize: '0.72rem', fontWeight: '600',
                                                 fontFamily: 'Plus Jakarta Sans, sans-serif', textTransform: 'capitalize',
                                                 transition: 'all 0.15s',
-                                                background: activeRole === r ? (isTransparent ? 'rgba(255,255,255,0.9)' : 'var(--charcoal,#1a1a2e)') : 'transparent',
-                                                color: activeRole === r ? (isTransparent ? 'var(--charcoal,#1a1a2e)' : 'var(--gold,#c9a84c)') : (isTransparent ? 'rgba(255,255,255,0.65)' : 'var(--text-muted)'),
+                                                background: activeRole === r ? (isTransparent ? 'rgba(255,255,255,0.9)' : 'var(--charcoal,#040505)') : 'transparent',
+                                                color: activeRole === r ? (isTransparent ? 'var(--charcoal,#040505)' : 'var(--gold,#f03e16)') : (isTransparent ? 'rgba(255,255,255,0.65)' : 'var(--text-muted)'),
                                             }}
                                         >{r === 'provider' ? '🏢 Business' : '👤 Customer'}</button>
                                     ))}
@@ -261,7 +261,7 @@ const Navbar = () => {
                     )}
 
                     {user && (
-                        <div style={{ background: 'rgba(201,168,76,0.07)', borderBottom: '1px solid var(--border)' }}>
+                        <div style={{ background: 'rgba(240,62,22,0.07)', borderBottom: '1px solid var(--border)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.2rem' }}>
                                 <div style={{ width: '38px', height: '38px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)', fontWeight: '700', fontSize: '0.9rem', flexShrink: 0 }}>
                                     {user.avatar
@@ -284,7 +284,7 @@ const Navbar = () => {
                                             style={{
                                                 flex: 1, padding: '0.42rem', borderRadius: '99px',
                                                 border: `1.5px solid ${activeRole === r ? 'var(--gold)' : 'var(--border)'}`,
-                                                background: activeRole === r ? 'rgba(201,168,76,0.12)' : 'transparent',
+                                                background: activeRole === r ? 'rgba(240,62,22,0.12)' : 'transparent',
                                                 color: activeRole === r ? 'var(--gold-dark,#a07830)' : 'var(--text-muted)',
                                                 fontSize: '0.75rem', fontWeight: '600',
                                                 fontFamily: 'Plus Jakarta Sans, sans-serif', textTransform: 'capitalize',
@@ -299,7 +299,7 @@ const Navbar = () => {
                                 <div style={{ padding: '0 1.2rem 0.85rem' }}>
                                     <button
                                         onClick={() => { setMenuOpen(false); navigate('/become-provider'); }}
-                                        style={{ width: '100%', padding: '0.5rem', borderRadius: '99px', border: '1.5px solid var(--gold)', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark,#a07830)', fontSize: '0.78rem', fontWeight: '600', fontFamily: 'Plus Jakarta Sans, sans-serif', cursor: 'pointer' }}
+                                        style={{ width: '100%', padding: '0.5rem', borderRadius: '99px', border: '1.5px solid var(--gold)', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark,#a07830)', fontSize: '0.78rem', fontWeight: '600', fontFamily: 'Plus Jakarta Sans, sans-serif', cursor: 'pointer' }}
                                     >Become a Business →</button>
                                 </div>
                             )}
@@ -384,7 +384,7 @@ const Navbar = () => {
                     background: darkMode ? 'rgba(22,22,34,0.78)' : 'rgba(255,255,255,0.78)',
                     backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
                     border: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid var(--border)',
-                    borderRadius: '20px', boxShadow: '0 8px 22px rgba(26,26,46,0.13)',
+                    borderRadius: '20px', boxShadow: '0 8px 22px rgba(4,5,5,0.13)',
                     padding: '7px 6px 6px',
                 }}>
                     {[
@@ -411,7 +411,7 @@ const Navbar = () => {
                                 <span style={{
                                     width: '38px', height: '38px', borderRadius: '50%',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    background: active ? 'rgba(201,168,76,0.20)' : 'rgba(201,168,76,0.09)',
+                                    background: active ? 'rgba(240,62,22,0.20)' : 'rgba(240,62,22,0.09)',
                                     color: active ? 'var(--gold-dark)' : 'var(--gold)',
                                     transition: 'background 0.18s ease, color 0.18s ease',
                                 }}>{icon}</span>
@@ -442,7 +442,7 @@ const Navbar = () => {
                     background: darkMode ? 'rgba(22,22,34,0.78)' : 'rgba(255,255,255,0.78)',
                     backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
                     border: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid var(--border)',
-                    borderRadius: '20px', boxShadow: '0 8px 22px rgba(26,26,46,0.13)',
+                    borderRadius: '20px', boxShadow: '0 8px 22px rgba(4,5,5,0.13)',
                     padding: '7px 4px 6px',
                 }}>
                     {[
@@ -469,7 +469,7 @@ const Navbar = () => {
                                 <span style={{
                                     width: '38px', height: '38px', borderRadius: '50%',
                                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    background: active ? 'rgba(201,168,76,0.20)' : 'rgba(201,168,76,0.09)',
+                                    background: active ? 'rgba(240,62,22,0.20)' : 'rgba(240,62,22,0.09)',
                                     color: active ? 'var(--gold-dark)' : 'var(--gold)',
                                     transition: 'background 0.18s ease, color 0.18s ease',
                                 }}>{icon}</span>

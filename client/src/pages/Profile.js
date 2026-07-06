@@ -139,7 +139,7 @@ const Profile = () => {
                         <h2 style={{ fontFamily: 'var(--font-body)', fontSize: '1.05rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name}</h2>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email}</p>
                     </div>
-                    <span style={{ flexShrink: 0, fontSize: '0.68rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0.2rem 0.6rem', borderRadius: '99px', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark)', border: '1px solid rgba(201,168,76,0.25)' }}>{user?.role}</span>
+                    <span style={{ flexShrink: 0, fontSize: '0.68rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0.2rem 0.6rem', borderRadius: '99px', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', border: '1px solid rgba(240,62,22,0.25)' }}>{user?.role}</span>
                 </div>
 
                 {/* Account-mode banner — keep switching / upgrading discoverable */}

@@ -42,7 +42,7 @@ const EnablePushBanner = () => {
     };
 
     return (
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.32)', borderRadius: 'var(--radius)', padding: '0.85rem 1rem', marginBottom: '1.5rem' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.32)', borderRadius: 'var(--radius)', padding: '0.85rem 1rem', marginBottom: '1.5rem' }}>
             <span style={{ fontSize: '1.3rem', flexShrink: 0 }} aria-hidden="true">🔔</span>
             <div style={{ flex: 1, minWidth: 0 }}>
                 <p style={{ margin: 0, fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.92rem' }}>

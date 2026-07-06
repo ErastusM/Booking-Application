@@ -51,8 +51,8 @@ const WalletTopUpModal = ({ providerId, providerName, onClose, onDone }) => {
     const isPdf = /\.pdf($|\?)/i.test(proofUrl);
 
     return (
-        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
-            <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '440px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(26,26,46,0.3)' }}>
+        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
+            <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '440px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(4,5,5,0.3)' }}>
                 <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Top up · {providerName}</h2>
                     <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
@@ -65,7 +65,7 @@ const WalletTopUpModal = ({ providerId, providerName, onClose, onDone }) => {
                             <button key={o.v} type="button" onClick={() => { setMethod(o.v); if (o.v === 'cash') setProofUrl(''); }} style={{
                                 flex: '1 1 40%', padding: '0.6rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '600', fontSize: '0.82rem',
                                 border: `1.5px solid ${method === o.v ? 'var(--gold)' : 'var(--border)'}`,
-                                background: method === o.v ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)', color: method === o.v ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                                background: method === o.v ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)', color: method === o.v ? 'var(--gold-dark)' : 'var(--text-secondary)',
                             }}>{o.t}</button>
                         ))}
                         <button type="button" disabled title="Coming soon" style={{

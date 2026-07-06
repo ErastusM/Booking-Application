@@ -53,7 +53,7 @@ const BecomeProvider = () => {
                 <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)', overflow: 'hidden' }}>
                     <div style={{ height: '4px', background: 'linear-gradient(to right, var(--gold-dark), var(--gold-light))' }} />
                     <div style={{ padding: '2.25rem' }}>
-                        <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.1rem' }}>
+                        <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.1rem' }}>
                             <Briefcase size={26} strokeWidth={2} />
                         </div>
                         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.9rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.4rem' }}>List your business</h1>

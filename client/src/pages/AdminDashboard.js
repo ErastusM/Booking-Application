@@ -15,7 +15,7 @@ const statusConfig = {
 const chipStyle = (active) => ({
     padding: '0.4rem 0.9rem', borderRadius: '99px', border: '1px solid',
     borderColor: active ? 'var(--gold)' : 'var(--border)',
-    background: active ? 'rgba(201,168,76,0.12)' : 'white',
+    background: active ? 'rgba(240,62,22,0.12)' : 'white',
     color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
     fontSize: '0.78rem', fontWeight: active ? '600' : '400',
     cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', textTransform: 'capitalize',
@@ -279,7 +279,7 @@ const AdminDashboard = () => {
 
             {/* Header */}
                 <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 30%, rgba(201,168,76,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
+                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 30%, rgba(240,62,22,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Management</p>
                     <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.2rem, 4vw, 3.25rem)', fontWeight: '700', color: 'white', lineHeight: 1.05, marginBottom: '0.35rem' }}>Admin Dashboard</h1>
@@ -307,7 +307,7 @@ const AdminDashboard = () => {
                 <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '2rem' }}>
                     {stats.map((s, i) => (
                         <div key={i} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.2rem 1.4rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                 <s.Icon size={20} strokeWidth={2} />
                             </div>
                             <div>
@@ -328,7 +328,7 @@ const AdminDashboard = () => {
                 <div style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', overflowX: 'auto', paddingBottom: '0.35rem' }}>
                     {tabs.map(tab => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
-                            padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(201,168,76,0.1)' : 'white', border: '1px solid',
+                            padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(240,62,22,0.1)' : 'white', border: '1px solid',
                             borderColor: activeTab === tab ? 'var(--gold)' : 'var(--border)',
                             borderRadius: '999px',
                             color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-secondary)',
@@ -462,7 +462,7 @@ const AdminDashboard = () => {
                                             <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{s.duration} min</td>
                                             <td style={{ padding: '0.875rem 1rem' }}>
                                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                    <button onClick={() => handleEditService(s)} style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold-dark)', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Edit</button>
+                                                    <button onClick={() => handleEditService(s)} style={{ background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--gold-dark)', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Edit</button>
                                                     <button onClick={() => handleDeleteService(s._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Delete</button>
                                                 </div>
                                             </td>
@@ -597,7 +597,7 @@ const AdminDashboard = () => {
                                 { label: 'Provider accounts', val: pwSummary?.walletCount ?? 0 },
                                 { label: 'Pending top-ups', val: pwSummary?.pendingTopUps ?? 0 },
                             ].map((c) => (
-                                <div key={c.label} style={{ background: c.accent ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.1rem 1.25rem' }}>
+                                <div key={c.label} style={{ background: c.accent ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.1rem 1.25rem' }}>
                                     <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>{c.label}</div>
                                     <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: c.accent ? 'var(--gold-dark)' : 'var(--charcoal)' }}>{c.val}</div>
                                 </div>
@@ -732,7 +732,7 @@ const AdminAdjustModal = ({ wallet, onClose, onDone }) => {
         } catch (err) { setError(err.response?.data?.message || 'Could not adjust'); setBusy(false); }
     };
     return (
-        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
+        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
             <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '400px', overflow: 'hidden' }}>
                 <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                     <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Adjust · {wallet.provider?.name}</h2>
@@ -744,7 +744,7 @@ const AdminAdjustModal = ({ wallet, onClose, onDone }) => {
                             <button key={o.v} type="button" onClick={() => setDirection(o.v)} style={{
                                 flex: 1, padding: '0.55rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '600', fontSize: '0.82rem',
                                 border: `1.5px solid ${direction === o.v ? 'var(--gold)' : 'var(--border)'}`,
-                                background: direction === o.v ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)', color: direction === o.v ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                                background: direction === o.v ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)', color: direction === o.v ? 'var(--gold-dark)' : 'var(--text-secondary)',
                             }}>{o.t}</button>
                         ))}
                     </div>

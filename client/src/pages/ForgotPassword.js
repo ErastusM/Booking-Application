@@ -42,7 +42,7 @@ const ForgotPassword = () => {
                 <div style={{
                     position: 'absolute',
                     inset: 0,
-                    backgroundImage: 'radial-gradient(ellipse at 30% 70%, rgba(201,168,76,0.05) 0%, transparent 60%)',
+                    backgroundImage: 'radial-gradient(ellipse at 30% 70%, rgba(240,62,22,0.05) 0%, transparent 60%)',
                     pointerEvents: 'none',
                 }} />
                 <div style={{ position: 'relative', zIndex: 1 }}>

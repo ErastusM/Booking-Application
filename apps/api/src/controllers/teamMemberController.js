@@ -21,7 +21,7 @@ exports.addTeamMember = async (req, res) => {
             role: (role || 'Staff').trim(),
             email: (email || '').trim().toLowerCase(),
             phone: (phone || '').trim(),
-            color: color || '#c9a84c',
+            color: color || '#f03e16',
         });
         res.status(201).json({ success: true, data: member });
     } catch (error) {

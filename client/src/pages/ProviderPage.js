@@ -8,7 +8,7 @@ import { normalizeTown } from '../utils/namibiaTowns';
 const StarDisplay = ({ rating }) => (
     <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
         {[1, 2, 3, 4, 5].map(s => (
-            <span key={s} style={{ color: s <= Math.round(rating) ? 'var(--gold)' : '#e2e0db', fontSize: '0.85rem' }}>★</span>
+            <span key={s} style={{ color: s <= Math.round(rating) ? 'var(--gold)' : '#d3d5d4', fontSize: '0.85rem' }}>★</span>
         ))}
     </div>
 );
@@ -104,7 +104,7 @@ const ProvidersPage = () => {
 
             {/* Header */}
             <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '4rem', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 50%, rgba(201,168,76,0.045) 0%, transparent 60%)', pointerEvents: 'none' }} />
+                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 50%, rgba(240,62,22,0.045) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Discover</p>
                     <h1 style={{ fontFamily: 'var(--font-body)', fontSize: 'clamp(2rem, 5vw, 3.5rem)', fontWeight: '700', color: 'white', marginBottom: '2rem' }}>
@@ -232,7 +232,7 @@ const ProvidersPage = () => {
                                 >
                                     {/* Cover */}
                                     <div style={{ height: '140px', background: 'linear-gradient(135deg, var(--charcoal) 0%, var(--charcoal-light) 100%)', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 70% 30%, rgba(201,168,76,0.15) 0%, transparent 60%)' }} />
+                                        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 70% 30%, rgba(240,62,22,0.15) 0%, transparent 60%)' }} />
                                         {provider.avatar ? (
                                             <img src={cloudinaryAvatar(provider.avatar)} alt={provider.name} style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', position: 'relative', zIndex: 1 }} />
                                         ) : (
@@ -246,7 +246,7 @@ const ProvidersPage = () => {
                                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>{provider.businessName || provider.name}</h3>
 
                                         {provider.providerCategory && (
-                                            <span style={{ display: 'inline-block', fontSize: '0.7rem', fontWeight: '600', padding: '0.2rem 0.6rem', borderRadius: '99px', background: 'rgba(201,168,76,0.1)', color: 'var(--gold-dark)', border: '1px solid rgba(201,168,76,0.3)', marginBottom: '0.5rem' }}>
+                                            <span style={{ display: 'inline-block', fontSize: '0.7rem', fontWeight: '600', padding: '0.2rem 0.6rem', borderRadius: '99px', background: 'rgba(240,62,22,0.1)', color: 'var(--gold-dark)', border: '1px solid rgba(240,62,22,0.3)', marginBottom: '0.5rem' }}>
                                                 {provider.providerCategory}
                                             </span>
                                         )}

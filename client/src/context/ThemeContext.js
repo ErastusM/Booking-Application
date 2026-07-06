@@ -12,7 +12,7 @@ export const ThemeProvider = ({ children }) => {
         // theme. iOS standalone ignores this for its status bar — that case is handled by
         // the dark safe-area backdrop in the navbar — but this fixes everywhere else.
         const meta = document.querySelector('meta[name="theme-color"]');
-        if (meta) meta.setAttribute('content', darkMode ? '#0f0f1a' : '#ffffff');
+        if (meta) meta.setAttribute('content', darkMode ? '#0a0a0b' : '#ffffff');
     }, [darkMode]);
 
     const toggleDarkMode = () => setDarkMode(prev => !prev);

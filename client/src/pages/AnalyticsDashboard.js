@@ -82,7 +82,7 @@ const MiniStat = ({ label, value, sub, icon, trend }) => (
                 <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.8rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{value}</p>
                 {sub && <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>{sub}</p>}
             </div>
-            <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>
+            <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(240,62,22,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>
                 {icon}
             </div>
         </div>
@@ -110,7 +110,7 @@ const Card = ({ title, children, style }) => (
 const StarRating = ({ rating }) => (
     <div style={{ display: 'flex', gap: '2px' }}>
         {[1, 2, 3, 4, 5].map(s => (
-            <span key={s} style={{ color: s <= Math.round(rating) ? 'var(--gold)' : '#e2e0db', fontSize: '0.85rem' }}>★</span>
+            <span key={s} style={{ color: s <= Math.round(rating) ? 'var(--gold)' : '#d3d5d4', fontSize: '0.85rem' }}>★</span>
         ))}
     </div>
 );
@@ -166,7 +166,7 @@ const AnalyticsDashboard = () => {
 
             {/* Header */}
             <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 30%, rgba(201,168,76,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
+                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 30%, rgba(240,62,22,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '1rem' }}>
                     <div>
                         <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Insights</p>
@@ -209,7 +209,7 @@ const AnalyticsDashboard = () => {
                                 <button key={m.key} onClick={() => setChartMode(m.key)} style={{
                                     padding: '0.35rem 0.875rem', borderRadius: '99px', border: '1.5px solid',
                                     borderColor: chartMode === m.key ? 'var(--gold)' : 'var(--border)',
-                                    background: chartMode === m.key ? 'rgba(201,168,76,0.1)' : 'transparent',
+                                    background: chartMode === m.key ? 'rgba(240,62,22,0.1)' : 'transparent',
                                     color: chartMode === m.key ? 'var(--gold-dark)' : 'var(--text-muted)',
                                     fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer',
                                     fontFamily: 'var(--font-body)',

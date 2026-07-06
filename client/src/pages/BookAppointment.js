@@ -382,7 +382,7 @@ const BookAppointment = () => {
             <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
                 {/* Header */}
                 <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
-                    <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 20% 50%, rgba(201,168,76,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
+                    <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 20% 50%, rgba(240,62,22,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
                     <div className="container" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         <button onClick={() => setStep('form')} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 'var(--radius-sm)', padding: '0.5rem 1rem', color: 'white', cursor: 'pointer', fontSize: '0.85rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>&larr; Back</button>
                         <div>
@@ -521,7 +521,7 @@ const BookAppointment = () => {
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
             {/* Header */}
             <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 20% 50%, rgba(201,168,76,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
+                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 20% 50%, rgba(240,62,22,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>{rescheduleId ? 'Reschedule' : 'Schedule Your Visit'}</p>
                     <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '600', color: 'white' }}>{rescheduleId ? 'Reschedule your appointment' : 'Book an Appointment'}</h1>
@@ -590,10 +590,10 @@ const BookAppointment = () => {
                                                 transition: 'transform var(--dur-fast) var(--ease-out), border-color var(--dur) ease, background var(--dur) ease, box-shadow var(--dur) ease',
                                                 fontFamily: 'Plus Jakarta Sans, sans-serif', borderRadius: 'var(--radius)',
                                                 borderColor: sel ? 'var(--gold)' : 'var(--border)',
-                                                background: sel ? 'rgba(201,168,76,0.08)' : 'var(--card-bg)',
+                                                background: sel ? 'rgba(240,62,22,0.08)' : 'var(--card-bg)',
                                                 boxShadow: sel ? 'var(--shadow-sm)' : 'none',
                                             }}
-                                                onMouseEnter={e => { if (!sel) { e.currentTarget.style.borderColor = 'rgba(201,168,76,0.5)'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; } }}
+                                                onMouseEnter={e => { if (!sel) { e.currentTarget.style.borderColor = 'rgba(240,62,22,0.5)'; e.currentTarget.style.transform = 'translateY(-2px)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; } }}
                                                 onMouseLeave={e => { if (!sel) { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.transform = 'none'; e.currentTarget.style.boxShadow = 'none'; } }}
                                             >
                                                 {sel && <span aria-hidden="true" style={{ position: 'absolute', top: '0.65rem', right: '0.65rem', width: '20px', height: '20px', borderRadius: '50%', background: 'var(--gold)', color: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: '800' }}>✓</span>}
@@ -620,7 +620,7 @@ const BookAppointment = () => {
                                     {selectedService.addOns.map((addOn, i) => {
                                         const checked = selectedAddOns.some(a => a.name === addOn.name);
                                         return (
-                                            <label key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem', border: `2px solid ${checked ? 'var(--gold)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: checked ? 'rgba(201,168,76,0.08)' : 'var(--card-bg)', transition: 'border-color var(--dur) ease, background var(--dur) ease' }}>
+                                            <label key={i} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem', border: `2px solid ${checked ? 'var(--gold)' : 'var(--border)'}`, borderRadius: 'var(--radius-sm)', cursor: 'pointer', background: checked ? 'rgba(240,62,22,0.08)' : 'var(--card-bg)', transition: 'border-color var(--dur) ease, background var(--dur) ease' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                                     <input type="checkbox" checked={checked} onChange={() => toggleAddOn(addOn)} style={{ accentColor: 'var(--gold)', width: '16px', height: '16px' }} />
                                                     <span style={{ fontWeight: '500', color: 'var(--charcoal)', fontSize: '0.9rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{addOn.name}</span>
@@ -723,7 +723,7 @@ const BookAppointment = () => {
                                                             padding: '1rem 1.25rem',
                                                             borderRadius: '12px',
                                                             border: `2px solid ${slot.isBooked ? '#e5e7eb' : isSelected ? 'var(--gold)' : 'var(--border)'}`,
-                                                            background: slot.isBooked ? '#f9fafb' : isSelected ? 'rgba(201,168,76,0.08)' : 'white',
+                                                            background: slot.isBooked ? '#f9fafb' : isSelected ? 'rgba(240,62,22,0.08)' : 'white',
                                                             color: slot.isBooked ? '#9ca3af' : isSelected ? 'var(--gold-dark)' : 'var(--charcoal)',
                                                             fontWeight: isSelected ? '600' : '400',
                                                             fontSize: '1rem',
@@ -809,7 +809,7 @@ const BookAppointment = () => {
                                                 <button key={o.v} type="button" onClick={() => setPaymentMethod(o.v)} style={{
                                                     flex: 1, padding: '0.6rem 0.5rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif',
                                                     border: `1.5px solid ${active ? 'var(--gold)' : 'var(--border)'}`,
-                                                    background: active ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)', color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                                                    background: active ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)', color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
                                                 }}>
                                                     <div style={{ fontWeight: '700', fontSize: '0.85rem' }}>{o.t}</div>
                                                     <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>{o.sub}</div>

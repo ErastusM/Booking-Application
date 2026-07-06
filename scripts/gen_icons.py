@@ -15,11 +15,11 @@ OUT = os.path.abspath(OUT)
 
 SS = 4  # supersample factor
 
-INK_TOP = (38, 38, 63)      # #26263f
-INK_BOT = (19, 19, 30)      # #13131e
-OFFWHITE = (244, 241, 234)  # #f4f1ea
-HEADER = (205, 191, 159)    # #cdbf9f
-GOLD = (201, 168, 76)       # #c9a84c
+INK_TOP = (31, 31, 33)      # #1f1f21
+INK_BOT = (4, 5, 5)         # #040505
+OFFWHITE = (230, 232, 231)  # #e6e8e7
+HEADER = (233, 189, 179)    # #e9bdb3 (soft orange-tinted divider)
+GOLD = (240, 62, 22)        # #f03e16 (brand orange; legacy var name)
 
 
 def lerp(a, b, t):
@@ -71,7 +71,7 @@ def draw_mark(size, rounded=True):
 def save_png(img, name, rgb=False):
     path = os.path.join(OUT, name)
     if rgb:
-        bg = Image.new("RGB", img.size, (19, 19, 30))
+        bg = Image.new("RGB", img.size, (4, 5, 5))
         bg.paste(img, (0, 0), img)
         bg.save(path, "PNG")
     else:

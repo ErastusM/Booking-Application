@@ -155,9 +155,9 @@ const NotificationBell = ({ isTransparent }) => {
                                 <div
                                     key={n._id}
                                     onClick={() => handleClick(n)}
-                                    style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.85rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border)', background: !n.read ? 'rgba(201,168,76,0.07)' : 'transparent', transition: 'background 0.15s', position: 'relative' }}
+                                    style={{ display: 'flex', alignItems: 'flex-start', gap: '0.75rem', padding: '0.85rem 1rem', cursor: 'pointer', borderBottom: '1px solid var(--border)', background: !n.read ? 'rgba(240,62,22,0.07)' : 'transparent', transition: 'background 0.15s', position: 'relative' }}
                                     onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
-                                    onMouseLeave={e => e.currentTarget.style.background = !n.read ? 'rgba(201,168,76,0.07)' : 'transparent'}
+                                    onMouseLeave={e => e.currentTarget.style.background = !n.read ? 'rgba(240,62,22,0.07)' : 'transparent'}
                                 >
                                     {/* Avatar with a small type badge, like the notifications feed */}
                                     <div style={{ position: 'relative', flexShrink: 0 }}>
