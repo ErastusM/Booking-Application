@@ -18,10 +18,10 @@ chmod +x start.sh
 ### Manual
 ```bash
 # Terminal 1 - Backend
-cd server && npm install && npm run dev
+cd apps/api && npm install && npm run dev
 
 # Terminal 2 - Frontend
-cd client && npm install && npm start
+pnpm install && cd client && npm start
 ```
 
 ---
@@ -41,10 +41,10 @@ cd client && npm install && npm start
 
 | File | Purpose |
 |------|---------|
-| `server/server.js` | Main backend entry point |
+| `apps/api/server.js` | Main backend entry point |
 | `client/src/App.js` | Main frontend app component |
-| `server/src/models/User.js` | User database schema |
-| `server/src/middleware/auth.js` | JWT authentication logic |
+| `apps/api/src/models/User.js` | User database schema |
+| `apps/api/src/middleware/auth.js` | JWT authentication logic |
 | `client/src/context/AuthContext.js` | React auth state management |
 | `client/src/services/api.js` | API client configuration |
 
@@ -105,7 +105,7 @@ db.users.find()
 
 ### Backend Commands
 ```bash
-cd server
+cd apps/api
 
 npm install          # Install dependencies
 npm start            # Run production
@@ -115,9 +115,9 @@ npm test             # Run tests
 
 ### Frontend Commands
 ```bash
-cd client
+pnpm install         # Install dependencies (run at the REPO ROOT — pnpm workspace)
 
-npm install          # Install dependencies
+cd client
 npm start            # Start dev server
 npm run build        # Build for production
 npm test             # Run tests
@@ -183,7 +183,7 @@ curl -X POST http://localhost:5000/api/appointments \
 | Problem | Solution |
 |---------|----------|
 | Port 3000 in use | Kill process: `lsof -ti:3000 \| xargs kill` or change PORT in .env |
-| Port 5000 in use | Change PORT in server/.env |
+| Port 5000 in use | Change PORT in apps/api/.env |
 | MongoDB connection error | Ensure MongoDB running: `mongod` or Docker container |
 | Module not found | Delete node_modules and run `npm install` again |
 | CORS error | Check REACT_APP_API_URL in client/.env |
@@ -195,7 +195,7 @@ curl -X POST http://localhost:5000/api/appointments \
 
 ```
 Booking Application/
-├── server/
+├── apps/api/
 │   ├── src/models/        ← Database schemas
 │   ├── src/controllers/   ← Business logic
 │   ├── src/routes/        ← API endpoints

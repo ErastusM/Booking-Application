@@ -3,8 +3,7 @@ name: CI/CD
 on:
   push:
     branches: [main]
-  pull_request:
-    branches: [main]
+  pull_request:   # no branch filter — stacked PRs (feature -> epic branch) need CI too
 
 jobs:
   # 1) Always: run server tests + verify the client builds (PRs and pushes)
@@ -17,27 +16,29 @@ jobs:
       MONGODB_URI: mongodb://localhost:27017/bookplus-ci
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4   # version pinned by packageManager in root package.json
       - uses: actions/setup-node@v4
         with:
           node-version: 24
-          cache: npm
-          cache-dependency-path: '**/package-lock.json'
+          cache: pnpm
 
-      - name: Server — install & test
-        working-directory: server
+      # apps/api is intentionally still npm-managed (own package-lock.json) so CI
+      # tests exactly what the Docker image ships — see pnpm-workspace.yaml.
+      - name: API — install & test
+        working-directory: apps/api
         run: |
           npm ci
           npm test
 
       - name: Client — install & build
-        working-directory: client
         env:
           CI: false            # don't fail the build on ESLint warnings
           GENERATE_SOURCEMAP: false
           REACT_APP_API_URL: https://api.bookplus.pro
         run: |
-          npm ci
-          npm run build
+          pnpm install --frozen-lockfile
+          pnpm --filter "@bookplus/*" build
+          pnpm --filter bookplus-client run build
 
   # 2) On push to main only: build & push both images to Docker Hub
   build-and-push:
@@ -56,17 +57,20 @@ jobs:
       - name: Build & push server
         uses: docker/build-push-action@v6
         with:
-          context: ./server
+          context: ./apps/api
           platforms: linux/amd64
           push: true
           tags: erastusm/bookplus-server:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
+      # Root context: the client consumes workspace packages (packages/*),
+      # which live outside ./client — the Dockerfile installs with pnpm.
       - name: Build & push client
         uses: docker/build-push-action@v6
         with:
-          context: ./client
+          context: .
+          file: ./client/Dockerfile
           platforms: linux/amd64
           push: true
           tags: erastusm/bookplus-client:latest

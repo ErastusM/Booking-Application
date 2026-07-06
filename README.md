@@ -29,15 +29,15 @@ Works as a fully responsive website **and** an installable, app-like PWA with bo
 
 ```bash
 # Server
-cd server && npm install
+cd apps/api && npm install
 
 # Client
-cd client && npm install
+pnpm install   # repo root — installs client + shared packages (pnpm workspace)
 ```
 
 ### Environment Variables
 
-Server (`server/.env` — see `server/.env.example`):
+Server (`apps/api/.env` — see `apps/api/.env.example`):
 
 | Variable | Purpose |
 |----------|---------|
@@ -59,7 +59,7 @@ Client (`client/.env`):
 
 ```bash
 # Terminal 1 — API on :5000
-cd server && npm run dev
+cd apps/api && npm run dev
 
 # Terminal 2 — React app on :3000
 cd client && npm start
@@ -71,7 +71,7 @@ Or use the included `.bat` launcher (option 3 starts both).
 
 ```bash
 # Server unit/integration suite (Jest + in-memory MongoDB)
-cd server && npm test
+cd apps/api && npm test
 
 # End-to-end suite (Playwright). Boots a self-contained API on an
 # in-memory MongoDB + the CRA dev server automatically — no external

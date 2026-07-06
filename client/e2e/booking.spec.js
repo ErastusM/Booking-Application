@@ -17,8 +17,10 @@ test.describe('Customer booking', () => {
         // 1) Service
         await page.getByTestId('booking-service').first().click();
 
-        // 2) Date — first selectable day in the calendar (skips past/closed days)
-        await page.locator('[data-testid="booking-date"]:not([disabled])').first().click();
+        // 2) Date — the SECOND selectable day (tomorrow). The first is today,
+        //    whose remaining slots may all be in the past when the suite runs
+        //    late in the day; tomorrow always has the full seeded 08:00–18:00.
+        await page.locator('[data-testid="booking-date"]:not([disabled])').nth(1).click();
 
         // 3) Time — first available (non-booked) slot
         await page.getByTestId('booking-time').first().click();

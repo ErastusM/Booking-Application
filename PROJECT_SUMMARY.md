@@ -25,7 +25,7 @@ A complete full-stack MERN (MongoDB, Express, React, Node.js) application for ma
 ### Root Directory
 ```
 Booking Application/
-├── server/                          # Node.js/Express Backend
+├── apps/api/                          # Node.js/Express Backend
 ├── client/                          # React Frontend
 ├── .github/
 │   └── copilot-instructions.md     # Development guidelines
@@ -40,7 +40,7 @@ Booking Application/
 
 ### Server Structure
 ```
-server/
+apps/api/
 ├── src/
 │   ├── models/
 │   │   ├── User.js                 # User schema and methods
@@ -317,7 +317,7 @@ start.bat
 ```
 
 ### Manual Setup
-1. **Backend**: `cd server && npm install && npm run dev`
+1. **Backend**: `cd apps/api && npm install && npm run dev`
 2. **Frontend**: `cd client && npm install && npm start`
 
 ### Docker Setup

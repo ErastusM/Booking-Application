@@ -27,7 +27,7 @@ const PORT = process.env.PORT || 5050;
 
     // Seed a verified provider with a bookable service + full weekday availability
     const provider = await User.create({
-        name: 'E2E Provider', email: 'e2e-provider@bookplus.invalid', password: 'Password1!',
+        name: 'E2E Provider', email: 'e2e-provider@bookplus.dev', password: 'Password1!',
         phone: '+264810000000', role: 'provider', providerCategory: 'Beauty & Grooming',
         isVerified: true, provider: 'local',
     });
@@ -46,7 +46,7 @@ const PORT = process.env.PORT || 5050;
 
     // Seed a verified customer so E2E can log in without the email-verification wall
     const customer = await User.create({
-        name: 'E2E Customer', email: 'e2e-customer@bookplus.invalid', password: 'Password1!',
+        name: 'E2E Customer', email: 'e2e-customer@bookplus.dev', password: 'Password1!',
         phone: '+264810000001', role: 'customer', isVerified: true, provider: 'local',
     });
 

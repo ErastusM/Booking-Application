@@ -45,7 +45,7 @@ exit /b 0
 :install_deps
 echo.
 echo Installing backend dependencies...
-cd server
+cd apps\api
 if exist "node_modules" (
     echo Backend dependencies already installed.
 ) else (
@@ -59,16 +59,17 @@ if exist ".env" (
     copy .env.example .env
 )
 
-cd ..
+cd ..\..
 
 echo.
-echo Installing frontend dependencies...
-cd client
-if exist "node_modules" (
-    echo Frontend dependencies already installed.
-) else (
-    npm install
+echo Installing frontend dependencies (pnpm workspace: client + packages)...
+where pnpm >nul 2>&1
+if errorlevel 1 (
+    echo [ERROR] pnpm is required for the frontend workspace. Install it with: npm install -g pnpm
+    exit /b 1
 )
+call pnpm install
+cd client
 
 if exist ".env" (
     echo .env file exists.
@@ -92,10 +93,10 @@ echo Opening new terminal windows for backend and frontend...
 echo.
 
 REM Start backend server
-cd server
+cd apps\api
 start cmd /k "echo Starting Backend Server... && npm run dev"
 
-cd ..
+cd ..\..
 
 REM Start frontend server
 cd client

@@ -399,7 +399,7 @@ REQUEST ARRIVES
 ```
 Booking Application/
 │
-├── 📁 server/                     # Backend application
+├── 📁 apps/api/                     # Backend application
 │   ├── 📁 src/
 │   │   ├── 📁 models/            # MongoDB schemas
 │   │   │   ├── User.js

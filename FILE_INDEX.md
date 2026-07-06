@@ -207,7 +207,7 @@ Booking Application/
 ├── 📁 .github/
 │   └── 📄 copilot-instructions.md
 │
-├── 📁 server/ (20 files)
+├── 📁 apps/api/ (20 files)
 │   ├── 📄 server.js
 │   ├── 📄 package.json
 │   ├── 📄 .env.example
@@ -274,27 +274,27 @@ Booking Application/
 ## 🎯 KEY FEATURES BY FILE
 
 ### Authentication System
-- `server/src/models/User.js` - User schema
-- `server/src/controllers/authController.js` - Auth logic
-- `server/src/middleware/auth.js` - JWT verification
+- `apps/api/src/models/User.js` - User schema
+- `apps/api/src/controllers/authController.js` - Auth logic
+- `apps/api/src/middleware/auth.js` - JWT verification
 - `client/src/context/AuthContext.js` - Client auth state
 - `client/src/hooks/useAuth.js` - Auth hook
 
 ### Service Management
-- `server/src/models/Service.js` - Service schema
-- `server/src/controllers/serviceController.js` - Service CRUD
-- `server/src/routes/serviceRoutes.js` - Service routes
+- `apps/api/src/models/Service.js` - Service schema
+- `apps/api/src/controllers/serviceController.js` - Service CRUD
+- `apps/api/src/routes/serviceRoutes.js` - Service routes
 - `client/src/pages/Services.js` - Service list page
 
 ### Appointment Booking
-- `server/src/models/Appointment.js` - Appointment schema
-- `server/src/controllers/appointmentController.js` - Booking logic
-- `server/src/routes/appointmentRoutes.js` - Appointment routes
+- `apps/api/src/models/Appointment.js` - Appointment schema
+- `apps/api/src/controllers/appointmentController.js` - Booking logic
+- `apps/api/src/routes/appointmentRoutes.js` - Appointment routes
 - `client/src/pages/BookAppointment.js` - Booking form
 - `client/src/pages/MyAppointments.js` - Appointments list
 
 ### API Integration
-- `server/server.js` - Express server setup
+- `apps/api/server.js` - Express server setup
 - `client/src/services/api.js` - Axios configuration
 - `client/src/services/index.js` - API service functions
 
@@ -324,8 +324,8 @@ Booking Application/
 ### Want to...
 
 **Add a new API endpoint?**
-- Create route in `server/src/routes/*.js`
-- Add controller in `server/src/controllers/*.js`
+- Create route in `apps/api/src/routes/*.js`
+- Add controller in `apps/api/src/controllers/*.js`
 
 **Add a new page?**
 - Create component in `client/src/pages/*.js`
@@ -336,15 +336,15 @@ Booking Application/
 - Modify Tailwind config in `client/tailwind.config.js`
 
 **Add new service?**
-- Extend `server/src/services/index.js`
+- Extend `apps/api/src/services/index.js`
 - Use in React components
 
 **Change authentication logic?**
-- Edit `server/src/middleware/auth.js`
-- Modify `server/src/controllers/authController.js`
+- Edit `apps/api/src/middleware/auth.js`
+- Modify `apps/api/src/controllers/authController.js`
 
 **Update database schema?**
-- Modify files in `server/src/models/`
+- Modify files in `apps/api/src/models/`
 
 ---
 
@@ -379,7 +379,7 @@ Booking Application/
 **Need setup help?** → `SETUP.md`  
 **Need architecture overview?** → `ARCHITECTURE.md`  
 **Need technical details?** → `PROJECT_SUMMARY.md`  
-**Need to fix auth issues?** → `server/src/middleware/auth.js`  
+**Need to fix auth issues?** → `apps/api/src/middleware/auth.js`  
 **Need to customize UI?** → `client/src/pages/` and `client/tailwind.config.js`
 
 ---

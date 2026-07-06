@@ -1,0 +1,6 @@
+packages:
+  - 'client'
+  - 'packages/*'
+# Transition plan (Epic 0):
+# - apps/api stays npm-managed (own package-lock.json) so CI and the Docker
+#   image install exactly what ships today. It joins the workspace in Epic 1.

@@ -1,0 +1,72 @@
+/* Bookplus design tokens — the single source of truth.
+   Consumed by every app; do not redeclare these variables locally.
+   Fonts: Plus Jakarta Sans is loaded by each app's HTML via
+   <link rel="preconnect"> + <link rel="stylesheet"> (not @import — perf). */
+
+:root {
+  --gold: #c9a84c;
+  --gold-light: #e8c96d;
+  --gold-dark: #a8863a;
+  --charcoal: #1a1a2e;
+  --charcoal-light: #2d2d44;
+  --off-white: #fafaf8;
+  --warm-gray: #f5f3ef;
+  --text-primary: #1a1a2e;
+  --text-secondary: #6b6b80;
+  --text-muted: #9b9baa;
+  --border: #e8e6e1;
+  /* Layered, soft elevation scale (Fresha-like: tight ambient + soft spread) */
+  --shadow-xs: 0 1px 2px rgba(26,26,46,0.05);
+  --shadow-sm: 0 1px 2px rgba(26,26,46,0.04), 0 2px 8px rgba(26,26,46,0.05);
+  --shadow-md: 0 2px 4px rgba(26,26,46,0.04), 0 6px 20px rgba(26,26,46,0.08);
+  --shadow-lg: 0 8px 16px rgba(26,26,46,0.06), 0 16px 48px rgba(26,26,46,0.12);
+  --shadow-focus: 0 0 0 3px rgba(201,168,76,0.28);
+  --radius: 14px;
+  --radius-sm: 8px;
+  --radius-lg: 20px;
+  --radius-pill: 999px;
+  /* Spacing scale (4px rhythm) */
+  --space-1: 4px;  --space-2: 8px;  --space-3: 12px; --space-4: 16px;
+  --space-5: 20px; --space-6: 24px; --space-8: 32px; --space-10: 40px; --space-12: 48px;
+  /* Motion tokens — one rhythm everywhere */
+  --ease-out: cubic-bezier(0.22, 1, 0.36, 1);
+  --ease-in-out: cubic-bezier(0.65, 0, 0.35, 1);
+  --dur-fast: 140ms;
+  --dur: 200ms;
+  --dur-slow: 320ms;
+  /* Surface tokens */
+  --card-bg: #ffffff;
+  --input-bg: #ffffff;
+  --surface-raised: #ffffff;
+  --surface-sunken: #f7f5f1;
+  /* --ink never flips: dark surfaces (hero headers, primary buttons) stay dark in both modes */
+  --ink: #1a1a2e;
+  --on-ink: #fafaf8;
+  /* One elegant sans for the whole product — no serif/sans mixing */
+  --font-display: 'Plus Jakarta Sans', sans-serif;
+  --font-body: 'Plus Jakarta Sans', sans-serif;
+  /* Semantic status tokens */
+  --success: #10b981; --success-bg: #d1fae5; --success-fg: #065f46;
+  --info: #3b82f6;    --info-bg: #dbeafe;    --info-fg: #1e40af;
+  --warning: #f59e0b; --warning-bg: #fef3c7; --warning-fg: #92400e;
+  --danger: #ef4444;  --danger-bg: #fee2e2;  --danger-fg: #991b1b;
+}
+
+body.dark-mode {
+  --off-white: #0f0f1a;
+  --charcoal: #e8e6e1;
+  --border: #2a2a42;
+  --warm-gray: #161628;
+  --text-primary: #f0eee8;
+  --text-secondary: #bcbccb; /* brightened for readability on dark surfaces */
+  --text-muted: #9090a4;
+  --shadow-xs: 0 1px 2px rgba(0,0,0,0.3);
+  --shadow-sm: 0 1px 2px rgba(0,0,0,0.3), 0 2px 8px rgba(0,0,0,0.28);
+  --shadow-md: 0 2px 4px rgba(0,0,0,0.3), 0 6px 20px rgba(0,0,0,0.4);
+  --shadow-lg: 0 8px 16px rgba(0,0,0,0.4), 0 16px 48px rgba(0,0,0,0.5);
+  /* Surface tokens — dark */
+  --card-bg: #16162a;
+  --input-bg: #1e1e35;
+  --surface-raised: #1e1e35;
+  --surface-sunken: #121223;
+}

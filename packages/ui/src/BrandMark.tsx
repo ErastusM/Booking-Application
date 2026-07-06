@@ -1,11 +1,17 @@
-import React, { useId } from 'react';
+import { useId, CSSProperties } from 'react';
+
+export interface BrandMarkProps {
+    size?: number;
+    radius?: number;
+    style?: CSSProperties;
+}
 
 /**
  * Bookplus brand mark — ink squircle + off-white calendar + a single gold plus.
  * Geometry matches the app icons / favicon (see scripts/gen_icons.py), so the
  * in-app logo and the installed-app icon read as the same brand.
  */
-const BrandMark = ({ size = 30, radius = 22, style }) => {
+const BrandMark = ({ size = 30, radius = 22, style }: BrandMarkProps) => {
     const gid = useId();
     return (
         <svg

@@ -1,5 +1,14 @@
 {
-  "dependencies": {
-    "nodemailer": "^8.0.7"
-  }
+    "name": "bookplus",
+    "private": true,
+    "packageManager": "pnpm@10.34.4",
+    "engines": {
+        "node": ">=20"
+    },
+    "scripts": {
+        "api:dev": "npm --prefix apps/api run dev",
+        "api:test": "npm --prefix apps/api test",
+        "client:start": "npm --prefix client start",
+        "client:build": "npm --prefix client run build"
+    }
 }
