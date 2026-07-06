@@ -1072,7 +1072,7 @@ const ProviderDashboard = () => {
         }
     };
 
-    // Resize-to-change-duration (Fresha-style). Sends an explicit endTime.
+    // Resize-to-change-duration. Sends an explicit endTime.
     const handleFullCalendarEventResize = async (resizeInfo) => {
         const event = resizeInfo.event;
         if (event.extendedProps.kind !== 'appointment') {
@@ -1117,7 +1117,7 @@ const ProviderDashboard = () => {
         { label: 'Completed', value: counts.completed, Icon: TrendingUp },
     ];
 
-    // Personal, at-a-glance greeting for the dashboard landing (Fresha/iOS feel)
+    // Personal, at-a-glance greeting for the dashboard landing (iOS feel)
     const _now = new Date();
     const greeting = _now.getHours() < 12 ? 'Good morning' : _now.getHours() < 18 ? 'Good afternoon' : 'Good evening';
     const firstName = (user?.name || '').trim().split(' ')[0];
@@ -3307,7 +3307,7 @@ const ProviderDashboard = () => {
                 </>
             )}
 
-            {/* Fresha-style Add/Edit Blocked Time panel */}
+            {/* Add/Edit Blocked Time panel */}
             {showBlockedTimeForm && (
                 <>
                     <div onClick={closeBlockedTimeForm} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1001, backdropFilter: 'blur(2px)' }} />

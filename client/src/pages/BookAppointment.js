@@ -878,7 +878,7 @@ const BookAppointment = () => {
             <button type="button" onClick={scrollToTop} className="scroll-top-fab" aria-label="Back to top" title="Back to top">↑</button>
         )}
 
-        {/* ── Service options bottom sheet (Fresha-style) ── */}
+        {/* ── Service options bottom sheet ── */}
         {optionSheet && (
             <>
                 <div onClick={() => setOptionSheet(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 900, backdropFilter: 'blur(2px)' }} />

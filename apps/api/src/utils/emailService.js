@@ -130,7 +130,7 @@ exports.transporter = transporter;
 exports.sendRaw = safeSend;
 
 /* ============================================================================
-   Shared clean email layout (Fresha-grade): white card on a light canvas,
+   Shared clean email layout: white card on a light canvas,
    system sans, one ink pill CTA, restrained gold accent. No serif, no emoji.
    ============================================================================ */
 

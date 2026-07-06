@@ -470,7 +470,7 @@ exports.createAppointment = async (req, res) => {
                 const _gcalEnd = new Date(_base.getFullYear(), _base.getMonth(), _base.getDate(), _eh, _em);
                 const gcalUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(svc.name)}&dates=${_fmt(_gcalStart)}/${_fmt(_gcalEnd)}&details=${encodeURIComponent('Booked via Bookplus')}`;
 
-                // Extras for the Fresha-style confirmation: venue, manage link, directions
+                // Extras for the confirmation email: venue, manage link, directions
                 const providerDoc = svc.provider ? await User.findById(svc.provider).select('name businessProfile') : null;
                 const address = providerDoc?.businessProfile?.address || '';
                 const clientBase = process.env.CLIENT_URL || '';

@@ -1,4 +1,4 @@
-// Granular service categories (Fresha-style) used for provider signup and the
+// Granular service categories used for provider signup and the
 // marketplace category filter. Ordered by theme; kept as a flat list because
 // providerCategory is a single value.
 const MAIN_CATEGORIES = [

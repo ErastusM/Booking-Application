@@ -1,14 +1,14 @@
 # Bookplus Booking App — Project Context
 
 ## What this is
-Appointment-booking platform being restructured into a Fresha-style dual-app
+Appointment-booking platform being restructured into a dual-app
 product (customer marketplace + business management app, one backend).
 **Read `DUAL_APP_ARCHITECTURE.md` (why/what) and `DUAL_APP_SPEC.md` (how,
 epics, acceptance criteria) before working on that initiative.**
 
 ## Stack
 - Backend: Node/Express, MongoDB/Mongoose, JWT auth (access + rotating refresh,
-  `tokenVersion`), Stripe — lives in `apps/api` (npm-managed until Epic 1)
+  `tokenVersion`) — lives in `apps/api` (npm-managed until Epic 1)
 - Frontend: React 18, React Router v6, CRA — lives in `client`
   (pnpm workspace member; replaced by `apps/customer` + `apps/business` in Epic 1)
 - Shared packages (pnpm workspace): `packages/design-tokens` (tokens.css +

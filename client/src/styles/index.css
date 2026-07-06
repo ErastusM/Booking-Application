@@ -316,7 +316,7 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
   .scroll-top-fab { bottom: 84px; }
 }
 
-/* Appointment block visuals for Fresha-like look */
+/* Appointment block visuals */
 
 .appt-block { border-radius: 6px; padding: 6px 8px; box-shadow: 0 8px 18px rgba(16,24,40,0.06); transition: transform 0.12s cubic-bezier(.2,.9,.3,1), box-shadow 0.12s cubic-bezier(.2,.9,.3,1); }
 .appt-block:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(16,24,40,0.10); }
@@ -626,7 +626,7 @@ body.dark-mode .booking-confirm-mobile {
 }
 
 /* ──────────────────────────────────────────────────
-   FullCalendar — Fresha-style overrides
+   FullCalendar — Bookplus overrides
    ────────────────────────────────────────────────── */
 .fc-bookplus-wrapper .fc {
   font-family: 'Plus Jakarta Sans', sans-serif;
