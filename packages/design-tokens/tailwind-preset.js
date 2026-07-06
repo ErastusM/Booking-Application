@@ -1,25 +1,26 @@
 // Tailwind preset shared by all Bookplus apps.
 //
-// NOTE: this intentionally mirrors the client's pre-monorepo tailwind config
-// byte-for-byte, including known drift from tokens.css (fontFamily still names
-// Playfair Display / DM Sans, which the app no longer loads, and the boxShadow
-// values predate the elevation scale in tokens.css). Epic 0 must not change
-// rendered output; reconciling the drift is an Epic 1 task.
+// Color values track the brand palette in tokens.css (orange/black/white);
+// the `gold`/`charcoal` KEY names are legacy — rename alongside the CSS vars
+// in Epic 1+. NOTE: fontFamily still names Playfair Display / DM Sans, which
+// the app no longer loads (pre-monorepo drift, frozen deliberately), and the
+// boxShadow values predate the elevation scale in tokens.css — reconcile the
+// drift in Epic 1, not here.
 module.exports = {
     theme: {
         extend: {
             colors: {
                 gold: {
-                    DEFAULT: '#c9a84c',
-                    light: '#e8c96d',
-                    dark: '#a8863a',
+                    DEFAULT: '#f03e16',
+                    light: '#ff6a45',
+                    dark: '#b32c0d',
                 },
                 charcoal: {
-                    DEFAULT: '#1a1a2e',
-                    light: '#2d2d44',
+                    DEFAULT: '#040505',
+                    light: '#1c1c1e',
                 },
-                'off-white': '#fafaf8',
-                'warm-gray': '#f5f3ef',
+                'off-white': '#e6e8e7',
+                'warm-gray': '#dcdedd',
             },
             fontFamily: {
                 display: ['Playfair Display', 'serif'],
@@ -31,9 +32,9 @@ module.exports = {
                 lg: '20px',
             },
             boxShadow: {
-                sm: '0 2px 8px rgba(26,26,46,0.06)',
-                md: '0 4px 20px rgba(26,26,46,0.10)',
-                lg: '0 8px 40px rgba(26,26,46,0.14)',
+                sm: '0 2px 8px rgba(4,5,5,0.06)',
+                md: '0 4px 20px rgba(4,5,5,0.10)',
+                lg: '0 8px 40px rgba(4,5,5,0.14)',
             },
         },
     },

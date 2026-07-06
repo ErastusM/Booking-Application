@@ -26,7 +26,7 @@ const pill = (selected, value, onClick) => (
             borderRadius: '99px',
             border: '1.5px solid',
             borderColor: selected === value ? 'var(--gold)' : 'var(--border)',
-            background: selected === value ? 'rgba(201,168,76,0.12)' : 'white',
+            background: selected === value ? 'rgba(240,62,22,0.12)' : 'white',
             color: selected === value ? 'var(--gold-dark)' : 'var(--text-secondary)',
             fontWeight: selected === value ? '600' : '400',
             fontFamily: 'var(--font-body)',
@@ -125,7 +125,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
     return (
         <div style={{
             position: 'fixed', inset: 0, zIndex: 9999,
-            background: 'rgba(26,26,46,0.85)',
+            background: 'rgba(4,5,5,0.85)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: '1rem',
         }}>
@@ -210,7 +210,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                                             padding: '1rem 1.25rem', borderRadius: 'var(--radius-sm)',
                                             border: '1.5px solid',
                                             borderColor: form.locationType === v ? 'var(--gold)' : 'var(--border)',
-                                            background: form.locationType === v ? 'rgba(201,168,76,0.08)' : 'white',
+                                            background: form.locationType === v ? 'rgba(240,62,22,0.08)' : 'white',
                                             textAlign: 'left', cursor: 'pointer',
                                             fontFamily: 'var(--font-body)', fontSize: '0.9rem',
                                             color: form.locationType === v ? 'var(--gold-dark)' : 'var(--text-secondary)',
@@ -229,7 +229,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>{current.title}</h2>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>{current.subtitle}</p>
                             {form.locationType === 'Mobile / travel to client' ? (
-                                <div style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '1rem 1.25rem' }}>
+                                <div style={{ background: 'rgba(240,62,22,0.08)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '1rem 1.25rem' }}>
                                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.875rem' }}>
                                         You travel to your clients — no fixed address needed. You can add a service area later in your profile.
                                     </p>
@@ -244,13 +244,13 @@ const OnboardingWizard = ({ user, onComplete }) => {
                                             display: 'flex', alignItems: 'center', gap: '0.5rem',
                                             padding: '0.6rem 1.1rem', marginBottom: '0.75rem',
                                             border: '1.5px solid var(--gold)', borderRadius: 'var(--radius-sm)',
-                                            background: 'rgba(201,168,76,0.08)', color: 'var(--gold-dark)',
+                                            background: 'rgba(240,62,22,0.08)', color: 'var(--gold-dark)',
                                             fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.875rem', fontWeight: '600',
                                             cursor: geoLoading ? 'not-allowed' : 'pointer', opacity: geoLoading ? 0.7 : 1,
                                         }}
                                     >
                                         {geoLoading
-                                            ? <span style={{ display: 'inline-block', width: '14px', height: '14px', border: '2px solid rgba(201,168,76,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                                            ? <span style={{ display: 'inline-block', width: '14px', height: '14px', border: '2px solid rgba(240,62,22,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
                                             : '📡'
                                         }
                                         {geoLoading ? 'Detecting location…' : 'Use my current location'}

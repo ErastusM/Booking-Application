@@ -9,7 +9,7 @@ const pill = (active) => ({
     padding: '0.45rem 0.95rem', borderRadius: '99px', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif',
     fontSize: '0.82rem', fontWeight: active ? '700' : '500',
     border: `1.5px solid ${active ? 'var(--gold)' : 'var(--border)'}`,
-    background: active ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)',
+    background: active ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)',
     color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
 });
 

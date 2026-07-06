@@ -6,7 +6,7 @@ const teamMemberSchema = new mongoose.Schema({
     role:     { type: String, trim: true, default: 'Staff' },
     email:    { type: String, trim: true, lowercase: true, default: '' },
     phone:    { type: String, trim: true, default: '' },
-    color:    { type: String, default: '#c9a84c' }, // for calendar colour coding
+    color:    { type: String, default: '#f03e16' }, // for calendar colour coding
     isActive: { type: Boolean, default: true },
 }, { timestamps: true });
 

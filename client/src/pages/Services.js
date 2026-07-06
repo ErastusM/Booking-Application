@@ -8,7 +8,7 @@ const StarDisplay = ({ rating }) => (
     <div style={{ display: 'flex', gap: '2px' }}>
         {[1, 2, 3, 4, 5].map(star => (
             <span key={star} style={{
-                color: star <= Math.round(rating) ? 'var(--gold)' : '#e2e0db',
+                color: star <= Math.round(rating) ? 'var(--gold)' : '#d3d5d4',
                 fontSize: '0.9rem',
             }}>★</span>
         ))}
@@ -302,7 +302,7 @@ const Services = () => {
                 <div style={{
                     position: 'absolute',
                     inset: 0,
-                    backgroundImage: 'radial-gradient(ellipse at 80% 50%, rgba(201,168,76,0.045) 0%, transparent 60%)',
+                    backgroundImage: 'radial-gradient(ellipse at 80% 50%, rgba(240,62,22,0.045) 0%, transparent 60%)',
                     pointerEvents: 'none',
                 }} />
                 <div className="container" style={{ position: 'relative' }}>

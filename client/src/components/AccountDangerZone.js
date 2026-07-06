@@ -73,7 +73,7 @@ const AccountDangerZone = () => {
 
             {/* Confirmation modal */}
             {confirm && (
-                <div onClick={() => !busy && setConfirm(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
+                <div onClick={() => !busy && setConfirm(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
                     <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '420px', padding: '1.5rem' }}>
                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.5rem' }}>
                             {confirm === 'delete' ? 'Delete your account?' : 'Deactivate your account?'}

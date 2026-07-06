@@ -17,7 +17,7 @@ const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
             className="home-provider-card"
             style={{ flex: '0 0 210px', width: '210px', display: 'block', textDecoration: 'none', scrollSnapAlign: 'start', background: 'transparent' }}
         >
-            <div className="home-provider-card__media" style={{ position: 'relative', aspectRatio: '4 / 3', borderRadius: '16px', overflow: 'hidden', background: cover ? 'var(--warm-gray)' : 'linear-gradient(135deg, #2a2a44 0%, #1a1a2e 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}>
+            <div className="home-provider-card__media" style={{ position: 'relative', aspectRatio: '4 / 3', borderRadius: '16px', overflow: 'hidden', background: cover ? 'var(--warm-gray)' : 'linear-gradient(135deg, #1c1c1e 0%, #040505 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}>
                 {cover
                     ? <img src={cloudinaryThumb(cover, 800)} alt={p.businessName || p.name} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                     : <span style={{ fontFamily: 'var(--font-display)', fontSize: '2.6rem', fontWeight: '700', color: 'var(--gold)' }}>{initial}</span>}
@@ -42,7 +42,7 @@ const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
                     </span>
                     {p.avgRating && (
                         <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.8rem', fontWeight: '700', color: 'var(--charcoal)', flexShrink: 0 }}>
-                            <Star size={13} fill="#c9a84c" strokeWidth={0} /> {p.avgRating}
+                            <Star size={13} fill="#f03e16" strokeWidth={0} /> {p.avgRating}
                         </span>
                     )}
                 </div>
@@ -107,7 +107,7 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
                     </p>
                 </div>
                 {p.providerCategory && (
-                    <span style={{ flexShrink: 0, fontSize: '0.68rem', fontWeight: '600', padding: '0.2rem 0.6rem', borderRadius: '99px', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark)' }}>{p.providerCategory}</span>
+                    <span style={{ flexShrink: 0, fontSize: '0.68rem', fontWeight: '600', padding: '0.2rem 0.6rem', borderRadius: '99px', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)' }}>{p.providerCategory}</span>
                 )}
             </div>
 
@@ -154,8 +154,8 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
                 </button>
                 <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)' }}>
                     {p.avgRating
-                        ? <><Star size={15} fill="#c9a84c" strokeWidth={0} /> {p.avgRating}<span style={{ color: 'var(--text-muted)', fontWeight: '500' }}>({p.reviewCount || 0})</span></>
-                        : <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--gold-dark)', fontWeight: '600' }}><Star size={14} fill="#c9a84c" strokeWidth={0} /> New on Bookplus</span>}
+                        ? <><Star size={15} fill="#f03e16" strokeWidth={0} /> {p.avgRating}<span style={{ color: 'var(--text-muted)', fontWeight: '500' }}>({p.reviewCount || 0})</span></>
+                        : <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--gold-dark)', fontWeight: '600' }}><Star size={14} fill="#f03e16" strokeWidth={0} /> New on Bookplus</span>}
                 </span>
             </div>
 
@@ -296,7 +296,7 @@ const Home = () => {
 
             {/* ── Hero copy — fades and scrolls away gently as the feed takes over ── */}
             <section style={{ position: 'relative', overflow: 'hidden', background: 'var(--off-white)', paddingTop: 'clamp(4rem, 8vw, 9rem)', paddingBottom: '1.5rem' }}>
-                <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'radial-gradient(62% 48% at 50% -2%, rgba(201,168,76,0.16), transparent 72%)', pointerEvents: 'none' }} />
+                <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'radial-gradient(62% 48% at 50% -2%, rgba(240,62,22,0.16), transparent 72%)', pointerEvents: 'none' }} />
                 <div ref={heroCopyRef} className="container" style={{ position: 'relative', textAlign: 'center', maxWidth: '860px', marginLeft: 'auto', marginRight: 'auto', willChange: 'opacity' }}>
                     <p className="fade-up" style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '1.1rem' }}>Premium booking, simplified</p>
                     <h1 className="fade-up fade-up-delay-1" style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.6rem, 6.2vw, 4.6rem)', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1.05, letterSpacing: '-0.02em', margin: '0 0 1.25rem' }}>
@@ -307,7 +307,7 @@ const Home = () => {
                     </p>
                     <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                         <span style={{ display: 'inline-flex', gap: '1px' }}>
-                            {[0, 1, 2, 3, 4].map(i => <Star key={i} size={14} fill="#c9a84c" strokeWidth={0} />)}
+                            {[0, 1, 2, 3, 4].map(i => <Star key={i} size={14} fill="#f03e16" strokeWidth={0} />)}
                         </span>
                         Loved by clients across Namibia
                     </div>
@@ -323,7 +323,7 @@ const Home = () => {
                 transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
             }}>
                 <div className="container" style={{ maxWidth: '560px', marginLeft: 'auto', marginRight: 'auto' }}>
-                    <form onSubmit={handleSearch} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '999px', padding: '0.4rem 0.4rem 0.4rem 1.25rem', boxShadow: '0 6px 22px rgba(26,26,46,0.10)' }}>
+                    <form onSubmit={handleSearch} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '999px', padding: '0.4rem 0.4rem 0.4rem 1.25rem', boxShadow: '0 6px 22px rgba(4,5,5,0.10)' }}>
                         <Search size={19} strokeWidth={2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                         <input
                             value={query}

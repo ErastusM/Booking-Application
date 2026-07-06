@@ -200,7 +200,7 @@ const ProviderAccount = () => {
         display: 'flex', alignItems: 'center', gap: '0.65rem',
         padding: '0.7rem 1rem', borderRadius: 'var(--radius-sm)',
         cursor: 'pointer', border: 'none', width: '100%', textAlign: 'left',
-        background: section === id ? 'rgba(201,168,76,0.1)' : 'transparent',
+        background: section === id ? 'rgba(240,62,22,0.1)' : 'transparent',
         color: section === id ? 'var(--gold-dark)' : 'var(--text-secondary)',
         fontWeight: section === id ? '600' : '400',
         fontFamily: 'var(--font-body)', fontSize: '0.9rem',
@@ -296,9 +296,9 @@ const ProviderAccount = () => {
                                                     type="button"
                                                     onClick={handleDetectLocation}
                                                     disabled={geoLoading}
-                                                    style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.75rem', marginBottom: '0.5rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(201,168,76,0.08)', color: 'var(--gold-dark)', fontSize: '0.75rem', fontWeight: '600', cursor: geoLoading ? 'not-allowed' : 'pointer', opacity: geoLoading ? 0.7 : 1 }}
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.35rem 0.75rem', marginBottom: '0.5rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(240,62,22,0.08)', color: 'var(--gold-dark)', fontSize: '0.75rem', fontWeight: '600', cursor: geoLoading ? 'not-allowed' : 'pointer', opacity: geoLoading ? 0.7 : 1 }}
                                                 >
-                                                    {geoLoading ? <span style={{ display: 'inline-block', width: '11px', height: '11px', border: '2px solid rgba(201,168,76,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /> : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>}
+                                                    {geoLoading ? <span style={{ display: 'inline-block', width: '11px', height: '11px', border: '2px solid rgba(240,62,22,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /> : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>}
                                                     {geoLoading ? 'Detecting…' : 'Use current location'}
                                                 </button>
                                                 <textarea value={profileForm.address} onChange={e => setProfileForm(p => ({ ...p, address: e.target.value }))} className="input" rows={2} placeholder="e.g. 12 Independence Ave, Windhoek" style={{ resize: 'vertical', fontSize: '0.875rem' }} />

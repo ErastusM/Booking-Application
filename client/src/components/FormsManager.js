@@ -121,7 +121,7 @@ const FormsManager = () => {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.5rem' }}>
                                 <div>
                                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>{t.title}</h3>
-                                    <span style={{ fontSize: '0.68rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--gold-dark)', background: 'rgba(201,168,76,0.12)', padding: '0.1rem 0.5rem', borderRadius: '99px' }}>{t.kind}</span>
+                                    <span style={{ fontSize: '0.68rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--gold-dark)', background: 'rgba(240,62,22,0.12)', padding: '0.1rem 0.5rem', borderRadius: '99px' }}>{t.kind}</span>
                                 </div>
                                 {!t.isActive && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>Inactive</span>}
                             </div>
@@ -181,7 +181,7 @@ const FormsManager = () => {
                                         return (
                                             <button type="button" key={s._id} onClick={() => setForm(f => ({ ...f, services: on ? f.services.filter(id => id !== s._id) : [...f.services, s._id] }))} style={{
                                                 padding: '0.3rem 0.75rem', borderRadius: '99px', border: '1.5px solid', borderColor: on ? 'var(--gold)' : 'var(--border)',
-                                                background: on ? 'rgba(201,168,76,0.12)' : 'var(--card-bg)', color: on ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                                                background: on ? 'rgba(240,62,22,0.12)' : 'var(--card-bg)', color: on ? 'var(--gold-dark)' : 'var(--text-secondary)',
                                                 fontSize: '0.78rem', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif',
                                             }}>{s.name}</button>
                                         );
@@ -213,7 +213,7 @@ const FormsManager = () => {
                                         </div>
                                     ))}
                                 </div>
-                                <button type="button" onClick={() => setForm(f => ({ ...f, fields: [...f.fields, blankField()] }))} style={{ marginTop: '0.6rem', fontSize: '0.78rem', padding: '0.35rem 0.75rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(201,168,76,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add question</button>
+                                <button type="button" onClick={() => setForm(f => ({ ...f, fields: [...f.fields, blankField()] }))} style={{ marginTop: '0.6rem', fontSize: '0.78rem', padding: '0.35rem 0.75rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(240,62,22,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add question</button>
                             </div>
 
                             <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>

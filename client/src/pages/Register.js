@@ -159,7 +159,7 @@ const Register = () => {
                                     onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--gold)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
                                     onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; e.currentTarget.style.transform = 'translateY(0)'; }}
                                 >
-                                    <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}><role.Icon size={26} strokeWidth={2} /></div>
+                                    <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}><role.Icon size={26} strokeWidth={2} /></div>
                                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                                         {role.title}
                                     </h3>
@@ -186,7 +186,7 @@ const Register = () => {
                         </button>
 
                         {/* Selected role badge */}
-                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: '99px', padding: '0.35rem 1rem', marginBottom: '1.5rem', color: 'var(--gold-dark)' }}>
+                        <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', borderRadius: '99px', padding: '0.35rem 1rem', marginBottom: '1.5rem', color: 'var(--gold-dark)' }}>
                             {(() => { const R = roles.find(r => r.value === selectedRole)?.Icon; return R ? <R size={15} strokeWidth={2} /> : null; })()}
                             <span style={{ color: 'var(--gold-dark)', fontSize: '0.8rem', fontWeight: '600' }}>
                                 {roles.find(r => r.value === selectedRole)?.title}

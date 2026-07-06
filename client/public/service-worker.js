@@ -7,7 +7,7 @@
  *  - Content-hashed static assets (/static/...): cache-first (safe; filenames change per build).
  *  - Other same-origin GETs: network, falling back to cache.
  */
-const CACHE = 'bookplus-v1';
+const CACHE = 'bookplus-v2'; // v2: orange/black/white rebrand — purge cached manifest + shell
 const OFFLINE_URLS = ['/', '/index.html', '/manifest.json'];
 
 self.addEventListener('install', (event) => {

@@ -11,7 +11,7 @@ import { normalizeTown } from '../utils/namibiaTowns';
 const StarDisplay = ({ rating }) => (
     <div style={{ display: 'flex', gap: '2px' }}>
         {[1, 2, 3, 4, 5].map(s => (
-            <span key={s} style={{ color: s <= Math.round(rating) ? 'var(--gold)' : '#e2e0db', fontSize: '0.9rem' }}>★</span>
+            <span key={s} style={{ color: s <= Math.round(rating) ? 'var(--gold)' : '#d3d5d4', fontSize: '0.9rem' }}>★</span>
         ))}
     </div>
 );
@@ -131,7 +131,7 @@ const ProviderProfilePage = () => {
 
             {/* Hero */}
             <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 30% 60%, rgba(201,168,76,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
+                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 30% 60%, rgba(240,62,22,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '1rem' }}>
                         <button onClick={() => navigate('/services')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontFamily: 'var(--font-body)', padding: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -139,7 +139,7 @@ const ProviderProfilePage = () => {
                         </button>
                         {user && activeRole === 'customer' && (
                             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                <button onClick={() => setShowTopUp(true)} style={{ background: 'rgba(201,168,76,0.15)', border: '1px solid var(--gold)', color: 'var(--gold)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', fontFamily: 'var(--font-body)', padding: '0.35rem 0.95rem', borderRadius: '99px' }}>
+                                <button onClick={() => setShowTopUp(true)} style={{ background: 'rgba(240,62,22,0.15)', border: '1px solid var(--gold)', color: 'var(--gold)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', fontFamily: 'var(--font-body)', padding: '0.35rem 0.95rem', borderRadius: '99px' }}>
                                     Top up wallet
                                 </button>
                                 <button onClick={toggleBlock} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '0.78rem', fontFamily: 'var(--font-body)', padding: '0.35rem 0.85rem', borderRadius: '99px' }}>
@@ -162,7 +162,7 @@ const ProviderProfilePage = () => {
                                 {businessName}
                             </h1>
                             {provider.providerCategory && (
-                                <span style={{ display: 'inline-block', fontSize: '0.7rem', fontWeight: '600', padding: '0.2rem 0.7rem', borderRadius: '99px', background: 'rgba(201,168,76,0.15)', color: 'var(--gold)', border: '1px solid rgba(201,168,76,0.4)', marginBottom: '0.6rem' }}>
+                                <span style={{ display: 'inline-block', fontSize: '0.7rem', fontWeight: '600', padding: '0.2rem 0.7rem', borderRadius: '99px', background: 'rgba(240,62,22,0.15)', color: 'var(--gold)', border: '1px solid rgba(240,62,22,0.4)', marginBottom: '0.6rem' }}>
                                     {provider.providerCategory}
                                 </span>
                             )}
@@ -286,7 +286,7 @@ const ProviderProfilePage = () => {
                                 {provider.providerCategory && (
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                         <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)' }}>Category</span>
-                                        <span style={{ fontSize: '0.8rem', fontWeight: '600', padding: '0.15rem 0.6rem', borderRadius: '99px', background: 'rgba(201,168,76,0.1)', color: 'var(--gold-dark)', border: '1px solid rgba(201,168,76,0.25)' }}>{provider.providerCategory}</span>
+                                        <span style={{ fontSize: '0.8rem', fontWeight: '600', padding: '0.15rem 0.6rem', borderRadius: '99px', background: 'rgba(240,62,22,0.1)', color: 'var(--gold-dark)', border: '1px solid rgba(240,62,22,0.25)' }}>{provider.providerCategory}</span>
                                     </div>
                                 )}
                                 {provider.avgRating && (

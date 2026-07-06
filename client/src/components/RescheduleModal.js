@@ -93,8 +93,8 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
     };
 
     return (
-        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
-            <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '460px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(26,26,46,0.3)', overflow: 'hidden' }}>
+        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
+            <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '460px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(4,5,5,0.3)', overflow: 'hidden' }}>
                 <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
                     <div style={{ minWidth: 0 }}>
                         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Reschedule</h2>
@@ -114,7 +114,7 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                                 <button key={ds} onClick={() => selectDate(ds)} style={{
                                     flex: '0 0 auto', minWidth: '58px', padding: '0.5rem 0.4rem', borderRadius: 'var(--radius-sm)',
                                     border: `1.5px solid ${active ? 'var(--gold)' : 'var(--border)'}`,
-                                    background: active ? 'rgba(201,168,76,0.12)' : 'transparent', cursor: 'pointer',
+                                    background: active ? 'rgba(240,62,22,0.12)' : 'transparent', cursor: 'pointer',
                                     color: active ? 'var(--gold-dark)' : 'var(--text-secondary)', fontFamily: 'Plus Jakarta Sans, sans-serif',
                                 }}>
                                     <div style={{ fontSize: '0.66rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{d.toLocaleDateString('en-US', { weekday: 'short' })}</div>

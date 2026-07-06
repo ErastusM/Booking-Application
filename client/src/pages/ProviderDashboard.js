@@ -179,7 +179,7 @@ const ProviderDashboard = () => {
     const [loadingTeam, setLoadingTeam] = useState(false);
     const [showTeamForm, setShowTeamForm] = useState(false);
     const [editingMember, setEditingMember] = useState(null);
-    const [teamForm, setTeamForm] = useState({ name: '', role: 'Staff', email: '', phone: '', color: '#c9a84c' });
+    const [teamForm, setTeamForm] = useState({ name: '', role: 'Staff', email: '', phone: '', color: '#f03e16' });
     const [savingTeam, setSavingTeam] = useState(false);
 
     // Show onboarding wizard for providers who haven't completed setup
@@ -676,7 +676,7 @@ const ProviderDashboard = () => {
 
     const openAddMember = () => {
         setEditingMember(null);
-        setTeamForm({ name: '', role: 'Staff', email: '', phone: '', color: '#c9a84c' });
+        setTeamForm({ name: '', role: 'Staff', email: '', phone: '', color: '#f03e16' });
         setShowTeamForm(true);
     };
 
@@ -1072,7 +1072,7 @@ const ProviderDashboard = () => {
         }
     };
 
-    // Resize-to-change-duration (Fresha-style). Sends an explicit endTime.
+    // Resize-to-change-duration. Sends an explicit endTime.
     const handleFullCalendarEventResize = async (resizeInfo) => {
         const event = resizeInfo.event;
         if (event.extendedProps.kind !== 'appointment') {
@@ -1117,7 +1117,7 @@ const ProviderDashboard = () => {
         { label: 'Completed', value: counts.completed, Icon: TrendingUp },
     ];
 
-    // Personal, at-a-glance greeting for the dashboard landing (Fresha/iOS feel)
+    // Personal, at-a-glance greeting for the dashboard landing (iOS feel)
     const _now = new Date();
     const greeting = _now.getHours() < 12 ? 'Good morning' : _now.getHours() < 18 ? 'Good afternoon' : 'Good evening';
     const firstName = (user?.name || '').trim().split(' ')[0];
@@ -1179,7 +1179,7 @@ const ProviderDashboard = () => {
 
             {/* Header */}
             <div className="provider-header" style={{ background: 'var(--ink)', paddingTop: '9rem', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 70% 40%, rgba(201,168,76,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
+                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 70% 40%, rgba(240,62,22,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>{todayLabel}</p>
                     <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.2rem, 4vw, 3.25rem)', fontWeight: '700', color: 'white', lineHeight: 1.05, marginBottom: '0.5rem' }}>
@@ -1208,7 +1208,7 @@ const ProviderDashboard = () => {
                 <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
                     {stats.map((s, i) => (
                         <div key={i} className="card scale-in" style={{ animationDelay: `${i * 40}ms`, padding: '1.2rem 1.4rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><s.Icon size={20} strokeWidth={2} /></div>
+                            <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><s.Icon size={20} strokeWidth={2} /></div>
                             <div>
                                 <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</p>
                                 <p className="tnum" style={{ fontFamily: 'var(--font-display)', fontSize: '1.85rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
@@ -1235,7 +1235,7 @@ const ProviderDashboard = () => {
                     {/* Calendar first */}
                     <button onClick={() => setActiveTab('calendar')} style={{
                         display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                        padding: '0.65rem 1rem', background: activeTab === 'calendar' ? 'rgba(201,168,76,0.12)' : 'transparent', border: '1px solid',
+                        padding: '0.65rem 1rem', background: activeTab === 'calendar' ? 'rgba(240,62,22,0.12)' : 'transparent', border: '1px solid',
                         borderColor: activeTab === 'calendar' ? 'var(--gold)' : 'var(--border)',
                         borderRadius: '999px', color: activeTab === 'calendar' ? 'var(--gold-dark)' : 'var(--text-secondary)',
                         fontWeight: activeTab === 'calendar' ? '700' : '500', fontSize: '0.85rem',
@@ -1245,7 +1245,7 @@ const ProviderDashboard = () => {
                     {/* Appointment status tabs */}
                     {appointmentTabs.map(tab => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
-                            padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(201,168,76,0.12)' : 'transparent', border: '1px solid',
+                            padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(240,62,22,0.12)' : 'transparent', border: '1px solid',
                             borderColor: activeTab === tab ? 'var(--gold)' : 'var(--border)',
                             borderRadius: '999px', color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-secondary)',
                             fontWeight: activeTab === tab ? '700' : '500', fontSize: '0.85rem',
@@ -1263,7 +1263,7 @@ const ProviderDashboard = () => {
                     {/* History tab */}
                     <button onClick={() => setActiveTab('history')} style={{
                         display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                        padding: '0.65rem 1rem', background: activeTab === 'history' ? 'rgba(201,168,76,0.12)' : 'transparent', border: '1px solid',
+                        padding: '0.65rem 1rem', background: activeTab === 'history' ? 'rgba(240,62,22,0.12)' : 'transparent', border: '1px solid',
                         borderColor: activeTab === 'history' ? 'var(--gold)' : 'var(--border)',
                         borderRadius: '999px', color: activeTab === 'history' ? 'var(--gold-dark)' : 'var(--text-secondary)',
                         fontWeight: activeTab === 'history' ? '700' : '500', fontSize: '0.85rem',
@@ -1274,7 +1274,7 @@ const ProviderDashboard = () => {
                     {[['services','Catalogue',Scissors],['availability','Availability',CalendarClock],['overview','Overview',LayoutDashboard],['waitlist','Waiting List',Clock],['insights','Insights',BarChart3],['clients','Clients',Users],['wallet','Wallet',WalletIcon],['forms','Forms',ClipboardList],['messages','Messages',MessageSquare],['memberships','Memberships',Ticket],['team','Team',UserCog]].map(([tab, label, Icon]) => (
                         <button key={tab} onClick={() => setActiveTab(tab)} style={{
                             display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                            padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(201,168,76,0.12)' : 'transparent', border: '1px solid',
+                            padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(240,62,22,0.12)' : 'transparent', border: '1px solid',
                             borderColor: activeTab === tab ? 'var(--gold)' : 'var(--border)',
                             borderRadius: '999px', color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-secondary)',
                             fontWeight: activeTab === tab ? '700' : '500', fontSize: '0.85rem',
@@ -1318,7 +1318,7 @@ const ProviderDashboard = () => {
                                                 <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.35rem' }}>Service</p>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                                     <p style={{ fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>{a.service?.name}</p>
-                                                    {a.isRecurring && <span title="Recurring appointment" style={{ fontSize: '0.7rem', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark)', borderRadius: '99px', padding: '0.1rem 0.4rem', fontWeight: '700' }}>↻</span>}
+                                                    {a.isRecurring && <span title="Recurring appointment" style={{ fontSize: '0.7rem', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', borderRadius: '99px', padding: '0.1rem 0.4rem', fontWeight: '700' }}>↻</span>}
                                                 </div>
                                                 <p style={{ color: 'var(--gold-dark)', fontWeight: '600', fontSize: '0.875rem' }}>${a.service?.price} · {a.service?.duration} min</p>
                                             </div>
@@ -1428,7 +1428,7 @@ const ProviderDashboard = () => {
                                 <div style={{ gridColumn: '1 / -1' }}>
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
                                         <label style={labelStyle}>Sub-options <span style={{ fontWeight: '400', color: 'var(--text-muted)', textTransform: 'none', letterSpacing: 0 }}>(optional — e.g. Adults, Students, Trim & Beard)</span></label>
-                                        <button type="button" onClick={() => setServiceForm(f => ({ ...f, options: [...f.options, { name: '', description: '', price: '', duration: '' }] }))} style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(201,168,76,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add option</button>
+                                        <button type="button" onClick={() => setServiceForm(f => ({ ...f, options: [...f.options, { name: '', description: '', price: '', duration: '' }] }))} style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(240,62,22,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add option</button>
                                     </div>
                                     {serviceForm.options.length > 0 && (
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -1508,7 +1508,7 @@ const ProviderDashboard = () => {
                                                         <button onClick={() => setCatalogueCategory(item.id)} style={{
                                                             flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
                                                             padding: '0.6rem 0.75rem', borderRadius: 'var(--radius-sm)', border: 'none', cursor: 'pointer', textAlign: 'left',
-                                                            background: active ? 'rgba(201,168,76,0.1)' : 'transparent',
+                                                            background: active ? 'rgba(240,62,22,0.1)' : 'transparent',
                                                             color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
                                                             fontWeight: active ? '600' : '400', fontFamily: 'var(--font-body)', fontSize: '0.875rem',
                                                         }}>
@@ -1560,7 +1560,7 @@ const ProviderDashboard = () => {
                                                                         </div>
                                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
                                                                             <span style={{ fontFamily: 'var(--font-body)', fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.95rem', whiteSpace: 'nowrap' }}>NAD {s.price}</span>
-                                                                            <button onClick={() => handleEditService(s)} style={{ background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Edit</button>
+                                                                            <button onClick={() => handleEditService(s)} style={{ background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Edit</button>
                                                                             <button onClick={() => handleDeleteService(s._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Delete</button>
                                                                         </div>
                                                                     </div>
@@ -1645,7 +1645,7 @@ const ProviderDashboard = () => {
                                     {blockedTimes.map((bt, i) => (
                                         <div key={bt._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.875rem 1.25rem', borderBottom: i < blockedTimes.length - 1 ? '1px solid var(--border)' : 'none', gap: '1rem' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0 }}>
-                                                <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', flexShrink: 0 }}>🚫</div>
+                                                <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(240,62,22,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', flexShrink: 0 }}>🚫</div>
                                                 <div style={{ minWidth: 0 }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
                                                         <span style={{ fontWeight: '600', fontSize: '0.875rem', color: 'var(--charcoal)' }}>{bt.date}</span>
@@ -1700,7 +1700,7 @@ const ProviderDashboard = () => {
                                     { label: 'Clients Served', value: clientNames.size, icon: '👥', sub: `${cancelledAll.length} cancellations` },
                                 ].map((s, i) => (
                                     <div key={i} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                        <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
+                                        <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(240,62,22,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
                                         <div>
                                             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{s.label}</p>
                                             <p style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
@@ -1761,7 +1761,7 @@ const ProviderDashboard = () => {
                             {providerWaitlist.length > 0 && (
                                 <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1.5rem' }}>
                                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>
-                                        Waiting List <span style={{ fontSize: '0.75rem', fontWeight: '700', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark)', borderRadius: '99px', padding: '0.15rem 0.6rem', marginLeft: '0.4rem' }}>{providerWaitlist.length}</span>
+                                        Waiting List <span style={{ fontSize: '0.75rem', fontWeight: '700', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', borderRadius: '99px', padding: '0.15rem 0.6rem', marginLeft: '0.4rem' }}>{providerWaitlist.length}</span>
                                     </h3>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                         {providerWaitlist.slice(0, 6).map((w) => (
@@ -1864,7 +1864,7 @@ const ProviderDashboard = () => {
                                 <button key={key} onClick={() => { setInsightsPreset(key); fetchInsights(key); }} style={{
                                     padding: '0.4rem 1rem', borderRadius: '99px', border: '1.5px solid',
                                     borderColor: insightsPreset === key ? 'var(--gold)' : 'var(--border)',
-                                    background: insightsPreset === key ? 'rgba(201,168,76,0.12)' : 'var(--card-bg)',
+                                    background: insightsPreset === key ? 'rgba(240,62,22,0.12)' : 'var(--card-bg)',
                                     color: insightsPreset === key ? 'var(--gold-dark)' : 'var(--text-secondary)',
                                     fontSize: '0.8rem', fontWeight: insightsPreset === key ? '600' : '400', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif',
                                 }}>{label}</button>
@@ -1896,7 +1896,7 @@ const ProviderDashboard = () => {
                                         { label: 'Waitlist', value: insights.waitlistVolume, icon: '⏳', sub: 'Currently waiting' },
                                     ].map((s, i) => (
                                         <div key={i} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                            <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
+                                            <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(240,62,22,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
                                             <div>
                                                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{s.label}</p>
                                                 <p style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
@@ -1993,7 +1993,7 @@ const ProviderDashboard = () => {
                                 <button key={key} onClick={() => { setEarningsPreset(key); fetchEarnings(key); }} style={{
                                     padding: '0.4rem 1rem', borderRadius: '99px', border: '1.5px solid',
                                     borderColor: earningsPreset === key ? 'var(--gold)' : 'var(--border)',
-                                    background: earningsPreset === key ? 'rgba(201,168,76,0.12)' : 'var(--card-bg)',
+                                    background: earningsPreset === key ? 'rgba(240,62,22,0.12)' : 'var(--card-bg)',
                                     color: earningsPreset === key ? 'var(--gold-dark)' : 'var(--text-secondary)',
                                     fontSize: '0.8rem', fontWeight: earningsPreset === key ? '600' : '400', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif',
                                 }}>{label}</button>
@@ -2026,7 +2026,7 @@ const ProviderDashboard = () => {
                                         { label: 'All-time earned', value: `NAD ${earnings.totals.allTimeEarned.toLocaleString()}`, icon: '🏆', sub: `${earnings.totals.allTimeCount} completed` },
                                     ].map((s, i) => (
                                         <div key={i} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                            <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(201,168,76,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
+                                            <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(240,62,22,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
                                             <div>
                                                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{s.label}</p>
                                                 <p style={{ fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1.1 }}>{s.value}</p>
@@ -2042,7 +2042,7 @@ const ProviderDashboard = () => {
                                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)' }}>Earnings over time</h3>
                                         <div style={{ display: 'flex', gap: '0.4rem' }}>
                                             {[['earned','Earnings'],['count','Bookings']].map(([k, lbl]) => (
-                                                <button key={k} onClick={() => setEarningsChartMode(k)} style={{ padding: '0.3rem 0.8rem', borderRadius: '99px', border: '1.5px solid', borderColor: earningsChartMode === k ? 'var(--gold)' : 'var(--border)', background: earningsChartMode === k ? 'rgba(201,168,76,0.1)' : 'transparent', color: earningsChartMode === k ? 'var(--gold-dark)' : 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{lbl}</button>
+                                                <button key={k} onClick={() => setEarningsChartMode(k)} style={{ padding: '0.3rem 0.8rem', borderRadius: '99px', border: '1.5px solid', borderColor: earningsChartMode === k ? 'var(--gold)' : 'var(--border)', background: earningsChartMode === k ? 'rgba(240,62,22,0.1)' : 'transparent', color: earningsChartMode === k ? 'var(--gold-dark)' : 'var(--text-muted)', fontSize: '0.75rem', fontWeight: '600', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>{lbl}</button>
                                             ))}
                                         </div>
                                     </div>
@@ -2293,7 +2293,7 @@ const ProviderDashboard = () => {
 
                         {/* On selection release: ask whether to book a client or block the time */}
                         {timeSelectionPreview && (
-                            <div onClick={() => setTimeSelectionPreview(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,15,25,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0' }}>
+                            <div onClick={() => setTimeSelectionPreview(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0' }}>
                                 <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                                     <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>What's this time for?</h3>
@@ -2329,7 +2329,7 @@ const ProviderDashboard = () => {
 
                         {/* Drag-to-move confirmation (appointments + blocked time) */}
                         {pendingMove && (
-                            <div onClick={cancelPendingMove} style={{ position: 'fixed', inset: 0, background: 'rgba(15,15,25,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                            <div onClick={cancelPendingMove} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
                                 <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                                     <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>
@@ -2349,7 +2349,7 @@ const ProviderDashboard = () => {
 
                         {/* Tap grayed area → adjust working hours for that day */}
                         {adjustHours && (
-                            <div onClick={() => setAdjustHours(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(15,15,25,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                            <div onClick={() => setAdjustHours(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
                                 <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                                     <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Adjust working hours</h3>
@@ -2411,7 +2411,7 @@ const ProviderDashboard = () => {
                                                 <div style={{ minWidth: 0 }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
                                                         <p style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--charcoal)', margin: 0 }}>{a.walkInName || a.customer?.name || '—'}</p>
-                                                        {a.isRecurring && <span title="Recurring" style={{ fontSize: '0.7rem', color: 'var(--gold-dark)', background: 'rgba(201,168,76,0.12)', padding: '0.1rem 0.4rem', borderRadius: '99px', fontWeight: '600' }}>↻ Recurring</span>}
+                                                        {a.isRecurring && <span title="Recurring" style={{ fontSize: '0.7rem', color: 'var(--gold-dark)', background: 'rgba(240,62,22,0.12)', padding: '0.1rem 0.4rem', borderRadius: '99px', fontWeight: '600' }}>↻ Recurring</span>}
                                                     </div>
                                                     <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 0.25rem' }}>{a.service?.name}</p>
                                                     <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', margin: 0 }}>
@@ -2465,7 +2465,7 @@ const ProviderDashboard = () => {
                                                 <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{c.lastVisit ? new Date(c.lastVisit).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</td>
                                                 <td style={{ padding: '0.875rem 1rem', color: 'var(--gold-dark)', fontWeight: '600' }}>${c.totalSpend.toFixed(2)}</td>
                                                 <td style={{ padding: '0.875rem 1rem' }}>
-                                                    <button onClick={() => { setSelectedClient(c); fetchClientDetail(c.customer._id); }} style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid rgba(201,168,76,0.3)', color: 'var(--gold-dark)', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600' }}>View</button>
+                                                    <button onClick={() => { setSelectedClient(c); fetchClientDetail(c.customer._id); }} style={{ background: 'rgba(240,62,22,0.08)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--gold-dark)', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600' }}>View</button>
                                                 </td>
                                             </tr>
                                         ))}
@@ -2579,7 +2579,7 @@ const ProviderDashboard = () => {
                                             width: '100%', textAlign: 'left', display: 'flex', gap: '0.75rem', alignItems: 'center',
                                             padding: '0.8rem 1rem', borderTop: 'none', borderLeft: 'none', borderRight: 'none',
                                             borderBottom: '1px solid var(--border)', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif',
-                                            background: active ? 'rgba(201,168,76,0.08)' : 'transparent',
+                                            background: active ? 'rgba(240,62,22,0.08)' : 'transparent',
                                         }}>
                                             <Avatar name={name} />
                                             <div style={{ minWidth: 0, flex: 1 }}>
@@ -2633,7 +2633,7 @@ const ProviderDashboard = () => {
                                                     background: isMe ? 'var(--gold)' : 'var(--warm-gray)', color: 'var(--charcoal)',
                                                 }}>
                                                     {msg.content}
-                                                    <div style={{ fontSize: '0.62rem', color: isMe ? 'rgba(26,26,46,0.55)' : 'var(--text-muted)', marginTop: '0.2rem', textAlign: 'right' }}>
+                                                    <div style={{ fontSize: '0.62rem', color: isMe ? 'rgba(4,5,5,0.55)' : 'var(--text-muted)', marginTop: '0.2rem', textAlign: 'right' }}>
                                                         {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                                                     </div>
                                                 </div>
@@ -2759,7 +2759,7 @@ const ProviderDashboard = () => {
                     ) : (
                         <>
                             {/* Your Bookplus account balance (provider ↔ platform) */}
-                            <div style={{ background: 'linear-gradient(135deg, var(--ink), #2a2a45)', borderRadius: 'var(--radius)', padding: '1.25rem 1.5rem', marginBottom: '1.5rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'center' }}>
+                            <div style={{ background: 'linear-gradient(135deg, var(--ink), #1c1c1e)', borderRadius: 'var(--radius)', padding: '1.25rem 1.5rem', marginBottom: '1.5rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div>
                                     <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.5)', marginBottom: '0.2rem' }}>Your Bookplus account balance</div>
                                     <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: '700', color: 'var(--gold)' }}>{nMoney(providerBalance?.balance)}</div>
@@ -2795,7 +2795,7 @@ const ProviderDashboard = () => {
                                     { label: 'Available to clients', val: walletSummary?.totalAvailable },
                                     { label: 'Total deducted', val: walletSummary?.totalDeducted },
                                 ].map((c) => (
-                                    <div key={c.label} style={{ background: c.accent ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.1rem 1.25rem' }}>
+                                    <div key={c.label} style={{ background: c.accent ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.1rem 1.25rem' }}>
                                         <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>{c.label}</div>
                                         <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: c.accent ? 'var(--gold-dark)' : 'var(--charcoal)' }}>{nMoney(c.val)}</div>
                                     </div>
@@ -2983,7 +2983,7 @@ const ProviderDashboard = () => {
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Calendar colour</label>
                                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                                        {['#c9a84c', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'].map(c => (
+                                        {['#f03e16', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'].map(c => (
                                             <button key={c} type="button" onClick={() => setTeamForm(f => ({ ...f, color: c }))}
                                                 style={{ width: '28px', height: '28px', borderRadius: '50%', background: c, border: teamForm.color === c ? '3px solid var(--charcoal)' : '2px solid transparent', cursor: 'pointer', flexShrink: 0 }} />
                                         ))}
@@ -3062,7 +3062,7 @@ const ProviderDashboard = () => {
                                 { value: 'thisAndFuture', label: recurringActionModal.action === 'update' ? 'Update this and future blocked times' : 'Delete this and future blocked times' },
                                 { value: 'all', label: recurringActionModal.action === 'update' ? 'Update all blocked times' : 'Delete all blocked times' },
                             ].map(opt => (
-                                <label key={opt.value} onClick={() => setRecurringMode(opt.value)} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', border: `1px solid ${recurringMode === opt.value ? 'var(--gold)' : 'var(--border)'}`, background: recurringMode === opt.value ? 'rgba(201,168,76,0.05)' : 'white', cursor: 'pointer', transition: 'all 0.15s' }}>
+                                <label key={opt.value} onClick={() => setRecurringMode(opt.value)} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', border: `1px solid ${recurringMode === opt.value ? 'var(--gold)' : 'var(--border)'}`, background: recurringMode === opt.value ? 'rgba(240,62,22,0.05)' : 'white', cursor: 'pointer', transition: 'all 0.15s' }}>
                                     <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: `2px solid ${recurringMode === opt.value ? 'var(--gold)' : '#d1d5db'}`, background: recurringMode === opt.value ? 'var(--gold)' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
                                         {recurringMode === opt.value && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'white' }} />}
                                     </div>
@@ -3161,7 +3161,7 @@ const ProviderDashboard = () => {
                                     </div>
                                 )}
                                 {/* Group booking toggle */}
-                                <div style={{ borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', padding: '0.75rem 1rem', background: apptForm.isGroup ? 'rgba(201,168,76,0.05)' : 'transparent' }}>
+                                <div style={{ borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', padding: '0.75rem 1rem', background: apptForm.isGroup ? 'rgba(240,62,22,0.05)' : 'transparent' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: apptForm.isGroup ? '0.75rem' : 0 }}>
                                         <div>
                                             <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--charcoal)' }}>Group booking</span>
@@ -3179,7 +3179,7 @@ const ProviderDashboard = () => {
                                                     {apptForm.groupClients.length > 1 && <button type="button" onClick={() => setApptForm(f => ({ ...f, groupClients: f.groupClients.filter((_, j) => j !== i) }))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1rem' }}>×</button>}
                                                 </div>
                                             ))}
-                                            <button type="button" onClick={() => setApptForm(f => ({ ...f, groupClients: [...f.groupClients, { name: '' }] }))} style={{ alignSelf: 'flex-start', fontSize: '0.75rem', padding: '0.25rem 0.65rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(201,168,76,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add client</button>
+                                            <button type="button" onClick={() => setApptForm(f => ({ ...f, groupClients: [...f.groupClients, { name: '' }] }))} style={{ alignSelf: 'flex-start', fontSize: '0.75rem', padding: '0.25rem 0.65rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(240,62,22,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add client</button>
                                         </div>
                                     ) : (
                                         <div>
@@ -3191,7 +3191,7 @@ const ProviderDashboard = () => {
                                                         <button key={opt.mode} type="button" onClick={() => setApptForm(f => ({ ...f, clientMode: opt.mode }))} style={{
                                                             flex: 1, padding: '0.5rem 0.4rem', borderRadius: 'var(--radius-sm)',
                                                             border: `1.5px solid ${active ? 'var(--gold)' : 'var(--border)'}`,
-                                                            background: active ? 'rgba(201,168,76,0.1)' : 'white',
+                                                            background: active ? 'rgba(240,62,22,0.1)' : 'white',
                                                             color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
                                                             fontWeight: active ? '700' : '500', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif',
                                                         }}>{opt.label}</button>
@@ -3307,7 +3307,7 @@ const ProviderDashboard = () => {
                 </>
             )}
 
-            {/* Fresha-style Add/Edit Blocked Time panel */}
+            {/* Add/Edit Blocked Time panel */}
             {showBlockedTimeForm && (
                 <>
                     <div onClick={closeBlockedTimeForm} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1001, backdropFilter: 'blur(2px)' }} />
@@ -3349,7 +3349,7 @@ const ProviderDashboard = () => {
                                                 style={{
                                                     flex: 1, padding: '0.75rem 0.5rem', borderRadius: 'var(--radius-sm)',
                                                     border: `2px solid ${blockedTimeForm.blockType === t.id ? 'var(--gold)' : 'var(--border)'}`,
-                                                    background: blockedTimeForm.blockType === t.id ? 'rgba(201,168,76,0.07)' : 'white',
+                                                    background: blockedTimeForm.blockType === t.id ? 'rgba(240,62,22,0.07)' : 'white',
                                                     cursor: 'pointer', textAlign: 'center',
                                                 }}
                                             >
@@ -3504,7 +3504,7 @@ const ProviderDashboard = () => {
                                             </div>
                                         )}
                                         {isRegistered && (
-                                            <button onClick={() => openClientProfile(cust)} style={{ flexShrink: 0, fontSize: '0.72rem', fontWeight: 600, color: 'var(--gold-dark)', background: 'rgba(201,168,76,0.1)', border: '1px solid rgba(201,168,76,0.3)', borderRadius: 'var(--radius-sm)', padding: '0.4rem 0.6rem', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap', minHeight: '36px' }}>Profile</button>
+                                            <button onClick={() => openClientProfile(cust)} style={{ flexShrink: 0, fontSize: '0.72rem', fontWeight: 600, color: 'var(--gold-dark)', background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', borderRadius: 'var(--radius-sm)', padding: '0.4rem 0.6rem', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap', minHeight: '36px' }}>Profile</button>
                                         )}
                                     </div>
                                     {showApptContact && canContact && (
@@ -3594,7 +3594,7 @@ const ProviderDashboard = () => {
                                     )}
                                     <button
                                         onClick={async () => { await handleStatusUpdate(apptDetailModal._id, 'completed'); setApptDetailModal(null); }}
-                                        style={{ flex: 1, padding: '0.8rem', background: 'rgba(201,168,76,0.1)', color: 'var(--gold-dark)', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '600', fontSize: '0.85rem' }}
+                                        style={{ flex: 1, padding: '0.8rem', background: 'rgba(240,62,22,0.1)', color: 'var(--gold-dark)', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '600', fontSize: '0.85rem' }}
                                     >
                                         Complete
                                     </button>
@@ -3656,7 +3656,7 @@ const ProviderDashboard = () => {
                                 { value: 'thisAndFuture', label: 'This and all future occurrences' },
                                 { value: 'all', label: 'All appointments in the series' },
                             ].map(opt => (
-                                <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', border: `2px solid ${seriesCancelMode === opt.value ? 'var(--gold)' : 'var(--border)'}`, background: seriesCancelMode === opt.value ? 'rgba(201,168,76,0.06)' : 'var(--card-bg)', cursor: 'pointer', transition: 'all 0.15s' }}>
+                                <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', border: `2px solid ${seriesCancelMode === opt.value ? 'var(--gold)' : 'var(--border)'}`, background: seriesCancelMode === opt.value ? 'rgba(240,62,22,0.06)' : 'var(--card-bg)', cursor: 'pointer', transition: 'all 0.15s' }}>
                                     <input type="radio" value={opt.value} checked={seriesCancelMode === opt.value} onChange={() => setSeriesCancelMode(opt.value)} style={{ accentColor: 'var(--gold)', width: '18px', height: '18px', flexShrink: 0 }} />
                                     <span style={{ fontSize: '0.9rem', color: 'var(--charcoal)', fontWeight: seriesCancelMode === opt.value ? '600' : '400' }}>{opt.label}</span>
                                 </label>
@@ -3707,7 +3707,7 @@ const ProviderAccountTopUpModal = ({ onClose, onDone }) => {
 
     const lbl = { display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' };
     return (
-        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
+        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
             <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '420px', maxHeight: '90vh', overflowY: 'auto' }}>
                 <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                     <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Top up your Bookplus account</h2>
@@ -3720,7 +3720,7 @@ const ProviderAccountTopUpModal = ({ onClose, onDone }) => {
                             <button key={o.v} type="button" onClick={() => { setMethod(o.v); if (o.v === 'cash') { setProofUrl(''); setProofType(''); } }} style={{
                                 flex: 1, padding: '0.55rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '600', fontSize: '0.82rem',
                                 border: `1.5px solid ${method === o.v ? 'var(--gold)' : 'var(--border)'}`,
-                                background: method === o.v ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)', color: method === o.v ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                                background: method === o.v ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)', color: method === o.v ? 'var(--gold-dark)' : 'var(--text-secondary)',
                             }}>{o.t}</button>
                         ))}
                     </div>
@@ -3773,8 +3773,8 @@ const WalletAdjustmentModal = ({ wallet, refundsAllowed, onClose, onSubmit }) =>
     };
 
     return (
-        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(26,26,46,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
-            <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(26,26,46,0.3)', overflow: 'hidden' }}>
+        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
+            <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(4,5,5,0.3)', overflow: 'hidden' }}>
                 <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                     <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Adjust wallet · {wallet.customer?.name}</h2>
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>Proposed — your client approves before it applies.</p>
@@ -3785,7 +3785,7 @@ const WalletAdjustmentModal = ({ wallet, refundsAllowed, onClose, onSubmit }) =>
                             <button key={o.v} type="button" disabled={isRefund} onClick={() => setDirection(o.v)} style={{
                                 flex: 1, padding: '0.55rem', borderRadius: 'var(--radius-sm)', cursor: isRefund ? 'not-allowed' : 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '600', fontSize: '0.82rem',
                                 border: `1.5px solid ${!isRefund && direction === o.v ? 'var(--gold)' : 'var(--border)'}`,
-                                background: !isRefund && direction === o.v ? 'rgba(201,168,76,0.1)' : 'var(--card-bg)',
+                                background: !isRefund && direction === o.v ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)',
                                 color: !isRefund && direction === o.v ? 'var(--gold-dark)' : 'var(--text-secondary)', opacity: isRefund ? 0.5 : 1,
                             }}>{o.t}</button>
                         ))}

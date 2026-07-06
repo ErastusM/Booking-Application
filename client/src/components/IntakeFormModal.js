@@ -138,7 +138,7 @@ const IntakeFormModal = ({ appointmentId, onClose, onCompleted }) => {
                                     {forms.map((fm, i) => (
                                         <button key={fm.template._id} onClick={() => setActiveIdx(i)} style={{
                                             padding: '0.3rem 0.75rem', borderRadius: '99px', border: '1.5px solid', borderColor: i === activeIdx ? 'var(--gold)' : 'var(--border)',
-                                            background: i === activeIdx ? 'rgba(201,168,76,0.12)' : 'var(--card-bg)', color: i === activeIdx ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                                            background: i === activeIdx ? 'rgba(240,62,22,0.12)' : 'var(--card-bg)', color: i === activeIdx ? 'var(--gold-dark)' : 'var(--text-secondary)',
                                             fontSize: '0.75rem', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif',
                                         }}>{fm.completed ? '✓ ' : ''}{fm.template.title}</button>
                                     ))}

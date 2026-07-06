@@ -98,7 +98,7 @@ const Wallet = () => {
                     {pendingAdjustments.map((a) => {
                         const isCredit = a.direction === 'credit';
                         return (
-                            <div key={a._id} style={{ background: 'rgba(201,168,76,0.08)', border: '1px solid var(--gold)', borderRadius: 'var(--radius)', padding: '1rem 1.25rem' }}>
+                            <div key={a._id} style={{ background: 'rgba(240,62,22,0.08)', border: '1px solid var(--gold)', borderRadius: 'var(--radius)', padding: '1rem 1.25rem' }}>
                                 <p style={{ margin: '0 0 0.35rem', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem' }}>
                                     {a.provider?.name} proposes a {isCredit ? 'credit of' : 'debit of'} <strong>{money(a.amount)}</strong>
                                 </p>
@@ -150,7 +150,7 @@ const Wallet = () => {
                                             { label: 'Reserved', val: w.reservedBalance },
                                             { label: 'Total', val: w.totalBalance },
                                         ].map((b) => (
-                                            <div key={b.label} style={{ background: b.accent ? 'rgba(201,168,76,0.1)' : 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '0.7rem 0.5rem', textAlign: 'center' }}>
+                                            <div key={b.label} style={{ background: b.accent ? 'rgba(240,62,22,0.1)' : 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '0.7rem 0.5rem', textAlign: 'center' }}>
                                                 <div style={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{b.label}</div>
                                                 <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '700', color: b.accent ? 'var(--gold-dark)' : 'var(--charcoal)' }}>{money(b.val)}</div>
                                             </div>

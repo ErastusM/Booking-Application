@@ -21,7 +21,7 @@
    @bookplus/design-tokens/tokens.css, imported in src/index.js before this file. */
 
 body.dark-mode {
-  background: #0f0f1a;
+  background: #0a0a0b;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -55,7 +55,7 @@ p, li, label, input, textarea, select, button, a {
 }
 
 ::selection {
-  background: rgba(201,168,76,0.18);
+  background: rgba(240,62,22,0.18);
   color: var(--charcoal);
 }
 
@@ -75,7 +75,7 @@ p, li, label, input, textarea, select, button, a {
   transition: transform 160ms var(--ease-out), background-color 160ms ease, box-shadow 160ms ease, color 160ms ease, border-color 160ms ease;
   letter-spacing: 0.01em;
 }
-.btn-primary:hover { background: #24243f; transform: translateY(-1px); box-shadow: var(--shadow-md); }
+.btn-primary:hover { background: #1c1c1e; transform: translateY(-1px); box-shadow: var(--shadow-md); }
 .btn-primary:active { transform: translateY(0) scale(0.98); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
 
@@ -165,7 +165,7 @@ p, li, label, input, textarea, select, button, a {
   transition: border-color 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
   outline: none;
 }
-.input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,76,0.12); }
+.input:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(240,62,22,0.12); }
 .input::placeholder { color: var(--text-muted); opacity: 1; }
 
 button:focus-visible,
@@ -218,14 +218,14 @@ input[type="date"]::-webkit-date-and-time-value { text-align: left; }
 select {
   appearance: none;
   -webkit-appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%239b9baa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%238f9391' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.875rem center;
   background-size: 16px;
   padding-right: 2.5rem !important;
   cursor: pointer;
 }
-select:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(201,168,76,0.12); outline: none; }
+select:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(240,62,22,0.12); outline: none; }
 select option { font-family: 'Inter', sans-serif; color: var(--text-primary); background: white; }
 
 .badge { display: inline-flex; align-items: center; padding: 0.25rem 0.75rem; border-radius: 99px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em; }
@@ -316,10 +316,10 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
   .scroll-top-fab { bottom: 84px; }
 }
 
-/* Appointment block visuals for Fresha-like look */
+/* Appointment block visuals */
 
-.appt-block { border-radius: 6px; padding: 6px 8px; box-shadow: 0 8px 18px rgba(16,24,40,0.06); transition: transform 0.12s cubic-bezier(.2,.9,.3,1), box-shadow 0.12s cubic-bezier(.2,.9,.3,1); }
-.appt-block:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(16,24,40,0.10); }
+.appt-block { border-radius: 6px; padding: 6px 8px; box-shadow: 0 8px 18px rgba(4,5,5,0.06); transition: transform 0.12s cubic-bezier(.2,.9,.3,1), box-shadow 0.12s cubic-bezier(.2,.9,.3,1); }
+.appt-block:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(4,5,5,0.10); }
 .appt-block .title { font-weight: 700; font-size: 0.82rem; color: var(--charcoal); }
 .appt-block .meta { font-size: 0.72rem; color: var(--text-secondary); }
 
@@ -626,12 +626,12 @@ body.dark-mode .booking-confirm-mobile {
 }
 
 /* ──────────────────────────────────────────────────
-   FullCalendar — Fresha-style overrides
+   FullCalendar — Bookplus overrides
    ────────────────────────────────────────────────── */
 .fc-bookplus-wrapper .fc {
   font-family: 'Plus Jakarta Sans', sans-serif;
   color: var(--charcoal);
-  --fc-non-business-color: rgba(26, 26, 46, 0.05);
+  --fc-non-business-color: rgba(4, 5, 5, 0.05);
 }
 
 /* Toolbar */
@@ -670,7 +670,7 @@ body.dark-mode .booking-confirm-mobile {
 
 .fc-bookplus-wrapper .fc-button-primary:not(:disabled).fc-button-active,
 .fc-bookplus-wrapper .fc-button-primary:not(:disabled):active {
-  background: rgba(201, 168, 76, 0.12) !important;
+  background: rgba(240, 62, 22, 0.12) !important;
   border-color: var(--gold) !important;
   color: var(--gold-dark) !important;
 }
@@ -679,7 +679,7 @@ body.dark-mode .booking-confirm-mobile {
 .fc-bookplus-wrapper .fc-theme-standard td,
 .fc-bookplus-wrapper .fc-theme-standard th,
 .fc-bookplus-wrapper .fc-theme-standard .fc-scrollgrid {
-  border-color: #f0ede8;
+  border-color: #dcdedd;
 }
 
 /* Column header (day names) */
@@ -689,7 +689,7 @@ body.dark-mode .booking-confirm-mobile {
 
 .fc-bookplus-wrapper .fc-col-header-cell {
   background: white;
-  border-bottom: 2px solid #f0ede8 !important;
+  border-bottom: 2px solid #dcdedd !important;
   padding: 0.6rem 0 !important;
 }
 
@@ -704,7 +704,7 @@ body.dark-mode .booking-confirm-mobile {
 
 /* Today column highlight */
 .fc-bookplus-wrapper .fc-day-today {
-  background: rgba(201, 168, 76, 0.04) !important;
+  background: rgba(240, 62, 22, 0.04) !important;
 }
 
 .fc-bookplus-wrapper .fc-col-header-cell.fc-day-today .fc-col-header-cell-cushion {
@@ -722,7 +722,7 @@ body.dark-mode .booking-confirm-mobile {
 
 /* Slot rows — minor lines thinner */
 .fc-bookplus-wrapper .fc-timegrid-slot-minor {
-  border-top-color: #f6f4f0 !important;
+  border-top-color: #dcdedd !important;
 }
 
 /* Evenly spaced prev / next so the ‹ › chevrons don't look cramped or joined */
@@ -741,7 +741,7 @@ body.dark-mode .fc-bookplus-wrapper .fc {
   --fc-page-bg-color: var(--card-bg);
   --fc-neutral-bg-color: var(--surface-sunken);
   --fc-border-color: var(--border);
-  --fc-today-bg-color: rgba(201, 168, 76, 0.10);
+  --fc-today-bg-color: rgba(240, 62, 22, 0.10);
   --fc-non-business-color: rgba(255, 255, 255, 0.045);
 }
 body.dark-mode .fc-bookplus-wrapper .fc-header-toolbar,
@@ -904,7 +904,7 @@ body.dark-mode .fc-bookplus-wrapper .fc-timegrid-slot-minor {
 
 /* Select mirror (what you see while drawing) */
 .fc-bookplus-wrapper .fc-highlight {
-  background: rgba(201, 168, 76, 0.15) !important;
+  background: rgba(240, 62, 22, 0.15) !important;
   border: 2px dashed var(--gold) !important;
   border-radius: 8px;
 }
@@ -972,9 +972,9 @@ body.dark-mode .fc-bookplus-wrapper .fc-timegrid-slot-minor {
 .btn--primary { background: var(--gold); color: var(--ink); }
 .btn--primary:hover { background: var(--gold-light); box-shadow: var(--shadow-md); }
 .btn--ink { background: var(--ink); color: var(--on-ink); }
-.btn--ink:hover { background: #24243f; box-shadow: var(--shadow-md); }
+.btn--ink:hover { background: #1c1c1e; box-shadow: var(--shadow-md); }
 .btn--outline { background: transparent; color: var(--charcoal); border-color: var(--border); }
-.btn--outline:hover { border-color: var(--gold); color: var(--gold-dark); background: rgba(201,168,76,0.06); }
+.btn--outline:hover { border-color: var(--gold); color: var(--gold-dark); background: rgba(240,62,22,0.06); }
 .btn--ghost { background: transparent; color: var(--text-secondary); }
 .btn--ghost:hover { background: var(--surface-sunken); color: var(--charcoal); }
 .btn--danger { background: var(--danger); color: #fff; }
@@ -995,7 +995,7 @@ body.dark-mode .fc-bookplus-wrapper .fc-timegrid-slot-minor {
 .input.is-invalid, .input[aria-invalid="true"] { border-color: var(--danger); }
 .input.is-invalid:focus { box-shadow: 0 0 0 3px rgba(239,68,68,0.18); }
 textarea.input { min-height: 88px; resize: vertical; line-height: 1.55; padding-top: 0.7rem; }
-.input:hover:not(:focus) { border-color: #d8d4cc; }
+.input:hover:not(:focus) { border-color: #bfc2c1; }
 
 /* Segmented control */
 .segmented { display: inline-flex; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px; gap: 2px; }
@@ -1017,7 +1017,7 @@ textarea.input { min-height: 88px; resize: vertical; line-height: 1.55; padding-
 .chip { display: inline-flex; align-items: center; gap: 0.35rem; padding: 0.3rem 0.75rem; border-radius: var(--radius-pill);
   font-size: 0.78rem; font-weight: 600; border: 1.5px solid var(--border); background: var(--card-bg); color: var(--text-secondary); cursor: pointer; transition: all var(--dur) var(--ease-out); }
 .chip:hover { border-color: var(--gold); color: var(--gold-dark); }
-.chip.is-active { border-color: var(--gold); background: rgba(201,168,76,0.12); color: var(--gold-dark); }
+.chip.is-active { border-color: var(--gold); background: rgba(240,62,22,0.12); color: var(--gold-dark); }
 
 /* Semantic status badges */
 .badge-success { background: var(--success-bg); color: var(--success-fg); }
@@ -1044,7 +1044,7 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
 
 /* Card variants */
 .card-interactive { cursor: pointer; }
-.card-interactive:hover { box-shadow: var(--shadow-lg); transform: translateY(-3px); border-color: rgba(201,168,76,0.4); }
+.card-interactive:hover { box-shadow: var(--shadow-lg); transform: translateY(-3px); border-color: rgba(240,62,22,0.4); }
 .card-flat { box-shadow: none; }
 
 /* Entrance animation */
@@ -1096,7 +1096,7 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
   width: 46px; height: 30px; border-radius: var(--radius-pill);
   transition: background var(--dur) var(--ease-out), transform var(--dur-fast) var(--ease-out);
 }
-.bottom-nav .bnav-item.is-active .bnav-icon { background: rgba(201,168,76,0.16); }
+.bottom-nav .bnav-item.is-active .bnav-icon { background: rgba(240,62,22,0.16); }
 .bottom-nav .bnav-item:active .bnav-icon { transform: scale(0.88); }
 
 

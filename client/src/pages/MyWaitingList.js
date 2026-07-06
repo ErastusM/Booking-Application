@@ -71,7 +71,7 @@ const MyWaitingList = () => {
             }}>
                 <div style={{
                     position: 'absolute', inset: 0,
-                    backgroundImage: 'radial-gradient(ellipse at 60% 50%, rgba(201,168,76,0.045) 0%, transparent 60%)',
+                    backgroundImage: 'radial-gradient(ellipse at 60% 50%, rgba(240,62,22,0.045) 0%, transparent 60%)',
                     pointerEvents: 'none',
                 }} />
                 <div className="container" style={{ position: 'relative' }}>
@@ -247,8 +247,8 @@ const MyWaitingList = () => {
                                             display: 'inline-flex',
                                             alignItems: 'center',
                                             gap: '0.35rem',
-                                            background: 'rgba(201,168,76,0.1)',
-                                            border: '1px solid rgba(201,168,76,0.3)',
+                                            background: 'rgba(240,62,22,0.1)',
+                                            border: '1px solid rgba(240,62,22,0.3)',
                                             borderRadius: '99px',
                                             padding: '0.2rem 0.75rem',
                                             fontSize: '0.75rem',

@@ -58,14 +58,14 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                         position: 'fixed', bottom: '1.5rem', right: '1.5rem',
                         width: '52px', height: '52px', borderRadius: '50%',
                         background: 'var(--ink)', color: 'white',
-                        border: '2px solid rgba(201,168,76,0.4)',
-                        boxShadow: '0 4px 18px rgba(26,26,46,0.35)',
+                        border: '2px solid rgba(240,62,22,0.4)',
+                        boxShadow: '0 4px 18px rgba(4,5,5,0.35)',
                         cursor: 'pointer',
                         display: 'flex', alignItems: 'center', justifyContent: 'center',
                         zIndex: 1000, transition: 'transform 0.15s, box-shadow 0.15s',
                     }}
-                    onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(26,26,46,0.45)'; }}
-                    onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 18px rgba(26,26,46,0.35)'; }}
+                    onMouseEnter={e => { e.currentTarget.style.transform = 'scale(1.1)'; e.currentTarget.style.boxShadow = '0 6px 24px rgba(4,5,5,0.45)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.transform = 'scale(1)'; e.currentTarget.style.boxShadow = '0 4px 18px rgba(4,5,5,0.35)'; }}
                 >
                     <svg width="22" height="22" fill="none" stroke="white" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M22 12h-6l-2 3H10l-2-3H2"/><path strokeLinecap="round" strokeLinejoin="round" d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
                 </button>

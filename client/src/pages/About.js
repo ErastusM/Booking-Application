@@ -17,7 +17,7 @@ const About = () => {
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
             {/* Hero */}
             <section style={{ position: 'relative', overflow: 'hidden', paddingTop: 'clamp(4rem, 10vh, 9rem)', paddingBottom: 'clamp(2rem, 5vh, 3.5rem)' }}>
-                <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'radial-gradient(60% 45% at 50% 0%, rgba(201,168,76,0.14), transparent 70%)', pointerEvents: 'none' }} />
+                <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'radial-gradient(60% 45% at 50% 0%, rgba(240,62,22,0.14), transparent 70%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative', maxWidth: '760px', marginLeft: 'auto', marginRight: 'auto', textAlign: 'center' }}>
                     <p style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '1rem' }}>About us</p>
                     <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.2rem, 5.5vw, 3.6rem)', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1.08, letterSpacing: '-0.02em', margin: 0 }}>
@@ -47,7 +47,7 @@ const About = () => {
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '1.25rem' }}>
                         {features.map(({ Icon, title, description }, i) => (
                             <div key={i} style={{ background: 'var(--off-white)', borderRadius: 'var(--radius-lg, 18px)', border: '1px solid var(--border)', padding: '1.75rem' }}>
-                                <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(201,168,76,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.1rem' }}>
+                                <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.1rem' }}>
                                     <Icon size={22} strokeWidth={2} />
                                 </div>
                                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.5rem' }}>{title}</h3>

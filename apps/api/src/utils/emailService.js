@@ -130,13 +130,13 @@ exports.transporter = transporter;
 exports.sendRaw = safeSend;
 
 /* ============================================================================
-   Shared clean email layout (Fresha-grade): white card on a light canvas,
+   Shared clean email layout: white card on a light canvas,
    system sans, one ink pill CTA, restrained gold accent. No serif, no emoji.
    ============================================================================ */
 
 const C = {
-    ink: '#1a1a2e', gold: '#b8983f', text: '#52525b', muted: '#9b9baa',
-    border: '#e8e6e1', canvas: '#f4f4f5', card: '#ffffff', sunken: '#f7f6f4',
+    ink: '#040505', gold: '#b32c0d', text: '#52525b', muted: '#8f9391',
+    border: '#d3d5d4', canvas: '#f4f4f5', card: '#ffffff', sunken: '#f7f6f4',
 };
 
 const FONT = "-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Helvetica,Arial,sans-serif";
