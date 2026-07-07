@@ -498,6 +498,17 @@ exports.updateProfile = async (req, res) => {
             user.providerCategory = providerCategory;
         }
 
+        // Cancellation notice window (hours). 0 = clients may cancel anytime.
+        if (user.role === 'provider' && req.body.cancellationWindowHours !== undefined) {
+            const hours = Number(req.body.cancellationWindowHours);
+            if (!Number.isInteger(hours) || hours < 0 || hours > 168) {
+                return res.status(400).json({ success: false, message: 'Cancellation window must be a whole number of hours between 0 and 168' });
+            }
+            if (!user.bookingPolicy) user.bookingPolicy = {};
+            user.bookingPolicy.cancellationWindowHours = hours;
+            user.markModified('bookingPolicy');
+        }
+
         await user.save();
 
         res.status(200).json({

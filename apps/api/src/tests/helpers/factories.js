@@ -66,13 +66,16 @@ exports.makeService = async (providerId, overrides = {}) => {
 };
 
 exports.makeAppointment = async (customerId, serviceId, providerId, overrides = {}) => {
-    const tomorrow = new Date();
-    tomorrow.setDate(tomorrow.getDate() + 1);
+    // 3 days out, not tomorrow: "tomorrow at 10:00" sits inside the default
+    // 24h cancellation window when tests run after 10:00, making every
+    // cancel/reschedule test flaky by time of day.
+    const upcoming = new Date();
+    upcoming.setDate(upcoming.getDate() + 3);
     return Appointment.create({
         customer: customerId,
         service: serviceId,
         provider: providerId,
-        appointmentDate: tomorrow,
+        appointmentDate: upcoming,
         startTime: '10:00',
         endTime: '10:30',
         totalPrice: 50,

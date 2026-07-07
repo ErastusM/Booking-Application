@@ -192,6 +192,8 @@ const Home = () => {
     const { user } = useAuthContext();
     const navigate = useNavigate();
     const [query, setQuery] = useState('');
+    const [searchDate, setSearchDate] = useState('');
+    const [searchTime, setSearchTime] = useState('');
     const [providers, setProviders] = useState([]);
     const [favorites, setFavorites] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -299,7 +301,12 @@ const Home = () => {
 
     const handleSearch = (e) => {
         e.preventDefault();
-        navigate(query.trim() ? `/services?q=${encodeURIComponent(query.trim())}` : '/services');
+        const params = new URLSearchParams();
+        if (query.trim()) params.set('q', query.trim());
+        if (searchDate) params.set('date', searchDate);
+        if (searchDate && searchTime) params.set('time', searchTime);
+        const qs = params.toString();
+        navigate(qs ? `/services?${qs}` : '/services');
     };
 
     return (
@@ -343,6 +350,21 @@ const Home = () => {
                             aria-label="Search services or businesses"
                             style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: '1rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}
                         />
+                        <div className="home-search-when">
+                            <input
+                                type="date"
+                                value={searchDate}
+                                min={(d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)(new Date())}
+                                onChange={e => setSearchDate(e.target.value)}
+                                aria-label="Date"
+                            />
+                            <select value={searchTime} onChange={e => setSearchTime(e.target.value)} aria-label="Time" disabled={!searchDate} style={{ opacity: searchDate ? 1 : 0.45 }}>
+                                <option value="">Any time</option>
+                                {Array.from({ length: 13 }, (_, i) => `${String(i + 7).padStart(2, '0')}:00`).map(t => (
+                                    <option key={t} value={t}>{t}</option>
+                                ))}
+                            </select>
+                        </div>
                         <button type="submit" className="btn-primary" style={{ borderRadius: '999px', padding: '0.7rem 1.6rem', flexShrink: 0 }}>Search</button>
                     </form>
                 </div>

@@ -17,6 +17,7 @@ const {
 } = require('../utils/emailService');
 const calendarHelper = require('../utils/calendarHelper');
 const { resolveBookingStaff } = require('../utils/staffBooking');
+const { checkCancellationWindow } = require('../utils/cancellationPolicy');
 const { primaryOrigin } = require('../utils/origins');
 
 const defaultSchedule = {
@@ -606,6 +607,14 @@ exports.cancelAppointment = async (req, res) => {
         if (appointment.customer._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
             return res.status(403).json({ success: false, message: 'Not authorized to cancel this appointment' });
         }
+        // Customers must respect the provider's notice window; admins are exempt.
+        if (req.user.role !== 'admin' && ['pending', 'confirmed'].includes(appointment.status)) {
+            const providerId = appointment.provider || appointment.service?.provider;
+            const policy = await checkCancellationWindow(providerId, appointment.appointmentDate, appointment.startTime);
+            if (!policy.allowed) {
+                return res.status(400).json({ success: false, message: policy.message });
+            }
+        }
         appointment.status = 'cancelled';
         appointment.cancellationReason = req.body.cancellationReason || '';
         appointment.statusHistory.push({ status: 'cancelled', changedBy: req.user._id });
@@ -917,6 +926,14 @@ exports.rescheduleAppointment = async (req, res) => {
         if (isPastSlot(appointmentDate, startTime)) {
             return res.status(400).json({ success: false, message: 'That time has already passed. Please pick a later slot.' });
         }
+        // Moving a booking inside the notice window is a cancellation in disguise.
+        {
+            const pid = appointment.provider || appointment.service?.provider;
+            const policy = await checkCancellationWindow(pid, appointment.appointmentDate, appointment.startTime);
+            if (!policy.allowed) {
+                return res.status(400).json({ success: false, message: policy.message });
+            }
+        }
 
         const duration = appointment.service?.duration || 30;
         const [hours, minutes] = startTime.split(':').map(Number);
@@ -1043,7 +1060,7 @@ exports.getAppointmentByToken = async (req, res) => {
     try {
         const appt = await Appointment.findOne({ manageToken: req.params.token })
             .populate('service', 'name price duration')
-            .populate('provider', 'name businessProfile')
+            .populate('provider', 'name businessProfile bookingPolicy')
             .populate('teamMember', 'name');
         if (!appt) return res.status(404).json({ success: false, message: 'Booking not found' });
         // Provider's working hours so the reschedule picker can offer controlled
@@ -1068,6 +1085,7 @@ exports.getAppointmentByToken = async (req, res) => {
                 staff: appt.teamMember ? appt.teamMember.name : null,
                 clientName: appt.walkInName || null,
                 schedule,
+                cancellationWindowHours: appt.provider?.bookingPolicy?.cancellationWindowHours ?? 24,
             },
         });
     } catch (error) {
@@ -1083,6 +1101,12 @@ exports.cancelAppointmentByToken = async (req, res) => {
         if (!appt) return res.status(404).json({ success: false, message: 'Booking not found' });
         if (!['pending', 'confirmed'].includes(appt.status)) {
             return res.status(400).json({ success: false, message: 'This booking can no longer be cancelled.' });
+        }
+        {
+            const policy = await checkCancellationWindow(appt.provider, appt.appointmentDate, appt.startTime);
+            if (!policy.allowed) {
+                return res.status(400).json({ success: false, message: policy.message });
+            }
         }
         appt.status = 'cancelled';
         appt.cancellationReason = 'Cancelled by client via link';
@@ -1137,6 +1161,12 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
         }
         if (isPastSlot(appointmentDate, startTime)) {
             return res.status(400).json({ success: false, message: 'That time has already passed. Please pick a later slot.' });
+        }
+        {
+            const policy = await checkCancellationWindow(appt.provider, appt.appointmentDate, appt.startTime);
+            if (!policy.allowed) {
+                return res.status(400).json({ success: false, message: policy.message });
+            }
         }
 
         const duration = appt.service?.duration

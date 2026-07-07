@@ -59,7 +59,7 @@ const ProviderAccount = () => {
     }, [user]);
 
     // Profile
-    const [profileForm, setProfileForm] = useState({ name: user?.name || '', phone: user?.phone || '', address: user?.businessProfile?.address || '', businessName: user?.businessProfile?.businessName || '', description: user?.businessProfile?.description || '' });
+    const [profileForm, setProfileForm] = useState({ name: user?.name || '', phone: user?.phone || '', address: user?.businessProfile?.address || '', businessName: user?.businessProfile?.businessName || '', description: user?.businessProfile?.description || '', cancellationWindowHours: user?.bookingPolicy?.cancellationWindowHours ?? 24 });
     const [avatarUploading, setAvatarUploading] = useState(false);
     const [profileSaving, setProfileSaving] = useState(false);
     const [profileMsg, setProfileMsg] = useState('');
@@ -302,6 +302,24 @@ const ProviderAccount = () => {
                                                     {geoLoading ? 'Detecting…' : 'Use current location'}
                                                 </button>
                                                 <textarea value={profileForm.address} onChange={e => setProfileForm(p => ({ ...p, address: e.target.value }))} className="input" rows={2} placeholder="e.g. 12 Independence Ave, Windhoek" style={{ resize: 'vertical', fontSize: '0.875rem' }} />
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Cancellation policy</label>
+                                                <select
+                                                    value={profileForm.cancellationWindowHours}
+                                                    onChange={e => setProfileForm(p => ({ ...p, cancellationWindowHours: Number(e.target.value) }))}
+                                                    className="input"
+                                                    style={{ cursor: 'pointer' }}
+                                                >
+                                                    <option value={0}>Clients can cancel anytime</option>
+                                                    <option value={2}>At least 2 hours before</option>
+                                                    <option value={4}>At least 4 hours before</option>
+                                                    <option value={12}>At least 12 hours before</option>
+                                                    <option value={24}>At least 24 hours before</option>
+                                                    <option value={48}>At least 48 hours before</option>
+                                                    <option value={72}>At least 3 days before</option>
+                                                </select>
+                                                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.3rem 0 0' }}>How much notice clients must give to cancel or reschedule online. You can always cancel from your side.</p>
                                             </div>
                                             {profileMsg && <p style={{ fontSize: '0.8rem', color: profileMsg.includes('fail') ? '#ef4444' : '#065f46' }}>{profileMsg}</p>}
                                             <button type="submit" disabled={profileSaving} className="btn-primary" style={{ padding: '0.65rem 1.5rem', fontSize: '0.875rem' }}>

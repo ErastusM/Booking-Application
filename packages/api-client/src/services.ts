@@ -115,6 +115,10 @@ export const makeServices = (API: AxiosInstance) => ({
         // Bookable staff for the customer staff-selection step (public).
         getProviderStaff: (id: string, serviceId?: string) =>
             API.get(`/providers/${id}/staff`, { params: serviceId ? { serviceId } : {} }),
+        // Availability-first search: providers with a real opening on `date`
+        // (optionally at/after `time`, narrowed by `q`).
+        searchProviders: (params: { date: string; time?: string; q?: string }) =>
+            API.get('/providers/search', { params }),
     },
 
     categoryService: {
