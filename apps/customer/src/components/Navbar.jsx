@@ -22,6 +22,9 @@ const Navbar = () => {
     const [scrolled, setScrolled] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
     const [showSuggestion, setShowSuggestion] = useState(false);
+    const [profileOpen, setProfileOpen] = useState(false); // desktop avatar dropdown
+
+    useEffect(() => { setProfileOpen(false); }, [location]);
 
     const isHome = location.pathname === '/';
     // The transparent navbar uses white text/icons, which only reads on a DARK hero.
@@ -44,23 +47,6 @@ const Navbar = () => {
 
     const handleLogout = () => { setMenuOpen(false); logout(); navigate('/'); };
     const isActive = (path) => location.pathname === path;
-
-    const navLink = (to, label) => {
-        const active = isActive(to);
-        const baseColor = active ? 'var(--gold-dark)' : isTransparent ? 'rgba(255,255,255,0.92)' : 'var(--text-secondary)';
-        return (
-            <Link to={to} className="nav-pill" style={{
-                color: baseColor,
-                fontWeight: active ? '600' : '500',
-                background: active ? (isTransparent ? 'rgba(255,255,255,0.14)' : 'rgba(240,62,22,0.12)') : 'transparent',
-            }}
-                onMouseEnter={e => { if (!active) { e.currentTarget.style.color = isTransparent ? 'white' : 'var(--gold-dark)'; e.currentTarget.style.background = isTransparent ? 'rgba(255,255,255,0.10)' : 'var(--surface-sunken)'; } }}
-                onMouseLeave={e => { if (!active) { e.currentTarget.style.color = baseColor; e.currentTarget.style.background = 'transparent'; } }}
-            >
-                {label}
-            </Link>
-        );
-    };
 
     const navStyles = {
         position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000,
@@ -102,95 +88,104 @@ const Navbar = () => {
                     </span>
                 </Link>
 
-                {/* Desktop links */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '2rem' }} className="hidden-mobile">
-                    {navLink('/', 'Home')}
-                    {navLink('/services', 'Services')}
-                    {navLink('/about', 'About us')}
-                    {user && navLink('/book-appointment', 'Book')}
-                    {user && navLink('/appointments', 'Appointments')}
-                    {user && navLink('/wallet', 'Wallet')}
-                    {user && navLink('/waiting-list', 'Waiting List')}
-                    {user?.role === 'customer' && navLink('/become-provider', 'List your business')}
-                </div>
+                {/* Desktop right cluster — Fresha-simple: one pill + avatar menu.
+                    Everything else (Appointments, Wallet, …) lives in the dropdown. */}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }} className="hidden-mobile">
+                    {user?.role === 'provider' || user?.role === 'admin' ? (
+                        <button
+                            onClick={() => goToBusinessApp(user.role === 'admin' ? '/bkplus-command' : '/dashboard')}
+                            title="Open the business app"
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.1rem', borderRadius: '999px', border: '1.5px solid var(--gold)', cursor: 'pointer', background: 'rgba(240,62,22,0.10)', color: isTransparent ? 'white' : 'var(--gold-dark)', fontSize: '0.85rem', fontWeight: '700', fontFamily: 'var(--font-body)', transition: 'all 0.2s' }}
+                        >
+                            <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01"/></svg>
+                            Business
+                        </button>
+                    ) : (
+                        <a
+                            href={user ? '/become-provider' : BUSINESS_URL}
+                            onClick={user ? (e => { e.preventDefault(); navigate('/become-provider'); }) : undefined}
+                            style={{ display: 'inline-flex', alignItems: 'center', padding: '0.55rem 1.15rem', borderRadius: '999px', border: `1px solid ${isTransparent ? 'rgba(255,255,255,0.4)' : 'var(--border)'}`, background: isTransparent ? 'rgba(255,255,255,0.10)' : 'var(--card-bg)', color: isTransparent ? 'white' : 'var(--charcoal)', fontSize: '0.85rem', fontWeight: '700', textDecoration: 'none', boxShadow: isTransparent ? 'none' : 'var(--shadow-sm)', transition: 'all 0.2s' }}
+                        >
+                            List your business
+                        </a>
+                    )}
 
-                {/* Right side desktop */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }} className="hidden-mobile">
-                    {/* Dark mode toggle */}
-                    <button
-                        onClick={toggleDarkMode}
-                        title={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-                        aria-label={darkMode ? 'Switch to light mode' : 'Switch to dark mode'}
-                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)', padding: '0.4rem', display: 'flex', alignItems: 'center', borderRadius: 'var(--radius-sm)', transition: 'color 0.2s' }}
-                        onMouseEnter={e => e.currentTarget.style.color = 'var(--gold)'}
-                        onMouseLeave={e => e.currentTarget.style.color = isTransparent ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)'}
-                    >
-                        {darkMode ? (
-                            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-                        ) : (
-                            <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/></svg>
-                        )}
-                    </button>
+                    {user && <NotificationBell isTransparent={isTransparent} />}
 
                     {user ? (
-                        <>
-                            {/* Business accounts manage their business on the business app */}
-                            {(user.role === 'provider' || user.role === 'admin') && (
-                                <button
-                                    onClick={() => goToBusinessApp(user.role === 'admin' ? '/bkplus-command' : '/dashboard')}
-                                    title="Open the business app"
-                                    style={{
-                                        display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                                        padding: '0.42rem 0.9rem', borderRadius: '99px',
-                                        border: '1.5px solid var(--gold)', cursor: 'pointer',
-                                        background: 'rgba(240,62,22,0.10)', color: isTransparent ? 'white' : 'var(--gold-dark)',
-                                        fontSize: '0.78rem', fontWeight: '700', fontFamily: 'var(--font-body)',
-                                        transition: 'all 0.2s',
-                                    }}
-                                >
-                                    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01"/></svg>
-                                    Business
-                                </button>
-                            )}
+                        <div style={{ position: 'relative' }}>
                             <button
-                                onClick={() => setShowSuggestion(true)}
-                                title="Send a suggestion"
-                                aria-label="Send a suggestion"
-                                style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)', padding: '0.4rem', display: 'flex', alignItems: 'center', borderRadius: 'var(--radius-sm)', transition: 'color 0.2s' }}
-                                onMouseEnter={e => e.currentTarget.style.color = 'var(--gold)'}
-                                onMouseLeave={e => e.currentTarget.style.color = isTransparent ? 'rgba(255,255,255,0.7)' : 'var(--text-muted)'}
+                                onClick={() => setProfileOpen(o => !o)}
+                                aria-label="Account menu"
+                                aria-expanded={profileOpen}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '4px 8px 4px 4px', borderRadius: '999px', border: `1px solid ${isTransparent ? 'rgba(255,255,255,0.35)' : 'var(--border)'}`, background: isTransparent ? 'rgba(255,255,255,0.10)' : 'var(--card-bg)', cursor: 'pointer', boxShadow: isTransparent ? 'none' : 'var(--shadow-sm)' }}
                             >
-                                <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.9c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0012 2z"/></svg>
-                            </button>
-                            <NotificationBell isTransparent={isTransparent} />
-                            <Link to="/profile" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: isTransparent ? 'white' : 'var(--text-primary)', fontSize: '0.9rem', fontWeight: '500' }}>
-                                <div style={{ width: '34px', height: '34px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)', fontWeight: '700', fontSize: '0.8rem', flexShrink: 0 }}>
+                                <span style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)', fontWeight: '700', fontSize: '0.8rem', flexShrink: 0 }}>
                                     {user.avatar
                                         ? <img src={cloudinaryAvatar(user.avatar)} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                        : user.name?.charAt(0).toUpperCase()
-                                    }
-                                </div>
-                                {user.name?.split(' ')[0]}
-                            </Link>
-                            <button onClick={handleLogout} style={{
-                                background: 'transparent', border: '1.5px solid',
-                                borderColor: isTransparent ? 'rgba(255,255,255,0.4)' : 'var(--border)',
-                                color: isTransparent ? 'white' : 'var(--text-secondary)',
-                                padding: '0.4rem 1rem', borderRadius: 'var(--radius-sm)',
-                                cursor: 'pointer', fontSize: '0.85rem',
-                                fontFamily: 'var(--font-body)', transition: 'all 0.2s ease',
-                            }}
-                                onMouseEnter={e => { e.target.style.borderColor = '#ef4444'; e.target.style.color = '#ef4444'; }}
-                                onMouseLeave={e => { e.target.style.borderColor = isTransparent ? 'rgba(255,255,255,0.4)' : 'var(--border)'; e.target.style.color = isTransparent ? 'white' : 'var(--text-secondary)'; }}
-                            >
-                                Logout
+                                        : user.name?.charAt(0).toUpperCase()}
+                                </span>
+                                <svg width="14" height="14" fill="none" stroke={isTransparent ? 'rgba(255,255,255,0.8)' : 'var(--text-muted)'} strokeWidth="2.5" viewBox="0 0 24 24" style={{ transform: profileOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.18s' }}><path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6"/></svg>
                             </button>
-                        </>
+
+                            {profileOpen && (
+                                <>
+                                    <div onClick={() => setProfileOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 1100 }} />
+                                    <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 10px)', zIndex: 1101, width: '250px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '16px', boxShadow: '0 16px 44px rgba(4,5,5,0.20)', overflow: 'hidden', padding: '0.4rem' }}>
+                                        <div style={{ padding: '0.65rem 0.85rem 0.7rem', borderBottom: '1px solid var(--border)', marginBottom: '0.35rem' }}>
+                                            <p style={{ margin: 0, fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.92rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</p>
+                                            <p style={{ margin: '1px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</p>
+                                        </div>
+                                        {[
+                                            { to: '/book-appointment', label: 'Book an appointment', icon: <path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"/> },
+                                            { to: '/appointments', label: 'My appointments', icon: <><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></> },
+                                            { to: '/wallet', label: 'Wallet', icon: <><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M16 15h2"/></> },
+                                            { to: '/waiting-list', label: 'Waiting list', icon: <><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 1.75"/></> },
+                                            { to: '/profile', label: 'Profile & settings', icon: <><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></> },
+                                        ].map(item => (
+                                            <Link key={item.to} to={item.to} onClick={() => setProfileOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.6rem 0.85rem', borderRadius: '10px', textDecoration: 'none', color: 'var(--charcoal)', fontSize: '0.88rem', fontWeight: '600' }}
+                                                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
+                                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                            >
+                                                <svg width="16" height="16" fill="none" stroke="var(--text-muted)" strokeWidth="2" viewBox="0 0 24 24">{item.icon}</svg>
+                                                {item.label}
+                                            </Link>
+                                        ))}
+                                        <div style={{ borderTop: '1px solid var(--border)', margin: '0.35rem 0' }} />
+                                        <button onClick={() => { toggleDarkMode(); }} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', width: '100%', textAlign: 'left', padding: '0.6rem 0.85rem', borderRadius: '10px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--charcoal)', fontSize: '0.88rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}
+                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                        >
+                                            <svg width="16" height="16" fill="none" stroke="var(--text-muted)" strokeWidth="2" viewBox="0 0 24 24">
+                                                {darkMode
+                                                    ? <><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></>
+                                                    : <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>}
+                                            </svg>
+                                            {darkMode ? 'Light mode' : 'Dark mode'}
+                                        </button>
+                                        <button onClick={() => { setProfileOpen(false); setShowSuggestion(true); }} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', width: '100%', textAlign: 'left', padding: '0.6rem 0.85rem', borderRadius: '10px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--charcoal)', fontSize: '0.88rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}
+                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                        >
+                                            <svg width="16" height="16" fill="none" stroke="var(--text-muted)" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.9c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0012 2z"/></svg>
+                                            Suggest a feature
+                                        </button>
+                                        <div style={{ borderTop: '1px solid var(--border)', margin: '0.35rem 0' }} />
+                                        <button onClick={() => { setProfileOpen(false); handleLogout(); }} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', width: '100%', textAlign: 'left', padding: '0.6rem 0.85rem', borderRadius: '10px', background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: '0.88rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}
+                                            onMouseEnter={e => e.currentTarget.style.background = '#fee2e2'}
+                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                        >
+                                            <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+                                            Log out
+                                        </button>
+                                    </div>
+                                </>
+                            )}
+                        </div>
                     ) : (
                         <>
-                            <a href={BUSINESS_URL} style={{ color: isTransparent ? 'rgba(255,255,255,0.85)' : 'var(--text-secondary)', textDecoration: 'none', fontSize: '0.9rem', fontWeight: '600', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--gold)'} onMouseLeave={e => e.currentTarget.style.color = isTransparent ? 'rgba(255,255,255,0.85)' : 'var(--text-secondary)'}>For business</a>
-                            <Link to="/login" style={{ color: isTransparent ? 'white' : 'var(--text-primary)', textDecoration: 'none', fontSize: '0.9rem', fontWeight: '500', transition: 'color 0.2s' }}>Login</Link>
-                            <Link to="/register" className="btn-primary" style={{ padding: '0.5rem 1.25rem' }}>Sign Up</Link>
+                            <Link to="/login" style={{ color: isTransparent ? 'white' : 'var(--text-primary)', textDecoration: 'none', fontSize: '0.9rem', fontWeight: '600', padding: '0.5rem 0.6rem', transition: 'color 0.2s' }}>Log in</Link>
+                            <Link to="/register" className="btn-primary" style={{ padding: '0.55rem 1.25rem', borderRadius: '999px' }}>Sign up</Link>
                         </>
                     )}
                 </div>

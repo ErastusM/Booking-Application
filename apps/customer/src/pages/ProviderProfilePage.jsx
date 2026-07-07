@@ -69,6 +69,17 @@ const ProviderProfilePage = () => {
             .catch(() => {});
     }, [id]);
 
+    // Record the visit for the home page's "Recently viewed" row (newest first).
+    useEffect(() => {
+        if (!id) return;
+        try {
+            const key = 'bp_recent_providers';
+            const ids = JSON.parse(localStorage.getItem(key) || '[]').filter(x => x !== id);
+            ids.unshift(id);
+            localStorage.setItem(key, JSON.stringify(ids.slice(0, 12)));
+        } catch { /* storage disabled — non-fatal */ }
+    }, [id]);
+
     // Keyboard control for the full-screen photo gallery
     useEffect(() => {
         if (lightbox < 0) return;

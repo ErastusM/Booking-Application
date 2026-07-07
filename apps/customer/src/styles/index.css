@@ -1141,15 +1141,18 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
    untouched — the mobile view keeps its social-feed design. ── */
 .home-hero { padding-top: clamp(4rem, 8vw, 9rem); padding-bottom: 1.5rem; }
 .home-search-inner { max-width: 560px; }
-/* Date/time refinements live desktop-side only; mobile keeps the plain pill. */
+/* Location/date/time refinements live desktop-side only; mobile keeps the
+   plain pill. Same for the live stat line under the search bar. */
 .home-search-when { display: none; }
+.home-hero-stat { display: none; }
 .discover-feed { display: flex; flex-direction: column; gap: 1.5rem; max-width: 540px; margin: 0 auto; }
 @media (min-width: 1024px) {
   .home-hero { padding-top: calc(56px + env(safe-area-inset-top, 0px) + 2.25rem); padding-bottom: 0.75rem; }
   .home-hero-eyebrow { display: none; }
   .home-hero h1 { font-size: 2.9rem !important; margin-bottom: 0.6rem !important; }
   .home-hero-sub { font-size: 1.05rem !important; margin-bottom: 0.8rem !important; }
-  .home-search-inner { max-width: 860px; }
+  .home-search-inner { max-width: 980px; }
+  .home-hero-stat { display: block; }
   .home-search-when {
     display: flex;
     align-items: center;
