@@ -91,7 +91,9 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
     };
 
     return (
-        <article style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '18px', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
+        // height:100% + flex column + the CTA's marginTop:auto keep every card
+        // in a section row the SAME height regardless of how its text wraps.
+        <article style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '18px', overflow: 'hidden', boxShadow: 'var(--shadow-sm)', height: '100%', display: 'flex', flexDirection: 'column' }}>
 
             {/* Header — tap to open profile */}
             <div onClick={go} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.7rem 0.85rem', cursor: 'pointer' }}>
@@ -173,8 +175,8 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
                 )}
             </div>
 
-            {/* Primary action — the most obvious thing to do on the card */}
-            <div style={{ padding: '0 0.95rem 0.95rem' }}>
+            {/* Primary action — pinned to the card bottom so rows stay level */}
+            <div style={{ padding: '0 0.95rem 0.95rem', marginTop: 'auto' }}>
                 <Link
                     to={`/book-appointment?providerId=${id}`}
                     onClick={(e) => e.stopPropagation()}
@@ -367,7 +369,7 @@ const Home = () => {
 
             {/* ── Hero copy — fades and scrolls away gently as the feed takes over ── */}
             <section className="home-hero" style={{ position: 'relative', overflow: 'hidden', background: 'var(--off-white)' }}>
-                <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'radial-gradient(62% 48% at 50% -2%, rgba(240,62,22,0.16), transparent 72%)', pointerEvents: 'none' }} />
+                <div aria-hidden="true" className="home-hero-wash" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
                 <div ref={heroCopyRef} className="container" style={{ position: 'relative', textAlign: 'center', maxWidth: '860px', marginLeft: 'auto', marginRight: 'auto', willChange: 'opacity' }}>
                     <p className="fade-up home-hero-eyebrow" style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '1.1rem' }}>Premium booking, simplified</p>
                     <h1 className="fade-up fade-up-delay-1" style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.6rem, 6.2vw, 4.6rem)', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1.05, letterSpacing: '-0.02em', margin: '0 0 1.25rem' }}>

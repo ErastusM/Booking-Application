@@ -3,7 +3,6 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
-import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
 import Login from './pages/Login';
 
@@ -97,9 +96,9 @@ export default function App() {
         <Router>
             <ThemeProvider>
             <AuthProvider>
+                {/* No footer in the business tool — it's an app, not a website. */}
                 <Navbar />
                 <AppRoutes />
-                <Footer />
             </AuthProvider>
             </ThemeProvider>
         </Router>

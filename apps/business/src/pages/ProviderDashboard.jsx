@@ -2293,8 +2293,8 @@ const ProviderDashboard = () => {
 
                         {/* On selection release: ask whether to book a client or block the time */}
                         {timeSelectionPreview && (
-                            <div onClick={() => setTimeSelectionPreview(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0' }}>
-                                <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+                            <div onClick={() => setTimeSelectionPreview(null)} className="sheet-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0' }}>
+                                <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in sheet-panel" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                                     <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>What's this time for?</h3>
                                         <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
@@ -2329,8 +2329,8 @@ const ProviderDashboard = () => {
 
                         {/* Drag-to-move confirmation (appointments + blocked time) */}
                         {pendingMove && (
-                            <div onClick={cancelPendingMove} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-                                <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+                            <div className="sheet-overlay" onClick={cancelPendingMove} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                                <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in sheet-panel" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                                     <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>
                                             Move {pendingMove.kind === 'blocked' ? 'blocked time' : 'appointment'}?
@@ -2349,8 +2349,8 @@ const ProviderDashboard = () => {
 
                         {/* Tap grayed area → adjust working hours for that day */}
                         {adjustHours && (
-                            <div onClick={() => setAdjustHours(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
-                                <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
+                            <div className="sheet-overlay" onClick={() => setAdjustHours(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                                <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in sheet-panel" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                                     <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Adjust working hours</h3>
                                         <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{adjustHours.label}</p>
@@ -3049,8 +3049,8 @@ const ProviderDashboard = () => {
 
             {/* Recurring blocked time action modal */}
             {recurringActionModal && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setRecurringActionModal(null); }}>
-                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius) var(--radius) 0 0', padding: '2rem 1.5rem 2.5rem', width: '100%', maxWidth: '480px', position: 'relative' }}>
+                <div className="sheet-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setRecurringActionModal(null); }}>
+                    <div className="sheet-panel" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius) var(--radius) 0 0', padding: '2rem 1.5rem 2.5rem', width: '100%', maxWidth: '480px', position: 'relative' }}>
                         <button onClick={() => setRecurringActionModal(null)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.4rem', color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                             {recurringActionModal.action === 'update' ? 'Update blocked time' : 'Delete blocked time'}

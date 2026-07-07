@@ -1131,3 +1131,10 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
 
 /* Calendar feedback toast entrance */
 .cal-toast { animation: routeIn var(--dur) var(--ease-out) both; }
+
+/* Bottom sheets are a phone idiom — on wide screens the same dialog centers
+   with full rounding so it reads as a proper modal instead of a cut-off sheet. */
+@media (min-width: 900px) {
+  .sheet-overlay { align-items: center !important; padding: 2rem !important; }
+  .sheet-panel { border-radius: 20px !important; }
+}

@@ -1140,6 +1140,18 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
 /* ── Home: compact Fresha-style desktop layout. Everything below 1024px is
    untouched — the mobile view keeps its social-feed design. ── */
 .home-hero { padding-top: clamp(4rem, 8vw, 9rem); padding-bottom: 1.5rem; }
+/* Soft hero wash — the brand's warm answer to Fresha's lilac gradient.
+   Light mode gets a gentle peach/apricot bloom; dark mode keeps its ember glow. */
+.home-hero-wash {
+  background:
+    radial-gradient(58% 44% at 20% 0%, rgba(240, 62, 22, 0.10), transparent 70%),
+    radial-gradient(52% 40% at 80% 4%, rgba(255, 166, 87, 0.16), transparent 70%),
+    radial-gradient(72% 56% at 50% -8%, rgba(255, 214, 196, 0.55), transparent 76%);
+}
+body.dark-mode .home-hero-wash {
+  background: radial-gradient(62% 48% at 50% -2%, rgba(240, 62, 22, 0.16), transparent 72%);
+}
+
 .home-search-inner { max-width: 560px; }
 /* Location/date/time refinements live desktop-side only; mobile keeps the
    plain pill. Same for the live stat line under the search bar. */
@@ -1190,6 +1202,14 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
     gap: 1.5rem 1.25rem;
-    align-items: start;
+    /* stretch, not start: every card in a row gets the row's height */
+    align-items: stretch;
   }
+}
+
+/* Bottom sheets are a phone idiom — on wide screens the same dialog centers
+   with full rounding so it reads as a proper modal instead of a cut-off sheet. */
+@media (min-width: 900px) {
+  .sheet-overlay { align-items: center !important; padding: 2rem !important; }
+  .sheet-panel { border-radius: 20px !important; }
 }

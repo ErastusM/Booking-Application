@@ -64,6 +64,7 @@ const ReviewModal = ({ appointment, onClose, onSubmitted }) => {
     return (
         <div
             onClick={onClose}
+            className="sheet-overlay"
             style={{
                 position: 'fixed', inset: 0, zIndex: 1000,
                 background: 'rgba(4,5,5,0.55)', backdropFilter: 'blur(3px)',
@@ -73,7 +74,7 @@ const ReviewModal = ({ appointment, onClose, onSubmitted }) => {
         >
             <div
                 onClick={e => e.stopPropagation()}
-                className="review-modal-card"
+                className="review-modal-card sheet-panel"
                 style={{
                     background: 'var(--card-bg)', width: '100%', maxWidth: '440px',
                     borderRadius: '20px 20px 0 0', boxShadow: '0 -10px 40px rgba(0,0,0,0.25)',
