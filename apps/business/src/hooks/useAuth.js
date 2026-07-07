@@ -20,7 +20,6 @@ export const useAuth = () => {
     // is being exchanged (resolves in one fast round-trip).
     const [loading, setLoading] = useState(() => !(localStorage.getItem('token') && localStorage.getItem('user')));
     const [error, setError] = useState(null);
-    const [activeRole, setActiveRole] = useState(null);
 
     // Persist the user so reopening the app restores the session instantly.
     useEffect(() => {
@@ -29,19 +28,6 @@ export const useAuth = () => {
             else localStorage.removeItem('user');
         } catch { /* storage disabled/full — non-fatal */ }
     }, [user]);
-
-    // Sync activeRole whenever the user record changes.
-    // Providers can toggle between 'provider' and 'customer' views; the choice
-    // is persisted so it survives page refreshes. All other roles are fixed.
-    useEffect(() => {
-        if (!user) { setActiveRole(null); return; }
-        if (user.role === 'provider') {
-            const saved = localStorage.getItem('activeRole');
-            setActiveRole(saved === 'customer' || saved === 'provider' ? saved : 'provider');
-        } else {
-            setActiveRole(user.role);
-        }
-    }, [user]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // On app load, validate/refresh the cached session in the BACKGROUND. We never
     // block on this and never log out on a transient error (offline, slow API, 5xx) —
@@ -75,11 +61,10 @@ export const useAuth = () => {
         const handleAuthLogout = () => {
             localStorage.removeItem('token');
             localStorage.removeItem('refreshToken');
-            localStorage.removeItem('activeRole');
+            localStorage.removeItem('activeRole'); // legacy key from the old in-app role switch
             localStorage.removeItem('user');
             setToken(null);
             setUser(null);
-            setActiveRole(null);
         };
 
         window.addEventListener('auth-logout', handleAuthLogout);
@@ -91,22 +76,10 @@ export const useAuth = () => {
         if (userData.refreshToken) {
             localStorage.setItem('refreshToken', userData.refreshToken);
         }
-        // Always reset to the account's real role on fresh login.
-        localStorage.setItem('activeRole', userData.user.role);
         setToken(userData.token);
         setUser(userData.user);
-        setActiveRole(userData.user.role);
         setError(null);
     }, []);
-
-    // Toggle (or explicitly set) which view a provider is currently using.
-    // Only provider accounts can switch; customers and admins are fixed.
-    const switchRole = useCallback((role) => {
-        if (!user || user.role !== 'provider') return;
-        const next = role || (activeRole === 'provider' ? 'customer' : 'provider');
-        setActiveRole(next);
-        localStorage.setItem('activeRole', next);
-    }, [user, activeRole]);
 
     const logout = useCallback(async () => {
         try {
@@ -117,5 +90,5 @@ export const useAuth = () => {
         window.dispatchEvent(new Event('auth-logout'));
     }, []);
 
-    return { user, token, loading, error, login, logout, setUser, activeRole, switchRole };
+    return { user, token, loading, error, login, logout, setUser };
 };

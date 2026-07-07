@@ -36,9 +36,12 @@ const CompleteProfile = () => {
             if (isProvider) payload.providerCategory = category === 'Other' ? customCategory.trim() : category;
             const response = await authService.updateProfile(payload);
             setUser(response.data.data);
-            if (user?.role === 'provider') navigate('/dashboard');
-            else if (user?.role === 'admin') navigate('/bkplus-command');
-            else navigate('/');
+            // A freshly-onboarded business belongs in the business app.
+            if (user?.role === 'provider' || user?.role === 'admin') {
+                window.location.href = `${import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003'}${user?.role === 'admin' ? '/bkplus-command' : '/dashboard'}`;
+            } else {
+                navigate('/');
+            }
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to save phone number');
         } finally {

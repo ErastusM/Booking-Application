@@ -63,13 +63,13 @@ const WalletTopUpModal = ({ providerId, providerName, onClose, onDone }) => {
                     <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
                         {[{ v: 'manual', t: 'Bank transfer / deposit' }, { v: 'cash', t: 'Cash' }].map((o) => (
                             <button key={o.v} type="button" onClick={() => { setMethod(o.v); if (o.v === 'cash') setProofUrl(''); }} style={{
-                                flex: '1 1 40%', padding: '0.6rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '600', fontSize: '0.82rem',
+                                flex: '1 1 40%', padding: '0.6rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600', fontSize: '0.82rem',
                                 border: `1.5px solid ${method === o.v ? 'var(--gold)' : 'var(--border)'}`,
                                 background: method === o.v ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)', color: method === o.v ? 'var(--gold-dark)' : 'var(--text-secondary)',
                             }}>{o.t}</button>
                         ))}
                         <button type="button" disabled title="Coming soon" style={{
-                            flex: '1 1 40%', padding: '0.6rem', borderRadius: 'var(--radius-sm)', cursor: 'not-allowed', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '600', fontSize: '0.82rem',
+                            flex: '1 1 40%', padding: '0.6rem', borderRadius: 'var(--radius-sm)', cursor: 'not-allowed', fontFamily: 'var(--font-body)', fontWeight: '600', fontSize: '0.82rem',
                             border: '1.5px dashed var(--border)', background: 'var(--warm-gray)', color: 'var(--text-muted)',
                         }}>
                             Card (DPO)

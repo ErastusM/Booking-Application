@@ -6,7 +6,7 @@ import MiniCalendar from './MiniCalendar';
 // used across the app. Used by both the client booking page and the provider
 // New Appointment modal so the experience is identical.
 const pill = (active) => ({
-    padding: '0.45rem 0.95rem', borderRadius: '99px', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif',
+    padding: '0.45rem 0.95rem', borderRadius: '99px', cursor: 'pointer', fontFamily: 'var(--font-body)',
     fontSize: '0.82rem', fontWeight: active ? '700' : '500',
     border: `1.5px solid ${active ? 'var(--gold)' : 'var(--border)'}`,
     background: active ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)',
@@ -42,7 +42,7 @@ const RecurrenceFields = ({ value, onChange, minDate }) => {
 
                     {custom && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Repeat every</span>
+                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}>Repeat every</span>
                             <input type="number" min="1" max="52" value={recurrenceInterval}
                                 onChange={(e) => set({ recurrenceInterval: Math.min(52, Math.max(1, parseInt(e.target.value, 10) || 1)) })}
                                 className="input" style={{ width: '72px', textAlign: 'center' }} />

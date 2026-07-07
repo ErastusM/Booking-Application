@@ -245,7 +245,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                                             padding: '0.6rem 1.1rem', marginBottom: '0.75rem',
                                             border: '1.5px solid var(--gold)', borderRadius: 'var(--radius-sm)',
                                             background: 'rgba(240,62,22,0.08)', color: 'var(--gold-dark)',
-                                            fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.875rem', fontWeight: '600',
+                                            fontFamily: 'var(--font-body)', fontSize: '0.875rem', fontWeight: '600',
                                             cursor: geoLoading ? 'not-allowed' : 'pointer', opacity: geoLoading ? 0.7 : 1,
                                         }}
                                     >

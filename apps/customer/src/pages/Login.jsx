@@ -23,9 +23,14 @@ const Login = () => {
             const response = await authService.login(formData);
             login(response.data.data);
             const role = response.data.data?.user?.role;
-            if (role === 'provider') navigate('/dashboard');
-            else if (role === 'admin') navigate('/bkplus-command');
-            else navigate('/');
+            // Admins live in the business app; providers signing in HERE chose
+            // the customer site (booking as a customer) — the navbar's Business
+            // pill hops them across when they want to manage their business.
+            if (role === 'admin') {
+                window.location.href = `${import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003'}/bkplus-command`;
+                return;
+            }
+            navigate('/');
         } catch (err) {
             setError(err.response?.data?.message || 'Login failed');
         } finally {
@@ -220,7 +225,7 @@ const Login = () => {
                                 fontWeight: '600',
                                 fontSize: '0.9rem',
                                 textDecoration: 'none',
-                                fontFamily: 'Plus Jakarta Sans, sans-serif',
+                                fontFamily: 'var(--font-body)',
                                 transition: 'all 0.2s',
                             }}
                             onMouseEnter={e => e.currentTarget.style.borderColor = 'var(--gold)'}

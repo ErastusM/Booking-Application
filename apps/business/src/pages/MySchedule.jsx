@@ -23,7 +23,7 @@ const MySchedule = () => {
         .sort((a, b) => new Date(a.appointmentDate) - new Date(b.appointmentDate) || a.startTime.localeCompare(b.startTime));
 
     return (
-        <div className="container" style={{ paddingTop: 'calc(56px + env(safe-area-inset-top, 0px) + 2rem)', paddingBottom: '4rem', maxWidth: '680px' }}>
+        <div className="container" style={{ paddingTop: 'calc(56px + 2rem)', paddingBottom: '4rem', maxWidth: '680px' }}>
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.35rem' }}>
                 My schedule
             </h1>

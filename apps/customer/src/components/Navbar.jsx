@@ -9,8 +9,13 @@ import { BrandMark } from '@bookplus/ui';
 
 const BUSINESS_URL = import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003';
 
+// The customer app is ALWAYS the customer experience. Provider/admin accounts
+// manage their business on the business app — switching is a hard navigation
+// (window.location) so the other app boots fresh with its own data.
+const goToBusinessApp = (path = '/dashboard') => { window.location.href = `${BUSINESS_URL}${path}`; };
+
 const Navbar = () => {
-    const { user, logout, activeRole, switchRole } = useAuthContext();
+    const { user, logout } = useAuthContext();
     const { darkMode, toggleDarkMode } = useTheme();
     const navigate = useNavigate();
     const location = useLocation();
@@ -68,11 +73,13 @@ const Navbar = () => {
         color: isTransparent ? 'white' : 'var(--text-primary)',
     };
 
+    // Drawer rows share one left edge (1.2rem) so labels and the icon rows
+    // at the bottom line up — mismatched indents read as broken.
     const mobileLink = (to, label) => (
         <Link to={to} onClick={() => setMenuOpen(false)} style={{
             color: isActive(to) ? 'var(--gold-dark)' : 'var(--text-primary)',
             textDecoration: 'none', fontWeight: isActive(to) ? '600' : '500',
-            fontSize: '0.95rem', padding: '0.85rem 1.5rem',
+            fontSize: '0.95rem', padding: '0.85rem 1.2rem',
             borderBottom: '1px solid var(--border)', display: 'block',
             background: isActive(to) ? 'rgba(240,62,22,0.07)' : 'transparent',
             borderLeft: isActive(to) ? '3px solid var(--gold)' : '3px solid transparent',
@@ -100,15 +107,11 @@ const Navbar = () => {
                     {navLink('/', 'Home')}
                     {navLink('/services', 'Services')}
                     {navLink('/about', 'About us')}
-                    {activeRole === 'customer' && navLink('/book-appointment', 'Book')}
-                    {activeRole === 'customer' && navLink('/appointments', 'Appointments')}
-                    {activeRole === 'customer' && navLink('/wallet', 'Wallet')}
-                    {activeRole === 'customer' && navLink('/waiting-list', 'Waiting List')}
-                    {activeRole === 'customer' && user?.role === 'customer' && navLink('/become-provider', 'List your business')}
-                    {activeRole === 'provider' && <a className="nav-pill" href={`${BUSINESS_URL}/dashboard`} style={{ color: 'var(--text-secondary)', fontWeight: '500' }}>Dashboard</a>}
-                    {activeRole === 'provider' && navLink('/appointments', 'My bookings')}
-                    {user?.role === 'admin' && navLink('/bkplus-command', 'Dashboard')}
-                    {user?.role === 'admin' && navLink('/bkplus-command/insights', 'Analytics')}
+                    {user && navLink('/book-appointment', 'Book')}
+                    {user && navLink('/appointments', 'Appointments')}
+                    {user && navLink('/wallet', 'Wallet')}
+                    {user && navLink('/waiting-list', 'Waiting List')}
+                    {user?.role === 'customer' && navLink('/become-provider', 'List your business')}
                 </div>
 
                 {/* Right side desktop */}
@@ -131,24 +134,23 @@ const Navbar = () => {
 
                     {user ? (
                         <>
-                            {/* Role switcher — only visible for provider accounts */}
-                            {user.role === 'provider' && (
-                                <div style={{ display: 'flex', background: isTransparent ? 'rgba(255,255,255,0.12)' : 'var(--warm-gray,#dcdedd)', borderRadius: '99px', border: `1px solid ${isTransparent ? 'rgba(255,255,255,0.2)' : 'var(--border)'}`, padding: '3px', gap: '2px' }}>
-                                    {['provider', 'customer'].map(r => (
-                                        <button
-                                            key={r}
-                                            onClick={() => switchRole(r)}
-                                            style={{
-                                                padding: '4px 12px', borderRadius: '99px', border: 'none',
-                                                cursor: 'pointer', fontSize: '0.72rem', fontWeight: '600',
-                                                fontFamily: 'Plus Jakarta Sans, sans-serif', textTransform: 'capitalize',
-                                                transition: 'all 0.15s',
-                                                background: activeRole === r ? (isTransparent ? 'rgba(255,255,255,0.9)' : 'var(--charcoal,#040505)') : 'transparent',
-                                                color: activeRole === r ? (isTransparent ? 'var(--charcoal,#040505)' : 'var(--gold,#f03e16)') : (isTransparent ? 'rgba(255,255,255,0.65)' : 'var(--text-muted)'),
-                                            }}
-                                        >{r === 'provider' ? '🏢 Business' : '👤 Customer'}</button>
-                                    ))}
-                                </div>
+                            {/* Business accounts manage their business on the business app */}
+                            {(user.role === 'provider' || user.role === 'admin') && (
+                                <button
+                                    onClick={() => goToBusinessApp(user.role === 'admin' ? '/bkplus-command' : '/dashboard')}
+                                    title="Open the business app"
+                                    style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                                        padding: '0.42rem 0.9rem', borderRadius: '99px',
+                                        border: '1.5px solid var(--gold)', cursor: 'pointer',
+                                        background: 'rgba(240,62,22,0.10)', color: isTransparent ? 'white' : 'var(--gold-dark)',
+                                        fontSize: '0.78rem', fontWeight: '700', fontFamily: 'var(--font-body)',
+                                        transition: 'all 0.2s',
+                                    }}
+                                >
+                                    <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01"/></svg>
+                                    Business
+                                </button>
                             )}
                             <button
                                 onClick={() => setShowSuggestion(true)}
@@ -161,7 +163,7 @@ const Navbar = () => {
                                 <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.9c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0012 2z"/></svg>
                             </button>
                             <NotificationBell isTransparent={isTransparent} />
-                            <Link to={activeRole === 'provider' ? '/account' : '/profile'} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: isTransparent ? 'white' : 'var(--text-primary)', fontSize: '0.9rem', fontWeight: '500' }}>
+                            <Link to="/profile" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: isTransparent ? 'white' : 'var(--text-primary)', fontSize: '0.9rem', fontWeight: '500' }}>
                                 <div style={{ width: '34px', height: '34px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)', fontWeight: '700', fontSize: '0.8rem', flexShrink: 0 }}>
                                     {user.avatar
                                         ? <img src={cloudinaryAvatar(user.avatar)} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -176,7 +178,7 @@ const Navbar = () => {
                                 color: isTransparent ? 'white' : 'var(--text-secondary)',
                                 padding: '0.4rem 1rem', borderRadius: 'var(--radius-sm)',
                                 cursor: 'pointer', fontSize: '0.85rem',
-                                fontFamily: 'Plus Jakarta Sans, sans-serif', transition: 'all 0.2s ease',
+                                fontFamily: 'var(--font-body)', transition: 'all 0.2s ease',
                             }}
                                 onMouseEnter={e => { e.target.style.borderColor = '#ef4444'; e.target.style.color = '#ef4444'; }}
                                 onMouseLeave={e => { e.target.style.borderColor = isTransparent ? 'rgba(255,255,255,0.4)' : 'var(--border)'; e.target.style.color = isTransparent ? 'white' : 'var(--text-secondary)'; }}
@@ -193,27 +195,9 @@ const Navbar = () => {
                     )}
                 </div>
 
-                {/* Desktop suggestion button */}
-                {user && (
-                    <button onClick={() => setShowSuggestion(true)} className="hidden-mobile" title="Send a suggestion" style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)', padding: '0.4rem', display: 'flex', alignItems: 'center', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--gold)'} onMouseLeave={e => e.currentTarget.style.color = isTransparent ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)'}>
-                        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M22 12h-6l-2 3H10l-2-3H2"/><path strokeLinecap="round" strokeLinejoin="round" d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
-                    </button>
-                )}
-
-                {/* Mobile right cluster — notifications + suggestion + menu (both roles) */}
+                {/* Mobile right cluster — notifications + menu */}
                 <div className="show-mobile" style={{ alignItems: 'center', gap: '0.1rem' }}>
                     {user && <NotificationBell isTransparent={isTransparent} />}
-                    {/* Customers reach Suggest from the bottom nav, so the top icon is provider-only to avoid a duplicate */}
-                    {user && activeRole !== 'customer' && (
-                        <button
-                            onClick={() => setShowSuggestion(true)}
-                            aria-label="Send a suggestion"
-                            title="Send a suggestion"
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'white' : 'var(--text-secondary)', padding: '0.5rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        >
-                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
-                        </button>
-                    )}
                     <button
                         onClick={() => setMenuOpen(prev => !prev)}
                         aria-label={menuOpen ? 'Close menu' : 'Open menu'}
@@ -275,35 +259,27 @@ const Navbar = () => {
                                 </div>
                                 <div style={{ minWidth: 0 }}>
                                     <p style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--charcoal)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</p>
-                                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>{activeRole === 'provider' ? 'Business' : 'Customer'} mode</p>
+                                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>Customer</p>
                                 </div>
                             </div>
-                            {/* Role switcher pill — only for provider accounts */}
-                            {user.role === 'provider' && (
-                                <div style={{ display: 'flex', gap: '0.5rem', padding: '0 1.2rem 0.85rem' }}>
-                                    {['provider', 'customer'].map(r => (
-                                        <button
-                                            key={r}
-                                            onClick={() => { switchRole(r); setMenuOpen(false); }}
-                                            style={{
-                                                flex: 1, padding: '0.42rem', borderRadius: '99px',
-                                                border: `1.5px solid ${activeRole === r ? 'var(--gold)' : 'var(--border)'}`,
-                                                background: activeRole === r ? 'rgba(240,62,22,0.12)' : 'transparent',
-                                                color: activeRole === r ? 'var(--gold-dark,#b32c0d)' : 'var(--text-muted)',
-                                                fontSize: '0.75rem', fontWeight: '600',
-                                                fontFamily: 'Plus Jakarta Sans, sans-serif', textTransform: 'capitalize',
-                                                cursor: 'pointer',
-                                            }}
-                                        >{r === 'provider' ? '🏢 Business' : '👤 Customer'}</button>
-                                    ))}
+                            {/* Business accounts hop to the business app — a hard navigation
+                                so the other app loads fresh with business data. */}
+                            {(user.role === 'provider' || user.role === 'admin') && (
+                                <div style={{ padding: '0 1.2rem 0.85rem' }}>
+                                    <button
+                                        onClick={() => goToBusinessApp(user.role === 'admin' ? '/bkplus-command' : '/dashboard')}
+                                        style={{ width: '100%', padding: '0.55rem', borderRadius: '99px', border: '1.5px solid var(--gold)', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark,#b32c0d)', fontSize: '0.78rem', fontWeight: '700', fontFamily: 'var(--font-body)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}
+                                    >
+                                        <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01"/></svg>
+                                        Open the Business app →
+                                    </button>
                                 </div>
                             )}
-                            {/* Customers get an explicit switch-to-providing entry here too */}
                             {user.role === 'customer' && (
                                 <div style={{ padding: '0 1.2rem 0.85rem' }}>
                                     <button
                                         onClick={() => { setMenuOpen(false); navigate('/become-provider'); }}
-                                        style={{ width: '100%', padding: '0.5rem', borderRadius: '99px', border: '1.5px solid var(--gold)', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark,#b32c0d)', fontSize: '0.78rem', fontWeight: '600', fontFamily: 'Plus Jakarta Sans, sans-serif', cursor: 'pointer' }}
+                                        style={{ width: '100%', padding: '0.5rem', borderRadius: '99px', border: '1.5px solid var(--gold)', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark,#b32c0d)', fontSize: '0.78rem', fontWeight: '600', fontFamily: 'var(--font-body)', cursor: 'pointer' }}
                                     >Become a Business →</button>
                                 </div>
                             )}
@@ -314,23 +290,19 @@ const Navbar = () => {
                         {mobileLink('/', 'Home')}
                         {mobileLink('/services', 'Services')}
                         {mobileLink('/about', 'About us')}
-                        {activeRole === 'customer' && mobileLink('/book-appointment', 'Book Appointment')}
-                        {activeRole === 'customer' && mobileLink('/appointments', 'My Appointments')}
-                        {activeRole === 'customer' && mobileLink('/wallet', 'Wallet')}
-                        {activeRole === 'customer' && mobileLink('/waiting-list', 'Waiting List')}
-                        {activeRole === 'customer' && user?.role === 'customer' && mobileLink('/become-provider', 'List your business')}
-                        {activeRole === 'provider' && <a href={`${BUSINESS_URL}/dashboard`} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500', fontSize: '0.95rem', padding: '0.85rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'block' }}>Dashboard</a>}
-                        {activeRole === 'provider' && mobileLink('/appointments', 'My bookings')}
-                        {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}
-                        {user?.role === 'admin' && mobileLink('/bkplus-command/insights', 'Analytics')}
-                        {user && mobileLink(activeRole === 'provider' ? '/account' : '/profile', 'My Profile')}
+                        {user && mobileLink('/book-appointment', 'Book Appointment')}
+                        {user && mobileLink('/appointments', 'My Appointments')}
+                        {user && mobileLink('/wallet', 'Wallet')}
+                        {user && mobileLink('/waiting-list', 'Waiting List')}
+                        {user?.role === 'customer' && mobileLink('/become-provider', 'List your business')}
+                        {user && mobileLink('/profile', 'My Profile')}
                     </div>
 
                     {/* Suggest a feature — pinned to the bottom, above the toggle */}
                     {user && (
                         <button
                             onClick={() => { setMenuOpen(false); setShowSuggestion(true); }}
-                            style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', padding: '0.95rem 1.2rem', fontSize: '0.95rem', color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.6rem' }}
+                            style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', padding: '0.95rem 1.2rem', fontSize: '0.95rem', color: 'var(--text-primary)', fontFamily: 'var(--font-body)', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.6rem' }}
                         >
                             <svg width="16" height="16" fill="none" stroke="var(--text-muted)" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.9c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0012 2z"/></svg>
                             Suggest a feature
@@ -365,7 +337,7 @@ const Navbar = () => {
 
                     {user && (
                         <div style={{ padding: '1rem 1.2rem' }}>
-                            <button onClick={handleLogout} style={{ width: '100%', padding: '0.78rem', background: '#fee2e2', border: 'none', borderRadius: 'var(--radius-sm)', color: '#dc2626', fontWeight: '600', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.9rem' }}>
+                            <button onClick={handleLogout} style={{ width: '100%', padding: '0.78rem', background: '#fee2e2', border: 'none', borderRadius: 'var(--radius-sm)', color: '#dc2626', fontWeight: '600', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.9rem' }}>
                                 Logout
                             </button>
                         </div>
@@ -374,66 +346,8 @@ const Navbar = () => {
             </>
         )}
 
-        {/* Mobile bottom navigation — provider: floating rounded card (matches design mock) */}
-        {user && activeRole === 'provider' && (
-            <div className="show-mobile" style={{
-                position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
-                display: 'flex', justifyContent: 'center',
-                padding: '0 12px calc(3px + env(safe-area-inset-bottom, 0))',
-                pointerEvents: 'none',
-            }}>
-                <div style={{
-                    pointerEvents: 'auto', width: '100%', maxWidth: '440px',
-                    display: 'flex', justifyContent: 'space-around', alignItems: 'flex-start',
-                    background: darkMode ? 'rgba(20,20,22,0.78)' : 'rgba(255,255,255,0.78)',
-                    backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-                    border: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid var(--border)',
-                    borderRadius: '20px', boxShadow: '0 8px 22px rgba(4,5,5,0.13)',
-                    padding: '7px 6px 6px',
-                }}>
-                    {[
-                        { to: '/dashboard', label: 'Calendar', icon: (
-                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                        ) },
-                        { to: '/dashboard?tab=waitlist', label: 'Waiting List', icon: (
-                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 1.75"/></svg>
-                        ) },
-                        { to: '/dashboard?tab=earnings', label: 'Earnings', icon: (
-                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-                        ) },
-                        { to: '/account', label: 'Account', icon: (
-                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                        ) },
-                    ].map(({ to, icon, label }) => {
-                        const [toPath, toQs] = to.split('?');
-                        const toTab = toQs ? new URLSearchParams(toQs).get('tab') : null;
-                        const curTab = new URLSearchParams(location.search).get('tab');
-                        // Calendar (no tab) is the dashboard default — it stays active for any tab that isn't another nav item's.
-                        const active = location.pathname === toPath && (toTab ? curTab === toTab : !(toPath === '/dashboard' && (curTab === 'earnings' || curTab === 'waitlist')));
-                        return (
-                            <Link key={to} to={to} aria-label={label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', textDecoration: 'none', minWidth: 0, WebkitTapHighlightColor: 'transparent' }}>
-                                <span style={{
-                                    width: '38px', height: '38px', borderRadius: '50%',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    background: active ? 'rgba(240,62,22,0.20)' : 'rgba(240,62,22,0.09)',
-                                    color: active ? 'var(--gold-dark)' : 'var(--gold)',
-                                    transition: 'background 0.18s ease, color 0.18s ease',
-                                }}>{icon}</span>
-                                <span style={{
-                                    fontSize: '0.6rem', fontWeight: active ? '700' : '500',
-                                    color: active ? 'var(--gold-dark)' : 'var(--text-muted)',
-                                    fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap', lineHeight: 1.1,
-                                }}>{label}</span>
-                                <span style={{ width: '16px', height: '2px', borderRadius: '99px', background: active ? 'var(--gold)' : 'transparent', transition: 'background 0.18s ease' }} />
-                            </Link>
-                        );
-                    })}
-                </div>
-            </div>
-        )}
-
-        {/* Mobile bottom navigation — customer: floating rounded card (matches the provider one so it doesn't bleed to the edges) */}
-        {user && activeRole === 'customer' && (
+        {/* Mobile bottom navigation — one customer nav for every signed-in user */}
+        {user && (
             <div className="show-mobile" style={{
                 position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
                 display: 'flex', justifyContent: 'center',
@@ -480,7 +394,7 @@ const Navbar = () => {
                                 <span style={{
                                     fontSize: '0.6rem', fontWeight: active ? '700' : '500',
                                     color: active ? 'var(--gold-dark)' : 'var(--text-muted)',
-                                    fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap', lineHeight: 1.1,
+                                    fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', lineHeight: 1.1,
                                 }}>{label}</span>
                                 <span style={{ width: '16px', height: '2px', borderRadius: '99px', background: active ? 'var(--gold)' : 'transparent', transition: 'background 0.18s ease' }} />
                             </>
@@ -493,7 +407,6 @@ const Navbar = () => {
             </div>
         )}
         {user && <SuggestionBox user={user} open={showSuggestion} onClose={() => setShowSuggestion(false)} />}
-        {user && <div className="show-mobile" style={{ height: (activeRole === 'provider' || activeRole === 'customer') ? '88px' : '0px' }} />}
     </>
     );
 };

@@ -1,0 +1,18 @@
+{
+    "id": "bookplus-customer",
+    "name": "Bookplus — Appointment Booking",
+    "short_name": "Bookplus",
+    "description": "Book trusted local salons, barbers, wellness studios and more.",
+    "start_url": "/",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "portrait",
+    "theme_color": "#040505",
+    "background_color": "#e6e8e7",
+    "icons": [
+        { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any" },
+        { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
+        { "src": "/icon-192-maskable.png", "type": "image/png", "sizes": "192x192", "purpose": "maskable" },
+        { "src": "/icon-512-maskable.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
+    ]
+}

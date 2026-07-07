@@ -103,7 +103,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎉</div>
                             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>Thank you!</h3>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', lineHeight: 1.6, marginBottom: '1.5rem' }}>Your suggestion has been sent to our team. We read every message and appreciate you taking the time.</p>
-                            <button onClick={() => { reset(); doClose(); }} style={{ background: 'var(--ink)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', padding: '0.65rem 1.5rem', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.875rem', fontWeight: '600', cursor: 'pointer' }}>Close</button>
+                            <button onClick={() => { reset(); doClose(); }} style={{ background: 'var(--ink)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', padding: '0.65rem 1.5rem', fontFamily: 'var(--font-body)', fontSize: '0.875rem', fontWeight: '600', cursor: 'pointer' }}>Close</button>
                         </div>
                     ) : (
                         <form onSubmit={handleSubmit}>
@@ -123,7 +123,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                                                 background: active ? `${meta.color}14` : 'white',
                                                 color: active ? meta.color : 'var(--text-secondary)',
                                                 fontSize: '0.8rem', fontWeight: active ? '700' : '400',
-                                                cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif',
+                                                cursor: 'pointer', fontFamily: 'var(--font-body)',
                                                 display: 'flex', alignItems: 'center', gap: '0.3rem',
                                                 transition: 'all 0.15s',
                                             }}
@@ -148,7 +148,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                                 }
                                 rows={6}
                                 maxLength={2000}
-                                style={{ width: '100%', boxSizing: 'border-box', padding: '0.875rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.875rem', color: 'var(--charcoal)', resize: 'vertical', outline: 'none', lineHeight: 1.65 }}
+                                style={{ width: '100%', boxSizing: 'border-box', padding: '0.875rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: 'var(--charcoal)', resize: 'vertical', outline: 'none', lineHeight: 1.65 }}
                             />
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.35rem', marginBottom: '1.25rem' }}>
                                 {error ? <span style={{ color: '#dc2626', fontSize: '0.78rem' }}>{error}</span> : <span />}
@@ -171,7 +171,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                             <button
                                 type="submit"
                                 disabled={submitting}
-                                style={{ width: '100%', padding: '0.85rem', background: submitting ? '#9ca3af' : 'var(--charcoal)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.9rem', fontWeight: '700', cursor: submitting ? 'not-allowed' : 'pointer', letterSpacing: '0.03em', transition: 'background 0.15s' }}
+                                style={{ width: '100%', padding: '0.85rem', background: submitting ? '#9ca3af' : 'var(--charcoal)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: '700', cursor: submitting ? 'not-allowed' : 'pointer', letterSpacing: '0.03em', transition: 'background 0.15s' }}
                             >
                                 {submitting ? 'Sending...' : 'Send Suggestion'}
                             </button>

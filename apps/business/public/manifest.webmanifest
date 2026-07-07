@@ -1,0 +1,18 @@
+{
+    "id": "bookplus-business",
+    "name": "Bookplus for Business",
+    "short_name": "Bookplus Biz",
+    "description": "Manage your bookings, calendar, team and earnings on Bookplus.",
+    "start_url": "/dashboard",
+    "scope": "/",
+    "display": "standalone",
+    "orientation": "portrait",
+    "theme_color": "#040505",
+    "background_color": "#e6e8e7",
+    "icons": [
+        { "src": "/icon-192.png", "type": "image/png", "sizes": "192x192", "purpose": "any" },
+        { "src": "/icon-512.png", "type": "image/png", "sizes": "512x512", "purpose": "any" },
+        { "src": "/icon-192-maskable.png", "type": "image/png", "sizes": "192x192", "purpose": "maskable" },
+        { "src": "/icon-512-maskable.png", "type": "image/png", "sizes": "512x512", "purpose": "maskable" }
+    ]
+}

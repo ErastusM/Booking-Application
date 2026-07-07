@@ -607,12 +607,19 @@ exports.cancelAppointment = async (req, res) => {
         if (appointment.customer._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
             return res.status(403).json({ success: false, message: 'Not authorized to cancel this appointment' });
         }
-        // Customers must respect the provider's notice window; admins are exempt.
-        if (req.user.role !== 'admin' && ['pending', 'confirmed'].includes(appointment.status)) {
-            const providerId = appointment.provider || appointment.service?.provider;
-            const policy = await checkCancellationWindow(providerId, appointment.appointmentDate, appointment.startTime);
-            if (!policy.allowed) {
-                return res.status(400).json({ success: false, message: policy.message });
+        if (req.user.role !== 'admin') {
+            // A booking whose start time has passed is history — it can be
+            // completed or disputed with the business, but not cancelled.
+            if (isPastSlot(appointment.appointmentDate, appointment.startTime)) {
+                return res.status(400).json({ success: false, message: 'This appointment has already taken place and can no longer be cancelled.' });
+            }
+            // Customers must respect the provider's notice window; admins are exempt.
+            if (['pending', 'confirmed'].includes(appointment.status)) {
+                const providerId = appointment.provider || appointment.service?.provider;
+                const policy = await checkCancellationWindow(providerId, appointment.appointmentDate, appointment.startTime);
+                if (!policy.allowed) {
+                    return res.status(400).json({ success: false, message: policy.message });
+                }
             }
         }
         appointment.status = 'cancelled';
@@ -926,6 +933,10 @@ exports.rescheduleAppointment = async (req, res) => {
         if (isPastSlot(appointmentDate, startTime)) {
             return res.status(400).json({ success: false, message: 'That time has already passed. Please pick a later slot.' });
         }
+        // A booking whose start already passed is history — not reschedulable.
+        if (isPastSlot(appointment.appointmentDate, appointment.startTime)) {
+            return res.status(400).json({ success: false, message: 'This appointment has already taken place and can no longer be rescheduled.' });
+        }
         // Moving a booking inside the notice window is a cancellation in disguise.
         {
             const pid = appointment.provider || appointment.service?.provider;
@@ -1102,6 +1113,9 @@ exports.cancelAppointmentByToken = async (req, res) => {
         if (!['pending', 'confirmed'].includes(appt.status)) {
             return res.status(400).json({ success: false, message: 'This booking can no longer be cancelled.' });
         }
+        if (isPastSlot(appt.appointmentDate, appt.startTime)) {
+            return res.status(400).json({ success: false, message: 'This appointment has already taken place and can no longer be cancelled.' });
+        }
         {
             const policy = await checkCancellationWindow(appt.provider, appt.appointmentDate, appt.startTime);
             if (!policy.allowed) {
@@ -1161,6 +1175,9 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
         }
         if (isPastSlot(appointmentDate, startTime)) {
             return res.status(400).json({ success: false, message: 'That time has already passed. Please pick a later slot.' });
+        }
+        if (isPastSlot(appt.appointmentDate, appt.startTime)) {
+            return res.status(400).json({ success: false, message: 'This appointment has already taken place and can no longer be rescheduled.' });
         }
         {
             const policy = await checkCancellationWindow(appt.provider, appt.appointmentDate, appt.startTime);

@@ -39,7 +39,7 @@ const sidebarItems = [
 ];
 
 const ProviderAccount = () => {
-    const { user, setUser, switchRole } = useAuthContext();
+    const { user, setUser } = useAuthContext();
     const navigate = useNavigate();
     const { darkMode: darkModeOn, toggleDarkMode } = useTheme();
     const [section, setSection] = useState('profile');
@@ -208,8 +208,8 @@ const ProviderAccount = () => {
     });
 
     return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100dvh', paddingTop: '3.5rem' }}>
-            <div className="container" style={{ paddingTop: '0.5rem', paddingBottom: '7.5rem' }}>
+        <div style={{ background: 'var(--off-white)', minHeight: '100dvh', paddingTop: 'calc(56px + 1.5rem)' }}>
+            <div className="container" style={{ paddingTop: '0.5rem', paddingBottom: '4.5rem' }}>
 
                 {/* Back to dashboard */}
                 <Link to="/dashboard" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', color: 'var(--gold-dark)', fontWeight: '600', textDecoration: 'none', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
@@ -226,13 +226,14 @@ const ProviderAccount = () => {
                                 {item.label}
                             </button>
                         ))}
-                        {/* Switch to customer view — surfaced here so it isn't buried in the menu */}
+                        {/* Booking as a customer happens on the customer site — hard
+                            navigation so it boots fresh with customer data. */}
                         <div style={{ borderTop: '1px solid var(--border)', marginTop: '0.75rem', paddingTop: '0.75rem' }}>
                             <button
-                                onClick={() => { switchRole('customer'); navigate('/'); }}
+                                onClick={() => { window.location.href = import.meta.env.VITE_CUSTOMER_URL || 'http://localhost:3002'; }}
                                 style={{ width: '100%', textAlign: 'left', display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.6rem 0.75rem', background: 'none', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.875rem', fontWeight: '600', color: 'var(--gold-dark)' }}
                             >
-                                ⇄ Switch to customer view
+                                ⇄ Open the customer site
                             </button>
                         </div>
                     </div>

@@ -100,21 +100,23 @@ const NotificationBell = ({ isTransparent }) => {
     };
 
     return (
-        <div className="relative" ref={dropdownRef}>
-            {/* Bell button */}
+        <div ref={dropdownRef} style={{ position: 'relative' }}>
+            {/* Bell button — explicit svg size + inline badge styles (no Tailwind
+                in this app), and a FIXED light color: the business navbar chrome
+                is always ink, so theme text vars would go dark-on-dark. */}
             <button
                 onClick={handleOpen}
                 aria-label="Notifications"
-                style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', padding: '0.25rem', display: 'inline-flex', alignItems: 'center', color: isTransparent ? 'white' : 'var(--text-primary)', transition: 'color 0.2s' }}
+                style={{ position: 'relative', background: 'none', border: 'none', cursor: 'pointer', padding: '0.5rem', minWidth: '44px', minHeight: '44px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.8)', transition: 'color 0.2s' }}
                 onMouseEnter={e => { e.currentTarget.style.color = 'var(--gold)'; }}
-                onMouseLeave={e => { e.currentTarget.style.color = isTransparent ? 'white' : 'var(--text-primary)'; }}
+                onMouseLeave={e => { e.currentTarget.style.color = 'rgba(255,255,255,0.8)'; }}
             >
-                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" width="21" height="21" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
                         d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
                 {unreadCount > 0 && (
-                    <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs rounded-full h-4 w-4 flex items-center justify-center font-bold">
+                    <span style={{ position: 'absolute', top: '4px', right: '4px', minWidth: '16px', height: '16px', padding: '0 3px', borderRadius: '99px', background: 'var(--danger, #ef4444)', color: '#fff', fontSize: '0.62rem', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, pointerEvents: 'none' }}>
                         {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                 )}

@@ -1,6 +1,6 @@
 {
     "name": "@bookplus/business",
-    "version": "0.1.0",
+    "version": "0.2.0",
     "private": true,
     "type": "module",
     "scripts": {
@@ -14,6 +14,8 @@
         "@bookplus/api-client": "workspace:*",
         "@bookplus/design-tokens": "workspace:*",
         "@bookplus/ui": "workspace:*",
+        "@fontsource-variable/inter": "^5.2.8",
+        "@fontsource-variable/plus-jakarta-sans": "^5.2.8",
         "@fullcalendar/core": "^6.1.20",
         "@fullcalendar/daygrid": "^6.1.20",
         "@fullcalendar/interaction": "^6.1.20",

@@ -17,7 +17,9 @@ epics, acceptance criteria) before working on that initiative.**
   `packages/api-client` (axios instance + refresh interceptor + domain
   services, TypeScript), `packages/ui` (shared components), `packages/config`
   (shared tsconfig)
-- Fonts: Plus Jakarta Sans only, via `var(--font-display)` / `var(--font-body)`
+- Fonts: Plus Jakarta Sans (display/headings) + Inter (body/UI), self-hosted
+  via @fontsource-variable — ALWAYS `var(--font-display)` / `var(--font-body)`,
+  never hardcode family names
 - Colors: orange `#f03e16`, black `#040505`, white `#e6e8e7`
 
 ## Commands
