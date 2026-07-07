@@ -21,7 +21,7 @@ const ProvidersPage = () => {
     const [filtered, setFiltered] = useState([]);
     const [loading, setLoading] = useState(true);
     const [search, setSearch] = useState(searchParams.get('q') || '');
-    const [locationFilter, setLocationFilter] = useState('');
+    const [locationFilter, setLocationFilter] = useState(searchParams.get('loc') || '');
     const [categoryFilter, setCategoryFilter] = useState('');
     const [nearMeLoading, setNearMeLoading] = useState(false);
     const [nearMeCity, setNearMeCity] = useState(null);

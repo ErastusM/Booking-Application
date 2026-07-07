@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
-import { providerMarketService, favoriteService } from '../services';
+import { providerMarketService, favoriteService, appointmentService } from '../services';
 import { Search, Star, ArrowRight, Heart, MapPin } from 'lucide-react';
 import { cloudinaryThumb } from '../utils/cloudinary';
 import { normalizeTown } from '../utils/namibiaTowns';
@@ -192,10 +192,12 @@ const Home = () => {
     const { user } = useAuthContext();
     const navigate = useNavigate();
     const [query, setQuery] = useState('');
+    const [searchLoc, setSearchLoc] = useState('');
     const [searchDate, setSearchDate] = useState('');
     const [searchTime, setSearchTime] = useState('');
     const [providers, setProviders] = useState([]);
     const [favorites, setFavorites] = useState([]);
+    const [myAppointments, setMyAppointments] = useState([]);
     const [loading, setLoading] = useState(true);
     const heroCopyRef = useRef(null);
     const searchWrapRef = useRef(null);
@@ -236,6 +238,56 @@ const Home = () => {
             .then(res => setFavorites((res.data.data || []).map(String)))
             .catch(() => {});
     }, [user]);
+
+    // "Book again" — the user's own booking history powers one-tap rebooks.
+    useEffect(() => {
+        if (!user) { setMyAppointments([]); return; }
+        appointmentService.getCustomerAppointments()
+            .then(res => setMyAppointments(res.data.data || []))
+            .catch(() => {});
+    }, [user]);
+
+    // One card per distinct service the user has actually had, newest first.
+    const bookAgainItems = useMemo(() => {
+        const seen = new Set();
+        return [...myAppointments]
+            .filter(a => a.service && a.status !== 'cancelled')
+            .sort((a, b) => new Date(b.appointmentDate) - new Date(a.appointmentDate))
+            .filter(a => {
+                const sid = a.service._id;
+                if (!sid || seen.has(sid)) return false;
+                seen.add(sid);
+                return true;
+            })
+            .slice(0, 4)
+            .map(a => {
+                const prov = a.service.provider;
+                const providerId = prov?._id || prov || '';
+                const provObj = providers.find(p => String(p._id) === String(providerId));
+                return {
+                    serviceId: a.service._id,
+                    serviceName: a.service.name,
+                    price: a.totalPrice ?? a.service.price,
+                    providerId,
+                    providerName: prov?.businessProfile?.businessName || prov?.name || provObj?.businessName || provObj?.name || 'Business',
+                    image: prov?.avatar || prov?.portfolio?.images?.[0] || provObj?.coverImage || provObj?.avatar || null,
+                };
+            });
+    }, [myAppointments, providers]);
+
+    // "Recently viewed" — profile visits recorded client-side (newest first).
+    const recentlyViewed = useMemo(() => {
+        try {
+            const ids = JSON.parse(localStorage.getItem('bp_recent_providers') || '[]');
+            return ids.map(id => providers.find(p => String(p._id) === String(id))).filter(Boolean).slice(0, 8);
+        } catch { return []; }
+    }, [providers]);
+
+    const allTowns = useMemo(() => (
+        [...new Set(providers.map(p => normalizeTown(p.location || p.businessProfile?.address || '')).filter(Boolean))].sort()
+    ), [providers]);
+
+    const totalServices = useMemo(() => providers.reduce((n, p) => n + (p.serviceCount || 0), 0), [providers]);
 
     const favSet = useMemo(() => new Set(favorites), [favorites]);
 
@@ -303,6 +355,7 @@ const Home = () => {
         e.preventDefault();
         const params = new URLSearchParams();
         if (query.trim()) params.set('q', query.trim());
+        if (searchLoc) params.set('loc', searchLoc);
         if (searchDate) params.set('date', searchDate);
         if (searchDate && searchTime) params.set('time', searchTime);
         const qs = params.toString();
@@ -346,10 +399,18 @@ const Home = () => {
                         <input
                             value={query}
                             onChange={e => setQuery(e.target.value)}
-                            placeholder="Search services or businesses…"
+                            placeholder="All treatments and venues"
                             aria-label="Search services or businesses"
                             style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: '1rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}
                         />
+                        {/* Location + when segments — desktop only; mobile keeps the plain pill */}
+                        <div className="home-search-when">
+                            <MapPin size={15} strokeWidth={2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
+                            <select value={searchLoc} onChange={e => setSearchLoc(e.target.value)} aria-label="Location" style={{ maxWidth: '150px' }}>
+                                <option value="">All locations</option>
+                                {allTowns.map(t => <option key={t} value={t}>{t}</option>)}
+                            </select>
+                        </div>
                         <div className="home-search-when">
                             <input
                                 type="date"
@@ -367,12 +428,63 @@ const Home = () => {
                         </div>
                         <button type="submit" className="btn-primary" style={{ borderRadius: '999px', padding: '0.7rem 1.6rem', flexShrink: 0 }}>Search</button>
                     </form>
+                    {/* Honest live stat, Fresha-style placement */}
+                    {!loading && providers.length > 0 && (
+                        <p className="home-hero-stat" style={{ textAlign: 'center', margin: '0.9rem 0 0', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
+                            <strong style={{ color: 'var(--charcoal)', fontWeight: 700 }}>{totalServices}</strong> service{totalServices !== 1 ? 's' : ''} from{' '}
+                            <strong style={{ color: 'var(--charcoal)', fontWeight: 700 }}>{providers.length}</strong> local business{providers.length !== 1 ? 'es' : ''} — booked in seconds
+                        </p>
+                    )}
                 </div>
             </div>
 
             {/* ── Desktop: Fresha-style sections (hidden on mobile) ── */}
             <section className="home-sections-desktop" style={{ paddingTop: '0.75rem', paddingBottom: '3rem' }}>
                 <div className="container">
+                    {/* Book again — one-tap rebooks from the user's own history */}
+                    {!loading && bookAgainItems.length > 0 && (
+                        <div style={{ marginBottom: '2.75rem' }}>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.55rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 1.1rem' }}>Book again</h2>
+                            <div className="home-section-grid">
+                                {bookAgainItems.map(item => (
+                                    <div key={item.serviceId} style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
+                                        <Link to={`/providers/${item.providerId}`} style={{ display: 'block', textDecoration: 'none' }}>
+                                            <div style={{ aspectRatio: '16 / 9', background: item.image ? 'var(--warm-gray)' : 'linear-gradient(135deg, #1c1c1e 0%, #040505 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                                {item.image
+                                                    ? <img src={cloudinaryThumb(item.image, 700)} alt={item.providerName} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                                                    : <span style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: 700, color: 'var(--gold)' }}>{item.providerName.charAt(0).toUpperCase()}</span>}
+                                            </div>
+                                        </Link>
+                                        <div style={{ padding: '0.75rem 0.9rem 0.9rem' }}>
+                                            <p style={{ margin: 0, fontWeight: 700, color: 'var(--charcoal)', fontSize: '0.95rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.providerName}</p>
+                                            <p style={{ margin: '2px 0 0.7rem', fontSize: '0.82rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>NAD {item.price} · {item.serviceName}</p>
+                                            <button
+                                                onClick={() => navigate(`/book-appointment?providerId=${item.providerId}&serviceId=${item.serviceId}`)}
+                                                className="btn-outline"
+                                                style={{ width: '100%', padding: '0.5rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+                                            >
+                                                <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
+                                                Rebook
+                                            </button>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Recently viewed — client-side history of profile visits */}
+                    {!loading && recentlyViewed.length > 0 && (
+                        <div style={{ marginBottom: '2.75rem' }}>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.55rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 1.1rem' }}>Recently viewed</h2>
+                            <div className="home-section-grid">
+                                {recentlyViewed.map(x => (
+                                    <FeedCard key={`recent-${x._id}`} p={x} isFav={favSet.has(String(x._id))} likeCount={x.likesCount || 0} onToggleFav={toggleFav} />
+                                ))}
+                            </div>
+                        </div>
+                    )}
+
                     {!loading && providers.length === 0 && (
                         <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                             <p style={{ margin: 0, fontSize: '0.95rem' }}>New businesses are joining soon. Check back shortly.</p>
