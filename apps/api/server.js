@@ -127,12 +127,23 @@ const writeLimiter = rateLimit({
 
 const readLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: process.env.NODE_ENV === 'test' ? 10000 : 300,
+    // Sized for reality: both apps poll (appointments/blocked-times/messages
+    // every 25-30s per open tab) and the bucket is shared per IP across every
+    // read route. 300 was exhausted by a single working session.
+    max: process.env.NODE_ENV === 'test' ? 10000 : 900,
     message: { success: false, message: 'Too many requests, please slow down.' },
     standardHeaders: true,
     legacyHeaders: false,
     skip: () => process.env.NODE_ENV === 'test',
 });
+
+// Method-aware limiter for routers that serve BOTH polling reads and real
+// mutations: GETs draw from the (large) read budget, everything else from the
+// (small) write budget. Mounting such routers wholesale on writeLimiter was
+// the "Failed to load appointments" bug — the dashboard's 25s polling burned
+// the shared 100/15min write bucket and every later request 429'd.
+const readOrWrite = (req, res, next) =>
+    (req.method === 'GET' ? readLimiter : writeLimiter)(req, res, next);
 
 // Middleware
 app.use(helmet());
@@ -165,27 +176,27 @@ if (process.env.NODE_ENV !== 'test') {
 app.use(passport.initialize());
 app.use('/api/auth', authLimiter, authRoutes);
 app.use('/api/services', readLimiter, serviceRoutes);
-app.use('/api/appointments', writeLimiter, appointmentRoutes);
+app.use('/api/appointments', readOrWrite, appointmentRoutes);
 app.use('/api/users', readLimiter, userRoutes);
-app.use('/api/waitinglist', writeLimiter, waitingListRoutes);
-app.use('/api/reviews', writeLimiter, reviewRoutes);
+app.use('/api/waitinglist', readOrWrite, waitingListRoutes);
+app.use('/api/reviews', readOrWrite, reviewRoutes);
 app.use('/api/notifications', readLimiter, notificationRoutes);
 app.use('/api/analytics', readLimiter, analyticsRoutes);
 app.use('/api/availability', readLimiter, availabilityRoutes);
 app.use('/api/earnings', readLimiter, earningsRoutes);
 app.use('/api/categories', readLimiter, categoryRoutes);
 app.use('/api/providers', readLimiter, providerRoutes);
-app.use('/api/blocked-times', writeLimiter, blockedTimeRoutes);
-app.use('/api/messages', writeLimiter, messageRoutes);
+app.use('/api/blocked-times', readOrWrite, blockedTimeRoutes);
+app.use('/api/messages', readOrWrite, messageRoutes);
 app.use('/api/crm', readLimiter, clientCRMRoutes);
-app.use('/api/packages', writeLimiter, packageRoutes);
+app.use('/api/packages', readOrWrite, packageRoutes);
 app.use('/api/retention', readLimiter, retentionRoutes);
-app.use('/api/team', writeLimiter, teamMemberRoutes);
-app.use('/api/suggestions', writeLimiter, suggestionRoutes);
-app.use('/api/forms', writeLimiter, formRoutes);
-app.use('/api/push', writeLimiter, pushRoutes);
-app.use('/api/wallet', writeLimiter, walletRoutes);
-app.use('/api/provider-wallet', writeLimiter, providerWalletRoutes);
+app.use('/api/team', readOrWrite, teamMemberRoutes);
+app.use('/api/suggestions', readOrWrite, suggestionRoutes);
+app.use('/api/forms', readOrWrite, formRoutes);
+app.use('/api/push', readOrWrite, pushRoutes);
+app.use('/api/wallet', readOrWrite, walletRoutes);
+app.use('/api/provider-wallet', readOrWrite, providerWalletRoutes);
 
 
 // Health check — includes DB connectivity
