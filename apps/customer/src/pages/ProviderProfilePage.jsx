@@ -23,13 +23,14 @@ const lightboxBtnStyle = (pos) => ({ position: 'absolute', ...pos, top: pos.top 
 const ProviderProfilePage = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const { user, activeRole } = useAuthContext();
+    const { user } = useAuthContext();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeCategory, setActiveCategory] = useState('featured');
     const [schedule, setSchedule] = useState(null);
     const [blocked, setBlocked] = useState(false);
     const [showTopUp, setShowTopUp] = useState(false);
+    const [showSettings, setShowSettings] = useState(false);
     const [lightbox, setLightbox] = useState(-1); // index of the full-screen photo, -1 = closed
 
     useEffect(() => {
@@ -133,18 +134,43 @@ const ProviderProfilePage = () => {
             <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 30% 60%, rgba(240,62,22,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '1rem' }}>
-                        <button onClick={() => navigate('/services')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontFamily: 'var(--font-body)', padding: 0, display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                            ← Back to Services
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '1rem', minHeight: '36px' }}>
+                        <button onClick={() => navigate('/services')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontFamily: 'var(--font-body)', padding: '0.5rem 0.6rem 0.5rem 0', minHeight: '44px', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                            <ChevronLeft size={16} strokeWidth={2.5} style={{ flexShrink: 0 }} />
+                            Back to Services
                         </button>
-                        {user && activeRole === 'customer' && (
-                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                <button onClick={() => setShowTopUp(true)} style={{ background: 'rgba(240,62,22,0.15)', border: '1px solid var(--gold)', color: 'var(--gold)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600', fontFamily: 'var(--font-body)', padding: '0.35rem 0.95rem', borderRadius: '99px' }}>
-                                    Top up wallet
+                        {/* Wallet + block live in a quiet settings menu, far right */}
+                        {user && user._id !== id && (
+                            <div style={{ position: 'relative', flexShrink: 0 }}>
+                                <button
+                                    onClick={() => setShowSettings(s => !s)}
+                                    aria-label="Business options"
+                                    title="Business options"
+                                    style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.85)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                                >
+                                    <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33h0a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51h0a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v0a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
                                 </button>
-                                <button onClick={toggleBlock} style={{ background: 'none', border: '1px solid rgba(255,255,255,0.25)', color: 'rgba(255,255,255,0.7)', cursor: 'pointer', fontSize: '0.78rem', fontFamily: 'var(--font-body)', padding: '0.35rem 0.85rem', borderRadius: '99px' }}>
-                                    {blocked ? 'Unblock business' : 'Block business'}
-                                </button>
+                                {showSettings && (
+                                    <>
+                                        <div onClick={() => setShowSettings(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
+                                        <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', zIndex: 41, minWidth: '200px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '14px', boxShadow: '0 12px 32px rgba(4,5,5,0.22)', overflow: 'hidden', padding: '0.35rem' }}>
+                                            <button
+                                                onClick={() => { setShowSettings(false); setShowTopUp(true); }}
+                                                style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: '0.7rem 0.85rem', borderRadius: '10px', fontSize: '0.88rem', fontWeight: '600', fontFamily: 'var(--font-body)', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', gap: '0.6rem' }}
+                                            >
+                                                <svg width="16" height="16" fill="none" stroke="var(--gold-dark)" strokeWidth="2" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M16 15h2"/></svg>
+                                                Top up wallet
+                                            </button>
+                                            <button
+                                                onClick={() => { setShowSettings(false); toggleBlock(); }}
+                                                style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: '0.7rem 0.85rem', borderRadius: '10px', fontSize: '0.88rem', fontWeight: '600', fontFamily: 'var(--font-body)', color: blocked ? 'var(--charcoal)' : '#dc2626', display: 'flex', alignItems: 'center', gap: '0.6rem' }}
+                                            >
+                                                <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M4.9 4.9l14.2 14.2"/></svg>
+                                                {blocked ? 'Unblock business' : 'Block business'}
+                                            </button>
+                                        </div>
+                                    </>
+                                )}
                             </div>
                         )}
                     </div>
@@ -262,7 +288,7 @@ const ProviderProfilePage = () => {
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.75rem', flexShrink: 0 }}>
                                             <span style={{ fontFamily: 'var(--font-body)', fontSize: '1.2rem', fontWeight: '700', color: 'var(--charcoal)' }}>${service.price}</span>
-                                            {activeRole !== 'provider' && (
+                                            {user?._id !== provider._id && (
                                                 <button
                                                     onClick={() => navigate(`/book-appointment?serviceId=${service._id}&providerId=${provider._id}`)}
                                                     className="btn-primary"
@@ -327,7 +353,7 @@ const ProviderProfilePage = () => {
                                 })()}
                             </div>
 
-                            {activeRole !== 'provider' && (
+                            {user?._id !== provider._id && (
                                 <button
                                     onClick={() => navigate(`/book-appointment?providerId=${provider._id}`)}
                                     className="btn-primary"

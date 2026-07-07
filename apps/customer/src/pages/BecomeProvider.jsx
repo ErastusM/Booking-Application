@@ -21,7 +21,8 @@ const BecomeProvider = () => {
 
     useEffect(() => {
         if (!user) navigate('/login');
-        else if (user.role === 'provider') navigate('/dashboard');
+        // Already a business — their dashboard lives in the business app.
+        else if (user.role === 'provider') window.location.href = `${import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003'}/dashboard`;
     }, [user, navigate]);
 
     const handleSubmit = async (e) => {
@@ -34,12 +35,10 @@ const BecomeProvider = () => {
             const res = await authService.becomeProvider({
                 providerCategory: category === 'Other' ? customCategory.trim() : category,
             });
-            // The account just became a provider — default the active view to
-            // 'provider' so the dashboard/nav reflect the new role immediately,
-            // instead of the stale 'customer' value left over from login.
-            localStorage.setItem('activeRole', 'provider');
             setUser(res.data.data);
-            navigate('/dashboard');
+            // The business experience lives in the business app — a hard
+            // navigation boots it fresh (SSO cookie signs them in there).
+            window.location.href = `${import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003'}/dashboard`;
         } catch (err) {
             setError(err.response?.data?.message || 'Could not set up your business');
         } finally {

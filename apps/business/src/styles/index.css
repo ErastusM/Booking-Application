@@ -23,10 +23,21 @@ body.dark-mode {
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
-html, body, #root { width: 100%; overflow-x: hidden; }
+/* overflow-x: clip on html/body only — `clip` blocks horizontal panning
+   WITHOUT creating a scroll container (unlike `hidden`, which broke
+   position:sticky descendants and let iOS rubber-band sideways). #root must
+   stay overflow-visible or sticky elements pin to it instead of the viewport. */
+html, body { width: 100%; overflow-x: hidden; overflow-x: clip; }
+#root { width: 100%; }
+/* Native-app scroll feel: no pull-to-refresh or rubber-band chaining. */
+html, body { overscroll-behavior: none; }
+/* Kill the gray tap flash and the double-tap-zoom delay on controls. */
+* { -webkit-tap-highlight-color: transparent; }
+button, a, input, select, textarea, [role="button"] { touch-action: manipulation; }
+nav a, nav button { -webkit-user-select: none; user-select: none; }
 
 body {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: var(--font-body);
   line-height: 1.55;
   background-color: var(--off-white);
   color: var(--text-primary);
@@ -48,7 +59,7 @@ h1, h2, h3, h4 {
 .tnum, .stat-value, td.num, .price { font-variant-numeric: tabular-nums; font-feature-settings: 'tnum'; }
 
 p, li, label, input, textarea, select, button, a {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: var(--font-body);
 }
 
 ::selection {
@@ -100,7 +111,7 @@ p, li, label, input, textarea, select, button, a {
   justify-content: center;
   background: #ef4444;
   color: white;
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: var(--font-body);
   font-weight: 600;
   font-size: 0.9rem;
   padding: 0.75rem 1.75rem;
@@ -155,7 +166,7 @@ p, li, label, input, textarea, select, button, a {
   padding: 0.75rem 1rem;
   border: 1.5px solid var(--border);
   border-radius: var(--radius-sm);
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: var(--font-body);
   font-size: 0.95rem;
   color: var(--text-primary);
   background: var(--input-bg);
@@ -223,7 +234,7 @@ select {
   cursor: pointer;
 }
 select:focus { border-color: var(--gold); box-shadow: 0 0 0 3px rgba(240,62,22,0.12); outline: none; }
-select option { font-family: 'Inter', sans-serif; color: var(--text-primary); background: white; }
+select option { font-family: var(--font-body); color: var(--text-primary); background: white; }
 
 .badge { display: inline-flex; align-items: center; padding: 0.25rem 0.75rem; border-radius: 99px; font-size: 0.75rem; font-weight: 600; letter-spacing: 0.02em; }
 .badge-pending { background: #fef3c7; color: #92400e; }
@@ -370,7 +381,6 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
   .provider-service-row > div:last-child { width: 100% !important; align-items: flex-start !important; }
 
   /* Tighter header on mobile */
-  .provider-header { padding-top: 4rem !important; padding-bottom: 1.5rem !important; }
 
   .auth-left { display: none !important; }
   .auth-right {
@@ -454,7 +464,7 @@ select option { font-family: 'Inter', sans-serif; color: var(--text-primary); ba
   .tab-strip button { padding: 0.65rem 0.85rem !important; font-size: 0.8rem !important; }
 
   /* Extra bottom padding so content clears the bottom nav bar */
-  body { padding-bottom: 62px; }
+  body { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 
   /* Booking page mobile sticky bar — sits just above the floating bottom nav
      (~88px incl. safe area) so the nav (z 999) never overlaps the Continue button. */
@@ -626,7 +636,7 @@ body.dark-mode .booking-confirm-mobile {
    FullCalendar — Bookplus overrides
    ────────────────────────────────────────────────── */
 .fc-bookplus-wrapper .fc {
-  font-family: 'Plus Jakarta Sans', sans-serif;
+  font-family: var(--font-body);
   color: var(--charcoal);
   --fc-non-business-color: rgba(4, 5, 5, 0.05);
 }
@@ -654,7 +664,7 @@ body.dark-mode .booking-confirm-mobile {
   text-transform: capitalize;
   font-size: 0.8rem !important;
   font-weight: 600 !important;
-  font-family: 'Plus Jakarta Sans', sans-serif !important;
+  font-family: var(--font-body) !important;
   border-radius: 8px !important;
   padding: 0.35rem 0.75rem !important;
   transition: background 0.15s, border-color 0.15s;
@@ -954,7 +964,7 @@ body.dark-mode .fc-bookplus-wrapper .fc-timegrid-slot-minor {
 /* Button system */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
-  font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 600; font-size: 0.9rem; line-height: 1;
+  font-family: var(--font-body); font-weight: 600; font-size: 0.9rem; line-height: 1;
   padding: 0 1.25rem; height: 44px; border-radius: var(--radius-sm); border: 1.5px solid transparent;
   cursor: pointer; white-space: nowrap; user-select: none; position: relative;
   transition: transform var(--dur-fast) var(--ease-out), background-color var(--dur) ease,
@@ -996,7 +1006,7 @@ textarea.input { min-height: 88px; resize: vertical; line-height: 1.55; padding-
 
 /* Segmented control */
 .segmented { display: inline-flex; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px; gap: 2px; }
-.segmented button { appearance: none; border: none; background: transparent; cursor: pointer; font-family: 'Plus Jakarta Sans', sans-serif;
+.segmented button { appearance: none; border: none; background: transparent; cursor: pointer; font-family: var(--font-body);
   font-size: 0.82rem; font-weight: 600; color: var(--text-secondary); padding: 0.4rem 0.9rem; border-radius: 6px; transition: all var(--dur) var(--ease-out); white-space: nowrap; }
 .segmented button:hover { color: var(--charcoal); }
 .segmented button[aria-pressed="true"], .segmented button.is-active { background: var(--card-bg); color: var(--charcoal); box-shadow: var(--shadow-xs); }
@@ -1076,8 +1086,8 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
 /* Page hero top padding — generous on desktop, tight on mobile so the dark hero sits
    just under the fixed navbar instead of leaving a big empty band. The .route-view
    wrapper already adds the status-bar safe-area inset on top of this. */
-:root { --page-hero-pad-top: 9rem; }
-@media (max-width: 768px) { :root { --page-hero-pad-top: 4rem; } }
+:root { --page-hero-pad-top: calc(56px + 2.25rem); }
+@media (max-width: 768px) { :root { --page-hero-pad-top: calc(56px + 1.1rem); } }
 
 /* Desktop nav links — pill hover/active */
 .nav-pill {

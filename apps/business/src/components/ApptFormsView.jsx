@@ -21,7 +21,7 @@ const ApptFormsView = ({ appointmentId }) => {
 
     return (
         <div style={{ background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '1rem' }}>
-            <p style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--charcoal)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.75rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>Forms</p>
+            <p style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--charcoal)', textTransform: 'uppercase', letterSpacing: '0.07em', marginBottom: '0.75rem', fontFamily: 'var(--font-body)' }}>Forms</p>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                 {forms.map(({ template, completed, submission }) => (
                     <div key={template._id}>

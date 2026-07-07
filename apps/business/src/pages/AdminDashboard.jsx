@@ -18,7 +18,7 @@ const chipStyle = (active) => ({
     background: active ? 'rgba(240,62,22,0.12)' : 'white',
     color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
     fontSize: '0.78rem', fontWeight: active ? '600' : '400',
-    cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', textTransform: 'capitalize',
+    cursor: 'pointer', fontFamily: 'var(--font-body)', textTransform: 'capitalize',
 });
 
 const Pagination = ({ page, pages, onChange }) => (
@@ -26,13 +26,13 @@ const Pagination = ({ page, pages, onChange }) => (
         <button onClick={() => onChange(Math.max(1, page - 1))} disabled={page <= 1} style={{
             padding: '0.4rem 0.9rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--card-bg)',
             color: 'var(--text-secondary)', cursor: page <= 1 ? 'not-allowed' : 'pointer', opacity: page <= 1 ? 0.5 : 1,
-            fontSize: '0.8rem', fontFamily: 'Plus Jakarta Sans, sans-serif',
+            fontSize: '0.8rem', fontFamily: 'var(--font-body)',
         }}>← Prev</button>
         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Page {page} of {pages}</span>
         <button onClick={() => onChange(Math.min(pages, page + 1))} disabled={page >= pages} style={{
             padding: '0.4rem 0.9rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--card-bg)',
             color: 'var(--text-secondary)', cursor: page >= pages ? 'not-allowed' : 'pointer', opacity: page >= pages ? 0.5 : 1,
-            fontSize: '0.8rem', fontFamily: 'Plus Jakarta Sans, sans-serif',
+            fontSize: '0.8rem', fontFamily: 'var(--font-body)',
         }}>Next →</button>
     </div>
 );
@@ -297,7 +297,7 @@ const AdminDashboard = () => {
                         background: 'var(--ink)', color: 'white',
                         padding: '0.6rem 1.25rem', borderRadius: 'var(--radius-sm)',
                         textDecoration: 'none', fontSize: '0.875rem', fontWeight: '600',
-                        fontFamily: 'Plus Jakarta Sans, sans-serif',
+                        fontFamily: 'var(--font-body)',
                     }}>
                         📈 View Analytics
                     </a>
@@ -333,7 +333,7 @@ const AdminDashboard = () => {
                             borderRadius: '999px',
                             color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-secondary)',
                             fontWeight: activeTab === tab ? '700' : '500', fontSize: '0.85rem',
-                            cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif',
+                            cursor: 'pointer', fontFamily: 'var(--font-body)',
                             textTransform: 'capitalize', transition: 'all 0.2s', whiteSpace: 'nowrap',
                         }}>
                             {tab.charAt(0).toUpperCase() + tab.slice(1)}
@@ -742,7 +742,7 @@ const AdminAdjustModal = ({ wallet, onClose, onDone }) => {
                     <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
                         {[{ v: 'credit', t: 'Credit (add)' }, { v: 'debit', t: 'Debit (remove)' }].map((o) => (
                             <button key={o.v} type="button" onClick={() => setDirection(o.v)} style={{
-                                flex: 1, padding: '0.55rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '600', fontSize: '0.82rem',
+                                flex: 1, padding: '0.55rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600', fontSize: '0.82rem',
                                 border: `1.5px solid ${direction === o.v ? 'var(--gold)' : 'var(--border)'}`,
                                 background: direction === o.v ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)', color: direction === o.v ? 'var(--gold-dark)' : 'var(--text-secondary)',
                             }}>{o.t}</button>

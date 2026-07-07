@@ -82,6 +82,16 @@ describe('customer cancel (DELETE /api/appointments/:id)', () => {
         const res = await request(app).delete(`/api/appointments/${inside._id}`).set(authHeader(admin));
         expect(res.status).toBe(200);
     });
+
+    it('a booking that already took place cannot be cancelled — even with a 0-hour window', async () => {
+        const { provider, service, customer } = await setup();
+        provider.bookingPolicy = { cancellationWindowHours: 0 };
+        await provider.save();
+        const past = await apptAt(customer, service, provider, -24 * 21); // three weeks ago
+        const res = await request(app).delete(`/api/appointments/${past._id}`).set(authHeader(customer));
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/already taken place/i);
+    });
 });
 
 describe('customer reschedule (PUT /api/appointments/:id/reschedule)', () => {
@@ -94,6 +104,35 @@ describe('customer reschedule (PUT /api/appointments/:id/reschedule)', () => {
             .send({ appointmentDate: '2027-03-03', startTime: '10:00' });
         expect(res.status).toBe(400);
         expect(res.body.message).toMatch(/24 hours notice/i);
+    });
+});
+
+describe('customer reschedule of past bookings', () => {
+    it('a past booking cannot be rescheduled forward, even with a 0-hour window', async () => {
+        const { provider, service, customer } = await setup();
+        provider.bookingPolicy = { cancellationWindowHours: 0 };
+        await provider.save();
+        const past = await apptAt(customer, service, provider, -48);
+        const res = await request(app)
+            .put(`/api/appointments/${past._id}/reschedule`)
+            .set(authHeader(customer))
+            .send({ appointmentDate: '2027-03-03', startTime: '10:00' });
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/already taken place/i);
+    });
+
+    it('the same applies via the manage token', async () => {
+        const { provider, service, customer } = await setup();
+        provider.bookingPolicy = { cancellationWindowHours: 0 };
+        await provider.save();
+        const past = await apptAt(customer, service, provider, -48);
+        const cancel = await request(app).post(`/api/appointments/manage/${past.manageToken}/cancel`);
+        expect(cancel.status).toBe(400);
+        expect(cancel.body.message).toMatch(/already taken place/i);
+        const move = await request(app)
+            .post(`/api/appointments/manage/${past.manageToken}/reschedule`)
+            .send({ appointmentDate: '2027-03-03', startTime: '10:00' });
+        expect(move.status).toBe(400);
     });
 });
 

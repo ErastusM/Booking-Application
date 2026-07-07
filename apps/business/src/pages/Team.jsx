@@ -135,8 +135,8 @@ const MemberCard = ({ member, services, onChanged }) => {
                         {schedule && schedule !== 'inherit' && (
                             <div>
                                 {DAYS.map(day => (
-                                    <div key={day} style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', padding: '0.3rem 0', fontSize: '0.87rem' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', width: '120px', color: 'var(--charcoal)', textTransform: 'capitalize', cursor: 'pointer' }}>
+                                    <div key={day} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.7rem', padding: '0.3rem 0', fontSize: '0.87rem' }}>
+                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', width: '104px', color: 'var(--charcoal)', textTransform: 'capitalize', cursor: 'pointer' }}>
                                             <input type="checkbox" checked={!!schedule[day]?.enabled} onChange={e => setDay(day, { enabled: e.target.checked })} />
                                             {day}
                                         </label>
@@ -189,7 +189,7 @@ const Team = () => {
     };
 
     return (
-        <div className="container" style={{ paddingTop: 'calc(56px + env(safe-area-inset-top, 0px) + 2rem)', paddingBottom: '4rem', maxWidth: '760px' }}>
+        <div className="container" style={{ paddingTop: 'calc(56px + 2rem)', paddingBottom: '4rem', maxWidth: '760px' }}>
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.35rem' }}>Team</h1>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', margin: '0 0 1.75rem' }}>
                 Invite staff to log in, set who performs which services, and give anyone their own working hours. Clients can pick their professional when booking.

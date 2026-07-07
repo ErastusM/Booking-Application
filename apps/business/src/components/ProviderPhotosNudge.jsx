@@ -8,11 +8,11 @@ const DISMISS_KEY = 'bp_photos_nudge_dismissed';
 // Nudge a provider with an empty portfolio to add photos — those photos are exactly what
 // show on the home feed and the profile gallery, so an empty gallery means fewer bookings.
 const ProviderPhotosNudge = () => {
-    const { user, activeRole } = useAuthContext();
+    const { user } = useAuthContext();
     const [show, setShow] = useState(false);
 
     useEffect(() => {
-        if (user?.role !== 'provider' || activeRole !== 'provider') { setShow(false); return; }
+        if (user?.role !== 'provider') { setShow(false); return; }
         if (localStorage.getItem(DISMISS_KEY) === '1') return;
         let cancelled = false;
         authService.getProfile()
@@ -22,7 +22,7 @@ const ProviderPhotosNudge = () => {
             })
             .catch(() => {});
         return () => { cancelled = true; };
-    }, [user, activeRole]);
+    }, [user]);
 
     if (!show) return null;
 

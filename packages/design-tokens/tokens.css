@@ -50,9 +50,11 @@
   /* --ink never flips: dark surfaces (hero headers, primary buttons) stay dark in both modes */
   --ink: #040505;
   --on-ink: #e6e8e7;
-  /* One elegant sans for the whole product — no serif/sans mixing */
-  --font-display: 'Plus Jakarta Sans', sans-serif;
-  --font-body: 'Plus Jakarta Sans', sans-serif;
+  /* Type pairing: Plus Jakarta Sans gives headings their character; Inter is
+     the strongest small-size UI face for dense mobile body text. Both are
+     self-hosted variable fonts (imported via @fontsource in each app). */
+  --font-display: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', -apple-system, 'Segoe UI', sans-serif;
+  --font-body: 'Inter Variable', 'Inter', -apple-system, 'Segoe UI', sans-serif;
   /* Semantic status tokens — functional, not brand; do not retint */
   --success: #10b981; --success-bg: #d1fae5; --success-fg: #065f46;
   --info: #3b82f6;    --info-bg: #dbeafe;    --info-fg: #1e40af;

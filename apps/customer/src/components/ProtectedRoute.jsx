@@ -23,9 +23,9 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     if (!user) return <Navigate to="/login" replace />;
 
     if (allowedRoles && !allowedRoles.includes(user.role)) {
-        // Redirect to their rightful home (must match the real routes in App.js)
-        if (user.role === 'admin') return <Navigate to="/bkplus-command" replace />;
-        if (user.role === 'provider') return <Navigate to="/dashboard" replace />;
+        // The customer app treats every signed-in user as a customer; the
+        // business app is a separate site, so there is no in-app home to send
+        // business roles to — just back to the marketplace.
         return <Navigate to="/" replace />;
     }
 

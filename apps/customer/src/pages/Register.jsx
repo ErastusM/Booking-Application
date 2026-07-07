@@ -154,7 +154,7 @@ const Register = () => {
                                         border: '2px solid var(--border)', borderRadius: 'var(--radius)',
                                         cursor: 'pointer', textAlign: 'left',
                                         transition: 'all 0.2s ease', boxShadow: 'var(--shadow-sm)',
-                                        fontFamily: 'Plus Jakarta Sans, sans-serif',
+                                        fontFamily: 'var(--font-body)',
                                     }}
                                     onMouseEnter={e => { e.currentTarget.style.borderColor = 'var(--gold)'; e.currentTarget.style.boxShadow = 'var(--shadow-md)'; e.currentTarget.style.transform = 'translateY(-2px)'; }}
                                     onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border)'; e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; e.currentTarget.style.transform = 'translateY(0)'; }}
@@ -180,7 +180,7 @@ const Register = () => {
                     <div style={{ width: '100%', maxWidth: '440px' }} className="fade-up">
                         <button
                             onClick={() => setStep(1)}
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem', padding: 0 }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.875rem', fontFamily: 'var(--font-body)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.35rem', padding: 0 }}
                         >
                             ← Back
                         </button>
@@ -319,7 +319,7 @@ const Register = () => {
                                     fontWeight: '600',
                                     fontSize: '0.9rem',
                                     textDecoration: 'none',
-                                    fontFamily: 'Plus Jakarta Sans, sans-serif',
+                                    fontFamily: 'var(--font-body)',
                                     opacity: consented ? 1 : 0.55,
                                     transition: 'all 0.2s',
                                 }}
@@ -350,7 +350,7 @@ const Register = () => {
                                 <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '1.5rem', boxShadow: 'var(--shadow-sm)', marginBottom: '1.5rem' }}>
                                     <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
                                         Didn't get the email? Check your spam folder or{' '}
-                                        <button onClick={handleResend} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontWeight: '600', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.85rem', padding: 0 }}>
+                                        <button onClick={handleResend} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontWeight: '600', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.85rem', padding: 0 }}>
                                             resend the link
                                         </button>
                                     </p>

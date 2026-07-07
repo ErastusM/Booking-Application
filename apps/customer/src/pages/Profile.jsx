@@ -55,7 +55,7 @@ const SettingRow = ({ icon: Icon, label, value, onClick, trailing, isLast, dange
 };
 
 const Profile = () => {
-    const { user, setUser, switchRole, logout } = useAuthContext();
+    const { user, setUser, logout } = useAuthContext();
     const { darkMode, toggleDarkMode } = useTheme();
     const navigate = useNavigate();
 
@@ -120,7 +120,7 @@ const Profile = () => {
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh', paddingBottom: '5rem' }}>
 
             {/* Title */}
-            <div style={{ paddingTop: 'clamp(3.75rem, 7vw, 4.75rem)', paddingBottom: '1.5rem', textAlign: 'center' }}>
+            <div style={{ paddingTop: 'clamp(4.5rem, 7vw, 4.75rem)', paddingBottom: '1.5rem', textAlign: 'center' }}>
                 <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Profile</h1>
             </div>
 
@@ -155,10 +155,10 @@ const Profile = () => {
                 {user?.role === 'provider' && (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', background: 'var(--card-bg)', border: '1px solid var(--border)', borderLeft: '3px solid var(--gold)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', padding: '1.1rem 1.25rem', marginBottom: '1.5rem' }}>
                         <div>
-                            <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.2rem' }}>You're in customer view</h3>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>Browsing and booking as a customer. Switch back to manage your business.</p>
+                            <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.2rem' }}>You're on the customer site</h3>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>Browsing and booking as a customer. Your business lives in the Business app.</p>
                         </div>
-                        <button onClick={() => { switchRole('provider'); navigate('/dashboard'); }} className="btn-primary" style={{ padding: '0.65rem 1.4rem', whiteSpace: 'nowrap' }}>Switch to Business view →</button>
+                        <button onClick={() => { window.location.href = `${import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003'}/dashboard`; }} className="btn-primary" style={{ padding: '0.65rem 1.4rem', whiteSpace: 'nowrap' }}>Open the Business app →</button>
                     </div>
                 )}
 

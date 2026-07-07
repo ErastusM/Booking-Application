@@ -10,7 +10,7 @@ import { BrandMark } from '@bookplus/ui';
 const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'http://localhost:3002';
 
 const Navbar = () => {
-    const { user, logout, activeRole, switchRole } = useAuthContext();
+    const { user, logout } = useAuthContext();
     const { darkMode, toggleDarkMode } = useTheme();
     const navigate = useNavigate();
     const location = useLocation();
@@ -70,11 +70,13 @@ const Navbar = () => {
         color: '#fff',
     };
 
+    // Drawer rows share one left edge (1.2rem) so labels line up with the
+    // icon rows at the bottom of the drawer.
     const mobileLink = (to, label) => (
         <Link to={to} onClick={() => setMenuOpen(false)} style={{
             color: isActive(to) ? 'var(--gold-dark)' : 'var(--text-primary)',
             textDecoration: 'none', fontWeight: isActive(to) ? '600' : '500',
-            fontSize: '0.95rem', padding: '0.85rem 1.5rem',
+            fontSize: '0.95rem', padding: '0.85rem 1.2rem',
             borderBottom: '1px solid var(--border)', display: 'block',
             background: isActive(to) ? 'rgba(240,62,22,0.07)' : 'transparent',
             borderLeft: isActive(to) ? '3px solid var(--gold)' : '3px solid transparent',
@@ -103,8 +105,9 @@ const Navbar = () => {
                     {/* Business app: no marketplace here — providers manage, customers browse
                         on the customer site (cross-app link below). */}
                     <a className="nav-pill" href={CUSTOMER_URL} style={{ color: 'rgba(255,255,255,0.78)', fontWeight: '500' }}>Customer site</a>
-                    {activeRole === 'provider' && navLink('/dashboard', 'Dashboard')}
-                    {activeRole === 'provider' && navLink('/team', 'Team')}
+                    {user?.role === 'provider' && navLink('/dashboard', 'Dashboard')}
+                    {user?.role === 'provider' && navLink('/team', 'Team')}
+                    {user?.role === 'staff' && navLink('/my-schedule', 'My Schedule')}
                     {user?.role === 'admin' && navLink('/bkplus-command', 'Dashboard')}
                     {user?.role === 'admin' && navLink('/bkplus-command/insights', 'Analytics')}
                 </div>
@@ -140,7 +143,7 @@ const Navbar = () => {
                                 <svg width="18" height="18" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.9c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0012 2z"/></svg>
                             </button>
                             <NotificationBell isTransparent={isTransparent} />
-                            <Link to={activeRole === 'provider' ? '/account' : '/profile'} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: '#fff', fontSize: '0.9rem', fontWeight: '500' }}>
+                            <Link to={user.role === 'provider' ? '/account' : user.role === 'staff' ? '/my-schedule' : '/bkplus-command'} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', textDecoration: 'none', color: '#fff', fontSize: '0.9rem', fontWeight: '500' }}>
                                 <div style={{ width: '34px', height: '34px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)', fontWeight: '700', fontSize: '0.8rem', flexShrink: 0 }}>
                                     {user.avatar
                                         ? <img src={cloudinaryAvatar(user.avatar)} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -150,15 +153,17 @@ const Navbar = () => {
                                 {user.name?.split(' ')[0]}
                             </Link>
                             <button onClick={handleLogout} style={{
+                                // Fixed light colors: this navbar is always ink,
+                                // so theme text vars would be dark-on-dark.
                                 background: 'transparent', border: '1.5px solid',
-                                borderColor: isTransparent ? 'rgba(255,255,255,0.4)' : 'var(--border)',
-                                color: isTransparent ? 'white' : 'var(--text-secondary)',
+                                borderColor: 'rgba(255,255,255,0.35)',
+                                color: 'rgba(255,255,255,0.85)',
                                 padding: '0.4rem 1rem', borderRadius: 'var(--radius-sm)',
                                 cursor: 'pointer', fontSize: '0.85rem',
-                                fontFamily: 'Plus Jakarta Sans, sans-serif', transition: 'all 0.2s ease',
+                                fontFamily: 'var(--font-body)', transition: 'all 0.2s ease',
                             }}
                                 onMouseEnter={e => { e.target.style.borderColor = '#ef4444'; e.target.style.color = '#ef4444'; }}
-                                onMouseLeave={e => { e.target.style.borderColor = isTransparent ? 'rgba(255,255,255,0.4)' : 'var(--border)'; e.target.style.color = isTransparent ? 'white' : 'var(--text-secondary)'; }}
+                                onMouseLeave={e => { e.target.style.borderColor = 'rgba(255,255,255,0.35)'; e.target.style.color = 'rgba(255,255,255,0.85)'; }}
                             >
                                 Logout
                             </button>
@@ -166,28 +171,20 @@ const Navbar = () => {
                     ) : (
                         <>
                             <Link to="/login" style={{ color: '#fff', textDecoration: 'none', fontSize: '0.9rem', fontWeight: '500', transition: 'color 0.2s' }}>Login</Link>
-                            <Link to="/register" className="btn-primary" style={{ padding: '0.5rem 1.25rem' }}>Sign Up</Link>
+                            <a href={`${CUSTOMER_URL}/register`} className="btn-primary" style={{ padding: '0.5rem 1.25rem', textDecoration: 'none' }}>Sign Up</a>
                         </>
                     )}
                 </div>
 
-                {/* Desktop suggestion button */}
-                {user && (
-                    <button onClick={() => setShowSuggestion(true)} className="hidden-mobile" title="Send a suggestion" style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)', padding: '0.4rem', display: 'flex', alignItems: 'center', transition: 'color 0.2s' }} onMouseEnter={e => e.currentTarget.style.color = 'var(--gold)'} onMouseLeave={e => e.currentTarget.style.color = isTransparent ? 'rgba(255,255,255,0.6)' : 'var(--text-muted)'}>
-                        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M22 12h-6l-2 3H10l-2-3H2"/><path strokeLinecap="round" strokeLinejoin="round" d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
-                    </button>
-                )}
-
-                {/* Mobile right cluster — notifications + suggestion + menu (both roles) */}
+                {/* Mobile right cluster — notifications + suggestion + menu */}
                 <div className="show-mobile" style={{ alignItems: 'center', gap: '0.1rem' }}>
                     {user && <NotificationBell isTransparent={isTransparent} />}
-                    {/* Customers reach Suggest from the bottom nav, so the top icon is provider-only to avoid a duplicate */}
-                    {user && activeRole !== 'customer' && (
+                    {user && (
                         <button
                             onClick={() => setShowSuggestion(true)}
                             aria-label="Send a suggestion"
                             title="Send a suggestion"
-                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'white' : 'var(--text-secondary)', padding: '0.5rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'rgba(255,255,255,0.8)', padding: '0.5rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         >
                             <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
                         </button>
@@ -226,6 +223,7 @@ const Navbar = () => {
                             <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', letterSpacing: '-0.02em' }}>
                                 <span style={{ color: 'var(--charcoal)' }}>Book</span><span style={{ color: 'var(--gold)' }}>plus</span>
                             </span>
+                            <span style={{ marginLeft: '0.1rem', fontSize: '0.55rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-dark)', border: '1px solid rgba(240,62,22,0.5)', borderRadius: '999px', padding: '0.18rem 0.45rem', flexShrink: 0 }}>Business</span>
                         </Link>
                         <button onClick={() => setMenuOpen(false)} aria-label="Close menu" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.55rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -261,31 +259,24 @@ const Navbar = () => {
                                     <a href={CUSTOMER_URL} style={{ display: 'block', textAlign: 'center', padding: '0.5rem', borderRadius: '99px', border: '1.5px solid var(--border)', color: 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: '600', textDecoration: 'none' }}>Book as a customer →</a>
                                 </div>
                             )}
-                            {/* Customers get an explicit switch-to-providing entry here too */}
-                            {user.role === 'customer' && (
-                                <div style={{ padding: '0 1.2rem 0.85rem' }}>
-                                    <button
-                                        onClick={() => { setMenuOpen(false); navigate('/become-provider'); }}
-                                        style={{ width: '100%', padding: '0.5rem', borderRadius: '99px', border: '1.5px solid var(--gold)', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark,#b32c0d)', fontSize: '0.78rem', fontWeight: '600', fontFamily: 'Plus Jakarta Sans, sans-serif', cursor: 'pointer' }}
-                                    >Become a Business →</button>
-                                </div>
-                            )}
                         </div>
                     )}
 
                     <div style={{ flex: 1, padding: '0.6rem 0' }}>
-                        <a href={CUSTOMER_URL} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500', fontSize: '0.95rem', padding: '0.85rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'block' }}>Customer site</a>
-                        {activeRole === 'provider' && mobileLink('/dashboard', 'Dashboard')}
+                        <a href={CUSTOMER_URL} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500', fontSize: '0.95rem', padding: '0.85rem 1.2rem', borderBottom: '1px solid var(--border)', borderLeft: '3px solid transparent', display: 'block' }}>Customer site</a>
+                        {user?.role === 'provider' && mobileLink('/dashboard', 'Dashboard')}
+                        {user?.role === 'provider' && mobileLink('/team', 'Team')}
+                        {user?.role === 'staff' && mobileLink('/my-schedule', 'My Schedule')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command/insights', 'Analytics')}
-                        {user && mobileLink(activeRole === 'provider' ? '/account' : '/profile', 'My Profile')}
+                        {user?.role === 'provider' && mobileLink('/account', 'My Account')}
                     </div>
 
                     {/* Suggest a feature — pinned to the bottom, above the toggle */}
                     {user && (
                         <button
                             onClick={() => { setMenuOpen(false); setShowSuggestion(true); }}
-                            style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', padding: '0.95rem 1.2rem', fontSize: '0.95rem', color: 'var(--text-primary)', fontFamily: 'Plus Jakarta Sans, sans-serif', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.6rem' }}
+                            style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', padding: '0.95rem 1.2rem', fontSize: '0.95rem', color: 'var(--text-primary)', fontFamily: 'var(--font-body)', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.6rem' }}
                         >
                             <svg width="16" height="16" fill="none" stroke="var(--text-muted)" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.9c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0012 2z"/></svg>
                             Suggest a feature
@@ -320,7 +311,7 @@ const Navbar = () => {
 
                     {user && (
                         <div style={{ padding: '1rem 1.2rem' }}>
-                            <button onClick={handleLogout} style={{ width: '100%', padding: '0.78rem', background: '#fee2e2', border: 'none', borderRadius: 'var(--radius-sm)', color: '#dc2626', fontWeight: '600', cursor: 'pointer', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.9rem' }}>
+                            <button onClick={handleLogout} style={{ width: '100%', padding: '0.78rem', background: '#fee2e2', border: 'none', borderRadius: 'var(--radius-sm)', color: '#dc2626', fontWeight: '600', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.9rem' }}>
                                 Logout
                             </button>
                         </div>
@@ -330,7 +321,7 @@ const Navbar = () => {
         )}
 
         {/* Mobile bottom navigation — provider: floating rounded card (matches design mock) */}
-        {user && activeRole === 'provider' && (
+        {user?.role === 'provider' && (
             <div className="show-mobile" style={{
                 position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
                 display: 'flex', justifyContent: 'center',
@@ -377,7 +368,7 @@ const Navbar = () => {
                                 <span style={{
                                     fontSize: '0.6rem', fontWeight: active ? '700' : '500',
                                     color: active ? 'var(--gold-dark)' : 'var(--text-muted)',
-                                    fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap', lineHeight: 1.1,
+                                    fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', lineHeight: 1.1,
                                 }}>{label}</span>
                                 <span style={{ width: '16px', height: '2px', borderRadius: '99px', background: active ? 'var(--gold)' : 'transparent', transition: 'background 0.18s ease' }} />
                             </Link>
@@ -387,68 +378,7 @@ const Navbar = () => {
             </div>
         )}
 
-        {/* Mobile bottom navigation — customer: floating rounded card (matches the provider one so it doesn't bleed to the edges) */}
-        {user && activeRole === 'customer' && (
-            <div className="show-mobile" style={{
-                position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
-                display: 'flex', justifyContent: 'center',
-                padding: '0 12px calc(3px + env(safe-area-inset-bottom, 0))',
-                pointerEvents: 'none',
-            }}>
-                <div style={{
-                    pointerEvents: 'auto', width: '100%', maxWidth: '460px',
-                    display: 'flex', justifyContent: 'space-around', alignItems: 'flex-start',
-                    background: darkMode ? 'rgba(20,20,22,0.78)' : 'rgba(255,255,255,0.78)',
-                    backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
-                    border: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid var(--border)',
-                    borderRadius: '20px', boxShadow: '0 8px 22px rgba(4,5,5,0.13)',
-                    padding: '7px 4px 6px',
-                }}>
-                    {[
-                        { to: '/', label: 'Home', icon: (
-                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
-                        ) },
-                        { to: '/services', label: 'Book', icon: (
-                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
-                        ) },
-                        { to: '/appointments', label: 'Bookings', icon: (
-                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
-                        ) },
-                        { to: '/profile', label: 'Profile', icon: (
-                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                        ) },
-                        { action: () => setShowSuggestion(true), label: 'Suggest', activeOverride: showSuggestion, icon: (
-                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M22 12h-6l-2 3H10l-2-3H2"/><path strokeLinecap="round" strokeLinejoin="round" d="M5.45 5.11L2 12v6a2 2 0 002 2h16a2 2 0 002-2v-6l-3.45-6.89A2 2 0 0016.76 4H7.24a2 2 0 00-1.79 1.11z"/></svg>
-                        ) },
-                    ].map(({ to, action, icon, label, activeOverride }) => {
-                        const active = activeOverride !== undefined ? activeOverride : isActive(to);
-                        const itemStyle = { flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', textDecoration: 'none', minWidth: 0, WebkitTapHighlightColor: 'transparent', background: 'none', border: 'none', cursor: 'pointer', padding: 0 };
-                        const inner = (
-                            <>
-                                <span style={{
-                                    width: '38px', height: '38px', borderRadius: '50%',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    background: active ? 'rgba(240,62,22,0.20)' : 'rgba(240,62,22,0.09)',
-                                    color: active ? 'var(--gold-dark)' : 'var(--gold)',
-                                    transition: 'background 0.18s ease, color 0.18s ease',
-                                }}>{icon}</span>
-                                <span style={{
-                                    fontSize: '0.6rem', fontWeight: active ? '700' : '500',
-                                    color: active ? 'var(--gold-dark)' : 'var(--text-muted)',
-                                    fontFamily: 'Plus Jakarta Sans, sans-serif', whiteSpace: 'nowrap', lineHeight: 1.1,
-                                }}>{label}</span>
-                                <span style={{ width: '16px', height: '2px', borderRadius: '99px', background: active ? 'var(--gold)' : 'transparent', transition: 'background 0.18s ease' }} />
-                            </>
-                        );
-                        return action
-                            ? <button key={label} onClick={action} aria-label={label} style={itemStyle}>{inner}</button>
-                            : <Link key={to} to={to} aria-label={label} style={itemStyle}>{inner}</Link>;
-                    })}
-                </div>
-            </div>
-        )}
         {user && <SuggestionBox user={user} open={showSuggestion} onClose={() => setShowSuggestion(false)} />}
-        {user && <div className="show-mobile" style={{ height: (activeRole === 'provider' || activeRole === 'customer') ? '88px' : '0px' }} />}
     </>
     );
 };

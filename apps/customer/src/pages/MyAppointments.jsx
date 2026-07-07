@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { appointmentService, reviewService, messageService } from '../services';
 import ReviewModal from '../components/ReviewModal';
 import IntakeFormModal from '../components/IntakeFormModal';
@@ -10,6 +10,16 @@ import { mapsUrl } from '../utils/maps';
 import { cloudinaryThumb } from '../utils/cloudinary';
 import { CalendarClock, CalendarPlus, MessageSquare, ClipboardList, Star, X, RefreshCw, MapPin, Copy, Check, ChevronDown } from 'lucide-react';
 import EnablePushBanner from '../components/EnablePushBanner';
+
+// True once the appointment's start time has passed — past bookings are
+// history: no reschedule/cancel/calendar/forms, matching the server guards.
+const isPastAppt = (a) => {
+    const dt = new Date(a.appointmentDate);
+    if (isNaN(dt.getTime())) return false;
+    const [h, m] = String(a.startTime || '00:00').split(':').map(Number);
+    dt.setHours(h || 0, m || 0, 0, 0);
+    return dt.getTime() < Date.now();
+};
 
 const statusConfig = {
     pending:   { label: 'Pending',   bg: '#fef3c7', color: '#92400e' },
@@ -226,7 +236,7 @@ const MyAppointments = () => {
                 <EnablePushBanner />
 
                 {showConfirmedBanner && (
-                    <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '1rem 1.25rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                    <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '1rem 1.25rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontFamily: 'var(--font-body)' }}>
                         <span style={{ fontSize: '1.2rem' }}>✅</span>
                         <div>
                             <strong>{confirmedHeadline}</strong>
@@ -236,7 +246,7 @@ const MyAppointments = () => {
                 )}
 
                 {showWaitlistedBanner && (
-                    <div style={{ background: '#dbeafe', border: '1px solid #93c5fd', color: '#1e40af', padding: '1rem 1.25rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                    <div style={{ background: '#dbeafe', border: '1px solid #93c5fd', color: '#1e40af', padding: '1rem 1.25rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.75rem', fontFamily: 'var(--font-body)' }}>
                         <span style={{ fontSize: '1.2rem' }}>🔔</span>
                         <div><strong>Added to waiting list.</strong> We'll notify you if a slot opens up.</div>
                     </div>
@@ -261,7 +271,8 @@ const MyAppointments = () => {
                         .sort((a, b) => new Date(b.appointmentDate) - new Date(a.appointmentDate));
                     const last = past[0];
                     if (!last) return null;
-                    const providerId = last.service?.provider || '';
+                    // provider may be populated (object) or a raw id string
+                    const providerId = last.service?.provider?._id || last.service?.provider || '';
                     const serviceId = last.service?._id || '';
                     return (
                         <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', padding: '1.1rem 1.4rem', marginBottom: '1.5rem' }}>
@@ -327,19 +338,33 @@ const MyAppointments = () => {
                                 }}>
                                     {(() => {
                                         const prov = a.service?.provider;
+                                        const provId = prov?._id || null;
                                         const company = prov?.businessProfile?.businessName || prov?.name || 'Business';
                                         const bizImg = prov?.avatar || prov?.portfolio?.images?.[0] || null;
-                                        return (
-                                            <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
+                                        const header = (
+                                            <>
                                                 <div style={{ width: '48px', height: '48px', borderRadius: '50%', overflow: 'hidden', background: 'rgba(240,62,22,0.15)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '1.1rem', flexShrink: 0, fontFamily: 'var(--font-display)' }}>
                                                     {bizImg
                                                         ? <img src={cloudinaryThumb(bizImg, 96)} alt={company} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                         : company.trim().charAt(0).toUpperCase()}
                                                 </div>
                                                 <div style={{ minWidth: 0 }}>
-                                                    <p style={{ margin: 0, fontWeight: '700', color: 'var(--charcoal)', fontSize: '1rem', fontFamily: 'var(--font-display)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{company}</p>
+                                                    <p style={{ margin: 0, fontWeight: '700', color: 'var(--charcoal)', fontSize: '1rem', fontFamily: 'var(--font-display)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                                        {company}
+                                                        {provId && <span aria-hidden="true" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: '400' }}>›</span>}
+                                                    </p>
                                                     {a.createdAt && <p style={{ margin: '2px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Booked {new Date(a.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</p>}
                                                 </div>
+                                            </>
+                                        );
+                                        // The business header links to the public profile.
+                                        return provId ? (
+                                            <Link to={`/providers/${provId}`} style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)', textDecoration: 'none' }}>
+                                                {header}
+                                            </Link>
+                                        ) : (
+                                            <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)' }}>
+                                                {header}
                                             </div>
                                         );
                                     })()}
@@ -369,21 +394,29 @@ const MyAppointments = () => {
                                             const base = { display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', width: '100%', padding: '0.5rem 0.875rem', borderRadius: 'var(--radius-sm)', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)', cursor: 'pointer', textDecoration: 'none', boxSizing: 'border-box', lineHeight: 1.2 };
                                             const gold = { ...base, background: 'rgba(240,62,22,0.08)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--gold-dark)' };
                                             const neutral = { ...base, background: 'none', border: '1px solid var(--border)', color: 'var(--text-secondary)' };
+                                            const past = isPastAppt(a);
+                                            const active = !past && (a.status === 'pending' || a.status === 'confirmed');
                                             return (
                                                 <>
-                                                    {(a.status === 'pending' || a.status === 'confirmed') && (
+                                                    {active && (
                                                         <button onClick={() => goReschedule(a)} style={gold}>
                                                             <CalendarClock size={15} strokeWidth={2} /> Reschedule
                                                         </button>
                                                     )}
-                                                    {(a.status === 'pending' || a.status === 'confirmed') && (
+                                                    {active && (
                                                         <a href={buildGCalUrl(a)} target="_blank" rel="noopener noreferrer" style={{ ...base, background: '#4285F4', border: '1px solid #4285F4', color: 'white' }}>
                                                             <CalendarPlus size={15} strokeWidth={2} /> Google Calendar
                                                         </a>
                                                     )}
-                                                    {a.status !== 'cancelled' && a.status !== 'completed' && (
+                                                    {!past && a.status !== 'cancelled' && a.status !== 'completed' && (
                                                         <button onClick={() => handleCancel(a)} style={{ ...base, background: 'none', border: '1px solid #fca5a5', color: '#ef4444' }}>
                                                             <X size={15} strokeWidth={2} /> Cancel
+                                                        </button>
+                                                    )}
+                                                    {/* A past booking that was never closed out can be rebooked */}
+                                                    {past && (a.status === 'pending' || a.status === 'confirmed') && (
+                                                        <button onClick={() => navigate(`/book-appointment?providerId=${a.service?.provider?._id || a.service?.provider || ''}&serviceId=${a.service?._id || ''}`)} style={gold}>
+                                                            <RefreshCw size={15} strokeWidth={2} /> Book again
                                                         </button>
                                                     )}
                                                     {a.status === 'completed' && !isReviewed && (
@@ -395,7 +428,7 @@ const MyAppointments = () => {
                                                         <span style={{ fontSize: '0.8rem', color: '#065f46', fontWeight: '600', textAlign: 'center' }}>✓ Reviewed</span>
                                                     )}
                                                     {a.status === 'completed' && (
-                                                        <button onClick={() => navigate(`/book-appointment?providerId=${a.service?.provider || ''}&serviceId=${a.service?._id || ''}`)} style={gold}>
+                                                        <button onClick={() => navigate(`/book-appointment?providerId=${a.service?.provider?._id || a.service?.provider || ''}&serviceId=${a.service?._id || ''}`)} style={gold}>
                                                             <RefreshCw size={15} strokeWidth={2} /> Book again
                                                         </button>
                                                     )}
@@ -404,7 +437,7 @@ const MyAppointments = () => {
                                                             <MessageSquare size={15} strokeWidth={2} /> Message
                                                         </button>
                                                     )}
-                                                    {(a.status === 'pending' || a.status === 'confirmed') && (
+                                                    {active && (
                                                         <button onClick={() => setFormsModalApptId(a._id)} style={neutral}>
                                                             <ClipboardList size={15} strokeWidth={2} /> Forms
                                                         </button>
@@ -429,7 +462,7 @@ const MyAppointments = () => {
                                                         onClick={() => copyRef(ref)}
                                                         title="Copy booking reference"
                                                         aria-label={`Copy booking reference ${ref}`}
-                                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', minHeight: '36px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.78rem' }}
+                                                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', minHeight: '36px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-body)', fontSize: '0.78rem' }}
                                                     >
                                                         <span style={{ textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>Booking ref</span>
                                                         <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--charcoal)', letterSpacing: '0.08em' }}>{ref}</span>
@@ -439,7 +472,7 @@ const MyAppointments = () => {
                                                         <button
                                                             onClick={() => setGettingThere(open ? null : a._id)}
                                                             aria-expanded={open}
-                                                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', minHeight: '36px', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.4rem 0.7rem', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'Plus Jakarta Sans, sans-serif', fontSize: '0.78rem', fontWeight: 600 }}
+                                                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', minHeight: '36px', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.4rem 0.7rem', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', fontSize: '0.78rem', fontWeight: 600 }}
                                                         >
                                                             <MapPin size={14} /> Getting there
                                                             <ChevronDown size={14} style={{ transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
@@ -449,7 +482,7 @@ const MyAppointments = () => {
                                                 {open && address && (
                                                     <div style={{ marginTop: '1rem' }}>
                                                         {bizName && <p style={{ fontWeight: 700, color: 'var(--charcoal)', fontSize: '0.9rem', margin: '0 0 0.2rem', fontFamily: 'var(--font-body)' }}>{bizName}</p>}
-                                                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: '0 0 0.75rem', fontFamily: 'Plus Jakarta Sans, sans-serif', lineHeight: 1.5 }}>{address}</p>
+                                                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: '0 0 0.75rem', fontFamily: 'var(--font-body)', lineHeight: 1.5 }}>{address}</p>
                                                         <iframe
                                                             title={`Map to ${bizName || 'appointment location'}`}
                                                             src={`https://maps.google.com/maps?q=${encodeURIComponent(address)}&z=15&output=embed`}
@@ -457,7 +490,7 @@ const MyAppointments = () => {
                                                             referrerPolicy="no-referrer-when-downgrade"
                                                             style={{ width: '100%', height: '200px', border: 0, borderRadius: 'var(--radius-sm)', display: 'block' }}
                                                         />
-                                                        <a href={mapsUrl(address)} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', minHeight: '44px', marginTop: '0.5rem', color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.85rem', textDecoration: 'none', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                                                        <a href={mapsUrl(address)} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', minHeight: '44px', marginTop: '0.5rem', color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.85rem', textDecoration: 'none', fontFamily: 'var(--font-body)' }}>
                                                             Get directions →
                                                         </a>
                                                     </div>
@@ -482,7 +515,7 @@ const MyAppointments = () => {
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>
                                     Message Business
                                 </h2>
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.2rem 0 0', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.2rem 0 0', fontFamily: 'var(--font-body)' }}>
                                     {msgModal.service?.name} · {new Date(msgModal.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                 </p>
                             </div>
@@ -504,11 +537,11 @@ const MyAppointments = () => {
                                             borderRadius: isMine ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
                                             background: isMine ? 'var(--charcoal)' : 'var(--warm-gray)',
                                             color: isMine ? 'white' : 'var(--charcoal)',
-                                            fontSize: '0.875rem', lineHeight: '1.45', fontFamily: 'Plus Jakarta Sans, sans-serif',
+                                            fontSize: '0.875rem', lineHeight: '1.45', fontFamily: 'var(--font-body)',
                                         }}>
                                             {m.content}
                                         </div>
-                                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '3px', fontFamily: 'Plus Jakarta Sans, sans-serif' }}>
+                                        <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '3px', fontFamily: 'var(--font-body)' }}>
                                             {new Date(m.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
                                         </span>
                                     </div>
@@ -541,7 +574,7 @@ const MyAppointments = () => {
                 <div style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
                     <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', padding: '2rem', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(4,5,5,0.25)' }}>
                         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>What would you like to do?</h2>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem', fontFamily: 'Plus Jakarta Sans, sans-serif', lineHeight: '1.5' }}>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem', fontFamily: 'var(--font-body)', lineHeight: '1.5' }}>
                             <strong style={{ color: 'var(--charcoal)' }}>{showCancelModal.service?.name}</strong> on{' '}
                             {new Date(showCancelModal.appointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at {showCancelModal.startTime}.
                         </p>
@@ -559,7 +592,7 @@ const MyAppointments = () => {
                             </button>
                             <button
                                 onClick={confirmCancel}
-                                style={{ padding: '0.9rem', background: 'none', border: '1.5px solid #fca5a5', color: '#dc2626', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: '600', fontFamily: 'Plus Jakarta Sans, sans-serif', transition: 'background 0.2s' }}
+                                style={{ padding: '0.9rem', background: 'none', border: '1.5px solid #fca5a5', color: '#dc2626', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: '600', fontFamily: 'var(--font-body)', transition: 'background 0.2s' }}
                                 onMouseEnter={e => e.currentTarget.style.background = '#fff1f2'}
                                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
                             >
@@ -567,7 +600,7 @@ const MyAppointments = () => {
                             </button>
                             <button
                                 onClick={() => setShowCancelModal(null)}
-                                style={{ padding: '0.75rem', background: 'none', border: '1.5px solid var(--border)', color: 'var(--text-muted)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.875rem', fontFamily: 'Plus Jakarta Sans, sans-serif' }}
+                                style={{ padding: '0.75rem', background: 'none', border: '1.5px solid var(--border)', color: 'var(--text-muted)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.875rem', fontFamily: 'var(--font-body)' }}
                             >
                                 Go Back
                             </button>
