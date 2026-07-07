@@ -30,6 +30,13 @@ const About = lazy(() => import('./pages/About'));
 const ManageBooking = lazy(() => import('./pages/ManageBooking'));
 const Wallet = lazy(() => import('./pages/Wallet'));
 
+// The footer only belongs on the two "website" pages — everywhere else the
+// app chrome stays clean (bottom nav on mobile, nothing on desktop).
+const FooterGate = () => {
+    const { pathname } = useLocation();
+    return (pathname === '/' || pathname === '/about') ? <Footer /> : null;
+};
+
 const RouteFallback = () => (
     <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
         <div style={{ width: '36px', height: '36px', border: '3px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
@@ -117,7 +124,7 @@ function App() {
             <AuthProvider>
                 <Navbar />
                 <AppRoutes />
-                <Footer />
+                <FooterGate />
             </AuthProvider>
             </ThemeProvider>
         </Router>

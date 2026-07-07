@@ -40,8 +40,14 @@ const Navbar = () => {
     const handleLogout = () => { setMenuOpen(false); logout(); navigate('/'); };
     const isActive = (path) => location.pathname === path;
 
+    // Dashboard tabs live in the query string — a link with ?tab= is active only
+    // on that tab, and the plain Dashboard link only when no other tab is open.
     const navLink = (to, label) => {
-        const active = isActive(to);
+        const [toPath, toQs] = to.split('?');
+        const toTab = toQs ? new URLSearchParams(toQs).get('tab') : null;
+        const curTab = new URLSearchParams(location.search).get('tab');
+        const active = location.pathname === toPath
+            && (toTab ? curTab === toTab : !(toPath === '/dashboard' && (curTab === 'earnings' || curTab === 'waitlist')));
         const baseColor = active ? 'var(--gold-light)' : 'rgba(255,255,255,0.78)';
         return (
             <Link to={to} className="nav-pill" style={{
@@ -106,6 +112,8 @@ const Navbar = () => {
                         on the customer site (cross-app link below). */}
                     <a className="nav-pill" href={CUSTOMER_URL} style={{ color: 'rgba(255,255,255,0.78)', fontWeight: '500' }}>Customer site</a>
                     {user?.role === 'provider' && navLink('/dashboard', 'Dashboard')}
+                    {user?.role === 'provider' && navLink('/dashboard?tab=earnings', 'Earnings')}
+                    {user?.role === 'provider' && navLink('/dashboard?tab=waitlist', 'Waiting list')}
                     {user?.role === 'provider' && navLink('/team', 'Team')}
                     {user?.role === 'staff' && navLink('/my-schedule', 'My Schedule')}
                     {user?.role === 'admin' && navLink('/bkplus-command', 'Dashboard')}
