@@ -28,11 +28,12 @@ afterAll(() => testDb.closeDatabase());
 afterEach(() => testDb.clearDatabase());
 
 // Helper to build a valid booking payload
-// Next weekday (Mon-Fri) so the date always falls inside the default
-// availability schedule, which disables weekends. Plain "tomorrow" made
-// this suite flaky when run on Fridays/Saturdays.
+// A weekday (Mon-Fri) at least 3 days out: inside the default availability
+// schedule (weekends disabled) AND outside the default 24h cancellation
+// window, whatever the wall clock says. Plain "tomorrow" was flaky both ways.
 const tomorrow = () => {
     const d = new Date();
+    d.setDate(d.getDate() + 2); // the loop below adds at least one more day
     do {
         d.setDate(d.getDate() + 1);
     } while (d.getDay() === 0 || d.getDay() === 6);

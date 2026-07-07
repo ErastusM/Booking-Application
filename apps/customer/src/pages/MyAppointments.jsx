@@ -128,8 +128,10 @@ const MyAppointments = () => {
             setAppointments(appointments.map(a => a._id === id ? { ...a, status: 'cancelled' } : a));
             setSuccess('Appointment cancelled successfully.');
             setTimeout(() => setSuccess(''), 15000);
-        } catch {
-            setError('Failed to cancel appointment');
+        } catch (err) {
+            // Surface the real reason (e.g. the provider's cancellation window).
+            setError(err.response?.data?.message || 'Failed to cancel appointment');
+            setTimeout(() => setError(''), 15000);
         }
     };
 

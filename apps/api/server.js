@@ -91,6 +91,21 @@ const logger = pino({
 });
 module.exports.logger = logger;
 
+// Last-resort visibility: crashes and floating rejections page the alert
+// webhook (throttled; no-op without ALERT_WEBHOOK_URL). An uncaught exception
+// still exits — docker restarts the container — but now someone KNOWS.
+const { sendAlert } = require('./src/utils/alerts');
+process.on('unhandledRejection', (reason) => {
+    logger.error({ reason: reason?.message || String(reason) }, 'Unhandled promise rejection');
+    sendAlert('Unhandled promise rejection', reason?.stack || String(reason)).catch(() => {});
+});
+process.on('uncaughtException', (err) => {
+    logger.fatal({ err }, 'Uncaught exception — exiting for a clean restart');
+    sendAlert('Uncaught exception (restarting)', err.stack || err.message)
+        .catch(() => {})
+        .finally(() => process.exit(1));
+});
+
 // Rate limiters — disabled in test environment to prevent 429s during test runs
 const authLimiter = rateLimit({
     windowMs: 15 * 60 * 1000, // 15 minutes

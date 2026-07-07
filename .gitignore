@@ -11,3 +11,4 @@ build/
 .idea/
 test-results/
 playwright-report/
+.claude/

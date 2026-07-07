@@ -104,6 +104,11 @@ const userSchema = new mongoose.Schema(
             expiryMonths: { type: Number, default: null }, // null = balances never expire
             paymentInstructions: { type: String, default: '' }, // bank / eWallet / PayToday details shown to clients
         },
+        // Cancellation policy (providers). Customers may cancel/reschedule up to
+        // this many hours before the start time; 0 = anytime. Staff/admin exempt.
+        bookingPolicy: {
+            cancellationWindowHours: { type: Number, default: 24, min: 0, max: 168 },
+        },
         // Providers this user has saved (customer-facing favorites)
         favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
         // Users this account has blocked — blocks bookings + messaging both ways.

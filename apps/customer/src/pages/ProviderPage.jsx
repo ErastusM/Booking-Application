@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { providerMarketService } from '../services';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { mapsUrl } from '../utils/maps';
@@ -14,15 +14,42 @@ const StarDisplay = ({ rating }) => (
 );
 
 const ProvidersPage = () => {
+    const [searchParams, setSearchParams] = useSearchParams();
+    const dateFilter = searchParams.get('date') || '';
+    const timeFilter = searchParams.get('time') || '';
     const [providers, setProviders] = useState([]);
     const [filtered, setFiltered] = useState([]);
     const [loading, setLoading] = useState(true);
-    const [search, setSearch] = useState('');
+    const [search, setSearch] = useState(searchParams.get('q') || '');
     const [locationFilter, setLocationFilter] = useState('');
     const [categoryFilter, setCategoryFilter] = useState('');
     const [nearMeLoading, setNearMeLoading] = useState(false);
     const [nearMeCity, setNearMeCity] = useState(null);
+    // providerId → { openings: ['09:00', …] } when a date filter is active;
+    // null = not asked / failed (fail open: show everyone, no chips).
+    const [openingsMap, setOpeningsMap] = useState(null);
     const navigate = useNavigate();
+
+    useEffect(() => {
+        if (!dateFilter) { setOpeningsMap(null); return; }
+        let stale = false;
+        providerMarketService.searchProviders({ date: dateFilter, ...(timeFilter && { time: timeFilter }) })
+            .then(res => {
+                if (stale) return;
+                const map = {};
+                (res.data.data || []).forEach(r => { map[r.provider] = r; });
+                setOpeningsMap(map);
+            })
+            .catch(() => { if (!stale) setOpeningsMap(null); });
+        return () => { stale = true; };
+    }, [dateFilter, timeFilter]);
+
+    const clearDateFilter = () => {
+        const next = new URLSearchParams(searchParams);
+        next.delete('date');
+        next.delete('time');
+        setSearchParams(next, { replace: true });
+    };
 
     const handleNearMe = () => {
         if (!navigator.geolocation) return;
@@ -81,8 +108,14 @@ const ProvidersPage = () => {
         if (categoryFilter) {
             result = result.filter(p => p.providerCategory === categoryFilter);
         }
+        if (openingsMap) {
+            // Availability-first: only businesses with a real opening, soonest first.
+            result = result
+                .filter(p => openingsMap[p._id])
+                .sort((a, b) => openingsMap[a._id].openings[0].localeCompare(openingsMap[b._id].openings[0]));
+        }
         setFiltered(result);
-    }, [search, locationFilter, categoryFilter, providers]);
+    }, [search, locationFilter, categoryFilter, providers, openingsMap]);
 
     const allLocations = [...new Set(providers.map(p => p.location).filter(Boolean))];
     const allCategories = [...new Set(providers.map(p => p.providerCategory).filter(Boolean))].sort();
@@ -198,18 +231,41 @@ const ProvidersPage = () => {
                 )}
 
                 {/* Results count */}
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>
-                    {filtered.length} business{filtered.length !== 1 ? 'es' : ''} found
-                    {search && ` for "${search}"`}
-                    {categoryFilter && ` in ${categoryFilter}`}
-                    {locationFilter && ` near ${locationFilter}`}
-                </p>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>
+                        {filtered.length} business{filtered.length !== 1 ? 'es' : ''} {openingsMap ? 'available' : 'found'}
+                        {search && ` for "${search}"`}
+                        {categoryFilter && ` in ${categoryFilter}`}
+                        {locationFilter && ` near ${locationFilter}`}
+                    </p>
+                    {dateFilter && (
+                        <button
+                            onClick={clearDateFilter}
+                            title="Clear the availability filter"
+                            style={{
+                                display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                                padding: '0.3rem 0.75rem', borderRadius: '999px',
+                                border: '1px solid rgba(240,62,22,0.3)', background: 'rgba(240,62,22,0.08)',
+                                color: 'var(--gold-dark)', fontSize: '0.8rem', fontWeight: '600',
+                                fontFamily: 'var(--font-body)', cursor: 'pointer',
+                            }}
+                        >
+                            {new Date(`${dateFilter}T00:00:00`).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}
+                            {timeFilter && ` · from ${timeFilter}`}
+                            <span aria-hidden="true" style={{ fontSize: '0.9rem', lineHeight: 1 }}>×</span>
+                        </button>
+                    )}
+                </div>
 
                 {filtered.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '5rem 2rem', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
                         <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>💈</div>
-                        <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1.3rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>No businesses found</h3>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Try adjusting your search or location filter</p>
+                        <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1.3rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
+                            {openingsMap ? 'No openings on that date' : 'No businesses found'}
+                        </h3>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
+                            {openingsMap ? 'Try another day or time, or clear the date filter above' : 'Try adjusting your search or location filter'}
+                        </p>
                     </div>
                 ) : (
                     <div className="providers-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: '1.5rem' }}>
@@ -266,6 +322,19 @@ const ProvidersPage = () => {
                                             </div>
                                         ) : (
                                             <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>No reviews yet</p>
+                                        )}
+
+                                        {/* Real openings on the searched date */}
+                                        {openingsMap?.[provider._id] && (
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap', marginBottom: '0.75rem' }}>
+                                                {openingsMap[provider._id].openings.map(t => (
+                                                    <span key={t} style={{
+                                                        padding: '0.22rem 0.6rem', borderRadius: '999px',
+                                                        background: 'rgba(240,62,22,0.08)', border: '1px solid rgba(240,62,22,0.25)',
+                                                        color: 'var(--gold-dark)', fontSize: '0.75rem', fontWeight: '700',
+                                                    }}>{t}</span>
+                                                ))}
+                                            </div>
                                         )}
 
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.875rem', borderTop: '1px solid var(--border)', marginTop: 'auto' }}>

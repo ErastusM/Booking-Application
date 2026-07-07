@@ -115,7 +115,7 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          source: "docker-compose.yml,nginx/conf.d/bookplus.conf"
+          source: "docker-compose.yml,nginx/conf.d/bookplus.conf,ops"
           target: /app
           overwrite: true
 

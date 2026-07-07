@@ -19,6 +19,22 @@ services:
     env_file:
       - .env.production
 
+  # Nightly mongodump with rotation (+ optional S3-compatible offsite).
+  # The safety net: mongo_data lives on this one host — without this, a disk
+  # failure loses the business.
+  backup:
+    image: mongo:6.0
+    container_name: bookplus-backup
+    restart: always
+    depends_on:
+      - mongodb
+    volumes:
+      - ./ops/backup:/ops:ro
+      - ./backups:/backups
+    env_file:
+      - .env.production
+    entrypoint: ["/bin/sh", "/ops/entrypoint.sh"]
+
   # Dual-app split (Epic 1): customer marketplace + business suite.
   customer:
     image: erastusm/bookplus-customer:latest

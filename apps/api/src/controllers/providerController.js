@@ -3,6 +3,7 @@ const Service = require('../models/Service');
 const Review = require('../models/Review');
 const Category = require('../models/Category');
 const TeamMember = require('../models/TeamMember');
+const { searchAvailability } = require('../utils/availabilitySearch');
 
 /**
  * GET /api/providers/:id/staff?serviceId=
@@ -20,6 +21,33 @@ exports.getProviderStaff = async (req, res) => {
             .select('name role color services') // public: no email/phone/user
             .sort({ createdAt: 1 });
         res.status(200).json({ success: true, data: staff });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * GET /api/providers/search?date=YYYY-MM-DD&time=HH:MM&q=
+ * Public — providers with a REAL opening on the given day (staff union or
+ * owner column, minus bookings and blocked time). Returns provider ids plus
+ * their first few openings; the client merges these into its provider cards.
+ */
+exports.searchProviders = async (req, res) => {
+    try {
+        const { date, time, q } = req.query;
+        if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+            return res.status(400).json({ success: false, message: 'date is required (YYYY-MM-DD)' });
+        }
+        if (time && !/^\d{2}:\d{2}$/.test(time)) {
+            return res.status(400).json({ success: false, message: 'time must be HH:MM' });
+        }
+        const now = new Date();
+        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        if (date < today) {
+            return res.status(400).json({ success: false, message: 'date must be today or later' });
+        }
+        const results = await searchAvailability({ date, time, q });
+        res.status(200).json({ success: true, data: results });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -110,7 +138,7 @@ exports.getProviderProfile = async (req, res) => {
         const provider = await User.findOne({
             _id: req.params.id,
             role: 'provider',
-        }).select('name avatar providerCategory businessProfile portfolio phone email');
+        }).select('name avatar providerCategory businessProfile portfolio phone email bookingPolicy');
 
         if (!provider) {
             return res.status(404).json({ success: false, message: 'Provider not found' });
@@ -178,6 +206,8 @@ exports.getProviderProfile = async (req, res) => {
                     avgRating,
                     reviewCount,
                     serviceCount: services.length,
+                    // Notice a customer must give to cancel/reschedule (0 = anytime).
+                    cancellationWindowHours: provider.bookingPolicy?.cancellationWindowHours ?? 24,
                 },
                 categories: grouped,
                 reviews: reviewDocs.slice(0, 5),

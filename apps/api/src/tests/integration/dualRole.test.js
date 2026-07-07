@@ -25,8 +25,10 @@ beforeAll(() => testDb.connect());
 afterAll(() => testDb.closeDatabase());
 afterEach(() => testDb.clearDatabase());
 
+// 3+ days out: clears the default 24h cancellation window at any time of day.
 const nextWeekday = () => {
     const d = new Date();
+    d.setDate(d.getDate() + 2);
     do { d.setDate(d.getDate() + 1); } while (d.getDay() === 0 || d.getDay() === 6);
     const pad = (n) => String(n).padStart(2, '0');
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
