@@ -8,11 +8,16 @@ test.describe('Authentication', () => {
         await expect(page.getByRole('button', { name: /^sign in/i })).toHaveCount(0);
     });
 
-    test('seeded provider gets the business-app hand-off in the nav', async ({ page }) => {
-        // The customer app treats providers as customers; the navbar carries a
-        // "Business" pill that hops to the business app with a full page load.
-        await login(page, SEED.provider);
-        await expect(page.getByRole('button', { name: /business/i }).first()).toBeVisible();
+    test('a business-account email cannot sign in on the customer app', async ({ page }) => {
+        // Accounts are scoped per side: the customer app authenticates only
+        // customer accounts. A provider (business) email with the right password
+        // is rejected with a message pointing at the business app, and stays put.
+        await page.goto('/login');
+        await page.getByPlaceholder('you@example.com').fill(SEED.provider.email);
+        await page.getByPlaceholder('••••••••').fill(SEED.provider.password);
+        await page.getByRole('button', { name: /sign in/i }).click();
+        await expect(page.getByText(/registered as a business account/i)).toBeVisible();
+        await expect(page).toHaveURL(/\/login/);
     });
 
     test('wrong password shows an error and stays on login', async ({ page }) => {

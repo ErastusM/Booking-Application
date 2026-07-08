@@ -1,18 +1,24 @@
 const { test, expect } = require('@playwright/test');
-const { SEED, login, CUSTOMER_URL } = require('./helpers.cjs');
+const { SEED, login } = require('./helpers.cjs');
 
 /**
- * Cross-app SSO (DUAL_APP_SPEC §4.3): one login, both apps. The refresh
- * cookie is set by the API origin, so a session started on the customer app
- * must bootstrap silently when the same browser opens the business app.
+ * Sessions are now scoped per side (customer vs business). Cross-app SSO no
+ * longer bridges the two sides — but WITHIN a side, the refresh cookie still
+ * re-establishes a session after the access token is gone (reopen / token
+ * expiry). This verifies the business app bootstraps its own session from the
+ * business-scoped refresh cookie.
  */
-test.describe('Cross-app single sign-on', () => {
-    test('a provider signed in on the customer app is already signed in here', async ({ page }) => {
-        await login(page, SEED.provider, CUSTOMER_URL);
+test.describe('Business-side session persistence', () => {
+    test('a provider is re-authenticated from the refresh cookie after the token is cleared', async ({ page }) => {
+        await login(page, SEED.provider);
+        await page.waitForURL(/\/dashboard/);
 
+        // Drop the access token but keep the httpOnly refresh cookie, then reload.
+        await page.evaluate(() => localStorage.removeItem('token'));
         await page.goto('/dashboard');
-        // bootstrapSession must authenticate from the shared refresh cookie —
-        // landing back on /login would mean SSO is broken.
+
+        // bootstrapSession must exchange the business-scoped cookie for a fresh
+        // token — landing back on /login would mean persistence is broken.
         await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
         await expect(page.getByText(SEED.providerName).first()).toBeVisible();
     });
