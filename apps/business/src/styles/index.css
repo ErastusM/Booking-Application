@@ -1093,8 +1093,33 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
 .nav-pill {
   position: relative; text-decoration: none; font-size: 0.9rem; font-weight: 500;
   padding: 0.45rem 0.9rem; border-radius: var(--radius-pill);
+  white-space: nowrap; /* never let a two-word label (e.g. "Waiting list") wrap to two lines */
   transition: color var(--dur) ease, background var(--dur) ease;
 }
+
+/* Navbar-scoped responsive switch. The business bar carries denser top-level nav
+   (4 product tabs + cross-app link + utilities) than the customer app, so the full
+   row can't fit the 769–1023px band without overlapping itself. It collapses to the
+   drawer + bottom-nav at a WIDER breakpoint (1024) than the app's global 768px one. */
+.nav-desktop { display: flex; }
+.nav-mobile { display: none; }
+/* 1023.98/1024 split (not 1023/1024) so the boundary is exact at fractional
+   widths from browser zoom / fractional-DPI — no crack where neither query matches. */
+@media (min-width: 1024px) { .nav-mobile { display: none !important; } }
+@media (max-width: 1023.98px) {
+  .nav-desktop { display: none !important; }
+  .nav-mobile { display: flex !important; }
+}
+/* The provider bottom-nav (nav-mobile) now floats over content up to 1023.98px,
+   so the body must reserve space for it across that whole band — not just the
+   app-global ≤768px block (line ~467, which still covers phones). Disjoint ranges,
+   so no duplicate declaration. */
+@media (min-width: 769px) and (max-width: 1023.98px) {
+  body { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+}
+/* The cross-app "Customer site" pill duplicates the dropdown's "Go to customer
+   site", so it is dropped on tighter desktop widths to keep the bar breathing. */
+@media (max-width: 1120px) { .nav-cross-app { display: none !important; } }
 
 /* Bottom nav — active pill indicator + press feedback */
 .bottom-nav .bnav-item { position: relative; -webkit-tap-highlight-color: transparent; transition: color var(--dur) ease; }
