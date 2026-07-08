@@ -196,6 +196,10 @@ describe('GET /api/appointments/booked-slots?teamMember=', () => {
 
         const date = new Date();
         date.setDate(date.getDate() + 7);
+        // Anchor to local midday so the stored timestamp and the toISOString()
+        // day string can't straddle a UTC midnight boundary (flakes when the
+        // suite runs in the small hours in a non-UTC timezone).
+        date.setHours(12, 0, 0, 0);
         const mk = (teamMember, startTime, endTime) => Appointment.create({
             customer: customer._id, service: svc._id, provider: owner._id,
             appointmentDate: date, startTime, endTime, status: 'confirmed', teamMember,

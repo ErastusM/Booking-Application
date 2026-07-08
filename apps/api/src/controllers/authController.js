@@ -6,7 +6,7 @@ const jwt = require('jsonwebtoken');
 const { sendVerificationEmail, sendWelcomeEmail } = require('../utils/emailService');
 const MAIN_CATEGORIES = require('../constants/mainCategories');
 const { notifyAdmins } = require('../utils/notificationhelper');
-const { primaryOrigin } = require('../utils/origins');
+const { primaryOrigin, businessOrigin, originForRole } = require('../utils/origins');
 
 // How many recent refresh-token ids (jti hashes) to remember per user. Enough to
 // cover a handful of concurrent devices without growing unbounded.
@@ -871,11 +871,15 @@ exports.generateBookingSlug = async (req, res) => {
 };
 
 exports.verifyEmail = async (req, res) => {
+    // A business signup must return to the business app, not the customer site.
+    // Success knows the real account role; the error cases (no user yet) fall
+    // back to the `app` hint the verification link carries.
+    const hintOrigin = req.query.app === 'business' ? businessOrigin() : primaryOrigin();
     try {
         const { token } = req.query;
 
         if (!token) {
-            return res.redirect(`${primaryOrigin()}/verify-email?status=invalid`);
+            return res.redirect(`${hintOrigin}/verify-email?status=invalid`);
         }
 
         const user = await User.findOne({
@@ -884,7 +888,7 @@ exports.verifyEmail = async (req, res) => {
         });
 
         if (!user) {
-            return res.redirect(`${primaryOrigin()}/verify-email?status=expired`);
+            return res.redirect(`${hintOrigin}/verify-email?status=expired`);
         }
 
         user.isVerified = true;
@@ -895,9 +899,9 @@ exports.verifyEmail = async (req, res) => {
         // Send role-specific welcome email (fire-and-forget — must not block the redirect)
         sendWelcomeEmail(user.email, user.name, user.role).catch(() => {});
 
-        return res.redirect(`${primaryOrigin()}/verify-email?status=success&role=${user.role}`);
+        return res.redirect(`${originForRole(user.role)}/verify-email?status=success&role=${user.role}`);
     } catch (error) {
-        return res.redirect(`${primaryOrigin()}/verify-email?status=error`);
+        return res.redirect(`${hintOrigin}/verify-email?status=error`);
     }
 };
 
@@ -929,7 +933,7 @@ exports.forgotPassword = async (req, res) => {
             user.passwordResetToken = crypto.createHash('sha256').update(rawToken).digest('hex');
             user.passwordResetExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
             await user.save({ validateBeforeSave: false });
-            await sendPasswordResetEmail(user.email, user.name, rawToken);
+            await sendPasswordResetEmail(user.email, user.name, rawToken, user.role);
         }
 
         // Always the same response so attackers cannot enumerate registered emails
