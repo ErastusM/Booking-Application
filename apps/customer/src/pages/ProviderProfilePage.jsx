@@ -20,8 +20,11 @@ const contactRowStyle = { display: 'flex', alignItems: 'center', gap: '0.6rem', 
 const contactIconStyle = { width: '28px', height: '28px', borderRadius: '8px', background: 'var(--surface-sunken)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 };
 const lightboxBtnStyle = (pos) => ({ position: 'absolute', ...pos, top: pos.top || '50%', transform: pos.top ? 'none' : 'translateY(-50%)', width: '44px', height: '44px', borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.15)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(4px)' });
 
-const ProviderProfilePage = () => {
-    const { id } = useParams();
+const ProviderProfilePage = ({ providerId } = {}) => {
+    const params = useParams();
+    // When rendered from the /b/:slug route a resolved id is passed as a prop;
+    // the normal /providers/:id route reads it from the URL.
+    const id = providerId || params.id;
     const navigate = useNavigate();
     const { user } = useAuthContext();
     const [data, setData] = useState(null);

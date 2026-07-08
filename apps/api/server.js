@@ -236,6 +236,14 @@ if (require.main === module) {
         } catch (err) {
             logger.error({ err: err.message }, 'Account-type boot migration failed (non-fatal)');
         }
+        // Give every provider a unique public booking-link slug (idempotent).
+        try {
+            const { backfillSlugs } = require('./scripts/backfill_slugs');
+            const { assigned } = await backfillSlugs();
+            logger.info({ assigned }, 'Booking-link slugs ensured on boot');
+        } catch (err) {
+            logger.error({ err: err.message }, 'Slug backfill failed (non-fatal)');
+        }
         const server = app.listen(PORT, () => {
             logger.info({ port: PORT }, 'Server running');
             startReminderJob();
