@@ -10,18 +10,23 @@ passport.use(new GoogleStrategy({
     passReqToCallback: true,
 }, async (req, accessToken, refreshToken, profile, done) => {
     try {
-        let user = await User.findOne({ googleId: profile.id });
+        // Role is carried through the OAuth `state` param set when the flow began
+        // (the "Continue with Google" button passes the chosen role). It also
+        // determines WHICH side's account this sign-in targets: one Google
+        // identity may hold both a customer and a business account, so every
+        // lookup below is scoped to the requested account type.
+        const requestedRole = req.query.state === 'provider' ? 'provider' : 'customer';
+        const roleFilter = User.roleFilterForAccountType(User.accountTypeForRole(requestedRole));
+
+        let user = await User.findOne({ googleId: profile.id, role: roleFilter });
 
         if (!user) {
-            user = await User.findOne({ email: profile.emails[0].value });
+            user = await User.findOne({ email: profile.emails[0].value, role: roleFilter });
             if (user) {
                 user.googleId = profile.id;
                 if (!user.avatar) user.avatar = profile.photos[0]?.value;
                 await user.save();
             } else {
-                // Role is carried through the OAuth `state` param set when the flow began
-                // (the "Continue with Google" button passes the chosen role).
-                const requestedRole = req.query.state === 'provider' ? 'provider' : 'customer';
                 user = await User.create({
                     name: profile.displayName,
                     email: profile.emails[0].value,

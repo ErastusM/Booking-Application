@@ -121,9 +121,30 @@ exports.updateUserRole = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Invalid role' });
         }
 
+        // Changing the role can move the account to the other side of the
+        // product (accountType is derived from role). Block the change when the
+        // email already holds a separate account on the target side, and keep
+        // accountType in sync explicitly — findByIdAndUpdate skips save hooks.
+        const accountType = User.accountTypeForRole(role);
+        const target = await User.findById(req.params.id).select('email');
+        if (!target) {
+            return res.status(404).json({ success: false, message: 'User not found' });
+        }
+        const conflict = await User.findOne({
+            email: target.email,
+            _id: { $ne: target._id },
+            role: User.roleFilterForAccountType(accountType),
+        });
+        if (conflict) {
+            return res.status(400).json({
+                success: false,
+                message: `This email already has a separate ${accountType} account — the role cannot be changed.`,
+            });
+        }
+
         const user = await User.findByIdAndUpdate(
             req.params.id,
-            { role },
+            { role, accountType },
             { new: true }
         ).select('-password');
 

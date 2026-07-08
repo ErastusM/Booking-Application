@@ -3,10 +3,12 @@ import { AxiosInstance } from 'axios';
 // Endpoint surface ported verbatim from the pre-monorepo client
 // (client/src/services/index.js). Response payloads stay untyped until the
 // OpenAPI-generated types land (DUAL_APP_SPEC.md §4.1).
-export const makeServices = (API: AxiosInstance) => ({
+export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'business') => ({
     authService: {
         register: (userData: any) => API.post('/auth/register', userData),
-        login: (credentials: any) => API.post('/auth/login', credentials),
+        // The app's accountType rides along so an email that holds both a
+        // customer and a business account signs in to the right one here.
+        login: (credentials: any) => API.post('/auth/login', accountType ? { accountType, ...credentials } : credentials),
         logout: () => API.post('/auth/logout'),
         getProfile: () => API.get('/auth/profile'),
         updateProfile: (data: any) => API.put('/auth/profile', data),
@@ -15,7 +17,7 @@ export const makeServices = (API: AxiosInstance) => ({
         becomeProvider: (data: any) => API.put('/auth/become-provider', data),
         changePassword: (data: any) => API.put('/auth/change-password', data),
         resendVerification: (email: string) => API.post('/auth/resend-verification', { email }),
-        forgotPassword: (email: string) => API.post('/auth/forgot-password', { email }),
+        forgotPassword: (email: string) => API.post('/auth/forgot-password', accountType ? { email, accountType } : { email }),
         resetPassword: (data: any) => API.post('/auth/reset-password', data),
         deactivateAccount: () => API.post('/auth/deactivate'),
         deleteAccount: (password: string) => API.delete('/auth/account', { data: { password } }),

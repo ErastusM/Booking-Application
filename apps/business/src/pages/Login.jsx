@@ -20,12 +20,15 @@ const Login = () => {
         setLoading(true);
         setError('');
         try {
+            // The api-client stamps accountType:'business' on this call, so only
+            // business accounts (provider/staff/admin) authenticate here — a
+            // customer-only email gets a clear error instead of a wrong-side login.
             const response = await authService.login(formData);
             login(response.data.data);
             const role = response.data.data?.user?.role;
-            if (role === 'provider') navigate('/dashboard');
-            else if (role === 'admin') navigate('/bkplus-command');
-            else navigate('/');
+            if (role === 'admin') navigate('/bkplus-command');
+            else if (role === 'staff') navigate('/my-schedule');
+            else navigate('/dashboard');
         } catch (err) {
             setError(err.response?.data?.message || 'Login failed');
         } finally {
@@ -205,7 +208,7 @@ const Login = () => {
                         </div>
 
                         <a
-                            href={`${API_BASE}/api/auth/google`}
+                            href={`${API_BASE}/api/auth/google?role=provider`}
                             style={{
                                 display: 'flex',
                                 alignItems: 'center',

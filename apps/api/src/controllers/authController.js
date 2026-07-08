@@ -83,12 +83,23 @@ exports.register = async (req, res) => {
             });
         }
 
-        // Check if user already exists
-        const existingUser = await User.findOne({ email });
+        // Only allow safe roles
+        const allowedRoles = ['customer', 'provider'];
+        const assignedRole = allowedRoles.includes(role) ? role : 'customer';
+
+        // Duplicate check is scoped per account type: the same email may hold
+        // one customer account AND one business account, so only an existing
+        // account on the SAME side blocks this registration.
+        const accountType = User.accountTypeForRole(assignedRole);
+        const existingUser = await User.findOne({
+            email,
+            role: User.roleFilterForAccountType(accountType),
+        });
         if (existingUser) {
+            const label = accountType === 'business' ? 'business' : 'customer';
             return res.status(400).json({
                 success: false,
-                message: 'An account with this email already exists — please sign in instead. One account works as both a customer and a provider.'
+                message: `A ${label} account with this email already exists — please sign in instead.`
             });
         }
 
@@ -103,10 +114,6 @@ exports.register = async (req, res) => {
                     'Password must be at least 8 characters and include an uppercase letter, a number and a special character'
             });
         }
-
-        // Only allow safe roles
-        const allowedRoles = ['customer', 'provider'];
-        const assignedRole = allowedRoles.includes(role) ? role : 'customer';
 
         if (assignedRole === 'provider' && (!providerCategory || providerCategory.trim().length === 0)) {
             return res.status(400).json({
@@ -169,6 +176,7 @@ exports.register = async (req, res) => {
                     name: user.name,
                     email: user.email,
                     role: user.role,
+                    accountType: user.accountType,
                     providerCategory: user.providerCategory,
                     isVerified: false,
                 },
@@ -177,6 +185,14 @@ exports.register = async (req, res) => {
             }
         });
     } catch (error) {
+        // Two concurrent signups for the same email + account type: the compound
+        // unique index catches the race the findOne pre-check missed.
+        if (error.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                message: 'An account with this email already exists — please sign in instead.'
+            });
+        }
         res.status(500).json({
             success: false,
             message: 'Internal server error'
@@ -192,8 +208,11 @@ exports.resendVerification = async (req, res) => {
     try {
         const email = req.body.email?.trim().toLowerCase();
         if (!email) return res.status(400).json({ success: false, message: 'Email is required' });
-        const user = await User.findOne({ email });
-        if (user && !user.isVerified) {
+        // An email may hold a customer AND a business account — refresh the
+        // verification link for every unverified one.
+        const users = await User.find({ email });
+        for (const user of users) {
+            if (user.isVerified) continue;
             user.verificationToken = crypto.randomBytes(32).toString('hex');
             user.verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
             await user.save();
@@ -213,7 +232,7 @@ exports.resendVerification = async (req, res) => {
  */
 exports.login = async (req, res) => {
     try {
-        const { email: rawEmail, password } = req.body;
+        const { email: rawEmail, password, accountType } = req.body;
         const email = rawEmail?.trim().toLowerCase();
 
         if (!email || !password) {
@@ -223,18 +242,42 @@ exports.login = async (req, res) => {
             });
         }
 
-        const user = await User.findOne({ email }).select('+password +refreshTokenJtis');
+        // Each app scopes login to its own side (customer app → 'customer',
+        // business app → 'business') so an email that holds both a customer and
+        // a business account signs in to the right one. The lookup filters by
+        // role rather than the stored accountType so pre-backfill documents
+        // still match. No accountType (legacy client) = any account whose
+        // password matches.
+        const query = accountType
+            ? { email, role: User.roleFilterForAccountType(accountType) }
+            : { email };
+        const candidates = await User.find(query).select('+password +refreshTokenJtis');
 
-        if (!user) {
-            return res.status(401).json({
-                success: false,
-                message: 'Invalid credentials'
-            });
+        let user = null;
+        for (const candidate of candidates) {
+            if (await candidate.matchPassword(password)) { user = candidate; break; }
         }
 
-        const isMatch = await user.matchPassword(password);
-
-        if (!isMatch) {
+        if (!user) {
+            // Right password, wrong side of the app? Only ever revealed to
+            // someone who proved they own the account — a plain wrong email or
+            // password stays a generic 401 (no account enumeration).
+            if (accountType) {
+                const others = await User.find({ email }).select('+password');
+                for (const other of others) {
+                    if (await other.matchPassword(password)) {
+                        const otherType = User.accountTypeForRole(other.role);
+                        const message = accountType === 'business'
+                            ? 'This email is registered as a customer account. Please sign in on the customer app, or create a business account to use the business app.'
+                            : 'This email is registered as a business account. Please sign in on the business app, or create a customer account to book appointments.';
+                        return res.status(403).json({
+                            success: false,
+                            message,
+                            accountType: otherType,
+                        });
+                    }
+                }
+            }
             return res.status(401).json({
                 success: false,
                 message: 'Invalid credentials'
@@ -270,6 +313,7 @@ exports.login = async (req, res) => {
                     name: user.name,
                     email: user.email,
                     role: user.role,
+                    accountType: User.accountTypeForRole(user.role),
                     providerCategory: user.providerCategory,
                     avatar: user.avatar,
                     phone: user.phone,
@@ -368,6 +412,19 @@ exports.refresh = async (req, res) => {
 
         if (user.isActive === false) {
             return res.status(403).json({ success: false, message: 'Your account has been suspended. Please contact support.' });
+        }
+
+        // App-scoped sessions: each app sends its accountType so the SSO cookie
+        // from a sibling-subdomain login can only bootstrap a session for the
+        // matching side — the business app never silently adopts a customer
+        // session (and vice versa). Legacy clients omit it and keep old behavior.
+        const { accountType } = req.body || {};
+        if ((accountType === 'customer' || accountType === 'business') &&
+            User.accountTypeForRole(user.role) !== accountType) {
+            return res.status(403).json({
+                success: false,
+                message: `This session belongs to a ${User.accountTypeForRole(user.role)} account.`,
+            });
         }
 
         // Revoked by a logout / password reset since this refresh token was issued
@@ -540,6 +597,20 @@ exports.becomeProvider = async (req, res) => {
         }
         if (!providerCategory || !providerCategory.trim()) {
             return res.status(400).json({ success: false, message: 'Please choose your main service category' });
+        }
+
+        // Upgrading flips this account to the business side; a separate business
+        // account already holding this email would collide with it.
+        const existingBusiness = await User.findOne({
+            email: user.email,
+            _id: { $ne: user._id },
+            role: User.roleFilterForAccountType('business'),
+        });
+        if (existingBusiness) {
+            return res.status(400).json({
+                success: false,
+                message: 'A business account with this email already exists — sign in to it on the business app instead.',
+            });
         }
 
         user.role = 'provider';
@@ -789,29 +860,32 @@ exports.verifyEmail = async (req, res) => {
  */
 exports.forgotPassword = async (req, res) => {
     try {
-        const { email } = req.body;
+        const { email, accountType } = req.body;
         if (!email) {
             return res.status(400).json({ success: false, message: 'Email is required' });
         }
 
-        const user = await User.findOne({ email: email.toLowerCase().trim() }).select('+passwordResetToken +passwordResetExpiry');
-        // Always return success so attackers cannot enumerate registered emails
-        if (!user || user.provider !== 'local') {
-            return res.status(200).json({ success: true, message: 'If an account with that email exists, a reset link has been sent.' });
+        // Scoped to the requesting app's account type when provided, so the
+        // reset link targets the right one of a dual (customer + business)
+        // email. Without it, every matching local account gets its own link.
+        const query = { email: email.toLowerCase().trim() };
+        if (accountType === 'customer' || accountType === 'business') {
+            query.role = User.roleFilterForAccountType(accountType);
+        }
+        const users = await User.find(query).select('+passwordResetToken +passwordResetExpiry');
+        const { sendPasswordResetEmail } = require('../utils/emailService');
+
+        for (const user of users) {
+            if (user.provider !== 'local') continue;
+            // Generate a secure random token; store only its SHA-256 hash
+            const rawToken = crypto.randomBytes(32).toString('hex');
+            user.passwordResetToken = crypto.createHash('sha256').update(rawToken).digest('hex');
+            user.passwordResetExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+            await user.save({ validateBeforeSave: false });
+            await sendPasswordResetEmail(user.email, user.name, rawToken);
         }
 
-        // Generate a secure random token
-        const rawToken = crypto.randomBytes(32).toString('hex');
-        // Store its SHA-256 hash in the DB (never the raw token)
-        const hashedToken = crypto.createHash('sha256').update(rawToken).digest('hex');
-
-        user.passwordResetToken = hashedToken;
-        user.passwordResetExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
-        await user.save({ validateBeforeSave: false });
-
-        const { sendPasswordResetEmail } = require('../utils/emailService');
-        await sendPasswordResetEmail(user.email, user.name, rawToken);
-
+        // Always the same response so attackers cannot enumerate registered emails
         return res.status(200).json({ success: true, message: 'If an account with that email exists, a reset link has been sent.' });
     } catch (error) {
         return res.status(500).json({ success: false, message: 'Internal server error' });

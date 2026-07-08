@@ -54,6 +54,11 @@ const loginRules = [
         .normalizeEmail(),
     body('password')
         .notEmpty().withMessage('Password is required'),
+    // Which side of the product to sign in to — sent by each app so an email
+    // holding both a customer and a business account logs into the right one.
+    body('accountType')
+        .optional()
+        .isIn(['customer', 'business']).withMessage('Account type must be customer or business'),
     handleValidationErrors,
 ];
 

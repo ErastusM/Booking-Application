@@ -29,9 +29,14 @@ const AuthCallback = () => {
                         const needsPhone = !user.phone || user.phone === 'pending';
                         if (needsPhone) {
                             navigate('/complete-profile');
-                        } else if (user.role === 'admin') {
-                            // Admins live in the business app (hard nav = fresh boot there).
-                            window.location.href = `${import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003'}/bkplus-command`;
+                        } else if (user.role !== 'customer') {
+                            // Business accounts (provider/staff/admin) live in the
+                            // business app — hard nav; the SSO cookie set by the code
+                            // exchange lets it bootstrap the session over there.
+                            const businessUrl = import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003';
+                            window.location.href = user.role === 'admin'
+                                ? `${businessUrl}/bkplus-command`
+                                : `${businessUrl}/dashboard`;
                         } else {
                             navigate('/');
                         }

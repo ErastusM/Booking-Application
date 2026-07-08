@@ -13,12 +13,22 @@ const userSchema = new mongoose.Schema(
         email: {
             type: String,
             required: [true, 'Please add an email'],
-            unique: true,
             lowercase: true,
             match: [
                 /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
                 'Please provide a valid email'
             ]
+        },
+        // Which side of the product this account belongs to. One email may hold
+        // at most ONE customer account and ONE business account (compound unique
+        // index below) — login is scoped by this, so the same email can sign in
+        // to the customer app and the business app as two distinct accounts.
+        // Derived from role (customer → 'customer'; provider/staff/admin →
+        // 'business') and kept in sync on every save.
+        accountType: {
+            type: String,
+            enum: ['customer', 'business'],
+            default: 'customer',
         },
         password: {
             type: String,
@@ -127,6 +137,28 @@ const userSchema = new mongoose.Schema(
         timestamps: true
     }
 );
+
+// One customer account + one business account per email (staff/admin count as
+// business). Replaces the old global-unique email index — production DBs need
+// scripts/migrate_account_types.js to drop `email_1` and backfill accountType.
+userSchema.index({ email: 1, accountType: 1 }, { unique: true });
+
+const BUSINESS_ROLES = ['provider', 'staff', 'admin'];
+
+userSchema.statics.accountTypeForRole = (role) =>
+    role === 'customer' ? 'customer' : 'business';
+
+// Role filter equivalent to an accountType — used for lookups so documents
+// created before the accountType backfill still authenticate correctly.
+userSchema.statics.roleFilterForAccountType = (accountType) =>
+    accountType === 'business' ? { $in: BUSINESS_ROLES } : 'customer';
+
+// Keep accountType in lockstep with role (covers create, becomeProvider and
+// any other doc.save() that flips the role).
+userSchema.pre('validate', function (next) {
+    this.accountType = this.role === 'customer' ? 'customer' : 'business';
+    next();
+});
 
 // Hash password before saving
 userSchema.pre('save', async function (next) {

@@ -1,9 +1,16 @@
 import axios, { AxiosError, AxiosInstance } from 'axios';
 
+export type AccountType = 'customer' | 'business';
+
 export interface ApiClientOptions {
     /** Explicit API origin (e.g. https://api.bookplus.pro). When omitted, it is
      *  inferred from window.location the same way the pre-monorepo client did. */
     apiUrl?: string;
+    /** Which side of the product this app serves ('customer' | 'business').
+     *  Sent with login/refresh so an email holding both a customer and a
+     *  business account authenticates as the RIGHT one for this app — the SSO
+     *  cookie from the sibling app can no longer bootstrap a wrong-side session. */
+    accountType?: AccountType;
 }
 
 export const inferApiBase = (explicit?: string): string => {
@@ -41,11 +48,17 @@ const forceLogout = () => {
  * on a sibling app, exchange it for tokens. Returns true when a session is
  * (already or newly) available.
  */
-export const bootstrapSession = async (apiBase: string): Promise<boolean> => {
+export const bootstrapSession = async (apiBase: string, accountType?: AccountType): Promise<boolean> => {
     if (typeof window === 'undefined') return false;
     if (localStorage.getItem('token')) return true;
     try {
-        const { data } = await axios.post(`${apiBase}/api/auth/refresh`, {}, { withCredentials: true });
+        // accountType scopes the exchange: a cookie belonging to the other
+        // side's account is rejected (403) and this app stays logged out.
+        const { data } = await axios.post(
+            `${apiBase}/api/auth/refresh`,
+            accountType ? { accountType } : {},
+            { withCredentials: true }
+        );
         const token = data?.data?.token;
         if (!token) return false;
         localStorage.setItem('token', token);
@@ -56,6 +69,9 @@ export const bootstrapSession = async (apiBase: string): Promise<boolean> => {
     }
 };
 
+// Note: accountType deliberately does NOT ride on the interceptor's silent
+// refresh below — it guards session ESTABLISHMENT (login, SSO bootstrap), not
+// sessions this app already holds, which keep refreshing like before.
 export const createHttp = (apiBase: string): AxiosInstance => {
     const API = axios.create({
         baseURL: `${apiBase}/api`,
