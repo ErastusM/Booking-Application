@@ -1,16 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api';
 import { authService, availabilityService, providerServiceService } from '../services';
 import { uploadToCloudinary } from '../utils/uploadImage';
 import { cloudinaryAvatar, cloudinaryThumb } from '../utils/cloudinary';
-import { MapPin, Clock, Scissors, Camera, LinkIcon, Check, Copy, Share2, ArrowLeft, Crosshair, Plus, X } from 'lucide-react';
+import MapPicker, { MAPS_KEY, reverseGeocode } from './MapPicker';
+import { MapPin, Clock, Scissors, Camera, LinkIcon, Check, Copy, Share2, ArrowLeft, Plus, X } from 'lucide-react';
 
-const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'https://www.bookplus.pro';
-
-// Windhoek — a sensible default centre for a Namibian marketplace until the
-// provider drops their own pin.
-const DEFAULT_CENTER = { lat: -22.5609, lng: 17.0658 };
 
 const DAYS = [
     ['monday', 'Monday'], ['tuesday', 'Tuesday'], ['wednesday', 'Wednesday'],
@@ -23,69 +18,6 @@ const defaultSchedule = () => {
         s[k] = { enabled: i < 5, slots: [{ start: '09:00', end: '17:00' }] };
     });
     return s;
-};
-
-// Turn coordinates into a readable address (free OSM reverse-geocode — no
-// Google Geocoding bill). Best-effort; a failure just leaves the field as-is.
-const reverseGeocode = async (lat, lng) => {
-    try {
-        const res = await fetch(
-            `https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`,
-            { headers: { 'Accept-Language': 'en' } }
-        );
-        const d = await res.json();
-        const a = d.address || {};
-        return [a.road || a.pedestrian, a.house_number, a.suburb || a.neighbourhood,
-            a.city || a.town || a.village, a.state, a.country].filter(Boolean).join(', ');
-    } catch {
-        return '';
-    }
-};
-
-// Draggable Google-Maps pin. Isolated so its useJsApiLoader hook only runs when
-// a key is configured (the parent renders the text fallback otherwise).
-const MapPicker = ({ coordinates, onPick }) => {
-    const { isLoaded, loadError } = useJsApiLoader({ id: 'gmaps', googleMapsApiKey: MAPS_KEY });
-    const center = coordinates && coordinates.lat != null ? coordinates : DEFAULT_CENTER;
-
-    const locate = () => {
-        if (!navigator.geolocation) return;
-        navigator.geolocation.getCurrentPosition(
-            (pos) => onPick({ lat: pos.coords.latitude, lng: pos.coords.longitude }),
-            () => {},
-            { timeout: 8000 }
-        );
-    };
-
-    if (loadError) return <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Map couldn’t load — you can still type your address below.</p>;
-    if (!isLoaded) return <div style={{ height: 240, borderRadius: 'var(--radius)', background: 'var(--surface-sunken)' }} />;
-
-    return (
-        <div style={{ position: 'relative' }}>
-            <GoogleMap
-                mapContainerStyle={{ width: '100%', height: 240, borderRadius: 'var(--radius)' }}
-                center={center}
-                zoom={coordinates && coordinates.lat != null ? 16 : 12}
-                options={{ streetViewControl: false, mapTypeControl: false, fullscreenControl: false }}
-                onClick={(e) => onPick({ lat: e.latLng.lat(), lng: e.latLng.lng() })}
-            >
-                {coordinates && coordinates.lat != null && (
-                    <Marker
-                        position={coordinates}
-                        draggable
-                        onDragEnd={(e) => onPick({ lat: e.latLng.lat(), lng: e.latLng.lng() })}
-                    />
-                )}
-            </GoogleMap>
-            <button
-                type="button"
-                onClick={locate}
-                style={{ position: 'absolute', top: 10, right: 10, display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.75rem', borderRadius: '999px', border: 'none', background: 'var(--card-bg)', color: 'var(--charcoal)', boxShadow: '0 2px 8px rgba(0,0,0,0.18)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: 600, fontFamily: 'var(--font-body)' }}
-            >
-                <Crosshair size={14} /> My location
-            </button>
-        </div>
-    );
 };
 
 const StepHeading = ({ Icon, title, sub }) => (
