@@ -33,11 +33,18 @@ export const inferApiBase = (explicit?: string): string => {
 // Clear the session and bounce to login. Only used when we truly can't recover
 // (no refresh token, or the refresh itself failed).
 const forceLogout = () => {
+    // NEVER tear down the session while the OAuth callback is establishing one.
+    // On /auth/callback the page still holds a STALE token from a prior session;
+    // background polls (notifications, favorites, …) 401 with it and would
+    // trigger this, wiping the FRESH token the callback just stored — stranding
+    // the user on /complete-profile with "No token". The callback owns the
+    // session here; let it finish.
+    if (window.location.pathname === '/auth/callback') return;
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     window.dispatchEvent(new Event('auth-logout'));
     // Redirect to login if not already there
-    if (window.location.pathname !== '/login' && window.location.pathname !== '/auth/callback') {
+    if (window.location.pathname !== '/login') {
         window.location.href = '/login?error=session_expired';
     }
 };
