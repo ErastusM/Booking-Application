@@ -3,7 +3,11 @@ const Service = require('../models/Service');
 const Review = require('../models/Review');
 const Category = require('../models/Category');
 const TeamMember = require('../models/TeamMember');
+const Availability = require('../models/Availability');
 const { searchAvailability } = require('../utils/availabilitySearch');
+
+// Fields needed to render the public provider profile (by id or by slug).
+const PROFILE_SELECT = 'name avatar providerCategory businessProfile portfolio phone email bookingPolicy';
 
 /**
  * GET /api/providers/:id/staff?serviceId=
@@ -133,86 +137,151 @@ exports.getAllProviders = async (req, res) => {
     }
 };
 
+// Shared payload builder — one provider doc in, the full public profile out.
+// Both the id route and the slug route funnel through here so they never drift.
+async function buildProviderProfilePayload(provider) {
+    // Get their services with categories
+    const services = await Service.find({
+        provider: provider._id,
+        isActive: true,
+    }).populate('category', 'name order').sort({ createdAt: -1 });
+
+    // Get their categories
+    const categories = await Category.find({ provider: provider._id }).sort({ order: 1 });
+
+    // Get reviews — limit payload; compute avg via aggregation
+    const [reviewDocs, [avgResult]] = await Promise.all([
+        Review.find({ service: { $in: services.map(s => s._id) } })
+            .populate('customer', 'name')
+            .sort({ createdAt: -1 })
+            .limit(20),
+        Review.aggregate([
+            { $match: { service: { $in: services.map(s => s._id) } } },
+            { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
+        ]),
+    ]);
+
+    const avgRating = avgResult ? parseFloat(avgResult.avg.toFixed(1)) : null;
+    const reviewCount = avgResult?.count || 0;
+
+    // Group services by category — Featured shows ALL services
+    const grouped = {
+        featured: { name: 'Featured', services: services.map(s => s.toObject ? s.toObject() : s) },
+    };
+
+    categories.forEach(cat => {
+        const catServices = services.filter(s => {
+            if (!s.category) return false;
+            const catId = s.category._id ? s.category._id.toString() : s.category.toString();
+            return catId === cat._id.toString();
+        });
+        grouped[cat._id.toString()] = {
+            name: cat.name,
+            services: catServices,
+        };
+    });
+
+    return {
+        provider: {
+            _id: provider._id,
+            name: provider.name,
+            avatar: provider.avatar,
+            providerCategory: provider.providerCategory || null,
+            businessProfile: provider.businessProfile || null,
+            address: provider.businessProfile?.address || '',
+            // Contact + visual fields for the social-style profile page
+            phone: provider.phone || '',
+            email: provider.email || '',
+            photos: (provider.portfolio?.images || []).slice(0, 10),
+            instagramUrl: provider.portfolio?.instagramUrl || '',
+            likesCount: Math.max(0, provider.businessProfile?.likesCount || 0),
+            avgRating,
+            reviewCount,
+            serviceCount: services.length,
+            // Notice a customer must give to cancel/reschedule (0 = anytime).
+            cancellationWindowHours: provider.bookingPolicy?.cancellationWindowHours ?? 24,
+        },
+        categories: grouped,
+        reviews: reviewDocs.slice(0, 5),
+    };
+}
+
 exports.getProviderProfile = async (req, res) => {
     try {
         const provider = await User.findOne({
             _id: req.params.id,
             role: 'provider',
-        }).select('name avatar providerCategory businessProfile portfolio phone email bookingPolicy');
+        }).select(PROFILE_SELECT);
 
         if (!provider) {
             return res.status(404).json({ success: false, message: 'Provider not found' });
         }
 
-        // Get their services with categories
-        const services = await Service.find({
-            provider: req.params.id,
-            isActive: true,
-        }).populate('category', 'name order').sort({ createdAt: -1 });
+        const data = await buildProviderProfilePayload(provider);
+        res.status(200).json({ success: true, data });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
 
-        // Get their categories
-        const categories = await Category.find({ provider: req.params.id }).sort({ order: 1 });
+/**
+ * GET /api/providers/by-slug/:slug
+ * Public — resolve a shareable booking-link handle to the same profile payload
+ * as /:id, so a link like www.bookplus.pro/b/vibe-barbershop opens the business
+ * profile directly.
+ */
+exports.getProviderProfileBySlug = async (req, res) => {
+    try {
+        const slug = String(req.params.slug || '').trim().toLowerCase();
+        if (!slug) return res.status(404).json({ success: false, message: 'Provider not found' });
 
-        // Get reviews — limit payload; compute avg via aggregation
-        const [reviewDocs, [avgResult]] = await Promise.all([
-            Review.find({ service: { $in: services.map(s => s._id) } })
-                .populate('customer', 'name')
-                .sort({ createdAt: -1 })
-                .limit(20),
-            Review.aggregate([
-                { $match: { service: { $in: services.map(s => s._id) } } },
-                { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
-            ]),
+        const provider = await User.findOne({
+            'businessProfile.slug': slug,
+            role: 'provider',
+        }).select(PROFILE_SELECT);
+
+        if (!provider) {
+            return res.status(404).json({ success: false, message: 'Provider not found' });
+        }
+
+        const data = await buildProviderProfilePayload(provider);
+        res.status(200).json({ success: true, data });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * GET /api/providers/me/setup-status
+ * Auth (provider) — which onboarding pieces are done, derived from live data.
+ * Powers the dashboard "finish setting up" reminder so it stays truthful even
+ * when a step is completed later outside the onboarding flow.
+ */
+exports.getMySetupStatus = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id).select('avatar businessProfile portfolio');
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+
+        const [serviceCount, availability] = await Promise.all([
+            Service.countDocuments({ provider: user._id }),
+            Availability.findOne({ provider: user._id }).select('schedule').lean(),
         ]);
 
-        const avgRating = avgResult ? parseFloat(avgResult.avg.toFixed(1)) : null;
-        const reviewCount = avgResult?.count || 0;
+        const bp = user.businessProfile || {};
+        const hoursSet = !!availability && Object.values(availability.schedule || {}).some(
+            (d) => d && d.enabled && Array.isArray(d.slots) && d.slots.length > 0
+        );
 
-        // Group services by category
-        // Group services by category — Featured shows ALL services
-        // Always put ALL services in featured
-        const grouped = {
-            featured: { name: 'Featured', services: services.map(s => s.toObject ? s.toObject() : s) },
+        const status = {
+            address: !!(bp.address && bp.address.trim()),
+            hours: hoursSet,
+            services: serviceCount > 0,
+            photos: !!user.avatar || (user.portfolio?.images?.length > 0),
+            slug: !!bp.slug,
         };
+        status.complete = status.address && status.hours && status.services && status.photos;
 
-        categories.forEach(cat => {
-            const catServices = services.filter(s => {
-                if (!s.category) return false;
-                const catId = s.category._id ? s.category._id.toString() : s.category.toString();
-                return catId === cat._id.toString();
-            });
-            grouped[cat._id.toString()] = {
-                name: cat.name,
-                services: catServices,
-            };
-        });
-
-        res.status(200).json({
-            success: true,
-            data: {
-                provider: {
-                    _id: provider._id,
-                    name: provider.name,
-                    avatar: provider.avatar,
-                    providerCategory: provider.providerCategory || null,
-                    businessProfile: provider.businessProfile || null,
-                    address: provider.businessProfile?.address || '',
-                    // Contact + visual fields for the social-style profile page
-                    phone: provider.phone || '',
-                    email: provider.email || '',
-                    photos: (provider.portfolio?.images || []).slice(0, 10),
-                    instagramUrl: provider.portfolio?.instagramUrl || '',
-                    likesCount: Math.max(0, provider.businessProfile?.likesCount || 0),
-                    avgRating,
-                    reviewCount,
-                    serviceCount: services.length,
-                    // Notice a customer must give to cancel/reschedule (0 = anytime).
-                    cancellationWindowHours: provider.bookingPolicy?.cancellationWindowHours ?? 24,
-                },
-                categories: grouped,
-                reviews: reviewDocs.slice(0, 5),
-            },
-        });
+        res.status(200).json({ success: true, data: status });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

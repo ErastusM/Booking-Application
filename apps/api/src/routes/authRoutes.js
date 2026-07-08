@@ -11,6 +11,7 @@ const {
     updateProfile,
     updatePortfolio,
     completeProviderSetup,
+    generateBookingSlug,
     becomeProvider,
     changePassword,
     verifyEmail,
@@ -41,6 +42,7 @@ router.get('/profile', auth, getProfile);
 router.put('/profile', auth, updateProfileRules, updateProfile);
 router.put('/portfolio', auth, updatePortfolio);
 router.post('/provider-setup', auth, completeProviderSetup);
+router.post('/booking-slug', auth, generateBookingSlug);
 router.put('/become-provider', auth, becomeProvider);
 router.put('/change-password', auth, changePassword);
 router.post('/deactivate', auth, deactivateAccount);

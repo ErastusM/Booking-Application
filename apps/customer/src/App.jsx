@@ -18,6 +18,7 @@ const MyWaitingList = lazy(() => import('./pages/MyWaitingList'));
 const Profile = lazy(() => import('./pages/Profile'));
 const ProvidersPage = lazy(() => import('./pages/ProviderPage'));
 const ProviderProfilePage = lazy(() => import('./pages/ProviderProfilePage'));
+const ProviderProfileBySlug = lazy(() => import('./pages/ProviderProfileBySlug'));
 const AuthCallback = lazy(() => import('./pages/AuthCallBack'));
 const CompleteProfile = lazy(() => import('./pages/CompleteProfile'));
 const BecomeProvider = lazy(() => import('./pages/BecomeProvider'));
@@ -67,6 +68,8 @@ function AppRoutes() {
                     <Route path="/services" element={<ProvidersPage />} />
                     <Route path="/about" element={<About />} />
                     <Route path="/providers/:id" element={<ProviderProfilePage />} />
+                    {/* Shareable public booking link → resolves the slug to the profile */}
+                    <Route path="/b/:slug" element={<ProviderProfileBySlug />} />
                     <Route path="/auth/callback" element={<AuthCallback />} />
                     <Route path="/verify-email" element={<VerifyEmail />} />
                     <Route path="/forgot-password" element={<ForgotPassword />} />
