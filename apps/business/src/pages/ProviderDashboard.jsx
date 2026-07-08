@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, lazy, Suspense } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -7,11 +7,13 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService, waitingListService, earningsService, analyticsService, walletService, providerWalletService, authService } from '../services';
 import { uploadProof } from '../utils/uploadImage';
 import { useAuthContext } from '../context/AuthContext';
-import OnboardingWizard from '../components/OnboardingWizard';
+// Lazy — pulls in the Google Maps SDK only when a new provider is onboarding,
+// keeping it out of the main dashboard bundle.
+const OnboardingWizard = lazy(() => import('../components/OnboardingWizard'));
 import FormsManager from '../components/FormsManager';
 import ApptFormsView from '../components/ApptFormsView';
 import EnablePushBanner from '../components/EnablePushBanner';
-import ProviderPhotosNudge from '../components/ProviderPhotosNudge';
+import SetupChecklistNudge from '../components/SetupChecklistNudge';
 import { Calendar, History, Scissors, CalendarClock, Clock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban, Wallet as WalletIcon, Phone, Mail, ChevronDown, ChevronLeft, Send } from 'lucide-react';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { NAMIBIAN_TOWNS, normalizeTown } from '../utils/namibiaTowns';
@@ -1168,13 +1170,15 @@ const ProviderDashboard = () => {
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
             {showWizard && (
-                <OnboardingWizard
-                    user={user}
-                    onComplete={(updatedUser) => {
-                        setUser(updatedUser);
-                        setShowWizard(false);
-                    }}
-                />
+                <Suspense fallback={null}>
+                    <OnboardingWizard
+                        user={user}
+                        onComplete={(updatedUser) => {
+                            setUser(updatedUser);
+                            setShowWizard(false);
+                        }}
+                    />
+                </Suspense>
             )}
 
             {/* Header */}
@@ -1202,7 +1206,7 @@ const ProviderDashboard = () => {
             <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
 
                 <EnablePushBanner />
-                <ProviderPhotosNudge />
+                <SetupChecklistNudge />
 
                 {/* Stats */}
                 <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>

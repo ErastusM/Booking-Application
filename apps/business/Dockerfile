@@ -15,8 +15,10 @@ COPY apps/business/ apps/business/
 
 ARG VITE_API_URL
 ARG VITE_CUSTOMER_URL
+ARG VITE_GOOGLE_MAPS_API_KEY
 ENV VITE_API_URL=$VITE_API_URL
 ENV VITE_CUSTOMER_URL=$VITE_CUSTOMER_URL
+ENV VITE_GOOGLE_MAPS_API_KEY=$VITE_GOOGLE_MAPS_API_KEY
 
 RUN pnpm --filter "@bookplus/*" build && pnpm --filter @bookplus/business build
 
