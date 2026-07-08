@@ -136,4 +136,7 @@ jobs:
             docker compose up -d --force-recreate
             # One-off data migrations, all idempotent — safe on every deploy.
             docker compose exec -T server node scripts/migrate_team_colors.js || true
+            # Email + account-type auth: backfill accountType and swap the
+            # unique email index for the compound {email, accountType} one.
+            docker compose exec -T server node scripts/migrate_account_types.js || true
             docker image prune -f

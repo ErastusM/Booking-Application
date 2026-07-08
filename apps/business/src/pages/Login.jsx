@@ -10,6 +10,9 @@ const Login = () => {
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    // Set when the email has no business account (Fresha model: this side only
+    // signs in business accounts) — the error then carries a signup CTA.
+    const [showSignupCta, setShowSignupCta] = useState(false);
 
     const handleChange = (e) => {
         setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -19,6 +22,7 @@ const Login = () => {
         e.preventDefault();
         setLoading(true);
         setError('');
+        setShowSignupCta(false);
         try {
             // The api-client stamps accountType:'business' on this call, so only
             // business accounts (provider/staff/admin) authenticate here — a
@@ -31,6 +35,11 @@ const Login = () => {
             else navigate('/dashboard');
         } catch (err) {
             setError(err.response?.data?.message || 'Login failed');
+            // 403 = the email only has a customer account; 401 = no match at
+            // all. Either way this email isn't listed as a business yet, so
+            // offer the signup path instead of a dead end.
+            const status = err.response?.status;
+            setShowSignupCta(status === 403 || status === 401);
         } finally {
             setLoading(false);
         }
@@ -138,6 +147,17 @@ const Login = () => {
                             fontSize: '0.85rem',
                         }}>
                             {error}
+                            {showSignupCta && (
+                                <div style={{ marginTop: '0.6rem', paddingTop: '0.6rem', borderTop: '1px solid #fca5a5' }}>
+                                    New to Bookplus?{' '}
+                                    <Link
+                                        to={`/register${formData.email ? `?email=${encodeURIComponent(formData.email)}` : ''}`}
+                                        style={{ color: '#991b1b', fontWeight: '700', textDecoration: 'underline' }}
+                                    >
+                                        List your business →
+                                    </Link>
+                                </div>
+                            )}
                         </div>
                     )}
 

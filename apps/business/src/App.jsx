@@ -16,6 +16,7 @@ const MySchedule = lazy(() => import('./pages/MySchedule'));
 const ProviderAccount = lazy(() => import('./pages/ProviderAccount'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const AnalyticsDashboard = lazy(() => import('./pages/AnalyticsDashboard'));
+const Register = lazy(() => import('./pages/Register'));
 const AuthCallback = lazy(() => import('./pages/AuthCallBack'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
@@ -44,6 +45,7 @@ function AppRoutes() {
                 <Routes location={location}>
                     {/* Auth */}
                     <Route path="/login" element={<Login />} />
+                    <Route path="/register" element={<Register />} />
                     <Route path="/auth/callback" element={<AuthCallback />} />
                     <Route path="/verify-email" element={<VerifyEmail />} />
                     <Route path="/forgot-password" element={<ForgotPassword />} />
