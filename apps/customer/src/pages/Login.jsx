@@ -10,6 +10,9 @@ const Login = () => {
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    // Shown when the email belongs to a business account (403): a business owner
+    // can hold a SEPARATE customer account with the same email — offer to make it.
+    const [offerCustomerSignup, setOfferCustomerSignup] = useState(false);
 
     const handleChange = (e) => {
         setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -19,6 +22,7 @@ const Login = () => {
         e.preventDefault();
         setLoading(true);
         setError('');
+        setOfferCustomerSignup(false);
         try {
             // The api-client stamps accountType:'customer' on this call, so only
             // customer accounts authenticate here — a business-only email gets a
@@ -28,6 +32,10 @@ const Login = () => {
             navigate('/');
         } catch (err) {
             setError(err.response?.data?.message || 'Login failed');
+            // 403 = this email is a business account with no customer account yet.
+            // A business owner can hold a SEPARATE customer account on the same
+            // email — offer to create it in one step instead of dead-ending.
+            if (err.response?.status === 403) setOfferCustomerSignup(true);
         } finally {
             setLoading(false);
         }
@@ -136,6 +144,17 @@ const Login = () => {
                         }}>
                             {error}
                         </div>
+                    )}
+
+                    {offerCustomerSignup && (
+                        <button
+                            type="button"
+                            onClick={() => navigate('/register', { state: { email: formData.email } })}
+                            className="btn-primary"
+                            style={{ width: '100%', padding: '0.8rem', marginBottom: '1.5rem' }}
+                        >
+                            Create a customer account with this email →
+                        </button>
                     )}
 
                     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
