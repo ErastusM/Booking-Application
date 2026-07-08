@@ -12,3 +12,11 @@ build/
 test-results/
 playwright-report/
 .claude/
+
+# Capacitor native projects are generated from capacitor.config.ts +
+# the built dist/ (see MOBILE.md). Regenerate with `npx cap add android|ios`.
+# Once a device is set up and signing is configured, a team may choose to
+# commit these — until then they're treated as generated + machine-specific.
+apps/*/android/
+apps/*/ios/
+.gradle/

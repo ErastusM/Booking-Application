@@ -7,9 +7,13 @@ import '@fontsource-variable/inter';
 import '@bookplus/design-tokens/tokens.css';
 import './styles/index.css';
 import App from './App';
+import { initNative } from './native';
 
 ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
         <App />
     </React.StrictMode>
 );
+
+// Native-shell setup (status bar, splash, back button) — no-op on the web.
+initNative();

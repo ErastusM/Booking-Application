@@ -155,6 +155,12 @@ const allowedOrigins = new Set([
     // Production subdomains are added via the comma-separated CLIENT_URL env.
     'http://localhost:3002',
     'http://localhost:3003',
+    // Capacitor native shells (iOS/Android). The webview serves the bundled app
+    // from these fixed origins and calls this API cross-origin, so they must be
+    // allowed for the mobile apps to authenticate.
+    'capacitor://localhost', // iOS default scheme
+    'https://localhost',     // Android default scheme (Capacitor 6+)
+    'http://localhost',      // Android legacy / http scheme
 ]);
 
 app.use(cors({

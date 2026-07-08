@@ -8,12 +8,21 @@
         "build": "vite build",
         "preview": "vite preview",
         "test:e2e": "playwright test",
-        "test:e2e:ui": "playwright test --ui"
+        "test:e2e:ui": "playwright test --ui",
+        "cap:sync": "cap sync",
+        "cap:android": "cap run android",
+        "cap:ios": "cap run ios",
+        "mobile:build": "cross-env VITE_API_URL=https://api.bookplus.pro vite build && cap sync"
     },
     "dependencies": {
         "@bookplus/api-client": "workspace:*",
         "@bookplus/design-tokens": "workspace:*",
         "@bookplus/ui": "workspace:*",
+        "@capacitor/android": "^8.4.1",
+        "@capacitor/app": "^8.1.0",
+        "@capacitor/core": "^8.4.1",
+        "@capacitor/splash-screen": "^8.0.1",
+        "@capacitor/status-bar": "^8.0.2",
         "@fontsource-variable/inter": "^5.2.8",
         "@fontsource-variable/plus-jakarta-sans": "^5.2.8",
         "lucide-react": "^1.18.0",
@@ -23,8 +32,10 @@
     },
     "devDependencies": {
         "@bookplus/config": "workspace:*",
+        "@capacitor/cli": "^8.4.1",
         "@playwright/test": "^1.60.0",
         "@vitejs/plugin-react": "^4.3.0",
+        "cross-env": "^10.1.0",
         "vite": "^5.4.0"
     }
 }
