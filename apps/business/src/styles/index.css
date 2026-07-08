@@ -21,6 +21,13 @@ body.dark-mode {
   background: #0a0a0b;
 }
 
+/* The document canvas — the strips behind the status bar / home indicator and any
+   overscroll — paints the <html> background, NOT <body>. Without this it flashes
+   white in dark mode (the white cut-offs at the very top and bottom). Match the
+   theme so those safe-area strips blend in. */
+html { background: #e6e8e7; }
+html:has(body.dark-mode) { background: #0a0a0b; }
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
 /* overflow-x: clip on html/body only — `clip` blocks horizontal panning
