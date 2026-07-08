@@ -1,7 +1,7 @@
 const nodemailer = require('nodemailer');
 const pino = require('pino');
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
-const { primaryOrigin } = require('./origins');
+const { primaryOrigin, businessOrigin, originForRole } = require('./origins');
 
 // Resend HTTP API (https://resend.com) — sends over port 443, so email works
 // even when the host firewalls outbound SMTP ports (465/587). Preferred when set.
@@ -222,8 +222,10 @@ const icsAttachment = (ics) => ({
 /* ── Templates ─────────────────────────────────────────────────────────── */
 
 exports.sendVerificationEmail = async (email, name, token, role) => {
-    const url = `${process.env.SERVER_URL}/api/auth/verify-email?token=${token}`;
     const isProvider = role === 'provider';
+    // The `app` hint lets the verify-email redirect return to the right app even
+    // for the expired/invalid cases (where the user record isn't resolved).
+    const url = `${process.env.SERVER_URL}/api/auth/verify-email?token=${token}&app=${isProvider ? 'business' : 'customer'}`;
     await safeSend({
         from: FROM, to: email,
         subject: isProvider
@@ -260,7 +262,7 @@ exports.sendWelcomeEmail = async (email, name, role) => {
                 : 'Your Bookplus account is verified.',
             inner: isProvider
                 ? `${p("Your account is verified. Complete your business profile, add your services, and you’ll be ready to receive bookings.")}
-                   <div style="margin:24px 0;">${primaryButton(`${primaryOrigin() || '#'}/dashboard`, 'Set up my business')}</div>`
+                   <div style="margin:24px 0;">${primaryButton(`${businessOrigin() || '#'}/dashboard`, 'Set up my business')}</div>`
                 : `${p('Your account is verified. You can now discover providers and book appointments in a few taps.')}
                    <div style="margin:24px 0;">${primaryButton(`${primaryOrigin() || '#'}/providers`, 'Find providers')}</div>`,
         }),
@@ -402,8 +404,10 @@ exports.sendRebookingPrompt = async (email, name, serviceName, providerName, pro
     });
 };
 
-exports.sendPasswordResetEmail = async (email, name, token) => {
-    const url = `${primaryOrigin()}/reset-password?token=${token}`;
+exports.sendPasswordResetEmail = async (email, name, token, role) => {
+    // Reset on the app the account belongs to (a business owner resets on the
+    // business app, not the customer site).
+    const url = `${originForRole(role)}/reset-password?token=${token}`;
     await safeSend({
         from: FROM, to: email, subject: 'Reset your Bookplus password',
         html: shell({
@@ -417,8 +421,9 @@ exports.sendPasswordResetEmail = async (email, name, token) => {
 };
 
 // Staff invite — same set-password mechanics as the reset flow, invite copy.
+// Staff are business-side accounts, so the link opens the business app.
 exports.sendStaffInviteEmail = async (email, name, businessName, token) => {
-    const url = `${primaryOrigin()}/reset-password?token=${token}`;
+    const url = `${businessOrigin()}/reset-password?token=${token}`;
     await safeSend({
         from: FROM, to: email, subject: `You’ve been invited to join ${businessName} on Bookplus`,
         html: shell({
