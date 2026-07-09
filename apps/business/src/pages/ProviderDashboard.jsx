@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useState, lazy, Suspense } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -7,11 +7,14 @@ import interactionPlugin from '@fullcalendar/interaction';
 import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService, waitingListService, earningsService, analyticsService, walletService, providerWalletService, authService } from '../services';
 import { uploadProof } from '../utils/uploadImage';
 import { useAuthContext } from '../context/AuthContext';
-import OnboardingWizard from '../components/OnboardingWizard';
+// Lazy — pulls in the Google Maps SDK only when a new provider is onboarding,
+// keeping it out of the main dashboard bundle.
+const OnboardingWizard = lazy(() => import('../components/OnboardingWizard'));
 import FormsManager from '../components/FormsManager';
 import ApptFormsView from '../components/ApptFormsView';
 import EnablePushBanner from '../components/EnablePushBanner';
-import ProviderPhotosNudge from '../components/ProviderPhotosNudge';
+import SetupChecklistNudge from '../components/SetupChecklistNudge';
+import ServiceFormModal from '../components/ServiceFormModal';
 import { Calendar, History, Scissors, CalendarClock, Clock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban, Wallet as WalletIcon, Phone, Mail, ChevronDown, ChevronLeft, Send } from 'lucide-react';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { NAMIBIAN_TOWNS, normalizeTown } from '../utils/namibiaTowns';
@@ -19,8 +22,7 @@ import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { buildTimeSlots } from '../utils/bookingSlots';
 import MiniCalendar from '../components/MiniCalendar';
 import RecurrenceFields from '../components/RecurrenceFields';
-
-const nMoney = (n) => `N$${Number(n || 0).toFixed(2)}`;
+import { currencySymbol } from '../utils/currency';
 
 const statusConfig = {
     pending: { label: 'Pending', bg: '#fef3c7', color: '#92400e' },
@@ -74,6 +76,10 @@ const fmtConvTime = (ts) => {
 
 const ProviderDashboard = () => {
     const { user, setUser } = useAuthContext();
+    // The business prices in its chosen currency; every money display uses this symbol.
+    const curCode = user?.businessProfile?.currency || 'NAD';
+    const curSym = currencySymbol(curCode);
+    const nMoney = (n) => `${curSym}${Number(n || 0).toFixed(2)}`;
     const location = useLocation();
     const [showWizard, setShowWizard] = useState(false);
     const [appointments, setAppointments] = useState([]);
@@ -98,8 +104,6 @@ const ProviderDashboard = () => {
     const [insightsRange, setInsightsRange] = useState({ from: '', to: '' });
     const [showServiceForm, setShowServiceForm] = useState(false);
     const [editingService, setEditingService] = useState(null);
-    const [savingService, setSavingService] = useState(false);
-    const [serviceForm, setServiceForm] = useState({ name: '', description: '', price: '', duration: '', bufferBefore: '', bufferAfter: '', location: '', address: '', category: '', options: [] });
     const [categories, setCategories] = useState([]);
     const [newCategoryName, setNewCategoryName] = useState('');
     const [showCategoryForm, setShowCategoryForm] = useState(false);
@@ -504,10 +508,10 @@ const ProviderDashboard = () => {
 
     const exportEarningsCsv = () => {
         if (!earnings) return;
-        const rows = [['Date', 'Earned (NAD)', 'Completed appointments']];
+        const rows = [['Date', `Earned (${curCode})`, 'Completed appointments']];
         earnings.overTime.forEach(d => rows.push([d.date, d.earned, d.count]));
         rows.push([]);
-        rows.push(['Service', 'Earned (NAD)', 'Completed']);
+        rows.push(['Service', `Earned (${curCode})`, 'Completed']);
         earnings.byService.forEach(s => rows.push([s.name, s.earned, s.count]));
         const csv = rows.map(r => r.map(c => `"${String(c ?? '')}"`).join(',')).join('\n');
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -761,7 +765,7 @@ const ProviderDashboard = () => {
             const amount = appt?.totalPrice ?? appt?.service?.price;
             const who = appt?.customer?.name || 'the client';
             const msg = isWallet && amount != null
-                ? `Mark this appointment complete?\n\nThis releases N$${Number(amount).toFixed(2)} from ${who}'s reserved balance to you. This can't be undone.`
+                ? `Mark this appointment complete?\n\nThis releases ${nMoney(amount)} from ${who}'s reserved balance to you. This can't be undone.`
                 : 'Mark this appointment as complete?';
             if (!window.confirm(msg)) return;
         }
@@ -792,29 +796,9 @@ const ProviderDashboard = () => {
         }
     };
 
-    const handleServiceSubmit = async (e) => {
-        e.preventDefault();
-        setSavingService(true);
-        try {
-            if (editingService) {
-                await providerServiceService.updateMyService(editingService._id, serviceForm);
-            } else {
-                await providerServiceService.createMyService(serviceForm);
-            }
-            await fetchMyServices();
-            setShowServiceForm(false);
-            setEditingService(null);
-            setServiceForm({ name: '', description: '', price: '', duration: '', bufferBefore: '', bufferAfter: '', location: '', address: '', category: '', options: [] });
-        } catch {
-            setError('Failed to save service');
-        } finally {
-            setSavingService(false);
-        }
-    };
-
+    // Create/edit now live in <ServiceFormModal>; opening it just sets the target.
     const handleEditService = (s) => {
         setEditingService(s);
-        setServiceForm({ name: s.name, description: s.description, price: s.price, duration: s.duration, bufferBefore: s.bufferBefore || '', bufferAfter: s.bufferAfter || '', location: normalizeTown(s.location || ''), address: s.address || '', category: s.category?._id || s.category || '', options: s.options || [] });
         setShowServiceForm(true);
     };
 
@@ -1168,17 +1152,19 @@ const ProviderDashboard = () => {
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
             {showWizard && (
-                <OnboardingWizard
-                    user={user}
-                    onComplete={(updatedUser) => {
-                        setUser(updatedUser);
-                        setShowWizard(false);
-                    }}
-                />
+                <Suspense fallback={null}>
+                    <OnboardingWizard
+                        user={user}
+                        onComplete={(updatedUser) => {
+                            setUser(updatedUser);
+                            setShowWizard(false);
+                        }}
+                    />
+                </Suspense>
             )}
 
             {/* Header */}
-            <div className="provider-header" style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
+            <div className="provider-header" style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '1.75rem', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 70% 40%, rgba(240,62,22,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>{todayLabel}</p>
@@ -1199,23 +1185,10 @@ const ProviderDashboard = () => {
                 </div>
             </div>
 
-            <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
+            <div className="container" style={{ paddingTop: '1.5rem', paddingBottom: '5rem' }}>
 
                 <EnablePushBanner />
-                <ProviderPhotosNudge />
-
-                {/* Stats */}
-                <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
-                    {stats.map((s, i) => (
-                        <div key={i} className="card scale-in" style={{ animationDelay: `${i * 40}ms`, padding: '1.2rem 1.4rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><s.Icon size={20} strokeWidth={2} /></div>
-                            <div>
-                                <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</p>
-                                <p className="tnum" style={{ fontFamily: 'var(--font-display)', fontSize: '1.85rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
+                <SetupChecklistNudge />
 
                 {error && (
                     <div role="alert" style={{ background: 'var(--danger-bg)', border: '1px solid #fca5a5', color: 'var(--danger-fg)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
@@ -1230,61 +1203,9 @@ const ProviderDashboard = () => {
                     </div>
                 )}
 
-                {/* Tabs — single scrollable strip — Calendar always first */}
-                <div className="tab-strip" style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '0.35rem' }}>
-                    {/* Calendar first */}
-                    <button onClick={() => setActiveTab('calendar')} style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                        padding: '0.65rem 1rem', background: activeTab === 'calendar' ? 'rgba(240,62,22,0.12)' : 'transparent', border: '1px solid',
-                        borderColor: activeTab === 'calendar' ? 'var(--gold)' : 'var(--border)',
-                        borderRadius: '999px', color: activeTab === 'calendar' ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                        fontWeight: activeTab === 'calendar' ? '700' : '500', fontSize: '0.85rem',
-                        cursor: 'pointer', fontFamily: 'var(--font-body)',
-                        transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
-                    }}><Calendar size={15} strokeWidth={2} /> Calendar</button>
-                    {/* Appointment status tabs */}
-                    {appointmentTabs.map(tab => (
-                        <button key={tab} onClick={() => setActiveTab(tab)} style={{
-                            padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(240,62,22,0.12)' : 'transparent', border: '1px solid',
-                            borderColor: activeTab === tab ? 'var(--gold)' : 'var(--border)',
-                            borderRadius: '999px', color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                            fontWeight: activeTab === tab ? '700' : '500', fontSize: '0.85rem',
-                            cursor: 'pointer', fontFamily: 'var(--font-body)',
-                            textTransform: 'capitalize', transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
-                        }}>
-                            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                            {counts[tab] > 0 && (
-                                <span style={{ marginLeft: '0.4rem', background: activeTab === tab ? 'var(--gold)' : 'var(--warm-gray)', color: activeTab === tab ? 'var(--charcoal)' : 'var(--text-muted)', fontSize: '0.7rem', fontWeight: '700', padding: '0.1rem 0.45rem', borderRadius: '99px' }}>
-                                    {counts[tab]}
-                                </span>
-                            )}
-                        </button>
-                    ))}
-                    {/* History tab */}
-                    <button onClick={() => setActiveTab('history')} style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                        padding: '0.65rem 1rem', background: activeTab === 'history' ? 'rgba(240,62,22,0.12)' : 'transparent', border: '1px solid',
-                        borderColor: activeTab === 'history' ? 'var(--gold)' : 'var(--border)',
-                        borderRadius: '999px', color: activeTab === 'history' ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                        fontWeight: activeTab === 'history' ? '700' : '500', fontSize: '0.85rem',
-                        cursor: 'pointer', fontFamily: 'var(--font-body)',
-                        transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
-                    }}><History size={15} strokeWidth={2} /> History</button>
-                    {/* Other feature tabs */}
-                    {[['services','Catalogue',Scissors],['availability','Availability',CalendarClock],['overview','Overview',LayoutDashboard],['waitlist','Waiting List',Clock],['insights','Insights',BarChart3],['clients','Clients',Users],['wallet','Wallet',WalletIcon],['forms','Forms',ClipboardList],['messages','Messages',MessageSquare],['memberships','Memberships',Ticket],['team','Team',UserCog]].map(([tab, label, Icon]) => (
-                        <button key={tab} onClick={() => setActiveTab(tab)} style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                            padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(240,62,22,0.12)' : 'transparent', border: '1px solid',
-                            borderColor: activeTab === tab ? 'var(--gold)' : 'var(--border)',
-                            borderRadius: '999px', color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                            fontWeight: activeTab === tab ? '700' : '500', fontSize: '0.85rem',
-                            cursor: 'pointer', fontFamily: 'var(--font-body)',
-                            transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
-                        }}>
-                            <Icon size={15} strokeWidth={2} /> {label}
-                        </button>
-                    ))}
-                </div>
+                {/* The in-page tab strip was removed — navigation now lives in the top
+                    nav (Calendar / Clients / Earnings / Catalogue / More) and Settings,
+                    reaching each view via /dashboard?tab=. */}
 
                 {/* Appointment tabs */}
                 {appointmentTabs.includes(activeTab) && (
@@ -1355,8 +1276,8 @@ const ProviderDashboard = () => {
                                 <h2 style={{ fontFamily: 'var(--font-body)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>Service menu</h2>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>View and manage the services offered by your business</p>
                             </div>
-                            <button onClick={() => { setShowServiceForm(!showServiceForm); setEditingService(null); setServiceForm({ name: '', description: '', price: '', duration: '', bufferBefore: '', bufferAfter: '', location: '', address: '', category: '', options: [] }); }} className="btn-primary" style={{ padding: '0.65rem 1.25rem', fontSize: '0.875rem' }}>
-                                {showServiceForm ? '✕ Cancel' : '+ Add Service'}
+                            <button onClick={() => { setEditingService(null); setShowServiceForm(true); }} className="btn-primary" style={{ padding: '0.65rem 1.25rem', fontSize: '0.875rem' }}>
+                                + Add Service
                             </button>
                         </div>
 
@@ -1375,111 +1296,14 @@ const ProviderDashboard = () => {
                             </div>
                         </div>
 
-                        {showServiceForm && (
-                            <form onSubmit={handleServiceSubmit} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                <div style={{ gridColumn: '1 / -1' }}>
-                                    <label style={labelStyle}>Service Name</label>
-                                    <input required value={serviceForm.name} onChange={e => setServiceForm({ ...serviceForm, name: e.target.value })} className="input" placeholder="e.g. Classic Haircut" />
-                                </div>
-                                <div style={{ gridColumn: '1 / -1' }}>
-                                    <label style={labelStyle}>Description</label>
-                                    <textarea required value={serviceForm.description} onChange={e => setServiceForm({ ...serviceForm, description: e.target.value })} rows="2" className="input" style={{ resize: 'vertical' }} placeholder="Describe what's included..." />
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>Price (NAD)</label>
-                                    <input required type="number" value={serviceForm.price} onChange={e => setServiceForm({ ...serviceForm, price: e.target.value })} className="input" placeholder="25" />
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>Duration (min)</label>
-                                    <input required type="number" value={serviceForm.duration} onChange={e => setServiceForm({ ...serviceForm, duration: e.target.value })} className="input" placeholder="30" />
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>Buffer before (min)</label>
-                                    <input type="number" min="0" max="120" value={serviceForm.bufferBefore} onChange={e => setServiceForm({ ...serviceForm, bufferBefore: e.target.value })} className="input" placeholder="0" />
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>Buffer after (min)</label>
-                                    <input type="number" min="0" max="120" value={serviceForm.bufferAfter} onChange={e => setServiceForm({ ...serviceForm, bufferAfter: e.target.value })} className="input" placeholder="0" />
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>City / Town</label>
-                                    <select value={serviceForm.location} onChange={e => setServiceForm({ ...serviceForm, location: e.target.value })} className="input">
-                                        <option value="">Select a town…</option>
-                                        {serviceForm.location && !NAMIBIAN_TOWNS.includes(serviceForm.location) && (
-                                            <option value={serviceForm.location}>{serviceForm.location}</option>
-                                        )}
-                                        {NAMIBIAN_TOWNS.map(t => <option key={t} value={t}>{t}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>Street Address</label>
-                                    <input value={serviceForm.address} onChange={e => setServiceForm({ ...serviceForm, address: e.target.value })} className="input" placeholder="e.g. 123 Independence Ave" />
-                                </div>
-                                <div style={{ gridColumn: '1 / -1' }}>
-                                    <label style={labelStyle}>Category</label>
-                                    <select value={serviceForm.category || ''} onChange={e => setServiceForm({ ...serviceForm, category: e.target.value })} className="input">
-                                        <option value="">✦ Featured (uncategorized)</option>
-                                        {categories.map(cat => (
-                                            <option key={cat._id} value={cat._id}>{cat.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                {/* Service options/variants */}
-                                <div style={{ gridColumn: '1 / -1' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                                        <label style={labelStyle}>Sub-options <span style={{ fontWeight: '400', color: 'var(--text-muted)', textTransform: 'none', letterSpacing: 0 }}>(optional — e.g. Adults, Students, Trim & Beard)</span></label>
-                                        <button type="button" onClick={() => setServiceForm(f => ({ ...f, options: [...f.options, { name: '', description: '', price: '', duration: '' }] }))} style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(240,62,22,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add option</button>
-                                    </div>
-                                    {serviceForm.options.length > 0 && (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                            {serviceForm.options.map((opt, idx) => (
-                                                <div key={idx} style={{ background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '0.75rem', display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '0.5rem', alignItems: 'start' }}>
-                                                    <div style={{ gridColumn: '1 / 3' }}>
-                                                        <input
-                                                            className="input"
-                                                            placeholder="Option name (e.g. Adults)"
-                                                            value={opt.name}
-                                                            onChange={e => { const o = [...serviceForm.options]; o[idx] = { ...o[idx], name: e.target.value }; setServiceForm(f => ({ ...f, options: o })); }}
-                                                            style={{ fontSize: '0.85rem', marginBottom: '0.4rem' }}
-                                                        />
-                                                        <input
-                                                            className="input"
-                                                            placeholder="Description (optional)"
-                                                            value={opt.description}
-                                                            onChange={e => { const o = [...serviceForm.options]; o[idx] = { ...o[idx], description: e.target.value }; setServiceForm(f => ({ ...f, options: o })); }}
-                                                            style={{ fontSize: '0.82rem' }}
-                                                        />
-                                                    </div>
-                                                    <button type="button" onClick={() => setServiceForm(f => ({ ...f, options: f.options.filter((_, i) => i !== idx) }))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.1rem', paddingTop: '6px' }}>×</button>
-                                                    <input
-                                                        className="input"
-                                                        placeholder="Price (NAD)"
-                                                        type="number"
-                                                        value={opt.price}
-                                                        onChange={e => { const o = [...serviceForm.options]; o[idx] = { ...o[idx], price: e.target.value }; setServiceForm(f => ({ ...f, options: o })); }}
-                                                        style={{ fontSize: '0.85rem' }}
-                                                    />
-                                                    <input
-                                                        className="input"
-                                                        placeholder="Duration (min)"
-                                                        type="number"
-                                                        value={opt.duration}
-                                                        onChange={e => { const o = [...serviceForm.options]; o[idx] = { ...o[idx], duration: e.target.value }; setServiceForm(f => ({ ...f, options: o })); }}
-                                                        style={{ fontSize: '0.85rem' }}
-                                                    />
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '0.75rem' }}>
-                                    <button type="submit" disabled={savingService} className="btn-primary" style={{ padding: '0.65rem 1.5rem', fontSize: '0.875rem' }}>
-                                        {savingService ? 'Saving...' : editingService ? 'Update Service' : 'Add Service'}
-                                    </button>
-                                </div>
-                            </form>
-                        )}
+                        <ServiceFormModal
+                            open={showServiceForm}
+                            editing={editingService}
+                            categories={categories}
+                            onClose={() => { setShowServiceForm(false); setEditingService(null); }}
+                            onSaved={async () => { await fetchMyServices(); setShowServiceForm(false); setEditingService(null); }}
+                            onCategoriesChanged={fetchCategories}
+                        />
 
                         <div className="catalogue-grid" style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '1.5rem', alignItems: 'start' }}>
                             {(() => {
@@ -1559,7 +1383,7 @@ const ProviderDashboard = () => {
                                                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{s.duration} min{s.location ? ` · 📍 ${s.location}` : ''}</p>
                                                                         </div>
                                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
-                                                                            <span style={{ fontFamily: 'var(--font-body)', fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.95rem', whiteSpace: 'nowrap' }}>NAD {s.price}</span>
+                                                                            <span style={{ fontFamily: 'var(--font-body)', fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.95rem', whiteSpace: 'nowrap' }}>{curSym} {s.price}</span>
                                                                             <button onClick={() => handleEditService(s)} style={{ background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Edit</button>
                                                                             <button onClick={() => handleDeleteService(s._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Delete</button>
                                                                         </div>
@@ -2020,10 +1844,10 @@ const ProviderDashboard = () => {
                                 {/* KPI row */}
                                 <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
                                     {[
-                                        { label: 'Earned (range)', value: `NAD ${earnings.totals.earned.toLocaleString()}`, icon: '💰', sub: `${earnings.totals.completedCount} completed` },
-                                        { label: 'This month', value: `NAD ${earnings.thisMonth.earned.toLocaleString()}`, icon: '📅', sub: `${earnings.growthPct >= 0 ? '▲' : '▼'} ${Math.abs(earnings.growthPct)}% vs last month`, trend: earnings.growthPct },
-                                        { label: 'Avg / appointment', value: `NAD ${earnings.totals.avgPerAppointment.toLocaleString()}`, icon: '📈', sub: 'In selected range' },
-                                        { label: 'All-time earned', value: `NAD ${earnings.totals.allTimeEarned.toLocaleString()}`, icon: '🏆', sub: `${earnings.totals.allTimeCount} completed` },
+                                        { label: 'Earned (range)', value: `${curSym} ${earnings.totals.earned.toLocaleString()}`, icon: '💰', sub: `${earnings.totals.completedCount} completed` },
+                                        { label: 'This month', value: `${curSym} ${earnings.thisMonth.earned.toLocaleString()}`, icon: '📅', sub: `${earnings.growthPct >= 0 ? '▲' : '▼'} ${Math.abs(earnings.growthPct)}% vs last month`, trend: earnings.growthPct },
+                                        { label: 'Avg / appointment', value: `${curSym} ${earnings.totals.avgPerAppointment.toLocaleString()}`, icon: '📈', sub: 'In selected range' },
+                                        { label: 'All-time earned', value: `${curSym} ${earnings.totals.allTimeEarned.toLocaleString()}`, icon: '🏆', sub: `${earnings.totals.allTimeCount} completed` },
                                     ].map((s, i) => (
                                         <div key={i} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                             <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(240,62,22,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
@@ -2053,7 +1877,7 @@ const ProviderDashboard = () => {
                                             <>
                                                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '160px' }}>
                                                     {data.map((d, i) => (
-                                                        <div key={i} title={`${d.label}: ${earningsChartMode === 'earned' ? 'NAD ' + d.earned : d.count + ' booking(s)'}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%' }}>
+                                                        <div key={i} title={`${d.label}: ${earningsChartMode === 'earned' ? curSym + ' ' + d.earned : d.count + ' booking(s)'}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%' }}>
                                                             <div style={{ height: `${(d[earningsChartMode] / max) * 100}%`, minHeight: d[earningsChartMode] > 0 ? '3px' : '0', background: 'var(--gold)', borderRadius: '3px 3px 0 0', transition: 'height 0.4s ease' }} />
                                                         </div>
                                                     ))}
@@ -2083,7 +1907,7 @@ const ProviderDashboard = () => {
                                                                 <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
                                                                 <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexShrink: 0, whiteSpace: 'nowrap' }}>
                                                                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{s.count} job{s.count !== 1 ? 's' : ''}</span>
-                                                                    <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {s.earned.toLocaleString()}</span>
+                                                                    <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)' }}>{curSym} {s.earned.toLocaleString()}</span>
                                                                 </div>
                                                             </div>
                                                             <div style={{ height: '6px', borderRadius: '99px', background: 'var(--warm-gray)', overflow: 'hidden' }}>
@@ -2107,7 +1931,7 @@ const ProviderDashboard = () => {
                                                             <p style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</p>
                                                             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{c.count} visit{c.count !== 1 ? 's' : ''}</p>
                                                         </div>
-                                                        <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)', flexShrink: 0, whiteSpace: 'nowrap' }}>NAD {c.earned.toLocaleString()}</span>
+                                                        <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)', flexShrink: 0, whiteSpace: 'nowrap' }}>{curSym} {c.earned.toLocaleString()}</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -2139,7 +1963,7 @@ const ProviderDashboard = () => {
                                                             <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{r.service}</td>
                                                             <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{new Date(r.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
                                                             <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{r.time}</td>
-                                                            <td style={{ padding: '0.875rem 1rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {r.amount.toLocaleString()}</td>
+                                                            <td style={{ padding: '0.875rem 1rem', fontWeight: '700', color: 'var(--charcoal)' }}>{curSym} {r.amount.toLocaleString()}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -2169,7 +1993,7 @@ const ProviderDashboard = () => {
                         </button>
                         <div className="fc-toolbar-shell" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
                             <div style={{ display: 'inline-flex', background: 'var(--surface-sunken)', border: '1px solid var(--border)', borderRadius: '10px', padding: '3px', gap: '2px' }}>
-                                {[['day', 'Day'], ['3day', '3 Day'], ['week', 'Week'], ['month', 'Month']].map(([view, label]) => {
+                                {[['day', 'Day'], ['week', 'Week'], ['month', 'Month']].map(([view, label]) => {
                                     const isActive = calendarView === view;
                                     return (
                                         <button
@@ -2224,7 +2048,7 @@ const ProviderDashboard = () => {
                                 initialView={getFullCalendarView()}
                                 initialDate={currentDate}
                                 views={{ timeGridThreeDay: { type: 'timeGrid', duration: { days: 3 }, buttonText: '3 day' } }}
-                                headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
+                                headerToolbar={{ left: 'prev,next', center: 'title', right: '' }}
                                 height={calendarView === 'month' ? 'auto' : 680}
                                 events={fullCalendarEvents}
                                 businessHours={businessHoursConfig}
@@ -2420,7 +2244,7 @@ const ProviderDashboard = () => {
                                                 </div>
                                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem', flexShrink: 0 }}>
                                                     <span style={{ fontSize: '0.72rem', fontWeight: '700', padding: '0.2rem 0.65rem', borderRadius: '99px', background: sc.bg, color: sc.color, textTransform: 'capitalize' }}>{a.status}</span>
-                                                    <span style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {a.totalPrice || 0}</span>
+                                                    <span style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--charcoal)' }}>{curSym} {a.totalPrice || 0}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -2673,7 +2497,7 @@ const ProviderDashboard = () => {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                                 {[
                                     ['Plan Name', 'name', 'text', 'e.g. Monthly Grooming Plan'],
-                                    ['Price (NAD)', 'price', 'number', '0'],
+                                    [`Price (${curCode})`, 'price', 'number', '0'],
                                     ['Total Sessions', 'totalSessions', 'number', '5'],
                                     ['Validity (days)', 'validityDays', 'number', '365'],
                                 ].map(([label, key, type, ph]) => (
@@ -2728,7 +2552,7 @@ const ProviderDashboard = () => {
                                             </div>
                                             <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
                                                 <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>Price</p>
-                                                <p style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--gold-dark)', lineHeight: 1 }}>NAD {pkg.price}</p>
+                                                <p style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--gold-dark)', lineHeight: 1 }}>{curSym} {pkg.price}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -3528,7 +3352,7 @@ const ProviderDashboard = () => {
                                     ['Date',      apptDetailModal.appointmentDate ? new Date(apptDetailModal.appointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—'],
                                     ['Time',      `${apptDetailModal.startTime} – ${apptDetailModal.endTime}`],
                                     ['Duration',  apptDetailModal.service?.duration ? `${apptDetailModal.service.duration} min` : '—'],
-                                    ['Price',     apptDetailModal.totalPrice ? `NAD ${apptDetailModal.totalPrice}` : '—'],
+                                    ['Price',     apptDetailModal.totalPrice ? `${curSym} ${apptDetailModal.totalPrice}` : '—'],
                                     ['Booking ref', apptDetailModal.bookingReference || (apptDetailModal._id ? apptDetailModal._id.slice(-8).toUpperCase() : '—')],
                                 ].map(([label, value]) => (
                                     <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.7rem 0', borderBottom: '1px solid var(--border)' }}>
@@ -3724,7 +3548,7 @@ const ProviderAccountTopUpModal = ({ onClose, onDone }) => {
                             }}>{o.t}</button>
                         ))}
                     </div>
-                    <label style={lbl}>Amount (N$)</label>
+                    <label style={lbl}>Amount ({curSym})</label>
                     <input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 500" className="input" style={{ width: '100%', marginBottom: '1rem' }} required />
                     <label style={lbl}>Payment reference</label>
                     <input type="text" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Your deposit / transfer reference" className="input" style={{ width: '100%', marginBottom: '1rem' }} />
@@ -3798,7 +3622,7 @@ const WalletAdjustmentModal = ({ wallet, refundsAllowed, onClose, onSubmit }) =>
                         </label>
                     )}
 
-                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Amount (N$)</label>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Amount ({curSym})</label>
                     <input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 50" className="input" style={{ width: '100%', marginBottom: '1rem' }} required />
 
                     <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Reason</label>

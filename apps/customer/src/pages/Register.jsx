@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import { authService } from '../services';
 import MAIN_CATEGORIES from '../constants/mainCategories';
 import { API_BASE } from '../services/api';
@@ -21,9 +21,15 @@ const roles = [
 ];
 
 const Register = () => {
-    const [step, setStep] = useState(1);
-    const [selectedRole, setSelectedRole] = useState('');
-    const [formData, setFormData] = useState({ name: '', email: '', phone: '', password: '', providerCategory: '' });
+    // Arriving from the customer-app Login "Create a customer account with this
+    // email" CTA (email lives on a business account, no customer one yet): skip
+    // straight to the details step with the customer role chosen and the email
+    // prefilled, so the business owner completes their customer account in one go.
+    const location = useLocation();
+    const prefillEmail = location.state?.email || '';
+    const [step, setStep] = useState(prefillEmail ? 2 : 1);
+    const [selectedRole, setSelectedRole] = useState(prefillEmail ? 'customer' : '');
+    const [formData, setFormData] = useState({ name: '', email: prefillEmail, phone: '', password: '', providerCategory: '' });
     const [customCategory, setCustomCategory] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');

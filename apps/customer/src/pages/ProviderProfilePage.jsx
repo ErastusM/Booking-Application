@@ -1,12 +1,16 @@
 import React, { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
-import { providerMarketService, availabilityService, authService } from '../services';
+import { providerMarketService, availabilityService, authService, favoriteService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { cloudinaryAvatar, cloudinaryThumb } from '../utils/cloudinary';
+import { currencySymbol } from '../utils/currency';
 import { mapsUrl } from '../utils/maps';
 import WalletTopUpModal from '../components/WalletTopUpModal';
-import { Phone, MessageCircle, Mail, MapPin, ChevronLeft, ChevronRight, X } from 'lucide-react';
+import { Phone, MessageCircle, Mail, MapPin, ChevronLeft, ChevronRight, X, Share2, Star, Heart, Clock, MoreHorizontal } from 'lucide-react';
 import { normalizeTown } from '../utils/namibiaTowns';
+
+// Circular translucent control that floats over the hero photo (back / share / like / ⋯).
+const floatBtn = { pointerEvents: 'auto', width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(255,255,255,0.92)', border: 'none', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', flexShrink: 0 };
 
 const StarDisplay = ({ rating }) => (
     <div style={{ display: 'flex', gap: '2px' }}>
@@ -20,8 +24,11 @@ const contactRowStyle = { display: 'flex', alignItems: 'center', gap: '0.6rem', 
 const contactIconStyle = { width: '28px', height: '28px', borderRadius: '8px', background: 'var(--surface-sunken)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 };
 const lightboxBtnStyle = (pos) => ({ position: 'absolute', ...pos, top: pos.top || '50%', transform: pos.top ? 'none' : 'translateY(-50%)', width: '44px', height: '44px', borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.15)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', backdropFilter: 'blur(4px)' });
 
-const ProviderProfilePage = () => {
-    const { id } = useParams();
+const ProviderProfilePage = ({ providerId } = {}) => {
+    const params = useParams();
+    // When rendered from the /b/:slug route a resolved id is passed as a prop;
+    // the normal /providers/:id route reads it from the URL.
+    const id = providerId || params.id;
     const navigate = useNavigate();
     const { user } = useAuthContext();
     const [data, setData] = useState(null);
@@ -32,6 +39,42 @@ const ProviderProfilePage = () => {
     const [showTopUp, setShowTopUp] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [lightbox, setLightbox] = useState(-1); // index of the full-screen photo, -1 = closed
+    const [activeSection, setActiveSection] = useState('');
+    const [heroIdx, setHeroIdx] = useState(0); // active hero-carousel photo (for the 1/N counter)
+    const [isFav, setIsFav] = useState(false);
+    const [aboutExpanded, setAboutExpanded] = useState(false);
+
+    // Load whether this business is saved (for the floating heart).
+    useEffect(() => {
+        if (!user) { setIsFav(false); return; }
+        favoriteService.list()
+            .then((r) => setIsFav((r.data.data || []).map(String).includes(String(id))))
+            .catch(() => {});
+    }, [id, user]);
+
+    const toggleFav = async () => {
+        if (!user) { navigate('/login'); return; }
+        setIsFav((f) => !f);
+        try {
+            const r = await favoriteService.toggle(id);
+            setIsFav((r.data.data || []).map(String).includes(String(id)));
+        } catch { setIsFav((f) => !f); }
+    };
+
+    const handleShare = async () => {
+        const url = window.location.href;
+        if (navigator.share) { try { await navigator.share({ title: document.title || 'Bookplus', url }); } catch { /* cancelled */ } }
+        else { try { await navigator.clipboard.writeText(url); } catch { /* ignore */ } }
+    };
+
+    // Smooth-jump to a section from the sticky tab nav (scroll-margin on the target
+    // clears the fixed app navbar + this sticky bar).
+    const scrollToSection = (secId) => {
+        setActiveSection(secId);
+        // scrollIntoView finds the real scroll container and honours the section's
+        // scroll-margin-top (which clears the app navbar + this sticky tab bar).
+        document.getElementById(secId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
 
     useEffect(() => {
         if (!user) return;
@@ -55,7 +98,7 @@ const ProviderProfilePage = () => {
                 const res = await providerMarketService.getProviderProfile(id);
                 setData(res.data.data);
             } catch {
-                navigate('/services');
+                navigate('/');
             } finally {
                 setLoading(false);
             }
@@ -92,6 +135,20 @@ const ProviderProfilePage = () => {
         window.addEventListener('keydown', onKey);
         return () => window.removeEventListener('keydown', onKey);
     }, [lightbox, data]);
+
+    // Scroll-spy: highlight whichever section is in view in the sticky tab nav.
+    useEffect(() => {
+        if (!data) return;
+        const els = ['section-photos', 'section-services', 'section-about', 'section-reviews']
+            .map(sid => document.getElementById(sid)).filter(Boolean);
+        if (!els.length) return;
+        const io = new IntersectionObserver((entries) => {
+            const vis = entries.filter(e => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+            if (vis[0]) setActiveSection(vis[0].target.id);
+        }, { rootMargin: '-120px 0px -55% 0px', threshold: [0.05, 0.4] });
+        els.forEach(el => io.observe(el));
+        return () => io.disconnect();
+    }, [data]);
 
     const getInitials = (name) => name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?';
 
@@ -138,44 +195,79 @@ const ProviderProfilePage = () => {
     const categoryKeys = Object.keys(categories);
     const activeServices = categories[activeCategory]?.services || [];
 
+    const cur = currencySymbol(provider.currency);
+    const isOwner = user?._id === provider._id;
+    // De-duped services across every category → lowest price for the Book bar.
+    const allServices = (() => {
+        const seen = new Set(); const out = [];
+        Object.values(categories || {}).forEach(c => (c.services || []).forEach(s => { if (!seen.has(s._id)) { seen.add(s._id); out.push(s); } }));
+        return out;
+    })();
+    const minPrice = allServices.length ? Math.min(...allServices.map(s => Number(s.price) || 0)) : null;
+    const description = provider.businessProfile?.description || '';
+
+    // "Open until HH:MM" / "Opens HH:MM" / "Closed" from today's working hours.
+    const openStatus = (() => {
+        if (!schedule) return null;
+        const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const today = schedule[days[new Date().getDay()]];
+        if (!today?.enabled || !(today.slots || []).length) return { open: false, text: 'Closed today' };
+        const now = new Date(); const nowMin = now.getHours() * 60 + now.getMinutes();
+        for (const s of today.slots) {
+            const [sH, sM] = String(s.start).split(':').map(Number);
+            const [eH, eM] = String(s.end).split(':').map(Number);
+            if (nowMin >= sH * 60 + sM && nowMin < eH * 60 + eM) return { open: true, text: `Open until ${s.end}` };
+        }
+        const next = today.slots.find(s => { const [h, m] = String(s.start).split(':').map(Number); return h * 60 + m > nowMin; });
+        return next ? { open: false, text: `Opens ${next.start}` } : { open: false, text: 'Closed now' };
+    })();
+
+    // Sticky section tabs — only the sections that actually exist.
+    const sectionTabs = [
+        photos.length > 0 && { id: 'section-photos', label: 'Photos' },
+        { id: 'section-services', label: 'Services' },
+        { id: 'section-about', label: 'About' },
+        reviews.length > 0 && { id: 'section-reviews', label: 'Reviews' },
+    ].filter(Boolean);
+
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
 
-            {/* Hero */}
-            <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 30% 60%, rgba(240,62,22,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
-                <div className="container" style={{ position: 'relative' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '1rem', minHeight: '36px' }}>
-                        <button onClick={() => navigate('/services')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontFamily: 'var(--font-body)', padding: '0.5rem 0.6rem 0.5rem 0', minHeight: '44px', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                            <ChevronLeft size={16} strokeWidth={2.5} style={{ flexShrink: 0 }} />
-                            Back to Services
-                        </button>
-                        {/* Wallet + block live in a quiet settings menu, far right */}
-                        {user && user._id !== id && (
-                            <div style={{ position: 'relative', flexShrink: 0 }}>
-                                <button
-                                    onClick={() => setShowSettings(s => !s)}
-                                    aria-label="Business options"
-                                    title="Business options"
-                                    style={{ width: '36px', height: '36px', borderRadius: '50%', background: 'rgba(255,255,255,0.10)', border: '1px solid rgba(255,255,255,0.2)', color: 'rgba(255,255,255,0.85)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                >
-                                    <svg width="17" height="17" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09a1.65 1.65 0 00-1-1.51 1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09a1.65 1.65 0 001.51-1 1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06a1.65 1.65 0 001.82.33h0a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09a1.65 1.65 0 001 1.51h0a1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06a1.65 1.65 0 00-.33 1.82v0a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
-                                </button>
+            {/* ── Hero: edge-to-edge photo carousel + floating controls (Fresha-style) ── */}
+            <div id="section-photos" style={{ position: 'relative', scrollMarginTop: '64px', background: 'var(--ink)' }}>
+                {photos.length > 0 ? (
+                    <div className="feed-carousel" onScroll={e => setHeroIdx(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))} style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory' }}>
+                        {photos.map((src, i) => (
+                            <img key={i} src={cloudinaryThumb(src, 1200)} alt={`${businessName} photo ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" onClick={() => setLightbox(i)} style={{ flex: '0 0 100%', width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', scrollSnapAlign: 'start', display: 'block', cursor: 'pointer', background: 'var(--warm-gray)' }} />
+                        ))}
+                    </div>
+                ) : (
+                    <div style={{ aspectRatio: '16 / 9', maxHeight: '280px', background: 'linear-gradient(135deg, var(--ink) 0%, #1c1c1e 100%)', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 70% 30%, rgba(240,62,22,0.15) 0%, transparent 60%)' }} />
+                        {provider.avatar
+                            ? <img src={cloudinaryAvatar(provider.avatar)} alt={provider.name} style={{ width: '104px', height: '104px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', position: 'relative', zIndex: 1 }} />
+                            : <div style={{ width: '104px', height: '104px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '2.5rem', fontWeight: 700, color: 'var(--ink)', position: 'relative', zIndex: 1 }}>{getInitials(provider.name)}</div>}
+                    </div>
+                )}
+
+                {/* Floating controls over the photo (the global navbar is hidden here) */}
+                <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 0.6rem)', left: 0, right: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '0.5rem 1rem 0', pointerEvents: 'none' }}>
+                    <button onClick={() => navigate('/')} aria-label="Back" style={floatBtn}><ChevronLeft size={22} strokeWidth={2.5} /></button>
+                    <div style={{ display: 'flex', gap: '0.5rem' }}>
+                        <button onClick={handleShare} aria-label="Share" style={floatBtn}><Share2 size={18} /></button>
+                        {!isOwner && <button onClick={toggleFav} aria-label={isFav ? 'Saved' : 'Save'} style={floatBtn}><Heart size={19} fill={isFav ? '#e0245e' : 'none'} color={isFav ? '#e0245e' : 'var(--charcoal)'} /></button>}
+                        {user && !isOwner && (
+                            <div style={{ position: 'relative', pointerEvents: 'auto' }}>
+                                <button onClick={() => setShowSettings(s => !s)} aria-label="Business options" style={floatBtn}><MoreHorizontal size={20} /></button>
                                 {showSettings && (
                                     <>
                                         <div onClick={() => setShowSettings(false)} style={{ position: 'fixed', inset: 0, zIndex: 40 }} />
                                         <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', zIndex: 41, minWidth: '200px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '14px', boxShadow: '0 12px 32px rgba(4,5,5,0.22)', overflow: 'hidden', padding: '0.35rem' }}>
-                                            <button
-                                                onClick={() => { setShowSettings(false); setShowTopUp(true); }}
-                                                style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: '0.7rem 0.85rem', borderRadius: '10px', fontSize: '0.88rem', fontWeight: '600', fontFamily: 'var(--font-body)', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', gap: '0.6rem' }}
-                                            >
+                                            <button onClick={() => { setShowSettings(false); setShowTopUp(true); }} style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: '0.7rem 0.85rem', borderRadius: '10px', fontSize: '0.88rem', fontWeight: 600, fontFamily: 'var(--font-body)', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                                                 <svg width="16" height="16" fill="none" stroke="var(--gold-dark)" strokeWidth="2" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M16 15h2"/></svg>
                                                 Top up wallet
                                             </button>
-                                            <button
-                                                onClick={() => { setShowSettings(false); toggleBlock(); }}
-                                                style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: '0.7rem 0.85rem', borderRadius: '10px', fontSize: '0.88rem', fontWeight: '600', fontFamily: 'var(--font-body)', color: blocked ? 'var(--charcoal)' : '#dc2626', display: 'flex', alignItems: 'center', gap: '0.6rem' }}
-                                            >
+                                            <button onClick={() => { setShowSettings(false); toggleBlock(); }} style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: '0.7rem 0.85rem', borderRadius: '10px', fontSize: '0.88rem', fontWeight: 600, fontFamily: 'var(--font-body)', color: blocked ? 'var(--charcoal)' : '#dc2626', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                                                 <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M4.9 4.9l14.2 14.2"/></svg>
                                                 {blocked ? 'Unblock business' : 'Block business'}
                                             </button>
@@ -185,77 +277,58 @@ const ProviderProfilePage = () => {
                             </div>
                         )}
                     </div>
-
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem', flexWrap: 'wrap' }}>
-                        {provider.avatar ? (
-                            <img src={cloudinaryAvatar(provider.avatar)} alt={provider.name} style={{ width: '90px', height: '90px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', flexShrink: 0 }} />
-                        ) : (
-                            <div style={{ width: '90px', height: '90px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-body)', fontSize: '2.2rem', fontWeight: '700', color: 'var(--ink)', flexShrink: 0 }}>
-                                {getInitials(provider.name)}
-                            </div>
-                        )}
-                        <div>
-                            <h1 style={{ fontFamily: 'var(--font-body)', fontSize: 'clamp(1.8rem, 4vw, 2.8rem)', fontWeight: '700', color: 'white', marginBottom: '0.5rem' }}>
-                                {businessName}
-                            </h1>
-                            {provider.providerCategory && (
-                                <span style={{ display: 'inline-block', fontSize: '0.7rem', fontWeight: '600', padding: '0.2rem 0.7rem', borderRadius: '99px', background: 'rgba(240,62,22,0.15)', color: 'var(--gold)', border: '1px solid rgba(240,62,22,0.4)', marginBottom: '0.6rem' }}>
-                                    {provider.providerCategory}
-                                </span>
-                            )}
-                            {provider.businessProfile?.description && (
-                                <p style={{ color: 'rgba(255,255,255,0.8)', fontSize: '0.92rem', lineHeight: 1.5, maxWidth: '540px', margin: '0 0 0.7rem' }}>
-                                    {provider.businessProfile.description}
-                                </p>
-                            )}
-                            {address && (
-                                <p style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.85rem', margin: '0 0 0.6rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                    <span aria-hidden="true">📍</span>{' '}
-                                    <a href={mapsUrl(address)} target="_blank" rel="noopener noreferrer" style={{ color: 'inherit', textDecoration: 'underline' }}>{address}</a>
-                                </p>
-                            )}
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                                {provider.avgRating && (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                                        <StarDisplay rating={parseFloat(provider.avgRating)} />
-                                        <span style={{ color: 'white', fontWeight: '600', fontSize: '0.9rem' }}>{provider.avgRating}</span>
-                                        <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem' }}>({provider.reviewCount} reviews)</span>
-                                    </div>
-                                )}
-                                <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem' }}>
-                                    {provider.serviceCount} service{provider.serviceCount !== 1 ? 's' : ''}
-                                </span>
-                                {provider.likesCount > 0 && (
-                                    <span style={{ color: 'rgba(255,255,255,0.5)', fontSize: '0.85rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
-                                        ❤️ {provider.likesCount} like{provider.likesCount !== 1 ? 's' : ''}
-                                    </span>
-                                )}
-                            </div>
-                        </div>
-                    </div>
                 </div>
+                {photos.length > 1 && (
+                    <div style={{ position: 'absolute', bottom: '12px', right: '12px', background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '99px', pointerEvents: 'none' }}>{heroIdx + 1} / {photos.length}</div>
+                )}
             </div>
 
-            {/* Photo gallery — tap any photo for the full-screen viewer */}
-            {photos.length > 0 && (
-                <div className="container" style={{ paddingTop: '1.5rem' }}>
-                    <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', scrollSnapType: 'x mandatory', paddingBottom: '0.35rem' }}>
-                        {photos.map((src, i) => (
-                            <button key={i} type="button" onClick={() => setLightbox(i)} aria-label={`View photo ${i + 1}`} style={{ flex: '0 0 auto', border: 'none', padding: 0, cursor: 'pointer', borderRadius: '14px', overflow: 'hidden', background: 'var(--warm-gray)', scrollSnapAlign: 'start', boxShadow: 'var(--shadow-sm)' }}>
-                                <img src={cloudinaryThumb(src, 700)} alt={`${businessName} photo ${i + 1}`} loading="lazy" decoding="async" style={{ height: '230px', width: 'auto', maxWidth: '360px', objectFit: 'cover', display: 'block' }} />
-                            </button>
-                        ))}
+            {/* ── Header — name, rating / open line, location pill ── */}
+            <div className="container" style={{ paddingTop: '1.25rem' }}>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.55rem, 5.5vw, 2.2rem)', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.5rem', lineHeight: 1.15 }}>{businessName}</h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem 0.9rem', flexWrap: 'wrap', fontSize: '0.9rem', marginBottom: '0.85rem' }}>
+                    {provider.avgRating && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 700, color: 'var(--charcoal)' }}>
+                            <Star size={15} fill="#f03e16" strokeWidth={0} /> {provider.avgRating} <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>({provider.reviewCount})</span>
+                        </span>
+                    )}
+                    {openStatus && (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600, color: openStatus.open ? '#15803d' : 'var(--text-muted)' }}>
+                            <Clock size={14} /> {openStatus.text}
+                        </span>
+                    )}
+                    {provider.providerCategory && <span style={{ color: 'var(--text-muted)' }}>{provider.providerCategory}</span>}
+                </div>
+                {address && (
+                    <a href={mapsUrl(address)} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 0.9rem', borderRadius: '12px', background: 'var(--card-bg)', border: '1px solid var(--border)', color: 'var(--charcoal)', fontSize: '0.85rem', textDecoration: 'none', fontWeight: 500, boxShadow: 'var(--shadow-sm)' }}>
+                        <MapPin size={16} style={{ color: 'var(--gold-dark)', flexShrink: 0 }} />
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{normalizeTown(address)}</span>
+                    </a>
+                )}
+            </div>
+
+            {/* ── Sticky section nav (Fresha-style) — jumps to a section and sticks
+                 under the app navbar as you scroll past the hero. ── */}
+            {sectionTabs.length > 1 && (
+                <div style={{ position: 'sticky', top: 'env(safe-area-inset-top, 0px)', zIndex: 90, background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', boxShadow: '0 2px 8px rgba(4,5,5,0.05)' }}>
+                    <div className="container" style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', scrollbarWidth: 'none' }}>
+                        {sectionTabs.map(tab => {
+                            const active = activeSection === tab.id;
+                            return (
+                                <button key={tab.id} type="button" onClick={() => scrollToSection(tab.id)} style={{ padding: '0.85rem 1rem', background: 'none', border: 'none', borderBottom: `2px solid ${active ? 'var(--gold)' : 'transparent'}`, color: active ? 'var(--charcoal)' : 'var(--text-muted)', fontWeight: active ? 700 : 500, fontSize: '0.9rem', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'var(--font-body)', flexShrink: 0 }}>{tab.label}</button>
+                            );
+                        })}
                     </div>
                 </div>
             )}
 
-            <div className="container" style={{ paddingTop: '2rem', paddingBottom: '5rem' }}>
+            <div className="container" style={{ paddingTop: '1.5rem', paddingBottom: 'calc(4rem + 84px)' }}>
                 <div className="provider-profile-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '2rem', alignItems: 'start' }}>
 
                     {/* Left — services */}
                     <div>
-                        {/* Category tabs */}
-                        <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', overflowX: 'auto' }}>
+                        {/* Services (category tabs + list) */}
+                        <div id="section-services" style={{ scrollMarginTop: '64px', display: 'flex', gap: '0', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', overflowX: 'auto' }}>
                             {categoryKeys.map(key => {
                                 const cat = categories[key];
                                 if (cat.services.length === 0 && key !== 'featured') return null;
@@ -298,7 +371,7 @@ const ProviderProfilePage = () => {
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.75rem', flexShrink: 0 }}>
-                                            <span style={{ fontFamily: 'var(--font-body)', fontSize: '1.2rem', fontWeight: '700', color: 'var(--charcoal)' }}>${service.price}</span>
+                                            <span style={{ fontFamily: 'var(--font-body)', fontSize: '1.2rem', fontWeight: '700', color: 'var(--charcoal)' }}>{cur} {service.price}</span>
                                             {user?._id !== provider._id && (
                                                 <button
                                                     onClick={() => navigate(`/book-appointment?serviceId=${service._id}&providerId=${provider._id}`)}
@@ -317,8 +390,20 @@ const ProviderProfilePage = () => {
 
                     {/* Right — provider info card */}
                     <div className="provider-profile-sidebar" style={{ position: 'sticky', top: 'calc(100px + env(safe-area-inset-top, 0px))' }}>
-                        <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1rem' }}>
+                        <div id="section-about" style={{ scrollMarginTop: '64px', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1rem' }}>
                             <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem' }}>About</h3>
+                            {description && (
+                                <div style={{ marginBottom: '1rem' }}>
+                                    <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', lineHeight: 1.6, margin: 0, ...(aboutExpanded ? {} : { display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden' }) }}>
+                                        {description}
+                                    </p>
+                                    {description.length > 140 && (
+                                        <button onClick={() => setAboutExpanded(v => !v)} style={{ background: 'none', border: 'none', padding: '0.35rem 0 0', color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+                                            {aboutExpanded ? 'Show less' : 'Read more'}
+                                        </button>
+                                    )}
+                                </div>
+                            )}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                 {provider.providerCategory && (
                                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -410,7 +495,7 @@ const ProviderProfilePage = () => {
 
                         {/* Recent reviews */}
                         {reviews.length > 0 && (
-                            <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
+                            <div id="section-reviews" style={{ scrollMarginTop: '64px', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
                                 <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem' }}>Recent Reviews</h3>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                     {reviews.map(review => (
@@ -428,6 +513,20 @@ const ProviderProfilePage = () => {
                     </div>
                 </div>
             </div>
+
+            {/* ── Sticky "Book now" bar (Fresha-style) — always reachable on mobile ── */}
+            {!isOwner && (
+                <div className="provider-book-bar" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 95, background: 'var(--card-bg)', borderTop: '1px solid var(--border)', boxShadow: '0 -4px 20px rgba(4,5,5,0.10)' }}>
+                    <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.8rem 1.5rem calc(0.8rem + env(safe-area-inset-bottom, 0px))' }}>
+                        <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{provider.serviceCount} service{provider.serviceCount !== 1 ? 's' : ''} available</div>
+                            {minPrice != null && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>from {cur} {minPrice}</div>}
+                        </div>
+                        <button onClick={() => navigate(`/book-appointment?providerId=${provider._id}`)} className="btn-primary" style={{ padding: '0.85rem 1.9rem', borderRadius: '999px', fontSize: '0.95rem', fontWeight: 700, flexShrink: 0 }}>Book now</button>
+                    </div>
+                </div>
+            )}
+
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
             {showTopUp && (

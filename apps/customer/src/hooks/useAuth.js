@@ -37,6 +37,13 @@ export const useAuth = () => {
     useEffect(() => {
         let cancelled = false;
         (async () => {
+        // The OAuth callback page OWNS session establishment (it exchanges the
+        // one-time code for a fresh token). Running the normal bootstrap here
+        // races it: a STALE token left in localStorage makes /auth/profile 401
+        // → the interceptor's refresh 401s → forceLogout wipes the session —
+        // including the fresh token the callback just stored — leaving the user
+        // stranded on /complete-profile with "No token". Skip bootstrap here.
+        if (window.location.pathname === '/auth/callback') { setLoading(false); return; }
         let savedToken = localStorage.getItem('token');
         // SSO (spec §8): no local session — a login on the sibling app may have
         // left the parent-domain refresh cookie; exchange it for tokens.

@@ -5,8 +5,9 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { sendVerificationEmail, sendWelcomeEmail } = require('../utils/emailService');
 const MAIN_CATEGORIES = require('../constants/mainCategories');
+const { CURRENCY_CODES } = require('../constants/currencies');
 const { notifyAdmins } = require('../utils/notificationhelper');
-const { primaryOrigin } = require('../utils/origins');
+const { primaryOrigin, businessOrigin, originForRole } = require('../utils/origins');
 
 // How many recent refresh-token ids (jti hashes) to remember per user. Enough to
 // cover a handful of concurrent devices without growing unbounded.
@@ -524,6 +525,24 @@ exports.updateProfile = async (req, res) => {
             user.businessProfile.address = address.trim();
         }
 
+        // Map-pin coordinates (onboarding step 1). Accept {lat,lng} or null to
+        // clear; reject out-of-range values so a bad pin can't corrupt search.
+        if (user.role === 'provider' && req.body.coordinates !== undefined) {
+            const c = req.body.coordinates;
+            if (!user.businessProfile) user.businessProfile = {};
+            if (c === null) {
+                user.businessProfile.coordinates = { lat: null, lng: null };
+            } else if (c && typeof c === 'object') {
+                const lat = Number(c.lat);
+                const lng = Number(c.lng);
+                if (!Number.isFinite(lat) || lat < -90 || lat > 90 || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+                    return res.status(400).json({ success: false, message: 'Invalid map coordinates' });
+                }
+                user.businessProfile.coordinates = { lat, lng };
+            }
+            user.markModified('businessProfile');
+        }
+
         // Let providers rename their business after onboarding — this is the name shown
         // in search and on cards (falls back to their personal name when blank).
         if (user.role === 'provider' && req.body.businessName !== undefined) {
@@ -532,6 +551,17 @@ exports.updateProfile = async (req, res) => {
             }
             if (!user.businessProfile) user.businessProfile = {};
             user.businessProfile.businessName = req.body.businessName.trim();
+            user.markModified('businessProfile');
+        }
+
+        // Currency the business prices in (chosen at onboarding; editable later).
+        if (user.role === 'provider' && req.body.currency !== undefined) {
+            const code = String(req.body.currency).toUpperCase().trim();
+            if (!CURRENCY_CODES.includes(code)) {
+                return res.status(400).json({ success: false, message: 'Unsupported currency' });
+            }
+            if (!user.businessProfile) user.businessProfile = {};
+            user.businessProfile.currency = code;
             user.markModified('businessProfile');
         }
 
@@ -823,12 +853,45 @@ exports.completeProviderSetup = async (req, res) => {
     }
 };
 
+/**
+ * POST /api/auth/booking-slug
+ * Auth (provider) — return the provider's public booking-link handle, creating
+ * a unique one from the business name on first call. Idempotent: repeat calls
+ * return the same slug.
+ */
+exports.generateBookingSlug = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+        if (user.role !== 'provider') {
+            return res.status(403).json({ success: false, message: 'Only businesses have a booking link' });
+        }
+
+        if (!user.businessProfile) user.businessProfile = {};
+        if (!user.businessProfile.slug) {
+            const { generateUniqueSlug } = require('../utils/slug');
+            const base = user.businessProfile.businessName || user.name;
+            user.businessProfile.slug = await generateUniqueSlug(base, user._id);
+            user.markModified('businessProfile');
+            await user.save();
+        }
+
+        res.status(200).json({ success: true, data: { slug: user.businessProfile.slug } });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
 exports.verifyEmail = async (req, res) => {
+    // A business signup must return to the business app, not the customer site.
+    // Success knows the real account role; the error cases (no user yet) fall
+    // back to the `app` hint the verification link carries.
+    const hintOrigin = req.query.app === 'business' ? businessOrigin() : primaryOrigin();
     try {
         const { token } = req.query;
 
         if (!token) {
-            return res.redirect(`${primaryOrigin()}/verify-email?status=invalid`);
+            return res.redirect(`${hintOrigin}/verify-email?status=invalid`);
         }
 
         const user = await User.findOne({
@@ -837,7 +900,7 @@ exports.verifyEmail = async (req, res) => {
         });
 
         if (!user) {
-            return res.redirect(`${primaryOrigin()}/verify-email?status=expired`);
+            return res.redirect(`${hintOrigin}/verify-email?status=expired`);
         }
 
         user.isVerified = true;
@@ -848,9 +911,9 @@ exports.verifyEmail = async (req, res) => {
         // Send role-specific welcome email (fire-and-forget — must not block the redirect)
         sendWelcomeEmail(user.email, user.name, user.role).catch(() => {});
 
-        return res.redirect(`${primaryOrigin()}/verify-email?status=success&role=${user.role}`);
+        return res.redirect(`${originForRole(user.role)}/verify-email?status=success&role=${user.role}`);
     } catch (error) {
-        return res.redirect(`${primaryOrigin()}/verify-email?status=error`);
+        return res.redirect(`${hintOrigin}/verify-email?status=error`);
     }
 };
 
@@ -882,7 +945,7 @@ exports.forgotPassword = async (req, res) => {
             user.passwordResetToken = crypto.createHash('sha256').update(rawToken).digest('hex');
             user.passwordResetExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
             await user.save({ validateBeforeSave: false });
-            await sendPasswordResetEmail(user.email, user.name, rawToken);
+            await sendPasswordResetEmail(user.email, user.name, rawToken, user.role);
         }
 
         // Always the same response so attackers cannot enumerate registered emails

@@ -5,10 +5,53 @@ import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import PushToggle from '../components/PushToggle';
 import AccountDangerZone from '../components/AccountDangerZone';
+import MapPicker, { MAPS_KEY, reverseGeocode } from '../components/MapPicker';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 
 const CLOUDINARY_CLOUD = 'dktit6s95';
 const CLOUDINARY_PRESET = 'bookplus';
+const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'https://www.bookplus.pro';
+
+// Shareable public booking link — same handle the onboarding flow generates.
+// Shown here so a provider can grab it again any time.
+const BookingLinkCard = ({ user, setUser }) => {
+    const slug = user?.businessProfile?.slug || '';
+    const [busy, setBusy] = React.useState(false);
+    const [copied, setCopied] = React.useState(false);
+    const url = slug ? `${CUSTOMER_URL}/b/${slug}` : '';
+
+    const generate = async () => {
+        setBusy(true);
+        try {
+            const res = await authService.generateBookingSlug();
+            setUser({ ...user, businessProfile: { ...(user.businessProfile || {}), slug: res.data.data.slug } });
+        } catch { /* ignore */ } finally { setBusy(false); }
+    };
+    const copy = async () => {
+        try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* ignore */ }
+    };
+    const share = async () => {
+        if (navigator.share) { try { await navigator.share({ title: user?.businessProfile?.businessName || user?.name, url }); } catch { /* cancelled */ } }
+        else copy();
+    };
+
+    return (
+        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', padding: '1.1rem 1.25rem', marginBottom: '1.5rem' }}>
+            <p style={{ margin: '0 0 0.6rem', fontWeight: 700, color: 'var(--charcoal)', fontSize: '0.92rem' }}>Your booking link</p>
+            {slug ? (
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    <span style={{ flex: 1, minWidth: '180px', fontSize: '0.88rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{url}</span>
+                    <button onClick={copy} style={{ border: '1px solid var(--border)', background: 'var(--card-bg)', color: copied ? '#16a34a' : 'var(--charcoal)', borderRadius: 'var(--radius-sm)', padding: '0.4rem 0.9rem', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, fontFamily: 'var(--font-body)' }}>{copied ? 'Copied!' : 'Copy'}</button>
+                    <button onClick={share} className="btn-primary" style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem' }}>Share</button>
+                </div>
+            ) : (
+                <button onClick={generate} disabled={busy} className="btn-primary" style={{ padding: '0.5rem 1.1rem', fontSize: '0.85rem' }}>
+                    {busy ? 'Generating…' : 'Get my booking link'}
+                </button>
+            )}
+        </div>
+    );
+};
 
 const uploadToCloudinary = async (file) => {
     const fd = new FormData();
@@ -59,7 +102,7 @@ const ProviderAccount = () => {
     }, [user]);
 
     // Profile
-    const [profileForm, setProfileForm] = useState({ name: user?.name || '', phone: user?.phone || '', address: user?.businessProfile?.address || '', businessName: user?.businessProfile?.businessName || '', description: user?.businessProfile?.description || '', cancellationWindowHours: user?.bookingPolicy?.cancellationWindowHours ?? 24 });
+    const [profileForm, setProfileForm] = useState({ name: user?.name || '', phone: user?.phone || '', address: user?.businessProfile?.address || '', businessName: user?.businessProfile?.businessName || '', description: user?.businessProfile?.description || '', cancellationWindowHours: user?.bookingPolicy?.cancellationWindowHours ?? 24, coordinates: user?.businessProfile?.coordinates?.lat != null ? user.businessProfile.coordinates : null });
     const [avatarUploading, setAvatarUploading] = useState(false);
     const [profileSaving, setProfileSaving] = useState(false);
     const [profileMsg, setProfileMsg] = useState('');
@@ -252,6 +295,8 @@ const ProviderAccount = () => {
                                 </h1>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem' }}>Edit and manage the content of your online profile</p>
 
+                                <BookingLinkCard user={user} setUser={setUser} />
+
                                 <div className="provider-profile-two-col">
                                     {/* Left - photo + name */}
                                     <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '2rem', textAlign: 'center' }}>
@@ -293,6 +338,20 @@ const ProviderAccount = () => {
                                             </div>
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Business Address</label>
+                                                {MAPS_KEY && (
+                                                    <div style={{ marginBottom: '0.6rem' }}>
+                                                        <MapPicker
+                                                            coordinates={profileForm.coordinates}
+                                                            height={200}
+                                                            onPick={async (c) => {
+                                                                setProfileForm(p => ({ ...p, coordinates: c }));
+                                                                const a = await reverseGeocode(c.lat, c.lng);
+                                                                if (a) setProfileForm(p => ({ ...p, address: a }));
+                                                            }}
+                                                        />
+                                                        <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.35rem 0 0' }}>Tap the map or drag the pin to set your exact location.</p>
+                                                    </div>
+                                                )}
                                                 <button
                                                     type="button"
                                                     onClick={handleDetectLocation}

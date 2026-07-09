@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
+import AppUpdater from './components/AppUpdater';
 import Login from './pages/Login';
 
 // Business app route map (DUAL_APP_SPEC.md §2b). Parity migration keeps the
@@ -99,6 +100,7 @@ export default function App() {
             <ThemeProvider>
             <AuthProvider>
                 {/* No footer in the business tool — it's an app, not a website. */}
+                <AppUpdater />
                 <Navbar />
                 <AppRoutes />
             </AuthProvider>

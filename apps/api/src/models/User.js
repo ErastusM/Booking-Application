@@ -92,11 +92,25 @@ const userSchema = new mongoose.Schema(
         googleCalendarEmbedUrl: { type: String, default: '' },
         businessProfile: {
             businessName: { type: String, default: '' },
+            // ISO-4217 currency the business prices in (chosen at onboarding —
+            // Bookplus is international). Symbol/format derived from this code.
+            currency: { type: String, default: 'NAD', uppercase: true, trim: true },
             // Short tagline shown on discovery cards + the public profile.
             description: { type: String, default: '', maxlength: 200 },
             teamSize: { type: String, default: '' },
             locationType: { type: String, default: '' },
             address: { type: String, default: '' },
+            // Exact map-pin coordinates (onboarding step 1). null until the
+            // provider drops a pin; the address string stays the human label.
+            coordinates: {
+                lat: { type: Number, default: null },
+                lng: { type: Number, default: null },
+            },
+            // Human-readable public booking-link handle, e.g. "vibe-barbershop"
+            // → www.bookplus.pro/b/vibe-barbershop. Auto-generated from the
+            // business name (unique, lowercased). null until generated; the
+            // partial index below keeps nulls from colliding.
+            slug: { type: String, default: null, lowercase: true, trim: true },
             currentSoftware: { type: String, default: '' },
             referralSource: { type: String, default: '' },
             likesCount: { type: Number, default: 0 }, // public ❤️ count (one heart = private save + public like)
@@ -142,6 +156,13 @@ const userSchema = new mongoose.Schema(
 // business). Replaces the old global-unique email index — production DBs need
 // scripts/migrate_account_types.js to drop `email_1` and backfill accountType.
 userSchema.index({ email: 1, accountType: 1 }, { unique: true });
+
+// Unique public booking-link slug — PARTIAL so the many null slugs (customers,
+// unslugged providers) never collide; only real string slugs are constrained.
+userSchema.index(
+    { 'businessProfile.slug': 1 },
+    { unique: true, partialFilterExpression: { 'businessProfile.slug': { $type: 'string' } } }
+);
 
 const BUSINESS_ROLES = ['provider', 'staff', 'admin'];
 

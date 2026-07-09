@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { primaryOrigin } = require('../utils/origins');
+const { primaryOrigin, businessOrigin, originForRole } = require('../utils/origins');
 const crypto = require('crypto');
 const {
     register,
@@ -11,6 +11,7 @@ const {
     updateProfile,
     updatePortfolio,
     completeProviderSetup,
+    generateBookingSlug,
     becomeProvider,
     changePassword,
     verifyEmail,
@@ -41,6 +42,7 @@ router.get('/profile', auth, getProfile);
 router.put('/profile', auth, updateProfileRules, updateProfile);
 router.put('/portfolio', auth, updatePortfolio);
 router.post('/provider-setup', auth, completeProviderSetup);
+router.post('/booking-slug', auth, generateBookingSlug);
 router.put('/become-provider', auth, becomeProvider);
 router.put('/change-password', auth, changePassword);
 router.post('/deactivate', auth, deactivateAccount);
@@ -62,25 +64,32 @@ router.get('/google', (req, res, next) => {
     passport.authenticate('google', { scope: ['profile', 'email'], session: false, state: role })(req, res, next);
 });
 
-// Google redirects here — issue a short-lived one-time code; client exchanges it for tokens
-router.get('/google/callback',
-    passport.authenticate('google', {
-        failureRedirect: `${primaryOrigin()}/login?error=google_failed`,
-        session: false,
-    }),
-    async (req, res) => {
+// Google redirects here — issue a short-lived one-time code; client exchanges it
+// for tokens. The redirect must return to the app the sign-in targeted: a
+// business ("List your business" → state=provider) goes back to the business
+// app, not the customer site. A custom callback lets BOTH the success and the
+// failure paths honour that origin.
+router.get('/google/callback', (req, res, next) => {
+    // `state` carries the role chosen at /google; use it for the failure origin
+    // (auth failed → no user to read a role from).
+    const stateOrigin = req.query.state === 'provider' ? businessOrigin() : primaryOrigin();
+    passport.authenticate('google', { session: false }, async (err, user) => {
+        if (err || !user) {
+            return res.redirect(`${stateOrigin}/login?error=google_failed`);
+        }
         try {
             const code = crypto.randomBytes(32).toString('hex');
             const codeHash = crypto.createHash('sha256').update(code).digest('hex');
-            await User.findByIdAndUpdate(req.user._id, {
+            await User.findByIdAndUpdate(user._id, {
                 oauthCode: codeHash,
                 oauthCodeExpiry: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes
             });
-            res.redirect(`${primaryOrigin()}/auth/callback?code=${code}`);
-        } catch (err) {
-            res.redirect(`${primaryOrigin()}/login?error=google_failed`);
+            // On success, use the authenticated account's real role.
+            return res.redirect(`${originForRole(user.role)}/auth/callback?code=${code}`);
+        } catch (e) {
+            return res.redirect(`${stateOrigin}/login?error=google_failed`);
         }
-    }
-);
+    })(req, res, next);
+});
 
 module.exports = router;

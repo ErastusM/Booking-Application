@@ -14,6 +14,8 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         updateProfile: (data: any) => API.put('/auth/profile', data),
         updatePortfolio: (data: any) => API.put('/auth/portfolio', data),
         completeProviderSetup: (data: any) => API.post('/auth/provider-setup', data),
+        // Returns the provider's public booking-link handle, minting one on first call.
+        generateBookingSlug: () => API.post('/auth/booking-slug'),
         becomeProvider: (data: any) => API.put('/auth/become-provider', data),
         changePassword: (data: any) => API.put('/auth/change-password', data),
         resendVerification: (email: string) => API.post('/auth/resend-verification', { email }),
@@ -109,11 +111,16 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         createMyService: (data: any) => API.post('/services/my-services', data),
         updateMyService: (id: string, data: any) => API.put(`/services/${id}`, data),
         deleteMyService: (id: string) => API.delete(`/services/${id}`),
+        // Onboarding completeness (address/hours/services/photos/slug) for the
+        // dashboard "finish setting up" reminder.
+        getSetupStatus: () => API.get('/providers/me/setup-status'),
     },
 
     providerMarketService: {
         getAllProviders: () => API.get('/providers'),
         getProviderProfile: (id: string) => API.get(`/providers/${id}`),
+        // Resolve a shareable booking-link handle to the public profile.
+        getProviderBySlug: (slug: string) => API.get(`/providers/by-slug/${slug}`),
         // Bookable staff for the customer staff-selection step (public).
         getProviderStaff: (id: string, serviceId?: string) =>
             API.get(`/providers/${id}/staff`, { params: serviceId ? { serviceId } : {} }),

@@ -21,6 +21,12 @@ body.dark-mode {
   background: #0a0a0b;
 }
 
+/* The document canvas — the strips behind the status bar / home indicator and any
+   overscroll — paints the <html> background, NOT <body>. It's set imperatively
+   from the saved theme (index.html boot script + ThemeContext) because a CSS
+   `:has()` rule did NOT apply on iOS Safari. This is just the light-mode base. */
+html { background: #e6e8e7; }
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
 /* overflow-x: clip on html/body only — `clip` blocks horizontal panning
@@ -638,7 +644,13 @@ body.dark-mode .booking-confirm-mobile {
 .fc-bookplus-wrapper .fc {
   font-family: var(--font-body);
   color: var(--charcoal);
-  --fc-non-business-color: rgba(4, 5, 5, 0.05);
+  /* Off-hours (outside working hours) shading. The old 5% overlay was almost
+     invisible — bumped so it's clearly distinguishable, and much stronger in
+     dark mode where a faint tint on the dark card can't be seen at all. */
+  --fc-non-business-color: rgba(4, 5, 5, 0.22);
+}
+body.dark-mode .fc-bookplus-wrapper .fc {
+  --fc-non-business-color: rgba(0, 0, 0, 0.78);
 }
 
 /* Toolbar */
@@ -749,7 +761,8 @@ body.dark-mode .fc-bookplus-wrapper .fc {
   --fc-neutral-bg-color: var(--surface-sunken);
   --fc-border-color: var(--border);
   --fc-today-bg-color: rgba(240, 62, 22, 0.10);
-  --fc-non-business-color: rgba(255, 255, 255, 0.045);
+  /* off-hours color is set above (rgba(0,0,0,0.78)) — do NOT re-set it here,
+     a faint white overlay was overriding it and lightening the off-hours. */
 }
 body.dark-mode .fc-bookplus-wrapper .fc-header-toolbar,
 body.dark-mode .fc-bookplus-wrapper .fc-col-header,
@@ -1093,8 +1106,33 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
 .nav-pill {
   position: relative; text-decoration: none; font-size: 0.9rem; font-weight: 500;
   padding: 0.45rem 0.9rem; border-radius: var(--radius-pill);
+  white-space: nowrap; /* never let a two-word label (e.g. "Waiting list") wrap to two lines */
   transition: color var(--dur) ease, background var(--dur) ease;
 }
+
+/* Navbar-scoped responsive switch. The business bar carries denser top-level nav
+   (4 product tabs + cross-app link + utilities) than the customer app, so the full
+   row can't fit the 769–1023px band without overlapping itself. It collapses to the
+   drawer + bottom-nav at a WIDER breakpoint (1024) than the app's global 768px one. */
+.nav-desktop { display: flex; }
+.nav-mobile { display: none; }
+/* 1023.98/1024 split (not 1023/1024) so the boundary is exact at fractional
+   widths from browser zoom / fractional-DPI — no crack where neither query matches. */
+@media (min-width: 1024px) { .nav-mobile { display: none !important; } }
+@media (max-width: 1023.98px) {
+  .nav-desktop { display: none !important; }
+  .nav-mobile { display: flex !important; }
+}
+/* The provider bottom-nav (nav-mobile) now floats over content up to 1023.98px,
+   so the body must reserve space for it across that whole band — not just the
+   app-global ≤768px block (line ~467, which still covers phones). Disjoint ranges,
+   so no duplicate declaration. */
+@media (min-width: 769px) and (max-width: 1023.98px) {
+  body { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+}
+/* The cross-app "Customer site" pill duplicates the dropdown's "Go to customer
+   site", so it is dropped on tighter desktop widths to keep the bar breathing. */
+@media (max-width: 1120px) { .nav-cross-app { display: none !important; } }
 
 /* Bottom nav — active pill indicator + press feedback */
 .bottom-nav .bnav-item { position: relative; -webkit-tap-highlight-color: transparent; transition: color var(--dur) ease; }

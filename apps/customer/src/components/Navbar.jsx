@@ -27,6 +27,17 @@ const Navbar = () => {
     useEffect(() => { setProfileOpen(false); }, [location]);
 
     const isHome = location.pathname === '/';
+    // The booking flow AND the provider profile each have their own bottom CTA bar
+    // (Continue/Confirm, and "Book now"). Hiding the 5-tab nav there stops it competing
+    // with — and covering — that button, matching the focused-checkout / Fresha pattern.
+    // The top hamburger + back button still navigate away.
+    const hideBottomNav = location.pathname === '/book-appointment'
+        || location.pathname.startsWith('/providers/')
+        || location.pathname.startsWith('/b/');
+    // The provider profile is a full-bleed, Fresha-style page: its own floating
+    // back/share/save buttons replace the top bar, so hide the global navbar there.
+    const hideTopNav = location.pathname.startsWith('/providers/')
+        || location.pathname.startsWith('/b/');
     // The transparent navbar uses white text/icons, which only reads on a DARK hero.
     // The home hero is light in light mode, so only go transparent in dark mode —
     // otherwise the white icons vanish against the light hero (scrolled-to-top bug).
@@ -76,8 +87,8 @@ const Navbar = () => {
     <>
         {/* Dark backdrop behind the status bar so its white text stays legible in light mode too (installed PWA).
             Height is the safe-area inset, so it collapses to nothing in a normal browser. */}
-        <div aria-hidden="true" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'env(safe-area-inset-top, 0px)', background: darkMode ? '#0a0a0b' : '#040505', zIndex: 1300, pointerEvents: 'none' }} />
-        <nav style={navStyles}>
+        <div aria-hidden="true" className="app-statusbar-bg" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'env(safe-area-inset-top, 0px)', background: darkMode ? '#0a0a0b' : '#040505', zIndex: 1300, pointerEvents: 'none', display: hideTopNav ? 'none' : 'block' }} />
+        <nav className="app-topnav" style={{ ...navStyles, display: hideTopNav ? 'none' : 'block' }}>
             <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px' }}>
 
                 {/* Logo */}
@@ -283,7 +294,6 @@ const Navbar = () => {
 
                     <div style={{ flex: 1, padding: '0.6rem 0' }}>
                         {mobileLink('/', 'Home')}
-                        {mobileLink('/services', 'Services')}
                         {mobileLink('/about', 'About us')}
                         {user && mobileLink('/book-appointment', 'Book Appointment')}
                         {user && mobileLink('/appointments', 'My Appointments')}
@@ -341,29 +351,32 @@ const Navbar = () => {
             </>
         )}
 
-        {/* Mobile bottom navigation — one customer nav for every signed-in user */}
-        {user && (
+        {/* Mobile bottom navigation — one customer nav for every signed-in user
+            (hidden on the booking flow, which has its own bottom CTA bar) */}
+        {user && !hideBottomNav && (
             <div className="show-mobile" style={{
                 position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
                 display: 'flex', justifyContent: 'center',
                 padding: '0 12px calc(3px + env(safe-area-inset-bottom, 0))',
                 pointerEvents: 'none',
+                // Force the fixed bar onto its own GPU layer. Without this, iOS Safari
+                // fails to repaint a fixed element during momentum scroll and it "sticks"
+                // mid-page. A solid (non backdrop-filtered) background is the other half
+                // of the fix — backdrop-filter on a fixed element is what triggers the stall.
+                transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)',
+                willChange: 'transform', backfaceVisibility: 'hidden',
             }}>
                 <div style={{
                     pointerEvents: 'auto', width: '100%', maxWidth: '460px',
                     display: 'flex', justifyContent: 'space-around', alignItems: 'flex-start',
-                    background: darkMode ? 'rgba(20,20,22,0.78)' : 'rgba(255,255,255,0.78)',
-                    backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+                    background: darkMode ? '#17181c' : '#ffffff',
                     border: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid var(--border)',
-                    borderRadius: '20px', boxShadow: '0 8px 22px rgba(4,5,5,0.13)',
+                    borderRadius: '20px', boxShadow: '0 8px 22px rgba(4,5,5,0.16)',
                     padding: '7px 4px 6px',
                 }}>
                     {[
                         { to: '/', label: 'Home', icon: (
                             <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
-                        ) },
-                        { to: '/services', label: 'Book', icon: (
-                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
                         ) },
                         { to: '/appointments', label: 'Bookings', icon: (
                             <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>

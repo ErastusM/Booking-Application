@@ -21,6 +21,12 @@ body.dark-mode {
   background: #0a0a0b;
 }
 
+/* The document canvas — the strips behind the status bar / home indicator and any
+   overscroll — paints the <html> background, NOT <body>. It's set imperatively
+   from the saved theme (index.html boot script + ThemeContext) because a CSS
+   `:has()` rule did NOT apply on iOS Safari. This is just the light-mode base. */
+html { background: #e6e8e7; }
+
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }
 /* overflow-x: clip on html/body only — `clip` blocks horizontal panning
@@ -35,6 +41,16 @@ html, body { overscroll-behavior: none; }
 * { -webkit-tap-highlight-color: transparent; }
 button, a, input, select, textarea, [role="button"] { touch-action: manipulation; }
 nav a, nav button { -webkit-user-select: none; user-select: none; }
+
+/* Installed PWA (black-translucent status bar): the top navbar draws UNDER the
+   status bar and relies on env(safe-area-inset-top) to clear it. On some
+   iPhones (e.g. 13 Pro) that inset comes back as 0, dropping the navbar / its
+   menu button under the notch. Enforce a minimum so it always clears. Scoped to
+   standalone so the browser view (no notch to clear) isn't over-padded. */
+@media (display-mode: standalone) {
+  .app-topnav { padding-top: max(env(safe-area-inset-top, 0px), 50px) !important; }
+  .app-statusbar-bg { height: max(env(safe-area-inset-top, 0px), 50px) !important; }
+}
 
 body {
   font-family: var(--font-body);
@@ -320,8 +336,9 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
     box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
   }
   /* Tablet (769–900px): no bottom nav at this width, so the bar sits at bottom:0 —
-     lift the "back to top" button clear of it. */
-  .scroll-top-fab { bottom: 84px; }
+     lift the "back to top" button clear of it and move it to the LEFT so it never
+     overlaps the Continue/Confirm button on the right of the bar. */
+  .scroll-top-fab { bottom: 84px; left: 16px; right: auto; }
 }
 
 /* Appointment block visuals */
@@ -466,29 +483,33 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
      which sat ABOVE the routes and pushed every page down 88px. */
   body { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 
-  /* Booking page mobile sticky bar — sits just above the floating bottom nav
-     (~88px incl. safe area) so the nav (z 999) never overlaps the Continue button. */
+  /* Booking page mobile sticky bar — the bottom nav is hidden on the booking
+     flow, so the bar owns the screen edge (with safe-area padding for the home
+     indicator) and the Continue button can never be covered. */
   .booking-mobile-bar {
     display: flex !important;
     position: fixed;
-    bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+    bottom: 0;
     left: 0;
     right: 0;
     background: white;
     border-top: 1px solid var(--border);
-    padding: 0.875rem 1.25rem;
+    padding: 0.875rem 1.25rem calc(0.875rem + env(safe-area-inset-bottom, 0px));
     justify-content: space-between;
     align-items: center;
     z-index: 100;
     box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
   }
-  /* Park the "back to top" button in the corner above the booking bar + nav,
-     not floating over the calendar / time-slot content. */
-  .scroll-top-fab { bottom: calc(156px + env(safe-area-inset-bottom, 0px)); }
+  /* Park the "back to top" button above the booking bar and on the LEFT, so it
+     never collides with the Continue/Confirm button on the right of the bar. */
+  .scroll-top-fab { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); left: 16px; right: auto; }
 }
 
 @media (min-width: 769px) {
   .show-mobile { display: none !important; }
+  /* On desktop the provider profile keeps its sidebar "Book Now" button, so the
+     fixed bottom Book bar (a mobile pattern) is hidden. */
+  .provider-book-bar { display: none !important; }
 }
 
 /* ── Dark mode surface overrides ──
@@ -623,10 +644,9 @@ body.dark-mode .bottom-nav {
     grid-template-columns: 1fr !important;
   }
   .booking-confirm-desktop { display: none !important; }
-  /* Sit above the floating bottom nav (~88px incl. safe area) so the nav
-     (z-index 999) can't cover the Confirm button. The bar no longer touches the
-     screen edge, so it doesn't need its own safe-area padding. */
-  .booking-confirm-mobile { display: flex !important; bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important; padding-bottom: 1rem !important; }
+  /* The bottom nav is hidden on the booking flow, so the Confirm bar owns the
+     screen edge; safe-area padding keeps it clear of the home indicator. */
+  .booking-confirm-mobile { display: flex !important; bottom: 0 !important; padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)) !important; }
 }
 
 /* ── Booking mobile bar — dark mode ── */
@@ -1193,11 +1213,16 @@ body.dark-mode .home-hero-wash {
   .discover-feed .feed-media-img { aspect-ratio: 4 / 3 !important; }
 }
 
-/* ── Home: Fresha-style desktop sections; the vertical feed stays mobile-only ── */
+/* ── Home: two distinct layouts. Mobile = the Instagram-style infinite feed
+   ONLY (.home-feed-mobile). Desktop = card rows/grids (.home-sections-desktop)
+   plus any desktop-only block (.home-desktop-only, e.g. the Featured row). The
+   two never appear together — that mash-up is what read as "broken" on phones. */
 .home-sections-desktop { display: none; }
+.home-desktop-only { display: none; }
 @media (min-width: 1024px) {
   .home-feed-mobile { display: none; }
   .home-sections-desktop { display: block; }
+  .home-desktop-only { display: block; }
   .home-section-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));

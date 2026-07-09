@@ -228,6 +228,28 @@ if (require.main === module) {
     assertRequiredEnv();
     connectDB().then(async () => {
         await seedAdmin();
+        // Account-type migration on boot (idempotent): backfills accountType and,
+        // crucially, DROPS the legacy global-unique `email_1` index. Without this
+        // an old production DB keeps that index and rejects the SECOND account
+        // (e.g. a customer account for an email that already has a business one)
+        // even though the app logic allows it. Running it here — inside the app
+        // container, every boot — guarantees it, rather than relying on the
+        // deploy's best-effort `docker compose exec ... || true` step.
+        try {
+            const { migrateAccountTypes } = require('./scripts/migrate_account_types');
+            const { backfilled, droppedOldIndex } = await migrateAccountTypes();
+            logger.info({ backfilled, droppedOldIndex }, 'Account-type migration ensured on boot');
+        } catch (err) {
+            logger.error({ err: err.message }, 'Account-type boot migration failed (non-fatal)');
+        }
+        // Give every provider a unique public booking-link slug (idempotent).
+        try {
+            const { backfillSlugs } = require('./scripts/backfill_slugs');
+            const { assigned } = await backfillSlugs();
+            logger.info({ assigned }, 'Booking-link slugs ensured on boot');
+        } catch (err) {
+            logger.error({ err: err.message }, 'Slug backfill failed (non-fatal)');
+        }
         const server = app.listen(PORT, () => {
             logger.info({ port: PORT }, 'Server running');
             startReminderJob();

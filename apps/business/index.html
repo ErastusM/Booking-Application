@@ -5,6 +5,16 @@
     <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
     <meta name="description" content="Manage your bookings, calendar, team and earnings on Bookplus for Business." />
     <meta name="theme-color" content="#040505" />
+    <script>
+      // Paint the document canvas + status-bar tint from the saved theme BEFORE
+      // first paint, so dark mode never flashes a light strip behind the status
+      // bar / home indicator. Kept in sync afterwards by ThemeContext.
+      try {
+        var __dark = localStorage.getItem('darkMode') === 'true';
+        document.documentElement.style.backgroundColor = __dark ? '#0a0a0b' : '#e6e8e7';
+        document.querySelector('meta[name="theme-color"]').setAttribute('content', __dark ? '#0a0a0b' : '#ffffff');
+      } catch (e) {}
+    </script>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" href="/favicon-64.png" type="image/png" sizes="64x64" />
