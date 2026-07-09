@@ -18,8 +18,25 @@ const Navbar = () => {
     const [menuOpen, setMenuOpen] = useState(false);
     const [showSuggestion, setShowSuggestion] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false); // desktop avatar dropdown
+    const [moreOpen, setMoreOpen] = useState(false); // desktop "More" nav dropdown
 
-    useEffect(() => { setProfileOpen(false); }, [location]);
+    useEffect(() => { setProfileOpen(false); setMoreOpen(false); }, [location]);
+
+    // Provider feature areas that live behind the top-nav "More" menu + the mobile
+    // drawer, reached via /dashboard?tab=… (the in-page tab strip was removed).
+    const MORE_LINKS = [
+        { to: '/dashboard?tab=waitlist', label: 'Waiting list' },
+        { to: '/dashboard?tab=insights', label: 'Insights' },
+        { to: '/dashboard?tab=messages', label: 'Messages' },
+        { to: '/dashboard?tab=memberships', label: 'Memberships' },
+        { to: '/team', label: 'Team' },
+    ];
+    // Config areas — grouped under the account menu / Settings.
+    const SETTINGS_LINKS = [
+        { to: '/dashboard?tab=availability', label: 'Availability' },
+        { to: '/dashboard?tab=wallet', label: 'Wallet' },
+        { to: '/dashboard?tab=forms', label: 'Forms' },
+    ];
 
     const isHome = location.pathname === '/';
     // The transparent navbar uses white text/icons, which only reads on a DARK hero.
@@ -50,7 +67,7 @@ const Navbar = () => {
         const toTab = toQs ? new URLSearchParams(toQs).get('tab') : null;
         const curTab = new URLSearchParams(location.search).get('tab');
         const active = location.pathname === toPath
-            && (toTab ? curTab === toTab : !(toPath === '/dashboard' && (curTab === 'earnings' || curTab === 'waitlist')));
+            && (toTab ? curTab === toTab : (toPath === '/dashboard' ? !curTab : true));
         const baseColor = active ? 'var(--gold-light)' : 'rgba(255,255,255,0.78)';
         return (
             <Link to={to} className="nav-pill" style={{
@@ -113,11 +130,37 @@ const Navbar = () => {
                     link and every utility (dark mode, suggestions, account, logout)
                     live in the right cluster/dropdown, so this row stays clean and
                     never has to wrap. */}
-                <div style={{ display: 'flex', alignItems: 'center', gap: '1.5rem' }} className="nav-desktop">
-                    {user?.role === 'provider' && navLink('/dashboard', 'Dashboard')}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }} className="nav-desktop">
+                    {user?.role === 'provider' && navLink('/dashboard', 'Calendar')}
+                    {user?.role === 'provider' && navLink('/dashboard?tab=clients', 'Clients')}
                     {user?.role === 'provider' && navLink('/dashboard?tab=earnings', 'Earnings')}
-                    {user?.role === 'provider' && navLink('/dashboard?tab=waitlist', 'Waiting list')}
-                    {user?.role === 'provider' && navLink('/team', 'Team')}
+                    {user?.role === 'provider' && navLink('/dashboard?tab=services', 'Catalogue')}
+                    {user?.role === 'provider' && (
+                        <div style={{ position: 'relative' }}>
+                            <button
+                                onClick={() => setMoreOpen(o => !o)}
+                                className="nav-pill"
+                                aria-expanded={moreOpen}
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', color: 'rgba(255,255,255,0.78)', fontWeight: 500, background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)' }}
+                            >
+                                More
+                                <svg width="13" height="13" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24" style={{ transform: moreOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.18s' }}><path strokeLinecap="round" strokeLinejoin="round" d="M6 9l6 6 6-6"/></svg>
+                            </button>
+                            {moreOpen && (
+                                <>
+                                    <div onClick={() => setMoreOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 1100 }} />
+                                    <div style={{ position: 'absolute', left: 0, top: 'calc(100% + 12px)', zIndex: 1101, width: '210px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '14px', boxShadow: '0 16px 44px rgba(4,5,5,0.28)', overflow: 'hidden', padding: '0.35rem' }}>
+                                        {MORE_LINKS.map(l => (
+                                            <Link key={l.to} to={l.to} onClick={() => setMoreOpen(false)} style={{ display: 'block', padding: '0.55rem 0.8rem', borderRadius: '9px', textDecoration: 'none', color: 'var(--charcoal)', fontSize: '0.88rem', fontWeight: 600 }}
+                                                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
+                                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                            >{l.label}</Link>
+                                        ))}
+                                    </div>
+                                </>
+                            )}
+                        </div>
+                    )}
                     {user?.role === 'staff' && navLink('/my-schedule', 'My Schedule')}
                     {user?.role === 'admin' && navLink('/bkplus-command', 'Dashboard')}
                     {user?.role === 'admin' && navLink('/bkplus-command/insights', 'Analytics')}
@@ -172,6 +215,18 @@ const Navbar = () => {
                                                     <svg width="16" height="16" fill="none" stroke="var(--text-muted)" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                                                     My account
                                                 </Link>
+                                            )}
+                                            {user.role === 'provider' && (
+                                                <>
+                                                    <p style={{ margin: '0.35rem 0 0.15rem', padding: '0 0.85rem', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Settings</p>
+                                                    {SETTINGS_LINKS.map(l => (
+                                                        <Link key={l.to} to={l.to} onClick={() => setProfileOpen(false)} style={{ display: 'block', padding: '0.55rem 0.85rem', borderRadius: '10px', textDecoration: 'none', color: 'var(--charcoal)', fontSize: '0.88rem', fontWeight: 600 }}
+                                                            onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
+                                                            onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                                        >{l.label}</Link>
+                                                    ))}
+                                                    <div style={{ borderTop: '1px solid var(--border)', margin: '0.35rem 0' }} />
+                                                </>
                                             )}
                                             <a href={CUSTOMER_URL} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.6rem 0.85rem', borderRadius: '10px', textDecoration: 'none', color: 'var(--charcoal)', fontSize: '0.88rem', fontWeight: '600' }}
                                                 onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
@@ -308,8 +363,12 @@ const Navbar = () => {
 
                     <div style={{ flex: 1, padding: '0.6rem 0' }}>
                         <a href={CUSTOMER_URL} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500', fontSize: '0.95rem', padding: '0.85rem 1.2rem', borderBottom: '1px solid var(--border)', borderLeft: '3px solid transparent', display: 'block' }}>Customer site</a>
-                        {user?.role === 'provider' && mobileLink('/dashboard', 'Dashboard')}
-                        {user?.role === 'provider' && mobileLink('/team', 'Team')}
+                        {user?.role === 'provider' && mobileLink('/dashboard', 'Calendar')}
+                        {user?.role === 'provider' && mobileLink('/dashboard?tab=clients', 'Clients')}
+                        {user?.role === 'provider' && mobileLink('/dashboard?tab=earnings', 'Earnings')}
+                        {user?.role === 'provider' && mobileLink('/dashboard?tab=services', 'Catalogue')}
+                        {user?.role === 'provider' && MORE_LINKS.map(l => <React.Fragment key={l.to}>{mobileLink(l.to, l.label)}</React.Fragment>)}
+                        {user?.role === 'provider' && SETTINGS_LINKS.map(l => <React.Fragment key={l.to}>{mobileLink(l.to, l.label)}</React.Fragment>)}
                         {user?.role === 'staff' && mobileLink('/my-schedule', 'My Schedule')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command/insights', 'Analytics')}
@@ -385,8 +444,8 @@ const Navbar = () => {
                         { to: '/dashboard', label: 'Calendar', icon: (
                             <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
                         ) },
-                        { to: '/dashboard?tab=waitlist', label: 'Waiting List', icon: (
-                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7.5V12l3 1.75"/></svg>
+                        { to: '/dashboard?tab=clients', label: 'Clients', icon: (
+                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 4.5a3.5 3.5 0 010 7M21 20c0-2.6-1.6-4.8-4-5.7"/></svg>
                         ) },
                         { to: '/dashboard?tab=earnings', label: 'Earnings', icon: (
                             <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
@@ -399,7 +458,7 @@ const Navbar = () => {
                         const toTab = toQs ? new URLSearchParams(toQs).get('tab') : null;
                         const curTab = new URLSearchParams(location.search).get('tab');
                         // Calendar (no tab) is the dashboard default — it stays active for any tab that isn't another nav item's.
-                        const active = location.pathname === toPath && (toTab ? curTab === toTab : !(toPath === '/dashboard' && (curTab === 'earnings' || curTab === 'waitlist')));
+                        const active = location.pathname === toPath && (toTab ? curTab === toTab : (toPath === '/dashboard' ? !curTab : true));
                         return (
                             <Link key={to} to={to} aria-label={label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', textDecoration: 'none', minWidth: 0, WebkitTapHighlightColor: 'transparent' }}>
                                 <span style={{
