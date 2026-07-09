@@ -532,11 +532,11 @@ const BookAppointment = () => {
 
                 {/* Mobile sticky bottom confirm bar */}
                 <div className="booking-confirm-mobile" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--card-bg)', borderTop: '1px solid var(--border)', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1000, boxShadow: '0 -4px 20px rgba(0,0,0,0.08)' }}>
-                    <div>
+                    <div style={{ flexShrink: 0 }}>
                         <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)' }}>{curSym} {totalPrice}</div>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>Estimated total</div>
                     </div>
-                    <button data-testid="booking-confirm-mobile" onClick={handleConfirm} disabled={loading} style={{ padding: '0.875rem 2rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '700', fontFamily: 'var(--font-body)', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <button data-testid="booking-confirm-mobile" onClick={handleConfirm} disabled={loading} style={{ flex: 1, marginLeft: '0.9rem', justifyContent: 'center', padding: '0.875rem 1rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '700', fontFamily: 'var(--font-body)', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         {loading && <span style={{ display: 'inline-block', width: '15px', height: '15px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
                         {loading ? 'Confirming...' : rescheduleId ? 'Confirm reschedule' : 'Confirm'}
                     </button>
@@ -904,7 +904,7 @@ const BookAppointment = () => {
             {/* Mobile sticky bottom bar — shown only on mobile via CSS */}
             {selectedService && (
                 <div className="booking-mobile-bar">
-                    <div>
+                    <div style={{ flexShrink: 0 }}>
                         <div style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}>{curSym} {totalPrice}</div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>1 item · {totalDuration} min</div>
                     </div>
@@ -912,7 +912,7 @@ const BookAppointment = () => {
                         <button
                             onClick={handleJoinWaitingList}
                             disabled={loading}
-                            style={{ background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', padding: '0.75rem 1.5rem', fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}
+                            style={{ flex: 1, marginLeft: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', padding: '0.8rem 1rem', fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}
                         >
                             Join Waitlist
                         </button>
@@ -921,7 +921,7 @@ const BookAppointment = () => {
                             data-testid="booking-continue-mobile"
                             onClick={() => { setError(''); setStep('review'); }}
                             disabled={!canReview}
-                            style={{ background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', padding: '0.75rem 1.75rem', fontWeight: '600', cursor: canReview ? 'pointer' : 'not-allowed', opacity: canReview ? 1 : 0.5, fontSize: '0.95rem', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}
+                            style={{ flex: 1, marginLeft: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', padding: '0.8rem 1rem', fontWeight: '700', cursor: canReview ? 'pointer' : 'not-allowed', opacity: canReview ? 1 : 0.5, fontSize: '0.95rem', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}
                         >
                             Continue →
                         </button>

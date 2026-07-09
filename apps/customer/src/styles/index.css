@@ -326,8 +326,9 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
     box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
   }
   /* Tablet (769–900px): no bottom nav at this width, so the bar sits at bottom:0 —
-     lift the "back to top" button clear of it. */
-  .scroll-top-fab { bottom: 84px; }
+     lift the "back to top" button clear of it and move it to the LEFT so it never
+     overlaps the Continue/Confirm button on the right of the bar. */
+  .scroll-top-fab { bottom: 84px; left: 16px; right: auto; }
 }
 
 /* Appointment block visuals */
@@ -489,8 +490,9 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
     z-index: 100;
     box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
   }
-  /* Park the "back to top" button in the corner above the booking bar. */
-  .scroll-top-fab { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
+  /* Park the "back to top" button above the booking bar and on the LEFT, so it
+     never collides with the Continue/Confirm button on the right of the bar. */
+  .scroll-top-fab { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); left: 16px; right: auto; }
 }
 
 @media (min-width: 769px) {
