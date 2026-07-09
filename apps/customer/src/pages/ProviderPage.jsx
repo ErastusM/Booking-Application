@@ -17,6 +17,7 @@ const ProvidersPage = () => {
     const [searchParams, setSearchParams] = useSearchParams();
     const dateFilter = searchParams.get('date') || '';
     const timeFilter = searchParams.get('time') || '';
+    const sortFilter = searchParams.get('sort') || ''; // from the home category chips
     const [providers, setProviders] = useState([]);
     const [filtered, setFiltered] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -113,9 +114,22 @@ const ProvidersPage = () => {
             result = result
                 .filter(p => openingsMap[p._id])
                 .sort((a, b) => openingsMap[a._id].openings[0].localeCompare(openingsMap[b._id].openings[0]));
+        } else if (sortFilter) {
+            // Home category chips → an honest ordering (availability sort takes priority).
+            const byRating = (a, b) => (b.avgRating || 0) - (a.avgRating || 0) || (b.reviewCount || 0) - (a.reviewCount || 0);
+            const byLikes = (a, b) => (b.likesCount || 0) - (a.likesCount || 0) || (b.reviewCount || 0) - (a.reviewCount || 0);
+            if (sortFilter === 'popular') result = [...result].sort(byLikes);
+            else if (sortFilter === 'top' || sortFilter === 'foryou') result = [...result].sort(byRating);
+            // 'nearby' relies on the location filter set by the geo lookup below.
         }
         setFiltered(result);
-    }, [search, locationFilter, categoryFilter, providers, openingsMap]);
+    }, [search, locationFilter, categoryFilter, providers, openingsMap, sortFilter]);
+
+    // "Near you" chip → resolve the visitor's town once, then the location filter narrows results.
+    useEffect(() => {
+        if (sortFilter === 'nearby' && !locationFilter) handleNearMe();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [sortFilter]);
 
     const allLocations = [...new Set(providers.map(p => p.location).filter(Boolean))];
     const allCategories = [...new Set(providers.map(p => p.providerCategory).filter(Boolean))].sort();

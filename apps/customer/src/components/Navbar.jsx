@@ -348,14 +348,19 @@ const Navbar = () => {
                 display: 'flex', justifyContent: 'center',
                 padding: '0 12px calc(3px + env(safe-area-inset-bottom, 0))',
                 pointerEvents: 'none',
+                // Force the fixed bar onto its own GPU layer. Without this, iOS Safari
+                // fails to repaint a fixed element during momentum scroll and it "sticks"
+                // mid-page. A solid (non backdrop-filtered) background is the other half
+                // of the fix — backdrop-filter on a fixed element is what triggers the stall.
+                transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)',
+                willChange: 'transform', backfaceVisibility: 'hidden',
             }}>
                 <div style={{
                     pointerEvents: 'auto', width: '100%', maxWidth: '460px',
                     display: 'flex', justifyContent: 'space-around', alignItems: 'flex-start',
-                    background: darkMode ? 'rgba(20,20,22,0.78)' : 'rgba(255,255,255,0.78)',
-                    backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+                    background: darkMode ? '#17181c' : '#ffffff',
                     border: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid var(--border)',
-                    borderRadius: '20px', boxShadow: '0 8px 22px rgba(4,5,5,0.13)',
+                    borderRadius: '20px', boxShadow: '0 8px 22px rgba(4,5,5,0.16)',
                     padding: '7px 4px 6px',
                 }}>
                     {[
