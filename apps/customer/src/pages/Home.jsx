@@ -527,8 +527,8 @@ const Home = () => {
                 <div className="home-filter-row" style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.35rem', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
                     <button
                         type="button"
-                        onClick={handleNearMe}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0, padding: '0.5rem 0.95rem', borderRadius: '999px', border: `1px solid ${nearMeCity ? 'var(--gold)' : 'var(--border)'}`, background: nearMeCity ? 'rgba(240,62,22,0.10)' : 'var(--card-bg)', color: nearMeCity ? 'var(--gold-dark)' : 'var(--charcoal)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', boxShadow: 'var(--shadow-sm)' }}
+                        onClick={(e) => { e.currentTarget.blur(); handleNearMe(); }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0, padding: '0.5rem 0.95rem', borderRadius: '999px', border: `1px solid ${nearMeCity ? 'var(--gold)' : 'var(--border)'}`, background: nearMeCity ? 'rgba(240,62,22,0.10)' : 'var(--card-bg)', color: nearMeCity ? 'var(--gold-dark)' : 'var(--charcoal)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', boxShadow: 'var(--shadow-sm)', outline: 'none' }}
                     >
                         <MapPin size={15} strokeWidth={2} /> {nearMeLoading ? 'Locating…' : (nearMeCity || 'Near me')}
                     </button>
@@ -538,8 +538,10 @@ const Home = () => {
                             <button
                                 key={cat || 'all'}
                                 type="button"
-                                onClick={() => setActiveCategory(cat)}
-                                style={{ flexShrink: 0, padding: '0.5rem 0.95rem', borderRadius: '999px', border: `1px solid ${active ? 'var(--gold)' : 'var(--border)'}`, background: active ? 'var(--charcoal)' : 'var(--card-bg)', color: active ? '#fff' : 'var(--charcoal)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', boxShadow: 'var(--shadow-sm)' }}
+                                // blur() drops the focus ring after a tap so the pill doesn't
+                                // look "stuck clicked"; the active border still marks the choice.
+                                onClick={(e) => { e.currentTarget.blur(); setActiveCategory(cat); }}
+                                style={{ flexShrink: 0, padding: '0.5rem 0.95rem', borderRadius: '999px', border: `1px solid ${active ? 'var(--gold)' : 'var(--border)'}`, background: active ? 'var(--charcoal)' : 'var(--card-bg)', color: active ? '#fff' : 'var(--charcoal)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', boxShadow: 'var(--shadow-sm)', outline: 'none' }}
                             >
                                 {cat || 'All'}
                             </button>
