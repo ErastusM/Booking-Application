@@ -14,6 +14,7 @@ import FormsManager from '../components/FormsManager';
 import ApptFormsView from '../components/ApptFormsView';
 import EnablePushBanner from '../components/EnablePushBanner';
 import SetupChecklistNudge from '../components/SetupChecklistNudge';
+import ServiceFormModal from '../components/ServiceFormModal';
 import { Calendar, History, Scissors, CalendarClock, Clock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban, Wallet as WalletIcon, Phone, Mail, ChevronDown, ChevronLeft, Send } from 'lucide-react';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { NAMIBIAN_TOWNS, normalizeTown } from '../utils/namibiaTowns';
@@ -100,8 +101,6 @@ const ProviderDashboard = () => {
     const [insightsRange, setInsightsRange] = useState({ from: '', to: '' });
     const [showServiceForm, setShowServiceForm] = useState(false);
     const [editingService, setEditingService] = useState(null);
-    const [savingService, setSavingService] = useState(false);
-    const [serviceForm, setServiceForm] = useState({ name: '', description: '', price: '', duration: '', bufferBefore: '', bufferAfter: '', location: '', address: '', category: '', options: [] });
     const [categories, setCategories] = useState([]);
     const [newCategoryName, setNewCategoryName] = useState('');
     const [showCategoryForm, setShowCategoryForm] = useState(false);
@@ -794,29 +793,9 @@ const ProviderDashboard = () => {
         }
     };
 
-    const handleServiceSubmit = async (e) => {
-        e.preventDefault();
-        setSavingService(true);
-        try {
-            if (editingService) {
-                await providerServiceService.updateMyService(editingService._id, serviceForm);
-            } else {
-                await providerServiceService.createMyService(serviceForm);
-            }
-            await fetchMyServices();
-            setShowServiceForm(false);
-            setEditingService(null);
-            setServiceForm({ name: '', description: '', price: '', duration: '', bufferBefore: '', bufferAfter: '', location: '', address: '', category: '', options: [] });
-        } catch {
-            setError('Failed to save service');
-        } finally {
-            setSavingService(false);
-        }
-    };
-
+    // Create/edit now live in <ServiceFormModal>; opening it just sets the target.
     const handleEditService = (s) => {
         setEditingService(s);
-        setServiceForm({ name: s.name, description: s.description, price: s.price, duration: s.duration, bufferBefore: s.bufferBefore || '', bufferAfter: s.bufferAfter || '', location: normalizeTown(s.location || ''), address: s.address || '', category: s.category?._id || s.category || '', options: s.options || [] });
         setShowServiceForm(true);
     };
 
@@ -1359,8 +1338,8 @@ const ProviderDashboard = () => {
                                 <h2 style={{ fontFamily: 'var(--font-body)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>Service menu</h2>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>View and manage the services offered by your business</p>
                             </div>
-                            <button onClick={() => { setShowServiceForm(!showServiceForm); setEditingService(null); setServiceForm({ name: '', description: '', price: '', duration: '', bufferBefore: '', bufferAfter: '', location: '', address: '', category: '', options: [] }); }} className="btn-primary" style={{ padding: '0.65rem 1.25rem', fontSize: '0.875rem' }}>
-                                {showServiceForm ? '✕ Cancel' : '+ Add Service'}
+                            <button onClick={() => { setEditingService(null); setShowServiceForm(true); }} className="btn-primary" style={{ padding: '0.65rem 1.25rem', fontSize: '0.875rem' }}>
+                                + Add Service
                             </button>
                         </div>
 
@@ -1379,111 +1358,14 @@ const ProviderDashboard = () => {
                             </div>
                         </div>
 
-                        {showServiceForm && (
-                            <form onSubmit={handleServiceSubmit} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1.5rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
-                                <div style={{ gridColumn: '1 / -1' }}>
-                                    <label style={labelStyle}>Service Name</label>
-                                    <input required value={serviceForm.name} onChange={e => setServiceForm({ ...serviceForm, name: e.target.value })} className="input" placeholder="e.g. Classic Haircut" />
-                                </div>
-                                <div style={{ gridColumn: '1 / -1' }}>
-                                    <label style={labelStyle}>Description</label>
-                                    <textarea required value={serviceForm.description} onChange={e => setServiceForm({ ...serviceForm, description: e.target.value })} rows="2" className="input" style={{ resize: 'vertical' }} placeholder="Describe what's included..." />
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>Price (NAD)</label>
-                                    <input required type="number" value={serviceForm.price} onChange={e => setServiceForm({ ...serviceForm, price: e.target.value })} className="input" placeholder="25" />
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>Duration (min)</label>
-                                    <input required type="number" value={serviceForm.duration} onChange={e => setServiceForm({ ...serviceForm, duration: e.target.value })} className="input" placeholder="30" />
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>Buffer before (min)</label>
-                                    <input type="number" min="0" max="120" value={serviceForm.bufferBefore} onChange={e => setServiceForm({ ...serviceForm, bufferBefore: e.target.value })} className="input" placeholder="0" />
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>Buffer after (min)</label>
-                                    <input type="number" min="0" max="120" value={serviceForm.bufferAfter} onChange={e => setServiceForm({ ...serviceForm, bufferAfter: e.target.value })} className="input" placeholder="0" />
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>City / Town</label>
-                                    <select value={serviceForm.location} onChange={e => setServiceForm({ ...serviceForm, location: e.target.value })} className="input">
-                                        <option value="">Select a town…</option>
-                                        {serviceForm.location && !NAMIBIAN_TOWNS.includes(serviceForm.location) && (
-                                            <option value={serviceForm.location}>{serviceForm.location}</option>
-                                        )}
-                                        {NAMIBIAN_TOWNS.map(t => <option key={t} value={t}>{t}</option>)}
-                                    </select>
-                                </div>
-                                <div>
-                                    <label style={labelStyle}>Street Address</label>
-                                    <input value={serviceForm.address} onChange={e => setServiceForm({ ...serviceForm, address: e.target.value })} className="input" placeholder="e.g. 123 Independence Ave" />
-                                </div>
-                                <div style={{ gridColumn: '1 / -1' }}>
-                                    <label style={labelStyle}>Category</label>
-                                    <select value={serviceForm.category || ''} onChange={e => setServiceForm({ ...serviceForm, category: e.target.value })} className="input">
-                                        <option value="">✦ Featured (uncategorized)</option>
-                                        {categories.map(cat => (
-                                            <option key={cat._id} value={cat._id}>{cat.name}</option>
-                                        ))}
-                                    </select>
-                                </div>
-                                {/* Service options/variants */}
-                                <div style={{ gridColumn: '1 / -1' }}>
-                                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
-                                        <label style={labelStyle}>Sub-options <span style={{ fontWeight: '400', color: 'var(--text-muted)', textTransform: 'none', letterSpacing: 0 }}>(optional — e.g. Adults, Students, Trim & Beard)</span></label>
-                                        <button type="button" onClick={() => setServiceForm(f => ({ ...f, options: [...f.options, { name: '', description: '', price: '', duration: '' }] }))} style={{ fontSize: '0.75rem', padding: '0.25rem 0.65rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(240,62,22,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add option</button>
-                                    </div>
-                                    {serviceForm.options.length > 0 && (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                            {serviceForm.options.map((opt, idx) => (
-                                                <div key={idx} style={{ background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '0.75rem', display: 'grid', gridTemplateColumns: '1fr 1fr auto', gap: '0.5rem', alignItems: 'start' }}>
-                                                    <div style={{ gridColumn: '1 / 3' }}>
-                                                        <input
-                                                            className="input"
-                                                            placeholder="Option name (e.g. Adults)"
-                                                            value={opt.name}
-                                                            onChange={e => { const o = [...serviceForm.options]; o[idx] = { ...o[idx], name: e.target.value }; setServiceForm(f => ({ ...f, options: o })); }}
-                                                            style={{ fontSize: '0.85rem', marginBottom: '0.4rem' }}
-                                                        />
-                                                        <input
-                                                            className="input"
-                                                            placeholder="Description (optional)"
-                                                            value={opt.description}
-                                                            onChange={e => { const o = [...serviceForm.options]; o[idx] = { ...o[idx], description: e.target.value }; setServiceForm(f => ({ ...f, options: o })); }}
-                                                            style={{ fontSize: '0.82rem' }}
-                                                        />
-                                                    </div>
-                                                    <button type="button" onClick={() => setServiceForm(f => ({ ...f, options: f.options.filter((_, i) => i !== idx) }))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1.1rem', paddingTop: '6px' }}>×</button>
-                                                    <input
-                                                        className="input"
-                                                        placeholder="Price (NAD)"
-                                                        type="number"
-                                                        value={opt.price}
-                                                        onChange={e => { const o = [...serviceForm.options]; o[idx] = { ...o[idx], price: e.target.value }; setServiceForm(f => ({ ...f, options: o })); }}
-                                                        style={{ fontSize: '0.85rem' }}
-                                                    />
-                                                    <input
-                                                        className="input"
-                                                        placeholder="Duration (min)"
-                                                        type="number"
-                                                        value={opt.duration}
-                                                        onChange={e => { const o = [...serviceForm.options]; o[idx] = { ...o[idx], duration: e.target.value }; setServiceForm(f => ({ ...f, options: o })); }}
-                                                        style={{ fontSize: '0.85rem' }}
-                                                    />
-                                                </div>
-                                            ))}
-                                        </div>
-                                    )}
-                                </div>
-
-                                <div style={{ gridColumn: '1 / -1', display: 'flex', gap: '0.75rem' }}>
-                                    <button type="submit" disabled={savingService} className="btn-primary" style={{ padding: '0.65rem 1.5rem', fontSize: '0.875rem' }}>
-                                        {savingService ? 'Saving...' : editingService ? 'Update Service' : 'Add Service'}
-                                    </button>
-                                </div>
-                            </form>
-                        )}
+                        <ServiceFormModal
+                            open={showServiceForm}
+                            editing={editingService}
+                            categories={categories}
+                            onClose={() => { setShowServiceForm(false); setEditingService(null); }}
+                            onSaved={async () => { await fetchMyServices(); setShowServiceForm(false); setEditingService(null); }}
+                            onCategoriesChanged={fetchCategories}
+                        />
 
                         <div className="catalogue-grid" style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '1.5rem', alignItems: 'start' }}>
                             {(() => {
