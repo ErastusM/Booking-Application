@@ -458,7 +458,7 @@ const Home = () => {
 
             {/* ── Sticky search — settles under the navbar while the feed scrolls ── */}
             <div ref={searchWrapRef} style={{
-                position: 'sticky', top: 'calc(56px + env(safe-area-inset-top, 0px))', zIndex: 100,
+                position: 'sticky', top: 'calc(56px + var(--safe-top, 0px))', zIndex: 100,
                 background: 'var(--off-white)',
                 padding: '0.75rem 0',
                 borderBottom: '1px solid transparent',
@@ -530,7 +530,7 @@ const Home = () => {
                                 // blur() drops the focus ring after a tap so the pill doesn't
                                 // look "stuck clicked"; the active border still marks the choice.
                                 onClick={(e) => { e.currentTarget.blur(); setActiveCategory(cat); }}
-                                style={{ flexShrink: 0, padding: '0.5rem 0.95rem', borderRadius: '999px', border: `1px solid ${active ? 'var(--gold)' : 'var(--border)'}`, background: active ? 'var(--charcoal)' : 'var(--card-bg)', color: active ? '#fff' : 'var(--charcoal)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', boxShadow: 'var(--shadow-sm)', outline: 'none' }}
+                                style={{ flexShrink: 0, padding: '0.5rem 0.95rem', borderRadius: '999px', border: `1px solid ${active ? 'var(--gold)' : 'var(--border)'}`, background: active ? 'var(--charcoal)' : 'var(--card-bg)', color: active ? 'var(--off-white)' : 'var(--charcoal)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', boxShadow: 'var(--shadow-sm)', outline: 'none' }}
                             >
                                 {cat || 'All'}
                             </button>

@@ -118,10 +118,14 @@ const ProviderProfilePage = ({ providerId } = {}) => {
     }, [id]);
 
     // Team members (public endpoint) — powers the Fresha-style Team section.
+    // The stale flag stops an out-of-order response from painting provider A's
+    // team on provider B's page when navigating between profiles.
     useEffect(() => {
+        let stale = false;
         providerMarketService.getProviderStaff(id)
-            .then(res => setStaff(res.data.data || []))
-            .catch(() => setStaff([]));
+            .then(res => { if (!stale) setStaff(res.data.data || []); })
+            .catch(() => { if (!stale) setStaff([]); });
+        return () => { stale = true; };
     }, [id]);
 
     // Show the compact header once the business name scrolls out above the
@@ -276,7 +280,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
 
             {/* ── Hero: edge-to-edge photo carousel + floating controls (Fresha-style) ── */}
-            <div id="section-photos" style={{ position: 'relative', scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 104px)', background: 'var(--ink)' }}>
+            <div id="section-photos" style={{ position: 'relative', scrollMarginTop: 'calc(var(--safe-top, 0px) + 104px)', background: 'var(--ink)' }}>
                 {photos.length > 0 ? (
                     <div className="feed-carousel" onScroll={e => setHeroIdx(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))} style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory' }}>
                         {photos.map((src, i) => (
@@ -341,9 +345,11 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                     </div>
                 )}
                 {openStatus && (
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.9rem', marginBottom: '0.85rem' }}>
-                        <Clock size={14} style={{ color: openStatus.open ? '#15803d' : '#c2410c', flexShrink: 0 }} />
-                        <span style={{ fontWeight: 700, color: openStatus.open ? '#15803d' : '#c2410c' }}>{openStatus.headline}</span>
+                    // Color comes from the .profile-open-status classes (with dark-mode
+                    // variants); the icon and headline inherit it via currentColor.
+                    <div className={`profile-open-status ${openStatus.open ? 'is-open' : 'is-closed'}`} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.9rem', marginBottom: '0.85rem' }}>
+                        <Clock size={14} style={{ flexShrink: 0 }} />
+                        <span style={{ fontWeight: 700 }}>{openStatus.headline}</span>
                         {openStatus.detail && <span style={{ color: 'var(--text-secondary)' }}>— {openStatus.detail}</span>}
                     </div>
                 )}
@@ -357,7 +363,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
 
             {/* ── Compact top bar (Fresha) — hidden until the header scrolls away, then
                  slides in with back + name + share/save and the section tabs. ── */}
-            <div className="profile-compact-bar" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000, background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', boxShadow: '0 2px 10px rgba(4,5,5,0.07)', paddingTop: 'env(safe-area-inset-top, 0px)', transform: showCompact ? 'translateY(0)' : 'translateY(-110%)', transition: 'transform 0.25s ease', pointerEvents: showCompact ? 'auto' : 'none' }}>
+            <div className="profile-compact-bar" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000, background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', boxShadow: '0 2px 10px rgba(4,5,5,0.07)', paddingTop: 'var(--safe-top, 0px)', transform: showCompact ? 'translateY(0)' : 'translateY(-110%)', transition: 'transform 0.25s ease, visibility 0.25s', visibility: showCompact ? 'visible' : 'hidden', pointerEvents: showCompact ? 'auto' : 'none' }}>
                 <div className="container" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', height: '52px' }}>
                     <button onClick={() => navigate('/')} aria-label="Back" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', padding: '0.4rem 0.4rem 0.4rem 0' }}><ChevronLeft size={24} strokeWidth={2.5} /></button>
                     <span style={{ flex: 1, minWidth: 0, fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.05rem', color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{businessName}</span>
@@ -383,7 +389,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                     <div>
                         {/* About — description with Read more, right under the header */}
                         {description && (
-                            <div id="section-about" style={{ scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 104px)', marginBottom: '2rem' }}>
+                            <div id="section-about" style={{ scrollMarginTop: 'calc(var(--safe-top, 0px) + 104px)', marginBottom: '2rem' }}>
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.6rem' }}>About</h2>
                                 <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', lineHeight: 1.65, margin: 0, ...(aboutExpanded ? {} : { display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }) }}>
                                     {description}
@@ -397,7 +403,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                         )}
 
                         {/* Services — heading + category pills (Fresha-style) */}
-                        <div id="section-services" style={{ scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 104px)' }}>
+                        <div id="section-services" style={{ scrollMarginTop: 'calc(var(--safe-top, 0px) + 104px)' }}>
                             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.85rem' }}>Services</h2>
                             <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.4rem', marginBottom: '1.1rem', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
                                 {categoryKeys.map(key => {
@@ -409,7 +415,9 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                             flexShrink: 0, padding: '0.5rem 1rem', borderRadius: '999px',
                                             border: `1px solid ${active ? 'var(--charcoal)' : 'var(--border)'}`,
                                             background: active ? 'var(--charcoal)' : 'var(--card-bg)',
-                                            color: active ? '#fff' : 'var(--charcoal)',
+                                            // --off-white flips with the theme, so the active pill stays
+                                            // readable in dark mode too (--charcoal is LIGHT there).
+                                            color: active ? 'var(--off-white)' : 'var(--charcoal)',
                                             fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer',
                                             fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', outline: 'none',
                                         }}>
@@ -456,25 +464,30 @@ const ProviderProfilePage = ({ providerId } = {}) => {
 
                         {/* Team — colored initial circles from the public staff endpoint */}
                         {staff.length > 0 && (
-                            <div id="section-team" style={{ scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 104px)', marginTop: '2.25rem' }}>
+                            <div id="section-team" style={{ scrollMarginTop: 'calc(var(--safe-top, 0px) + 104px)', marginTop: '2.25rem' }}>
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 1rem' }}>Team</h2>
                                 <div style={{ display: 'flex', gap: '1.4rem', overflowX: 'auto', paddingBottom: '0.5rem', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
-                                    {staff.map(member => (
+                                    {staff.map(member => {
+                                        // The hex+alpha tint only parses for 6-digit hex; anything
+                                        // else (empty, named color) falls back to the brand tint.
+                                        const hex = /^#[0-9a-f]{6}$/i.test(member.color || '') ? member.color : null;
+                                        return (
                                         <div key={member._id} style={{ flexShrink: 0, width: '86px', textAlign: 'center' }}>
-                                            <div style={{ width: '76px', height: '76px', borderRadius: '50%', margin: '0 auto 0.5rem', background: `${member.color || 'var(--gold)'}22`, color: member.color || 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '1.7rem', fontWeight: 700 }}>
+                                            <div style={{ width: '76px', height: '76px', borderRadius: '50%', margin: '0 auto 0.5rem', background: hex ? `${hex}22` : 'rgba(240,62,22,0.13)', color: hex || 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '1.7rem', fontWeight: 700 }}>
                                                 {(member.name || '?').charAt(0).toUpperCase()}
                                             </div>
                                             <p style={{ margin: 0, fontWeight: 600, fontSize: '0.85rem', color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.name}</p>
                                             {member.role && <p style={{ margin: '1px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.role}</p>}
                                         </div>
-                                    ))}
+                                        );
+                                    })}
                                 </div>
                             </div>
                         )}
 
                         {/* Reviews — headline stars + the latest reviews (Fresha-style) */}
                         {reviews.length > 0 && (
-                            <div id="section-reviews" style={{ scrollMarginTop: 'calc(env(safe-area-inset-top, 0px) + 104px)', marginTop: '2.25rem' }}>
+                            <div id="section-reviews" style={{ scrollMarginTop: 'calc(var(--safe-top, 0px) + 104px)', marginTop: '2.25rem' }}>
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.75rem' }}>Reviews</h2>
                                 {provider.avgRating && (
                                     <div style={{ marginBottom: '1.25rem' }}>
