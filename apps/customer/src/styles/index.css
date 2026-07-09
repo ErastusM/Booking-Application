@@ -1198,11 +1198,16 @@ body.dark-mode .home-hero-wash {
   .discover-feed .feed-media-img { aspect-ratio: 4 / 3 !important; }
 }
 
-/* ── Home: Fresha-style desktop sections; the vertical feed stays mobile-only ── */
+/* ── Home: two distinct layouts. Mobile = the Instagram-style infinite feed
+   ONLY (.home-feed-mobile). Desktop = card rows/grids (.home-sections-desktop)
+   plus any desktop-only block (.home-desktop-only, e.g. the Featured row). The
+   two never appear together — that mash-up is what read as "broken" on phones. */
 .home-sections-desktop { display: none; }
+.home-desktop-only { display: none; }
 @media (min-width: 1024px) {
   .home-feed-mobile { display: none; }
   .home-sections-desktop { display: block; }
+  .home-desktop-only { display: block; }
   .home-section-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
