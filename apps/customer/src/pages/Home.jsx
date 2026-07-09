@@ -126,11 +126,12 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
                         ))}
                     </div>
                 ) : (
-                    // Compact placeholder — no large empty block. Nudges the business to add photos.
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', padding: '1.1rem 1rem', background: 'linear-gradient(135deg, var(--surface-sunken), var(--warm-gray))', cursor: 'pointer' }}>
-                        <div style={{ width: '48px', height: '48px', borderRadius: '12px', flexShrink: 0, background: 'var(--ink)', color: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700' }}>{initial}</div>
-                        <div style={{ minWidth: 0 }}>
-                            <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>Photos coming soon</p>
+                    // Same aspect ratio as a photo so every card in the feed is the SAME
+                    // height, even for a business that hasn't added photos yet.
+                    <div className="feed-media-img" style={{ aspectRatio: '4 / 5', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.7rem', padding: '1rem', background: 'linear-gradient(135deg, var(--surface-sunken), var(--warm-gray))', cursor: 'pointer' }}>
+                        <div style={{ width: '68px', height: '68px', borderRadius: '18px', flexShrink: 0, background: 'var(--ink)', color: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '1.9rem', fontWeight: '700' }}>{initial}</div>
+                        <div style={{ textAlign: 'center' }}>
+                            <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.92rem' }}>Photos coming soon</p>
                             <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>Tap to view {p.businessName || p.name}</p>
                         </div>
                     </div>

@@ -303,7 +303,7 @@ const ProvidersPage = () => {
                                 >
                                     {/* Cover — the business's uploaded photo when they have one,
                                         otherwise a branded gradient with their avatar / initials. */}
-                                    <div style={{ height: '128px', background: 'linear-gradient(135deg, var(--charcoal) 0%, var(--charcoal-light) 100%)', position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                    <div style={{ aspectRatio: '16 / 9', background: 'linear-gradient(135deg, var(--charcoal) 0%, var(--charcoal-light) 100%)', position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                         {provider.coverImage ? (
                                             <img src={cloudinaryThumb(provider.coverImage, 600)} alt={provider.businessName || provider.name} loading="lazy" decoding="async" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
                                         ) : (
