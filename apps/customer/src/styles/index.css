@@ -472,25 +472,25 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
      which sat ABOVE the routes and pushed every page down 88px. */
   body { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 
-  /* Booking page mobile sticky bar — sits just above the floating bottom nav
-     (~88px incl. safe area) so the nav (z 999) never overlaps the Continue button. */
+  /* Booking page mobile sticky bar — the bottom nav is hidden on the booking
+     flow, so the bar owns the screen edge (with safe-area padding for the home
+     indicator) and the Continue button can never be covered. */
   .booking-mobile-bar {
     display: flex !important;
     position: fixed;
-    bottom: calc(88px + env(safe-area-inset-bottom, 0px));
+    bottom: 0;
     left: 0;
     right: 0;
     background: white;
     border-top: 1px solid var(--border);
-    padding: 0.875rem 1.25rem;
+    padding: 0.875rem 1.25rem calc(0.875rem + env(safe-area-inset-bottom, 0px));
     justify-content: space-between;
     align-items: center;
     z-index: 100;
     box-shadow: 0 -4px 20px rgba(0,0,0,0.08);
   }
-  /* Park the "back to top" button in the corner above the booking bar + nav,
-     not floating over the calendar / time-slot content. */
-  .scroll-top-fab { bottom: calc(156px + env(safe-area-inset-bottom, 0px)); }
+  /* Park the "back to top" button in the corner above the booking bar. */
+  .scroll-top-fab { bottom: calc(88px + env(safe-area-inset-bottom, 0px)); }
 }
 
 @media (min-width: 769px) {
@@ -629,10 +629,9 @@ body.dark-mode .bottom-nav {
     grid-template-columns: 1fr !important;
   }
   .booking-confirm-desktop { display: none !important; }
-  /* Sit above the floating bottom nav (~88px incl. safe area) so the nav
-     (z-index 999) can't cover the Confirm button. The bar no longer touches the
-     screen edge, so it doesn't need its own safe-area padding. */
-  .booking-confirm-mobile { display: flex !important; bottom: calc(88px + env(safe-area-inset-bottom, 0px)) !important; padding-bottom: 1rem !important; }
+  /* The bottom nav is hidden on the booking flow, so the Confirm bar owns the
+     screen edge; safe-area padding keeps it clear of the home indicator. */
+  .booking-confirm-mobile { display: flex !important; bottom: 0 !important; padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)) !important; }
 }
 
 /* ── Booking mobile bar — dark mode ── */
