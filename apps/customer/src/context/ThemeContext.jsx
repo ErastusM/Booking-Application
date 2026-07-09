@@ -8,6 +8,11 @@ export const ThemeProvider = ({ children }) => {
     useEffect(() => {
         document.body.classList.toggle('dark-mode', darkMode);
         localStorage.setItem('darkMode', String(darkMode));
+        // Paint the document canvas (the <html> background) directly — this is what
+        // shows behind the status bar / home indicator and in any overscroll. Setting
+        // it imperatively works on every browser (a CSS `:has()` rule did NOT apply on
+        // iOS Safari, leaving a light strip top & bottom in dark mode).
+        document.documentElement.style.backgroundColor = darkMode ? '#0a0a0b' : '#e6e8e7';
         // Keep the browser / Android-PWA chrome (status bar tint) in sync with the in-app
         // theme. iOS standalone ignores this for its status bar — that case is handled by
         // the dark safe-area backdrop in the navbar — but this fixes everywhere else.

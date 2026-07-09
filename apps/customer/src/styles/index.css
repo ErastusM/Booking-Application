@@ -22,10 +22,10 @@ body.dark-mode {
 }
 
 /* The document canvas — the strips behind the status bar / home indicator and any
-   overscroll — paints the <html> background, NOT <body>. Without this it flashes
-   white in dark mode. Match the theme so those safe-area strips blend in. */
+   overscroll — paints the <html> background, NOT <body>. It's set imperatively
+   from the saved theme (index.html boot script + ThemeContext) because a CSS
+   `:has()` rule did NOT apply on iOS Safari. This is just the light-mode base. */
 html { background: #e6e8e7; }
-html:has(body.dark-mode) { background: #0a0a0b; }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
 html { scroll-behavior: smooth; }

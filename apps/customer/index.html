@@ -6,6 +6,15 @@
     <meta name="description" content="Book trusted local salons, barbers, wellness studios, automotive services and more — booked in seconds." />
     <meta name="theme-color" content="#e6e8e7" media="(prefers-color-scheme: light)" />
     <meta name="theme-color" content="#040505" media="(prefers-color-scheme: dark)" />
+    <script>
+      // Paint the document canvas (the <html> background) from the saved theme
+      // BEFORE first paint, so dark mode never flashes a light strip behind the
+      // status bar / home indicator. Kept in sync afterwards by ThemeContext.
+      try {
+        document.documentElement.style.backgroundColor =
+          localStorage.getItem('darkMode') === 'true' ? '#0a0a0b' : '#e6e8e7';
+      } catch (e) {}
+    </script>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" href="/favicon-64.png" type="image/png" sizes="64x64" />
