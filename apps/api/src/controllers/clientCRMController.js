@@ -1,52 +1,56 @@
 const Appointment = require('../models/Appointment');
 const ClientNote = require('../models/ClientNote');
 
-// Get all unique clients who have booked with this provider
+// Get all unique clients who have used this provider's services — registered
+// customers (booked online) AND walk-ins logged by the provider. A walk-in has
+// no account, so its appointment carries the provider's own id as `customer`
+// plus a `walkInName`; we surface those as their own clients (keyed by name)
+// instead of lumping them under the provider.
 exports.getMyClients = async (req, res) => {
     try {
         const providerId = req.user._id;
+        const providerIdStr = providerId.toString();
 
         const appointments = await Appointment.find({ provider: providerId })
             .populate('customer', 'name email phone createdAt')
             .populate('service', 'name price')
             .sort({ appointmentDate: -1 });
 
-        // Group by customer
         const clientMap = new Map();
         for (const appt of appointments) {
-            if (!appt.customer) continue;
-            const cid = appt.customer._id.toString();
-            if (!clientMap.has(cid)) {
-                clientMap.set(cid, {
-                    customer: appt.customer,
-                    visits: 0,
-                    totalSpend: 0,
-                    lastVisit: null,
-                    firstVisit: null,
-                    statuses: {},
-                });
+            let key, customer, isWalkIn = false;
+            if (appt.walkInName && appt.walkInName.trim()) {
+                const name = appt.walkInName.trim();
+                key = `walkin:${name.toLowerCase()}`;
+                customer = { _id: key, name, email: null, phone: null, isWalkIn: true };
+                isWalkIn = true;
+            } else if (appt.customer && appt.customer._id.toString() !== providerIdStr) {
+                key = appt.customer._id.toString();
+                customer = appt.customer;
+            } else {
+                continue; // provider-self placeholder / missing customer
             }
-            const c = clientMap.get(cid);
+
+            if (!clientMap.has(key)) {
+                clientMap.set(key, { customer, isWalkIn, visits: 0, totalSpend: 0, lastVisit: null, firstVisit: null, statuses: {} });
+            }
+            const c = clientMap.get(key);
             c.visits += 1;
             if (appt.status === 'completed') c.totalSpend += appt.totalPrice || 0;
-            if (!c.lastVisit || new Date(appt.appointmentDate) > new Date(c.lastVisit)) {
-                c.lastVisit = appt.appointmentDate;
-            }
-            if (!c.firstVisit || new Date(appt.appointmentDate) < new Date(c.firstVisit)) {
-                c.firstVisit = appt.appointmentDate;
-            }
+            if (!c.lastVisit || new Date(appt.appointmentDate) > new Date(c.lastVisit)) c.lastVisit = appt.appointmentDate;
+            if (!c.firstVisit || new Date(appt.appointmentDate) < new Date(c.firstVisit)) c.firstVisit = appt.appointmentDate;
             c.statuses[appt.status] = (c.statuses[appt.status] || 0) + 1;
         }
 
-        // Fetch notes for these clients
-        const clientIds = Array.from(clientMap.keys());
-        const notes = await ClientNote.find({ provider: providerId, customer: { $in: clientIds } });
+        // Notes only exist for registered clients (real ObjectId keys).
+        const registeredIds = Array.from(clientMap.keys()).filter(k => !k.startsWith('walkin:'));
+        const notes = await ClientNote.find({ provider: providerId, customer: { $in: registeredIds } });
         const noteMap = {};
         for (const n of notes) noteMap[n.customer.toString()] = n;
 
         const clients = Array.from(clientMap.values()).map(c => ({
             ...c,
-            note: noteMap[c.customer._id.toString()] || null,
+            note: c.isWalkIn ? null : (noteMap[c.customer._id.toString()] || null),
         })).sort((a, b) => new Date(b.lastVisit) - new Date(a.lastVisit));
 
         res.status(200).json({ success: true, data: clients });
@@ -60,6 +64,15 @@ exports.getClientDetail = async (req, res) => {
     try {
         const providerId = req.user._id;
         const { customerId } = req.params;
+
+        // Walk-in client (no account) — resolve by name; no notes.
+        if (customerId.startsWith('walkin:')) {
+            const name = customerId.slice('walkin:'.length).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            const appointments = await Appointment.find({ provider: providerId, walkInName: new RegExp(`^${name}$`, 'i') })
+                .populate('service', 'name price duration')
+                .sort({ appointmentDate: -1 });
+            return res.status(200).json({ success: true, data: { appointments, note: null } });
+        }
 
         const appointments = await Appointment.find({ provider: providerId, customer: customerId })
             .populate('service', 'name price duration')
@@ -79,6 +92,11 @@ exports.upsertClientNote = async (req, res) => {
         const providerId = req.user._id;
         const { customerId } = req.params;
         const { notes, allergies, conditions, internalNotes, tags, birthday } = req.body;
+
+        // Walk-ins have no account to attach a note to.
+        if (customerId.startsWith('walkin:')) {
+            return res.status(400).json({ success: false, message: 'Notes are only available for registered clients.' });
+        }
 
         const note = await ClientNote.findOneAndUpdate(
             { provider: providerId, customer: customerId },

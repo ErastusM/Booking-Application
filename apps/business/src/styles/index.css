@@ -644,7 +644,13 @@ body.dark-mode .booking-confirm-mobile {
 .fc-bookplus-wrapper .fc {
   font-family: var(--font-body);
   color: var(--charcoal);
-  --fc-non-business-color: rgba(4, 5, 5, 0.05);
+  /* Off-hours (outside working hours) shading. The old 5% overlay was almost
+     invisible — bumped so it's clearly distinguishable, and much stronger in
+     dark mode where a faint tint on the dark card can't be seen at all. */
+  --fc-non-business-color: rgba(4, 5, 5, 0.10);
+}
+body.dark-mode .fc-bookplus-wrapper .fc {
+  --fc-non-business-color: rgba(0, 0, 0, 0.55);
 }
 
 /* Toolbar */
