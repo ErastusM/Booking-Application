@@ -27,6 +27,10 @@ const Navbar = () => {
     useEffect(() => { setProfileOpen(false); }, [location]);
 
     const isHome = location.pathname === '/';
+    // The booking flow has its own bottom CTA bar (price + Continue/Confirm). Hiding the
+    // 5-tab nav there stops it competing with — and covering — that button, and matches
+    // the focused-checkout pattern. The top hamburger + back button still navigate away.
+    const hideBottomNav = location.pathname === '/book-appointment';
     // The transparent navbar uses white text/icons, which only reads on a DARK hero.
     // The home hero is light in light mode, so only go transparent in dark mode —
     // otherwise the white icons vanish against the light hero (scrolled-to-top bug).
@@ -341,8 +345,9 @@ const Navbar = () => {
             </>
         )}
 
-        {/* Mobile bottom navigation — one customer nav for every signed-in user */}
-        {user && (
+        {/* Mobile bottom navigation — one customer nav for every signed-in user
+            (hidden on the booking flow, which has its own bottom CTA bar) */}
+        {user && !hideBottomNav && (
             <div className="show-mobile" style={{
                 position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
                 display: 'flex', justifyContent: 'center',

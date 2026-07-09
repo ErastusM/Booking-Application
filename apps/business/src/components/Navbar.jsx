@@ -109,6 +109,12 @@ const Navbar = () => {
         }}>{label}</Link>
     );
 
+    // Small uppercase divider so the drawer reads as grouped sections (Primary /
+    // More / Settings) instead of one long flat list.
+    const drawerSection = (label) => (
+        <p style={{ margin: '0.9rem 0 0.1rem', padding: '0.4rem 1.2rem 0', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>{label}</p>
+    );
+
     return (
     <>
         {/* Dark backdrop behind the status bar so its white text stays legible in light mode too (installed PWA).
@@ -362,17 +368,28 @@ const Navbar = () => {
                     )}
 
                     <div style={{ flex: 1, padding: '0.6rem 0' }}>
-                        <a href={CUSTOMER_URL} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500', fontSize: '0.95rem', padding: '0.85rem 1.2rem', borderBottom: '1px solid var(--border)', borderLeft: '3px solid transparent', display: 'block' }}>Customer site</a>
+                        {/* Primary — the four everyday areas (mirrors desktop + bottom nav) */}
                         {user?.role === 'provider' && mobileLink('/dashboard', 'Calendar')}
                         {user?.role === 'provider' && mobileLink('/dashboard?tab=clients', 'Clients')}
                         {user?.role === 'provider' && mobileLink('/dashboard?tab=earnings', 'Earnings')}
                         {user?.role === 'provider' && mobileLink('/dashboard?tab=services', 'Catalogue')}
+
+                        {/* More — same set as the desktop "More" dropdown */}
+                        {user?.role === 'provider' && drawerSection('More')}
                         {user?.role === 'provider' && MORE_LINKS.map(l => <React.Fragment key={l.to}>{mobileLink(l.to, l.label)}</React.Fragment>)}
+
+                        {/* Settings — config areas + account, grouped away from daily use */}
+                        {user?.role === 'provider' && drawerSection('Settings')}
                         {user?.role === 'provider' && SETTINGS_LINKS.map(l => <React.Fragment key={l.to}>{mobileLink(l.to, l.label)}</React.Fragment>)}
+                        {user?.role === 'provider' && mobileLink('/account', 'My Account')}
+
                         {user?.role === 'staff' && mobileLink('/my-schedule', 'My Schedule')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command/insights', 'Analytics')}
-                        {user?.role === 'provider' && mobileLink('/account', 'My Account')}
+
+                        {/* Cross-app link lives at the foot of the list, not amongst product tabs */}
+                        {user?.role === 'provider' && drawerSection('Other')}
+                        <a href={CUSTOMER_URL} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500', fontSize: '0.95rem', padding: '0.85rem 1.2rem', borderBottom: '1px solid var(--border)', borderLeft: '3px solid transparent', display: 'block' }}>Customer site</a>
                     </div>
 
                     {/* Suggest a feature — pinned to the bottom, above the toggle */}

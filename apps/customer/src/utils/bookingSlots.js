@@ -1,16 +1,12 @@
 // Pure helpers for the booking time-slot list.
 //
-// Rule: the slots follow the SELECTED SERVICE DURATION. Each working hour is
-// divided into duration-sized starts, anchored at the hour:
-//   • 60-min service → :00                     (08:00, 09:00, …)
-//   • 30-min service → :00, :30                (08:00, 08:30, 09:00, …)
-//   • 15-min service → :00, :15, :30, :45
-//   • 10-min service → :00, :10, :20, :30, :40, :50
-//   •  5-min service → :00, :05, :10, …
-// A start is offered only when the whole service fits inside the working
-// block, it isn't in the past, and it doesn't overlap an existing booking —
-// so the day fills up efficiently with no overlaps. A genuinely-bookable hour
-// that is fully taken keeps a single greyed pill so the waitlist still works.
+// Rule: appointments start ON THE HOUR — a 1-hour grid (08:00, 09:00, 10:00 …)
+// regardless of how long the selected service is. An hour is offered as a start
+// only when the whole service still fits inside the working block, it isn't in
+// the past, and it doesn't overlap an existing booking. A genuinely-bookable
+// hour that is fully taken keeps a single greyed pill so the waitlist still works.
+// (The service duration still sets how long the booking blocks — it just no
+// longer subdivides the grid.)
 //
 // All times are in minutes-from-midnight.
 
@@ -30,7 +26,7 @@ export const fmtMinutes = (mins) =>
  */
 export const buildTimeSlots = ({ blocks, bookedRanges = [], duration, minStart = -1 }) => {
     const slots = [];
-    const step = duration > 0 ? duration : 30; // guard against a 0/undefined duration
+    const step = 60; // appointments start on the hour — a fixed 1-hour grid
 
     blocks.forEach((block) => {
         // A start is usable when it's inside the block, the whole service fits,
