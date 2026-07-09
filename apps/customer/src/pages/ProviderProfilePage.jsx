@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import { providerMarketService, availabilityService, authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { cloudinaryAvatar, cloudinaryThumb } from '../utils/cloudinary';
+import { currencySymbol } from '../utils/currency';
 import { mapsUrl } from '../utils/maps';
 import WalletTopUpModal from '../components/WalletTopUpModal';
 import { Phone, MessageCircle, Mail, MapPin, ChevronLeft, ChevronRight, X } from 'lucide-react';
@@ -35,6 +36,16 @@ const ProviderProfilePage = ({ providerId } = {}) => {
     const [showTopUp, setShowTopUp] = useState(false);
     const [showSettings, setShowSettings] = useState(false);
     const [lightbox, setLightbox] = useState(-1); // index of the full-screen photo, -1 = closed
+    const [activeSection, setActiveSection] = useState('');
+
+    // Smooth-jump to a section from the sticky tab nav (scroll-margin on the target
+    // clears the fixed app navbar + this sticky bar).
+    const scrollToSection = (secId) => {
+        setActiveSection(secId);
+        // scrollIntoView finds the real scroll container and honours the section's
+        // scroll-margin-top (which clears the app navbar + this sticky tab bar).
+        document.getElementById(secId)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    };
 
     useEffect(() => {
         if (!user) return;
@@ -96,6 +107,20 @@ const ProviderProfilePage = ({ providerId } = {}) => {
         return () => window.removeEventListener('keydown', onKey);
     }, [lightbox, data]);
 
+    // Scroll-spy: highlight whichever section is in view in the sticky tab nav.
+    useEffect(() => {
+        if (!data) return;
+        const els = ['section-photos', 'section-services', 'section-about', 'section-reviews']
+            .map(sid => document.getElementById(sid)).filter(Boolean);
+        if (!els.length) return;
+        const io = new IntersectionObserver((entries) => {
+            const vis = entries.filter(e => e.isIntersecting).sort((a, b) => b.intersectionRatio - a.intersectionRatio);
+            if (vis[0]) setActiveSection(vis[0].target.id);
+        }, { rootMargin: '-120px 0px -55% 0px', threshold: [0.05, 0.4] });
+        els.forEach(el => io.observe(el));
+        return () => io.disconnect();
+    }, [data]);
+
     const getInitials = (name) => name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?';
 
     const formatSchedule = (sch) => {
@@ -140,6 +165,23 @@ const ProviderProfilePage = ({ providerId } = {}) => {
     const address = provider.address || provider.businessProfile?.address || '';
     const categoryKeys = Object.keys(categories);
     const activeServices = categories[activeCategory]?.services || [];
+
+    const cur = currencySymbol(provider.currency);
+    const isOwner = user?._id === provider._id;
+    // De-duped services across every category → lowest price for the Book bar.
+    const allServices = (() => {
+        const seen = new Set(); const out = [];
+        Object.values(categories || {}).forEach(c => (c.services || []).forEach(s => { if (!seen.has(s._id)) { seen.add(s._id); out.push(s); } }));
+        return out;
+    })();
+    const minPrice = allServices.length ? Math.min(...allServices.map(s => Number(s.price) || 0)) : null;
+    // Sticky section tabs — only the sections that actually exist.
+    const sectionTabs = [
+        photos.length > 0 && { id: 'section-photos', label: 'Photos' },
+        { id: 'section-services', label: 'Services' },
+        { id: 'section-about', label: 'About' },
+        reviews.length > 0 && { id: 'section-reviews', label: 'Reviews' },
+    ].filter(Boolean);
 
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
@@ -239,7 +281,22 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                 </div>
             </div>
 
-            <div className="container" style={{ paddingTop: '1.5rem', paddingBottom: '4rem' }}>
+            {/* ── Sticky section nav (Fresha-style) — jumps to a section and sticks
+                 under the app navbar as you scroll past the hero. ── */}
+            {sectionTabs.length > 1 && (
+                <div style={{ position: 'sticky', top: 'calc(56px + env(safe-area-inset-top, 0px))', zIndex: 90, background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', boxShadow: '0 2px 8px rgba(4,5,5,0.05)' }}>
+                    <div className="container" style={{ display: 'flex', gap: '0.25rem', overflowX: 'auto', scrollbarWidth: 'none' }}>
+                        {sectionTabs.map(tab => {
+                            const active = activeSection === tab.id;
+                            return (
+                                <button key={tab.id} type="button" onClick={() => scrollToSection(tab.id)} style={{ padding: '0.85rem 1rem', background: 'none', border: 'none', borderBottom: `2px solid ${active ? 'var(--gold)' : 'transparent'}`, color: active ? 'var(--charcoal)' : 'var(--text-muted)', fontWeight: active ? 700 : 500, fontSize: '0.9rem', cursor: 'pointer', whiteSpace: 'nowrap', fontFamily: 'var(--font-body)', flexShrink: 0 }}>{tab.label}</button>
+                            );
+                        })}
+                    </div>
+                </div>
+            )}
+
+            <div className="container" style={{ paddingTop: '1.5rem', paddingBottom: 'calc(4rem + 84px)' }}>
                 <div className="provider-profile-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '2rem', alignItems: 'start' }}>
 
                     {/* Left — photos + services */}
@@ -248,7 +305,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                             the left column so the About/Contact sidebar rises to fill the top
                             right instead of leaving dead space. */}
                         {photos.length > 0 && (
-                            <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', scrollSnapType: 'x mandatory', paddingBottom: '0.35rem', marginBottom: '1.5rem' }}>
+                            <div id="section-photos" style={{ scrollMarginTop: '116px', display: 'flex', gap: '0.5rem', overflowX: 'auto', scrollSnapType: 'x mandatory', paddingBottom: '0.35rem', marginBottom: '1.5rem' }}>
                                 {photos.map((src, i) => (
                                     <button key={i} type="button" onClick={() => setLightbox(i)} aria-label={`View photo ${i + 1}`} style={{ flex: '0 0 auto', border: 'none', padding: 0, cursor: 'pointer', borderRadius: '14px', overflow: 'hidden', background: 'var(--warm-gray)', scrollSnapAlign: 'start', boxShadow: 'var(--shadow-sm)' }}>
                                         <img src={cloudinaryThumb(src, 700)} alt={`${businessName} photo ${i + 1}`} loading="lazy" decoding="async" style={{ height: '220px', width: 'auto', maxWidth: '320px', objectFit: 'cover', display: 'block' }} />
@@ -256,8 +313,8 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                 ))}
                             </div>
                         )}
-                        {/* Category tabs */}
-                        <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', overflowX: 'auto' }}>
+                        {/* Services (category tabs + list) */}
+                        <div id="section-services" style={{ scrollMarginTop: '116px', display: 'flex', gap: '0', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', overflowX: 'auto' }}>
                             {categoryKeys.map(key => {
                                 const cat = categories[key];
                                 if (cat.services.length === 0 && key !== 'featured') return null;
@@ -300,7 +357,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.75rem', flexShrink: 0 }}>
-                                            <span style={{ fontFamily: 'var(--font-body)', fontSize: '1.2rem', fontWeight: '700', color: 'var(--charcoal)' }}>${service.price}</span>
+                                            <span style={{ fontFamily: 'var(--font-body)', fontSize: '1.2rem', fontWeight: '700', color: 'var(--charcoal)' }}>{cur} {service.price}</span>
                                             {user?._id !== provider._id && (
                                                 <button
                                                     onClick={() => navigate(`/book-appointment?serviceId=${service._id}&providerId=${provider._id}`)}
@@ -319,7 +376,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
 
                     {/* Right — provider info card */}
                     <div className="provider-profile-sidebar" style={{ position: 'sticky', top: 'calc(100px + env(safe-area-inset-top, 0px))' }}>
-                        <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1rem' }}>
+                        <div id="section-about" style={{ scrollMarginTop: '116px', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1rem' }}>
                             <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem' }}>About</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                 {provider.providerCategory && (
@@ -412,7 +469,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
 
                         {/* Recent reviews */}
                         {reviews.length > 0 && (
-                            <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
+                            <div id="section-reviews" style={{ scrollMarginTop: '116px', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
                                 <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem' }}>Recent Reviews</h3>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                     {reviews.map(review => (
@@ -430,6 +487,20 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                     </div>
                 </div>
             </div>
+
+            {/* ── Sticky "Book now" bar (Fresha-style) — always reachable on mobile ── */}
+            {!isOwner && (
+                <div className="provider-book-bar" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 95, background: 'var(--card-bg)', borderTop: '1px solid var(--border)', boxShadow: '0 -4px 20px rgba(4,5,5,0.10)' }}>
+                    <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.8rem 1.5rem calc(0.8rem + env(safe-area-inset-bottom, 0px))' }}>
+                        <div style={{ minWidth: 0 }}>
+                            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{provider.serviceCount} service{provider.serviceCount !== 1 ? 's' : ''} available</div>
+                            {minPrice != null && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>from {cur} {minPrice}</div>}
+                        </div>
+                        <button onClick={() => navigate(`/book-appointment?providerId=${provider._id}`)} className="btn-primary" style={{ padding: '0.85rem 1.9rem', borderRadius: '999px', fontSize: '0.95rem', fontWeight: 700, flexShrink: 0 }}>Book now</button>
+                    </div>
+                </div>
+            )}
+
             <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
 
             {showTopUp && (

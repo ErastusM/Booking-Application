@@ -497,6 +497,9 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
 
 @media (min-width: 769px) {
   .show-mobile { display: none !important; }
+  /* On desktop the provider profile keeps its sidebar "Book Now" button, so the
+     fixed bottom Book bar (a mobile pattern) is hidden. */
+  .provider-book-bar { display: none !important; }
 }
 
 /* ── Dark mode surface overrides ──

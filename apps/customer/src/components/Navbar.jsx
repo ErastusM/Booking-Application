@@ -27,10 +27,13 @@ const Navbar = () => {
     useEffect(() => { setProfileOpen(false); }, [location]);
 
     const isHome = location.pathname === '/';
-    // The booking flow has its own bottom CTA bar (price + Continue/Confirm). Hiding the
-    // 5-tab nav there stops it competing with — and covering — that button, and matches
-    // the focused-checkout pattern. The top hamburger + back button still navigate away.
-    const hideBottomNav = location.pathname === '/book-appointment';
+    // The booking flow AND the provider profile each have their own bottom CTA bar
+    // (Continue/Confirm, and "Book now"). Hiding the 5-tab nav there stops it competing
+    // with — and covering — that button, matching the focused-checkout / Fresha pattern.
+    // The top hamburger + back button still navigate away.
+    const hideBottomNav = location.pathname === '/book-appointment'
+        || location.pathname.startsWith('/providers/')
+        || location.pathname.startsWith('/b/');
     // The transparent navbar uses white text/icons, which only reads on a DARK hero.
     // The home hero is light in light mode, so only go transparent in dark mode —
     // otherwise the white icons vanish against the light hero (scrolled-to-top bug).
