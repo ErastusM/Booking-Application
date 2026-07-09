@@ -239,24 +239,23 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                 </div>
             </div>
 
-            {/* Photo gallery — tap any photo for the full-screen viewer */}
-            {photos.length > 0 && (
-                <div className="container" style={{ paddingTop: '1.5rem' }}>
-                    <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', scrollSnapType: 'x mandatory', paddingBottom: '0.35rem' }}>
-                        {photos.map((src, i) => (
-                            <button key={i} type="button" onClick={() => setLightbox(i)} aria-label={`View photo ${i + 1}`} style={{ flex: '0 0 auto', border: 'none', padding: 0, cursor: 'pointer', borderRadius: '14px', overflow: 'hidden', background: 'var(--warm-gray)', scrollSnapAlign: 'start', boxShadow: 'var(--shadow-sm)' }}>
-                                <img src={cloudinaryThumb(src, 700)} alt={`${businessName} photo ${i + 1}`} loading="lazy" decoding="async" style={{ height: '230px', width: 'auto', maxWidth: '360px', objectFit: 'cover', display: 'block' }} />
-                            </button>
-                        ))}
-                    </div>
-                </div>
-            )}
-
-            <div className="container" style={{ paddingTop: '2rem', paddingBottom: '5rem' }}>
+            <div className="container" style={{ paddingTop: '1.5rem', paddingBottom: '4rem' }}>
                 <div className="provider-profile-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '2rem', alignItems: 'start' }}>
 
-                    {/* Left — services */}
+                    {/* Left — photos + services */}
                     <div>
+                        {/* Photo gallery — tap any photo for the full-screen viewer. Lives in
+                            the left column so the About/Contact sidebar rises to fill the top
+                            right instead of leaving dead space. */}
+                        {photos.length > 0 && (
+                            <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', scrollSnapType: 'x mandatory', paddingBottom: '0.35rem', marginBottom: '1.5rem' }}>
+                                {photos.map((src, i) => (
+                                    <button key={i} type="button" onClick={() => setLightbox(i)} aria-label={`View photo ${i + 1}`} style={{ flex: '0 0 auto', border: 'none', padding: 0, cursor: 'pointer', borderRadius: '14px', overflow: 'hidden', background: 'var(--warm-gray)', scrollSnapAlign: 'start', boxShadow: 'var(--shadow-sm)' }}>
+                                        <img src={cloudinaryThumb(src, 700)} alt={`${businessName} photo ${i + 1}`} loading="lazy" decoding="async" style={{ height: '220px', width: 'auto', maxWidth: '320px', objectFit: 'cover', display: 'block' }} />
+                                    </button>
+                                ))}
+                            </div>
+                        )}
                         {/* Category tabs */}
                         <div style={{ display: 'flex', gap: '0', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', overflowX: 'auto' }}>
                             {categoryKeys.map(key => {
