@@ -16,7 +16,7 @@ const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
         <Link
             to={`/providers/${p._id}`}
             className="home-provider-card"
-            style={{ flex: '0 0 210px', width: '210px', display: 'block', textDecoration: 'none', scrollSnapAlign: 'start', background: 'transparent' }}
+            style={{ display: 'block', width: '100%', textDecoration: 'none', background: 'transparent' }}
         >
             <div className="home-provider-card__media" style={{ position: 'relative', aspectRatio: '4 / 3', borderRadius: '16px', overflow: 'hidden', background: cover ? 'var(--warm-gray)' : 'linear-gradient(135deg, #1c1c1e 0%, #040505 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}>
                 {cover
@@ -346,7 +346,7 @@ const Home = () => {
 
     // One heart = private save + public like. We keep the optimistic like as a DELTA
     // overlay ({[id]: +/-n}) instead of mutating the providers array. Mutating providers
-    // would re-run the likes-based sort memos (Featured/Trending/Discover), physically
+    // would re-run the likes-based sort memos (Discover/Recommended), physically
     // reordering the card under the user's finger — and reused image DOM nodes would then
     // show a neighbouring business's photo. The delta keeps counts live without reordering.
     const [likeDelta, setLikeDelta] = useState({});
@@ -377,29 +377,13 @@ const Home = () => {
         return [...providers].sort((a, b) => score(b) - score(a));
     }, [providers]);
 
-    // Fresha-style desktop sections — all computed from the one providers payload,
-    // so they light up automatically as data grows. Overlap while data is sparse
-    // is deliberate (Fresha does the same); each section renders only when it
-    // has something to show.
-    const homeSections = useMemo(() => ([
-        { key: 'recommended', title: 'Recommended', sub: 'Top-rated businesses, picked for you', items: discoverFeed.slice(0, 8) },
-        { key: 'new', title: 'New on Bookplus', sub: 'Fresh businesses that just joined', items: [...providers].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)).slice(0, 8) },
-        { key: 'trending', title: 'Trending now', sub: 'Getting the most love right now', items: [...providers].sort((a, b) => (b.likesCount || 0) - (a.likesCount || 0) || (b.reviewCount || 0) - (a.reviewCount || 0)).slice(0, 8) },
-        { key: 'top', title: 'Top rated', sub: 'The highest scores from real clients', items: providers.filter(x => x.avgRating != null).sort((a, b) => b.avgRating - a.avgRating).slice(0, 8) },
-    ]).filter(sec => sec.items.length > 0), [providers, discoverFeed]);
-
-    // Featured businesses — a photo-rich horizontal row right under the hero so the
-    // home always leads with real, tappable businesses (prefer ones with a cover
-    // photo; ranked by rating, then likes/reviews).
-    const featuredBusinesses = useMemo(() => {
-        const withPhoto = providers.filter(p => p.coverImage || p.avatar);
-        const pool = withPhoto.length ? withPhoto : providers;
-        return [...pool].sort((a, b) =>
-            (b.avgRating || 0) - (a.avgRating || 0)
-            || (b.likesCount || 0) - (a.likesCount || 0)
-            || (b.reviewCount || 0) - (a.reviewCount || 0)
-        ).slice(0, 12);
-    }, [providers]);
+    // Desktop "Recommended" — every business exactly once. Businesses already shown
+    // in "Recently viewed" are excluded so the page never repeats a card just to
+    // fill space; ranking reuses the Discover score (rating first, small like boost).
+    const recommendedProviders = useMemo(() => {
+        const shown = new Set(recentlyViewed.map(p => String(p._id)));
+        return discoverFeed.filter(p => !shown.has(String(p._id)));
+    }, [discoverFeed, recentlyViewed]);
 
     // Distinct business categories → the filter chips ("All" + each category).
     const allCategories = useMemo(
@@ -474,7 +458,7 @@ const Home = () => {
 
             {/* ── Sticky search — settles under the navbar while the feed scrolls ── */}
             <div ref={searchWrapRef} style={{
-                position: 'sticky', top: 'calc(64px + env(safe-area-inset-top, 0px))', zIndex: 100,
+                position: 'sticky', top: 'calc(56px + env(safe-area-inset-top, 0px))', zIndex: 100,
                 background: 'var(--off-white)',
                 padding: '0.75rem 0',
                 borderBottom: '1px solid transparent',
@@ -555,24 +539,9 @@ const Home = () => {
                 </div>
             </div>
 
-            {/* ── Featured businesses — desktop-only card row. On mobile the Instagram
-                 feed below is the whole story, so this is hidden there. ── */}
-            {!loading && !hasActiveFilter && featuredBusinesses.length > 0 && (
-                <section className="home-desktop-only" style={{ paddingTop: '1.25rem' }}>
-                    <div className="container">
-                        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.9rem', gap: '1rem' }}>
-                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.35rem, 3vw, 1.7rem)', fontWeight: 700, color: 'var(--charcoal)', margin: 0 }}>Featured businesses</h2>
-                        </div>
-                        <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', scrollSnapType: 'x mandatory', paddingBottom: '0.5rem', WebkitOverflowScrolling: 'touch' }}>
-                            {featuredBusinesses.map(p => (
-                                <ProviderCard key={`feat-${p._id}`} p={p} isFav={favSet.has(String(p._id))} onToggleFav={toggleFav} />
-                            ))}
-                        </div>
-                    </div>
-                </section>
-            )}
-
-            {/* ── Desktop: Fresha-style sections (hidden on mobile) ── */}
+            {/* ── Desktop: Fresha-style sections (hidden on mobile). One card style
+                 (compact photo card) and each business appears at most once across
+                 the browse sections — no repeating businesses to fill the screen. ── */}
             <section className="home-sections-desktop" style={{ paddingTop: '0.75rem', paddingBottom: '3rem' }}>
                 <div className="container">
                     {hasActiveFilter ? (
@@ -588,7 +557,7 @@ const Home = () => {
                             ) : (
                                 <div className="home-section-grid">
                                     {filteredProviders.map(p => (
-                                        <FeedCard key={`res-${p._id}`} p={p} isFav={favSet.has(String(p._id))} likeCount={likeCountFor(p)} onToggleFav={toggleFav} />
+                                        <ProviderCard key={`res-${p._id}`} p={p} isFav={favSet.has(String(p._id))} onToggleFav={toggleFav} />
                                     ))}
                                 </div>
                             )}
@@ -633,7 +602,7 @@ const Home = () => {
                             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.55rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 1.1rem' }}>Recently viewed</h2>
                             <div className="home-section-grid">
                                 {recentlyViewed.map(x => (
-                                    <FeedCard key={`recent-${x._id}`} p={x} isFav={favSet.has(String(x._id))} likeCount={likeCountFor(x)} onToggleFav={toggleFav} />
+                                    <ProviderCard key={`recent-${x._id}`} p={x} isFav={favSet.has(String(x._id))} onToggleFav={toggleFav} />
                                 ))}
                             </div>
                         </div>
@@ -644,17 +613,18 @@ const Home = () => {
                             <p style={{ margin: 0, fontSize: '0.95rem' }}>New businesses are joining soon. Check back shortly.</p>
                         </div>
                     )}
-                    {!loading && homeSections.map(sec => (
-                        <div key={sec.key} style={{ marginBottom: '2.75rem' }}>
-                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.55rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.25rem' }}>{sec.title}</h2>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: '0 0 1.1rem' }}>{sec.sub}</p>
+                    {/* Recommended — every remaining business, exactly once */}
+                    {!loading && recommendedProviders.length > 0 && (
+                        <div style={{ marginBottom: '2.75rem' }}>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.55rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.25rem' }}>Recommended</h2>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: '0 0 1.1rem' }}>Businesses picked for you</p>
                             <div className="home-section-grid">
-                                {sec.items.map(x => (
-                                    <FeedCard key={`${sec.key}-${x._id}`} p={x} isFav={favSet.has(String(x._id))} likeCount={likeCountFor(x)} onToggleFav={toggleFav} />
+                                {recommendedProviders.map(x => (
+                                    <ProviderCard key={`rec-${x._id}`} p={x} isFav={favSet.has(String(x._id))} onToggleFav={toggleFav} />
                                 ))}
                             </div>
                         </div>
-                    ))}
+                    )}
                       </>
                     )}
                 </div>

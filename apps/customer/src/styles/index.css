@@ -50,6 +50,7 @@ nav a, nav button { -webkit-user-select: none; user-select: none; }
 @media (display-mode: standalone) {
   .app-topnav { padding-top: max(env(safe-area-inset-top, 0px), 50px) !important; }
   .app-statusbar-bg { height: max(env(safe-area-inset-top, 0px), 50px) !important; }
+  .profile-compact-bar { padding-top: max(env(safe-area-inset-top, 0px), 50px) !important; }
 }
 
 body {
@@ -1214,21 +1215,17 @@ body.dark-mode .home-hero-wash {
 }
 
 /* ── Home: two distinct layouts. Mobile = the Instagram-style infinite feed
-   ONLY (.home-feed-mobile). Desktop = card rows/grids (.home-sections-desktop)
-   plus any desktop-only block (.home-desktop-only, e.g. the Featured row). The
-   two never appear together — that mash-up is what read as "broken" on phones. */
+   ONLY (.home-feed-mobile). Desktop = card rows/grids (.home-sections-desktop).
+   The two never appear together — that mash-up is what read as "broken" on phones. */
 .home-sections-desktop { display: none; }
-.home-desktop-only { display: none; }
 @media (min-width: 1024px) {
   .home-feed-mobile { display: none; }
   .home-sections-desktop { display: block; }
-  .home-desktop-only { display: block; }
   .home-section-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
     gap: 1.5rem 1.25rem;
-    /* stretch, not start: every card in a row gets the row's height */
-    align-items: stretch;
+    align-items: start;
   }
 }
 
