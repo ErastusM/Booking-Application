@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { providerMarketService } from '../services';
-import { cloudinaryAvatar } from '../utils/cloudinary';
+import { cloudinaryAvatar, cloudinaryThumb } from '../utils/cloudinary';
 import { mapsUrl } from '../utils/maps';
 import { normalizeTown } from '../utils/namibiaTowns';
 import { currencySymbol } from '../utils/currency';
@@ -301,28 +301,35 @@ const ProvidersPage = () => {
                                     onMouseEnter={e => { e.currentTarget.style.boxShadow = 'var(--shadow-lg)'; e.currentTarget.style.transform = 'translateY(-4px)'; }}
                                     onMouseLeave={e => { e.currentTarget.style.boxShadow = 'var(--shadow-sm)'; e.currentTarget.style.transform = 'translateY(0)'; }}
                                 >
-                                    {/* Cover */}
-                                    <div style={{ height: '140px', background: 'linear-gradient(135deg, var(--charcoal) 0%, var(--charcoal-light) 100%)', position: 'relative', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                                        <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 70% 30%, rgba(240,62,22,0.15) 0%, transparent 60%)' }} />
-                                        {provider.avatar ? (
-                                            <img src={cloudinaryAvatar(provider.avatar)} alt={provider.name} style={{ width: '80px', height: '80px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', position: 'relative', zIndex: 1 }} />
+                                    {/* Cover — the business's uploaded photo when they have one,
+                                        otherwise a branded gradient with their avatar / initials. */}
+                                    <div style={{ height: '128px', background: 'linear-gradient(135deg, var(--charcoal) 0%, var(--charcoal-light) 100%)', position: 'relative', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        {provider.coverImage ? (
+                                            <img src={cloudinaryThumb(provider.coverImage, 600)} alt={provider.businessName || provider.name} loading="lazy" decoding="async" style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }} />
                                         ) : (
-                                            <div style={{ width: '80px', height: '80px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-body)', fontSize: '2rem', fontWeight: '700', color: 'var(--ink)', border: '3px solid rgba(255,255,255,0.2)', position: 'relative', zIndex: 1 }}>
-                                                {getInitials(provider.name)}
-                                            </div>
+                                            <>
+                                                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 70% 30%, rgba(240,62,22,0.15) 0%, transparent 60%)' }} />
+                                                {provider.avatar ? (
+                                                    <img src={cloudinaryAvatar(provider.avatar)} alt={provider.name} style={{ width: '74px', height: '74px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', position: 'relative', zIndex: 1 }} />
+                                                ) : (
+                                                    <div style={{ width: '74px', height: '74px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-body)', fontSize: '1.85rem', fontWeight: '700', color: 'var(--ink)', border: '3px solid rgba(255,255,255,0.2)', position: 'relative', zIndex: 1 }}>
+                                                        {getInitials(provider.name)}
+                                                    </div>
+                                                )}
+                                            </>
                                         )}
                                     </div>
 
-                                    <div style={{ padding: '1.25rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
-                                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>{provider.businessName || provider.name}</h3>
+                                    <div style={{ padding: '1rem 1.05rem 1.05rem', flex: 1, display: 'flex', flexDirection: 'column' }}>
+                                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.02rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.3rem', lineHeight: 1.2 }}>{provider.businessName || provider.name}</h3>
 
                                         {provider.providerCategory && (
-                                            <span style={{ display: 'inline-block', fontSize: '0.7rem', fontWeight: '600', padding: '0.2rem 0.6rem', borderRadius: '99px', background: 'rgba(240,62,22,0.1)', color: 'var(--gold-dark)', border: '1px solid rgba(240,62,22,0.3)', marginBottom: '0.5rem' }}>
+                                            <span style={{ display: 'inline-block', fontSize: '0.68rem', fontWeight: '600', padding: '0.18rem 0.55rem', borderRadius: '99px', background: 'rgba(240,62,22,0.1)', color: 'var(--gold-dark)', border: '1px solid rgba(240,62,22,0.3)', marginBottom: '0.45rem' }}>
                                                 {provider.providerCategory}
                                             </span>
                                         )}
                                         {provider.location && (
-                                            <a href={mapsUrl(normalizeTown(provider.location))} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'flex-start', gap: '0.3rem', textDecoration: 'none' }}>
+                                            <a href={mapsUrl(normalizeTown(provider.location))} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-muted)', fontSize: '0.76rem', marginBottom: '0.6rem', display: 'flex', alignItems: 'flex-start', gap: '0.3rem', textDecoration: 'none' }}>
                                                 <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, marginTop: '2px' }}><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0118 0z"/><circle cx="12" cy="10" r="3"/></svg>
                                                 <span style={{ textDecoration: 'underline' }}>{normalizeTown(provider.location)}</span>
                                             </a>
@@ -330,13 +337,13 @@ const ProvidersPage = () => {
 
                                         {/* Rating */}
                                         {provider.avgRating ? (
-                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
                                                 <StarDisplay rating={parseFloat(provider.avgRating)} />
-                                                <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--charcoal)' }}>{provider.avgRating}</span>
-                                                <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>({provider.reviewCount} review{provider.reviewCount !== 1 ? 's' : ''})</span>
+                                                <span style={{ fontSize: '0.78rem', fontWeight: '600', color: 'var(--charcoal)' }}>{provider.avgRating}</span>
+                                                <span style={{ fontSize: '0.73rem', color: 'var(--text-muted)' }}>({provider.reviewCount} review{provider.reviewCount !== 1 ? 's' : ''})</span>
                                             </div>
                                         ) : (
-                                            <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginBottom: '0.75rem' }}>No reviews yet</p>
+                                            <p style={{ fontSize: '0.76rem', color: 'var(--text-muted)', marginBottom: '0.6rem' }}>No reviews yet</p>
                                         )}
 
                                         {/* Real openings on the searched date */}
@@ -352,12 +359,12 @@ const ProvidersPage = () => {
                                             </div>
                                         )}
 
-                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.875rem', borderTop: '1px solid var(--border)', marginTop: 'auto' }}>
-                                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '0.7rem', borderTop: '1px solid var(--border)', marginTop: 'auto' }}>
+                                            <span style={{ fontSize: '0.76rem', color: 'var(--text-muted)' }}>
                                                 {provider.serviceCount} service{provider.serviceCount !== 1 ? 's' : ''}
                                             </span>
                                             {provider.minPrice !== null && (
-                                                <span style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--gold-dark)' }}>
+                                                <span style={{ fontSize: '0.82rem', fontWeight: '700', color: 'var(--gold-dark)' }}>
                                                     from {currencySymbol(provider.currency)} {provider.minPrice}
                                                 </span>
                                             )}
