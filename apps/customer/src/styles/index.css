@@ -42,6 +42,16 @@ html, body { overscroll-behavior: none; }
 button, a, input, select, textarea, [role="button"] { touch-action: manipulation; }
 nav a, nav button { -webkit-user-select: none; user-select: none; }
 
+/* Installed PWA (black-translucent status bar): the top navbar draws UNDER the
+   status bar and relies on env(safe-area-inset-top) to clear it. On some
+   iPhones (e.g. 13 Pro) that inset comes back as 0, dropping the navbar / its
+   menu button under the notch. Enforce a minimum so it always clears. Scoped to
+   standalone so the browser view (no notch to clear) isn't over-padded. */
+@media (display-mode: standalone) {
+  .app-topnav { padding-top: max(env(safe-area-inset-top, 0px), 50px) !important; }
+  .app-statusbar-bg { height: max(env(safe-area-inset-top, 0px), 50px) !important; }
+}
+
 body {
   font-family: var(--font-body);
   line-height: 1.55;

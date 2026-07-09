@@ -279,20 +279,25 @@ const Home = () => {
         );
     };
 
+    // Key on the user ID, not the whole user object: a token refresh replaces the
+    // user object reference, and re-loading favorites then would clobber a like the
+    // user just made but that hasn't finished saving — so the like "goes away".
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (!user) { setFavorites([]); return; }
         favoriteService.list()
             .then(res => setFavorites((res.data.data || []).map(String)))
             .catch(() => {});
-    }, [user]);
+    }, [user?._id, user?.id]);
 
     // "Book again" — the user's own booking history powers one-tap rebooks.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
     useEffect(() => {
         if (!user) { setMyAppointments([]); return; }
         appointmentService.getCustomerAppointments()
             .then(res => setMyAppointments(res.data.data || []))
             .catch(() => {});
-    }, [user]);
+    }, [user?._id, user?.id]);
 
     // One card per distinct service the user has actually had, newest first.
     const bookAgainItems = useMemo(() => {

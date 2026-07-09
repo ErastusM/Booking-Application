@@ -647,10 +647,10 @@ body.dark-mode .booking-confirm-mobile {
   /* Off-hours (outside working hours) shading. The old 5% overlay was almost
      invisible — bumped so it's clearly distinguishable, and much stronger in
      dark mode where a faint tint on the dark card can't be seen at all. */
-  --fc-non-business-color: rgba(4, 5, 5, 0.10);
+  --fc-non-business-color: rgba(4, 5, 5, 0.22);
 }
 body.dark-mode .fc-bookplus-wrapper .fc {
-  --fc-non-business-color: rgba(0, 0, 0, 0.55);
+  --fc-non-business-color: rgba(0, 0, 0, 0.78);
 }
 
 /* Toolbar */
@@ -761,7 +761,8 @@ body.dark-mode .fc-bookplus-wrapper .fc {
   --fc-neutral-bg-color: var(--surface-sunken);
   --fc-border-color: var(--border);
   --fc-today-bg-color: rgba(240, 62, 22, 0.10);
-  --fc-non-business-color: rgba(255, 255, 255, 0.045);
+  /* off-hours color is set above (rgba(0,0,0,0.78)) — do NOT re-set it here,
+     a faint white overlay was overriding it and lightening the off-hours. */
 }
 body.dark-mode .fc-bookplus-wrapper .fc-header-toolbar,
 body.dark-mode .fc-bookplus-wrapper .fc-col-header,
