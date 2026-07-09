@@ -494,9 +494,10 @@ const Home = () => {
                 </div>
             </div>
 
-            {/* ── Featured businesses — photo-rich row right under the hero (all viewports) ── */}
+            {/* ── Featured businesses — desktop-only card row. On mobile the Instagram
+                 feed below is the whole story, so this is hidden there. ── */}
             {!loading && featuredBusinesses.length > 0 && (
-                <section style={{ paddingTop: '1.25rem' }}>
+                <section className="home-desktop-only" style={{ paddingTop: '1.25rem' }}>
                     <div className="container">
                         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.9rem', gap: '1rem' }}>
                             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.35rem, 3vw, 1.7rem)', fontWeight: 700, color: 'var(--charcoal)', margin: 0 }}>Featured businesses</h2>
