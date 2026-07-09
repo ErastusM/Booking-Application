@@ -4,6 +4,7 @@ import { providerMarketService } from '../services';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { mapsUrl } from '../utils/maps';
 import { normalizeTown } from '../utils/namibiaTowns';
+import { currencySymbol } from '../utils/currency';
 
 const StarDisplay = ({ rating }) => (
     <div style={{ display: 'flex', gap: '2px', alignItems: 'center' }}>
@@ -357,7 +358,7 @@ const ProvidersPage = () => {
                                             </span>
                                             {provider.minPrice !== null && (
                                                 <span style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--gold-dark)' }}>
-                                                    from NAD {provider.minPrice}
+                                                    from {currencySymbol(provider.currency)} {provider.minPrice}
                                                 </span>
                                             )}
                                         </div>

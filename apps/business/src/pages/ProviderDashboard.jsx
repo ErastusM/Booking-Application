@@ -22,8 +22,7 @@ import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { buildTimeSlots } from '../utils/bookingSlots';
 import MiniCalendar from '../components/MiniCalendar';
 import RecurrenceFields from '../components/RecurrenceFields';
-
-const nMoney = (n) => `N$${Number(n || 0).toFixed(2)}`;
+import { currencySymbol } from '../utils/currency';
 
 const statusConfig = {
     pending: { label: 'Pending', bg: '#fef3c7', color: '#92400e' },
@@ -77,6 +76,10 @@ const fmtConvTime = (ts) => {
 
 const ProviderDashboard = () => {
     const { user, setUser } = useAuthContext();
+    // The business prices in its chosen currency; every money display uses this symbol.
+    const curCode = user?.businessProfile?.currency || 'NAD';
+    const curSym = currencySymbol(curCode);
+    const nMoney = (n) => `${curSym}${Number(n || 0).toFixed(2)}`;
     const location = useLocation();
     const [showWizard, setShowWizard] = useState(false);
     const [appointments, setAppointments] = useState([]);
@@ -505,10 +508,10 @@ const ProviderDashboard = () => {
 
     const exportEarningsCsv = () => {
         if (!earnings) return;
-        const rows = [['Date', 'Earned (NAD)', 'Completed appointments']];
+        const rows = [['Date', `Earned (${curCode})`, 'Completed appointments']];
         earnings.overTime.forEach(d => rows.push([d.date, d.earned, d.count]));
         rows.push([]);
-        rows.push(['Service', 'Earned (NAD)', 'Completed']);
+        rows.push(['Service', `Earned (${curCode})`, 'Completed']);
         earnings.byService.forEach(s => rows.push([s.name, s.earned, s.count]));
         const csv = rows.map(r => r.map(c => `"${String(c ?? '')}"`).join(',')).join('\n');
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
@@ -762,7 +765,7 @@ const ProviderDashboard = () => {
             const amount = appt?.totalPrice ?? appt?.service?.price;
             const who = appt?.customer?.name || 'the client';
             const msg = isWallet && amount != null
-                ? `Mark this appointment complete?\n\nThis releases N$${Number(amount).toFixed(2)} from ${who}'s reserved balance to you. This can't be undone.`
+                ? `Mark this appointment complete?\n\nThis releases ${nMoney(amount)} from ${who}'s reserved balance to you. This can't be undone.`
                 : 'Mark this appointment as complete?';
             if (!window.confirm(msg)) return;
         }
@@ -1380,7 +1383,7 @@ const ProviderDashboard = () => {
                                                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{s.duration} min{s.location ? ` · 📍 ${s.location}` : ''}</p>
                                                                         </div>
                                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
-                                                                            <span style={{ fontFamily: 'var(--font-body)', fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.95rem', whiteSpace: 'nowrap' }}>NAD {s.price}</span>
+                                                                            <span style={{ fontFamily: 'var(--font-body)', fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.95rem', whiteSpace: 'nowrap' }}>{curSym} {s.price}</span>
                                                                             <button onClick={() => handleEditService(s)} style={{ background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Edit</button>
                                                                             <button onClick={() => handleDeleteService(s._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Delete</button>
                                                                         </div>
@@ -1841,10 +1844,10 @@ const ProviderDashboard = () => {
                                 {/* KPI row */}
                                 <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
                                     {[
-                                        { label: 'Earned (range)', value: `NAD ${earnings.totals.earned.toLocaleString()}`, icon: '💰', sub: `${earnings.totals.completedCount} completed` },
-                                        { label: 'This month', value: `NAD ${earnings.thisMonth.earned.toLocaleString()}`, icon: '📅', sub: `${earnings.growthPct >= 0 ? '▲' : '▼'} ${Math.abs(earnings.growthPct)}% vs last month`, trend: earnings.growthPct },
-                                        { label: 'Avg / appointment', value: `NAD ${earnings.totals.avgPerAppointment.toLocaleString()}`, icon: '📈', sub: 'In selected range' },
-                                        { label: 'All-time earned', value: `NAD ${earnings.totals.allTimeEarned.toLocaleString()}`, icon: '🏆', sub: `${earnings.totals.allTimeCount} completed` },
+                                        { label: 'Earned (range)', value: `${curSym} ${earnings.totals.earned.toLocaleString()}`, icon: '💰', sub: `${earnings.totals.completedCount} completed` },
+                                        { label: 'This month', value: `${curSym} ${earnings.thisMonth.earned.toLocaleString()}`, icon: '📅', sub: `${earnings.growthPct >= 0 ? '▲' : '▼'} ${Math.abs(earnings.growthPct)}% vs last month`, trend: earnings.growthPct },
+                                        { label: 'Avg / appointment', value: `${curSym} ${earnings.totals.avgPerAppointment.toLocaleString()}`, icon: '📈', sub: 'In selected range' },
+                                        { label: 'All-time earned', value: `${curSym} ${earnings.totals.allTimeEarned.toLocaleString()}`, icon: '🏆', sub: `${earnings.totals.allTimeCount} completed` },
                                     ].map((s, i) => (
                                         <div key={i} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                             <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(240,62,22,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
@@ -1874,7 +1877,7 @@ const ProviderDashboard = () => {
                                             <>
                                                 <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '160px' }}>
                                                     {data.map((d, i) => (
-                                                        <div key={i} title={`${d.label}: ${earningsChartMode === 'earned' ? 'NAD ' + d.earned : d.count + ' booking(s)'}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%' }}>
+                                                        <div key={i} title={`${d.label}: ${earningsChartMode === 'earned' ? curSym + ' ' + d.earned : d.count + ' booking(s)'}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%' }}>
                                                             <div style={{ height: `${(d[earningsChartMode] / max) * 100}%`, minHeight: d[earningsChartMode] > 0 ? '3px' : '0', background: 'var(--gold)', borderRadius: '3px 3px 0 0', transition: 'height 0.4s ease' }} />
                                                         </div>
                                                     ))}
@@ -1904,7 +1907,7 @@ const ProviderDashboard = () => {
                                                                 <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
                                                                 <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexShrink: 0, whiteSpace: 'nowrap' }}>
                                                                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{s.count} job{s.count !== 1 ? 's' : ''}</span>
-                                                                    <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {s.earned.toLocaleString()}</span>
+                                                                    <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)' }}>{curSym} {s.earned.toLocaleString()}</span>
                                                                 </div>
                                                             </div>
                                                             <div style={{ height: '6px', borderRadius: '99px', background: 'var(--warm-gray)', overflow: 'hidden' }}>
@@ -1928,7 +1931,7 @@ const ProviderDashboard = () => {
                                                             <p style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</p>
                                                             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{c.count} visit{c.count !== 1 ? 's' : ''}</p>
                                                         </div>
-                                                        <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)', flexShrink: 0, whiteSpace: 'nowrap' }}>NAD {c.earned.toLocaleString()}</span>
+                                                        <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)', flexShrink: 0, whiteSpace: 'nowrap' }}>{curSym} {c.earned.toLocaleString()}</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -1960,7 +1963,7 @@ const ProviderDashboard = () => {
                                                             <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{r.service}</td>
                                                             <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{new Date(r.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
                                                             <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{r.time}</td>
-                                                            <td style={{ padding: '0.875rem 1rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {r.amount.toLocaleString()}</td>
+                                                            <td style={{ padding: '0.875rem 1rem', fontWeight: '700', color: 'var(--charcoal)' }}>{curSym} {r.amount.toLocaleString()}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -2241,7 +2244,7 @@ const ProviderDashboard = () => {
                                                 </div>
                                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem', flexShrink: 0 }}>
                                                     <span style={{ fontSize: '0.72rem', fontWeight: '700', padding: '0.2rem 0.65rem', borderRadius: '99px', background: sc.bg, color: sc.color, textTransform: 'capitalize' }}>{a.status}</span>
-                                                    <span style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {a.totalPrice || 0}</span>
+                                                    <span style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--charcoal)' }}>{curSym} {a.totalPrice || 0}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -2494,7 +2497,7 @@ const ProviderDashboard = () => {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                                 {[
                                     ['Plan Name', 'name', 'text', 'e.g. Monthly Grooming Plan'],
-                                    ['Price (NAD)', 'price', 'number', '0'],
+                                    [`Price (${curCode})`, 'price', 'number', '0'],
                                     ['Total Sessions', 'totalSessions', 'number', '5'],
                                     ['Validity (days)', 'validityDays', 'number', '365'],
                                 ].map(([label, key, type, ph]) => (
@@ -2549,7 +2552,7 @@ const ProviderDashboard = () => {
                                             </div>
                                             <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
                                                 <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>Price</p>
-                                                <p style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--gold-dark)', lineHeight: 1 }}>NAD {pkg.price}</p>
+                                                <p style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--gold-dark)', lineHeight: 1 }}>{curSym} {pkg.price}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -3349,7 +3352,7 @@ const ProviderDashboard = () => {
                                     ['Date',      apptDetailModal.appointmentDate ? new Date(apptDetailModal.appointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—'],
                                     ['Time',      `${apptDetailModal.startTime} – ${apptDetailModal.endTime}`],
                                     ['Duration',  apptDetailModal.service?.duration ? `${apptDetailModal.service.duration} min` : '—'],
-                                    ['Price',     apptDetailModal.totalPrice ? `NAD ${apptDetailModal.totalPrice}` : '—'],
+                                    ['Price',     apptDetailModal.totalPrice ? `${curSym} ${apptDetailModal.totalPrice}` : '—'],
                                     ['Booking ref', apptDetailModal.bookingReference || (apptDetailModal._id ? apptDetailModal._id.slice(-8).toUpperCase() : '—')],
                                 ].map(([label, value]) => (
                                     <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.7rem 0', borderBottom: '1px solid var(--border)' }}>
@@ -3545,7 +3548,7 @@ const ProviderAccountTopUpModal = ({ onClose, onDone }) => {
                             }}>{o.t}</button>
                         ))}
                     </div>
-                    <label style={lbl}>Amount (N$)</label>
+                    <label style={lbl}>Amount ({curSym})</label>
                     <input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 500" className="input" style={{ width: '100%', marginBottom: '1rem' }} required />
                     <label style={lbl}>Payment reference</label>
                     <input type="text" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Your deposit / transfer reference" className="input" style={{ width: '100%', marginBottom: '1rem' }} />
@@ -3619,7 +3622,7 @@ const WalletAdjustmentModal = ({ wallet, refundsAllowed, onClose, onSubmit }) =>
                         </label>
                     )}
 
-                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Amount (N$)</label>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Amount ({curSym})</label>
                     <input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 50" className="input" style={{ width: '100%', marginBottom: '1rem' }} required />
 
                     <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Reason</label>

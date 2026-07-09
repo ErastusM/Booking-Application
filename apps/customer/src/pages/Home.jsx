@@ -5,6 +5,7 @@ import { providerMarketService, favoriteService, appointmentService } from '../s
 import { Search, Star, ArrowRight, Heart, MapPin, Trophy } from 'lucide-react';
 import { cloudinaryThumb } from '../utils/cloudinary';
 import { normalizeTown } from '../utils/namibiaTowns';
+import { currencySymbol } from '../utils/currency';
 
 const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
     const cover = p.coverImage || p.avatar || null;
@@ -167,7 +168,7 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
             {/* Caption — tap to open profile */}
             <div onClick={go} style={{ padding: '0.1rem 0.95rem 0.6rem', cursor: 'pointer' }}>
                 <span style={{ fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.9rem' }}>{p.businessName || p.name}</span>
-                {p.minPrice != null && <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}> · Starting at NAD {p.minPrice}</span>}
+                {p.minPrice != null && <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}> · Starting at {currencySymbol(p.currency)} {p.minPrice}</span>}
                 {p.serviceCount > 0 && (
                     <p style={{ margin: '0.3rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
                         {p.serviceCount} {p.serviceCount === 1 ? 'service' : 'services'} available
@@ -273,6 +274,7 @@ const Home = () => {
                     serviceId: a.service._id,
                     serviceName: a.service.name,
                     price: a.totalPrice ?? a.service.price,
+                    currency: provObj?.currency || 'NAD',
                     providerId,
                     providerName: prov?.businessProfile?.businessName || prov?.name || provObj?.businessName || provObj?.name || 'Business',
                     image: prov?.avatar || prov?.portfolio?.images?.[0] || provObj?.coverImage || provObj?.avatar || null,
@@ -528,7 +530,7 @@ const Home = () => {
                                         </Link>
                                         <div style={{ padding: '0.75rem 0.9rem 0.9rem' }}>
                                             <p style={{ margin: 0, fontWeight: 700, color: 'var(--charcoal)', fontSize: '0.95rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.providerName}</p>
-                                            <p style={{ margin: '2px 0 0.7rem', fontSize: '0.82rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>NAD {item.price} · {item.serviceName}</p>
+                                            <p style={{ margin: '2px 0 0.7rem', fontSize: '0.82rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currencySymbol(item.currency)} {item.price} · {item.serviceName}</p>
                                             <button
                                                 onClick={() => navigate(`/book-appointment?providerId=${item.providerId}&serviceId=${item.serviceId}`)}
                                                 className="btn-outline"

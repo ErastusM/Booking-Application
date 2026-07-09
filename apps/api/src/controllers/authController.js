@@ -5,6 +5,7 @@ const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { sendVerificationEmail, sendWelcomeEmail } = require('../utils/emailService');
 const MAIN_CATEGORIES = require('../constants/mainCategories');
+const { CURRENCY_CODES } = require('../constants/currencies');
 const { notifyAdmins } = require('../utils/notificationhelper');
 const { primaryOrigin, businessOrigin, originForRole } = require('../utils/origins');
 
@@ -550,6 +551,17 @@ exports.updateProfile = async (req, res) => {
             }
             if (!user.businessProfile) user.businessProfile = {};
             user.businessProfile.businessName = req.body.businessName.trim();
+            user.markModified('businessProfile');
+        }
+
+        // Currency the business prices in (chosen at onboarding; editable later).
+        if (user.role === 'provider' && req.body.currency !== undefined) {
+            const code = String(req.body.currency).toUpperCase().trim();
+            if (!CURRENCY_CODES.includes(code)) {
+                return res.status(400).json({ success: false, message: 'Unsupported currency' });
+            }
+            if (!user.businessProfile) user.businessProfile = {};
+            user.businessProfile.currency = code;
             user.markModified('businessProfile');
         }
 

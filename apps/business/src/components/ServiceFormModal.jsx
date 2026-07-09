@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { providerServiceService, categoryService } from '../services';
 import { NAMIBIAN_TOWNS } from '../utils/namibiaTowns';
+import { useAuthContext } from '../context/AuthContext';
+import { currencySymbol } from '../utils/currency';
 import { X, Plus, Trash2, Clock } from 'lucide-react';
 
 // Preset durations (minutes) for the dropdown; a service's saved value is added
@@ -28,6 +30,8 @@ const field = { marginBottom: '1.5rem' };
  * calls onSaved().
  */
 const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, onCategoriesChanged }) => {
+    const { user } = useAuthContext();
+    const curSym = currencySymbol(user?.businessProfile?.currency);
     const [form, setForm] = useState(blank);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
@@ -180,7 +184,7 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                         <div>
                             <label style={label}>Price</label>
                             <div style={{ position: 'relative' }}>
-                                <span style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.9rem', pointerEvents: 'none' }}>N$</span>
+                                <span style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.9rem', pointerEvents: 'none' }}>{curSym}</span>
                                 <input className="input" type="number" min="0" step="0.01" disabled={form.priceType === 'free'} value={form.priceType === 'free' ? '' : form.price} onChange={(e) => set({ price: e.target.value })} placeholder="0.00" style={{ paddingLeft: '2.4rem', opacity: form.priceType === 'free' ? 0.5 : 1 }} />
                             </div>
                         </div>
@@ -233,7 +237,7 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                                             <button type="button" onClick={() => set({ options: form.options.filter((_, idx) => idx !== i) })} aria-label="Remove option" style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', padding: '0.3rem' }}><Trash2 size={16} /></button>
                                         </div>
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                                            <input className="input" type="number" min="0" value={opt.price} onChange={(e) => setOption(i, { price: e.target.value })} placeholder="Price (N$)" />
+                                            <input className="input" type="number" min="0" value={opt.price} onChange={(e) => setOption(i, { price: e.target.value })} placeholder={`Price (${curSym})`} />
                                             <input className="input" type="number" min="5" step="5" value={opt.duration} onChange={(e) => setOption(i, { duration: e.target.value })} placeholder="Duration (min)" />
                                         </div>
                                     </div>
