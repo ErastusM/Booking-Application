@@ -58,7 +58,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                 const res = await providerMarketService.getProviderProfile(id);
                 setData(res.data.data);
             } catch {
-                navigate('/services');
+                navigate('/');
             } finally {
                 setLoading(false);
             }
@@ -149,7 +149,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 30% 60%, rgba(240,62,22,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem', gap: '1rem', minHeight: '36px' }}>
-                        <button onClick={() => navigate('/services')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontFamily: 'var(--font-body)', padding: '0.5rem 0.6rem 0.5rem 0', minHeight: '44px', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                        <button onClick={() => navigate('/')} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '0.875rem', fontFamily: 'var(--font-body)', padding: '0.5rem 0.6rem 0.5rem 0', minHeight: '44px', display: 'inline-flex', alignItems: 'center', gap: '0.35rem', whiteSpace: 'nowrap', flexShrink: 0 }}>
                             <ChevronLeft size={16} strokeWidth={2.5} style={{ flexShrink: 0 }} />
                             Back to Services
                         </button>

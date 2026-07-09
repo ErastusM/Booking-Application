@@ -69,7 +69,7 @@ const About = () => {
                             ? 'Manage your bookings, clients and calendar from one elegant workspace.'
                             : 'Browse trusted local businesses and book in seconds.'}
                     </p>
-                    <Link to={user ? (isProvider ? '/dashboard' : '/services') : '/register'} className="btn-primary" style={{ fontSize: '1rem', padding: '0.9rem 2.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                    <Link to={user ? (isProvider ? '/dashboard' : '/') : '/register'} className="btn-primary" style={{ fontSize: '1rem', padding: '0.9rem 2.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
                         {user ? (isProvider ? 'Go to dashboard' : 'Browse providers') : 'Get started'} <ArrowRight size={18} strokeWidth={2} />
                     </Link>
                 </div>

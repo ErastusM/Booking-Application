@@ -124,7 +124,7 @@ const Wallet = () => {
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 1.25rem' }}>
                         A wallet is created the first time you top up with a business or book a service that requires prepayment.
                     </p>
-                    <Link to="/services" className="btn-primary" style={{ textDecoration: 'none', padding: '0.6rem 1.4rem' }}>Browse businesses</Link>
+                    <Link to="/" className="btn-primary" style={{ textDecoration: 'none', padding: '0.6rem 1.4rem' }}>Browse businesses</Link>
                 </div>
             ) : (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>

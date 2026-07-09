@@ -19,7 +19,7 @@ const ProviderProfileBySlug = () => {
         return () => { alive = false; };
     }, [slug]);
 
-    if (notFound) return <Navigate to="/services" replace />;
+    if (notFound) return <Navigate to="/" replace />;
 
     if (!id) {
         return (
