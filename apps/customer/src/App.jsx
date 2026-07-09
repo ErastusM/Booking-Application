@@ -17,7 +17,6 @@ const BookAppointment = lazy(() => import('./pages/BookAppointment'));
 const MyAppointments = lazy(() => import('./pages/MyAppointments'));
 const MyWaitingList = lazy(() => import('./pages/MyWaitingList'));
 const Profile = lazy(() => import('./pages/Profile'));
-const ProvidersPage = lazy(() => import('./pages/ProviderPage'));
 const ProviderProfilePage = lazy(() => import('./pages/ProviderProfilePage'));
 const ProviderProfileBySlug = lazy(() => import('./pages/ProviderProfileBySlug'));
 const AuthCallback = lazy(() => import('./pages/AuthCallBack'));
@@ -66,7 +65,8 @@ function AppRoutes() {
                     <Route path="/" element={<Home />} />
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />
-                    <Route path="/services" element={<ProvidersPage />} />
+                    {/* /services was folded into the home feed (search + category filters). Old links redirect. */}
+                    <Route path="/services" element={<Navigate to="/" replace />} />
                     <Route path="/about" element={<About />} />
                     <Route path="/providers/:id" element={<ProviderProfilePage />} />
                     {/* Shareable public booking link → resolves the slug to the profile */}

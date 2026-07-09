@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { providerMarketService, favoriteService, appointmentService } from '../services';
-import { Search, Star, ArrowRight, Heart, MapPin, Trophy } from 'lucide-react';
+import { Search, Star, ArrowRight, Heart, MapPin } from 'lucide-react';
 import { cloudinaryThumb } from '../utils/cloudinary';
 import { normalizeTown } from '../utils/namibiaTowns';
 import { currencySymbol } from '../utils/currency';
@@ -202,6 +202,10 @@ const Home = () => {
     const [searchLoc, setSearchLoc] = useState('');
     const [searchDate, setSearchDate] = useState('');
     const [searchTime, setSearchTime] = useState('');
+    const [activeCategory, setActiveCategory] = useState(''); // '' = all
+    const [nearMeCity, setNearMeCity] = useState('');
+    const [nearMeLoading, setNearMeLoading] = useState(false);
+    const [openingsMap, setOpeningsMap] = useState(null); // providerId → openings, when a date is set
     const [providers, setProviders] = useState([]);
     const [favorites, setFavorites] = useState([]);
     const [myAppointments, setMyAppointments] = useState([]);
@@ -238,6 +242,42 @@ const Home = () => {
             .catch(() => setProviders([]))
             .finally(() => setLoading(false));
     }, []);
+
+    // Availability-first: when a date (and optional time) is picked, fetch which
+    // businesses have a real opening then, so the feed can narrow to bookable ones.
+    useEffect(() => {
+        if (!searchDate) { setOpeningsMap(null); return; }
+        let stale = false;
+        providerMarketService.searchProviders({ date: searchDate, ...(searchTime && { time: searchTime }) })
+            .then(res => {
+                if (stale) return;
+                const map = {};
+                (res.data.data || []).forEach(r => { map[r.provider] = r; });
+                setOpeningsMap(map);
+            })
+            .catch(() => { if (!stale) setOpeningsMap(null); });
+        return () => { stale = true; };
+    }, [searchDate, searchTime]);
+
+    // "Near me" → resolve the visitor's town once (OSM), then filter by it.
+    const handleNearMe = () => {
+        if (!navigator.geolocation) return;
+        setNearMeLoading(true);
+        navigator.geolocation.getCurrentPosition(
+            async (pos) => {
+                try {
+                    const { latitude, longitude } = pos.coords;
+                    const res = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${latitude}&lon=${longitude}&format=json`, { headers: { 'Accept-Language': 'en' } });
+                    const data = await res.json();
+                    const city = data.address?.city || data.address?.town || data.address?.village || data.address?.state || '';
+                    setNearMeCity(city);
+                    setSearchLoc(city);
+                } catch { /* leave filters unchanged */ } finally { setNearMeLoading(false); }
+            },
+            () => setNearMeLoading(false),
+            { timeout: 8000 }
+        );
+    };
 
     useEffect(() => {
         if (!user) { setFavorites([]); return; }
@@ -356,42 +396,58 @@ const Home = () => {
         ).slice(0, 12);
     }, [providers]);
 
+    // Distinct business categories → the filter chips ("All" + each category).
+    const allCategories = useMemo(
+        () => [...new Set(providers.map(p => p.providerCategory).filter(Boolean))].sort(),
+        [providers]
+    );
+
+    // Any filter that should narrow the feed (and swap the desktop sections for results).
+    const hasActiveFilter = !!(query.trim() || activeCategory || searchLoc || searchDate);
+
+    // The feed = the ranked list, narrowed by the active search / category / location /
+    // availability filters. This replaced the separate /services results page.
+    const filteredProviders = useMemo(() => {
+        let result = discoverFeed;
+        const q = query.trim().toLowerCase();
+        if (q) result = result.filter(p =>
+            (p.businessName || p.name || '').toLowerCase().includes(q) ||
+            (p.location || '').toLowerCase().includes(q) ||
+            (p.providerCategory || '').toLowerCase().includes(q)
+        );
+        if (activeCategory) result = result.filter(p => p.providerCategory === activeCategory);
+        if (searchLoc) result = result.filter(p => (p.location || '').toLowerCase().includes(searchLoc.toLowerCase()));
+        if (openingsMap) result = result.filter(p => openingsMap[p._id]);
+        return result;
+    }, [discoverFeed, query, activeCategory, searchLoc, openingsMap]);
+
     // Infinite scroll: reveal the feed in chunks and pull in more as a sentinel near the
     // bottom scrolls into view — no pagination, no "next page" buttons.
     const PAGE = 6;
     const [visibleCount, setVisibleCount] = useState(PAGE);
     const sentinelRef = useRef(null);
-    const hasMore = visibleCount < discoverFeed.length;
+    const hasMore = visibleCount < filteredProviders.length;
 
-    useEffect(() => { setVisibleCount(PAGE); }, [discoverFeed.length]);
+    useEffect(() => { setVisibleCount(PAGE); }, [filteredProviders]);
 
     useEffect(() => {
         const el = sentinelRef.current;
         if (!el) return;
         const io = new IntersectionObserver(
-            (entries) => { if (entries[0].isIntersecting) setVisibleCount(c => Math.min(c + PAGE, discoverFeed.length)); },
+            (entries) => { if (entries[0].isIntersecting) setVisibleCount(c => Math.min(c + PAGE, filteredProviders.length)); },
             { rootMargin: '700px 0px' }
         );
         io.observe(el);
         return () => io.disconnect();
-    }, [discoverFeed.length, loading]);
+    }, [filteredProviders.length, loading]);
 
-    const handleSearch = (e) => {
-        e.preventDefault();
-        const params = new URLSearchParams();
-        if (query.trim()) params.set('q', query.trim());
-        if (searchLoc) params.set('loc', searchLoc);
-        if (searchDate) params.set('date', searchDate);
-        if (searchDate && searchTime) params.set('time', searchTime);
-        const qs = params.toString();
-        navigate(qs ? `/services?${qs}` : '/services');
-    };
+    // Search filters the feed in place (no navigation) — the results ARE the home now.
+    const handleSearch = (e) => { e.preventDefault(); };
 
-    // Category shortcuts under the hero → the results page, pre-sorted. "For you"
-    // needs an account (it's the saved/recommended lens).
-    const handleChip = (key) => {
-        if (key === 'foryou' && !user) { navigate('/login'); return; }
-        navigate(`/services?sort=${key}`);
+    // Clear every active filter and return to the default feed.
+    const clearFilters = () => {
+        setQuery(''); setActiveCategory(''); setSearchLoc(''); setNearMeCity('');
+        setSearchDate(''); setSearchTime('');
     };
 
     return (
@@ -466,43 +522,39 @@ const Home = () => {
                 </div>
             </div>
 
-            {/* ── Category shortcuts — Popular / Near you / Top rated / For you ── */}
+            {/* ── Filters — Near me + category pills. Narrow the feed in place. ── */}
             <div className="container" style={{ paddingTop: '0.9rem' }}>
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.6rem' }}>
-                    {[
-                        { key: 'popular', label: 'Popular', icon: <Star size={20} strokeWidth={2} /> },
-                        { key: 'nearby', label: 'Near you', icon: <MapPin size={20} strokeWidth={2} /> },
-                        { key: 'top', label: 'Top rated', icon: <Trophy size={20} strokeWidth={2} /> },
-                        { key: 'foryou', label: 'For you', icon: <Heart size={20} strokeWidth={2} /> },
-                    ].map(chip => (
-                        <button
-                            key={chip.key}
-                            type="button"
-                            onClick={() => handleChip(chip.key)}
-                            className="home-chip"
-                            style={{
-                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.45rem',
-                                padding: '0.85rem 0.35rem', borderRadius: '16px',
-                                background: 'var(--card-bg)', border: '1px solid var(--border)',
-                                boxShadow: 'var(--shadow-sm)', cursor: 'pointer',
-                                fontFamily: 'var(--font-body)', minWidth: 0,
-                            }}
-                        >
-                            <span style={{ color: 'var(--gold)', display: 'flex' }}>{chip.icon}</span>
-                            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{chip.label}</span>
-                        </button>
-                    ))}
+                <div className="home-filter-row" style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.35rem', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
+                    <button
+                        type="button"
+                        onClick={handleNearMe}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0, padding: '0.5rem 0.95rem', borderRadius: '999px', border: `1px solid ${nearMeCity ? 'var(--gold)' : 'var(--border)'}`, background: nearMeCity ? 'rgba(240,62,22,0.10)' : 'var(--card-bg)', color: nearMeCity ? 'var(--gold-dark)' : 'var(--charcoal)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', boxShadow: 'var(--shadow-sm)' }}
+                    >
+                        <MapPin size={15} strokeWidth={2} /> {nearMeLoading ? 'Locating…' : (nearMeCity || 'Near me')}
+                    </button>
+                    {['', ...allCategories].map(cat => {
+                        const active = activeCategory === cat;
+                        return (
+                            <button
+                                key={cat || 'all'}
+                                type="button"
+                                onClick={() => setActiveCategory(cat)}
+                                style={{ flexShrink: 0, padding: '0.5rem 0.95rem', borderRadius: '999px', border: `1px solid ${active ? 'var(--gold)' : 'var(--border)'}`, background: active ? 'var(--charcoal)' : 'var(--card-bg)', color: active ? '#fff' : 'var(--charcoal)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', boxShadow: 'var(--shadow-sm)' }}
+                            >
+                                {cat || 'All'}
+                            </button>
+                        );
+                    })}
                 </div>
             </div>
 
             {/* ── Featured businesses — desktop-only card row. On mobile the Instagram
                  feed below is the whole story, so this is hidden there. ── */}
-            {!loading && featuredBusinesses.length > 0 && (
+            {!loading && !hasActiveFilter && featuredBusinesses.length > 0 && (
                 <section className="home-desktop-only" style={{ paddingTop: '1.25rem' }}>
                     <div className="container">
                         <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.9rem', gap: '1rem' }}>
                             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.35rem, 3vw, 1.7rem)', fontWeight: 700, color: 'var(--charcoal)', margin: 0 }}>Featured businesses</h2>
-                            <Link to="/services" style={{ color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.85rem', textDecoration: 'none', flexShrink: 0, whiteSpace: 'nowrap' }}>See all →</Link>
                         </div>
                         <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', scrollSnapType: 'x mandatory', paddingBottom: '0.5rem', WebkitOverflowScrolling: 'touch' }}>
                             {featuredBusinesses.map(p => (
@@ -516,6 +568,26 @@ const Home = () => {
             {/* ── Desktop: Fresha-style sections (hidden on mobile) ── */}
             <section className="home-sections-desktop" style={{ paddingTop: '0.75rem', paddingBottom: '3rem' }}>
                 <div className="container">
+                    {hasActiveFilter ? (
+                        <>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.55rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 1.1rem' }}>
+                                {filteredProviders.length} {filteredProviders.length === 1 ? 'business' : 'businesses'}{activeCategory ? ` · ${activeCategory}` : ''}
+                            </h2>
+                            {filteredProviders.length === 0 ? (
+                                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                                    <p style={{ margin: '0 0 0.85rem', fontSize: '0.95rem' }}>No businesses match your filters.</p>
+                                    <button onClick={clearFilters} className="btn-outline" style={{ padding: '0.5rem 1.25rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: 700 }}>Clear filters</button>
+                                </div>
+                            ) : (
+                                <div className="home-section-grid">
+                                    {filteredProviders.map(p => (
+                                        <FeedCard key={`res-${p._id}`} p={p} isFav={favSet.has(String(p._id))} likeCount={likeCountFor(p)} onToggleFav={toggleFav} />
+                                    ))}
+                                </div>
+                            )}
+                        </>
+                    ) : (
+                      <>
                     {/* Book again — one-tap rebooks from the user's own history */}
                     {!loading && bookAgainItems.length > 0 && (
                         <div style={{ marginBottom: '2.75rem' }}>
@@ -576,14 +648,22 @@ const Home = () => {
                             </div>
                         </div>
                     ))}
+                      </>
+                    )}
                 </div>
             </section>
 
             {/* ── Discover feed (vertical, photo-rich) — the primary MOBILE home feed ── */}
             <section className="home-feed-mobile" style={{ paddingTop: '0.5rem', paddingBottom: '3.5rem' }}>
                 <div className="container">
-                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.4rem' }}>Discover</h2>
-                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 1.5rem' }}>Browse businesses near you — swipe their photos, tap to book.</p>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.4rem' }}>
+                        {hasActiveFilter ? `${filteredProviders.length} ${filteredProviders.length === 1 ? 'result' : 'results'}` : 'Discover'}
+                    </h2>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 1.5rem' }}>
+                        {hasActiveFilter
+                            ? <>Matching your search{activeCategory ? ` · ${activeCategory}` : ''}. <button onClick={clearFilters} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--gold-dark)', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.9rem' }}>Clear</button></>
+                            : 'Browse businesses near you — swipe their photos, tap to book.'}
+                    </p>
                     <div className="discover-feed">
                         {loading ? (
                             [0, 1, 2].map(i => (
@@ -595,13 +675,16 @@ const Home = () => {
                                     </div>
                                 </div>
                             ))
-                        ) : providers.length === 0 ? (
+                        ) : filteredProviders.length === 0 ? (
                             <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                                <p style={{ margin: 0, fontSize: '0.95rem' }}>New businesses are joining soon. Check back shortly.</p>
+                                <p style={{ margin: hasActiveFilter ? '0 0 0.85rem' : 0, fontSize: '0.95rem' }}>
+                                    {hasActiveFilter ? 'No businesses match your filters.' : 'New businesses are joining soon. Check back shortly.'}
+                                </p>
+                                {hasActiveFilter && <button onClick={clearFilters} className="btn-outline" style={{ padding: '0.5rem 1.25rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: 700 }}>Clear filters</button>}
                             </div>
                         ) : (
                             <>
-                                {discoverFeed.slice(0, visibleCount).map(p => (
+                                {filteredProviders.slice(0, visibleCount).map(p => (
                                     <FeedCard key={p._id} p={p} isFav={favSet.has(String(p._id))} likeCount={likeCountFor(p)} onToggleFav={toggleFav} />
                                 ))}
                                 {hasMore && (
@@ -609,7 +692,7 @@ const Home = () => {
                                         <div style={{ width: '26px', height: '26px', border: '3px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
                                     </div>
                                 )}
-                                {!hasMore && discoverFeed.length > PAGE && (
+                                {!hasMore && filteredProviders.length > PAGE && (
                                     <p style={{ textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.82rem', padding: '0.75rem 0 0' }}>You're all caught up ✨</p>
                                 )}
                             </>
@@ -626,8 +709,8 @@ const Home = () => {
                         <span style={{ color: 'white', fontWeight: '700' }}>{user?.role === 'provider' ? 'Grow your business with Bookplus.' : 'Ready when you are.'}</span>{' '}
                         {user?.role === 'provider' ? 'Run everything from one workspace.' : 'Find a business, pick a time, and you’re booked.'}
                     </p>
-                    <Link to={user ? (user.role === 'provider' ? '/dashboard' : '/services') : '/register'} className="btn-primary" style={{ fontSize: '0.9rem', padding: '0.6rem 1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
-                        {user ? (user.role === 'provider' ? 'Go to dashboard' : 'Browse businesses') : 'Get started'} <ArrowRight size={16} strokeWidth={2} />
+                    <Link to={user ? (user.role === 'provider' ? '/dashboard' : '/book-appointment') : '/register'} className="btn-primary" style={{ fontSize: '0.9rem', padding: '0.6rem 1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                        {user ? (user.role === 'provider' ? 'Go to dashboard' : 'Book an appointment') : 'Get started'} <ArrowRight size={16} strokeWidth={2} />
                     </Link>
                 </div>
             </section>
