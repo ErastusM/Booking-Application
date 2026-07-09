@@ -333,6 +333,19 @@ const Home = () => {
         { key: 'top', title: 'Top rated', sub: 'The highest scores from real clients', items: providers.filter(x => x.avgRating != null).sort((a, b) => b.avgRating - a.avgRating).slice(0, 8) },
     ]).filter(sec => sec.items.length > 0), [providers, discoverFeed]);
 
+    // Featured businesses — a photo-rich horizontal row right under the hero so the
+    // home always leads with real, tappable businesses (prefer ones with a cover
+    // photo; ranked by rating, then likes/reviews).
+    const featuredBusinesses = useMemo(() => {
+        const withPhoto = providers.filter(p => p.coverImage || p.avatar);
+        const pool = withPhoto.length ? withPhoto : providers;
+        return [...pool].sort((a, b) =>
+            (b.avgRating || 0) - (a.avgRating || 0)
+            || (b.likesCount || 0) - (a.likesCount || 0)
+            || (b.reviewCount || 0) - (a.reviewCount || 0)
+        ).slice(0, 12);
+    }, [providers]);
+
     // Infinite scroll: reveal the feed in chunks and pull in more as a sentinel near the
     // bottom scrolls into view — no pagination, no "next page" buttons.
     const PAGE = 6;
@@ -439,6 +452,23 @@ const Home = () => {
                     )}
                 </div>
             </div>
+
+            {/* ── Featured businesses — photo-rich row right under the hero (all viewports) ── */}
+            {!loading && featuredBusinesses.length > 0 && (
+                <section style={{ paddingTop: '1.25rem' }}>
+                    <div className="container">
+                        <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', marginBottom: '0.9rem', gap: '1rem' }}>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.35rem, 3vw, 1.7rem)', fontWeight: 700, color: 'var(--charcoal)', margin: 0 }}>Featured businesses</h2>
+                            <Link to="/services" style={{ color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.85rem', textDecoration: 'none', flexShrink: 0, whiteSpace: 'nowrap' }}>See all →</Link>
+                        </div>
+                        <div style={{ display: 'flex', gap: '1rem', overflowX: 'auto', scrollSnapType: 'x mandatory', paddingBottom: '0.5rem', WebkitOverflowScrolling: 'touch' }}>
+                            {featuredBusinesses.map(p => (
+                                <ProviderCard key={`feat-${p._id}`} p={p} isFav={favSet.has(String(p._id))} onToggleFav={toggleFav} />
+                            ))}
+                        </div>
+                    </div>
+                </section>
+            )}
 
             {/* ── Desktop: Fresha-style sections (hidden on mobile) ── */}
             <section className="home-sections-desktop" style={{ paddingTop: '0.75rem', paddingBottom: '3rem' }}>
