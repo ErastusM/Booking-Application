@@ -87,8 +87,8 @@ const Navbar = () => {
     <>
         {/* Dark backdrop behind the status bar so its white text stays legible in light mode too (installed PWA).
             Height is the safe-area inset, so it collapses to nothing in a normal browser. */}
-        <div aria-hidden="true" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'env(safe-area-inset-top, 0px)', background: darkMode ? '#0a0a0b' : '#040505', zIndex: 1300, pointerEvents: 'none', display: hideTopNav ? 'none' : 'block' }} />
-        <nav style={{ ...navStyles, display: hideTopNav ? 'none' : 'block' }}>
+        <div aria-hidden="true" className="app-statusbar-bg" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'env(safe-area-inset-top, 0px)', background: darkMode ? '#0a0a0b' : '#040505', zIndex: 1300, pointerEvents: 'none', display: hideTopNav ? 'none' : 'block' }} />
+        <nav className="app-topnav" style={{ ...navStyles, display: hideTopNav ? 'none' : 'block' }}>
             <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px' }}>
 
                 {/* Logo */}
