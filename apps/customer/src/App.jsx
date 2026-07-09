@@ -4,6 +4,7 @@ import { AuthProvider } from './context/AuthContext';
 import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
+import AppUpdater from './components/AppUpdater';
 import ProtectedRoute from './components/ProtectedRoute';
 import Home from './pages/Home';
 import Login from './pages/Login';
@@ -125,6 +126,7 @@ function App() {
         <Router>
             <ThemeProvider>
             <AuthProvider>
+                <AppUpdater />
                 <Navbar />
                 <AppRoutes />
                 <FooterGate />
