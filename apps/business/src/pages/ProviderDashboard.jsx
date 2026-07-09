@@ -1161,7 +1161,7 @@ const ProviderDashboard = () => {
             )}
 
             {/* Header */}
-            <div className="provider-header" style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
+            <div className="provider-header" style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '1.75rem', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 70% 40%, rgba(240,62,22,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>{todayLabel}</p>
@@ -1182,23 +1182,10 @@ const ProviderDashboard = () => {
                 </div>
             </div>
 
-            <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
+            <div className="container" style={{ paddingTop: '1.5rem', paddingBottom: '5rem' }}>
 
                 <EnablePushBanner />
                 <SetupChecklistNudge />
-
-                {/* Stats */}
-                <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
-                    {stats.map((s, i) => (
-                        <div key={i} className="card scale-in" style={{ animationDelay: `${i * 40}ms`, padding: '1.2rem 1.4rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                            <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><s.Icon size={20} strokeWidth={2} /></div>
-                            <div>
-                                <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</p>
-                                <p className="tnum" style={{ fontFamily: 'var(--font-display)', fontSize: '1.85rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
 
                 {error && (
                     <div role="alert" style={{ background: 'var(--danger-bg)', border: '1px solid #fca5a5', color: 'var(--danger-fg)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
@@ -1213,61 +1200,9 @@ const ProviderDashboard = () => {
                     </div>
                 )}
 
-                {/* Tabs — single scrollable strip — Calendar always first */}
-                <div className="tab-strip" style={{ display: 'flex', gap: '0.5rem', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem', overflowX: 'auto', WebkitOverflowScrolling: 'touch', paddingBottom: '0.35rem' }}>
-                    {/* Calendar first */}
-                    <button onClick={() => setActiveTab('calendar')} style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                        padding: '0.65rem 1rem', background: activeTab === 'calendar' ? 'rgba(240,62,22,0.12)' : 'transparent', border: '1px solid',
-                        borderColor: activeTab === 'calendar' ? 'var(--gold)' : 'var(--border)',
-                        borderRadius: '999px', color: activeTab === 'calendar' ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                        fontWeight: activeTab === 'calendar' ? '700' : '500', fontSize: '0.85rem',
-                        cursor: 'pointer', fontFamily: 'var(--font-body)',
-                        transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
-                    }}><Calendar size={15} strokeWidth={2} /> Calendar</button>
-                    {/* Appointment status tabs */}
-                    {appointmentTabs.map(tab => (
-                        <button key={tab} onClick={() => setActiveTab(tab)} style={{
-                            padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(240,62,22,0.12)' : 'transparent', border: '1px solid',
-                            borderColor: activeTab === tab ? 'var(--gold)' : 'var(--border)',
-                            borderRadius: '999px', color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                            fontWeight: activeTab === tab ? '700' : '500', fontSize: '0.85rem',
-                            cursor: 'pointer', fontFamily: 'var(--font-body)',
-                            textTransform: 'capitalize', transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
-                        }}>
-                            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-                            {counts[tab] > 0 && (
-                                <span style={{ marginLeft: '0.4rem', background: activeTab === tab ? 'var(--gold)' : 'var(--warm-gray)', color: activeTab === tab ? 'var(--charcoal)' : 'var(--text-muted)', fontSize: '0.7rem', fontWeight: '700', padding: '0.1rem 0.45rem', borderRadius: '99px' }}>
-                                    {counts[tab]}
-                                </span>
-                            )}
-                        </button>
-                    ))}
-                    {/* History tab */}
-                    <button onClick={() => setActiveTab('history')} style={{
-                        display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                        padding: '0.65rem 1rem', background: activeTab === 'history' ? 'rgba(240,62,22,0.12)' : 'transparent', border: '1px solid',
-                        borderColor: activeTab === 'history' ? 'var(--gold)' : 'var(--border)',
-                        borderRadius: '999px', color: activeTab === 'history' ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                        fontWeight: activeTab === 'history' ? '700' : '500', fontSize: '0.85rem',
-                        cursor: 'pointer', fontFamily: 'var(--font-body)',
-                        transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
-                    }}><History size={15} strokeWidth={2} /> History</button>
-                    {/* Other feature tabs */}
-                    {[['services','Catalogue',Scissors],['availability','Availability',CalendarClock],['overview','Overview',LayoutDashboard],['waitlist','Waiting List',Clock],['insights','Insights',BarChart3],['clients','Clients',Users],['wallet','Wallet',WalletIcon],['forms','Forms',ClipboardList],['messages','Messages',MessageSquare],['memberships','Memberships',Ticket],['team','Team',UserCog]].map(([tab, label, Icon]) => (
-                        <button key={tab} onClick={() => setActiveTab(tab)} style={{
-                            display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
-                            padding: '0.65rem 1rem', background: activeTab === tab ? 'rgba(240,62,22,0.12)' : 'transparent', border: '1px solid',
-                            borderColor: activeTab === tab ? 'var(--gold)' : 'var(--border)',
-                            borderRadius: '999px', color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                            fontWeight: activeTab === tab ? '700' : '500', fontSize: '0.85rem',
-                            cursor: 'pointer', fontFamily: 'var(--font-body)',
-                            transition: 'all 0.2s', whiteSpace: 'nowrap', flexShrink: 0,
-                        }}>
-                            <Icon size={15} strokeWidth={2} /> {label}
-                        </button>
-                    ))}
-                </div>
+                {/* The in-page tab strip was removed — navigation now lives in the top
+                    nav (Calendar / Clients / Earnings / Catalogue / More) and Settings,
+                    reaching each view via /dashboard?tab=. */}
 
                 {/* Appointment tabs */}
                 {appointmentTabs.includes(activeTab) && (
@@ -2055,7 +1990,7 @@ const ProviderDashboard = () => {
                         </button>
                         <div className="fc-toolbar-shell" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
                             <div style={{ display: 'inline-flex', background: 'var(--surface-sunken)', border: '1px solid var(--border)', borderRadius: '10px', padding: '3px', gap: '2px' }}>
-                                {[['day', 'Day'], ['3day', '3 Day'], ['week', 'Week'], ['month', 'Month']].map(([view, label]) => {
+                                {[['day', 'Day'], ['week', 'Week'], ['month', 'Month']].map(([view, label]) => {
                                     const isActive = calendarView === view;
                                     return (
                                         <button
@@ -2110,7 +2045,7 @@ const ProviderDashboard = () => {
                                 initialView={getFullCalendarView()}
                                 initialDate={currentDate}
                                 views={{ timeGridThreeDay: { type: 'timeGrid', duration: { days: 3 }, buttonText: '3 day' } }}
-                                headerToolbar={{ left: 'prev,next today', center: 'title', right: '' }}
+                                headerToolbar={{ left: 'prev,next', center: 'title', right: '' }}
                                 height={calendarView === 'month' ? 'auto' : 680}
                                 events={fullCalendarEvents}
                                 businessHours={businessHoursConfig}
