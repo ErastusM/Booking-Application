@@ -34,6 +34,10 @@ const Navbar = () => {
     const hideBottomNav = location.pathname === '/book-appointment'
         || location.pathname.startsWith('/providers/')
         || location.pathname.startsWith('/b/');
+    // The provider profile is a full-bleed, Fresha-style page: its own floating
+    // back/share/save buttons replace the top bar, so hide the global navbar there.
+    const hideTopNav = location.pathname.startsWith('/providers/')
+        || location.pathname.startsWith('/b/');
     // The transparent navbar uses white text/icons, which only reads on a DARK hero.
     // The home hero is light in light mode, so only go transparent in dark mode —
     // otherwise the white icons vanish against the light hero (scrolled-to-top bug).
@@ -83,8 +87,8 @@ const Navbar = () => {
     <>
         {/* Dark backdrop behind the status bar so its white text stays legible in light mode too (installed PWA).
             Height is the safe-area inset, so it collapses to nothing in a normal browser. */}
-        <div aria-hidden="true" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'env(safe-area-inset-top, 0px)', background: darkMode ? '#0a0a0b' : '#040505', zIndex: 1300, pointerEvents: 'none' }} />
-        <nav style={navStyles}>
+        <div aria-hidden="true" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'env(safe-area-inset-top, 0px)', background: darkMode ? '#0a0a0b' : '#040505', zIndex: 1300, pointerEvents: 'none', display: hideTopNav ? 'none' : 'block' }} />
+        <nav style={{ ...navStyles, display: hideTopNav ? 'none' : 'block' }}>
             <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px' }}>
 
                 {/* Logo */}
