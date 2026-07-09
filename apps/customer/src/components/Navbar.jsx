@@ -287,7 +287,6 @@ const Navbar = () => {
 
                     <div style={{ flex: 1, padding: '0.6rem 0' }}>
                         {mobileLink('/', 'Home')}
-                        {mobileLink('/services', 'Services')}
                         {mobileLink('/about', 'About us')}
                         {user && mobileLink('/book-appointment', 'Book Appointment')}
                         {user && mobileLink('/appointments', 'My Appointments')}
@@ -371,9 +370,6 @@ const Navbar = () => {
                     {[
                         { to: '/', label: 'Home', icon: (
                             <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 01-2 2H5a2 2 0 01-2-2z"/></svg>
-                        ) },
-                        { to: '/services', label: 'Book', icon: (
-                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M8 14h.01M12 14h.01M16 14h.01M8 18h.01M12 18h.01"/></svg>
                         ) },
                         { to: '/appointments', label: 'Bookings', icon: (
                             <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></svg>
