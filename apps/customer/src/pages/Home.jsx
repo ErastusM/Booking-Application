@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { providerMarketService, favoriteService, appointmentService } from '../services';
-import { Search, Star, ArrowRight, Heart, MapPin } from 'lucide-react';
+import { Search, Star, ArrowRight, Heart, MapPin, Trophy } from 'lucide-react';
 import { cloudinaryThumb } from '../utils/cloudinary';
 import { normalizeTown } from '../utils/namibiaTowns';
 
@@ -19,7 +19,7 @@ const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
         >
             <div className="home-provider-card__media" style={{ position: 'relative', aspectRatio: '4 / 3', borderRadius: '16px', overflow: 'hidden', background: cover ? 'var(--warm-gray)' : 'linear-gradient(135deg, #1c1c1e 0%, #040505 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}>
                 {cover
-                    ? <img src={cloudinaryThumb(cover, 800)} alt={p.businessName || p.name} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
+                    ? <img key={`${p._id}-cover`} src={cloudinaryThumb(cover, 800)} alt={p.businessName || p.name} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
                     : <span style={{ fontFamily: 'var(--font-display)', fontSize: '2.6rem', fontWeight: '700', color: 'var(--gold)' }}>{initial}</span>}
                 {badge && (
                     <span style={{ position: 'absolute', top: '10px', left: '10px', background: badge === 'New' ? 'var(--ink)' : 'rgba(255,255,255,0.95)', color: badge === 'New' ? '#fff' : 'var(--charcoal)', fontSize: '0.7rem', fontWeight: '700', padding: '3px 10px', borderRadius: '999px' }}>{badge}</span>
@@ -118,7 +118,10 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
                 {hasPhotos ? (
                     <div className="feed-carousel" onScroll={e => setIdx(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))} style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', cursor: 'pointer' }}>
                         {photos.map((src, i) => (
-                            <img key={i} src={cloudinaryThumb(src, 1000)} alt={`${p.businessName || p.name} photo ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" className="feed-media-img" style={{ flex: '0 0 100%', width: '100%', aspectRatio: '4 / 5', objectFit: 'cover', scrollSnapAlign: 'start', display: 'block', background: 'var(--warm-gray)' }} />
+                            // Key by provider id + src (not the array index) so a different
+                            // business's photo never reuses this <img> node and paints the
+                            // wrong company's picture during a re-render.
+                            <img key={`${id}-${src}`} src={cloudinaryThumb(src, 1000)} alt={`${p.businessName || p.name} photo ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" className="feed-media-img" style={{ flex: '0 0 100%', width: '100%', aspectRatio: '4 / 5', objectFit: 'cover', scrollSnapAlign: 'start', display: 'block', background: 'var(--warm-gray)' }} />
                         ))}
                     </div>
                 ) : (
@@ -293,10 +296,14 @@ const Home = () => {
 
     const favSet = useMemo(() => new Set(favorites), [favorites]);
 
-    // One heart = private save + public like. Optimistically flip the save state AND the
-    // displayed like count, then reconcile with the server (revert both on failure).
-    const bumpLike = (id, delta) => setProviders(prev => prev.map(p =>
-        String(p._id) === id ? { ...p, likesCount: Math.max(0, (p.likesCount || 0) + delta) } : p));
+    // One heart = private save + public like. We keep the optimistic like as a DELTA
+    // overlay ({[id]: +/-n}) instead of mutating the providers array. Mutating providers
+    // would re-run the likes-based sort memos (Featured/Trending/Discover), physically
+    // reordering the card under the user's finger — and reused image DOM nodes would then
+    // show a neighbouring business's photo. The delta keeps counts live without reordering.
+    const [likeDelta, setLikeDelta] = useState({});
+    const bumpLike = (id, delta) => setLikeDelta(prev => ({ ...prev, [id]: (prev[id] || 0) + delta }));
+    const likeCountFor = (p) => Math.max(0, (p.likesCount || 0) + (likeDelta[String(p._id)] || 0));
 
     const toggleFav = async (e, id) => {
         e.preventDefault();
@@ -377,6 +384,13 @@ const Home = () => {
         navigate(qs ? `/services?${qs}` : '/services');
     };
 
+    // Category shortcuts under the hero → the results page, pre-sorted. "For you"
+    // needs an account (it's the saved/recommended lens).
+    const handleChip = (key) => {
+        if (key === 'foryou' && !user) { navigate('/login'); return; }
+        navigate(`/services?sort=${key}`);
+    };
+
     return (
         <div style={{ background: 'var(--off-white)' }}>
 
@@ -384,19 +398,13 @@ const Home = () => {
             <section className="home-hero" style={{ position: 'relative', overflow: 'hidden', background: 'var(--off-white)' }}>
                 <div aria-hidden="true" className="home-hero-wash" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
                 <div ref={heroCopyRef} className="container" style={{ position: 'relative', textAlign: 'center', maxWidth: '860px', marginLeft: 'auto', marginRight: 'auto', willChange: 'opacity' }}>
-                    <p className="fade-up home-hero-eyebrow" style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '1.1rem' }}>Premium booking, simplified</p>
+                    <p className="fade-up home-hero-eyebrow" style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '1.1rem' }}>One platform</p>
                     <h1 className="fade-up fade-up-delay-1" style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.6rem, 6.2vw, 4.6rem)', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1.05, letterSpacing: '-0.02em', margin: '0 0 1.25rem' }}>
-                        Book trusted <span style={{ color: 'var(--gold)' }}>local services</span>
+                        All the best services.<br /><span style={{ color: 'var(--gold)' }}>Anywhere.</span>
                     </h1>
-                    <p className="fade-up fade-up-delay-2 home-hero-sub" style={{ color: 'var(--text-secondary)', fontSize: 'clamp(1rem, 2vw, 1.2rem)', lineHeight: 1.65, maxWidth: '680px', margin: '0 auto 1.25rem' }}>
-                        Discover top-rated salons, barbers, wellness studios, automotive services and more — booked in seconds.
+                    <p className="fade-up fade-up-delay-2 home-hero-sub" style={{ color: 'var(--text-secondary)', fontSize: 'clamp(1rem, 2vw, 1.2rem)', lineHeight: 1.65, maxWidth: '680px', margin: '0 auto 0' }}>
+                        Book trusted professionals for any service, anytime.
                     </p>
-                    <div style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                        <span style={{ display: 'inline-flex', gap: '1px' }}>
-                            {[0, 1, 2, 3, 4].map(i => <Star key={i} size={14} fill="#f03e16" strokeWidth={0} />)}
-                        </span>
-                        Loved by clients across Namibia
-                    </div>
                 </div>
             </section>
 
@@ -414,7 +422,7 @@ const Home = () => {
                         <input
                             value={query}
                             onChange={e => setQuery(e.target.value)}
-                            placeholder="All treatments and venues"
+                            placeholder="Search services or businesses"
                             aria-label="Search services or businesses"
                             style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: '1rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}
                         />
@@ -441,7 +449,9 @@ const Home = () => {
                                 ))}
                             </select>
                         </div>
-                        <button type="submit" className="btn-primary" style={{ borderRadius: '999px', padding: '0.7rem 1.6rem', flexShrink: 0 }}>Search</button>
+                        <button type="submit" aria-label="Search" className="btn-primary" style={{ borderRadius: '50%', width: '46px', height: '46px', padding: 0, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                            <ArrowRight size={21} strokeWidth={2.5} />
+                        </button>
                     </form>
                     {/* Honest live stat, Fresha-style placement */}
                     {!loading && providers.length > 0 && (
@@ -450,6 +460,35 @@ const Home = () => {
                             <strong style={{ color: 'var(--charcoal)', fontWeight: 700 }}>{providers.length}</strong> local business{providers.length !== 1 ? 'es' : ''} — booked in seconds
                         </p>
                     )}
+                </div>
+            </div>
+
+            {/* ── Category shortcuts — Popular / Near you / Top rated / For you ── */}
+            <div className="container" style={{ paddingTop: '0.9rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '0.6rem' }}>
+                    {[
+                        { key: 'popular', label: 'Popular', icon: <Star size={20} strokeWidth={2} /> },
+                        { key: 'nearby', label: 'Near you', icon: <MapPin size={20} strokeWidth={2} /> },
+                        { key: 'top', label: 'Top rated', icon: <Trophy size={20} strokeWidth={2} /> },
+                        { key: 'foryou', label: 'For you', icon: <Heart size={20} strokeWidth={2} /> },
+                    ].map(chip => (
+                        <button
+                            key={chip.key}
+                            type="button"
+                            onClick={() => handleChip(chip.key)}
+                            className="home-chip"
+                            style={{
+                                display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.45rem',
+                                padding: '0.85rem 0.35rem', borderRadius: '16px',
+                                background: 'var(--card-bg)', border: '1px solid var(--border)',
+                                boxShadow: 'var(--shadow-sm)', cursor: 'pointer',
+                                fontFamily: 'var(--font-body)', minWidth: 0,
+                            }}
+                        >
+                            <span style={{ color: 'var(--gold)', display: 'flex' }}>{chip.icon}</span>
+                            <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>{chip.label}</span>
+                        </button>
+                    ))}
                 </div>
             </div>
 
@@ -511,7 +550,7 @@ const Home = () => {
                             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.55rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 1.1rem' }}>Recently viewed</h2>
                             <div className="home-section-grid">
                                 {recentlyViewed.map(x => (
-                                    <FeedCard key={`recent-${x._id}`} p={x} isFav={favSet.has(String(x._id))} likeCount={x.likesCount || 0} onToggleFav={toggleFav} />
+                                    <FeedCard key={`recent-${x._id}`} p={x} isFav={favSet.has(String(x._id))} likeCount={likeCountFor(x)} onToggleFav={toggleFav} />
                                 ))}
                             </div>
                         </div>
@@ -528,7 +567,7 @@ const Home = () => {
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: '0 0 1.1rem' }}>{sec.sub}</p>
                             <div className="home-section-grid">
                                 {sec.items.map(x => (
-                                    <FeedCard key={`${sec.key}-${x._id}`} p={x} isFav={favSet.has(String(x._id))} likeCount={x.likesCount || 0} onToggleFav={toggleFav} />
+                                    <FeedCard key={`${sec.key}-${x._id}`} p={x} isFav={favSet.has(String(x._id))} likeCount={likeCountFor(x)} onToggleFav={toggleFav} />
                                 ))}
                             </div>
                         </div>
@@ -559,7 +598,7 @@ const Home = () => {
                         ) : (
                             <>
                                 {discoverFeed.slice(0, visibleCount).map(p => (
-                                    <FeedCard key={p._id} p={p} isFav={favSet.has(String(p._id))} likeCount={p.likesCount || 0} onToggleFav={toggleFav} />
+                                    <FeedCard key={p._id} p={p} isFav={favSet.has(String(p._id))} likeCount={likeCountFor(p)} onToggleFav={toggleFav} />
                                 ))}
                                 {hasMore && (
                                     <div ref={sentinelRef} style={{ display: 'flex', justifyContent: 'center', padding: '1.25rem 0' }}>
