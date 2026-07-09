@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { authService, availabilityService, providerServiceService } from '../services';
 import { uploadToCloudinary } from '../utils/uploadImage';
 import { cloudinaryAvatar, cloudinaryThumb } from '../utils/cloudinary';
+import { CURRENCIES } from '../utils/currency';
 import MapPicker, { MAPS_KEY, reverseGeocode } from './MapPicker';
 import { MapPin, Clock, Scissors, Camera, LinkIcon, Check, Copy, Share2, ArrowLeft, Plus, X } from 'lucide-react';
 
@@ -37,6 +38,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
 
     // Step data
     const [businessName, setBusinessName] = useState(user?.businessProfile?.businessName || user?.name || '');
+    const [currency, setCurrency] = useState(user?.businessProfile?.currency || 'NAD');
     const [address, setAddress] = useState(user?.businessProfile?.address || '');
     const [coordinates, setCoordinates] = useState(
         user?.businessProfile?.coordinates?.lat != null ? user.businessProfile.coordinates : null
@@ -88,7 +90,10 @@ const OnboardingWizard = ({ user, onComplete }) => {
         setError('');
         try {
             if (current.id === 'welcome') {
-                if (businessName.trim()) await authService.updateProfile({ businessName: businessName.trim() });
+                await authService.updateProfile({
+                    ...(businessName.trim() && { businessName: businessName.trim() }),
+                    currency,
+                });
             } else if (current.id === 'address') {
                 await authService.updateProfile({ address: address.trim(), coordinates: coordinates || null });
             } else if (current.id === 'hours') {
@@ -202,6 +207,13 @@ const OnboardingWizard = ({ user, onComplete }) => {
                             </p>
                             <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Business name</label>
                             <input className="input" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="e.g. The Vibe Barbershop" style={{ fontSize: '1rem' }} />
+                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', margin: '1.1rem 0 0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Currency</label>
+                            <select className="input" value={currency} onChange={(e) => setCurrency(e.target.value)} style={{ fontSize: '1rem' }} aria-label="Currency">
+                                {CURRENCIES.map((c) => (
+                                    <option key={c.code} value={c.code}>{c.symbol} · {c.name} ({c.code})</option>
+                                ))}
+                            </select>
+                            <p style={{ margin: '0.4rem 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Prices across your booking page and earnings show in this currency.</p>
                             <ul style={{ listStyle: 'none', padding: 0, margin: '1.75rem 0 0', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                 {['Set your location & hours', 'Add your services and prices', 'Get a shareable booking link'].map((t) => (
                                     <li key={t} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', color: 'var(--text-secondary)', fontSize: '0.92rem' }}>

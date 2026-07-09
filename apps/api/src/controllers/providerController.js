@@ -119,6 +119,7 @@ exports.getAllProviders = async (req, res) => {
                 likesCount: Math.max(0, p.businessProfile?.likesCount || 0),
                 createdAt: p.createdAt,
                 providerCategory: p.providerCategory || null,
+                currency: p.businessProfile?.currency || 'NAD',
                 serviceCount: services.length,
                 reviewCount: ratings.length,
                 avgRating,
@@ -187,6 +188,7 @@ async function buildProviderProfilePayload(provider) {
             name: provider.name,
             avatar: provider.avatar,
             providerCategory: provider.providerCategory || null,
+            currency: provider.businessProfile?.currency || 'NAD',
             businessProfile: provider.businessProfile || null,
             address: provider.businessProfile?.address || '',
             // Contact + visual fields for the social-style profile page

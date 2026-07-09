@@ -92,6 +92,9 @@ const userSchema = new mongoose.Schema(
         googleCalendarEmbedUrl: { type: String, default: '' },
         businessProfile: {
             businessName: { type: String, default: '' },
+            // ISO-4217 currency the business prices in (chosen at onboarding —
+            // Bookplus is international). Symbol/format derived from this code.
+            currency: { type: String, default: 'NAD', uppercase: true, trim: true },
             // Short tagline shown on discovery cards + the public profile.
             description: { type: String, default: '', maxlength: 200 },
             teamSize: { type: String, default: '' },

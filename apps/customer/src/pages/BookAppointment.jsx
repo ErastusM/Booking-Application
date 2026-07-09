@@ -5,6 +5,7 @@ import { appointmentService, serviceService, waitingListService, providerMarketS
 import { Calendar, Clock, CalendarX2 } from 'lucide-react';
 import { buildTimeSlots } from '../utils/bookingSlots';
 import { cloudinaryAvatar } from '../utils/cloudinary';
+import { currencySymbol } from '../utils/currency';
 import { mapsUrl } from '../utils/maps';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import RecurrenceFields from '../components/RecurrenceFields';
@@ -61,6 +62,8 @@ const BookAppointment = () => {
     // 08:00–20:00 window instead of the provider's real working hours.
     const urlProviderId = searchParams.get('providerId');
     const effectiveProviderId = urlProviderId || selectedService?.provider?._id || selectedService?.provider || null;
+    // Prices show in the booked business's currency (defaults to NAD).
+    const curSym = currencySymbol(providerInfo?.currency);
 
     const handleServiceSelect = (service) => {
         if (service.options && service.options.length > 0) {
@@ -464,7 +467,7 @@ const BookAppointment = () => {
                                         <div style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem' }}>{selectedService?.name}{selectedOption ? ` — ${selectedOption.name}` : ''}</div>
                                         <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{effectiveDuration} min{providerInfo ? ` with ${providerInfo.name}` : ''}</div>
                                     </div>
-                                    <span style={{ fontFamily: 'var(--font-body)', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {effectivePrice}</span>
+                                    <span style={{ fontFamily: 'var(--font-body)', fontWeight: '700', color: 'var(--charcoal)' }}>{curSym} {effectivePrice}</span>
                                 </div>
                                 {selectedAddOns.map((addOn, i) => (
                                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: i < selectedAddOns.length - 1 ? '1px solid var(--border)' : 'none', marginBottom: i < selectedAddOns.length - 1 ? '0.75rem' : 0 }}>
@@ -472,12 +475,12 @@ const BookAppointment = () => {
                                             <div style={{ fontFamily: 'var(--font-body)', fontWeight: '500', color: 'var(--charcoal)', fontSize: '0.9rem' }}>{addOn.name}</div>
                                             {addOn.duration > 0 && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>+{addOn.duration} min</div>}
                                         </div>
-                                        <span style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)' }}>NAD {addOn.price}</span>
+                                        <span style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)' }}>{curSym} {addOn.price}</span>
                                     </div>
                                 ))}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1rem', borderTop: '1px solid var(--border)', marginTop: '0.5rem' }}>
                                     <span style={{ fontFamily: 'var(--font-body)', fontWeight: '700', color: 'var(--charcoal)' }}>Total</span>
-                                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {totalPrice}</span>
+                                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)' }}>{curSym} {totalPrice}</span>
                                 </div>
                             </div>
 
@@ -510,7 +513,7 @@ const BookAppointment = () => {
                         <div className="booking-confirm-desktop" style={{ position: 'sticky', top: 'calc(100px + env(safe-area-inset-top, 0px))' }}>
                             <div style={{ ...cardStyle, padding: '1.5rem' }}>
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.35rem' }}>
-                                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {totalPrice}</span>
+                                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)' }}>{curSym} {totalPrice}</span>
                                 </div>
                                 <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)', marginBottom: '1.25rem' }}>Estimated total</div>
                                 <button
@@ -530,7 +533,7 @@ const BookAppointment = () => {
                 {/* Mobile sticky bottom confirm bar */}
                 <div className="booking-confirm-mobile" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--card-bg)', borderTop: '1px solid var(--border)', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1000, boxShadow: '0 -4px 20px rgba(0,0,0,0.08)' }}>
                     <div>
-                        <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)' }}>NAD {totalPrice}</div>
+                        <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)' }}>{curSym} {totalPrice}</div>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>Estimated total</div>
                     </div>
                     <button data-testid="booking-confirm-mobile" onClick={handleConfirm} disabled={loading} style={{ padding: '0.875rem 2rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '700', fontFamily: 'var(--font-body)', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
@@ -625,7 +628,7 @@ const BookAppointment = () => {
                                                 {sel && <span aria-hidden="true" style={{ position: 'absolute', top: '0.65rem', right: '0.65rem', width: '20px', height: '20px', borderRadius: '50%', background: 'var(--gold)', color: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: '800' }}>✓</span>}
                                                 <div style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.92rem', marginBottom: '0.4rem', paddingRight: sel ? '1.5rem' : 0 }}>{service.name}</div>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                                                    <span className="price" style={{ color: 'var(--gold-dark)', fontWeight: '700' }}>NAD {service.price}</span>
+                                                    <span className="price" style={{ color: 'var(--gold-dark)', fontWeight: '700' }}>{curSym} {service.price}</span>
                                                     <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{service.duration} min</span>
                                                 </div>
                                             </button>
@@ -652,7 +655,7 @@ const BookAppointment = () => {
                                                     <span style={{ fontWeight: '500', color: 'var(--charcoal)', fontSize: '0.9rem', fontFamily: 'var(--font-body)' }}>{addOn.name}</span>
                                                     {addOn.duration > 0 && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>+{addOn.duration} min</span>}
                                                 </div>
-                                                <span style={{ color: 'var(--gold-dark)', fontWeight: '700', fontFamily: 'var(--font-body)' }}>+NAD {addOn.price}</span>
+                                                <span style={{ color: 'var(--gold-dark)', fontWeight: '700', fontFamily: 'var(--font-body)' }}>+{curSym} {addOn.price}</span>
                                             </label>
                                         );
                                     })}
@@ -841,7 +844,7 @@ const BookAppointment = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1rem 0', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', marginBottom: '1.5rem' }}>
                             <span style={{ fontWeight: '600', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}>Total</span>
                             <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)' }}>
-                                {selectedService ? `NAD ${totalPrice}` : '—'}
+                                {selectedService ? `${curSym} ${totalPrice}` : '—'}
                             </span>
                         </div>
 
@@ -853,7 +856,7 @@ const BookAppointment = () => {
                                 <div style={{ marginBottom: '1.25rem' }}>
                                     <span style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '0.5rem', fontFamily: 'var(--font-body)' }}>Payment method</span>
                                     <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                        {[{ v: 'wallet', t: 'Wallet', sub: `NAD ${available.toFixed(2)}` }, { v: 'cash', t: 'Cash', sub: 'Pay at visit' }].map((o) => {
+                                        {[{ v: 'wallet', t: 'Wallet', sub: `${curSym} ${available.toFixed(2)}` }, { v: 'cash', t: 'Cash', sub: 'Pay at visit' }].map((o) => {
                                             const active = paymentMethod === o.v;
                                             return (
                                                 <button key={o.v} type="button" onClick={() => setPaymentMethod(o.v)} style={{
@@ -869,8 +872,8 @@ const BookAppointment = () => {
                                     </div>
                                     {paymentMethod === 'wallet' && (
                                         short
-                                            ? <p style={{ margin: '0.5rem 0 0', fontSize: '0.78rem', color: '#92400e' }}>Not enough balance — you need NAD {(totalPrice - available).toFixed(2)} more. <Link to="/wallet" style={{ fontWeight: '600', color: 'var(--gold-dark)' }}>Top up</Link> or choose Cash.</p>
-                                            : <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>NAD {totalPrice || 0} will be reserved from your wallet.</p>
+                                            ? <p style={{ margin: '0.5rem 0 0', fontSize: '0.78rem', color: '#92400e' }}>Not enough balance — you need {curSym} {(totalPrice - available).toFixed(2)} more. <Link to="/wallet" style={{ fontWeight: '600', color: 'var(--gold-dark)' }}>Top up</Link> or choose Cash.</p>
+                                            : <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>{curSym} {totalPrice || 0} will be reserved from your wallet.</p>
                                     )}
                                 </div>
                             );
@@ -902,7 +905,7 @@ const BookAppointment = () => {
             {selectedService && (
                 <div className="booking-mobile-bar">
                     <div>
-                        <div style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}>NAD {totalPrice}</div>
+                        <div style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}>{curSym} {totalPrice}</div>
                         <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>1 item · {totalDuration} min</div>
                     </div>
                     {selectedSlotBooked && formData.startTime ? (
@@ -954,7 +957,7 @@ const BookAppointment = () => {
                                     <div style={{ fontWeight: '600', color: 'var(--charcoal)', fontFamily: 'var(--font-body)', fontSize: '0.95rem' }}>{opt.name}</div>
                                     <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{opt.duration} min</div>
                                     {opt.description && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.5 }}>{opt.description}</div>}
-                                    <div style={{ fontWeight: '700', color: 'var(--charcoal)', marginTop: '6px', fontFamily: 'var(--font-body)' }}>NAD {opt.price}</div>
+                                    <div style={{ fontWeight: '700', color: 'var(--charcoal)', marginTop: '6px', fontFamily: 'var(--font-body)' }}>{curSym} {opt.price}</div>
                                 </div>
                                 <div style={{ width: '22px', height: '22px', borderRadius: '50%', border: '2px solid var(--border)', flexShrink: 0, marginTop: '2px' }} />
                             </button>
@@ -963,7 +966,7 @@ const BookAppointment = () => {
                     <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>from </span>
-                            <span style={{ fontWeight: '700', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}>NAD {Math.min(...optionSheet.options.map(o => o.price))}</span>
+                            <span style={{ fontWeight: '700', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}>{curSym} {Math.min(...optionSheet.options.map(o => o.price))}</span>
                             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>{Math.min(...optionSheet.options.map(o => o.duration))} – {Math.max(...optionSheet.options.map(o => o.duration))} min</span>
                         </div>
                         <button onClick={() => setOptionSheet(null)} style={{ padding: '0.65rem 1.5rem', background: 'var(--warm-gray)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: '600', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}>Add</button>
