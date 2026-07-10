@@ -531,7 +531,10 @@ const Home = () => {
                     <button
                         type="button"
                         className="pressable"
-                        onClick={handleNearMe}
+                        // e.detail is 0 for keyboard-triggered clicks: blur on a pointer
+                        // tap so no focus ring lingers on the pill, but keep the ring for
+                        // keyboard users (who need it).
+                        onClick={(e) => { if (e.detail) e.currentTarget.blur(); handleNearMe(); }}
                         style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', flexShrink: 0, minHeight: '44px', padding: '0.5rem 0.95rem', borderRadius: '999px', border: `1px solid ${nearMeCity ? 'var(--gold)' : 'var(--border)'}`, background: nearMeCity ? 'rgba(240,62,22,0.10)' : 'var(--card-bg)', color: nearMeCity ? 'var(--gold-dark)' : 'var(--charcoal)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', boxShadow: 'var(--shadow-sm)' }}
                     >
                         <MapPin size={15} strokeWidth={2} /> {nearMeLoading ? 'Locating…' : (nearMeCity || 'Near me')}
@@ -543,8 +546,11 @@ const Home = () => {
                                 key={cat || 'all'}
                                 type="button"
                                 className="pressable"
-                                onClick={() => setActiveCategory(cat)}
-                                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, minHeight: '44px', padding: '0.5rem 0.95rem', borderRadius: '999px', border: `1px solid ${active ? 'var(--gold)' : 'var(--border)'}`, background: active ? 'var(--charcoal)' : 'var(--card-bg)', color: active ? 'var(--off-white)' : 'var(--charcoal)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', boxShadow: 'var(--shadow-sm)' }}
+                                // blur on pointer tap (e.detail>0) so the active pill is a
+                                // clean chip, not one wearing a lingering focus ring; keyboard
+                                // clicks (e.detail===0) keep the ring for a11y.
+                                onClick={(e) => { if (e.detail) e.currentTarget.blur(); setActiveCategory(cat); }}
+                                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, minHeight: '44px', padding: '0.5rem 0.95rem', borderRadius: '999px', border: `1px solid ${active ? 'var(--charcoal)' : 'var(--border)'}`, background: active ? 'var(--charcoal)' : 'var(--card-bg)', color: active ? 'var(--off-white)' : 'var(--charcoal)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', boxShadow: 'var(--shadow-sm)' }}
                             >
                                 {cat || 'All'}
                             </button>
