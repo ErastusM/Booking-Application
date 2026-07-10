@@ -6,7 +6,7 @@ import { useTheme } from '../context/ThemeContext';
 import NotificationBell from './NotificationBell';
 import SuggestionBox from './SuggestionBox';
 import { cloudinaryAvatar } from '../utils/cloudinary';
-import { BrandMark } from '@bookplus/ui';
+import Wordmark from './Wordmark';
 
 const BUSINESS_URL = import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003';
 
@@ -105,10 +105,7 @@ const Navbar = () => {
 
                 {/* Logo */}
                 <Link to="/" style={{ textDecoration: 'none', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '0.55rem' }}>
-                    <BrandMark size={30} />
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', letterSpacing: '-0.02em' }}>
-                        <span style={{ color: isTransparent ? 'white' : 'var(--charcoal)' }}>Book</span><span style={{ color: 'var(--gold)' }}>plus</span>
-                    </span>
+                    <Wordmark size="1.6rem" bookColor={isTransparent ? 'white' : 'var(--charcoal)'} />
                 </Link>
 
                 {/* Desktop right cluster — Fresha-simple: one pill + avatar menu.
@@ -250,10 +247,7 @@ const Navbar = () => {
                 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.1rem 1.2rem', borderBottom: '1px solid var(--border)' }}>
                         <Link to="/" onClick={() => setMenuOpen(false)} style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <BrandMark size={28} />
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', letterSpacing: '-0.02em' }}>
-                                <span style={{ color: 'var(--charcoal)' }}>Book</span><span style={{ color: 'var(--gold)' }}>plus</span>
-                            </span>
+                            <Wordmark size="1.4rem" />
                         </Link>
                         <button onClick={closeMenu} aria-label="Close menu" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.55rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
