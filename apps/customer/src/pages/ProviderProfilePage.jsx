@@ -175,7 +175,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
     // staff.length is a dep because the Team section mounts after its fetch resolves.
     useEffect(() => {
         if (!data) return;
-        const els = ['section-photos', 'section-about', 'section-services', 'section-team', 'section-reviews']
+        const els = ['section-photos', 'section-about', 'section-services', 'section-team', 'section-reviews', 'section-details']
             .map(sid => document.getElementById(sid)).filter(Boolean);
         if (!els.length) return;
         const io = new IntersectionObserver((entries) => {
@@ -305,6 +305,9 @@ const ProviderProfilePage = ({ providerId } = {}) => {
         { id: 'section-services', label: 'Services' },
         staff.length > 0 && { id: 'section-team', label: 'Team' },
         reviews.length > 0 && { id: 'section-reviews', label: 'Reviews' },
+        // The Details card (hours / address / contact) sits last in the flow; give
+        // it a tab so the compact bar reflects where the visitor is when they reach it.
+        { id: 'section-details', label: 'Details' },
     ].filter(Boolean);
 
     return (
@@ -444,7 +447,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                     if (cat.services.length === 0 && key !== 'featured') return null;
                                     const active = activeCategory === key;
                                     return (
-                                        <button key={key} className="pressable" onClick={() => setActiveCategory(key)} style={{
+                                        <button key={key} className="pressable" onClick={(e) => { if (e.detail) e.currentTarget.blur(); setActiveCategory(key); }} style={{
                                             flexShrink: 0, padding: '0.5rem 1rem', borderRadius: '999px',
                                             border: `1px solid ${active ? 'var(--charcoal)' : 'var(--border)'}`,
                                             background: active ? 'var(--charcoal)' : 'var(--card-bg)',
@@ -565,7 +568,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
 
                     {/* Right — provider info card */}
                     <div className="provider-profile-sidebar" style={{ position: 'sticky', top: 'calc(100px + env(safe-area-inset-top, 0px))' }}>
-                        <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1rem' }}>
+                        <div id="section-details" style={{ scrollMarginTop: 'calc(var(--safe-top, 0px) + 104px)', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1rem' }}>
                             <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem' }}>Details</h3>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                 {provider.providerCategory && (

@@ -1200,9 +1200,16 @@ const ProviderDashboard = () => {
     const greeting = _now.getHours() < 12 ? 'Good morning' : _now.getHours() < 18 ? 'Good afternoon' : 'Good evening';
     const firstName = (user?.name || '').trim().split(' ')[0];
     const todayLabel = _now.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
-    const todaysCount = appointments.filter(a => {
+    const todaysAppts = appointments.filter(a => {
         const d = new Date(a.appointmentDate);
         return d.toDateString() === _now.toDateString() && a.status !== 'cancelled';
+    });
+    const todaysCount = todaysAppts.length;
+    // "Coming up" = today's appointments that haven't finished yet, so a booking
+    // that already ended this morning doesn't get advertised as still pending.
+    const upcomingTodayCount = todaysAppts.filter(a => {
+        const end = mergeDateAndTime(a.appointmentDate, a.endTime || a.startTime);
+        return !end || end.getTime() > _now.getTime();
     }).length;
 
     // Build FullCalendar businessHours from the provider's availability so the
@@ -1266,9 +1273,11 @@ const ProviderDashboard = () => {
                         {greeting}{firstName ? <>, <span style={{ color: 'var(--gold)' }}>{firstName}</span></> : ''}
                     </h1>
                     <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: '0.98rem', maxWidth: '56ch', lineHeight: 1.65, marginBottom: '1.25rem' }}>
-                        {todaysCount > 0
-                            ? `You have ${todaysCount} appointment${todaysCount > 1 ? 's' : ''} today.`
-                            : 'No appointments scheduled for today.'}
+                        {upcomingTodayCount > 0
+                            ? `You have ${upcomingTodayCount} appointment${upcomingTodayCount > 1 ? 's' : ''} coming up today.`
+                            : todaysCount > 0
+                                ? "You're all caught up — no more appointments today."
+                                : 'No appointments scheduled for today.'}
                     </p>
                     <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
                     <Link to="/account" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', color: 'rgba(255,255,255,0.7)', fontFamily: 'var(--font-body)', fontSize: '0.85rem', textDecoration: 'none', border: '1px solid rgba(255,255,255,0.2)', padding: '0.45rem 0.9rem', borderRadius: 'var(--radius-sm)', transition: 'all 0.2s' }}
