@@ -750,7 +750,7 @@ body.dark-mode .fc-bookplus-wrapper .fc .fc-non-business {
 .fc-bookplus-wrapper .fc-timegrid-slot-label-cushion {
   font-size: 0.72rem;
   font-weight: 600;
-  color: #aaa;
+  color: var(--text-secondary);
   padding-right: 0.75rem;
   text-transform: uppercase;
 }
@@ -1175,7 +1175,7 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
 .fc-bookplus-wrapper .fc-timegrid-event .fc-event-resizer { height: 10px; }
 .fc-bookplus-wrapper .fc-timegrid-event .fc-event-resizer-end::after {
   content: ''; position: absolute; left: 50%; bottom: 2px; transform: translateX(-50%);
-  width: 24px; height: 3px; border-radius: 2px; background: rgba(255,255,255,0.85);
+  width: 24px; height: 3px; border-radius: 2px; background: rgba(4,5,5,0.35);
   opacity: 0; transition: opacity var(--dur) ease;
 }
 .fc-bookplus-wrapper .fc-timegrid-event:hover .fc-event-resizer-end::after { opacity: 0.9; }

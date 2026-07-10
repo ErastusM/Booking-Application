@@ -7,6 +7,10 @@ import { cloudinaryThumb } from '../utils/cloudinary';
 import { normalizeTown } from '../utils/namibiaTowns';
 import { currencySymbol } from '../utils/currency';
 
+// Provider dashboards live in the business app — cross-app hops are hard
+// navigations (like the Navbar's) so the other app boots fresh with its own data.
+const BUSINESS_URL = import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003';
+
 const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
     const cover = p.coverImage || p.avatar || null;
     const initial = (p.businessName || p.name || '?').charAt(0).toUpperCase();
@@ -686,9 +690,17 @@ const Home = () => {
                         <span style={{ color: 'white', fontWeight: '700' }}>{user?.role === 'provider' ? 'Grow your business with Bookplus.' : 'Ready when you are.'}</span>{' '}
                         {user?.role === 'provider' ? 'Run everything from one workspace.' : 'Find a business, pick a time, and you’re booked.'}
                     </p>
-                    <Link to={user ? (user.role === 'provider' ? '/dashboard' : '/book-appointment') : '/register'} className="btn-primary" style={{ fontSize: '0.9rem', padding: '0.6rem 1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
-                        {user ? (user.role === 'provider' ? 'Go to dashboard' : 'Book an appointment') : 'Get started'} <ArrowRight size={16} strokeWidth={2} />
-                    </Link>
+                    {user?.role === 'provider' ? (
+                        /* The dashboard lives in the business app — a hard navigation, not a
+                           react-router Link (the customer app has no /dashboard route). */
+                        <a href={`${BUSINESS_URL}/dashboard`} className="btn-primary" style={{ fontSize: '0.9rem', padding: '0.6rem 1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                            Go to dashboard <ArrowRight size={16} strokeWidth={2} />
+                        </a>
+                    ) : (
+                        <Link to={user ? '/book-appointment' : '/register'} className="btn-primary" style={{ fontSize: '0.9rem', padding: '0.6rem 1.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}>
+                            {user ? 'Book an appointment' : 'Get started'} <ArrowRight size={16} strokeWidth={2} />
+                        </Link>
+                    )}
                 </div>
             </section>
         </div>

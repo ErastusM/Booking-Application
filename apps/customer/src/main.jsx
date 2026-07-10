@@ -7,6 +7,10 @@ import '@fontsource-variable/inter';
 import '@bookplus/design-tokens/tokens.css';
 import './styles/index.css';
 import App from './App';
+import { initFreshBuildReload } from './utils/freshBuild';
+
+// Reload long-lived tabs/PWAs onto the newest build when the user returns.
+initFreshBuildReload(['/book-appointment']);
 
 ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>

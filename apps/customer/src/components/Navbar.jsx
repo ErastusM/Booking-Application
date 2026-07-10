@@ -56,6 +56,15 @@ const Navbar = () => {
         return () => { document.body.style.overflow = ''; };
     }, [menuOpen]);
 
+    // Tag <body> while the floating bottom nav is rendered so the mobile
+    // bottom padding in index.css only applies when there's a nav to clear —
+    // logged-out visitors shouldn't get a blank band under the footer.
+    const showBottomNav = Boolean(user) && !hideBottomNav;
+    useEffect(() => {
+        document.body.classList.toggle('has-bottom-nav', showBottomNav);
+        return () => document.body.classList.remove('has-bottom-nav');
+    }, [showBottomNav]);
+
     const handleLogout = () => { setMenuOpen(false); logout(); navigate('/'); };
     const isActive = (path) => location.pathname === path;
 
@@ -182,8 +191,8 @@ const Navbar = () => {
                                             Suggest a feature
                                         </button>
                                         <div style={{ borderTop: '1px solid var(--border)', margin: '0.35rem 0' }} />
-                                        <button onClick={() => { setProfileOpen(false); handleLogout(); }} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', width: '100%', textAlign: 'left', padding: '0.6rem 0.85rem', borderRadius: '10px', background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: '0.88rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}
-                                            onMouseEnter={e => e.currentTarget.style.background = '#fee2e2'}
+                                        <button onClick={() => { setProfileOpen(false); handleLogout(); }} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', width: '100%', textAlign: 'left', padding: '0.6rem 0.85rem', borderRadius: '10px', background: 'none', border: 'none', cursor: 'pointer', color: darkMode ? '#f87171' : '#dc2626', fontSize: '0.88rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}
+                                            onMouseEnter={e => e.currentTarget.style.background = darkMode ? 'rgba(239,68,68,0.16)' : '#fee2e2'}
                                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                         >
                                             <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9"/></svg>
@@ -224,7 +233,9 @@ const Navbar = () => {
                 <div onClick={() => setMenuOpen(false)} className="show-mobile" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.44)', zIndex: 1200, backdropFilter: 'blur(2px)' }} />
                 <aside className="show-mobile mobile-drawer" style={{
                     position: 'fixed', top: 0, left: 0, bottom: 0,
-                    paddingTop: 'env(safe-area-inset-top, 0px)',
+                    // --safe-top (not raw env()) — floored at 50px in the installed PWA so the
+                    // drawer header clears the fixed status-bar strip on devices where env() is 0.
+                    paddingTop: 'var(--safe-top, 0px)',
                     width: '86vw', maxWidth: '330px',
                     zIndex: 1201,
                     display: 'flex', flexDirection: 'column',
@@ -249,7 +260,7 @@ const Navbar = () => {
                     {!user && (
                         <div style={{ padding: '1rem 1.2rem', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                             <Link to="/login" onClick={() => setMenuOpen(false)} style={{ width: '100%', textAlign: 'center', textDecoration: 'none', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', color: 'var(--charcoal)', fontWeight: '600', fontSize: '0.92rem' }}>Log in</Link>
-                            <Link to="/register" onClick={() => setMenuOpen(false)} className="btn-primary" style={{ width: '100%', padding: '0.8rem 1rem', textAlign: 'center', textDecoration: 'none' }}>Sign Up</Link>
+                            <Link to="/register" onClick={() => setMenuOpen(false)} className="btn-primary" style={{ width: '100%', padding: '0.8rem 1rem', textAlign: 'center', textDecoration: 'none' }}>Sign up</Link>
                             <a href={BUSINESS_URL} style={{ width: '100%', textAlign: 'center', textDecoration: 'none', padding: '0.7rem 1rem', color: 'var(--gold-dark)', fontWeight: '600', fontSize: '0.9rem' }}>List your business →</a>
                         </div>
                     )}
@@ -332,7 +343,7 @@ const Navbar = () => {
                             aria-label="Toggle dark mode"
                             style={{
                                 width: '48px', height: '26px', borderRadius: '99px', border: 'none', cursor: 'pointer',
-                                background: darkMode ? 'var(--gold)' : '#d1d5db',
+                                background: darkMode ? 'var(--gold)' : 'var(--warm-gray)',
                                 position: 'relative', transition: 'background 0.2s', flexShrink: 0,
                             }}
                         >
@@ -342,7 +353,7 @@ const Navbar = () => {
 
                     {user && (
                         <div style={{ padding: '1rem 1.2rem' }}>
-                            <button onClick={handleLogout} style={{ width: '100%', padding: '0.78rem', background: '#fee2e2', border: 'none', borderRadius: 'var(--radius-sm)', color: '#dc2626', fontWeight: '600', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.9rem' }}>
+                            <button onClick={handleLogout} style={{ width: '100%', padding: '0.78rem', background: darkMode ? 'rgba(239,68,68,0.16)' : '#fee2e2', border: 'none', borderRadius: 'var(--radius-sm)', color: darkMode ? '#f87171' : '#dc2626', fontWeight: '600', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.9rem' }}>
                                 Logout
                             </button>
                         </div>
@@ -353,7 +364,7 @@ const Navbar = () => {
 
         {/* Mobile bottom navigation — one customer nav for every signed-in user
             (hidden on the booking flow, which has its own bottom CTA bar) */}
-        {user && !hideBottomNav && (
+        {showBottomNav && (
             <div className="show-mobile" style={{
                 position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
                 display: 'flex', justifyContent: 'center',

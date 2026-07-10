@@ -171,7 +171,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                             <button
                                 type="submit"
                                 disabled={submitting}
-                                style={{ width: '100%', padding: '0.85rem', background: submitting ? '#9ca3af' : 'var(--charcoal)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: '700', cursor: submitting ? 'not-allowed' : 'pointer', letterSpacing: '0.03em', transition: 'background 0.15s' }}
+                                style={{ width: '100%', padding: '0.85rem', background: submitting ? '#9ca3af' : 'var(--ink)', color: 'var(--on-ink)', border: 'none', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: '700', cursor: submitting ? 'not-allowed' : 'pointer', letterSpacing: '0.03em', transition: 'background 0.15s' }}
                             >
                                 {submitting ? 'Sending...' : 'Send Suggestion'}
                             </button>

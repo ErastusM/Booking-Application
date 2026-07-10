@@ -775,9 +775,9 @@ const BookAppointment = () => {
                                                             width: '100%',
                                                             padding: '1rem 1.25rem',
                                                             borderRadius: '12px',
-                                                            border: `2px solid ${slot.isBooked ? '#e5e7eb' : isSelected ? 'var(--gold)' : 'var(--border)'}`,
-                                                            background: slot.isBooked ? '#f9fafb' : isSelected ? 'rgba(240,62,22,0.08)' : 'white',
-                                                            color: slot.isBooked ? '#9ca3af' : isSelected ? 'var(--gold-dark)' : 'var(--charcoal)',
+                                                            border: `2px solid ${slot.isBooked ? 'var(--border)' : isSelected ? 'var(--gold)' : 'var(--border)'}`,
+                                                            background: slot.isBooked ? 'var(--surface-sunken)' : isSelected ? 'rgba(240,62,22,0.08)' : 'white',
+                                                            color: slot.isBooked ? 'var(--text-muted)' : isSelected ? 'var(--gold-dark)' : 'var(--charcoal)',
                                                             fontWeight: isSelected ? '600' : '400',
                                                             fontSize: '1rem',
                                                             cursor: 'pointer',
@@ -791,7 +791,7 @@ const BookAppointment = () => {
                                                     >
                                                         <span>{slot.time}</span>
                                                         {slot.isBooked && (
-                                                            <span style={{ fontSize: '0.72rem', color: '#9ca3af', fontStyle: 'italic' }}>Taken — tap to join waitlist</span>
+                                                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Taken — tap to join waitlist</span>
                                                         )}
                                                     </button>
                                                 );
@@ -872,7 +872,7 @@ const BookAppointment = () => {
                                     </div>
                                     {paymentMethod === 'wallet' && (
                                         short
-                                            ? <p style={{ margin: '0.5rem 0 0', fontSize: '0.78rem', color: '#92400e' }}>Not enough balance — you need {curSym} {(totalPrice - available).toFixed(2)} more. <Link to="/wallet" style={{ fontWeight: '600', color: 'var(--gold-dark)' }}>Top up</Link> or choose Cash.</p>
+                                            ? <p style={{ margin: '0.5rem 0 0', fontSize: '0.78rem', background: 'var(--warning-bg)', color: 'var(--warning-fg)', padding: '0.5rem 0.75rem', borderRadius: 'var(--radius-sm)' }}>Not enough balance — you need {curSym} {(totalPrice - available).toFixed(2)} more. <Link to="/wallet" style={{ fontWeight: '600', color: 'var(--warning-fg)', textDecoration: 'underline' }}>Top up</Link> or choose Cash.</p>
                                             : <p style={{ margin: '0.5rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>{curSym} {totalPrice || 0} will be reserved from your wallet.</p>
                                     )}
                                 </div>
@@ -906,7 +906,7 @@ const BookAppointment = () => {
                 <div className="booking-mobile-bar">
                     <div style={{ flexShrink: 0 }}>
                         <div style={{ fontWeight: '700', fontSize: '1.1rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}>{curSym} {totalPrice}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>1 item · {totalDuration} min</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>{1 + selectedAddOns.length} {selectedAddOns.length ? 'items' : 'item'} · {totalDuration} min</div>
                     </div>
                     {selectedSlotBooked && formData.startTime ? (
                         <button

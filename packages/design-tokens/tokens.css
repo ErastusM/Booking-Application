@@ -65,6 +65,10 @@
 body.dark-mode {
   --off-white: #0a0a0b;
   --charcoal: #e6e8e7;
+  /* --gold-dark exists to DARKEN small orange text for light surfaces, so on
+     dark surfaces it must flip LIGHTER (#b32c0d is only ~3:1 on #141416).
+     #ff6a45 (= --gold-light) reads ~6:1 on the dark cards. */
+  --gold-dark: #ff6a45;
   --border: #2a2c2b;
   --warm-gray: #161618;
   --text-primary: #e6e8e7;

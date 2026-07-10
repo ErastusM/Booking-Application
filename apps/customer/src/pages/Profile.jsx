@@ -31,7 +31,7 @@ const SettingRow = ({ icon: Icon, label, value, onClick, trailing, isLast, dange
     const content = (
         <>
             <span style={iconTileStyle}><Icon size={17} strokeWidth={2} /></span>
-            <span style={{ flex: 1, textAlign: 'left', fontSize: '0.92rem', fontWeight: '500', color: danger ? '#dc2626' : 'var(--charcoal)' }}>{label}</span>
+            <span style={{ flex: 1, textAlign: 'left', fontSize: '0.92rem', fontWeight: '500', color: danger ? 'var(--danger)' : 'var(--charcoal)' }}>{label}</span>
             {value != null && <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{value}</span>}
             {trailing === undefined ? (onClick ? <ChevronRight size={18} style={{ color: 'var(--text-muted)', flexShrink: 0 }} /> : null) : trailing}
         </>

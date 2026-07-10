@@ -21,11 +21,12 @@ const EnablePushBanner = () => {
         if (localStorage.getItem(DISMISS_KEY) === '1') return;
         let cancelled = false;
         (async () => {
-            // iPhone in Safari (not installed) can't subscribe to web push — show the install hint.
-            if (isIOS() && !isStandalone()) { if (!cancelled) setMode('ios'); return; }
             try {
                 const s = await getPushState();
-                if (!cancelled && s.supported && s.enabled && !s.subscribed) setMode('enable');
+                if (cancelled || !s.enabled) return; // server can't send push — promise nothing
+                // iPhone in Safari (not installed) can't subscribe to web push — show the install hint.
+                if (isIOS() && !isStandalone()) { setMode('ios'); return; }
+                if (s.supported && !s.subscribed) setMode('enable');
             } catch { /* ignore */ }
         })();
         return () => { cancelled = true; };

@@ -34,7 +34,7 @@ const PushToggle = () => {
             </div>
             <button onClick={toggle} disabled={busy} aria-label="Toggle push notifications" style={{
                 width: '46px', height: '26px', borderRadius: '99px', border: 'none', flexShrink: 0,
-                background: state.subscribed ? 'var(--gold)' : '#cbd5e1', cursor: busy ? 'wait' : 'pointer',
+                background: state.subscribed ? 'var(--gold)' : 'var(--warm-gray)', cursor: busy ? 'wait' : 'pointer',
                 position: 'relative', transition: 'background 0.2s',
             }}>
                 <span style={{ position: 'absolute', top: '3px', left: state.subscribed ? '23px' : '3px', width: '20px', height: '20px', borderRadius: '50%', background: '#fff', transition: 'left 0.2s', display: 'block' }} />

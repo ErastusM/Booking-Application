@@ -80,7 +80,7 @@ const MyWaitingList = () => {
                         letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem',
                     }}>Queue Status</p>
                     <h1 style={{
-                        fontFamily: 'var(--font-body)',
+                        fontFamily: 'var(--font-display)',
                         fontSize: 'clamp(2rem, 4vw, 3rem)',
                         fontWeight: '700', color: 'white',
                     }}>

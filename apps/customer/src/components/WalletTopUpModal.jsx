@@ -102,7 +102,7 @@ const WalletTopUpModal = ({ providerId, providerName, onClose, onDone }) => {
                         </>
                     )}
 
-                    {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
+                    {error && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
 
                     <button type="submit" disabled={busy || uploading} className="btn-primary" style={{ width: '100%', padding: '0.85rem' }}>
                         {busy ? 'Submitting…' : 'Submit top-up request'}
