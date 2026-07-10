@@ -57,6 +57,7 @@ const MyAppointments = () => {
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
     const [cancelledOverlay, setCancelledOverlay] = useState(false); // full-screen cancel acknowledgement
+    const [rescheduledOverlay, setRescheduledOverlay] = useState(false); // full-screen reschedule celebration
     const [reviewedIds, setReviewedIds] = useState([]);
     const [selectedAppointment, setSelectedAppointment] = useState(null);
     const [activeFilter, setActiveFilter] = useState('all');
@@ -99,9 +100,9 @@ const MyAppointments = () => {
 
     useEffect(() => {
         if (searchParams.get('rescheduled') === '1') {
-            setSuccess('Appointment rescheduled and confirmed.');
-            const t = setTimeout(() => setSuccess(''), 12000);
-            return () => clearTimeout(t);
+            // Full-screen celebration for the reschedule that came via the booking
+            // page (the in-page RescheduleModal triggers it through onDone instead).
+            setRescheduledOverlay(true);
         }
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -256,6 +257,14 @@ const MyAppointments = () => {
                     title="Appointment cancelled"
                     subtitle="Your appointment has been cancelled. You can rebook anytime."
                     onDone={() => setCancelledOverlay(false)}
+                />
+            )}
+            {rescheduledOverlay && (
+                <StatusOverlay
+                    variant="confirmed"
+                    title="Appointment rescheduled"
+                    subtitle="Your new time is confirmed — see you then."
+                    onDone={() => setRescheduledOverlay(false)}
                 />
             )}
 
@@ -658,7 +667,7 @@ const MyAppointments = () => {
                 <RescheduleModal
                     appointment={rescheduleAppt}
                     onClose={() => setRescheduleAppt(null)}
-                    onDone={() => { setRescheduleAppt(null); setSuccess('Appointment rescheduled and confirmed.'); fetchData(); }}
+                    onDone={() => { setRescheduleAppt(null); setRescheduledOverlay(true); fetchData(); }}
                 />
             )}
 

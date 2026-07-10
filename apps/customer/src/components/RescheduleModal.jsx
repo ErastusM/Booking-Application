@@ -24,6 +24,7 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
     const [bookedSlots, setBookedSlots] = useState([]);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
+    const [pendingTime, setPendingTime] = useState(null); // slot awaiting a confirm tap
     const didAutoSelect = useRef(false);
 
     // Escape-to-close + body scroll lock + initial focus into the dialog. Guard
@@ -122,6 +123,26 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                 </div>
 
                 <div style={{ padding: '1rem 1.25rem', overflowY: 'auto' }}>
+                    {pendingTime ? (
+                        /* Confirm step — review the new time before committing the reschedule */
+                        <div>
+                            <p style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 0.75rem' }}>Confirm new time</p>
+                            <div style={{ background: 'var(--surface-sunken)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '1.1rem', textAlign: 'center' }}>
+                                <p style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '700', color: 'var(--charcoal)' }}>
+                                    {new Date(selectedDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })}
+                                </p>
+                                <p className="tnum" style={{ margin: '0.3rem 0 0', fontSize: '1.05rem', fontWeight: '700', color: 'var(--gold-dark)' }}>{pendingTime}</p>
+                            </div>
+                            <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', textAlign: 'center', margin: '0.9rem 0 0', lineHeight: 1.5 }}>
+                                Move your {appointment?.service?.name || 'appointment'} to this time?
+                            </p>
+                            <div style={{ display: 'flex', gap: '0.6rem', marginTop: '1.15rem' }}>
+                                <button onClick={() => { setPendingTime(null); setError(''); }} disabled={busy} className="btn-outline" style={{ flex: 1, padding: '0.8rem', borderRadius: '999px', fontSize: '0.9rem', fontWeight: '700' }}>Back</button>
+                                <button onClick={() => confirm(pendingTime)} disabled={busy} className="btn-primary" style={{ flex: 2, padding: '0.8rem', borderRadius: '999px', fontSize: '0.9rem', fontWeight: '700' }}>{busy ? 'Rescheduling…' : 'Confirm reschedule'}</button>
+                            </div>
+                        </div>
+                    ) : (
+                    <>
                     {/* Date chips */}
                     <p style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 0.6rem' }}>Pick a day</p>
                     <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
@@ -167,7 +188,7 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                             ) : (
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: '0.5rem' }}>
                                     {slots.map((s, i) => (
-                                        <button key={i} disabled={s.isBooked || busy} onClick={() => confirm(s.time)} title={s.isBooked ? 'Already booked' : ''} style={{
+                                        <button key={i} disabled={s.isBooked || busy} onClick={() => setPendingTime(s.time)} title={s.isBooked ? 'Already booked' : ''} style={{
                                             padding: '0.6rem 0.4rem', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontWeight: '600', fontSize: '0.9rem',
                                             border: `1.5px solid ${s.isBooked ? 'var(--border)' : 'var(--gold)'}`,
                                             background: s.isBooked ? 'var(--surface-sunken)' : 'white',
@@ -180,6 +201,8 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                                 </div>
                             )}
                         </>
+                    )}
+                    </>
                     )}
 
                     {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', marginTop: '0.85rem' }}>{error}</p>}
