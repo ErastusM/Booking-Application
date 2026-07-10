@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { availabilityService, appointmentService } from '../services';
 import { buildTimeSlots } from '../utils/bookingSlots';
 import { useModalChrome } from '../hooks/useModalChrome';
@@ -19,10 +19,12 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
         || 30;
 
     const [schedule, setSchedule] = useState(null);
+    const [scheduleLoaded, setScheduleLoaded] = useState(false);
     const [selectedDate, setSelectedDate] = useState(null);
     const [bookedSlots, setBookedSlots] = useState([]);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
+    const didAutoSelect = useRef(false);
 
     // Escape-to-close + body scroll lock + initial focus into the dialog. Guard
     // close while a reschedule request is in flight.
@@ -32,7 +34,8 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
         if (!providerId) return;
         availabilityService.getProviderAvailability(providerId)
             .then((res) => setSchedule(res.data.data.schedule))
-            .catch(() => setSchedule(null));
+            .catch(() => setSchedule(null))
+            .finally(() => setScheduleLoaded(true));
     }, [providerId]);
 
     // Next 28 days, limited to days the provider works (when the schedule is known).
@@ -57,6 +60,16 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                 .catch(() => setBookedSlots([]));
         }
     };
+
+    // Open on the first available day (once availability is known) so the modal
+    // lands on the ready-to-book state — highlighted chip, filled date field and
+    // a time list — instead of a blank "Or pick a date" box and no times.
+    useEffect(() => {
+        if (didAutoSelect.current || !scheduleLoaded || !days.length) return;
+        didAutoSelect.current = true;
+        selectDate(fmtDate(days[0]));
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [scheduleLoaded, days]);
 
     const slots = useMemo(() => {
         if (!selectedDate) return [];
