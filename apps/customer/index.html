@@ -40,7 +40,9 @@
       #app-splash .as-word .b { color: #040505; }
       #app-splash .as-word .p { color: #f03e16; }
       #app-splash .as-pwrap { position: relative; display: inline-block; }
-      #app-splash .as-smile { position: absolute; left: 0; right: -2%; bottom: -0.30em; width: 102%; height: 0.42em; overflow: visible; }
+      /* Centered under "plus", uniform scale (NO preserveAspectRatio=none, which
+         stretched the arc). width sets the size; height follows the viewBox aspect. */
+      #app-splash .as-smile { position: absolute; left: 50%; transform: translateX(-50%); bottom: -0.54em; width: 92%; height: auto; overflow: visible; }
       #app-splash .as-tag {
         font-family: 'Plus Jakarta Sans Variable', system-ui, sans-serif;
         font-size: 0.72rem; font-weight: 700; letter-spacing: 0.34em; text-transform: uppercase;
@@ -87,7 +89,7 @@
 <body>
     <div id="app-splash" aria-hidden="true">
         <div class="as-inner">
-            <div class="as-word"><span class="b">book</span><span class="as-pwrap"><span class="p">plus</span><svg class="as-smile" viewBox="0 0 100 22" preserveAspectRatio="none" aria-hidden="true"><path d="M3 6 Q 50 20 97 6" fill="none" stroke="#f03e16" stroke-width="6" stroke-linecap="round" /></svg></span></div>
+            <div class="as-word"><span class="b">book</span><span class="as-pwrap"><span class="p">plus</span><svg class="as-smile" viewBox="0 0 120 24" aria-hidden="true"><path d="M4 5 Q 60 13 116 5 Q 60 23 4 5 Z" fill="#f03e16" /></svg></span></div>
             <div class="as-tag">for customers</div>
         </div>
     </div>
