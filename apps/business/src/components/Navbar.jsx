@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -441,18 +442,23 @@ const Navbar = () => {
         )}
 
         {/* Mobile bottom navigation — provider: floating rounded card (matches design mock) */}
-        {user?.role === 'provider' && (
+        {user?.role === 'provider' && createPortal(
             <div className="nav-mobile" style={{
                 position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
                 display: 'flex', justifyContent: 'center',
                 padding: '0 12px calc(3px + env(safe-area-inset-bottom, 0))',
                 pointerEvents: 'none',
+                // Portalled to <body> so no ancestor can strand it mid-page; translateZ(0)
+                // keeps it on its own layer for iOS scroll repaint (see customer app).
+                transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)',
             }}>
                 <div style={{
                     pointerEvents: 'auto', width: '100%', maxWidth: '440px',
                     display: 'flex', justifyContent: 'space-around', alignItems: 'flex-start',
-                    background: darkMode ? 'rgba(20,20,22,0.78)' : 'rgba(255,255,255,0.78)',
-                    backdropFilter: 'blur(16px)', WebkitBackdropFilter: 'blur(16px)',
+                    // Solid (NOT backdrop-filter): a backdrop-filtered fixed bar is exactly
+                    // what makes iOS Safari fail to repaint it during momentum scroll and
+                    // "stick" mid-page. Matches the customer app's bottom nav.
+                    background: darkMode ? '#17181c' : '#ffffff',
                     border: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid var(--border)',
                     borderRadius: '20px', boxShadow: '0 8px 22px rgba(4,5,5,0.13)',
                     padding: '7px 6px 6px',
@@ -495,7 +501,8 @@ const Navbar = () => {
                         );
                     })}
                 </div>
-            </div>
+            </div>,
+            document.body
         )}
 
         {user && <SuggestionBox user={user} open={showSuggestion} onClose={() => setShowSuggestion(false)} />}

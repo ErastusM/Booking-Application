@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -368,18 +369,21 @@ const Navbar = () => {
 
         {/* Mobile bottom navigation — one customer nav for every signed-in user
             (hidden on the booking flow, which has its own bottom CTA bar) */}
-        {showBottomNav && (
+        {showBottomNav && createPortal(
             <div className="show-mobile" style={{
                 position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
                 display: 'flex', justifyContent: 'center',
                 padding: '0 12px calc(3px + env(safe-area-inset-bottom, 0))',
                 pointerEvents: 'none',
-                // Force the fixed bar onto its own GPU layer. Without this, iOS Safari
-                // fails to repaint a fixed element during momentum scroll and it "sticks"
-                // mid-page. A solid (non backdrop-filtered) background is the other half
-                // of the fix — backdrop-filter on a fixed element is what triggers the stall.
+                // Rendered through a portal to <body> so NO ancestor (a route-transition
+                // wrapper, a provider, a hovered/animated card) can ever become its
+                // containing block and strand it mid-page. translateZ(0) keeps it on its
+                // own compositing layer so iOS repaints it during momentum scroll — but we
+                // deliberately DO NOT use `will-change: transform`: on iOS that composites
+                // a position:fixed element INTO the scroll layer, so it rides with the
+                // content and "sticks" where you stopped scrolling. Solid (no backdrop-
+                // filter) background is the other half of the fix.
                 transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)',
-                willChange: 'transform', backfaceVisibility: 'hidden',
             }}>
                 <div style={{
                     pointerEvents: 'auto', width: '100%', maxWidth: '460px',
@@ -427,7 +431,8 @@ const Navbar = () => {
                             : <Link key={to} to={to} aria-label={label} style={itemStyle}>{inner}</Link>;
                     })}
                 </div>
-            </div>
+            </div>,
+            document.body
         )}
         {user && <SuggestionBox user={user} open={showSuggestion} onClose={() => setShowSuggestion(false)} />}
     </>
