@@ -137,13 +137,13 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
                             // Key by provider id + src (not the array index) so a different
                             // business's photo never reuses this <img> node and paints the
                             // wrong company's picture during a re-render.
-                            <img key={`${id}-${src}`} src={cloudinaryThumb(src, 1000)} alt={`${p.businessName || p.name} photo ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" className="feed-media-img" style={{ flex: '0 0 100%', width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', scrollSnapAlign: 'start', display: 'block', background: 'var(--warm-gray)' }} />
+                            <img key={`${id}-${src}`} src={cloudinaryThumb(src, 1000)} alt={`${p.businessName || p.name} photo ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" className="feed-media-img" style={{ flex: '0 0 100%', width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', scrollSnapAlign: 'start', display: 'block', background: 'var(--warm-gray)' }} />
                         ))}
                     </div>
                 ) : (
                     // Same aspect ratio as a photo so every card in the feed is the SAME
                     // height, even for a business that hasn't added photos yet.
-                    <div className="feed-media-img" style={{ aspectRatio: '4 / 3', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.7rem', padding: '1rem', background: 'linear-gradient(135deg, var(--surface-sunken), var(--warm-gray))', cursor: 'pointer' }}>
+                    <div className="feed-media-img" style={{ aspectRatio: '1 / 1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.7rem', padding: '1rem', background: 'linear-gradient(135deg, var(--surface-sunken), var(--warm-gray))', cursor: 'pointer' }}>
                         <div style={{ width: '68px', height: '68px', borderRadius: '18px', flexShrink: 0, background: 'var(--ink)', color: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '1.9rem', fontWeight: '700' }}>{initial}</div>
                         <div style={{ textAlign: 'center' }}>
                             <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.92rem' }}>Photos coming soon</p>
@@ -671,7 +671,7 @@ const Home = () => {
                         {loading ? (
                             [0, 1, 2].map(i => (
                                 <div key={i} style={{ borderRadius: '18px', overflow: 'hidden', border: '1px solid var(--border)' }}>
-                                    <div style={{ aspectRatio: '4 / 3', background: 'var(--warm-gray)' }} />
+                                    <div style={{ aspectRatio: '1 / 1', background: 'var(--warm-gray)' }} />
                                     <div style={{ padding: '0.85rem 1.1rem 1.05rem' }}>
                                         <div style={{ height: '14px', width: '60%', background: 'var(--warm-gray)', borderRadius: '6px', marginBottom: '8px' }} />
                                         <div style={{ height: '10px', width: '40%', background: 'var(--warm-gray)', borderRadius: '6px' }} />
@@ -694,7 +694,7 @@ const Home = () => {
                                     // Shaped skeleton (not a bare spinner) so the incoming card's
                                     // space is reserved and matches the initial-load placeholder.
                                     <div ref={sentinelRef} style={{ borderRadius: '18px', overflow: 'hidden', border: '1px solid var(--border)' }}>
-                                        <div className="skeleton" style={{ aspectRatio: '4 / 3' }} />
+                                        <div className="skeleton" style={{ aspectRatio: '1 / 1' }} />
                                         <div style={{ padding: '0.85rem 1.1rem 1.05rem' }}>
                                             <div className="skeleton skeleton-line" style={{ width: '60%' }} />
                                             <div className="skeleton skeleton-line" style={{ width: '40%', marginBottom: 0 }} />
