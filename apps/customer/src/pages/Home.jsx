@@ -6,6 +6,7 @@ import { Search, Star, ArrowRight, Heart, MapPin } from 'lucide-react';
 import { cloudinaryThumb } from '../utils/cloudinary';
 import { normalizeTown } from '../utils/namibiaTowns';
 import { currencySymbol } from '../utils/currency';
+import Seo from '../components/Seo';
 
 // Provider dashboards live in the business app — cross-app hops are hard
 // navigations (like the Navbar's) so the other app boots fresh with its own data.
@@ -455,6 +456,11 @@ const Home = () => {
 
     return (
         <div style={{ background: 'var(--off-white)' }}>
+            <Seo
+                title="Bookplus — Book trusted local services"
+                description="Discover and book trusted local businesses — hair, beauty, barbers, wellness, automotive and more. Real-time availability and instant confirmation."
+                url={typeof window !== 'undefined' ? window.location.origin + '/' : 'https://www.bookplus.pro/'}
+            />
 
             {/* ── Hero copy — fades and scrolls away gently as the feed takes over ── */}
             <section className="home-hero" style={{ position: 'relative', overflow: 'hidden', background: 'var(--off-white)' }}>

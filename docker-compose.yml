@@ -7,6 +7,14 @@ services:
       - mongo_data:/data/db
     env_file:
       - .env.production
+    # Readiness: the DB answers a ping. `ping` needs no auth, so this works
+    # whether or not MONGO_INITDB credentials are set.
+    healthcheck:
+      test: ["CMD", "mongosh", "--quiet", "--eval", "db.adminCommand('ping').ok"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 20s
 
   server:
     image: erastusm/bookplus-server:latest
@@ -18,6 +26,16 @@ services:
       - mongodb
     env_file:
       - .env.production
+    # Readiness = the app is listening AND Mongo is connected. /api/health returns
+    # 200 only when mongoose.readyState===1 (503 otherwise), and the server only
+    # binds the port after connectDB() resolves — so an unhealthy status here means
+    # "not ready to take traffic". node is used (no curl/wget dependency in the image).
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/api/health',r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 45s
 
   # Nightly mongodump with rotation (+ optional S3-compatible offsite).
   # The safety net: mongo_data lives on this one host — without this, a disk
@@ -42,6 +60,14 @@ services:
     restart: always
     depends_on:
       - server
+    # `serve -s dist` answers 200 on / once it's up. <500 = the static server is
+    # serving; only a hard failure (connection refused / 5xx) marks it unhealthy.
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   business:
     image: erastusm/bookplus-business:latest
@@ -49,6 +75,12 @@ services:
     restart: always
     depends_on:
       - server
+    healthcheck:
+      test: ["CMD", "node", "-e", "require('http').get('http://localhost:3000/',r=>process.exit(r.statusCode<500?0:1)).on('error',()=>process.exit(1))"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
 
   nginx:
     image: nginx:alpine
@@ -66,6 +98,14 @@ services:
       - customer
       - business
     command: "/bin/sh -c 'while :; do sleep 6h & wait $${!}; nginx -s reload; done & nginx -g \"daemon off;\"'"
+    # Hits the plain-HTTP /healthz location (added in bookplus.conf) — proves nginx
+    # is up and its config parsed, without needing TLS/SNI on the healthcheck.
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://localhost/healthz"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
 
   certbot:
     image: certbot/certbot
@@ -77,4 +117,3 @@ services:
 
 volumes:
   mongo_data:
-
