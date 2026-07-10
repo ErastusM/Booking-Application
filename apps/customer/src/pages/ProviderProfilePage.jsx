@@ -8,6 +8,7 @@ import { mapsUrl } from '../utils/maps';
 import WalletTopUpModal from '../components/WalletTopUpModal';
 import { Phone, MessageCircle, Mail, MapPin, ChevronLeft, ChevronRight, X, Share2, Star, Heart, Clock, MoreHorizontal } from 'lucide-react';
 import { normalizeTown } from '../utils/namibiaTowns';
+import Seo from '../components/Seo';
 
 // Circular translucent control that floats over the hero photo (back / share / like / ⋯).
 // The circle stays white in both themes, so the icon uses --ink (never flips)
@@ -269,6 +270,28 @@ const ProviderProfilePage = ({ providerId } = {}) => {
     const minPrice = allServices.length ? Math.min(...allServices.map(s => Number(s.price) || 0)) : null;
     const description = provider.businessProfile?.description || '';
 
+    // ── SEO: per-provider title/description/OG + LocalBusiness structured data.
+    // Canonical is the pretty /b/:slug link when the provider has a slug.
+    const origin = typeof window !== 'undefined' ? window.location.origin : 'https://www.bookplus.pro';
+    const slug = provider.businessProfile?.slug;
+    const canonicalUrl = slug ? `${origin}/b/${slug}` : (typeof window !== 'undefined' ? window.location.href : origin);
+    const seoImage = (photos[0] || provider.avatar) ? cloudinaryThumb(photos[0] || provider.avatar, 1200) : undefined;
+    const seoTitle = `${businessName}${provider.providerCategory ? ` — ${provider.providerCategory}` : ''} | Bookplus`;
+    const seoDescription = (description
+        || `Book ${businessName}${address ? ` in ${address}` : ''} online — see services, prices and real-time availability, and book instantly on Bookplus.`
+    ).slice(0, 300);
+    const seoJsonLd = {
+        '@context': 'https://schema.org',
+        '@type': 'LocalBusiness',
+        name: businessName,
+        url: canonicalUrl,
+        ...(seoImage ? { image: seoImage } : {}),
+        ...(description ? { description } : {}),
+        ...(address ? { address: { '@type': 'PostalAddress', streetAddress: address } } : {}),
+        ...(provider.phone ? { telephone: provider.phone } : {}),
+        ...(provider.avgRating ? { aggregateRating: { '@type': 'AggregateRating', ratingValue: provider.avgRating, reviewCount: provider.reviewCount || 0 } } : {}),
+    };
+
     // Fresha-style status: a colored headline ("Open"/"Closed") + a muted detail
     // ("until 17:00" / "opens on Friday at 09:00"), from the weekly working hours.
     const openStatus = (() => {
@@ -312,6 +335,14 @@ const ProviderProfilePage = ({ providerId } = {}) => {
 
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+            <Seo
+                title={seoTitle}
+                description={seoDescription}
+                image={seoImage}
+                url={canonicalUrl}
+                type="business.business"
+                jsonLd={seoJsonLd}
+            />
 
             {/* ── Hero: edge-to-edge photo carousel + floating controls (Fresha-style) ── */}
             <div id="section-photos" style={{ position: 'relative', scrollMarginTop: 'calc(var(--safe-top, 0px) + 104px)', background: 'var(--ink)' }}>

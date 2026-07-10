@@ -1,5 +1,6 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
+import Seo from '../components/Seo';
 
 const LAST_UPDATED = '18 June 2026';
 
@@ -10,6 +11,11 @@ const li = { color: 'var(--text-secondary)', lineHeight: 1.7, fontSize: '0.95rem
 const PrivacyPolicy = () => {
     return (
         <div className="container" style={{ paddingTop: 'clamp(4rem, 8vw, 7rem)', paddingBottom: '4rem', maxWidth: '780px' }}>
+            <Seo
+                title="Privacy Policy | Bookplus"
+                description="How Bookplus collects, uses and protects your personal information."
+                url={(typeof window !== 'undefined' ? window.location.origin : 'https://www.bookplus.pro') + '/privacy-policy'}
+            />
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.4rem' }}>Privacy Policy</h1>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>Last updated: {LAST_UPDATED}</p>
 

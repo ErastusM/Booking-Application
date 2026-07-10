@@ -5,6 +5,10 @@ import MAIN_CATEGORIES from '../constants/mainCategories';
 import { API_BASE } from '../services/api';
 import { MailCheck, Check } from 'lucide-react';
 
+// Legal pages are hosted once on the customer marketplace site; link out to the
+// canonical copies (opened in a new tab so the signup form isn't lost).
+const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'https://www.bookplus.pro';
+
 /**
  * "List your business" — the business side's own signup (Fresha model: the
  * two apps are separate products). Always registers a PROVIDER account; an
@@ -297,7 +301,9 @@ const Register = () => {
                                     style={{ marginTop: '0.15rem', width: '16px', height: '16px', flexShrink: 0, accentColor: 'var(--gold)', cursor: 'pointer' }}
                                 />
                                 <span>
-                                    I have read and agree to the Terms of Service and Privacy Policy, and consent to the processing of my personal information as described.
+                                    I have read and agree to the{' '}
+                                    <a href={`${CUSTOMER_URL}/terms`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: 'var(--gold-dark)', fontWeight: 600 }}>Terms of Service</a>{' '}and{' '}
+                                    <a href={`${CUSTOMER_URL}/privacy-policy`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} style={{ color: 'var(--gold-dark)', fontWeight: 600 }}>Privacy Policy</a>, and consent to the processing of my personal information as described.
                                 </span>
                             </label>
 

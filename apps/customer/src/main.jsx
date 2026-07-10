@@ -7,13 +7,20 @@ import '@fontsource-variable/inter';
 import '@bookplus/design-tokens/tokens.css';
 import './styles/index.css';
 import App from './App';
+import ErrorBoundary from './components/ErrorBoundary';
 import { initFreshBuildReload } from './utils/freshBuild';
+import { initErrorReporter } from './utils/errorReporter';
+
+// Capture uncaught JS errors + unhandled promise rejections (production only).
+initErrorReporter();
 
 // Reload long-lived tabs/PWAs onto the newest build when the user returns.
 initFreshBuildReload(['/book-appointment']);
 
 ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
-        <App />
+        <ErrorBoundary>
+            <App />
+        </ErrorBoundary>
     </React.StrictMode>
 );

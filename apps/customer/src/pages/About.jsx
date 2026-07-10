@@ -2,6 +2,7 @@ import React from 'react';
 import { Link } from 'react-router-dom';
 import { ShieldCheck, CalendarCheck, Clock, Zap, ArrowRight } from 'lucide-react';
 import { useAuthContext } from '../context/AuthContext';
+import Seo from '../components/Seo';
 
 const features = [
     { Icon: ShieldCheck, title: 'Trusted professionals', description: 'Top-rated providers across beauty, wellness, automotive, training and more.' },
@@ -15,6 +16,11 @@ const About = () => {
     const isProvider = user?.role === 'provider';
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+            <Seo
+                title="About Bookplus — Book trusted local services"
+                description="Bookplus is the easiest way to discover and book trusted local businesses across Namibia and beyond — real-time availability, instant confirmation."
+                url={(typeof window !== 'undefined' ? window.location.origin : 'https://www.bookplus.pro') + '/about'}
+            />
             {/* Hero */}
             <section style={{ position: 'relative', overflow: 'hidden', paddingTop: 'clamp(4rem, 10vh, 9rem)', paddingBottom: 'clamp(2rem, 5vh, 3.5rem)' }}>
                 <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'radial-gradient(60% 45% at 50% 0%, rgba(240,62,22,0.14), transparent 70%)', pointerEvents: 'none' }} />

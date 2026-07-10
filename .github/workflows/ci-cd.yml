@@ -146,6 +146,14 @@ jobs:
             grep -q 'business.bookplus.pro' .env.production || sed -i '/^CLIENT_URL=/ s|$|,https://business.bookplus.pro|' .env.production
             docker compose pull
             docker compose up -d --force-recreate
+            # Best-effort readiness gate (non-fatal): wait for the API container to
+            # report healthy via its Docker healthcheck before running migrations,
+            # so a slow boot doesn't race the migration step. Never fails the deploy.
+            for i in $(seq 1 40); do
+              status=$(docker inspect -f '{{.State.Health.Status}}' bookplus-server 2>/dev/null || echo unknown)
+              [ "$status" = healthy ] && { echo "API container healthy"; break; }
+              echo "waiting for API health ($status)..."; sleep 3
+            done
             # One-off data migrations, all idempotent — safe on every deploy.
             docker compose exec -T server node scripts/migrate_team_colors.js || true
             # Email + account-type auth: backfill accountType and swap the
