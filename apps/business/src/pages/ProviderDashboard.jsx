@@ -2092,7 +2092,7 @@ const ProviderDashboard = () => {
                         </button>
                         <div className="fc-toolbar-shell" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
                             <div style={{ display: 'inline-flex', background: 'var(--surface-sunken)', border: '1px solid var(--border)', borderRadius: '10px', padding: '3px', gap: '2px' }}>
-                                {[['day', 'Day'], ['week', 'Week'], ['month', 'Month']].map(([view, label]) => {
+                                {[['day', 'Day'], ['3day', '3 Day'], ['week', 'Week'], ['month', 'Month']].map(([view, label]) => {
                                     const isActive = calendarView === view;
                                     return (
                                         <button

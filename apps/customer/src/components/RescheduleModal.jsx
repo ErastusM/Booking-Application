@@ -130,6 +130,21 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                         })}
                     </div>
 
+                    {/* Jump to any future date — the chips above are just quick near-term
+                        picks; this reaches next month / any day the chip strip doesn't. */}
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginTop: '0.7rem' }}>
+                        <label htmlFor="reschedule-date-jump" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', flexShrink: 0 }}>Or pick a date</label>
+                        <input
+                            id="reschedule-date-jump"
+                            type="date"
+                            min={fmtDate(new Date())}
+                            value={selectedDate || ''}
+                            onChange={(e) => e.target.value && selectDate(e.target.value)}
+                            className="input"
+                            style={{ flex: 1, minWidth: 0, padding: '0.5rem 0.7rem', fontSize: '0.9rem' }}
+                        />
+                    </div>
+
                     {/* Time slots */}
                     {selectedDate && (
                         <>
