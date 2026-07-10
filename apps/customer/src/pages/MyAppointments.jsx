@@ -4,6 +4,7 @@ import { appointmentService, reviewService, messageService } from '../services';
 import ReviewModal from '../components/ReviewModal';
 import IntakeFormModal from '../components/IntakeFormModal';
 import RescheduleModal from '../components/RescheduleModal';
+import StatusOverlay from '../components/StatusOverlay';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { useAuthContext } from '../context/AuthContext';
 import { mapsUrl } from '../utils/maps';
@@ -55,6 +56,8 @@ const MyAppointments = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [cancelledOverlay, setCancelledOverlay] = useState(false); // full-screen cancel acknowledgement
+    const [rescheduledOverlay, setRescheduledOverlay] = useState(false); // full-screen reschedule celebration
     const [reviewedIds, setReviewedIds] = useState([]);
     const [selectedAppointment, setSelectedAppointment] = useState(null);
     const [activeFilter, setActiveFilter] = useState('all');
@@ -97,9 +100,9 @@ const MyAppointments = () => {
 
     useEffect(() => {
         if (searchParams.get('rescheduled') === '1') {
-            setSuccess('Appointment rescheduled and confirmed.');
-            const t = setTimeout(() => setSuccess(''), 12000);
-            return () => clearTimeout(t);
+            // Full-screen celebration for the reschedule that came via the booking
+            // page (the in-page RescheduleModal triggers it through onDone instead).
+            setRescheduledOverlay(true);
         }
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -137,8 +140,8 @@ const MyAppointments = () => {
         try {
             await appointmentService.cancelAppointment(id, 'Cancelled by customer');
             setAppointments(appointments.map(a => a._id === id ? { ...a, status: 'cancelled' } : a));
-            setSuccess('Appointment cancelled successfully.');
-            setTimeout(() => setSuccess(''), 15000);
+            // Full-screen acknowledgement instead of just an inline banner.
+            setCancelledOverlay(true);
         } catch (err) {
             // Surface the real reason (e.g. the provider's cancellation window).
             setError(err.response?.data?.message || 'Failed to cancel appointment');
@@ -247,6 +250,23 @@ const MyAppointments = () => {
 
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+
+            {cancelledOverlay && (
+                <StatusOverlay
+                    variant="cancelled"
+                    title="Appointment cancelled"
+                    subtitle="Your appointment has been cancelled. You can rebook anytime."
+                    onDone={() => setCancelledOverlay(false)}
+                />
+            )}
+            {rescheduledOverlay && (
+                <StatusOverlay
+                    variant="confirmed"
+                    title="Appointment rescheduled"
+                    subtitle="Your new time is confirmed — see you then."
+                    onDone={() => setRescheduledOverlay(false)}
+                />
+            )}
 
             {/* Header */}
             <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
@@ -647,7 +667,7 @@ const MyAppointments = () => {
                 <RescheduleModal
                     appointment={rescheduleAppt}
                     onClose={() => setRescheduleAppt(null)}
-                    onDone={() => { setRescheduleAppt(null); setSuccess('Appointment rescheduled and confirmed.'); fetchData(); }}
+                    onDone={() => { setRescheduleAppt(null); setRescheduledOverlay(true); fetchData(); }}
                 />
             )}
 
