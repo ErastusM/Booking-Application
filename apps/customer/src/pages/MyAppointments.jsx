@@ -200,12 +200,37 @@ const MyAppointments = () => {
     const labelStyle = { fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.25rem' };
 
     if (loading) return (
-        <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ textAlign: 'center' }}>
-                <div style={{ width: '40px', height: '40px', border: '3px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 1rem' }} />
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Loading appointments...</p>
+        <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+            {/* Header — matches the real dark hero so the layout doesn't jump on load */}
+            <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
+                <div className="container" style={{ position: 'relative' }}>
+                    <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Your Schedule</p>
+                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'white' }}>My Appointments</h1>
+                </div>
             </div>
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
+                {/* Filter-tab placeholder */}
+                <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '2rem' }} aria-hidden="true">
+                    {[0, 1, 2, 3].map(i => <div key={i} className="skeleton" style={{ width: '84px', height: '20px', borderRadius: '6px' }} />)}
+                </div>
+                {/* Card-shaped placeholders reserve the appointment rows */}
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }} aria-hidden="true">
+                    {[0, 1, 2].map(i => (
+                        <div key={i} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem 2rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', paddingBottom: '1rem', borderBottom: '1px solid var(--border)', marginBottom: '1rem' }}>
+                                <div className="skeleton" style={{ width: '48px', height: '48px', borderRadius: '50%', flexShrink: 0 }} />
+                                <div style={{ flex: 1 }}>
+                                    <div className="skeleton skeleton-title" style={{ width: '45%' }} />
+                                    <div className="skeleton skeleton-line" style={{ width: '30%', marginBottom: 0 }} />
+                                </div>
+                            </div>
+                            <div style={{ display: 'flex', gap: '2rem', flexWrap: 'wrap' }}>
+                                {[0, 1, 2, 3].map(j => <div key={j} className="skeleton skeleton-line" style={{ width: '90px', marginBottom: 0 }} />)}
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            </div>
         </div>
     );
 
@@ -481,7 +506,7 @@ const MyAppointments = () => {
                                                     )}
                                                 </div>
                                                 {open && address && (
-                                                    <div style={{ marginTop: '1rem' }}>
+                                                    <div style={{ marginTop: '1rem', animation: 'slideUp var(--dur) var(--ease-out)' }}>
                                                         {bizName && <p style={{ fontWeight: 700, color: 'var(--charcoal)', fontSize: '0.9rem', margin: '0 0 0.2rem', fontFamily: 'var(--font-body)' }}>{bizName}</p>}
                                                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: '0 0 0.75rem', fontFamily: 'var(--font-body)', lineHeight: 1.5 }}>{address}</p>
                                                         <iframe
@@ -508,8 +533,8 @@ const MyAppointments = () => {
 
             {/* Message Modal */}
             {msgModal && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '480px', boxShadow: '0 20px 60px rgba(4,5,5,0.25)', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}>
+                <div className="scrim-in" style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+                    <div className="scale-in" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '480px', boxShadow: '0 20px 60px rgba(4,5,5,0.25)', display: 'flex', flexDirection: 'column', maxHeight: '80vh' }}>
                         {/* Header */}
                         <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                             <div>
@@ -572,8 +597,8 @@ const MyAppointments = () => {
 
             {/* Cancel-or-Reschedule Modal */}
             {showCancelModal && (
-                <div style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
-                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', padding: '2rem', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(4,5,5,0.25)' }}>
+                <div className="scrim-in" style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
+                    <div className="scale-in" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', padding: '2rem', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(4,5,5,0.25)' }}>
                         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>What would you like to do?</h2>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem', fontFamily: 'var(--font-body)', lineHeight: '1.5' }}>
                             <strong style={{ color: 'var(--charcoal)' }}>{showCancelModal.service?.name}</strong> on{' '}

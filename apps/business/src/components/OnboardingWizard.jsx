@@ -177,14 +177,14 @@ const OnboardingWizard = ({ user, onComplete }) => {
             {/* Header: back + step + skip */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1rem 1.25rem', flexShrink: 0 }}>
                 <button type="button" onClick={goBack} disabled={step === 0} aria-label="Back"
-                    style={{ background: 'none', border: 'none', cursor: step === 0 ? 'default' : 'pointer', color: step === 0 ? 'transparent' : 'var(--charcoal)', padding: '0.4rem', display: 'flex' }}>
+                    style={{ background: 'none', border: 'none', cursor: step === 0 ? 'default' : 'pointer', color: step === 0 ? 'transparent' : 'var(--charcoal)', minWidth: '44px', minHeight: '44px', margin: '-0.4rem', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     <ArrowLeft size={22} />
                 </button>
                 <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
                     {step === 0 || current.id === 'link' ? '' : `Step ${step} of ${total - 2}`}
                 </span>
                 {skippable ? (
-                    <button type="button" onClick={goNext} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 600, fontFamily: 'var(--font-body)', padding: '0.4rem' }}>
+                    <button type="button" onClick={goNext} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 600, fontFamily: 'var(--font-body)', minHeight: '44px', padding: '0 0.6rem', margin: '-0.4rem 0', display: 'inline-flex', alignItems: 'center' }}>
                         Skip
                     </button>
                 ) : <span style={{ width: 44 }} />}
@@ -192,7 +192,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
 
             {/* Body */}
             <div style={{ flex: 1, overflowY: 'auto', padding: '0.5rem 1.25rem 2rem' }}>
-                <div style={{ maxWidth: '520px', margin: '0 auto' }}>
+                <div key={current.id} className="route-view" style={{ maxWidth: '520px', margin: '0 auto' }}>
 
                     {current.id === 'welcome' && (
                         <div style={{ paddingTop: '1.5rem' }}>
@@ -252,8 +252,10 @@ const OnboardingWizard = ({ user, onComplete }) => {
                                         <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 0.75rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
                                             <button type="button" onClick={() => setDay({ enabled: !day.enabled })}
                                                 aria-label={`Toggle ${label}`}
-                                                style={{ width: '42px', height: '24px', borderRadius: '999px', border: 'none', cursor: 'pointer', background: day.enabled ? 'var(--gold)' : 'var(--warm-gray)', position: 'relative', flexShrink: 0 }}>
-                                                <span style={{ position: 'absolute', top: '3px', left: day.enabled ? '21px' : '3px', width: '18px', height: '18px', borderRadius: '50%', background: '#fff', transition: 'left 0.18s' }} />
+                                                style={{ width: '44px', height: '44px', margin: '-10px -1px', padding: 0, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                <span style={{ width: '42px', height: '24px', borderRadius: '999px', background: day.enabled ? 'var(--gold)' : 'var(--warm-gray)', position: 'relative', display: 'block' }}>
+                                                    <span style={{ position: 'absolute', top: '3px', left: '3px', width: '18px', height: '18px', borderRadius: '50%', background: '#fff', transform: day.enabled ? 'translateX(18px)' : 'translateX(0)', transition: 'transform 0.18s' }} />
+                                                </span>
                                             </button>
                                             <span style={{ width: '96px', fontSize: '0.88rem', fontWeight: 600, color: day.enabled ? 'var(--charcoal)' : 'var(--text-muted)' }}>{label}</span>
                                             {day.enabled ? (
@@ -283,7 +285,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                                             <input className="input" disabled={locked} type="number" min="5" step="5" value={s.duration} onChange={(e) => setRow({ duration: e.target.value })} placeholder="min" style={{ flex: 1, minWidth: 0 }} title="Duration in minutes" />
                                             <input className="input" disabled={locked} type="number" min="0" value={s.price} onChange={(e) => setRow({ price: e.target.value })} placeholder="Price" style={{ flex: 1, minWidth: 0 }} />
                                             {services.length > 1 && !locked && (
-                                                <button type="button" onClick={() => setServices((prev) => prev.filter((_, idx) => idx !== i))} aria-label="Remove" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.3rem', flexShrink: 0 }}><X size={18} /></button>
+                                                <button type="button" onClick={() => setServices((prev) => prev.filter((_, idx) => idx !== i))} aria-label="Remove" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><X size={18} /></button>
                                             )}
                                         </div>
                                     );
@@ -313,7 +315,9 @@ const OnboardingWizard = ({ user, onComplete }) => {
                                 {postImages.map((img, i) => (
                                     <div key={i} style={{ position: 'relative', aspectRatio: '1', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
                                         <img src={cloudinaryThumb(img, 200)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                        <button type="button" onClick={() => setPostImages((p) => p.filter((_, idx) => idx !== i))} aria-label="Remove photo" style={{ position: 'absolute', top: 4, right: 4, width: 22, height: 22, borderRadius: '50%', border: 'none', background: 'rgba(4,5,5,0.65)', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={13} /></button>
+                                        <button type="button" onClick={() => setPostImages((p) => p.filter((_, idx) => idx !== i))} aria-label="Remove photo" style={{ position: 'absolute', top: 0, right: 0, width: 44, height: 44, border: 'none', background: 'none', color: '#fff', cursor: 'pointer', display: 'flex', alignItems: 'flex-start', justifyContent: 'flex-end', padding: 4 }}>
+                                            <span style={{ width: 22, height: 22, borderRadius: '50%', background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><X size={13} /></span>
+                                        </button>
                                     </div>
                                 ))}
                                 {postImages.length < 5 && (
@@ -338,7 +342,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                             </p>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.85rem 1rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', marginBottom: '1rem' }}>
                                 <span style={{ flex: 1, textAlign: 'left', fontSize: '0.9rem', color: 'var(--charcoal)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bookingUrl || 'Generating…'}</span>
-                                <button type="button" onClick={copyLink} disabled={!slug} aria-label="Copy link" style={{ background: 'none', border: 'none', cursor: 'pointer', color: copied ? '#16a34a' : 'var(--gold-dark)', display: 'flex', flexShrink: 0 }}>
+                                <button type="button" onClick={copyLink} disabled={!slug} aria-label="Copy link" style={{ background: 'none', border: 'none', cursor: 'pointer', color: copied ? '#16a34a' : 'var(--gold-dark)', minWidth: '44px', minHeight: '44px', margin: '-0.55rem -0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                     {copied ? <Check size={18} /> : <Copy size={18} />}
                                 </button>
                             </div>

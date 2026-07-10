@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -25,6 +25,8 @@ const Navbar = () => {
     const [profileOpen, setProfileOpen] = useState(false); // desktop avatar dropdown
 
     useEffect(() => { setProfileOpen(false); }, [location]);
+
+    const closeMenu = () => setMenuOpen(false);
 
     const isHome = location.pathname === '/';
     // The booking flow AND the provider profile each have their own bottom CTA bar
@@ -214,7 +216,7 @@ const Navbar = () => {
                 <div className="show-mobile" style={{ alignItems: 'center', gap: '0.1rem' }}>
                     {user && <NotificationBell isTransparent={isTransparent} />}
                     <button
-                        onClick={() => setMenuOpen(prev => !prev)}
+                        onClick={() => (menuOpen ? closeMenu() : setMenuOpen(true))}
                         aria-label={menuOpen ? 'Close menu' : 'Open menu'}
                         style={{ background: 'none', border: 'none', cursor: 'pointer', color: isTransparent ? 'white' : 'var(--charcoal)', padding: '0.5rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                         <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -230,7 +232,7 @@ const Navbar = () => {
         {/* Mobile side drawer */}
         {menuOpen && (
             <>
-                <div onClick={() => setMenuOpen(false)} className="show-mobile" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.44)', zIndex: 1200, backdropFilter: 'blur(2px)' }} />
+                <div onClick={closeMenu} className="show-mobile scrim-in" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.44)', zIndex: 1200, backdropFilter: 'blur(2px)' }} />
                 <aside className="show-mobile mobile-drawer" style={{
                     position: 'fixed', top: 0, left: 0, bottom: 0,
                     // --safe-top (not raw env()) — floored at 50px in the installed PWA so the
@@ -241,7 +243,9 @@ const Navbar = () => {
                     display: 'flex', flexDirection: 'column',
                     boxShadow: '12px 0 44px rgba(0,0,0,0.24)',
                     overflowY: 'auto',
-                    animation: 'slideInLeft 0.22s ease-out',
+                    // CSS animation on mount (composited transform) — reliable slide-in on
+                    // every open with no rAF/state fragility; reduced-motion neutralizes it.
+                    animation: 'slideInLeft 0.22s var(--ease-out)',
                 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.1rem 1.2rem', borderBottom: '1px solid var(--border)' }}>
                         <Link to="/" onClick={() => setMenuOpen(false)} style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
@@ -250,7 +254,7 @@ const Navbar = () => {
                                 <span style={{ color: 'var(--charcoal)' }}>Book</span><span style={{ color: 'var(--gold)' }}>plus</span>
                             </span>
                         </Link>
-                        <button onClick={() => setMenuOpen(false)} aria-label="Close menu" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.55rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                        <button onClick={closeMenu} aria-label="Close menu" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.55rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
                             </svg>

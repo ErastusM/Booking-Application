@@ -12,7 +12,7 @@ import { normalizeTown } from '../utils/namibiaTowns';
 // Circular translucent control that floats over the hero photo (back / share / like / ⋯).
 // The circle stays white in both themes, so the icon uses --ink (never flips)
 // rather than --charcoal (goes light in dark mode → white-on-white).
-const floatBtn = { pointerEvents: 'auto', width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(255,255,255,0.92)', border: 'none', color: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', flexShrink: 0 };
+const floatBtn = { pointerEvents: 'auto', width: '44px', height: '44px', borderRadius: '50%', background: 'rgba(255,255,255,0.92)', border: 'none', color: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', flexShrink: 0 };
 
 const StarDisplay = ({ rating }) => (
     <div style={{ display: 'flex', gap: '2px' }}>
@@ -230,9 +230,22 @@ const ProviderProfilePage = ({ providerId } = {}) => {
     };
 
     if (loading) return (
-        <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ width: '40px', height: '40px', border: '3px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        // Content-shaped skeleton that mirrors the real page (hero photo, header
+        // block, services strip) so space is reserved and content doesn't jump in.
+        <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+            <div className="skeleton" style={{ width: '100%', aspectRatio: '4 / 3', maxHeight: 'min(75vw, 480px)', borderRadius: 0 }} />
+            <div className="container" style={{ paddingTop: '1.25rem' }}>
+                <div className="skeleton skeleton-title" style={{ width: '70%', height: '32px', marginBottom: '0.7rem' }} />
+                <div className="skeleton skeleton-line" style={{ width: '40%' }} />
+                <div className="skeleton skeleton-line" style={{ width: '55%' }} />
+                <div className="skeleton" style={{ height: '44px', borderRadius: '12px', marginTop: '0.85rem' }} />
+                <div style={{ display: 'flex', gap: '0.5rem', marginTop: '1.75rem' }}>
+                    {[0, 1, 2].map(i => <div key={i} className="skeleton" style={{ width: '92px', height: '38px', borderRadius: '999px' }} />)}
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', marginTop: '1.1rem' }}>
+                    {[0, 1, 2].map(i => <div key={i} className="skeleton" style={{ height: '96px', borderRadius: 'var(--radius)' }} />)}
+                </div>
+            </div>
         </div>
     );
 
@@ -431,7 +444,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                     if (cat.services.length === 0 && key !== 'featured') return null;
                                     const active = activeCategory === key;
                                     return (
-                                        <button key={key} onClick={(e) => { e.currentTarget.blur(); setActiveCategory(key); }} style={{
+                                        <button key={key} className="pressable" onClick={() => setActiveCategory(key)} style={{
                                             flexShrink: 0, padding: '0.5rem 1rem', borderRadius: '999px',
                                             border: `1px solid ${active ? 'var(--charcoal)' : 'var(--border)'}`,
                                             background: active ? 'var(--charcoal)' : 'var(--card-bg)',
@@ -439,7 +452,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                             // readable in dark mode too (--charcoal is LIGHT there).
                                             color: active ? 'var(--off-white)' : 'var(--charcoal)',
                                             fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer',
-                                            fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', outline: 'none',
+                                            fontFamily: 'var(--font-body)', whiteSpace: 'nowrap',
                                         }}>
                                             {cat.name}{cat.services.length > 0 ? ` (${cat.services.length})` : ''}
                                         </button>
@@ -448,7 +461,9 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                             </div>
                         </div>
 
-                        {/* Services list */}
+                        {/* Services list — keyed on activeCategory so the new list eases
+                            in (fadeIn) on category switch instead of hard-swapping. */}
+                        <div key={activeCategory} style={{ animation: 'fadeIn var(--dur-fast) var(--ease-out)' }}>
                         {activeServices.length === 0 ? (
                             <div style={{ textAlign: 'center', padding: '3rem', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>No services in this category yet</p>
@@ -481,6 +496,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                 ))}
                             </div>
                         )}
+                        </div>
 
                         {/* Team — colored initial circles from the public staff endpoint */}
                         {staff.length > 0 && (
@@ -670,12 +686,12 @@ const ProviderProfilePage = ({ providerId } = {}) => {
 
             {/* Full-screen photo gallery */}
             {lightbox >= 0 && photos[lightbox] && (
-                <div onClick={() => setLightbox(-1)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+                <div onClick={() => setLightbox(-1)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.92)', zIndex: 2000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem', animation: 'fadeIn var(--dur) var(--ease-out)' }}>
                     <button onClick={(e) => { e.stopPropagation(); setLightbox(-1); }} aria-label="Close" style={lightboxBtnStyle({ top: '1rem', right: '1rem' })}><X size={22} /></button>
                     {lightbox > 0 && (
                         <button onClick={(e) => { e.stopPropagation(); setLightbox(i => i - 1); }} aria-label="Previous photo" style={lightboxBtnStyle({ left: '0.75rem' })}><ChevronLeft size={26} /></button>
                     )}
-                    <img src={cloudinaryThumb(photos[lightbox], 1400)} alt={`${businessName} photo ${lightbox + 1}`} onClick={(e) => e.stopPropagation()} style={{ maxWidth: '92vw', maxHeight: '86vh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 12px 48px rgba(0,0,0,0.5)' }} />
+                    <img src={cloudinaryThumb(photos[lightbox], 1400)} alt={`${businessName} photo ${lightbox + 1}`} onClick={(e) => e.stopPropagation()} className="scale-in" style={{ maxWidth: '92vw', maxHeight: '86vh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 12px 48px rgba(0,0,0,0.5)' }} />
                     {lightbox < photos.length - 1 && (
                         <button onClick={(e) => { e.stopPropagation(); setLightbox(i => i + 1); }} aria-label="Next photo" style={lightboxBtnStyle({ right: '0.75rem' })}><ChevronRight size={26} /></button>
                     )}

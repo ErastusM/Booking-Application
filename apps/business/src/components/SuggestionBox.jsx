@@ -71,21 +71,30 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                 </button>
             )}
 
-            {/* Drawer overlay */}
-            {open && (
-                <div
-                    onClick={doClose}
-                    style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1001, backdropFilter: 'blur(2px)' }}
-                />
-            )}
+            {/* Drawer overlay — stays mounted so its opacity can fade in/out in sync
+                with the panel slide instead of blinking on/off. */}
+            <div
+                onClick={doClose}
+                aria-hidden="true"
+                style={{
+                    position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1001, backdropFilter: 'blur(2px)',
+                    opacity: open ? 1 : 0, visibility: open ? 'visible' : 'hidden',
+                    pointerEvents: open ? 'auto' : 'none',
+                    transition: 'opacity 0.28s ease, visibility 0.28s ease',
+                }}
+            />
 
-            {/* Slide-in panel */}
-            <div style={{
+            {/* Slide-in panel — when closed, visibility:hidden + pointer-events:none +
+                aria-hidden pull its controls out of the tab order and the a11y tree,
+                so keyboard/SR users can't land on the off-screen form. */}
+            <div aria-hidden={!open} style={{
                 position: 'fixed', top: 0, right: 0, bottom: 0,
                 width: '420px', maxWidth: '95vw',
                 background: 'var(--card-bg)', boxShadow: '-8px 0 40px rgba(0,0,0,0.18)',
                 zIndex: 1002, transform: open ? 'translateX(0)' : 'translateX(100%)',
-                transition: 'transform 0.28s cubic-bezier(0.4,0,0.2,1)',
+                visibility: open ? 'visible' : 'hidden',
+                pointerEvents: open ? 'auto' : 'none',
+                transition: 'transform 0.28s cubic-bezier(0.4,0,0.2,1), visibility 0.28s cubic-bezier(0.4,0,0.2,1)',
                 display: 'flex', flexDirection: 'column', overflowY: 'auto',
             }}>
                 {/* Header */}

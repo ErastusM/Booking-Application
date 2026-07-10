@@ -646,7 +646,7 @@ const ProviderAccount = () => {
                                                             position: 'relative', transition: 'background 0.2s', flexShrink: 0,
                                                         }}
                                                     >
-                                                        <span style={{ position: 'absolute', top: '3px', left: darkModeOn ? '27px' : '3px', width: '22px', height: '22px', borderRadius: '50%', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s' }} />
+                                                        <span style={{ position: 'absolute', top: '3px', left: '3px', width: '22px', height: '22px', borderRadius: '50%', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transform: darkModeOn ? 'translateX(24px)' : 'translateX(0)', transition: 'transform 0.2s' }} />
                                                     </button>
                                                 </div>
                                                 <div style={{ borderTop: '1px solid var(--border)', marginTop: '0.5rem' }}>
