@@ -1244,7 +1244,7 @@ body.dark-mode .home-hero-wash {
     max-width: 1200px;
     align-items: start;
   }
-  .discover-feed .feed-media-img { aspect-ratio: 4 / 3 !important; }
+  .discover-feed .feed-media-img { aspect-ratio: 1 / 1 !important; }
 }
 
 /* ── Home: two distinct layouts. Mobile = the Instagram-style infinite feed
