@@ -7,6 +7,7 @@ import RescheduleModal from '../components/RescheduleModal';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { useAuthContext } from '../context/AuthContext';
 import { mapsUrl } from '../utils/maps';
+import { currencySymbol } from '../utils/currency';
 import { cloudinaryThumb } from '../utils/cloudinary';
 import { CalendarClock, CalendarPlus, MessageSquare, ClipboardList, Star, X, RefreshCw, MapPin, Copy, Check, ChevronDown } from 'lucide-react';
 import EnablePushBanner from '../components/EnablePushBanner';
@@ -227,7 +228,7 @@ const MyAppointments = () => {
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 50%, rgba(240,62,22,0.045) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Your Schedule</p>
-                    <h1 style={{ fontFamily: 'var(--font-body)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'white' }}>My Appointments</h1>
+                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'white' }}>My Appointments</h1>
                 </div>
             </div>
 
@@ -313,7 +314,7 @@ const MyAppointments = () => {
                 {filtered.length === 0 ? (
                     <div style={{ textAlign: 'center', padding: '5rem 2rem', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
                         <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>📅</div>
-                        <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1.3rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
+                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                             No {activeFilter === 'all' ? '' : activeFilter} appointments
                         </h3>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>
@@ -371,7 +372,7 @@ const MyAppointments = () => {
                                     <div>
                                         <p style={labelStyle}>Service</p>
                                         <p style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', fontSize: '1rem' }}>{a.service?.name}</p>
-                                        <p style={{ color: 'var(--gold-dark)', fontWeight: '600', fontSize: '0.9rem' }}>${a.totalPrice}</p>
+                                        <p style={{ color: 'var(--gold-dark)', fontWeight: '600', fontSize: '0.9rem' }}>{currencySymbol(a.service?.provider?.currency || a.service?.provider?.businessProfile?.currency)} {a.totalPrice}</p>
                                     </div>
                                     <div>
                                         <p style={labelStyle}>Date</p>
@@ -425,7 +426,7 @@ const MyAppointments = () => {
                                                         </button>
                                                     )}
                                                     {a.status === 'completed' && isReviewed && (
-                                                        <span style={{ fontSize: '0.8rem', color: '#065f46', fontWeight: '600', textAlign: 'center' }}>✓ Reviewed</span>
+                                                        <span style={{ fontSize: '0.8rem', color: 'var(--success)', fontWeight: '600', textAlign: 'center' }}>✓ Reviewed</span>
                                                     )}
                                                     {a.status === 'completed' && (
                                                         <button onClick={() => navigate(`/book-appointment?providerId=${a.service?.provider?._id || a.service?.provider || ''}&serviceId=${a.service?._id || ''}`)} style={gold}>
@@ -535,8 +536,8 @@ const MyAppointments = () => {
                                         <div style={{
                                             maxWidth: '75%', padding: '0.6rem 0.9rem',
                                             borderRadius: isMine ? '14px 14px 4px 14px' : '14px 14px 14px 4px',
-                                            background: isMine ? 'var(--charcoal)' : 'var(--warm-gray)',
-                                            color: isMine ? 'white' : 'var(--charcoal)',
+                                            background: isMine ? 'var(--ink)' : 'var(--warm-gray)',
+                                            color: isMine ? 'var(--on-ink)' : 'var(--charcoal)',
                                             fontSize: '0.875rem', lineHeight: '1.45', fontFamily: 'var(--font-body)',
                                         }}>
                                             {m.content}
@@ -593,7 +594,7 @@ const MyAppointments = () => {
                             <button
                                 onClick={confirmCancel}
                                 style={{ padding: '0.9rem', background: 'none', border: '1.5px solid #fca5a5', color: '#dc2626', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: '600', fontFamily: 'var(--font-body)', transition: 'background 0.2s' }}
-                                onMouseEnter={e => e.currentTarget.style.background = '#fff1f2'}
+                                onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.12)'}
                                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
                             >
                                 Cancel Appointment

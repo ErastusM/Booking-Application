@@ -421,7 +421,7 @@ const Navbar = () => {
                             aria-label="Toggle dark mode"
                             style={{
                                 width: '48px', height: '26px', borderRadius: '99px', border: 'none', cursor: 'pointer',
-                                background: darkMode ? 'var(--gold)' : '#d1d5db',
+                                background: darkMode ? 'var(--gold)' : 'var(--warm-gray)',
                                 position: 'relative', transition: 'background 0.2s', flexShrink: 0,
                             }}
                         >

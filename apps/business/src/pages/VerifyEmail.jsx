@@ -95,7 +95,7 @@ const VerifyEmail = () => {
                             }
                         </div>
 
-                        <h1 style={{ fontFamily: 'var(--font-body)', fontSize: '1.8rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
+                        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
                             {current.title}
                         </h1>
 

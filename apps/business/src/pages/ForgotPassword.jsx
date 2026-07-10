@@ -58,7 +58,7 @@ const ForgotPassword = () => {
                         Book<span style={{ color: 'var(--gold)' }}>plus</span>
                     </Link>
                     <h2 style={{
-                        fontFamily: 'var(--font-body)',
+                        fontFamily: 'var(--font-display)',
                         fontSize: 'clamp(2rem, 3vw, 2.8rem)',
                         fontWeight: '700',
                         color: 'white',
@@ -93,7 +93,7 @@ const ForgotPassword = () => {
                         <div style={{ textAlign: 'center' }}>
                             <div style={{ fontSize: '3rem', marginBottom: '1.5rem' }}>📬</div>
                             <h1 style={{
-                                fontFamily: 'var(--font-body)',
+                                fontFamily: 'var(--font-display)',
                                 fontSize: '1.8rem',
                                 fontWeight: '700',
                                 color: 'var(--charcoal)',
@@ -105,7 +105,7 @@ const ForgotPassword = () => {
                                 If an account with <strong>{email}</strong> exists, you'll receive a password reset link shortly. The link expires in 1 hour.
                             </p>
                             <Link to="/login" style={{
-                                color: 'var(--gold)',
+                                color: 'var(--gold-dark)',
                                 fontWeight: '600',
                                 fontSize: '0.9rem',
                                 textDecoration: 'none',
@@ -116,7 +116,7 @@ const ForgotPassword = () => {
                     ) : (
                         <>
                             <h1 style={{
-                                fontFamily: 'var(--font-body)',
+                                fontFamily: 'var(--font-display)',
                                 fontSize: '2rem',
                                 fontWeight: '700',
                                 color: 'var(--charcoal)',
@@ -126,7 +126,7 @@ const ForgotPassword = () => {
                             </h1>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '2rem' }}>
                                 Remember it?{' '}
-                                <Link to="/login" style={{ color: 'var(--gold)', fontWeight: '600', textDecoration: 'none' }}>
+                                <Link to="/login" style={{ color: 'var(--gold-dark)', fontWeight: '600', textDecoration: 'none' }}>
                                     Sign in here
                                 </Link>
                             </p>

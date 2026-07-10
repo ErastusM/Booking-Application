@@ -110,18 +110,9 @@ const Register = () => {
     ];
 
     return (
-        <div style={{ minHeight: '100dvh', background: 'var(--off-white)', display: 'flex', flexDirection: 'column' }}>
-
-            {/* Navbar */}
-            <div style={{ padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.5rem' }}>
-                <Link to="/" style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', textDecoration: 'none' }}>
-                    Book<span style={{ color: 'var(--gold)' }}>plus</span>
-                </Link>
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>
-                    Already have an account?{' '}
-                    <Link to="/login" style={{ color: 'var(--gold)', fontWeight: '600', textDecoration: 'none' }}>Sign in</Link>
-                </p>
-            </div>
+        <div style={{ minHeight: '100dvh', background: 'var(--off-white)', display: 'flex', flexDirection: 'column', paddingTop: 'calc(56px + var(--safe-top, 0px))' }}>
+            {/* The global fixed navbar (56px) renders on this page and carries the logo +
+                Log in link, so the page ships no duplicate header of its own — just clear it. */}
 
             {/* Step indicator */}
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem' }}>
@@ -240,7 +231,7 @@ const Register = () => {
                                     {field.name === 'password' && (passwordFocused || formData.password) && (
                                         <div style={{ marginTop: '0.75rem', padding: '0.75rem 1rem', background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                             {passwordChecks.map((check, i) => (
-                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: check.valid ? '#065f46' : 'var(--text-muted)', transition: 'color 0.2s' }}>
+                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: check.valid ? 'var(--success)' : 'var(--text-muted)', transition: 'color 0.2s' }}>
                                                     {check.valid ? <Check size={14} strokeWidth={3} style={{ color: '#10b981', flexShrink: 0 }} /> : <span style={{ display: 'inline-block', width: '14px', textAlign: 'center' }}>○</span>}
                                                     {check.label}
                                                 </div>

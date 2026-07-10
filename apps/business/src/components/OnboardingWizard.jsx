@@ -181,7 +181,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                     <ArrowLeft size={22} />
                 </button>
                 <span style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                    {step === 0 ? '' : `Step ${step} of ${total - 2}`}
+                    {step === 0 || current.id === 'link' ? '' : `Step ${step} of ${total - 2}`}
                 </span>
                 {skippable ? (
                     <button type="button" onClick={goNext} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.9rem', fontWeight: 600, fontFamily: 'var(--font-body)', padding: '0.4rem' }}>
@@ -252,7 +252,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                                         <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 0.75rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
                                             <button type="button" onClick={() => setDay({ enabled: !day.enabled })}
                                                 aria-label={`Toggle ${label}`}
-                                                style={{ width: '42px', height: '24px', borderRadius: '999px', border: 'none', cursor: 'pointer', background: day.enabled ? 'var(--gold)' : '#d1d5db', position: 'relative', flexShrink: 0 }}>
+                                                style={{ width: '42px', height: '24px', borderRadius: '999px', border: 'none', cursor: 'pointer', background: day.enabled ? 'var(--gold)' : 'var(--warm-gray)', position: 'relative', flexShrink: 0 }}>
                                                 <span style={{ position: 'absolute', top: '3px', left: day.enabled ? '21px' : '3px', width: '18px', height: '18px', borderRadius: '50%', background: '#fff', transition: 'left 0.18s' }} />
                                             </button>
                                             <span style={{ width: '96px', fontSize: '0.88rem', fontWeight: 600, color: day.enabled ? 'var(--charcoal)' : 'var(--text-muted)' }}>{label}</span>

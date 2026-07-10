@@ -69,7 +69,7 @@ const uploadToCloudinary = async (file) => {
 const Stars = ({ rating }) => (
     <span>
         {[1, 2, 3, 4, 5].map(i => (
-            <span key={i} style={{ color: i <= rating ? '#f59e0b' : '#d1d5db', fontSize: '1rem' }}>★</span>
+            <span key={i} style={{ color: i <= rating ? '#f59e0b' : 'var(--border)', fontSize: '1rem' }}>★</span>
         ))}
     </span>
 );
@@ -159,6 +159,12 @@ const ProviderAccount = () => {
         if (section === 'portfolio' && portfolio.images.length === 0) loadPortfolio();
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [section]);
+
+    // Load the review summary on mount so the profile card shows the real rating.
+    useEffect(() => {
+        loadReviews();
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const loadPortfolio = async () => {
         setPortfolioLoading(true);
@@ -312,7 +318,9 @@ const ProviderAccount = () => {
                                         <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
 
                                         <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>{user?.name}</p>
-                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>No reviews yet</p>
+                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
+                                            {avgRating ? `★ ${avgRating} · ${reviews.length} review${reviews.length === 1 ? '' : 's'}` : 'No reviews yet'}
+                                        </p>
                                         {user?.providerCategory && (
                                             <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{user.providerCategory}</p>
                                         )}
@@ -381,7 +389,7 @@ const ProviderAccount = () => {
                                                 </select>
                                                 <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.3rem 0 0' }}>How much notice clients must give to cancel or reschedule online. You can always cancel from your side.</p>
                                             </div>
-                                            {profileMsg && <p style={{ fontSize: '0.8rem', color: profileMsg.includes('fail') ? '#ef4444' : '#065f46' }}>{profileMsg}</p>}
+                                            {profileMsg && <p style={{ fontSize: '0.8rem', color: profileMsg.includes('fail') ? 'var(--danger)' : 'var(--success)' }}>{profileMsg}</p>}
                                             <button type="submit" disabled={profileSaving} className="btn-primary" style={{ padding: '0.65rem 1.5rem', fontSize: '0.875rem' }}>
                                                 {profileSaving ? 'Saving...' : 'Save changes'}
                                             </button>
@@ -407,7 +415,7 @@ const ProviderAccount = () => {
                                                 </div>
                                                 <div className="acct-detail-row">
                                                     <span className="acct-label">Verified</span>
-                                                    <span className="acct-value" style={{ color: user?.isVerified ? '#065f46' : '#92400e', fontWeight: '600' }}>{user?.isVerified ? 'Verified' : 'Pending'}</span>
+                                                    <span className="acct-value" style={{ color: user?.isVerified ? 'var(--success)' : 'var(--warning)', fontWeight: '600' }}>{user?.isVerified ? 'Verified' : 'Pending'}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -415,7 +423,8 @@ const ProviderAccount = () => {
                                         <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
                                             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>Online profile visibility</h3>
                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>Your profile is visible to clients searching for businesses on Bookplus.</p>
-                                            <Link to={`/providers/${user?.id}`} target="_blank" style={{ color: 'var(--gold-dark)', fontWeight: '600', textDecoration: 'none', fontSize: '0.875rem' }}>View public profile →</Link>
+                                            {/* Public profiles live on the customer app — plain anchor, not a router Link. */}
+                                            <a href={`${CUSTOMER_URL}/providers/${user?.id}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold-dark)', fontWeight: '600', textDecoration: 'none', fontSize: '0.875rem' }}>View public profile →</a>
                                         </div>
                                     </div>
                                 </div>
@@ -464,7 +473,7 @@ const ProviderAccount = () => {
                                                     ))}
                                                 </div>
                                             )}
-                                            {portfolioMsg && <p style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: portfolioMsg.includes('fail') ? '#ef4444' : '#065f46' }}>{portfolioMsg}</p>}
+                                            {portfolioMsg && <p style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: portfolioMsg.includes('fail') ? 'var(--danger)' : 'var(--success)' }}>{portfolioMsg}</p>}
                                         </div>
 
                                         {/* Instagram link */}
@@ -590,7 +599,7 @@ const ProviderAccount = () => {
                                                             <input type="password" className="input" value={pwForm[key]} onChange={e => setPwForm(f => ({ ...f, [key]: e.target.value }))} />
                                                         </div>
                                                     ))}
-                                                    {pwMsg.text && <p style={{ fontSize: '0.8rem', color: pwMsg.ok ? '#065f46' : '#dc2626' }}>{pwMsg.text}</p>}
+                                                    {pwMsg.text && <p style={{ fontSize: '0.8rem', color: pwMsg.ok ? 'var(--success)' : 'var(--danger)' }}>{pwMsg.text}</p>}
                                                     <button
                                                         onClick={async () => {
                                                             if (pwForm.newPwd !== pwForm.confirm) { setPwMsg({ text: 'Passwords do not match', ok: false }); return; }
@@ -633,7 +642,7 @@ const ProviderAccount = () => {
                                                         onClick={toggleDarkMode}
                                                         style={{
                                                             width: '52px', height: '28px', borderRadius: '99px', border: 'none', cursor: 'pointer',
-                                                            background: darkModeOn ? 'var(--gold)' : '#d1d5db',
+                                                            background: darkModeOn ? 'var(--gold)' : 'var(--warm-gray)',
                                                             position: 'relative', transition: 'background 0.2s', flexShrink: 0,
                                                         }}
                                                     >
@@ -685,7 +694,7 @@ const ProviderAccount = () => {
                                                         style={{ padding: '0.65rem 1.25rem', fontSize: '0.875rem', whiteSpace: 'nowrap' }}
                                                     >{calendarEmbedSaving ? 'Saving...' : 'Save'}</button>
                                                 </div>
-                                                {calendarEmbedMsg && <p style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: calendarEmbedMsg === 'Saved!' ? '#065f46' : '#dc2626' }}>{calendarEmbedMsg}</p>}
+                                                {calendarEmbedMsg && <p style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: calendarEmbedMsg === 'Saved!' ? 'var(--success)' : 'var(--danger)' }}>{calendarEmbedMsg}</p>}
                                                 {calendarEmbed && <p style={{ marginTop: '0.5rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>✓ Google Calendar is connected. Switch to the Google view in your Dashboard → Calendar tab.</p>}
                                             </div>
                                         )}

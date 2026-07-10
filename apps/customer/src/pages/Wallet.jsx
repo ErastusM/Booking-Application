@@ -9,7 +9,7 @@ const money = (n) => `N$${Number(n || 0).toFixed(2)}`;
 
 // Human label + colour for a transaction row.
 const describe = (t) => {
-    const credit = '#15803d', debit = '#b91c1c', hold = '#b45309', muted = 'var(--text-muted)';
+    const credit = 'var(--success)', debit = 'var(--danger)', hold = 'var(--warning)', muted = 'var(--text-muted)';
     switch (t.type) {
         case 'topup':
             if (t.status === 'pending') return { label: 'Top-up — awaiting approval', amount: `+${money(t.amount)}`, color: muted };

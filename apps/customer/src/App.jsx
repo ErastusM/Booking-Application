@@ -59,7 +59,10 @@ function AppRoutes() {
 
     return (
         <Suspense fallback={<RouteFallback />}>
-            <div key={location.pathname} className="route-view" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+            {/* --safe-top, not raw env(): in the installed PWA the navbar's clearance is
+                floored at 50px, so page content must derive from the same value or it
+                slides under the fixed bar on devices where env() reports 0. */}
+            <div key={location.pathname} className="route-view" style={{ paddingTop: 'var(--safe-top, 0px)' }}>
                 <Routes location={location}>
                     {/* Public routes */}
                     <Route path="/" element={<Home />} />

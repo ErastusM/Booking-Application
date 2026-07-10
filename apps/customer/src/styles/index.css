@@ -481,8 +481,10 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
 
   /* Extra bottom padding so content clears the floating bottom nav
      (~84px card + margin). This replaces the old in-flow Navbar spacer,
-     which sat ABOVE the routes and pushed every page down 88px. */
-  body { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+     which sat ABOVE the routes and pushed every page down 88px.
+     Scoped to .has-bottom-nav (toggled by Navbar while the nav is rendered)
+     so logged-out visitors don't get a blank band under the footer. */
+  body.has-bottom-nav { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
 
   /* Booking page mobile sticky bar — the bottom nav is hidden on the booking
      flow, so the bar owns the screen edge (with safe-area padding for the home
@@ -527,6 +529,13 @@ body.dark-mode textarea,
 body.dark-mode select { background: var(--input-bg) !important; color: var(--text-primary) !important; border-color: var(--border) !important; }
 
 body.dark-mode select option { background: var(--card-bg); color: var(--text-primary); }
+
+/* The home hero search pill's controls are intentionally transparent — exempt
+   them from the input-surface override above so they don't paint as lighter
+   sharp-cornered patches inside the rounded pill. (The input selector repeats
+   the :not() chain to out-rank the global rule's specificity.) */
+body.dark-mode .home-search-inner input:not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"]),
+body.dark-mode .home-search-inner select { background: transparent !important; }
 
 /* Broad surface coverage — any element explicitly set to white via class */
 body.dark-mode .surface-white,
@@ -1205,7 +1214,9 @@ body.dark-mode .home-hero-wash {
   .home-search-when select {
     border: none;
     outline: none;
-    background: transparent;
+    /* background-color, NOT the shorthand — the shorthand wiped the base
+       select rule's chevron background-image, leaving arrowless dropdowns. */
+    background-color: transparent;
     font-family: var(--font-body);
     font-size: 0.92rem;
     color: var(--charcoal);

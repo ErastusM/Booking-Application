@@ -10,12 +10,14 @@ import { Phone, MessageCircle, Mail, MapPin, ChevronLeft, ChevronRight, X, Share
 import { normalizeTown } from '../utils/namibiaTowns';
 
 // Circular translucent control that floats over the hero photo (back / share / like / ⋯).
-const floatBtn = { pointerEvents: 'auto', width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(255,255,255,0.92)', border: 'none', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', flexShrink: 0 };
+// The circle stays white in both themes, so the icon uses --ink (never flips)
+// rather than --charcoal (goes light in dark mode → white-on-white).
+const floatBtn = { pointerEvents: 'auto', width: '40px', height: '40px', borderRadius: '50%', background: 'rgba(255,255,255,0.92)', border: 'none', color: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', flexShrink: 0 };
 
 const StarDisplay = ({ rating }) => (
     <div style={{ display: 'flex', gap: '2px' }}>
         {[1, 2, 3, 4, 5].map(s => (
-            <span key={s} style={{ color: s <= Math.round(rating) ? 'var(--gold)' : '#d3d5d4', fontSize: '0.9rem' }}>★</span>
+            <span key={s} style={{ color: s <= Math.round(rating) ? 'var(--gold)' : 'var(--border)', fontSize: '0.9rem' }}>★</span>
         ))}
     </div>
 );
@@ -43,6 +45,8 @@ const ProviderProfilePage = ({ providerId } = {}) => {
     const [heroIdx, setHeroIdx] = useState(0); // active hero-carousel photo (for the 1/N counter)
     const [isFav, setIsFav] = useState(false);
     const [aboutExpanded, setAboutExpanded] = useState(false);
+    const [aboutClamped, setAboutClamped] = useState(false); // 4-line clamp actually truncates
+    const aboutRef = useRef(null);
     const [staff, setStaff] = useState([]);
     // Fresha behavior: the compact top bar (back + name + tabs) exists only once
     // the visitor scrolls past the header block; before that the hero owns the top.
@@ -182,6 +186,20 @@ const ProviderProfilePage = ({ providerId } = {}) => {
         return () => io.disconnect();
     }, [data, staff.length]);
 
+    // "Read more" only renders when the collapsed 4-line clamp truly truncates
+    // (a character-count guess shows a dead button in the wide desktop column).
+    // Only measured while collapsed, so "Show less" stays visible when expanded.
+    useEffect(() => {
+        if (aboutExpanded) return;
+        const measure = () => {
+            const el = aboutRef.current;
+            if (el) setAboutClamped(el.scrollHeight > el.clientHeight + 1);
+        };
+        measure();
+        window.addEventListener('resize', measure);
+        return () => window.removeEventListener('resize', measure);
+    }, [data, aboutExpanded]);
+
     const getInitials = (name) => name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?';
 
     const formatSchedule = (sch) => {
@@ -284,7 +302,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                 {photos.length > 0 ? (
                     <div className="feed-carousel" onScroll={e => setHeroIdx(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))} style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory' }}>
                         {photos.map((src, i) => (
-                            <img key={i} src={cloudinaryThumb(src, 1200)} alt={`${businessName} photo ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" onClick={() => setLightbox(i)} style={{ flex: '0 0 100%', width: '100%', aspectRatio: '4 / 3', objectFit: 'cover', scrollSnapAlign: 'start', display: 'block', cursor: 'pointer', background: 'var(--warm-gray)' }} />
+                            <img key={i} src={cloudinaryThumb(src, 1200)} alt={`${businessName} photo ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" onClick={() => setLightbox(i)} style={{ flex: '0 0 100%', width: '100%', aspectRatio: '4 / 3', maxHeight: 'min(75vw, 480px)', objectFit: 'cover', scrollSnapAlign: 'start', display: 'block', cursor: 'pointer', background: 'var(--warm-gray)' }} />
                         ))}
                     </div>
                 ) : (
@@ -296,12 +314,14 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                     </div>
                 )}
 
-                {/* Floating controls over the photo (the global navbar is hidden here) */}
-                <div style={{ position: 'absolute', top: 'calc(env(safe-area-inset-top, 0px) + 0.6rem)', left: 0, right: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '0.5rem 1rem 0', pointerEvents: 'none' }}>
+                {/* Floating controls over the photo (the global navbar is hidden here).
+                    No safe-area inset here: the .route-view wrapper already pads the top
+                    with the safe-area clearance, so adding env() again double-offsets. */}
+                <div style={{ position: 'absolute', top: '0.6rem', left: 0, right: 0, display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '0.5rem 1rem 0', pointerEvents: 'none' }}>
                     <button onClick={() => navigate('/')} aria-label="Back" style={floatBtn}><ChevronLeft size={22} strokeWidth={2.5} /></button>
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <button onClick={handleShare} aria-label="Share" style={floatBtn}><Share2 size={18} /></button>
-                        {!isOwner && <button onClick={toggleFav} aria-label={isFav ? 'Saved' : 'Save'} style={floatBtn}><Heart size={19} fill={isFav ? '#e0245e' : 'none'} color={isFav ? '#e0245e' : 'var(--charcoal)'} /></button>}
+                        {!isOwner && <button onClick={toggleFav} aria-label={isFav ? 'Saved' : 'Save'} style={floatBtn}><Heart size={19} fill={isFav ? '#e0245e' : 'none'} color={isFav ? '#e0245e' : 'var(--ink)'} /></button>}
                         {user && !isOwner && (
                             <div style={{ position: 'relative', pointerEvents: 'auto' }}>
                                 <button onClick={() => setShowSettings(s => !s)} aria-label="Business options" style={floatBtn}><MoreHorizontal size={20} /></button>
@@ -313,7 +333,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                                 <svg width="16" height="16" fill="none" stroke="var(--gold-dark)" strokeWidth="2" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M16 15h2"/></svg>
                                                 Top up wallet
                                             </button>
-                                            <button onClick={() => { setShowSettings(false); toggleBlock(); }} style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: '0.7rem 0.85rem', borderRadius: '10px', fontSize: '0.88rem', fontWeight: 600, fontFamily: 'var(--font-body)', color: blocked ? 'var(--charcoal)' : '#dc2626', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                            <button onClick={() => { setShowSettings(false); toggleBlock(); }} style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: '0.7rem 0.85rem', borderRadius: '10px', fontSize: '0.88rem', fontWeight: 600, fontFamily: 'var(--font-body)', color: blocked ? 'var(--charcoal)' : 'var(--danger)', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                                                 <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M4.9 4.9l14.2 14.2"/></svg>
                                                 {blocked ? 'Unblock business' : 'Block business'}
                                             </button>
@@ -391,10 +411,10 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                         {description && (
                             <div id="section-about" style={{ scrollMarginTop: 'calc(var(--safe-top, 0px) + 104px)', marginBottom: '2rem' }}>
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.6rem' }}>About</h2>
-                                <p style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', lineHeight: 1.65, margin: 0, ...(aboutExpanded ? {} : { display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }) }}>
+                                <p ref={aboutRef} style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', lineHeight: 1.65, margin: 0, ...(aboutExpanded ? {} : { display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }) }}>
                                     {description}
                                 </p>
-                                {description.length > 180 && (
+                                {aboutClamped && (
                                     <button onClick={() => setAboutExpanded(v => !v)} style={{ background: 'none', border: 'none', padding: '0.35rem 0 0', color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.88rem', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
                                         {aboutExpanded ? 'Show less' : 'Read more'}
                                     </button>
@@ -470,10 +490,12 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                     {staff.map(member => {
                                         // The hex+alpha tint only parses for 6-digit hex; anything
                                         // else (empty, named color) falls back to the brand tint.
+                                        // The initial itself uses --charcoal (flips with the theme):
+                                        // a dark staff hex would vanish on the dark-mode page.
                                         const hex = /^#[0-9a-f]{6}$/i.test(member.color || '') ? member.color : null;
                                         return (
                                         <div key={member._id} style={{ flexShrink: 0, width: '86px', textAlign: 'center' }}>
-                                            <div style={{ width: '76px', height: '76px', borderRadius: '50%', margin: '0 auto 0.5rem', background: hex ? `${hex}22` : 'rgba(240,62,22,0.13)', color: hex || 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '1.7rem', fontWeight: 700 }}>
+                                            <div style={{ width: '76px', height: '76px', borderRadius: '50%', margin: '0 auto 0.5rem', background: hex ? `${hex}22` : 'rgba(240,62,22,0.13)', color: hex ? 'var(--charcoal)' : 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '1.7rem', fontWeight: 700 }}>
                                                 {(member.name || '?').charAt(0).toUpperCase()}
                                             </div>
                                             <p style={{ margin: 0, fontWeight: 600, fontSize: '0.85rem', color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.name}</p>
@@ -493,7 +515,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                     <div style={{ marginBottom: '1.25rem' }}>
                                         <div style={{ display: 'flex', gap: '3px', marginBottom: '0.35rem' }}>
                                             {[1, 2, 3, 4, 5].map(s => (
-                                                <Star key={s} size={26} fill={s <= Math.round(provider.avgRating) ? '#f03e16' : '#d3d5d4'} strokeWidth={0} />
+                                                <Star key={s} size={26} fill={s <= Math.round(provider.avgRating) ? '#f03e16' : 'var(--border)'} strokeWidth={0} />
                                             ))}
                                         </div>
                                         <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--charcoal)' }}>{provider.avgRating}</span>{' '}

@@ -131,7 +131,7 @@ const Login = () => {
                     </h1>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '2rem' }}>
                         Don't have an account?{' '}
-                        <Link to="/register" style={{ color: 'var(--gold)', fontWeight: '600', textDecoration: 'none' }}>
+                        <Link to="/register" style={{ color: 'var(--gold-dark)', fontWeight: '600', textDecoration: 'none' }}>
                             Sign up here
                         </Link>
                     </p>
@@ -207,7 +207,7 @@ const Login = () => {
                                 className="input"
                             />
                             <div style={{ textAlign: 'right', marginTop: '0.5rem' }}>
-                                <Link to="/forgot-password" style={{ color: 'var(--gold)', fontWeight: '500', fontSize: '0.82rem', textDecoration: 'none' }}>
+                                <Link to="/forgot-password" style={{ color: 'var(--gold-dark)', fontWeight: '500', fontSize: '0.82rem', textDecoration: 'none' }}>
                                     Forgot password?
                                 </Link>
                             </div>

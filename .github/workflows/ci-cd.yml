@@ -123,14 +123,25 @@ jobs:
       - name: Deploy over SSH (compose pull + up)
         if: env.DEPLOY_HOST != ''
         uses: appleboy/ssh-action@v1.2.0
+        env:
+          VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
+          VAPID_PRIVATE_KEY: ${{ secrets.VAPID_PRIVATE_KEY }}
         with:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
+          envs: VAPID_PUBLIC_KEY,VAPID_PRIVATE_KEY
           script: |
             cd /app
             # Dual-app env (idempotent): SSO cookie scope + the new app origins.
             grep -q '^COOKIE_DOMAIN=' .env.production || echo 'COOKIE_DOMAIN=.bookplus.pro' >> .env.production
+            # Web Push: seed VAPID keys from repo secrets once they exist (idempotent,
+            # skipped while the secrets are unset so no empty lines are written).
+            if [ -n "$VAPID_PUBLIC_KEY" ] && ! grep -q '^VAPID_PUBLIC_KEY=' .env.production; then
+              echo "VAPID_PUBLIC_KEY=$VAPID_PUBLIC_KEY" >> .env.production
+              echo "VAPID_PRIVATE_KEY=$VAPID_PRIVATE_KEY" >> .env.production
+              echo 'VAPID_SUBJECT=mailto:notifications@bookplus.pro' >> .env.production
+            fi
             sed -i '/^CLIENT_URL=/ s|,https://app.bookplus.pro||' .env.production
             grep -q 'business.bookplus.pro' .env.production || sed -i '/^CLIENT_URL=/ s|$|,https://business.bookplus.pro|' .env.production
             docker compose pull
