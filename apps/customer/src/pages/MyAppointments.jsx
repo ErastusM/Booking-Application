@@ -254,8 +254,8 @@ const MyAppointments = () => {
             {cancelledOverlay && (
                 <StatusOverlay
                     variant="cancelled"
-                    title="Appointment cancelled"
-                    subtitle="Your appointment has been cancelled. You can rebook anytime."
+                    title="Aw, cancelled 👋"
+                    subtitle="We'll try not to take it personally. Your spot's back up for grabs — but the door's always open, come back anytime."
                     onDone={() => setCancelledOverlay(false)}
                 />
             )}

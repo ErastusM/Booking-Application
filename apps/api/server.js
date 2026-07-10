@@ -250,6 +250,19 @@ if (require.main === module) {
         } catch (err) {
             logger.error({ err: err.message }, 'Slug backfill failed (non-fatal)');
         }
+        // Mark PRE-EXISTING waitlist promotions as already celebrated so the new
+        // "a slot opened up!" moment doesn't fire retroactively for old bookings on
+        // first deploy. Idempotent — after the first run there are no unset fields.
+        try {
+            const WaitingList = require('./src/models/WaitingList');
+            const { modifiedCount } = await WaitingList.updateMany(
+                { status: 'promoted', celebrated: { $exists: false } },
+                { $set: { celebrated: true } }
+            );
+            logger.info({ modifiedCount }, 'Waitlist promotions backfilled (celebrated)');
+        } catch (err) {
+            logger.error({ err: err.message }, 'Waitlist celebrated backfill failed (non-fatal)');
+        }
         const server = app.listen(PORT, () => {
             logger.info({ port: PORT }, 'Server running');
             startReminderJob();

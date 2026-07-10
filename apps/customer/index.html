@@ -10,11 +10,42 @@
       // Paint the document canvas (the <html> background) from the saved theme
       // BEFORE first paint, so dark mode never flashes a light strip behind the
       // status bar / home indicator. Kept in sync afterwards by ThemeContext.
+      // Also sets data-theme so the boot splash below matches the theme.
       try {
-        document.documentElement.style.backgroundColor =
-          localStorage.getItem('darkMode') === 'true' ? '#0a0a0b' : '#e6e8e7';
+        var __dark = localStorage.getItem('darkMode') === 'true';
+        document.documentElement.style.backgroundColor = __dark ? '#0a0a0b' : '#e6e8e7';
+        document.documentElement.setAttribute('data-theme', __dark ? 'dark' : 'light');
       } catch (e) {}
     </script>
+    <style>
+      /* Boot splash — shown instantly (no JS needed) while the app loads, then
+         faded out by main.jsx. A branded "Bookplus" moment on every open. */
+      #app-splash {
+        position: fixed; inset: 0; z-index: 99999;
+        display: flex; align-items: center; justify-content: center;
+        background: #e6e8e7; transition: opacity 0.45s ease;
+        padding-top: env(safe-area-inset-top, 0px);
+      }
+      html[data-theme="dark"] #app-splash { background: #0a0a0b; }
+      #app-splash.app-splash--hidden { opacity: 0; pointer-events: none; }
+      #app-splash .as-inner {
+        display: flex; flex-direction: column; align-items: center; gap: 1rem;
+        animation: appSplashIn 0.55s cubic-bezier(0.22, 1, 0.36, 1) both;
+      }
+      #app-splash .as-word {
+        font-family: 'Plus Jakarta Sans Variable', system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+        font-size: 2.6rem; font-weight: 800; letter-spacing: -0.03em; line-height: 1;
+      }
+      #app-splash .as-word .b { color: #040505; }
+      html[data-theme="dark"] #app-splash .as-word .b { color: #e6e8e7; }
+      #app-splash .as-word .p { color: #f03e16; }
+      #app-splash .as-mark { animation: appSplashPulse 1.6s ease-in-out infinite; }
+      @keyframes appSplashIn { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: none; } }
+      @keyframes appSplashPulse { 0%, 100% { transform: scale(1); } 50% { transform: scale(1.06); } }
+      @media (prefers-reduced-motion: reduce) {
+        #app-splash .as-inner, #app-splash .as-mark { animation: none; }
+      }
+    </style>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/favicon.ico" sizes="48x48" />
     <link rel="icon" href="/favicon-64.png" type="image/png" sizes="64x64" />
@@ -51,6 +82,20 @@
     </script>
 </head>
 <body>
+    <div id="app-splash" aria-hidden="true">
+        <div class="as-inner">
+            <svg class="as-mark" width="76" height="76" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+                <rect x="2" y="2" width="96" height="96" rx="22" fill="#040505" />
+                <rect x="37" y="26" width="5" height="12" rx="2.5" fill="#e6e8e7" />
+                <rect x="58" y="26" width="5" height="12" rx="2.5" fill="#e6e8e7" />
+                <rect x="27" y="33" width="46" height="43" rx="7" fill="#e6e8e7" />
+                <rect x="33" y="45" width="34" height="1.8" rx="0.9" fill="#e9bdb3" />
+                <rect x="47.5" y="51" width="5" height="20" rx="2.5" fill="#f03e16" />
+                <rect x="40" y="58.5" width="20" height="5" rx="2.5" fill="#f03e16" />
+            </svg>
+            <div class="as-word"><span class="b">Book</span><span class="p">plus</span></div>
+        </div>
+    </div>
     <div id="root"></div>
     <script type="module" src="/src/main.jsx"></script>
 </body>

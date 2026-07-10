@@ -74,6 +74,9 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         getProviderList: () => API.get('/waitinglist/provider'),
         leave: (id: string) => API.delete(`/waitinglist/${id}`),
         getNotifications: () => API.get('/waitinglist/notifications'),
+        // Waitlist promotions the customer hasn't been celebrated for yet + the ack.
+        getPendingPromotions: () => API.get('/waitinglist/promotions/pending'),
+        markPromotionCelebrated: (id: string) => API.post(`/waitinglist/promotions/${id}/celebrated`),
     },
 
     reviewService: {
