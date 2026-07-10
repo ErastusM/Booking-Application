@@ -523,6 +523,13 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
   .provider-book-bar { display: none !important; }
 }
 
+/* Mirror image: on mobile the fixed bottom Book bar is the CTA, so the profile's
+   in-card "Book Now" button is redundant and hidden (avoids two Book buttons on
+   one screen). Desktop keeps it since the bottom bar is hidden there. */
+@media (max-width: 768px) {
+  .profile-details-book { display: none !important; }
+}
+
 /* ── Dark mode surface overrides ──
    Scoped to real card-surface classes. NOT a [class*="card"] substring match —
    that leaked onto anything with "card" in its name (e.g. the flat discovery
