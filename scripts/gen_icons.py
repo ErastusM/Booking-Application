@@ -1,25 +1,28 @@
 #!/usr/bin/env python3
 """
-Generate Bookplus app icons from the calendar+plus mark.
-Geometry is defined on a 0..100 unit grid (matches the SVG concept):
-  - ink squircle background (vertical gradient)
-  - off-white calendar body + two binder tabs + header line
-  - single gold plus (the only accent)
-Drawn at 4x supersample, then LANCZOS-downscaled for crisp edges.
+Generate Bookplus app icons for the NEW brand — a lowercase "b" monogram with the
+signature orange accent (customer = smile, business = underline), echoing the
+"bookplus" wordmark. Drops the old calendar mark.
+
+Two variants, each written to its app's public/ dir:
+  - customer: ink "b" + orange smile on a white squircle  (matches the light logo)
+  - business: off-white "b" + orange underline on an ink squircle (matches the dark logo)
+
+Geometry on a 0..100 grid, drawn at 4x supersample then LANCZOS-downscaled.
+Run:  python scripts/gen_icons.py
 """
 import os
 from PIL import Image, ImageDraw
 
-OUT = os.path.join(os.path.dirname(__file__), "..", "client", "public")
-OUT = os.path.abspath(OUT)
-
-SS = 4  # supersample factor
+ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
+SS = 4  # supersample
 
 INK_TOP = (31, 31, 33)      # #1f1f21
 INK_BOT = (4, 5, 5)         # #040505
-OFFWHITE = (230, 232, 231)  # #e6e8e7
-HEADER = (233, 189, 179)    # #e9bdb3 (soft orange-tinted divider)
-GOLD = (240, 62, 22)        # #f03e16 (brand orange; legacy var name)
+INK = (4, 5, 5)             # #040505
+OFFWHITE = (245, 246, 245)  # near-white "b" on the dark tile
+WHITE = (255, 255, 255)
+ORANGE = (240, 62, 22)      # #f03e16
 
 
 def lerp(a, b, t):
@@ -27,77 +30,75 @@ def lerp(a, b, t):
 
 
 def ink_gradient(D):
-    """Vertical ink gradient, D x D."""
     strip = Image.new("RGB", (1, D))
     for y in range(D):
         strip.putpixel((0, y), lerp(INK_TOP, INK_BOT, y / (D - 1)))
     return strip.resize((D, D))
 
 
-def draw_mark(size, rounded=True):
-    """Return an RGBA image (size x size) of the full icon."""
+def draw_mark(size, variant, rounded=True):
+    """Return an RGBA image (size x size) of the icon for `variant`."""
     D = size * SS
     u = D / 100.0
+    def U(*xs):
+        return [x * u for x in xs]
 
-    def R(x, y, w, h):  # unit-rect -> pixel box
-        return [x * u, y * u, (x + w) * u, (y + h) * u]
+    dark = variant == "business"
+    b_color = OFFWHITE if dark else INK
 
-    # background mask (rounded squircle or full bleed)
+    # ── background tile ────────────────────────────────────────────────
     mask = Image.new("L", (D, D), 0)
     md = ImageDraw.Draw(mask)
     if rounded:
-        md.rounded_rectangle(R(2, 2, 96, 96), radius=22 * u, fill=255)
+        md.rounded_rectangle(U(2, 2, 98, 98), radius=22 * u, fill=255)
     else:
-        md.rectangle([0, 0, D, D], fill=255)
+        md.rectangle([0, 0, D, D], fill=255)   # maskable / apple = full bleed
 
-    base = Image.new("RGBA", (D, D), (0, 0, 0, 0))
-    base.paste(ink_gradient(D), (0, 0), mask)
+    bg = ink_gradient(D) if dark else Image.new("RGB", (D, D), WHITE)
+    icon = Image.new("RGBA", (D, D), (0, 0, 0, 0))
+    icon.paste(bg, (0, 0), mask)
 
-    d = ImageDraw.Draw(base)
-    # binder tabs
-    d.rounded_rectangle(R(37, 26, 5, 12), radius=2.5 * u, fill=OFFWHITE)
-    d.rounded_rectangle(R(58, 26, 5, 12), radius=2.5 * u, fill=OFFWHITE)
-    # calendar body
-    d.rounded_rectangle(R(27, 33, 46, 43), radius=7 * u, fill=OFFWHITE)
-    # header divider
-    d.rounded_rectangle(R(33, 45, 34, 1.8), radius=0.9 * u, fill=HEADER)
-    # gold plus
-    d.rounded_rectangle(R(47.5, 51, 5, 20), radius=2.5 * u, fill=GOLD)
-    d.rounded_rectangle(R(40, 58.5, 20, 5), radius=2.5 * u, fill=GOLD)
+    # ── the "b" (built as an alpha mask, so the counter shows the tile) ─
+    bmask = Image.new("L", (D, D), 0)
+    bd = ImageDraw.Draw(bmask)
+    bd.rounded_rectangle(U(33, 20, 44, 80), radius=5 * u, fill=255)   # stem (ascender)
+    bd.ellipse(U(33, 38, 75, 80), fill=255)                          # bowl
+    bd.ellipse(U(47, 50, 63, 72), fill=0)                            # counter (hole)
+    bd.rounded_rectangle(U(33, 20, 44, 80), radius=5 * u, fill=255)  # stem over hole's left edge
+    b_layer = Image.new("RGBA", (D, D), b_color + (255,))
+    icon.paste(b_layer, (0, 0), bmask)
 
-    return base.resize((size, size), Image.LANCZOS)
-
-
-def save_png(img, name, rgb=False):
-    path = os.path.join(OUT, name)
-    if rgb:
-        bg = Image.new("RGB", img.size, (4, 5, 5))
-        bg.paste(img, (0, 0), img)
-        bg.save(path, "PNG")
+    # ── orange accent under the "b" ────────────────────────────────────
+    ad = ImageDraw.Draw(icon)
+    if dark:
+        ad.rounded_rectangle(U(46, 85, 63, 89), radius=2.5 * u, fill=ORANGE + (255,))   # underline
     else:
-        img.save(path, "PNG")
-    print("wrote", name, img.size)
+        ad.arc(U(37, 74, 67, 96), start=22, end=158, fill=ORANGE + (255,), width=int(4.4 * u))  # smile
+
+    return icon.resize((size, size), Image.LANCZOS)
 
 
-# Rounded variants (purpose: any) — what shows in tabs / PWA lists
-save_png(draw_mark(512, rounded=True), "icon-512.png")
-save_png(draw_mark(192, rounded=True), "icon-192.png")
-save_png(draw_mark(64, rounded=True), "favicon-64.png")
+def gen_for(app, variant):
+    out = os.path.join(ROOT, "apps", app, "public")
+    os.makedirs(out, exist_ok=True)
 
-# Full-bleed variants (purpose: maskable) — OS applies its own mask
-save_png(draw_mark(512, rounded=False), "icon-512-maskable.png")
-save_png(draw_mark(192, rounded=False), "icon-192-maskable.png")
+    # rounded (purpose: any) — tabs / PWA lists
+    for size, name in [(64, "favicon-64.png"), (192, "icon-192.png"), (512, "icon-512.png")]:
+        draw_mark(size, variant, rounded=True).save(os.path.join(out, name))
+    # maskable (full-bleed) — OS applies its own mask
+    draw_mark(192, variant, rounded=False).save(os.path.join(out, "icon-192-maskable.png"))
+    draw_mark(512, variant, rounded=False).save(os.path.join(out, "icon-512-maskable.png"))
+    # apple touch — full bleed, opaque (iOS rounds it itself)
+    draw_mark(180, variant, rounded=False).convert("RGB").save(os.path.join(out, "apple-touch-icon.png"))
+    # favicon.ico (multi-size, rounded)
+    ico = [draw_mark(s, variant, rounded=True) for s in (16, 32, 48)]
+    ico[0].save(os.path.join(out, "favicon.ico"), format="ICO",
+                sizes=[(16, 16), (32, 32), (48, 48)], append_images=ico[1:])
+    print(f"  {app}: wrote 7 icons ({variant})")
 
-# Apple touch icon — full bleed, opaque (iOS rounds it itself)
-save_png(draw_mark(180, rounded=False), "apple-touch-icon.png", rgb=True)
 
-# favicon.ico (multi-size, rounded)
-ico_sizes = [16, 32, 48]
-ico_imgs = [draw_mark(s, rounded=True) for s in ico_sizes]
-ico_imgs[0].save(
-    os.path.join(OUT, "favicon.ico"),
-    format="ICO",
-    sizes=[(s, s) for s in ico_sizes],
-    append_images=ico_imgs[1:],
-)
-print("wrote favicon.ico", ico_sizes)
+if __name__ == "__main__":
+    print("Generating new-brand icons…")
+    gen_for("customer", "customer")
+    gen_for("business", "business")
+    print("Done.")

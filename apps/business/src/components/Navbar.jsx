@@ -6,7 +6,7 @@ import { useTheme } from '../context/ThemeContext';
 import NotificationBell from './NotificationBell';
 import SuggestionBox from './SuggestionBox';
 import { cloudinaryAvatar } from '../utils/cloudinary';
-import { BrandMark } from '@bookplus/ui';
+import Wordmark from './Wordmark';
 
 const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'http://localhost:3002';
 
@@ -126,10 +126,7 @@ const Navbar = () => {
 
                 {/* Logo */}
                 <Link to="/" style={{ textDecoration: 'none', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '0.55rem' }}>
-                    <BrandMark size={30} />
-                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', letterSpacing: '-0.02em' }}>
-                        <span style={{ color: '#fff' }}>Book</span><span style={{ color: 'var(--gold)' }}>plus</span>
-                    </span>
+                    <Wordmark size="1.6rem" bookColor="#fff" />
                     <span style={{ marginLeft: '0.15rem', fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-light)', border: '1px solid rgba(240,62,22,0.5)', borderRadius: '999px', padding: '0.2rem 0.5rem', flexShrink: 0 }}>Business</span>
                 </Link>
 
@@ -325,10 +322,7 @@ const Navbar = () => {
                 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.1rem 1.2rem', borderBottom: '1px solid var(--border)' }}>
                         <Link to="/" onClick={() => setMenuOpen(false)} style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-                            <BrandMark size={28} />
-                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', letterSpacing: '-0.02em' }}>
-                                <span style={{ color: 'var(--charcoal)' }}>Book</span><span style={{ color: 'var(--gold)' }}>plus</span>
-                            </span>
+                            <Wordmark size="1.4rem" />
                             <span style={{ marginLeft: '0.1rem', fontSize: '0.55rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-dark)', border: '1px solid rgba(240,62,22,0.5)', borderRadius: '999px', padding: '0.18rem 0.45rem', flexShrink: 0 }}>Business</span>
                         </Link>
                         <button onClick={() => setMenuOpen(false)} aria-label="Close menu" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.55rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
