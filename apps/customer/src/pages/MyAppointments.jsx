@@ -4,6 +4,7 @@ import { appointmentService, reviewService, messageService } from '../services';
 import ReviewModal from '../components/ReviewModal';
 import IntakeFormModal from '../components/IntakeFormModal';
 import RescheduleModal from '../components/RescheduleModal';
+import StatusOverlay from '../components/StatusOverlay';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { useAuthContext } from '../context/AuthContext';
 import { mapsUrl } from '../utils/maps';
@@ -55,6 +56,7 @@ const MyAppointments = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState('');
+    const [cancelledOverlay, setCancelledOverlay] = useState(false); // full-screen cancel acknowledgement
     const [reviewedIds, setReviewedIds] = useState([]);
     const [selectedAppointment, setSelectedAppointment] = useState(null);
     const [activeFilter, setActiveFilter] = useState('all');
@@ -137,8 +139,8 @@ const MyAppointments = () => {
         try {
             await appointmentService.cancelAppointment(id, 'Cancelled by customer');
             setAppointments(appointments.map(a => a._id === id ? { ...a, status: 'cancelled' } : a));
-            setSuccess('Appointment cancelled successfully.');
-            setTimeout(() => setSuccess(''), 15000);
+            // Full-screen acknowledgement instead of just an inline banner.
+            setCancelledOverlay(true);
         } catch (err) {
             // Surface the real reason (e.g. the provider's cancellation window).
             setError(err.response?.data?.message || 'Failed to cancel appointment');
@@ -247,6 +249,15 @@ const MyAppointments = () => {
 
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+
+            {cancelledOverlay && (
+                <StatusOverlay
+                    variant="cancelled"
+                    title="Appointment cancelled"
+                    subtitle="Your appointment has been cancelled. You can rebook anytime."
+                    onDone={() => setCancelledOverlay(false)}
+                />
+            )}
 
             {/* Header */}
             <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>

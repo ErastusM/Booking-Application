@@ -9,6 +9,7 @@ import { currencySymbol } from '../utils/currency';
 import { mapsUrl } from '../utils/maps';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import RecurrenceFields from '../components/RecurrenceFields';
+import StatusOverlay from '../components/StatusOverlay';
 
 const BookAppointment = () => {
     const { user } = useAuthContext();
@@ -34,6 +35,7 @@ const BookAppointment = () => {
     const [loading, setLoading] = useState(false);
     const [joining, setJoining] = useState(false); // waiting-list join in flight
     const [error, setError] = useState('');
+    const [confirmedOverlay, setConfirmedOverlay] = useState(null); // full-screen success moment → { subtitle, next }
     const [providerAvailability, setProviderAvailability] = useState(null);
     const [availabilityError, setAvailabilityError] = useState('');
     const [bookedSlots, setBookedSlots] = useState([]); // [{startTime, endTime}]
@@ -279,7 +281,12 @@ const BookAppointment = () => {
                 const params = new URLSearchParams({ confirmed: '1' });
                 if (newAppt?._id) params.set('apptId', newAppt._id);
                 if (providerName) params.set('provider', providerName);
-                navigate(`/appointments?${params.toString()}`);
+                // Celebrate first with the full-screen moment, then land on the
+                // bookings list (which still shows the detailed confirmed banner).
+                setConfirmedOverlay({
+                    subtitle: providerName ? `You're booked with ${providerName}.` : "You're all set — see you soon.",
+                    next: `/appointments?${params.toString()}`,
+                });
             }
         } catch (err) {
             // Stay ON the review screen so the Confirm button doesn't vanish —
@@ -551,6 +558,14 @@ const BookAppointment = () => {
     // ─── BOOKING FORM â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+            {confirmedOverlay && (
+                <StatusOverlay
+                    variant="confirmed"
+                    title="Appointment confirmed"
+                    subtitle={confirmedOverlay.subtitle}
+                    onDone={() => navigate(confirmedOverlay.next)}
+                />
+            )}
             {/* Header */}
             <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 20% 50%, rgba(240,62,22,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
