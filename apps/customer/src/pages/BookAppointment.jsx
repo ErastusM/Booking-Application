@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { appointmentService, serviceService, waitingListService, providerMarketService, availabilityService, walletService } from '../services';
@@ -67,6 +67,22 @@ const BookAppointment = () => {
     const effectiveProviderId = urlProviderId || selectedService?.provider?._id || selectedService?.provider || null;
     // Prices show in the booked business's currency (defaults to NAD).
     const curSym = currencySymbol(providerInfo?.currency);
+
+    // Group the service list under its categories (each service carries its
+    // populated `category` = {_id, name, order}; unassigned ones fall under
+    // "Other services"). Headers only show when there's more than one group.
+    const groupedServices = useMemo(() => {
+        const map = new Map();
+        services.forEach((s) => {
+            const cat = s.category;
+            const key = cat?._id || '__other__';
+            if (!map.has(key)) map.set(key, { key, name: cat?.name || 'Other services', order: cat?.order ?? 9999, isOther: !cat, services: [] });
+            map.get(key).services.push(s);
+        });
+        // Real categories first (by their order), the "Other" bucket last.
+        return [...map.values()].sort((a, b) => (a.isOther - b.isOther) || (a.order - b.order) || a.name.localeCompare(b.name));
+    }, [services]);
+    const showCategoryHeaders = groupedServices.length > 1;
 
     const handleServiceSelect = (service) => {
         if (service.options && service.options.length > 0) {
@@ -628,8 +644,14 @@ const BookAppointment = () => {
                                     <p style={{ fontSize: '0.9rem', margin: 0 }}>No services available to book right now.</p>
                                 </div>
                             ) : (
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '0.75rem' }}>
-                                    {services.map(service => {
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+                                    {groupedServices.map(group => (
+                                        <div key={group.key}>
+                                            {showCategoryHeaders && (
+                                                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '0.95rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.75rem', letterSpacing: '-0.01em' }}>{group.name}</h3>
+                                            )}
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(190px, 1fr))', gap: '0.75rem' }}>
+                                    {group.services.map(service => {
                                         const sel = selectedService?._id === service._id;
                                         return (
                                             <button key={service._id} type="button" data-testid="booking-service" onClick={() => handleServiceSelect(service)} style={{
@@ -652,6 +674,9 @@ const BookAppointment = () => {
                                             </button>
                                         );
                                     })}
+                                            </div>
+                                        </div>
+                                    ))}
                                 </div>
                             )}
                         </div>
