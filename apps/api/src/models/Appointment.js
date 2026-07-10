@@ -24,11 +24,20 @@ const appointmentSchema = new mongoose.Schema(
             sparse: true,
             uppercase: true,
         },
+        // Optional so a first-time visitor can book without an account. Either
+        // `customer` (a registered user) OR the guest fields below must be present
+        // — enforced by the schema validator at the bottom of this file.
         customer: {
             type: mongoose.Schema.ObjectId,
             ref: 'User',
-            required: true
+            default: null,
         },
+        // Guest bookings (no account). The manageToken is their access credential
+        // for the no-login "manage my booking" flow; guestEmail receives the
+        // confirmation + reminders.
+        guestName:  { type: String, default: null, trim: true },
+        guestEmail: { type: String, default: null, trim: true, lowercase: true },
+        guestPhone: { type: String, default: null, trim: true },
         service: {
             type: mongoose.Schema.ObjectId,
             ref: 'Service',
@@ -119,8 +128,20 @@ const appointmentSchema = new mongoose.Schema(
     }
 );
 
+// Every appointment must belong to someone: a registered customer, a guest
+// (name + email), or a provider-logged walk-in (walkInName). Guards against a
+// booking with no way to identify or reach the client.
+appointmentSchema.pre('validate', function (next) {
+    if (!this.customer && !this.guestEmail && !this.walkInName) {
+        return next(new Error('An appointment needs a customer, guest contact, or walk-in name'));
+    }
+    next();
+});
+
 // Indexes for faster queries
 appointmentSchema.index({ customer: 1, appointmentDate: 1 });
+// Guest lookups (a provider viewing a guest's history by email).
+appointmentSchema.index({ guestEmail: 1, appointmentDate: 1 });
 appointmentSchema.index({ appointmentDate: 1, status: 1 });
 appointmentSchema.index({ provider: 1, appointmentDate: -1 });
 appointmentSchema.index({ paymentStatus: 1 });

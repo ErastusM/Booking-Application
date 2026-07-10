@@ -27,6 +27,9 @@ const svcName = (appt) => appt.service?.name || 'your appointment';
 // Customer-facing reminder label — "Your Taper Fade appointment" when we know the
 // service, otherwise a plain "Your appointment".
 const apptLabel = (appt) => (appt.service?.name ? `Your ${appt.service.name} appointment` : 'Your appointment');
+// Reminder recipient: the registered customer, or the guest who booked (no account).
+const recipientEmail = (appt) => appt.customer?.email || appt.guestEmail || null;
+const recipientName = (appt) => appt.customer?.name || appt.guestName || 'there';
 const pushCustomer = (appt, body) => {
     if (!appt.customer?._id) return;
     // No-op unless VAPID is configured / the customer has subscribed.
@@ -57,8 +60,9 @@ const RULES = [
         flag: 'reminderSent24h', lo: 23 * 60, hi: 25 * 60,
         run: async (a) => {
             const dateStr = new Date(a.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-            if (a.customer?.email) {
-                await sendReminder24h(a.customer.email, a.customer.name, svcName(a), dateStr, a.startTime, calendarExtras(a));
+            const email24 = recipientEmail(a);
+            if (email24) {
+                await sendReminder24h(email24, recipientName(a), svcName(a), dateStr, a.startTime, calendarExtras(a));
             }
             notifyInApp(a, `${apptLabel(a)} is tomorrow at ${a.startTime}.`);
             pushCustomer(a, `${apptLabel(a)} is tomorrow at ${a.startTime}.`);
@@ -71,7 +75,8 @@ const RULES = [
     {
         flag: 'reminderSent1h', lo: 45, hi: 75,
         run: async (a) => {
-            if (a.customer?.email) await sendReminder1h(a.customer.email, a.customer.name, svcName(a), a.startTime, calendarExtras(a));
+            const email1 = recipientEmail(a);
+            if (email1) await sendReminder1h(email1, recipientName(a), svcName(a), a.startTime, calendarExtras(a));
             notifyInApp(a, `${apptLabel(a)} starts in about an hour (${a.startTime}).`);
             pushCustomer(a, `${apptLabel(a)} starts in about an hour (${a.startTime}).`);
         },
