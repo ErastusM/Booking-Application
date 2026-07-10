@@ -47,6 +47,11 @@ exports.updateMyAvailability = async (req, res) => {
 
 exports.getProviderAvailability = async (req, res) => {
     try {
+        // Route is public: reject malformed ids up front so drive-by requests
+        // get a 400 instead of a CastError-driven 500 (which pages the alerts).
+        if (!require('mongoose').isValidObjectId(req.params.providerId)) {
+            return res.status(400).json({ success: false, message: 'Invalid provider id' });
+        }
         const availability = await Availability.findOne({ provider: req.params.providerId });
 
         if (!availability) {

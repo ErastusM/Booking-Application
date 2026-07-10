@@ -644,13 +644,29 @@ body.dark-mode .booking-confirm-mobile {
 .fc-bookplus-wrapper .fc {
   font-family: var(--font-body);
   color: var(--charcoal);
-  /* Off-hours (outside working hours) shading. The old 5% overlay was almost
-     invisible — bumped so it's clearly distinguishable, and much stronger in
-     dark mode where a faint tint on the dark card can't be seen at all. */
-  --fc-non-business-color: rgba(4, 5, 5, 0.22);
+  /* Off-hours (outside working hours) shading. Accessibility requirement:
+     must be obvious to low-vision users, so we pair a strong dark fill with
+     diagonal stripes — pattern + color, not color alone. */
+  --fc-non-business-color: rgba(4, 5, 5, 0.35);
 }
 body.dark-mode .fc-bookplus-wrapper .fc {
-  --fc-non-business-color: rgba(0, 0, 0, 0.78);
+  --fc-non-business-color: rgba(0, 0, 0, 0.82);
+}
+.fc-bookplus-wrapper .fc .fc-non-business {
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(4, 5, 5, 0.22) 0 10px,
+    transparent 10px 20px
+  );
+}
+body.dark-mode .fc-bookplus-wrapper .fc .fc-non-business {
+  /* Light stripes over the near-black fill so closed hours read as "hatched
+     out" against the dark calendar surface, not just a slightly darker gray. */
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.06) 0 10px,
+    transparent 10px 20px
+  );
 }
 
 /* Toolbar */

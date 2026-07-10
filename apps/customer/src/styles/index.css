@@ -45,11 +45,16 @@ nav a, nav button { -webkit-user-select: none; user-select: none; }
 /* Installed PWA (black-translucent status bar): the top navbar draws UNDER the
    status bar and relies on env(safe-area-inset-top) to clear it. On some
    iPhones (e.g. 13 Pro) that inset comes back as 0, dropping the navbar / its
-   menu button under the notch. Enforce a minimum so it always clears. Scoped to
-   standalone so the browser view (no notch to clear) isn't over-padded. */
+   menu button under the notch. --safe-top is the ONE source of truth for the
+   status-bar clearance: plain env() in a browser, floored at 50px only in the
+   installed app — every fixed/sticky top bar and scroll margin derives from it
+   so they can never drift apart across the two modes. */
+:root { --safe-top: env(safe-area-inset-top, 0px); }
 @media (display-mode: standalone) {
-  .app-topnav { padding-top: max(env(safe-area-inset-top, 0px), 50px) !important; }
-  .app-statusbar-bg { height: max(env(safe-area-inset-top, 0px), 50px) !important; }
+  :root { --safe-top: max(env(safe-area-inset-top, 0px), 50px); }
+  .app-topnav { padding-top: var(--safe-top) !important; }
+  .app-statusbar-bg { height: var(--safe-top) !important; }
+  .profile-compact-bar { padding-top: var(--safe-top) !important; }
 }
 
 body {
@@ -374,10 +379,6 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
   body { overflow-x: hidden; }
 
   .home-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
-
-  /* Discovery feed: show exactly two cards per screen on mobile.
-     calc(50% - 0.5rem): two cards + the 1rem row gap fill the width. */
-  .home-provider-card { flex: 0 0 calc(50% - 0.5rem) !important; width: calc(50% - 0.5rem) !important; }
 
   /* Notification dropdown: anchor to the viewport (not the bell, which now sits
      left of other top-bar icons) so it can't overflow/clip off the screen edge. */
@@ -1097,6 +1098,13 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
    APP SHELL — navigation + route transitions (Stage B)
    ============================================================================ */
 
+/* Provider profile "Open/Closed" line — brighter variants in dark mode where
+   the light-mode greens/oranges fall below AA contrast on the near-black bg. */
+.profile-open-status.is-open { color: #15803d; }
+.profile-open-status.is-closed { color: #c2410c; }
+body.dark-mode .profile-open-status.is-open { color: #4ade80; }
+body.dark-mode .profile-open-status.is-closed { color: #fb923c; }
+
 /* Route transition — fade + subtle rise on every navigation.
    fill-mode is `backwards` (NOT `both`/`forwards`): we want the pre-animation offset,
    but we must NOT retain a transform after it finishes. A lingering `transform: translateY(0)`
@@ -1214,21 +1222,17 @@ body.dark-mode .home-hero-wash {
 }
 
 /* ── Home: two distinct layouts. Mobile = the Instagram-style infinite feed
-   ONLY (.home-feed-mobile). Desktop = card rows/grids (.home-sections-desktop)
-   plus any desktop-only block (.home-desktop-only, e.g. the Featured row). The
-   two never appear together — that mash-up is what read as "broken" on phones. */
+   ONLY (.home-feed-mobile). Desktop = card rows/grids (.home-sections-desktop).
+   The two never appear together — that mash-up is what read as "broken" on phones. */
 .home-sections-desktop { display: none; }
-.home-desktop-only { display: none; }
 @media (min-width: 1024px) {
   .home-feed-mobile { display: none; }
   .home-sections-desktop { display: block; }
-  .home-desktop-only { display: block; }
   .home-section-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));
+    grid-template-columns: repeat(auto-fill, minmax(230px, 1fr));
     gap: 1.5rem 1.25rem;
-    /* stretch, not start: every card in a row gets the row's height */
-    align-items: stretch;
+    align-items: start;
   }
 }
 
