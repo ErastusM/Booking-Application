@@ -17,6 +17,10 @@ initErrorReporter();
 // Reload long-lived tabs/PWAs onto the newest build when the user returns.
 initFreshBuildReload(['/book-appointment']);
 
+// Backstop: armed BEFORE render so the opaque splash can never trap the UI, even
+// if render() throws synchronously. The normal, prettier fade runs below on success.
+window.setTimeout(() => document.getElementById('app-splash')?.remove(), 8000);
+
 ReactDOM.createRoot(document.getElementById('root')).render(
     <React.StrictMode>
         <ErrorBoundary>
@@ -24,3 +28,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(
         </ErrorBoundary>
     </React.StrictMode>
 );
+
+// Fade out the boot splash once the app has painted (min ~650ms so it reads as a
+// deliberate brand moment, not a flash). Removed after the transition.
+const __splash = document.getElementById('app-splash');
+if (__splash) {
+    window.setTimeout(() => {
+        __splash.classList.add('app-splash--hidden');
+        window.setTimeout(() => __splash.remove(), 500);
+    }, 650);
+}

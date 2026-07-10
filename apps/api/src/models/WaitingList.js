@@ -42,6 +42,12 @@ const waitingListSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        // Set true once the customer app has shown the "a slot opened up!"
+        // celebratory moment, so it fires exactly once (and across devices).
+        celebrated: {
+            type: Boolean,
+            default: false,
+        },
     },
     { timestamps: true }
 );

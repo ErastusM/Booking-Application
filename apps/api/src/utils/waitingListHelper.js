@@ -5,6 +5,7 @@ const Service = require('../models/Service');
 const User = require('../models/User');
 const { createNotification } = require('./notificationhelper');
 const emailService = require('./emailService');
+const pushService = require('./pushService');
 const { primaryOrigin } = require('./origins');
 const pino = require('pino');
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
@@ -71,13 +72,16 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
 
         const dateStr = new Date(appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 
-        // In-app notification
-        await createNotification(
-            next.customer._id,
-            `Good news! A slot opened up for ${svc?.name || 'your service'} on ${dateStr} at ${startTime}. You've been booked in!`,
-            'waiting_list',
-            '/appointments'
-        );
+        // In-app notification (bell) + a web push so they hear about it with the
+        // app closed. The customer app also plays a full-screen celebratory moment
+        // on next open (driven by the un-celebrated 'promoted' entry).
+        const goodNews = `Good news! A slot opened up for ${svc?.name || 'your service'} on ${dateStr} at ${startTime}. You've been booked in!`;
+        await createNotification(next.customer._id, goodNews, 'waiting_list', '/appointments');
+        pushService.sendToUser(next.customer._id, {
+            title: 'A slot opened up! 🎉',
+            body: `You're booked for ${svc?.name || 'your service'} on ${dateStr} at ${startTime}.`,
+            url: '/appointments',
+        }).catch(() => {});
 
         // Email the promoted customer their confirmation (fire-and-forget; safeSend never throws)
         if (next.customer.email) {

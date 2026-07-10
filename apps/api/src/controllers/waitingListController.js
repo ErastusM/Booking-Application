@@ -4,6 +4,7 @@ const WaitingList = require('../models/WaitingList');
 const Appointment = require('../models/Appointment');
 const Service = require('../models/Service');
 const { createNotification } = require('../utils/notificationhelper');
+const pushService = require('../utils/pushService');
 
 const toMinutes = (t) => {
     const [h, m] = String(t).split(':').map(Number);
@@ -91,15 +92,17 @@ exports.joinWaitingList = async (req, res) => {
 
         await entry.populate('service', 'name price duration');
 
-        // Notify the provider that a customer joined their waiting list
+        // Notify the provider that a customer joined their waiting list — in-app
+        // (bell) + a web push so they see it even with the app closed.
         if (provider) {
             const when = dateObj.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-            await createNotification(
-                provider,
-                `${req.user.name} joined the waiting list for ${svc.name} on ${when} at ${startTime}.`,
-                'waiting_list',
-                '/dashboard'
-            );
+            const msg = `${req.user.name} joined the waiting list for ${svc.name} on ${when} at ${startTime}.`;
+            await createNotification(provider, msg, 'waiting_list', '/dashboard');
+            pushService.sendToUser(provider, {
+                title: 'New waiting-list request',
+                body: msg,
+                url: '/dashboard?tab=waitlist',
+            }).catch(() => {});
         }
 
         res.status(201).json({ success: true, data: entry });
@@ -245,6 +248,43 @@ exports.getNotifications = async (req, res) => {
             .sort({ updatedAt: -1 });
 
         res.status(200).json({ success: true, data: notifications });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+// Promotions the customer hasn't yet been shown the celebratory moment for.
+// The customer app polls this and, when non-empty, plays the "a slot opened up!"
+// full-screen moment, then marks each celebrated so it fires exactly once.
+exports.getPendingPromotions = async (req, res) => {
+    try {
+        // Only celebrate FRESH promotions. The recency window also means pre-existing
+        // 'promoted' entries (which have no `celebrated` field) don't all fire a stale
+        // celebration on first deploy.
+        const since = new Date(Date.now() - 3 * 24 * 60 * 60 * 1000);
+        const promotions = await WaitingList.find({
+            customer: req.user._id,
+            status: 'promoted',
+            celebrated: { $ne: true },
+            updatedAt: { $gte: since },
+        })
+            .populate('service', 'name')
+            .sort({ updatedAt: -1 })
+            .limit(1); // the app shows/acks one celebration at a time
+        res.status(200).json({ success: true, data: promotions });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+// Mark a promotion's celebration as shown (idempotent, owner-scoped).
+exports.markPromotionCelebrated = async (req, res) => {
+    try {
+        await WaitingList.updateOne(
+            { _id: req.params.id, customer: req.user._id },
+            { $set: { celebrated: true } }
+        );
+        res.status(200).json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

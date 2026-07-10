@@ -455,6 +455,18 @@ const BookAppointment = () => {
     if (step === 'review') {
         return (
             <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+                {/* The celebratory moment is triggered from THIS (review) screen, so it
+                    must render here too — not only in the form-step return below.
+                    Without it, a confirmed booking set no visible overlay and the user
+                    re-tapped Confirm into their own just-created slot. */}
+                {confirmedOverlay && (
+                    <StatusOverlay
+                        variant="confirmed"
+                        title="Appointment confirmed"
+                        subtitle={confirmedOverlay.subtitle}
+                        onDone={() => navigate(confirmedOverlay.next)}
+                    />
+                )}
                 {/* Header */}
                 <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
                     <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 20% 50%, rgba(240,62,22,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
@@ -588,7 +600,7 @@ const BookAppointment = () => {
                                 <button
                                     data-testid="booking-confirm"
                                     onClick={handleConfirm}
-                                    disabled={loading || (!user && !guestReady)}
+                                    disabled={loading || !!confirmedOverlay || (!user && !guestReady)}
                                     style={{ width: '100%', padding: '0.875rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.95rem', fontWeight: '600', fontFamily: 'var(--font-body)', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, letterSpacing: '0.03em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem' }}
                                 >
                                     {loading && <span style={{ display: 'inline-block', width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
@@ -605,7 +617,7 @@ const BookAppointment = () => {
                         <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)' }}>{curSym} {totalPrice}</div>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>Estimated total</div>
                     </div>
-                    <button data-testid="booking-confirm-mobile" onClick={handleConfirm} disabled={loading || (!user && !guestReady)} style={{ flex: 1, marginLeft: '0.9rem', justifyContent: 'center', padding: '0.875rem 1rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '700', fontFamily: 'var(--font-body)', cursor: (loading || (!user && !guestReady)) ? 'not-allowed' : 'pointer', opacity: (loading || (!user && !guestReady)) ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <button data-testid="booking-confirm-mobile" onClick={handleConfirm} disabled={loading || !!confirmedOverlay || (!user && !guestReady)} style={{ flex: 1, marginLeft: '0.9rem', justifyContent: 'center', padding: '0.875rem 1rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '700', fontFamily: 'var(--font-body)', cursor: (loading || (!user && !guestReady)) ? 'not-allowed' : 'pointer', opacity: (loading || (!user && !guestReady)) ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         {loading && <span style={{ display: 'inline-block', width: '15px', height: '15px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
                         {loading ? 'Confirming...' : rescheduleId ? 'Confirm reschedule' : 'Confirm'}
                     </button>
