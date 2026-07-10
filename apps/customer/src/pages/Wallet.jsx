@@ -4,6 +4,7 @@ import { walletService } from '../services';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { Wallet as WalletIcon, Clock, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import WalletTopUpModal from '../components/WalletTopUpModal';
+import { useToast } from '../components/Toast';
 
 const money = (n) => `N$${Number(n || 0).toFixed(2)}`;
 
@@ -39,6 +40,7 @@ const describe = (t) => {
 };
 
 const Wallet = () => {
+    const toast = useToast();
     const [wallets, setWallets] = useState([]);
     const [pendingAdjustments, setPendingAdjustments] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -78,7 +80,7 @@ const Wallet = () => {
             await load();
             setTxns({}); setExpanded(null);
         } catch (err) {
-            alert(err.response?.data?.message || 'Could not update the adjustment');
+            toast(err.response?.data?.message || 'Could not update the adjustment', 'error');
         } finally { setBusyId(''); }
     };
 
@@ -116,7 +118,25 @@ const Wallet = () => {
             )}
 
             {loading ? (
-                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading your wallet…</div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    {[0, 1].map((i) => (
+                        <div key={i} style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem' }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
+                                <div className="skeleton" style={{ width: '40px', height: '40px', borderRadius: '50%', flexShrink: 0 }} />
+                                <div style={{ flex: 1 }}>
+                                    <div className="skeleton skeleton-title" style={{ width: '45%' }} />
+                                    <div className="skeleton skeleton-line" style={{ width: '30%', marginBottom: 0 }} />
+                                </div>
+                            </div>
+                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.5rem', marginBottom: '1rem' }}>
+                                {[0, 1, 2].map((j) => (
+                                    <div key={j} className="skeleton" style={{ height: '58px', borderRadius: 'var(--radius-sm)' }} />
+                                ))}
+                            </div>
+                            <div className="skeleton" style={{ height: '36px', width: '55%', borderRadius: 'var(--radius-sm)' }} />
+                        </div>
+                    ))}
+                </div>
             ) : wallets.length === 0 ? (
                 <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '2.5rem 1.5rem', textAlign: 'center' }}>
                     <WalletIcon size={40} color="var(--text-muted)" style={{ marginBottom: '0.75rem' }} />
@@ -168,7 +188,17 @@ const Wallet = () => {
                                 {open && (
                                     <div style={{ borderTop: '1px solid var(--border)', background: 'var(--surface-sunken, var(--warm-gray))' }}>
                                         {!txns[pid] ? (
-                                            <div style={{ padding: '1.25rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading…</div>
+                                            <div>
+                                                {[0, 1, 2].map((i) => (
+                                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.7rem 1.5rem', borderBottom: '1px solid var(--border)', gap: '1rem' }}>
+                                                        <div style={{ flex: 1, minWidth: 0 }}>
+                                                            <div className="skeleton skeleton-line" style={{ width: '55%' }} />
+                                                            <div className="skeleton skeleton-line" style={{ width: '35%', height: '10px', marginBottom: 0 }} />
+                                                        </div>
+                                                        <div className="skeleton skeleton-line" style={{ width: '56px', marginBottom: 0, flexShrink: 0 }} />
+                                                    </div>
+                                                ))}
+                                            </div>
                                         ) : txns[pid].length === 0 ? (
                                             <div style={{ padding: '1.25rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No transactions yet.</div>
                                         ) : (

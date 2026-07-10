@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState, lazy, Suspense } from 'react';
+import React, { useEffect, useMemo, useState, useRef, lazy, Suspense } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
@@ -23,6 +23,8 @@ import { buildTimeSlots } from '../utils/bookingSlots';
 import MiniCalendar from '../components/MiniCalendar';
 import RecurrenceFields from '../components/RecurrenceFields';
 import { currencySymbol } from '../utils/currency';
+import { useToast } from '../components/Toast';
+import { useModalChrome } from '../hooks/useModalChrome';
 
 const statusConfig = {
     pending: { label: 'Pending', bg: '#fef3c7', color: '#92400e' },
@@ -57,6 +59,86 @@ const ContactActions = ({ phone, email, onMessage }) => {
     );
 };
 
+// Modal shell that wires in shared dialog chrome (Escape-to-close, body scroll
+// lock, initial focus) via useModalChrome. Mounted only while its modal is open,
+// so the hook's lifecycle matches the dialog. Renders a fade-in scrim + the panel
+// (whose entrance animation comes from its own className, e.g. .appt-modal-pop or
+// the .block-time-panel CSS). Children are the panel's contents.
+const ChromeModal = ({ onClose, panelClassName = '', panelStyle, scrimStyle, children }) => {
+    const panelRef = useModalChrome(onClose);
+    return (
+        <>
+            <div className="scrim-in" onClick={onClose} style={scrimStyle} />
+            <div ref={panelRef} tabIndex={-1} className={panelClassName} style={{ ...panelStyle, outline: 'none' }}>
+                {children}
+            </div>
+        </>
+    );
+};
+
+// 44x44 flex-centered close control — keeps the glyph visually small while the
+// hit area clears the touch-target minimum.
+const CloseButton = ({ onClick, dark = true }) => (
+    <button
+        type="button"
+        onClick={onClick}
+        aria-label="Close"
+        style={{
+            background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1,
+            color: dark ? 'rgba(255,255,255,0.5)' : 'var(--text-muted)',
+            minWidth: '44px', minHeight: '44px', margin: '-0.5rem -0.5rem -0.5rem 0',
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+        }}
+    >&times;</button>
+);
+
+// Loading placeholder for the Earnings / Insights tabs — reserves the real
+// KPI-grid + chart layout with shimmer blocks so content doesn't shove in.
+const StatsSkeleton = () => {
+    const card = { background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem' };
+    return (
+        <div aria-hidden="true">
+            <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                {[0, 1, 2, 3].map((i) => (
+                    <div key={i} style={{ ...card, display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                        <div className="skeleton" style={{ width: '44px', height: '44px', borderRadius: '10px', flexShrink: 0 }} />
+                        <div style={{ flex: 1 }}>
+                            <div className="skeleton skeleton-line" style={{ width: '55%' }} />
+                            <div className="skeleton skeleton-title" style={{ width: '70%', marginBottom: '8px' }} />
+                            <div className="skeleton skeleton-line" style={{ width: '40%', marginBottom: 0 }} />
+                        </div>
+                    </div>
+                ))}
+            </div>
+            <div className="provider-profile-two-col" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem' }}>
+                {[0, 1].map((i) => (
+                    <div key={i} style={{ ...card, padding: '1.5rem' }}>
+                        <div className="skeleton skeleton-title" style={{ marginBottom: '1.25rem' }} />
+                        <div className="skeleton" style={{ height: '140px', borderRadius: 'var(--radius-sm)' }} />
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+// Loading placeholder rows for the data tabs (clients / messages / packages /
+// wallet / team) — grey shimmer lines sized to the real table/list rows.
+const RowsSkeleton = ({ rows = 6 }) => (
+    <div aria-hidden="true" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', padding: '1rem 0' }}>
+        {Array.from({ length: rows }).map((_, i) => (
+            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '0.75rem 0.25rem' }}>
+                <div className="skeleton" style={{ width: '40px', height: '40px', borderRadius: '50%', flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                    <div className="skeleton skeleton-line" style={{ width: '45%' }} />
+                    <div className="skeleton skeleton-line" style={{ width: '30%', marginBottom: 0 }} />
+                </div>
+                <div className="skeleton" style={{ width: '64px', height: '20px', borderRadius: '99px', flexShrink: 0 }} />
+            </div>
+        ))}
+    </div>
+);
+
 // Initials avatar + relative time for the iOS-style Messages list.
 const initialsOf = (name) => ((name || '?').trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase() || '?');
 const Avatar = ({ name, size = 40 }) => (
@@ -81,6 +163,8 @@ const ProviderDashboard = () => {
     const curSym = currencySymbol(curCode);
     const nMoney = (n) => `${curSym}${Number(n || 0).toFixed(2)}`;
     const location = useLocation();
+    const toast = useToast();
+    const calendarRef = useRef(null);
     const [showWizard, setShowWizard] = useState(false);
     const [appointments, setAppointments] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -388,7 +472,7 @@ const ProviderDashboard = () => {
             // Roll back optimistic entry on failure
             setBlockedTimes(prev => prev.filter(b => !String(b._id).startsWith('tmp_')));
             if (!editingBlockedTime) setShowBlockedTimeForm(true); // reopen if we closed it
-            alert(err?.response?.data?.message || err?.message || 'Failed to save blocked time. Please try again.');
+            toast(err?.response?.data?.message || err?.message || 'Failed to save blocked time. Please try again.', 'error');
         } finally {
             setSavingBlockedTime(false);
         }
@@ -463,7 +547,7 @@ const ProviderDashboard = () => {
         try {
             approve ? await walletService.approveTopUp(id) : await walletService.rejectTopUp(id);
             await fetchWalletData();
-        } catch (err) { alert(err.response?.data?.message || 'Could not update top-up'); }
+        } catch (err) { toast(err.response?.data?.message || 'Could not update top-up', 'error'); }
     };
 
     const submitAdjustment = async ({ customerId, amount, direction, reason, isRefund }) => {
@@ -937,6 +1021,16 @@ const ProviderDashboard = () => {
         if (calendarView === 'week') return 'timeGridWeek';
         return 'dayGridMonth';
     };
+
+    // Switch views in place (changeView) instead of remounting the whole
+    // calendar via key= — keeps scroll position and avoids a flash/reflow.
+    useEffect(() => {
+        const api = calendarRef.current?.getApi?.();
+        if (api && api.view.type !== getFullCalendarView()) {
+            api.changeView(getFullCalendarView());
+        }
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [calendarView]);
 
     const handleFullCalendarSelect = (selection) => {
         // Offer a choice (appointment vs block) instead of jumping straight to a form.
@@ -1438,7 +1532,7 @@ const ProviderDashboard = () => {
                                             )}
                                         </div>
                                         <button onClick={() => handleDayToggle(day)} aria-label={`Toggle ${day}`} style={{ width: '50px', height: '30px', borderRadius: '99px', border: 'none', background: config.enabled ? 'var(--gold)' : '#cbd0d8', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0, alignSelf: 'center' }}>
-                                            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'white', position: 'absolute', top: '3px', left: config.enabled ? '23px' : '3px', transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }} />
+                                            <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'white', position: 'absolute', top: '3px', left: '3px', transform: config.enabled ? 'translateX(20px)' : 'translateX(0)', transition: 'transform 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }} />
                                         </button>
                                     </div>
                                 ))}
@@ -1702,9 +1796,7 @@ const ProviderDashboard = () => {
                         </div>
 
                         {loadingInsights ? (
-                            <div style={{ textAlign: 'center', padding: '4rem' }}>
-                                <div style={{ width: '40px', height: '40px', border: '3px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto' }} />
-                            </div>
+                            <StatsSkeleton />
                         ) : insightsError ? (
                             <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>
                                 <p style={{ marginBottom: '1rem' }}>{insightsError}</p>
@@ -1831,9 +1923,7 @@ const ProviderDashboard = () => {
                         </div>
 
                         {loadingEarnings ? (
-                            <div style={{ textAlign: 'center', padding: '4rem' }}>
-                                <div style={{ width: '40px', height: '40px', border: '3px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto' }} />
-                            </div>
+                            <StatsSkeleton />
                         ) : earningsError ? (
                             <div style={{ textAlign: 'center', padding: '4rem', color: 'var(--text-muted)' }}>
                                 <p style={{ marginBottom: '1rem' }}>{earningsError}</p>
@@ -1987,7 +2077,7 @@ const ProviderDashboard = () => {
                             type="button"
                             aria-label="Scroll to top"
                             onClick={() => { try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (_) { window.scrollTo(0, 0); } }}
-                            style={{ position: 'fixed', right: '16px', bottom: 'calc(104px + env(safe-area-inset-bottom, 0px))', zIndex: 1001, width: '42px', height: '42px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--charcoal)', boxShadow: 'var(--shadow-md)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                            style={{ position: 'fixed', right: '16px', bottom: 'calc(104px + env(safe-area-inset-bottom, 0px))', zIndex: 1001, width: '44px', height: '44px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--charcoal)', boxShadow: 'var(--shadow-md)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                         >
                             <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 15l-6-6-6 6" /></svg>
                         </button>
@@ -2043,7 +2133,7 @@ const ProviderDashboard = () => {
 
                         <div className="fc-bookplus-wrapper" style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                             <FullCalendar
-                                key={calendarView}
+                                ref={calendarRef}
                                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
                                 initialView={getFullCalendarView()}
                                 initialDate={currentDate}
@@ -2183,7 +2273,7 @@ const ProviderDashboard = () => {
                                         <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
                                             <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--charcoal)' }}>Open this day</span>
                                             <button onClick={() => setAdjustHours(h => ({ ...h, enabled: !h.enabled }))} aria-label="Toggle open" style={{ width: '50px', height: '30px', borderRadius: '99px', border: 'none', background: adjustHours.enabled ? 'var(--gold)' : '#cbd0d8', cursor: 'pointer', position: 'relative', flexShrink: 0 }}>
-                                                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'white', position: 'absolute', top: '3px', left: adjustHours.enabled ? '23px' : '3px', transition: 'left 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }} />
+                                                <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'white', position: 'absolute', top: '3px', left: '3px', transform: adjustHours.enabled ? 'translateX(20px)' : 'translateX(0)', transition: 'transform 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }} />
                                             </button>
                                         </label>
                                         {adjustHours.enabled && (
@@ -2268,7 +2358,7 @@ const ProviderDashboard = () => {
                             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>My Clients</h2>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{clients.length} total</span>
                         </div>
-                        {loadingClients ? <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading...</div> : (
+                        {loadingClients ? <RowsSkeleton /> : (
                             <div style={{ overflowX: 'auto' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                                     <thead>
@@ -2308,7 +2398,7 @@ const ProviderDashboard = () => {
                                         onClick={async () => {
                                             const id = selectedClient.customer?._id;
                                             if (id && window.confirm('Block this client? You won’t be able to book or message each other. You can unblock them in Account settings.')) {
-                                                try { await authService.blockUser(id); alert('Client blocked.'); } catch { alert('Could not block client.'); }
+                                                try { await authService.blockUser(id); toast('Client blocked.', 'success'); } catch { toast('Could not block client.', 'error'); }
                                             }
                                         }}
                                         style={{ background: 'none', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.72rem', padding: '0.25rem 0.6rem', borderRadius: 'var(--radius-sm)' }}
@@ -2387,7 +2477,7 @@ const ProviderDashboard = () => {
                             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Messages</h3>
                         </div>
                         {loadingConversations ? (
-                            <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading…</div>
+                            <RowsSkeleton />
                         ) : conversations.length === 0 ? (
                             <div style={{ padding: '3.5rem 2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                                 <MessageSquare size={28} style={{ opacity: 0.35 }} />
@@ -2519,7 +2609,7 @@ const ProviderDashboard = () => {
                     )}
 
                     {loadingPackages ? (
-                        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading...</div>
+                        <RowsSkeleton />
                     ) : myPackages.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '5rem 2rem', color: 'var(--text-muted)', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', marginTop: '1.5rem' }}>
                             <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🪪</div>
@@ -2579,7 +2669,7 @@ const ProviderDashboard = () => {
             {activeTab === 'wallet' && (
                 <div>
                     {walletLoading && !walletSummary ? (
-                        <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading wallet…</div>
+                        <RowsSkeleton />
                     ) : (
                         <>
                             {/* Your Bookplus account balance (provider ↔ platform) */}
@@ -2634,7 +2724,7 @@ const ProviderDashboard = () => {
                                 <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.75rem 0', borderTop: '1px solid var(--border)' }}>
                                     <div><div style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>Enable wallet</div><div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Turn the prepaid wallet on for your clients</div></div>
                                     <button type="button" onClick={() => saveWalletSettings({ enabled: !walletSettings?.enabled })} disabled={walletSaving} style={{ width: '48px', height: '26px', borderRadius: '99px', border: 'none', cursor: 'pointer', background: walletSettings?.enabled ? 'var(--gold)' : '#d1d5db', position: 'relative', flexShrink: 0 }}>
-                                        <span style={{ position: 'absolute', top: '3px', left: walletSettings?.enabled ? '25px' : '3px', width: '20px', height: '20px', borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
+                                        <span style={{ position: 'absolute', top: '3px', left: '3px', transform: walletSettings?.enabled ? 'translateX(22px)' : 'translateX(0)', width: '20px', height: '20px', borderRadius: '50%', background: 'white', transition: 'transform 0.2s' }} />
                                     </button>
                                 </label>
 
@@ -2654,7 +2744,7 @@ const ProviderDashboard = () => {
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.75rem 0', borderTop: '1px solid var(--border)' }}>
                                     <div><div style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>Allow refunds</div><div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Offer wallet refunds to clients</div></div>
                                     <button type="button" onClick={() => saveWalletSettings({ refundsAllowed: !walletSettings?.refundsAllowed })} disabled={walletSaving} style={{ width: '48px', height: '26px', borderRadius: '99px', border: 'none', cursor: 'pointer', background: walletSettings?.refundsAllowed ? 'var(--gold)' : '#d1d5db', position: 'relative', flexShrink: 0 }}>
-                                        <span style={{ position: 'absolute', top: '3px', left: walletSettings?.refundsAllowed ? '25px' : '3px', width: '20px', height: '20px', borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
+                                        <span style={{ position: 'absolute', top: '3px', left: '3px', transform: walletSettings?.refundsAllowed ? 'translateX(22px)' : 'translateX(0)', width: '20px', height: '20px', borderRadius: '50%', background: 'white', transition: 'transform 0.2s' }} />
                                     </button>
                                 </div>
 
@@ -2824,7 +2914,7 @@ const ProviderDashboard = () => {
                     )}
 
                     {loadingTeam ? (
-                        <div style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>Loading...</div>
+                        <RowsSkeleton />
                     ) : teamMembers.length === 0 ? (
                         <div style={{ textAlign: 'center', padding: '5rem 2rem', color: 'var(--text-muted)', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', marginTop: '1.5rem' }}>
                             <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>👤</div>
@@ -2903,19 +2993,27 @@ const ProviderDashboard = () => {
                 </div>
             )}
 
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            <style>{`@keyframes spin { to { transform: rotate(360deg); } }
+                /* Centered-modal entrance that keeps the translate(-50%,-50%) centering
+                   (a plain scaleIn would drop the centering transform mid-animation). */
+                @keyframes modalPop { from { opacity: 0; transform: translate(-50%,-50%) scale(0.96); } to { opacity: 1; transform: translate(-50%,-50%) scale(1); } }
+                .appt-modal-pop { animation: modalPop var(--dur-slow) var(--ease-out) both; }
+                @media (prefers-reduced-motion: reduce) { .appt-modal-pop { animation: none; } }`}</style>
 
             {/* Add Appointment modal */}
             {showApptModal && (
-                <>
-                    <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1001, backdropFilter: 'blur(2px)' }} onClick={() => setShowApptModal(false)} />
-                    <div className="modal-center" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '420px', maxWidth: '95vw', maxHeight: '90dvh', display: 'flex', flexDirection: 'column', background: 'white', borderRadius: 'var(--radius)', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', zIndex: 1002, overflow: 'hidden' }}>
+                <ChromeModal
+                    onClose={() => { if (!savingAppt) setShowApptModal(false); }}
+                    scrimStyle={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1001, backdropFilter: 'blur(2px)' }}
+                    panelClassName="modal-center appt-modal-pop"
+                    panelStyle={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '420px', maxWidth: '95vw', maxHeight: '90dvh', display: 'flex', flexDirection: 'column', background: 'white', borderRadius: 'var(--radius)', boxShadow: '0 20px 60px rgba(0,0,0,0.25)', zIndex: 1002, overflow: 'hidden' }}
+                >
                         <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                             <div>
                                 <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.25rem', fontWeight: '700', margin: '0 0 0.15rem' }}>New Appointment</h2>
                                 <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', margin: 0 }}>Book a slot for a client</p>
                             </div>
-                            <button onClick={() => setShowApptModal(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0 }}>×</button>
+                            <CloseButton onClick={() => setShowApptModal(false)} />
                         </div>
                         <form onSubmit={async e => {
                             e.preventDefault();
@@ -2994,7 +3092,7 @@ const ProviderDashboard = () => {
                                             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>Book multiple clients at once</span>
                                         </div>
                                         <button type="button" onClick={() => setApptForm(f => ({ ...f, isGroup: !f.isGroup }))} style={{ width: '36px', height: '20px', borderRadius: '99px', border: 'none', background: apptForm.isGroup ? 'var(--gold)' : '#cbd5e1', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
-                                            <span style={{ position: 'absolute', top: '2px', left: apptForm.isGroup ? '18px' : '2px', width: '16px', height: '16px', borderRadius: '50%', background: 'white', transition: 'left 0.2s', display: 'block' }} />
+                                            <span style={{ position: 'absolute', top: '2px', left: '2px', transform: apptForm.isGroup ? 'translateX(16px)' : 'translateX(0)', width: '16px', height: '16px', borderRadius: '50%', background: 'white', transition: 'transform 0.2s', display: 'block' }} />
                                         </button>
                                     </div>
                                     {apptForm.isGroup ? (
@@ -3129,15 +3227,17 @@ const ProviderDashboard = () => {
                                 </button>
                             </div>
                         </form>
-                    </div>
-                </>
+                </ChromeModal>
             )}
 
             {/* Add/Edit Blocked Time panel */}
             {showBlockedTimeForm && (
-                <>
-                    <div onClick={closeBlockedTimeForm} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1001, backdropFilter: 'blur(2px)' }} />
-                    <div className="block-time-panel" style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '400px', maxWidth: '95vw', background: 'var(--card-bg)', boxShadow: '-8px 0 40px rgba(0,0,0,0.18)', zIndex: 1002, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+                <ChromeModal
+                    onClose={closeBlockedTimeForm}
+                    scrimStyle={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1001, backdropFilter: 'blur(2px)' }}
+                    panelClassName="block-time-panel"
+                    panelStyle={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '400px', maxWidth: '95vw', background: 'var(--card-bg)', boxShadow: '-8px 0 40px rgba(0,0,0,0.18)', zIndex: 1002, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}
+                >
                         {/* Panel header */}
                         <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                             <div>
@@ -3146,7 +3246,7 @@ const ProviderDashboard = () => {
                                 </h2>
                                 <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', margin: 0 }}>Block off time when you're unavailable</p>
                             </div>
-                            <button onClick={closeBlockedTimeForm} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0 }}>×</button>
+                            <CloseButton onClick={closeBlockedTimeForm} />
                         </div>
 
                         <form onSubmit={handleBlockedTimeSubmit} style={{ padding: '1.5rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
@@ -3283,21 +3383,23 @@ const ProviderDashboard = () => {
                                 {savingBlockedTime ? 'Saving...' : editingBlockedTime ? 'Update' : 'Save'}
                             </button>
                         </form>
-                    </div>
-                </>
+                </ChromeModal>
             )}
             {/* Appointment detail / reschedule panel */}
             {apptDetailModal && (
-                <>
-                    <div onClick={() => setApptDetailModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1001, backdropFilter: 'blur(2px)' }} />
-                    <div className="block-time-panel" style={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '400px', maxWidth: '95vw', background: 'var(--card-bg)', boxShadow: '-8px 0 40px rgba(0,0,0,0.18)', zIndex: 1002, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}>
+                <ChromeModal
+                    onClose={() => setApptDetailModal(null)}
+                    scrimStyle={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1001, backdropFilter: 'blur(2px)' }}
+                    panelClassName="block-time-panel"
+                    panelStyle={{ position: 'fixed', top: 0, right: 0, bottom: 0, width: '400px', maxWidth: '95vw', background: 'var(--card-bg)', boxShadow: '-8px 0 40px rgba(0,0,0,0.18)', zIndex: 1002, display: 'flex', flexDirection: 'column', overflowY: 'auto' }}
+                >
                         {/* Header */}
                         <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                             <div>
                                 <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.25rem', fontWeight: '700', margin: '0 0 0.2rem' }}>Appointment</h2>
                                 <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', margin: 0, fontFamily: 'var(--font-body)' }}>{apptDetailModal.service?.name}</p>
                             </div>
-                            <button onClick={() => setApptDetailModal(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0 }}>&times;</button>
+                            <CloseButton onClick={() => setApptDetailModal(null)} />
                         </div>
 
                         {/* Client card - tap the name to reveal contact options (call / email / chat) */}
@@ -3462,8 +3564,7 @@ const ProviderDashboard = () => {
                                 )
                             )}
                         </div>
-                    </div>
-                </>
+                </ChromeModal>
             )}
 
             {/* Recurring series cancel modal */}

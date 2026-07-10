@@ -117,8 +117,10 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
         }
     };
 
+    // Full-screen sheet — fade in (a scale-from-center would zoom the whole
+    // viewport and expose edge gaps); reduced-motion neutralizes it globally.
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'var(--off-white)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'var(--off-white)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)', animation: 'fadeIn var(--dur) var(--ease-out) both' }}>
             {/* Header */}
             <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                 <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 700, color: 'var(--charcoal)', margin: 0 }}>

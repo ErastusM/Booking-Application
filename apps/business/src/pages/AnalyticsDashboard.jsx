@@ -7,21 +7,25 @@ const BarChart = ({ data, valueKey, labelKey, color = 'var(--gold)', height = 16
     const max = Math.max(...data.map(d => d[valueKey]), 1);
     return (
         <div style={{ display: 'flex', alignItems: 'flex-end', gap: '3px', height, paddingTop: '1rem' }}>
-            {data.map((d, i) => (
-                <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', height: '100%', justifyContent: 'flex-end' }}>
-                    <div
-                        title={`${d[labelKey]}: ${d[valueKey]}`}
-                        style={{
-                            width: '100%', borderRadius: '3px 3px 0 0',
-                            background: color, opacity: 0.85,
-                            height: `${Math.max((d[valueKey] / max) * 100, d[valueKey] > 0 ? 4 : 0)}%`,
-                            transition: 'height 0.5s ease',
-                            minHeight: d[valueKey] > 0 ? '4px' : '0',
-                            cursor: 'default',
-                        }}
-                    />
-                </div>
-            ))}
+            {data.map((d, i) => {
+                // Fraction of the track height this bar fills (with a small floor so
+                // non-zero values stay visible). Composited via scaleY — no reflow.
+                const frac = d[valueKey] > 0 ? Math.max(d[valueKey] / max, 0.025) : 0;
+                return (
+                    <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', height: '100%', justifyContent: 'flex-end' }}>
+                        <div
+                            title={`${d[labelKey]}: ${d[valueKey]}`}
+                            style={{
+                                width: '100%', height: '100%', borderRadius: '3px 3px 0 0',
+                                background: color, opacity: 0.85,
+                                transform: `scaleY(${frac})`, transformOrigin: 'bottom',
+                                transition: 'transform 0.5s ease',
+                                cursor: 'default',
+                            }}
+                        />
+                    </div>
+                );
+            })}
         </div>
     );
 };
@@ -120,12 +124,14 @@ const StarRating = ({ rating }) => (
 const AnalyticsDashboard = () => {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
+    const [refreshing, setRefreshing] = useState(false);
     const [error, setError] = useState('');
     const [chartMode, setChartMode] = useState('bookings'); // bookings | users
 
     useEffect(() => { fetchAnalytics(); }, []);
 
     const fetchAnalytics = async () => {
+        setRefreshing(true);
         try {
             const res = await analyticsService.getAnalytics();
             setData(res.data.data);
@@ -133,16 +139,35 @@ const AnalyticsDashboard = () => {
             setError('Failed to load analytics');
         } finally {
             setLoading(false);
+            setRefreshing(false);
         }
     };
 
     if (loading) return (
-        <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-            <div style={{ textAlign: 'center' }}>
-                <div style={{ width: '40px', height: '40px', border: '3px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 1rem' }} />
-                <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Loading analytics...</p>
+        <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+            {/* Hero placeholder — mirrors the ink header so the page doesn't jump */}
+            <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem' }}>
+                <div className="container">
+                    <div className="skeleton" style={{ width: '90px', height: '12px', background: 'rgba(255,255,255,0.12)', marginBottom: '0.9rem' }} />
+                    <div className="skeleton" style={{ width: '190px', height: '38px', background: 'rgba(255,255,255,0.12)' }} />
+                </div>
             </div>
-            <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+            <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
+                {[0, 1].map((row) => (
+                    <div key={row} className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: row === 1 ? '2rem' : '1.5rem' }}>
+                        {[0, 1, 2, 3].map((i) => (
+                            <div key={i} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem' }}>
+                                <div className="skeleton skeleton-line" style={{ width: '55%' }} />
+                                <div className="skeleton skeleton-title" style={{ width: '40%', height: '28px', marginTop: '0.5rem' }} />
+                            </div>
+                        ))}
+                    </div>
+                ))}
+                <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
+                    <div className="skeleton skeleton-title" style={{ marginBottom: '1.25rem' }} />
+                    <div className="skeleton" style={{ height: '180px', borderRadius: 'var(--radius-sm)' }} />
+                </div>
+            </div>
         </div>
     );
 
@@ -172,9 +197,11 @@ const AnalyticsDashboard = () => {
                         <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Insights</p>
                         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'white' }}>Analytics</h1>
                     </div>
-                    <button onClick={fetchAnalytics} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '0.5rem 1.25rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.85rem', fontFamily: 'var(--font-body)' }}>
-                        ↻ Refresh
+                    <button onClick={fetchAnalytics} disabled={refreshing} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '0.5rem 1.25rem', borderRadius: 'var(--radius-sm)', cursor: refreshing ? 'default' : 'pointer', fontSize: '0.85rem', fontFamily: 'var(--font-body)', opacity: refreshing ? 0.6 : 1 }}>
+                        <span style={{ display: 'inline-block', animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>↻</span>
+                        {refreshing ? 'Refreshing…' : 'Refresh'}
                     </button>
+                    <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
                 </div>
             </div>
 
@@ -278,7 +305,7 @@ const AnalyticsDashboard = () => {
                                         <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                             <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', width: '32px', flexShrink: 0 }}>{d.day}</span>
                                             <div style={{ flex: 1, height: '8px', borderRadius: '99px', background: 'var(--warm-gray)', overflow: 'hidden' }}>
-                                                <div style={{ height: '100%', borderRadius: '99px', background: i === 0 ? 'var(--gold)' : 'var(--charcoal)', opacity: i === 0 ? 1 : 0.3 + (0.6 * (1 - i / busiestDays.length)), width: `${(d.count / max) * 100}%`, transition: 'width 0.5s ease' }} />
+                                                <div style={{ height: '100%', width: '100%', borderRadius: '99px', background: i === 0 ? 'var(--gold)' : 'var(--charcoal)', opacity: i === 0 ? 1 : 0.3 + (0.6 * (1 - i / busiestDays.length)), transform: `scaleX(${d.count / max})`, transformOrigin: 'left', transition: 'transform 0.5s ease' }} />
                                             </div>
                                             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', width: '20px', textAlign: 'right', flexShrink: 0 }}>{d.count}</span>
                                         </div>

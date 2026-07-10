@@ -32,6 +32,7 @@ const BookAppointment = () => {
     // â"€â"€ ui state â"€â"€
     const [step, setStep] = useState('form'); // 'form' | 'review'
     const [loading, setLoading] = useState(false);
+    const [joining, setJoining] = useState(false); // waiting-list join in flight
     const [error, setError] = useState('');
     const [providerAvailability, setProviderAvailability] = useState(null);
     const [availabilityError, setAvailabilityError] = useState('');
@@ -296,6 +297,7 @@ const BookAppointment = () => {
             return;
         }
         setError('');
+        setJoining(true);
         try {
             await waitingListService.join({ service: formData.service, provider: effectiveProviderId || undefined, appointmentDate: formData.appointmentDate, startTime: formData.startTime, endTime: formData.endTime });
             const target = '/waiting-list?joined=1';
@@ -308,6 +310,7 @@ const BookAppointment = () => {
             }, 120);
         } catch (err) {
             setError(err.response?.data?.message || 'Failed to join waiting list');
+            setJoining(false);
         }
     };
 
@@ -729,6 +732,7 @@ const BookAppointment = () => {
                                                     key={i}
                                                     type="button"
                                                     data-testid="booking-date"
+                                                    className="pressable"
                                                     disabled={disabled}
                                                     onClick={() => !disabled && handleDateSelect(dateStr)}
                                                     style={{
@@ -742,7 +746,7 @@ const BookAppointment = () => {
                                                         cursor: disabled ? 'not-allowed' : 'pointer',
                                                         fontFamily: 'var(--font-body)', fontSize: '0.9rem',
                                                         fontWeight: isSelected || isToday ? '700' : '500',
-                                                        transition: 'all 0.12s',
+                                                        transition: 'transform var(--dur-fast) var(--ease-out), background 0.12s ease, border-color 0.12s ease, color 0.12s ease',
                                                     }}
                                                 >
                                                     {d.getDate()}
@@ -769,6 +773,7 @@ const BookAppointment = () => {
                                                     <button
                                                         key={i}
                                                         type="button"
+                                                        className="pressable"
                                                         data-testid={slot.isBooked ? 'booking-time-booked' : 'booking-time'}
                                                         onClick={() => handleTimeSelect(slot.time)}
                                                         style={{
@@ -786,7 +791,7 @@ const BookAppointment = () => {
                                                             display: 'flex',
                                                             alignItems: 'center',
                                                             justifyContent: 'space-between',
-                                                            transition: 'all 0.15s',
+                                                            transition: 'transform var(--dur-fast) var(--ease-out), background 0.15s ease, border-color 0.15s ease, color 0.15s ease',
                                                         }}
                                                     >
                                                         <span>{slot.time}</span>
@@ -889,8 +894,9 @@ const BookAppointment = () => {
                             Review &amp; Confirm &rarr;
                         </button>
                         {selectedSlotBooked && formData.startTime && (
-                            <button onClick={handleJoinWaitingList} disabled={loading} className="btn-outline" style={{ width: '100%', padding: '0.875rem', marginBottom: '0.75rem' }}>
-                                Join Waiting List
+                            <button onClick={handleJoinWaitingList} disabled={joining} className="btn-outline" style={{ width: '100%', padding: '0.875rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem', cursor: joining ? 'not-allowed' : 'pointer', opacity: joining ? 0.85 : 1 }}>
+                                {joining && <span style={{ display: 'inline-block', width: '16px', height: '16px', border: '2px solid rgba(4,5,5,0.2)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
+                                {joining ? 'Joining...' : 'Join Waiting List'}
                             </button>
                         )}
                         <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)', textAlign: 'center', marginTop: '1rem', lineHeight: 1.5 }}>
@@ -911,10 +917,11 @@ const BookAppointment = () => {
                     {selectedSlotBooked && formData.startTime ? (
                         <button
                             onClick={handleJoinWaitingList}
-                            disabled={loading}
-                            style={{ flex: 1, marginLeft: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', padding: '0.8rem 1rem', fontWeight: '600', cursor: 'pointer', fontSize: '0.9rem', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}
+                            disabled={joining}
+                            style={{ flex: 1, marginLeft: '0.9rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', padding: '0.8rem 1rem', fontWeight: '600', cursor: joining ? 'not-allowed' : 'pointer', opacity: joining ? 0.85 : 1, fontSize: '0.9rem', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}
                         >
-                            Join Waitlist
+                            {joining && <span style={{ display: 'inline-block', width: '15px', height: '15px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
+                            {joining ? 'Joining...' : 'Join Waitlist'}
                         </button>
                     ) : (
                         <button
@@ -936,8 +943,8 @@ const BookAppointment = () => {
         {/* ── Service options bottom sheet ── */}
         {optionSheet && (
             <>
-                <div onClick={() => setOptionSheet(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 900, backdropFilter: 'blur(2px)' }} />
-                <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', zIndex: 901, maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 -8px 40px rgba(0,0,0,0.2)' }}>
+                <div onClick={() => setOptionSheet(null)} className="scrim-in" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 900, backdropFilter: 'blur(2px)' }} />
+                <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', zIndex: 901, maxHeight: '90dvh', overflowY: 'auto', boxShadow: '0 -8px 40px rgba(0,0,0,0.2)', animation: 'slideUp var(--dur) var(--ease-out)' }}>
                     <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>{optionSheet.name}</h2>

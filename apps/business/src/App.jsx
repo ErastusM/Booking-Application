@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './components/Toast';
 import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -99,10 +100,12 @@ export default function App() {
         <Router>
             <ThemeProvider>
             <AuthProvider>
-                {/* No footer in the business tool — it's an app, not a website. */}
-                <AppUpdater />
-                <Navbar />
-                <AppRoutes />
+                <ToastProvider>
+                    {/* No footer in the business tool — it's an app, not a website. */}
+                    <AppUpdater />
+                    <Navbar />
+                    <AppRoutes />
+                </ToastProvider>
             </AuthProvider>
             </ThemeProvider>
         </Router>

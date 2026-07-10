@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { formService } from '../services';
+import { useModalChrome } from '../hooks/useModalChrome';
 
 // Should a field show, given current answers and its showIf rule?
 const fieldVisible = (field, answers) => {
@@ -16,6 +17,10 @@ const IntakeFormModal = ({ appointmentId, onClose, onCompleted }) => {
     const [loading, setLoading] = useState(true);
     const [saving, setSaving] = useState(false);
     const [error, setError] = useState('');
+
+    // Escape-to-close + body scroll lock + initial focus. Guard close while a
+    // form submit is in flight.
+    const panelRef = useModalChrome(() => { if (!saving) onClose(); });
 
     useEffect(() => {
         let alive = true;
@@ -118,8 +123,8 @@ const IntakeFormModal = ({ appointmentId, onClose, onCompleted }) => {
 
     return (
         <>
-            <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, backdropFilter: 'blur(2px)' }} />
-            <div className="modal-center" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '480px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto', background: 'var(--card-bg)', borderRadius: 'var(--radius)', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', zIndex: 1101 }}>
+            <div onClick={() => { if (!saving) onClose(); }} className="scrim-in" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, backdropFilter: 'blur(2px)' }} />
+            <div ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" className="modal-center scale-in" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '480px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto', background: 'var(--card-bg)', borderRadius: 'var(--radius)', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', zIndex: 1101, outline: 'none' }}>
                 <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0 }}>
                     <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.2rem', fontWeight: '700', margin: 0 }}>{active?.template?.title || 'Forms'}</h2>
                     <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1 }}>×</button>

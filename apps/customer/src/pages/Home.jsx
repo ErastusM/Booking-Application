@@ -33,9 +33,13 @@ const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
                     type="button"
                     aria-label={isFav ? 'Remove from saved' : 'Save to favorites'}
                     onClick={(e) => onToggleFav(e, String(p._id))}
-                    style={{ position: 'absolute', top: '8px', right: '8px', width: '30px', height: '30px', borderRadius: '50%', border: 'none', background: 'rgba(255,255,255,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0, boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }}
+                    // 44x44 hit area (transparent) with a 30px visual circle inside so the
+                    // tap target clears the 44px minimum without growing the button visually.
+                    style={{ position: 'absolute', top: '1px', right: '1px', width: '44px', height: '44px', border: 'none', background: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', padding: 0 }}
                 >
-                    <Heart size={16} strokeWidth={2} fill={isFav ? '#e0245e' : 'none'} color={isFav ? '#e0245e' : '#52525b'} />
+                    <span style={{ width: '30px', height: '30px', borderRadius: '50%', background: 'rgba(255,255,255,0.95)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: '0 1px 4px rgba(0,0,0,0.15)' }}>
+                        <Heart size={16} strokeWidth={2} fill={isFav ? '#e0245e' : 'none'} color={isFav ? '#e0245e' : '#52525b'} />
+                    </span>
                 </button>
             </div>
             <div style={{ padding: '0.6rem 0.15rem 0' }}>
@@ -67,6 +71,9 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
     const initial = (p.businessName || p.name || '?').charAt(0).toUpperCase();
     const loc = normalizeTown(p.location || p.businessProfile?.address || 'Namibia');
     const go = () => navigate(`/providers/${id}`);
+    // Enter/Space opens the profile so keyboard/switch users can use the card body,
+    // not just the Book button and heart.
+    const onGoKey = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); go(); } };
 
     const [idx, setIdx] = useState(0);            // active carousel photo (for the dots)
     const [burst, setBurst] = useState(false);    // heart-burst animation on double-tap
@@ -86,7 +93,7 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
     const onMediaTap = () => {
         tap.current.n += 1;
         if (tap.current.n === 1) {
-            tap.current.t = setTimeout(() => { tap.current.n = 0; go(); }, 250);
+            tap.current.t = setTimeout(() => { tap.current.n = 0; go(); }, 220);
         } else {
             clearTimeout(tap.current.t);
             tap.current.n = 0;
@@ -101,7 +108,7 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
         <article style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '18px', overflow: 'hidden', boxShadow: 'var(--shadow-sm)', height: '100%', display: 'flex', flexDirection: 'column' }}>
 
             {/* Header — tap to open profile */}
-            <div onClick={go} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.7rem 0.85rem', cursor: 'pointer' }}>
+            <div role="button" tabIndex={0} onClick={go} onKeyDown={onGoKey} aria-label={`View ${p.businessName || p.name}`} className="pressable" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.7rem 0.85rem', cursor: 'pointer' }}>
                 <div style={{ width: '38px', height: '38px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {p.avatar
                         ? <img src={cloudinaryThumb(p.avatar, 80)} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
@@ -119,7 +126,10 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
             </div>
 
             {/* Media — the hero. Double-tap to like. */}
-            <div style={{ position: 'relative' }} onClick={onMediaTap}>
+            {/* Media & caption are pointer-only (double-tap to like / tap to open);
+                the header above is the single keyboard-focusable "View X" affordance,
+                so these stay out of the a11y tree to avoid 3 duplicate buttons/card. */}
+            <div onClick={onMediaTap} style={{ position: 'relative' }}>
                 {hasPhotos ? (
                     <div className="feed-carousel" onScroll={e => setIdx(Math.round(e.currentTarget.scrollLeft / e.currentTarget.clientWidth))} style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', cursor: 'pointer' }}>
                         {photos.map((src, i) => (
@@ -520,8 +530,9 @@ const Home = () => {
                 <div className="home-filter-row" style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.35rem', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
                     <button
                         type="button"
-                        onClick={(e) => { e.currentTarget.blur(); handleNearMe(); }}
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', flexShrink: 0, padding: '0.5rem 0.95rem', borderRadius: '999px', border: `1px solid ${nearMeCity ? 'var(--gold)' : 'var(--border)'}`, background: nearMeCity ? 'rgba(240,62,22,0.10)' : 'var(--card-bg)', color: nearMeCity ? 'var(--gold-dark)' : 'var(--charcoal)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', boxShadow: 'var(--shadow-sm)', outline: 'none' }}
+                        className="pressable"
+                        onClick={handleNearMe}
+                        style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.35rem', flexShrink: 0, minHeight: '44px', padding: '0.5rem 0.95rem', borderRadius: '999px', border: `1px solid ${nearMeCity ? 'var(--gold)' : 'var(--border)'}`, background: nearMeCity ? 'rgba(240,62,22,0.10)' : 'var(--card-bg)', color: nearMeCity ? 'var(--gold-dark)' : 'var(--charcoal)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', boxShadow: 'var(--shadow-sm)' }}
                     >
                         <MapPin size={15} strokeWidth={2} /> {nearMeLoading ? 'Locating…' : (nearMeCity || 'Near me')}
                     </button>
@@ -531,10 +542,9 @@ const Home = () => {
                             <button
                                 key={cat || 'all'}
                                 type="button"
-                                // blur() drops the focus ring after a tap so the pill doesn't
-                                // look "stuck clicked"; the active border still marks the choice.
-                                onClick={(e) => { e.currentTarget.blur(); setActiveCategory(cat); }}
-                                style={{ flexShrink: 0, padding: '0.5rem 0.95rem', borderRadius: '999px', border: `1px solid ${active ? 'var(--gold)' : 'var(--border)'}`, background: active ? 'var(--charcoal)' : 'var(--card-bg)', color: active ? 'var(--off-white)' : 'var(--charcoal)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', boxShadow: 'var(--shadow-sm)', outline: 'none' }}
+                                className="pressable"
+                                onClick={() => setActiveCategory(cat)}
+                                style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, minHeight: '44px', padding: '0.5rem 0.95rem', borderRadius: '999px', border: `1px solid ${active ? 'var(--gold)' : 'var(--border)'}`, background: active ? 'var(--charcoal)' : 'var(--card-bg)', color: active ? 'var(--off-white)' : 'var(--charcoal)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', boxShadow: 'var(--shadow-sm)' }}
                             >
                                 {cat || 'All'}
                             </button>
@@ -669,8 +679,14 @@ const Home = () => {
                                     <FeedCard key={p._id} p={p} isFav={favSet.has(String(p._id))} likeCount={likeCountFor(p)} onToggleFav={toggleFav} />
                                 ))}
                                 {hasMore && (
-                                    <div ref={sentinelRef} style={{ display: 'flex', justifyContent: 'center', padding: '1.25rem 0' }}>
-                                        <div style={{ width: '26px', height: '26px', border: '3px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} />
+                                    // Shaped skeleton (not a bare spinner) so the incoming card's
+                                    // space is reserved and matches the initial-load placeholder.
+                                    <div ref={sentinelRef} style={{ borderRadius: '18px', overflow: 'hidden', border: '1px solid var(--border)' }}>
+                                        <div className="skeleton" style={{ aspectRatio: '4 / 3' }} />
+                                        <div style={{ padding: '0.85rem 1.1rem 1.05rem' }}>
+                                            <div className="skeleton skeleton-line" style={{ width: '60%' }} />
+                                            <div className="skeleton skeleton-line" style={{ width: '40%', marginBottom: 0 }} />
+                                        </div>
                                     </div>
                                 )}
                                 {!hasMore && filteredProviders.length > PAGE && (

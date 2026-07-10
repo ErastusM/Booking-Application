@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
+import { ToastProvider } from './components/Toast';
 import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -129,10 +130,12 @@ function App() {
         <Router>
             <ThemeProvider>
             <AuthProvider>
-                <AppUpdater />
-                <Navbar />
-                <AppRoutes />
-                <FooterGate />
+                <ToastProvider>
+                    <AppUpdater />
+                    <Navbar />
+                    <AppRoutes />
+                    <FooterGate />
+                </ToastProvider>
             </AuthProvider>
             </ThemeProvider>
         </Router>

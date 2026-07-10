@@ -191,6 +191,14 @@ select:focus-visible {
   outline-offset: 2px;
 }
 
+/* Press feedback for tappable controls that aren't .btn-* (filter pills, time
+   slots, chips). Global touch-action + focus-visible rings already apply; this
+   adds the <100ms scale acknowledgement. Neutralized by reduced-motion below. */
+.pressable { transition: transform var(--dur-fast) var(--ease-out); }
+.pressable:active:not(:disabled) { transform: scale(0.96); }
+/* Backdrop/scrim fade so it enters in step with the panel it dims. */
+.scrim-in { animation: fadeIn var(--dur) ease; }
+
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto; }
   *, *::before, *::after {
@@ -557,6 +565,9 @@ body.dark-mode .bottom-nav {
 }
 
 /* ── Block time panel — right sidebar on desktop, bottom sheet on mobile ── */
+/* Slide the right-side panel in from the edge (appointment-detail + blocked-time
+   form) instead of snapping into place. Neutralized by prefers-reduced-motion. */
+.block-time-panel { animation: slideInRight var(--dur-slow) var(--ease-out); }
 @media (max-width: 640px) {
   .block-time-panel {
     top: auto !important;
@@ -565,9 +576,11 @@ body.dark-mode .bottom-nav {
     bottom: 0 !important;
     width: 100% !important;
     max-width: 100% !important;
-    max-height: 90vh;
+    max-height: 90dvh;
     border-radius: 20px 20px 0 0;
     box-shadow: 0 -8px 40px rgba(0,0,0,0.22) !important;
+    /* As a bottom sheet it should rise, not come in from the right. */
+    animation: slideUp var(--dur-slow) var(--ease-out);
   }
 }
 

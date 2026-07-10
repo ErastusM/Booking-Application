@@ -311,7 +311,7 @@ const Navbar = () => {
         {/* Mobile side drawer */}
         {menuOpen && (
             <>
-                <div onClick={() => setMenuOpen(false)} className="nav-mobile" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.44)', zIndex: 1200, backdropFilter: 'blur(2px)' }} />
+                <div onClick={() => setMenuOpen(false)} className="nav-mobile scrim-in" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.44)', zIndex: 1200, backdropFilter: 'blur(2px)' }} />
                 <aside className="nav-mobile mobile-drawer" style={{
                     position: 'fixed', top: 0, left: 0, bottom: 0,
                     paddingTop: 'env(safe-area-inset-top, 0px)',
@@ -425,7 +425,7 @@ const Navbar = () => {
                                 position: 'relative', transition: 'background 0.2s', flexShrink: 0,
                             }}
                         >
-                            <span style={{ position: 'absolute', top: '3px', left: darkMode ? '25px' : '3px', width: '20px', height: '20px', borderRadius: '50%', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transition: 'left 0.2s' }} />
+                            <span style={{ position: 'absolute', top: '3px', left: '3px', width: '20px', height: '20px', borderRadius: '50%', background: 'white', boxShadow: '0 1px 3px rgba(0,0,0,0.2)', transform: darkMode ? 'translateX(22px)' : 'translateX(0)', transition: 'transform 0.2s' }} />
                         </button>
                     </div>
 

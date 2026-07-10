@@ -1,6 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { availabilityService, appointmentService } from '../services';
 import { buildTimeSlots } from '../utils/bookingSlots';
+import { useModalChrome } from '../hooks/useModalChrome';
 import { X } from 'lucide-react';
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -22,6 +23,10 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
     const [bookedSlots, setBookedSlots] = useState([]);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
+
+    // Escape-to-close + body scroll lock + initial focus into the dialog. Guard
+    // close while a reschedule request is in flight.
+    const panelRef = useModalChrome(() => { if (!busy) onClose(); });
 
     useEffect(() => {
         if (!providerId) return;
@@ -93,8 +98,8 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
     };
 
     return (
-        <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
-            <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '460px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(4,5,5,0.3)', overflow: 'hidden' }}>
+        <div onClick={() => { if (!busy) onClose(); }} className="scrim-in" style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
+            <div ref={panelRef} tabIndex={-1} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '460px', maxHeight: '85vh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(4,5,5,0.3)', overflow: 'hidden', outline: 'none' }}>
                 <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
                     <div style={{ minWidth: 0 }}>
                         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Reschedule</h2>
