@@ -43,6 +43,8 @@ const BookAppointment = () => {
     const [wallet, setWallet] = useState(null); // this provider's wallet + settings (when wallet is enabled)
     const [recurrence, setRecurrence] = useState({ isRecurring: false, recurrenceType: 'weekly', recurrenceInterval: 1, recurrenceEndDate: '' });
     const [paymentMethod, setPaymentMethod] = useState('cash'); // 'wallet' | 'cash' (when the provider's wallet is on)
+    const [guest, setGuest] = useState({ name: '', email: '', phone: '' }); // guest checkout (no account)
+    const guestReady = !!(guest.name.trim() && guest.email.trim()); // required to confirm as a guest
     // The long date grid + time-slot list can scroll well past the top, and on
     // mobile the fixed bottom bar makes it easy to get stranded — show a "back to
     // top" button once the user has scrolled down so they can always return.
@@ -121,7 +123,8 @@ const BookAppointment = () => {
     // Load this provider's wallet (balance + settings) so we can show the prepaid
     // balance and warn before a wallet-required booking that can't be covered.
     useEffect(() => {
-        if (!effectiveProviderId) { setWallet(null); return; }
+        // Guests have no wallet — skip the (401-ing) fetch and always pay cash.
+        if (!user || !effectiveProviderId) { setWallet(null); return; }
         walletService.getMyWalletWithProvider(effectiveProviderId)
             .then(res => {
                 setWallet(res.data.data);
@@ -130,7 +133,7 @@ const BookAppointment = () => {
                 if (s?.enabled) setPaymentMethod(s.bookingPaymentMode === 'wallet_required' ? 'wallet' : 'cash');
             })
             .catch(() => setWallet(null));
-    }, [effectiveProviderId]);
+    }, [effectiveProviderId, user]);
 
     // Bookable staff for this provider + service (Epic 2.5). Empty list = the
     // business has no roster — the picker stays hidden and booking behaves
@@ -210,7 +213,9 @@ const BookAppointment = () => {
     }, [providerAvailability, formData.appointmentDate, formData.startTime]);
 
     useEffect(() => {
-        if (!user) navigate('/login');
+        // Guest checkout: no login required to browse services or book. Signed-in
+        // users are picked up automatically; guests supply contact details at the
+        // confirm step.
         const fetchServices = async () => {
             try {
                 const providerId = searchParams.get('providerId');
@@ -269,6 +274,13 @@ const BookAppointment = () => {
     };
 
     const handleConfirm = async () => {
+        // Guests must leave contact details so we can send the confirmation + a
+        // manage link. Guard here too (buttons are also disabled) and stay put.
+        if (!rescheduleId && !user && !guestReady) {
+            setError('Please enter your name and email to confirm your booking.');
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+            return;
+        }
         setLoading(true);
         setError('');
         try {
@@ -284,6 +296,8 @@ const BookAppointment = () => {
                     selectedAddOns,
                     ...(selectedStaff?._id ? { teamMember: selectedStaff._id } : {}),
                     ...(wallet?.settings?.enabled ? { paymentMethod } : {}),
+                    // Guest checkout: send contact details instead of relying on a session.
+                    ...(!user ? { guestName: guest.name.trim(), guestEmail: guest.email.trim(), guestPhone: guest.phone.trim() } : {}),
                     ...(recurrence.isRecurring ? {
                         isRecurring: true,
                         recurrenceType: recurrence.recurrenceType,
@@ -294,15 +308,25 @@ const BookAppointment = () => {
                 const created = res?.data?.data;
                 const newAppt = Array.isArray(created) ? created[0] : created;
                 const providerName = providerInfo?.name || '';
-                const params = new URLSearchParams({ confirmed: '1' });
-                if (newAppt?._id) params.set('apptId', newAppt._id);
-                if (providerName) params.set('provider', providerName);
-                // Celebrate first with the full-screen moment, then land on the
-                // bookings list (which still shows the detailed confirmed banner).
-                setConfirmedOverlay({
-                    subtitle: providerName ? `You're booked with ${providerName}.` : "You're all set — see you soon.",
-                    next: `/appointments?${params.toString()}`,
-                });
+                // Celebrate first with the full-screen moment, then land somewhere
+                // useful: signed-in users go to their bookings list; guests (who have
+                // no account) go to their token-based manage page.
+                if (user) {
+                    const params = new URLSearchParams({ confirmed: '1' });
+                    if (newAppt?._id) params.set('apptId', newAppt._id);
+                    if (providerName) params.set('provider', providerName);
+                    setConfirmedOverlay({
+                        subtitle: providerName ? `You're booked with ${providerName}.` : "You're all set — see you soon.",
+                        next: `/appointments?${params.toString()}`,
+                    });
+                } else {
+                    setConfirmedOverlay({
+                        subtitle: providerName
+                            ? `You're booked with ${providerName}. We've emailed your confirmation.`
+                            : "You're all set — we've emailed your confirmation.",
+                        next: newAppt?.manageToken ? `/manage/${newAppt.manageToken}` : '/',
+                    });
+                }
             }
         } catch (err) {
             // Stay ON the review screen so the Confirm button doesn't vanish —
@@ -520,6 +544,25 @@ const BookAppointment = () => {
                                 </div>
                             </div>
 
+                            {/* Guest contact — only when not signed in */}
+                            {!user && (
+                                <div style={cardStyle}>
+                                    <div style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>Your details</div>
+                                    <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)', margin: '0 0 0.9rem' }}>
+                                        Booking as a guest — we'll email your confirmation and a link to manage it. Already have an account?{' '}
+                                        <Link to="/login" style={{ color: 'var(--gold-dark)', fontWeight: 600 }}>Log in</Link>.
+                                    </p>
+                                    <div style={{ display: 'grid', gap: '0.6rem' }}>
+                                        <input type="text" value={guest.name} onChange={e => setGuest(g => ({ ...g, name: e.target.value }))}
+                                            placeholder="Full name *" aria-label="Your name" autoComplete="name" className="input" style={{ fontFamily: 'var(--font-body)' }} />
+                                        <input type="email" value={guest.email} onChange={e => setGuest(g => ({ ...g, email: e.target.value }))}
+                                            placeholder="Email *" aria-label="Your email" autoComplete="email" inputMode="email" className="input" style={{ fontFamily: 'var(--font-body)' }} />
+                                        <input type="tel" value={guest.phone} onChange={e => setGuest(g => ({ ...g, phone: e.target.value }))}
+                                            placeholder="Phone (optional)" aria-label="Your phone" autoComplete="tel" inputMode="tel" className="input" style={{ fontFamily: 'var(--font-body)' }} />
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Notes */}
                             <div style={cardStyle}>
                                 <div style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>Comments or requests</div>
@@ -545,7 +588,7 @@ const BookAppointment = () => {
                                 <button
                                     data-testid="booking-confirm"
                                     onClick={handleConfirm}
-                                    disabled={loading}
+                                    disabled={loading || (!user && !guestReady)}
                                     style={{ width: '100%', padding: '0.875rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.95rem', fontWeight: '600', fontFamily: 'var(--font-body)', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, letterSpacing: '0.03em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem' }}
                                 >
                                     {loading && <span style={{ display: 'inline-block', width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
@@ -562,7 +605,7 @@ const BookAppointment = () => {
                         <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)' }}>{curSym} {totalPrice}</div>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>Estimated total</div>
                     </div>
-                    <button data-testid="booking-confirm-mobile" onClick={handleConfirm} disabled={loading} style={{ flex: 1, marginLeft: '0.9rem', justifyContent: 'center', padding: '0.875rem 1rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '700', fontFamily: 'var(--font-body)', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <button data-testid="booking-confirm-mobile" onClick={handleConfirm} disabled={loading || (!user && !guestReady)} style={{ flex: 1, marginLeft: '0.9rem', justifyContent: 'center', padding: '0.875rem 1rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '700', fontFamily: 'var(--font-body)', cursor: (loading || (!user && !guestReady)) ? 'not-allowed' : 'pointer', opacity: (loading || (!user && !guestReady)) ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         {loading && <span style={{ display: 'inline-block', width: '15px', height: '15px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
                         {loading ? 'Confirming...' : rescheduleId ? 'Confirm reschedule' : 'Confirm'}
                     </button>

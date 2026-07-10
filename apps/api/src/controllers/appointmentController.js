@@ -20,6 +20,15 @@ const { resolveBookingStaff } = require('../utils/staffBooking');
 const { checkCancellationWindow } = require('../utils/cancellationPolicy');
 const { primaryOrigin } = require('../utils/origins');
 
+// Who a client-facing email/notification for this appointment should go to: the
+// registered customer, or the guest who booked (customer is null for guests).
+// Returns email:null when there's nobody to email (e.g. a provider walk-in).
+const clientContact = (appt) => ({
+    email: appt.customer?.email || appt.guestEmail || null,
+    name: appt.customer?.name || appt.guestName || appt.walkInName || 'there',
+    userId: appt.customer?._id || null, // in-app notifications only reach real accounts
+});
+
 const defaultSchedule = {
     monday:    { enabled: true,  slots: [{ start: '09:00', end: '17:00' }] },
     tuesday:   { enabled: true,  slots: [{ start: '09:00', end: '17:00' }] },
@@ -217,7 +226,8 @@ const advanceDate = (date, type, interval = 1) => {
 exports.createAppointment = async (req, res) => {
     try {
         const { service, appointmentDate, startTime, endTime, notes, selectedAddOns, walkInName, customerId,
-                isRecurring, recurrenceType, recurrenceInterval, recurrenceEndDate, teamMember, paymentMethod } = req.body;
+                isRecurring, recurrenceType, recurrenceInterval, recurrenceEndDate, teamMember, paymentMethod,
+                guestName, guestEmail, guestPhone } = req.body;
         if (!service || !appointmentDate || !startTime || !endTime) {
             return res.status(400).json({ success: false, message: 'Please provide all required fields' });
         }
@@ -225,13 +235,31 @@ exports.createAppointment = async (req, res) => {
         if (!svc) {
             return res.status(404).json({ success: false, message: 'Service not found' });
         }
-        const isProviderBooking = req.user.role === 'provider';
+        // Guest checkout: no signed-in user (optionalAuth left req.user null). A
+        // guest books like a customer but must supply contact details and can't
+        // use provider-only powers (walk-in / book-on-behalf) or the wallet.
+        const isGuest = !req.user;
+        const isProviderBooking = req.user?.role === 'provider';
+        const isCustomerLike = isGuest || req.user.role === 'customer';
+
+        // Customers, guests and providers book here; admins never did (the route
+        // dropped authorize() for guest checkout, so re-assert that contract).
+        if (req.user?.role === 'admin') {
+            return res.status(403).json({ success: false, message: 'Admins cannot create bookings from here.' });
+        }
+
+        if (isGuest && (!guestName?.trim() || !guestEmail?.trim())) {
+            return res.status(400).json({ success: false, message: 'Please provide your name and email to book as a guest.' });
+        }
 
         // A provider booking from their calendar can either log a walk-in (free-text
         // name) or book on behalf of an existing registered client (customerId).
         // Resolve who the appointment is actually FOR, so the confirmation email,
         // reminders and in-app notice reach the real client — not the provider.
-        let bookingClient = req.user;
+        // A guest booking is for the guest themselves (no account, contact captured).
+        let bookingClient = isGuest
+            ? { _id: null, name: guestName.trim(), email: guestEmail.trim(), phone: (guestPhone || '').trim() }
+            : req.user;
         if (isProviderBooking && customerId) {
             const client = await User.findById(customerId).select('name email phone');
             if (!client) {
@@ -241,7 +269,8 @@ exports.createAppointment = async (req, res) => {
         }
 
         // Respect blocks — once either party blocks the other, no booking between them.
-        if (req.user.role === 'customer' && svc.provider) {
+        // (Guests are anonymous — no block relationship exists, like walk-ins.)
+        if (req.user?.role === 'customer' && svc.provider) {
             const prov = await User.findById(svc.provider).select('blockedUsers');
             const iBlocked = (req.user.blockedUsers || []).map(String).includes(svc.provider.toString());
             const blockedByProvider = (prov?.blockedUsers || []).map(String).includes(req.user._id.toString());
@@ -250,9 +279,9 @@ exports.createAppointment = async (req, res) => {
             }
         }
 
-        // Customers cannot book a time that has already passed. Providers/admins may
-        // back-date (e.g. logging a walk-in that just happened).
-        if (req.user.role === 'customer' && isPastSlot(appointmentDate, startTime)) {
+        // Customers and guests cannot book a time that has already passed. Providers/
+        // admins may back-date (e.g. logging a walk-in that just happened).
+        if (isCustomerLike && isPastSlot(appointmentDate, startTime)) {
             return res.status(400).json({ success: false, message: 'That time has already passed. Please pick a later slot.' });
         }
 
@@ -262,7 +291,7 @@ exports.createAppointment = async (req, res) => {
         // Enforce the provider's published availability for customer bookings. Providers
         // may book outside hours (walk-ins/overrides). Only enforced when availability
         // has actually been set, so providers who never published hours aren't blocked.
-        if (req.user.role === 'customer' && providerId) {
+        if (isCustomerLike && providerId) {
             const availabilityDoc = await Availability.findOne({ provider: providerId });
             if (availabilityDoc?.schedule) {
                 const bookingDuration = parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime);
@@ -281,7 +310,8 @@ exports.createAppointment = async (req, res) => {
         if (providerId) {
             const resolution = await resolveBookingStaff({
                 svc, providerId, appointmentDate, startTime, endTime,
-                requestedTeamMember: teamMember || null, requester: req.user,
+                // Guests resolve staff exactly like a customer ("any available").
+                requestedTeamMember: teamMember || null, requester: req.user || { role: 'customer' },
             });
             if (resolution.error) {
                 return res.status(resolution.status).json({ success: false, message: resolution.error });
@@ -341,7 +371,13 @@ exports.createAppointment = async (req, res) => {
         if (svc.provider) {
             const provWallet = await User.findById(svc.provider).select('walletSettings');
             walletCfg = provWallet?.walletSettings || null;
-            if (walletCfg?.enabled) {
+            // A guest has no prepaid wallet — always cash. If the business REQUIRES
+            // wallet prepayment, a guest can't satisfy it, so ask them to sign up.
+            if (isGuest) {
+                if (walletCfg?.enabled && walletCfg.bookingPaymentMode === 'wallet_required') {
+                    return res.status(400).json({ success: false, message: 'This business requires prepayment. Please create an account to book.' });
+                }
+            } else if (walletCfg?.enabled) {
                 chosenMethod = (paymentMethod === 'wallet' || paymentMethod === 'cash')
                     ? paymentMethod
                     : (walletCfg.bookingPaymentMode === 'wallet_required' ? 'wallet' : 'cash');
@@ -349,7 +385,7 @@ exports.createAppointment = async (req, res) => {
         }
 
         const baseDoc = {
-            customer: bookingClient._id,
+            customer: bookingClient._id, // null for a guest booking
             service,
             provider: svc.provider || null,
             startTime,
@@ -358,7 +394,11 @@ exports.createAppointment = async (req, res) => {
             selectedAddOns: Array.isArray(selectedAddOns) ? selectedAddOns : [],
             totalPrice: basePrice,
             status: 'confirmed',
-            statusHistory: [{ status: 'confirmed', changedBy: req.user._id }],
+            statusHistory: [{ status: 'confirmed', changedBy: req.user?._id || null }],
+            // Guest contact (no account) — the manageToken is their access credential.
+            guestName: isGuest ? bookingClient.name : null,
+            guestEmail: isGuest ? bookingClient.email : null,
+            guestPhone: isGuest ? (bookingClient.phone || null) : null,
             // Walk-in name only when the provider didn't pick a registered client.
             walkInName: isProviderBooking && !customerId ? (walkInName?.trim() || null) : null,
             teamMember: resolvedTeamMember,
@@ -427,7 +467,7 @@ exports.createAppointment = async (req, res) => {
         // self-booking that can't cover it is rolled back (they can switch to cash or
         // top up); a provider booking on a client's behalf reserves when possible but
         // is never blocked. Cash bookings, walk-ins and recurring series skip this.
-        const reservationClientId = req.user.role === 'customer'
+        const reservationClientId = req.user?.role === 'customer'
             ? req.user._id
             : (isProviderBooking && customerId ? bookingClient._id : null);
         if (reservationClientId && svc.provider && !isRecurring && walletCfg?.enabled && chosenMethod === 'wallet') {
@@ -437,7 +477,7 @@ exports.createAppointment = async (req, res) => {
                     amount: basePrice, appointmentId: appointment._id, initiatedBy: req.user._id,
                 });
                 if (!result.ok) {
-                    if (req.user.role === 'customer') {
+                    if (req.user?.role === 'customer') {
                         await Appointment.deleteOne({ _id: appointment._id });
                         const avail = result.wallet ? Math.max(0, result.wallet.totalBalance - result.wallet.reservedBalance) : 0;
                         return res.status(400).json({
@@ -466,7 +506,7 @@ exports.createAppointment = async (req, res) => {
                 // walk-in's name, or (for a self-booking) the customer themselves.
                 const clientLabel = isProviderBooking
                     ? (customerId ? bookingClient.name : (walkInName?.trim() || 'a walk-in client'))
-                    : req.user.name;
+                    : (req.user?.name || bookingClient.name);
                 const priceTag = Number.isFinite(basePrice) ? ` (N$${basePrice.toFixed(2)})` : '';
                 if (svc.provider) {
                     await createNotification(
@@ -546,7 +586,9 @@ exports.updateAppointment = async (req, res) => {
         if (!appointment) {
             return res.status(404).json({ success: false, message: 'Appointment not found' });
         }
-        if (appointment.customer.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+        // Only the owning customer or an admin may update. Guest appointments have
+        // no owner account, so only an admin can touch them here.
+        if ((!appointment.customer || appointment.customer.toString() !== req.user._id.toString()) && req.user.role !== 'admin') {
             return res.status(403).json({ success: false, message: 'Not authorized to update this appointment' });
         }
         const { appointmentDate, startTime, endTime, status, notes } = req.body;
@@ -604,7 +646,9 @@ exports.cancelAppointment = async (req, res) => {
         if (!appointment) {
             return res.status(404).json({ success: false, message: 'Appointment not found' });
         }
-        if (appointment.customer._id.toString() !== req.user._id.toString() && req.user.role !== 'admin') {
+        // Guest appointments (customer null) have no owner account — only an admin
+        // can cancel them here; guests use the /manage/:token flow.
+        if ((!appointment.customer || appointment.customer._id.toString() !== req.user._id.toString()) && req.user.role !== 'admin') {
             return res.status(403).json({ success: false, message: 'Not authorized to cancel this appointment' });
         }
         if (req.user.role !== 'admin') {
@@ -646,12 +690,10 @@ exports.cancelAppointment = async (req, res) => {
         // Send cancellation email
         try {
             const date = new Date(appointment.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-            await sendAppointmentCancelled(
-                appointment.customer.email,
-                appointment.customer.name,
-                appointment.service.name,
-                date
-            );
+            const cc = clientContact(appointment);
+            if (cc.email) {
+                await sendAppointmentCancelled(cc.email, cc.name, appointment.service.name, date);
+            }
         } catch (emailErr) {
             logger.error({ err: emailErr }, 'Cancel email failed');
         }
@@ -793,15 +835,18 @@ exports.updateAppointmentStatus = async (req, res) => {
             cancelled: `Your appointment for ${appointment.service?.name} has been cancelled.`,
             'no-show': `You missed your appointment for ${appointment.service?.name}. Contact your provider to rebook.`,
         };
-        if (messages[status]) {
+        // In-app notifications only reach registered accounts (guests have none).
+        if (messages[status] && appointment.customer?._id) {
             await createNotification(appointment.customer._id, messages[status], 'appointment', '/appointments');
         }
 
-        // Send email notification
+        // Send email notification (registered customer or guest).
         try {
-            const customerEmail = appointment.customer?.email;
-            const customerName = appointment.customer?.name;
+            const cc = clientContact(appointment);
+            const customerEmail = cc.email;
+            const customerName = cc.name;
             const serviceName = appointment.service?.name;
+            if (customerEmail) {
             const date = new Date(appointment.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
             const time = `${appointment.startTime} – ${appointment.endTime}`;
 
@@ -826,6 +871,7 @@ exports.updateAppointmentStatus = async (req, res) => {
             } else if (status === 'cancelled') {
                 await sendAppointmentCancelled(customerEmail, customerName, serviceName, date);
             }
+            } // end if (customerEmail)
         } catch (emailErr) {
             logger.error({ err: emailErr }, 'Email notification failed');
         }
@@ -924,7 +970,9 @@ exports.rescheduleAppointment = async (req, res) => {
         if (!appointment) {
             return res.status(404).json({ success: false, message: 'Appointment not found' });
         }
-        if (appointment.customer._id.toString() !== req.user._id.toString()) {
+        // Guest appointments (no customer account) can only be rescheduled via the
+        // /manage/:token flow, never this signed-in route.
+        if (!appointment.customer || appointment.customer._id.toString() !== req.user._id.toString()) {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
         if (!['pending', 'confirmed'].includes(appointment.status)) {
@@ -981,7 +1029,7 @@ exports.rescheduleAppointment = async (req, res) => {
                     await sendAppointmentRescheduled(
                         provider.email,
                         provider.name,
-                        appointment.customer.name,
+                        clientContact(appointment).name,
                         appointment.service.name,
                         date,
                         startTime
@@ -999,14 +1047,15 @@ exports.rescheduleAppointment = async (req, res) => {
         setImmediate(async () => {
             try {
                 const dateStr = new Date(appointment.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-                await createNotification(appointment.customer._id, `Your ${appointment.service.name} is now ${dateStr} at ${startTime}.`, 'appointment', '/appointments');
+                const cc = clientContact(appointment);
+                if (cc.userId) await createNotification(cc.userId, `Your ${appointment.service.name} is now ${dateStr} at ${startTime}.`, 'appointment', '/appointments');
                 if (appointment.provider) {
-                    await createNotification(appointment.provider, `${appointment.customer.name} rescheduled ${appointment.service.name} to ${dateStr} at ${startTime}.`, 'appointment', '/dashboard');
+                    await createNotification(appointment.provider, `${cc.name} rescheduled ${appointment.service.name} to ${dateStr} at ${startTime}.`, 'appointment', '/dashboard');
                 }
-                if (appointment.customer.email) {
+                if (cc.email) {
                     const { gcalUrl, ics } = calendarHelper.appointmentCalendar(appointment, { description: 'Booked via Bookplus', status: 'CONFIRMED', sequence: 1 });
                     const manageUrl = appointment.manageToken && primaryOrigin() ? `${primaryOrigin()}/manage/${appointment.manageToken}` : undefined;
-                    await sendAppointmentRescheduledClient(appointment.customer.email, appointment.customer.name, appointment.service.name, dateStr, startTime, { gcalUrl, ics, manageUrl });
+                    await sendAppointmentRescheduledClient(cc.email, cc.name, appointment.service.name, dateStr, startTime, { gcalUrl, ics, manageUrl });
                 }
             } catch (err) { logger.error({ err }, 'Customer reschedule notification failed'); }
         });
@@ -1094,7 +1143,7 @@ exports.getAppointmentByToken = async (req, res) => {
                 service: appt.service ? { name: appt.service.name, price: appt.service.price, duration: appt.service.duration } : null,
                 provider: appt.provider ? { name: appt.provider.name, address: appt.provider.businessProfile?.address || '' } : null,
                 staff: appt.teamMember ? appt.teamMember.name : null,
-                clientName: appt.walkInName || null,
+                clientName: appt.walkInName || appt.guestName || null,
                 schedule,
                 cancellationWindowHours: appt.provider?.bookingPolicy?.cancellationWindowHours ?? 24,
             },
@@ -1143,12 +1192,13 @@ exports.cancelAppointmentByToken = async (req, res) => {
             try {
                 if (appt.provider) {
                     const when = new Date(appt.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                    await createNotification(appt.provider, `${appt.customer?.name || appt.walkInName || 'A client'} cancelled ${appt.service?.name} on ${when}.`, 'appointment', '/dashboard');
+                    await createNotification(appt.provider, `${appt.customer?.name || appt.guestName || appt.walkInName || 'A client'} cancelled ${appt.service?.name} on ${when}.`, 'appointment', '/dashboard');
                 }
-                // Email the client a cancellation confirmation (the logged-in path already does this).
-                if (appt.customer?.email) {
+                // Email the client a cancellation confirmation (registered or guest).
+                const cc = clientContact(appt);
+                if (cc.email) {
                     const whenLong = new Date(appt.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-                    await sendAppointmentCancelled(appt.customer.email, appt.customer.name, appt.service?.name, whenLong);
+                    await sendAppointmentCancelled(cc.email, cc.name, appt.service?.name, whenLong);
                 }
             } catch (err) { logger.error({ err }, 'Cancel notification failed'); }
         });
@@ -1214,15 +1264,16 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
             try {
                 if (appt.provider) {
                     const when = new Date(appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                    await createNotification(appt.provider, `${appt.customer?.name || appt.walkInName || 'A client'} rescheduled ${appt.service?.name} to ${when} at ${startTime}.`, 'appointment', '/dashboard');
+                    await createNotification(appt.provider, `${appt.customer?.name || appt.guestName || appt.walkInName || 'A client'} rescheduled ${appt.service?.name} to ${when} at ${startTime}.`, 'appointment', '/dashboard');
                 }
                 // Confirm the new time to the client with an updated calendar entry.
-                if (appt.customer?.email) {
+                const cc = clientContact(appt);
+                if (cc.email) {
                     const dateStr = new Date(appt.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
                     const { gcalUrl, ics } = calendarHelper.appointmentCalendar(appt, { description: 'Booked via Bookplus', status: 'CONFIRMED', sequence: 1 });
                     const manageUrl = primaryOrigin() ? `${primaryOrigin()}/manage/${req.params.token}` : undefined;
-                    await sendAppointmentRescheduledClient(appt.customer.email, appt.customer.name, appt.service?.name, dateStr, startTime, { gcalUrl, ics, manageUrl });
-                    if (appt.customer._id) await createNotification(appt.customer._id, `Your ${appt.service?.name} is now ${dateStr} at ${startTime}.`, 'appointment', '/appointments');
+                    await sendAppointmentRescheduledClient(cc.email, cc.name, appt.service?.name, dateStr, startTime, { gcalUrl, ics, manageUrl });
+                    if (cc.userId) await createNotification(cc.userId, `Your ${appt.service?.name} is now ${dateStr} at ${startTime}.`, 'appointment', '/appointments');
                 }
             } catch (err) { logger.error({ err }, 'Reschedule notification failed'); }
         });

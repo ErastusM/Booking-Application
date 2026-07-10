@@ -83,12 +83,10 @@ function AppRoutes() {
                     <Route path="/terms" element={<TermsOfService />} />
                     <Route path="/manage/:token" element={<ManageBooking />} />
 
+                    {/* Public: guest checkout. BookAppointment handles signed-in vs.
+                        guest (contact details captured at the confirm step) itself. */}
+                    <Route path="/book-appointment" element={<BookAppointment />} />
                     {/* Customer-context — providers can also act as customers */}
-                    <Route path="/book-appointment" element={
-                        <ProtectedRoute allowedRoles={['customer', 'provider']}>
-                            <BookAppointment />
-                        </ProtectedRoute>
-                    } />
                     <Route path="/appointments" element={
                         <ProtectedRoute allowedRoles={['customer', 'provider']}>
                             <MyAppointments />

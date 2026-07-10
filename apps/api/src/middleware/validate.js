@@ -122,6 +122,19 @@ const createAppointmentRules = [
     body('paymentMethod')
         .optional({ nullable: true })
         .isIn(['cash', 'wallet']).withMessage('Invalid payment method'),
+    // Guest checkout contact (required-when-guest is enforced in the controller,
+    // which knows whether a session is present). Here we only shape the fields.
+    body('guestName')
+        .optional({ nullable: true })
+        .trim()
+        .isLength({ max: 120 }).withMessage('Name cannot exceed 120 characters'),
+    body('guestEmail')
+        .optional({ nullable: true, checkFalsy: true })
+        .isEmail().withMessage('Please provide a valid email'),
+    body('guestPhone')
+        .optional({ nullable: true })
+        .trim()
+        .isLength({ max: 40 }).withMessage('Phone cannot exceed 40 characters'),
     handleValidationErrors,
 ];
 
