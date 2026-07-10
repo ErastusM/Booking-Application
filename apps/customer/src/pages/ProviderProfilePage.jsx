@@ -601,13 +601,16 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                     if (!groups.length) return null;
                                     return (
                                         <div style={{ borderTop: '1px solid var(--border)', paddingTop: '0.75rem', marginTop: '0.25rem' }}>
-                                            <p style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.5rem' }}>Working Hours</p>
-                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem' }}>
+                                            <p style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.6rem' }}>Working Hours</p>
+                                            {/* Two-column grid: day labels in a max-content column, times
+                                                left-aligned right after in tabular figures so every time
+                                                lines up on the same edge regardless of digit widths. */}
+                                            <div style={{ display: 'grid', gridTemplateColumns: 'max-content 1fr', columnGap: '1.5rem', rowGap: '0.45rem', fontSize: '0.85rem', alignItems: 'baseline' }}>
                                                 {groups.map((g, i) => (
-                                                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.82rem' }}>
+                                                    <React.Fragment key={i}>
                                                         <span style={{ color: 'var(--text-secondary)' }}>{g.label}</span>
-                                                        <span style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{g.hours}</span>
-                                                    </div>
+                                                        <span className="tnum" style={{ fontWeight: '600', color: 'var(--charcoal)', letterSpacing: '0.01em' }}>{g.hours}</span>
+                                                    </React.Fragment>
                                                 ))}
                                             </div>
                                         </div>
@@ -615,10 +618,13 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                 })()}
                             </div>
 
-                            {user?._id !== provider._id && (
+                            {/* Desktop CTA — on mobile the fixed bottom "Book now" bar owns this
+                                job, so this in-card button is hidden there (see index.css) to avoid
+                                a redundant second Book button on the same screen. */}
+                            {!isOwner && (
                                 <button
                                     onClick={() => navigate(`/book-appointment?providerId=${provider._id}`)}
-                                    className="btn-primary"
+                                    className="btn-primary profile-details-book"
                                     style={{ width: '100%', padding: '0.875rem', marginTop: '1.25rem', fontSize: '0.95rem' }}
                                 >
                                     Book Now →
