@@ -5,6 +5,7 @@ const Service = require('../models/Service');
 const User = require('../models/User');
 const { createNotification } = require('./notificationhelper');
 const emailService = require('./emailService');
+const { primaryOrigin } = require('./origins');
 const pino = require('pino');
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
@@ -92,11 +93,14 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
 
             const providerDoc = providerId ? await User.findById(providerId).select('name businessProfile') : null;
             const address = providerDoc?.businessProfile?.address || '';
-            const clientBase = process.env.CLIENT_URL || '';
+            // primaryOrigin(), NOT raw CLIENT_URL (comma-separated CORS allowlist),
+            // or the manage link becomes a malformed "url1,url2/manage/..." Safari
+            // can't open — matches how confirmation/reminder emails build it.
+            const clientBase = primaryOrigin();
             const extras = {
                 price: svc ? svc.price : undefined,
                 bookingRef: String(promoted._id).slice(-8).toUpperCase(),
-                manageUrl: `${clientBase}/manage/${manageToken}`,
+                manageUrl: clientBase ? `${clientBase}/manage/${manageToken}` : undefined,
                 directionsUrl: address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : undefined,
                 venue: providerDoc?.name || undefined,
                 address: address || undefined,

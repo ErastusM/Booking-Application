@@ -4,6 +4,7 @@ const Appointment = require('../models/Appointment');
 const Notification = require('../models/Notification');
 const { sendReminder24h, sendReminder1h } = require('./emailService');
 const { appointmentCalendar } = require('./calendarHelper');
+const { primaryOrigin } = require('./origins');
 const pushService = require('./pushService');
 
 const log = pino({ level: process.env.LOG_LEVEL || 'info' });
@@ -39,7 +40,12 @@ const notifyInApp = (appt, message) => {
 // Google Calendar link + .ics + manage link to attach to a reminder email.
 const calendarExtras = (appt) => {
     const { gcalUrl, ics } = appointmentCalendar(appt, { description: 'Booked via Bookplus', status: 'CONFIRMED' });
-    const manageUrl = appt.manageToken && process.env.CLIENT_URL ? `${process.env.CLIENT_URL}/manage/${appt.manageToken}` : undefined;
+    // primaryOrigin(), NOT raw CLIENT_URL — CLIENT_URL is the comma-separated CORS
+    // allowlist, and using it directly produced links like
+    // "https://www.bookplus.pro,https://business.bookplus.pro/manage/<token>" that
+    // Safari can't resolve. This matches how the booking/reschedule emails build it.
+    const base = primaryOrigin();
+    const manageUrl = appt.manageToken && base ? `${base}/manage/${appt.manageToken}` : undefined;
     return { gcalUrl, ics, manageUrl };
 };
 
