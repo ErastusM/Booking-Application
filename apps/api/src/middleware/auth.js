@@ -13,7 +13,11 @@ exports.auth = async (req, res, next) => {
         req.user = await User.findById(decoded.id);
 
         if (!req.user) {
-            return res.status(404).json({ success: false, message: 'User not found' });
+            // A valid token whose user no longer exists (deleted/pruned account, or
+            // a full data reset) is an AUTHENTICATION failure — return 401, not 404,
+            // so the client's refresh/logout interceptor cleanly ends the dead
+            // session instead of stranding the UI on "failed to load…".
+            return res.status(401).json({ success: false, message: 'Session no longer valid' });
         }
 
         if (req.user.isActive === false) {
