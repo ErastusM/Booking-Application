@@ -177,64 +177,9 @@ exports.leaveWaitingList = async (req, res) => {
     }
 };
 
-// Called internally when an appointment is cancelled
-exports.promoteFromWaitingList = async (service, appointmentDate, startTime, endTime) => {
-    try {
-        const next = await WaitingList.findOne({
-            service,
-            appointmentDate,
-            startTime,
-            status: 'waiting',
-            position: 1,
-        }).populate('customer');
-
-        if (!next) return; // Nobody waiting
-
-        const svc = await Service.findById(service).select('name price provider');
-        if (!svc) return;
-
-        const providerId = next.provider || svc.provider;
-        const dateStr = new Date(appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-
-        const promoted = await Appointment.create({
-            customer: next.customer._id,
-            service,
-            provider: providerId || null,
-            appointmentDate,
-            startTime,
-            endTime,
-            totalPrice: svc.price || 0,
-            status: 'confirmed',
-        });
-
-        next.status = 'promoted';
-        next.notified = true;
-        await next.save();
-
-        await createNotification(
-            next.customer._id,
-            `Good news! A slot opened up for ${svc.name} on ${dateStr} at ${startTime}. You've been booked in!`,
-            'appointment',
-            '/appointments'
-        );
-
-        const remaining = await WaitingList.find({
-            service,
-            appointmentDate,
-            startTime,
-            status: 'waiting',
-        }).sort({ position: 1 });
-
-        for (let i = 0; i < remaining.length; i++) {
-            remaining[i].position = i + 1;
-            await remaining[i].save();
-        }
-
-        logger.info({ customer: next.customer.name, appointmentId: promoted._id }, 'Promoted from waiting list');
-    } catch (error) {
-        logger.error({ err: error }, 'Error promoting from waiting list');
-    }
-};
+// NOTE: the live "promote next in line" logic lives in utils/waitingListHelper.js
+// (with slot-free guard, atomic claim, push + email). An older duplicate used to
+// live here and was removed — appointmentController calls the helper directly.
 
 // Get in-app notifications (promoted entries)
 exports.getNotifications = async (req, res) => {
