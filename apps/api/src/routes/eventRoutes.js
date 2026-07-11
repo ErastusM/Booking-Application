@@ -10,7 +10,9 @@ const router = express.Router();
 // while still capping abuse. Dropped quietly on flood; the client never retries.
 const ingestLimiter = rateLimit({
     windowMs: 60 * 1000,
-    max: process.env.NODE_ENV === 'test' ? 100000 : 120,
+    // Batched on the client (~1 req / 12s / tab), so 40/min/IP is plenty for real
+    // usage while capping a public sink — in line with the client-errors limiter.
+    max: process.env.NODE_ENV === 'test' ? 100000 : 40,
     standardHeaders: true,
     legacyHeaders: false,
     skip: () => process.env.NODE_ENV === 'test',

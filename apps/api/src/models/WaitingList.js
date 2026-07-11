@@ -46,6 +46,12 @@ const waitingListSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        // When the entry was claimed (waiting→promoting). Lets a stale claim from
+        // a crashed promotion be reclaimed instead of stranding the customer.
+        promotingAt: {
+            type: Date,
+            default: null,
+        },
         // Set true once the customer app has shown the "a slot opened up!"
         // celebratory moment, so it fires exactly once (and across devices).
         celebrated: {

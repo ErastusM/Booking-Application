@@ -6,6 +6,16 @@ const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const MAX_BATCH = 30;
 const clip = (s, n) => (typeof s === 'string' ? s.slice(0, n) : undefined);
 
+// The endpoint is public, so name/props are attacker-controllable. Bucket any
+// unknown event name to 'other' and any unknown onboarding step to 'other' so a
+// flood of junk names can't blow up group cardinality or spoof arbitrary funnel
+// series. Add new event names here as they are instrumented.
+const KNOWN_EVENTS = new Set([
+    'page_view', 'provider_view', 'booking_start', 'booking_confirm',
+    'onboarding_step', 'onboarding_complete',
+]);
+const KNOWN_STEPS = new Set(['welcome', 'address', 'hours', 'services', 'photos', 'link']);
+
 // POST /api/events — batched, best-effort ingestion. Optional auth: an axios
 // flush carries the bearer token so req.user is set and events are attributed;
 // a sendBeacon flush on tab-close is anonymous but still carries the sessionId,
@@ -22,6 +32,9 @@ exports.ingest = async (req, res) => {
         const userId = req.user ? req.user._id : null;
 
         const docs = events.slice(0, MAX_BATCH).map((e) => {
+            let name = clip(e && e.name, 60) || 'unknown';
+            if (!KNOWN_EVENTS.has(name)) name = 'other';
+
             let props = e && e.props;
             // Bound prop size — drop anything unreasonable rather than store blobs.
             try {
@@ -29,8 +42,13 @@ exports.ingest = async (req, res) => {
             } catch {
                 props = undefined;
             }
+            // Bucket unknown onboarding steps so the funnel's byStep stays bounded.
+            if (name === 'onboarding_step' && props && typeof props === 'object' && !KNOWN_STEPS.has(props.step)) {
+                props = { ...props, step: 'other' };
+            }
+
             return {
-                name: clip(e && e.name, 60) || 'unknown',
+                name,
                 app: appName,
                 sessionId: sid,
                 user: userId,
@@ -63,10 +81,15 @@ exports.summary = async (req, res) => {
         ]);
         const totals = Object.fromEntries(byName.map((r) => [r._id, r.count]));
 
-        const uniqueSessions = await Event.distinct('sessionId', {
-            createdAt: { $gte: since },
-            sessionId: { $ne: null },
-        });
+        // Count distinct sessions via aggregation, not distinct() — distinct loads
+        // every id into memory (and hits Mongo's 16MB cap) over a public, high-
+        // cardinality id space; $group+$count stays bounded.
+        const uniqAgg = await Event.aggregate([
+            { $match: { createdAt: { $gte: since }, sessionId: { $ne: null } } },
+            { $group: { _id: '$sessionId' } },
+            { $count: 'n' },
+        ]);
+        const uniqueSessions = uniqAgg[0] ? uniqAgg[0].n : 0;
 
         const onbSteps = await Event.aggregate([
             { $match: { createdAt: { $gte: since }, name: 'onboarding_step' } },
@@ -80,7 +103,7 @@ exports.summary = async (req, res) => {
         return res.json({
             range: { days, since },
             totalEvents: byName.reduce((s, r) => s + r.count, 0),
-            uniqueSessions: uniqueSessions.length,
+            uniqueSessions,
             totals,
             funnels: {
                 booking: {

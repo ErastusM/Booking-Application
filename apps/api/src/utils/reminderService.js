@@ -99,10 +99,20 @@ const startReminderJob = () => {
             for (const appt of appts) {
                 const minsUntil = (realStartMs(appt) - now) / 60000;
                 for (const rule of RULES) {
-                    if (!appt[rule.flag] && minsUntil >= rule.lo && minsUntil <= rule.hi) {
+                    if (minsUntil >= rule.lo && minsUntil <= rule.hi) {
+                        // Claim the reminder atomically BEFORE sending, so it fires
+                        // exactly once even if two ticks overlap (e.g. a lock lease
+                        // that expired mid-run). Only the tick that flips the flag
+                        // sends — this closes the double-send window independent of
+                        // lock timing. (Sends are best-effort/swallowed, so claiming
+                        // first won't lose a reminder to a transient throw.)
+                        const claimed = await Appointment.updateOne(
+                            { _id: appt._id, [rule.flag]: { $ne: true } },
+                            { $set: { [rule.flag]: true } }
+                        );
+                        if (claimed.modifiedCount !== 1) continue; // already sent elsewhere
                         try {
                             await rule.run(appt);
-                            await Appointment.findByIdAndUpdate(appt._id, { [rule.flag]: true });
                         } catch (e) {
                             log.error({ appointmentId: appt._id, rule: rule.flag, err: e.message }, 'reminder failed');
                         }

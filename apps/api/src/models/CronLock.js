@@ -13,4 +13,9 @@ const cronLockSchema = new mongoose.Schema(
     { versionKey: false, timestamps: true }
 );
 
+// Reap freed lock docs (expiresAt set to the past on release). Held locks always
+// have a future expiresAt so the TTL monitor never touches them; acquire re-creates
+// a reaped doc anyway. Keeps the collection from accumulating stale lock names.
+cronLockSchema.index({ expiresAt: 1 }, { expireAfterSeconds: 0 });
+
 module.exports = mongoose.model('CronLock', cronLockSchema);

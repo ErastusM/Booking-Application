@@ -152,11 +152,15 @@ const renderDefaultCard = (base) => {
 
 const PROVIDER_FIELDS = 'name avatar providerCategory businessProfile role';
 
-const sendCard = (res, html) => {
+const sendCard = (res, html, maxAge = 3600) => {
     res.set('Content-Type', 'text/html; charset=utf-8');
-    res.set('Cache-Control', 'public, max-age=3600'); // 1h — crawlers re-fetch on share
+    // Resolved provider cards cache 1h; the generic fallback (miss/error) caches
+    // only briefly so a card fetched moments before a provider finishes onboarding
+    // isn't stuck as the generic default.
+    res.set('Cache-Control', `public, max-age=${maxAge}`);
     return res.status(200).send(html);
 };
+const DEFAULT_CARD_MAXAGE = 60;
 
 // GET /api/seo/prerender/b/:slug
 router.get('/prerender/b/:slug', async (req, res) => {
@@ -166,11 +170,11 @@ router.get('/prerender/b/:slug', async (req, res) => {
             role: 'provider',
             'businessProfile.slug': String(req.params.slug || '').toLowerCase(),
         }).select(PROVIDER_FIELDS).lean();
-        if (!p) return sendCard(res, renderDefaultCard(base));
+        if (!p) return sendCard(res, renderDefaultCard(base), DEFAULT_CARD_MAXAGE);
         return sendCard(res, renderProviderCard(p, `${base}/b/${p.businessProfile.slug}`, base));
     } catch (err) {
         logger.error({ err: err.message }, 'prerender by-slug failed');
-        return sendCard(res, renderDefaultCard(base));
+        return sendCard(res, renderDefaultCard(base), DEFAULT_CARD_MAXAGE);
     }
 });
 
@@ -180,13 +184,13 @@ router.get('/prerender/providers/:id', async (req, res) => {
     try {
         const p = await User.findOne({ _id: req.params.id, role: 'provider' })
             .select(PROVIDER_FIELDS).lean();
-        if (!p) return sendCard(res, renderDefaultCard(base));
+        if (!p) return sendCard(res, renderDefaultCard(base), DEFAULT_CARD_MAXAGE);
         const canonical = p.businessProfile?.slug ? `${base}/b/${p.businessProfile.slug}` : `${base}/providers/${p._id}`;
         return sendCard(res, renderProviderCard(p, canonical, base));
     } catch (err) {
         // A bad ObjectId throws a CastError — still serve the default card, not a 500.
         logger.error({ err: err.message }, 'prerender by-id failed');
-        return sendCard(res, renderDefaultCard(base));
+        return sendCard(res, renderDefaultCard(base), DEFAULT_CARD_MAXAGE);
     }
 });
 

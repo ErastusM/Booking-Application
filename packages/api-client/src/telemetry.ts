@@ -44,9 +44,20 @@ export function createTelemetry(api: AxiosInstance, apiBase: string, app: 'custo
 
     const beacon = (events: QueuedEvent[]): boolean => {
         try {
-            if (!navigator.sendBeacon) return false;
             const body = JSON.stringify({ app, sessionId: sessionId(), events });
-            return navigator.sendBeacon(beaconUrl, new Blob([body], { type: 'application/json' }));
+            // keepalive fetch — NOT sendBeacon. In prod the API is a different origin
+            // (api.bookplus.pro), and a sendBeacon with an application/json body is
+            // non-CORS-safelisted, so the browser blocks it and the tab-close flush is
+            // lost. keepalive fetch performs the CORS preflight sendBeacon can't AND
+            // survives page unload (matches the crash-reporter). Attribute to the user
+            // when we have a token, since fetch (unlike sendBeacon) can set headers.
+            const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+            try {
+                const token = localStorage.getItem('token');
+                if (token) headers.Authorization = `Bearer ${token}`;
+            } catch { /* ignore */ }
+            fetch(beaconUrl, { method: 'POST', headers, body, keepalive: true }).catch(() => {});
+            return true;
         } catch {
             return false;
         }
