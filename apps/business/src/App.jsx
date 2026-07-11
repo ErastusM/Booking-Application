@@ -6,6 +6,7 @@ import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppUpdater from './components/AppUpdater';
+import { track } from './services/client';
 import Login from './pages/Login';
 
 // Business app route map (DUAL_APP_SPEC.md §2b). Parity migration keeps the
@@ -39,6 +40,8 @@ function AppRoutes() {
         } catch {
             window.scrollTo(0, 0);
         }
+        // Funnel backbone: one page_view per navigation.
+        track('page_view');
     }, [location.pathname]);
 
     return (

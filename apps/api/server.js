@@ -36,6 +36,7 @@ const walletRoutes = require('./src/routes/walletRoutes');
 const providerWalletRoutes = require('./src/routes/providerWalletRoutes');
 const sitemapRoutes = require('./src/routes/sitemapRoutes');
 const clientErrorRoutes = require('./src/routes/clientErrorRoutes');
+const eventRoutes = require('./src/routes/eventRoutes');
 const startReminderJob = require('./src/utils/reminderService');
 const startWalletExpiryJob = require('./src/utils/walletExpiryService');
 const passport = require('./src/config/passport');
@@ -203,6 +204,8 @@ app.use('/api/provider-wallet', readOrWrite, providerWalletRoutes);
 app.use('/api/seo', readLimiter, sitemapRoutes);
 // Frontend crash reporting sink (own hard rate limit inside the router).
 app.use('/api/client-errors', clientErrorRoutes);
+// Product-analytics event pipe (own rate limit + optional auth inside the router).
+app.use('/api/events', eventRoutes);
 
 
 // Health check — includes DB connectivity

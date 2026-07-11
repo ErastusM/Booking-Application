@@ -4,6 +4,7 @@ const User = require('../models/User');
 const Wallet = require('../models/Wallet');
 const WalletTransaction = require('../models/WalletTransaction');
 const { createNotification } = require('./notificationhelper');
+const { withLock } = require('./lock');
 
 const log = pino({ level: process.env.LOG_LEVEL || 'info' });
 
@@ -55,7 +56,8 @@ const runExpirySweep = async () => {
 
 // Run daily at 02:30.
 const startWalletExpiryJob = () => {
-    cron.schedule('30 2 * * *', runExpirySweep);
+    // Wrapped in a distributed lock so only one api instance sweeps per run.
+    cron.schedule('30 2 * * *', () => withLock('wallet-expiry-tick', 30 * 60 * 1000, runExpirySweep));
     log.info('Wallet expiry job scheduled (daily 02:30)');
 };
 

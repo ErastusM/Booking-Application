@@ -56,6 +56,144 @@ router.get('/sitemap.xml', async (req, res) => {
     }
 });
 
+// ── Per-provider social share cards (prerender) ──────────────────────────────
+// Social crawlers (WhatsApp, Facebook, Twitter/X, Slack…) don't run JS, so a
+// shared booking link would unfurl with the generic site card. nginx routes
+// crawler user-agents for /b/:slug and /providers/:id here; humans still get the
+// SPA. We return a tiny HTML doc carrying that provider's OG/Twitter tags +
+// LocalBusiness JSON-LD so the link preview shows their name, blurb and photo.
+
+const htmlEscape = xmlEscape; // same entity set works for HTML attributes/text
+
+// Build a one-line, length-bounded blurb from whatever the provider has filled in.
+const providerBlurb = (p) => {
+    const category = p.providerCategory && p.providerCategory !== 'Other' ? p.providerCategory : null;
+    const city = (p.businessProfile?.address || '').split(',').map((s) => s.trim()).filter(Boolean).slice(-2, -1)[0];
+    const bits = [];
+    bits.push(category ? `Book ${category.toLowerCase()} online` : 'Book online');
+    if (city) bits.push(`in ${city}`);
+    let s = `${bits.join(' ')}. Reserve your slot with ${p.businessProfile?.businessName || p.name} on Bookplus.`;
+    return s.length > 200 ? `${s.slice(0, 197)}…` : s;
+};
+
+const renderProviderCard = (p, canonical, base) => {
+    const name = p.businessProfile?.businessName || p.name || 'Bookplus';
+    const title = `${name} — Book on Bookplus`;
+    const desc = providerBlurb(p);
+    // og:image must be absolute. Provider avatars are stored as full Cloudinary
+    // URLs; fall back to the brand icon on the marketplace origin.
+    const image = (typeof p.avatar === 'string' && /^https?:\/\//.test(p.avatar)) ? p.avatar : `${base}/icon-512.png`;
+    const jsonld = JSON.stringify({
+        '@context': 'https://schema.org',
+        '@type': 'LocalBusiness',
+        name,
+        description: desc,
+        url: canonical,
+        image,
+        ...(p.businessProfile?.address ? { address: { '@type': 'PostalAddress', streetAddress: p.businessProfile.address } } : {}),
+    }).replace(/</g, '\\u003c'); // neutralize any </script> inside JSON-LD
+
+    const E = htmlEscape;
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>${E(title)}</title>
+<meta name="description" content="${E(desc)}">
+<link rel="canonical" href="${E(canonical)}">
+<meta property="og:type" content="business.business">
+<meta property="og:site_name" content="Bookplus">
+<meta property="og:title" content="${E(name)}">
+<meta property="og:description" content="${E(desc)}">
+<meta property="og:url" content="${E(canonical)}">
+<meta property="og:image" content="${E(image)}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="${E(name)}">
+<meta name="twitter:description" content="${E(desc)}">
+<meta name="twitter:image" content="${E(image)}">
+<script type="application/ld+json">${jsonld}</script>
+</head>
+<body>
+<h1>${E(name)}</h1>
+<p>${E(desc)}</p>
+<p><a href="${E(canonical)}">Book with ${E(name)} on Bookplus</a></p>
+</body>
+</html>
+`;
+};
+
+// A generic marketplace card, used when the slug/id doesn't resolve — a crawler
+// still gets a valid 200 unfurl instead of a broken preview.
+const renderDefaultCard = (base) => {
+    const E = htmlEscape;
+    const title = 'Bookplus — Book local appointments online';
+    const desc = 'Discover and book appointments with barbers, salons, spas and more across Southern Africa. Reserve your slot in seconds.';
+    const image = `${base}/icon-512.png`;
+    return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>${E(title)}</title>
+<meta name="description" content="${E(desc)}">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="Bookplus">
+<meta property="og:title" content="${E(title)}">
+<meta property="og:description" content="${E(desc)}">
+<meta property="og:url" content="${E(base)}">
+<meta property="og:image" content="${E(image)}">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:image" content="${E(image)}">
+</head>
+<body><h1>${E(title)}</h1><p>${E(desc)}</p></body>
+</html>
+`;
+};
+
+const PROVIDER_FIELDS = 'name avatar providerCategory businessProfile role';
+
+const sendCard = (res, html, maxAge = 3600) => {
+    res.set('Content-Type', 'text/html; charset=utf-8');
+    // Resolved provider cards cache 1h; the generic fallback (miss/error) caches
+    // only briefly so a card fetched moments before a provider finishes onboarding
+    // isn't stuck as the generic default.
+    res.set('Cache-Control', `public, max-age=${maxAge}`);
+    return res.status(200).send(html);
+};
+const DEFAULT_CARD_MAXAGE = 60;
+
+// GET /api/seo/prerender/b/:slug
+router.get('/prerender/b/:slug', async (req, res) => {
+    const base = siteBase();
+    try {
+        const p = await User.findOne({
+            role: 'provider',
+            'businessProfile.slug': String(req.params.slug || '').toLowerCase(),
+        }).select(PROVIDER_FIELDS).lean();
+        if (!p) return sendCard(res, renderDefaultCard(base), DEFAULT_CARD_MAXAGE);
+        return sendCard(res, renderProviderCard(p, `${base}/b/${p.businessProfile.slug}`, base));
+    } catch (err) {
+        logger.error({ err: err.message }, 'prerender by-slug failed');
+        return sendCard(res, renderDefaultCard(base), DEFAULT_CARD_MAXAGE);
+    }
+});
+
+// GET /api/seo/prerender/providers/:id
+router.get('/prerender/providers/:id', async (req, res) => {
+    const base = siteBase();
+    try {
+        const p = await User.findOne({ _id: req.params.id, role: 'provider' })
+            .select(PROVIDER_FIELDS).lean();
+        if (!p) return sendCard(res, renderDefaultCard(base), DEFAULT_CARD_MAXAGE);
+        const canonical = p.businessProfile?.slug ? `${base}/b/${p.businessProfile.slug}` : `${base}/providers/${p._id}`;
+        return sendCard(res, renderProviderCard(p, canonical, base));
+    } catch (err) {
+        // A bad ObjectId throws a CastError — still serve the default card, not a 500.
+        logger.error({ err: err.message }, 'prerender by-id failed');
+        return sendCard(res, renderDefaultCard(base), DEFAULT_CARD_MAXAGE);
+    }
+});
+
 // GET /api/seo/robots.txt — nginx exposes this at www.bookplus.pro/robots.txt.
 // Allow all crawlers; keep private/auth surfaces out of the index; point at the
 // sitemap.

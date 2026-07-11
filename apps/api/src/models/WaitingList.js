@@ -34,13 +34,23 @@ const waitingListSchema = new mongoose.Schema(
             required: true,
         },
         status: {
+            // 'promoting' is a transient claim state: an entry is flipped
+            // waiting→promoting atomically before booking, so two concurrent
+            // cancellations can't promote the same person twice. It settles to
+            // 'promoted' on success, or back to 'waiting' if the slot was retaken.
             type: String,
-            enum: ['waiting', 'promoted', 'cancelled'],
+            enum: ['waiting', 'promoting', 'promoted', 'cancelled'],
             default: 'waiting',
         },
         notified: {
             type: Boolean,
             default: false,
+        },
+        // When the entry was claimed (waiting→promoting). Lets a stale claim from
+        // a crashed promotion be reclaimed instead of stranding the customer.
+        promotingAt: {
+            type: Date,
+            default: null,
         },
         // Set true once the customer app has shown the "a slot opened up!"
         // celebratory moment, so it fires exactly once (and across devices).
