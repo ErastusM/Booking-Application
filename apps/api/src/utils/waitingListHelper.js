@@ -42,33 +42,51 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
 
         if (!next) return; // Nobody waiting
 
+        // Atomically claim this entry (waiting→promoting) BEFORE we book anything,
+        // so two concurrent cancellations — or a retry of the same cancel — can't
+        // promote the same person twice. Whoever flips it first wins; everyone else
+        // sees modifiedCount 0 and bails.
+        const claim = await WaitingList.updateOne(
+            { _id: next._id, status: 'waiting' },
+            { $set: { status: 'promoting' } }
+        );
+        if (claim.modifiedCount !== 1) return; // another worker already grabbed it
+
         const svc = await Service.findById(service).select('name price duration provider');
         const providerId = next.provider || svc?.provider || null;
 
         // Only promote into a genuinely free slot — guards against a race where the
         // slot was re-taken between the cancellation and this promotion.
         if (!(await slotIsFree(providerId, appointmentDate, startTime, endTime))) {
+            // Release the claim so they keep their place in line.
+            await WaitingList.updateOne({ _id: next._id, status: 'promoting' }, { $set: { status: 'waiting' } });
             logger.warn({ service: String(service), startTime }, 'Skipped waitlist promotion — slot no longer free');
             return;
         }
 
         const manageToken = randomUUID();
-        const promoted = await Appointment.create({
-            customer: next.customer._id,
-            service,
-            provider: providerId,
-            appointmentDate,
-            startTime,
-            endTime,
-            totalPrice: svc ? svc.price : 0,
-            status: 'confirmed',
-            statusHistory: [{ status: 'confirmed', changedBy: null }],
-            manageToken,
-        });
+        let promoted;
+        try {
+            promoted = await Appointment.create({
+                customer: next.customer._id,
+                service,
+                provider: providerId,
+                appointmentDate,
+                startTime,
+                endTime,
+                totalPrice: svc ? svc.price : 0,
+                status: 'confirmed',
+                statusHistory: [{ status: 'confirmed', changedBy: null }],
+                manageToken,
+            });
+        } catch (createErr) {
+            // Booking failed — release the claim so the slot can be retried.
+            await WaitingList.updateOne({ _id: next._id, status: 'promoting' }, { $set: { status: 'waiting' } }).catch(() => {});
+            throw createErr;
+        }
 
-        next.status = 'promoted';
-        next.notified = true;
-        await next.save();
+        // Settle the claim to its final state.
+        await WaitingList.updateOne({ _id: next._id }, { $set: { status: 'promoted', notified: true } });
 
         const dateStr = new Date(appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
 

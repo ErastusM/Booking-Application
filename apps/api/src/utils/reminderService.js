@@ -6,6 +6,7 @@ const { sendReminder24h, sendReminder1h } = require('./emailService');
 const { appointmentCalendar } = require('./calendarHelper');
 const { primaryOrigin } = require('./origins');
 const pushService = require('./pushService');
+const { withLock } = require('./lock');
 
 const log = pino({ level: process.env.LOG_LEVEL || 'info' });
 
@@ -84,7 +85,7 @@ const RULES = [
 ];
 
 const startReminderJob = () => {
-    cron.schedule('*/15 * * * *', async () => {
+    cron.schedule('*/15 * * * *', () => withLock('reminder-tick', 10 * 60 * 1000, async () => {
         try {
             const now = Date.now();
             // Candidate appointments: a generous date window so every reminder window is
@@ -120,7 +121,7 @@ const startReminderJob = () => {
                 );
             }
         }
-    });
+    }));
 
     log.info('Reminder cron job started (every 15 minutes)');
 };
