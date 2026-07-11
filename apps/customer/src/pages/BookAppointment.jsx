@@ -10,12 +10,16 @@ import { mapsUrl } from '../utils/maps';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import RecurrenceFields from '../components/RecurrenceFields';
 import StatusOverlay from '../components/StatusOverlay';
+import { track } from '../services/client';
 
 const BookAppointment = () => {
     const { user } = useAuthContext();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const rescheduleId = searchParams.get('reschedule'); // present → reschedule mode
+
+    // Funnel: user entered the booking flow (fresh booking vs. reschedule).
+    useEffect(() => { track('booking_start', { reschedule: !!rescheduleId }); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
     // â"€â"€ data â"€â"€
     const [services, setServices] = useState([]);
@@ -308,6 +312,8 @@ const BookAppointment = () => {
                 const created = res?.data?.data;
                 const newAppt = Array.isArray(created) ? created[0] : created;
                 const providerName = providerInfo?.name || '';
+                // Funnel: booking completed (guest vs. account, and which provider).
+                track('booking_confirm', { guest: !user, providerId: providerInfo?._id });
                 // Celebrate first with the full-screen moment, then land somewhere
                 // useful: signed-in users go to their bookings list; guests (who have
                 // no account) go to their token-based manage page.

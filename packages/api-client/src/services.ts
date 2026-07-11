@@ -97,6 +97,8 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
     analyticsService: {
         getAnalytics: () => API.get('/analytics'),
         getProviderAnalytics: (params?: any) => API.get('/analytics/provider', { params }),
+        // Admin product-funnel snapshot (view→book conversion, onboarding drop-off).
+        getEventFunnel: (days = 7) => API.get('/events/summary', { params: { days } }),
     },
 
     earningsService: {

@@ -6,4 +6,9 @@ import { createBookplusClient } from '@bookplus/api-client';
 // that also holds a customer account signs in HERE as its business account.
 const client = createBookplusClient({ apiUrl: import.meta.env.VITE_API_URL, accountType: 'business' });
 
+// Product-analytics: track(name, props) queues a funnel event (page_view,
+// onboarding_step/complete…) that the api-client batches to POST /api/events.
+// Fire-and-forget; never throws.
+export const track = (name, props) => client.telemetry.track(name, props);
+
 export default client;

@@ -1,6 +1,7 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { providerMarketService, availabilityService, authService, favoriteService } from '../services';
+import { track } from '../services/client';
 import { useAuthContext } from '../context/AuthContext';
 import { cloudinaryAvatar, cloudinaryThumb } from '../utils/cloudinary';
 import { currencySymbol } from '../utils/currency';
@@ -107,6 +108,8 @@ const ProviderProfilePage = ({ providerId } = {}) => {
             try {
                 const res = await providerMarketService.getProviderProfile(id);
                 setData(res.data.data);
+                // Funnel: a shopper viewed this provider's public profile.
+                track('provider_view', { providerId: id });
             } catch {
                 navigate('/');
             } finally {

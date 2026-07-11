@@ -3,6 +3,7 @@ import { authService, availabilityService, providerServiceService } from '../ser
 import { uploadToCloudinary } from '../utils/uploadImage';
 import { cloudinaryAvatar, cloudinaryThumb } from '../utils/cloudinary';
 import { CURRENCIES } from '../utils/currency';
+import { track } from '../services/client';
 import MapPicker, { MAPS_KEY, reverseGeocode } from './MapPicker';
 import { MapPin, Clock, Scissors, Camera, LinkIcon, Check, Copy, Share2, ArrowLeft, Plus, X } from 'lucide-react';
 
@@ -72,6 +73,10 @@ const OnboardingWizard = ({ user, onComplete }) => {
             .catch(() => {});
     }, []);
 
+    // Funnel: record which onboarding step the provider reached, so we can see
+    // where signups drop off before finishing setup.
+    useEffect(() => { track('onboarding_step', { step: current.id }); }, [current.id]);
+
     // Mint the booking-link slug the moment the provider reaches the final step.
     useEffect(() => {
         if (current.id === 'link' && !slug) {
@@ -126,6 +131,8 @@ const OnboardingWizard = ({ user, onComplete }) => {
 
     const finish = async () => {
         setSaving(true);
+        // Funnel: provider finished onboarding (reached the end and clicked through).
+        track('onboarding_complete', { services: createdCount });
         try {
             // Flips providerSetupComplete and returns the fresh user. We pass the
             // address we already saved so this call doesn't blank it.

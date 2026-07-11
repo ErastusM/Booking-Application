@@ -8,6 +8,7 @@ import Footer from './components/Footer';
 import AppUpdater from './components/AppUpdater';
 import WaitlistCelebration from './components/WaitlistCelebration';
 import ProtectedRoute from './components/ProtectedRoute';
+import { track } from './services/client';
 import Home from './pages/Home';
 import Login from './pages/Login';
 import Register from './pages/Register';
@@ -57,6 +58,8 @@ function AppRoutes() {
         } catch {
             window.scrollTo(0, 0);
         }
+        // Funnel backbone: one page_view per navigation.
+        track('page_view');
     }, [location.pathname]);
 
     return (
