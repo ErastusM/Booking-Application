@@ -43,6 +43,18 @@ and **Capacitor** for native packaging, so both apps run as native iOS/Android
 apps and installable PWAs from the same React 18 codebase — while the Bookplus
 brand and design tokens remain the source of truth for all visual styling.
 
+**Both apps ship on both platforms.** `apps/customer` AND `apps/business` must
+each build and run as native **iOS** and **Android** apps (plus web/PWA). The
+customer app is migrated first only to prove the theming/routing approach; the
+business app is an equal, required deliverable — not optional follow-up.
+
+**Platform rendering: adaptive.** Call `setupIonicReact()` with the default
+adaptive mode so Ionic renders iOS conventions (Cupertino) on Apple devices and
+Material Design on Android automatically. The Bookplus brand — orange/black/white
+and Plus Jakarta Sans + Inter — stays identical across both platforms via the
+token bridge; only OS-level conventions (switches, back-nav, spacing) differ.
+Do NOT force a single mode.
+
 ## Hard constraints (do not violate)
 
 1. **Design tokens win over Ionic defaults.** Bridge, don't replace. Map the
@@ -76,9 +88,9 @@ brand and design tokens remain the source of truth for all visual styling.
   component that resists theming. Get sign-off before Phase 1.
 
 ### Phase 1 — Customer app shell
-- Wrap the app in `IonApp` + `setupIonicReact({ mode: ... })`; decide whether to
-  force one platform mode or allow adaptive iOS/Android rendering (record the
-  choice).
+- Wrap the app in `IonApp` + `setupIonicReact()` in **adaptive mode** (the
+  default — do not pass a fixed `mode`), so iOS renders Cupertino and Android
+  renders Material automatically while the brand stays consistent via the bridge.
 - Replace the React Router `BrowserRouter`/`Routes` tree in `apps/customer/src/App.jsx`
   with `IonReactRouter` + `IonRouterOutlet`, preserving **every** current path
   and the lazy-loading. Convert bottom navigation to `IonTabs`; keep the
