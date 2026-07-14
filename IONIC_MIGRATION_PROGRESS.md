@@ -5,6 +5,8 @@
 
 - **Last updated:** 2026-07-14
 - **Branch:** `claude/ionic-framework-overview-l3vwp9`
+- **Tracking:** epic [#68](https://github.com/ErastusM/Booking-Application/issues/68)
+  with phases #69–#74 + blockers #66/#67 as sub-issues.
 - **Overall status:** 🟡 **Planning complete; Phase 0 partially started (the
   device-independent deliverables are done).** The token→Ionic bridge is
   authored and the two backend tickets are drafted. The device-gated proofs
@@ -84,6 +86,21 @@ Both are set to defaults in the brief. **Confirm or flip before Phase 3.**
 | **Platform mode** | Adaptive (iOS=Cupertino, Android=Material) | Force one mode (e.g. `mode='ios'`) for brand consistency + simpler QA |
 
 ---
+
+## Issue tracker
+
+Epic [#68](https://github.com/ErastusM/Booking-Application/issues/68) — sub-issues:
+
+| Issue | Scope |
+|-------|-------|
+| [#66](https://github.com/ErastusM/Booking-Application/issues/66) | Backend: credentialed CORS for `capacitor://` origins (P0) |
+| [#67](https://github.com/ErastusM/Booking-Application/issues/67) | Backend: APNs/FCM native push token endpoint (P1) |
+| [#69](https://github.com/ErastusM/Booking-Application/issues/69) | Phase 1 — Web-invisible foundations |
+| [#70](https://github.com/ErastusM/Booking-Application/issues/70) | Phase 2 — Routing adapter on v6 |
+| [#71](https://github.com/ErastusM/Booking-Application/issues/71) | Phase 3 — Customer shell flip |
+| [#72](https://github.com/ErastusM/Booking-Application/issues/72) | Phase 4 — Business shell flip + FullCalendar/Maps |
+| [#73](https://github.com/ErastusM/Booking-Application/issues/73) | Phase 5 — Capacitor native shells |
+| [#74](https://github.com/ErastusM/Booking-Application/issues/74) | Phase 6 — Native CI + store release |
 
 ## Phase checklist
 
