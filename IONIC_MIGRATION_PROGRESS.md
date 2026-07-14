@@ -37,7 +37,7 @@ Two decisions are set as defaults and can still be flipped (see
 | 4 | Adversarial verification of top technical risks | ✅ Done (3 top risks confirmed HIGH) |
 | 5 | Full engineering brief → `IONIC_MIGRATION_PROMPT.md` | ✅ Committed |
 | 6 | Token→Ionic bridge → `packages/design-tokens/ionic-bridge.css` (+ package export) | ✅ Committed (unimported) |
-| 7 | Backend dependency tickets → `docs/ionic-native-backend-dependencies.md` | ✅ Drafted (file the issues) |
+| 7 | Backend dependency tickets → drafted in `docs/…` + filed as issues [#66](https://github.com/ErastusM/Booking-Application/issues/66) (CORS, P0) & [#67](https://github.com/ErastusM/Booking-Application/issues/67) (push, P1) | ✅ Filed |
 | 8 | Phase 0 device proofs (deps + router downgrade, on-device auth, FullCalendar) | ⬜ Needs local Xcode/Android Studio |
 
 ### Commits on this branch
@@ -108,8 +108,10 @@ dependencies. Web/PWA track (Phases 1–4) can ship independently of native.
 ## Next steps
 
 1. **Confirm the two open decisions** (or accept defaults).
-2. **File the two backend tickets** from `docs/ionic-native-backend-dependencies.md`
-   — long lead time, native is blocked without them.
+2. **Backend tickets filed** — [#66 CORS (P0)](https://github.com/ErastusM/Booking-Application/issues/66)
+   and [#67 push tokens (P1)](https://github.com/ErastusM/Booking-Application/issues/67).
+   Get them prioritized with the API owner — long lead time, native is blocked
+   without them.
 3. **Finish Phase 0 locally** (needs Xcode / Android Studio — not runnable in
    the cloud session):
    - Add Ionic + Capacitor to `apps/customer`; downgrade react-router to v5;
