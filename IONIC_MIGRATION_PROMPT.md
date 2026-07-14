@@ -1,9 +1,10 @@
 # Prompt: Migrate Bookplus to Ionic React + Capacitor
 
-> Hand this prompt to a coding agent (or use it as the engineering brief) to
-> transform the Bookplus web apps into cross-platform Ionic React + Capacitor
-> apps that ship to iOS, Android, and the web from one codebase — **without
-> throwing away the existing design system.**
+> Engineering brief for a coding agent (or team) to transform the Bookplus web
+> apps into cross-platform Ionic React + Capacitor apps shipping to iOS,
+> Android, and web from one codebase — **without discarding the design system.**
+> This brief is grounded in a subsystem-by-subsystem analysis of the real repo;
+> the risks below were verified against the actual code and Ionic/Capacitor docs.
 
 ---
 
@@ -13,159 +14,218 @@ You are a senior front-end engineer executing a framework migration on the
 **Bookplus** appointment-booking platform. Read `CLAUDE.md`,
 `DUAL_APP_ARCHITECTURE.md`, and `DUAL_APP_SPEC.md` before you start.
 
-The repo is a **pnpm workspace** with two React 18 + Vite front-ends and one
-Node/Express API:
+pnpm workspace, two React 18 + Vite front-ends + one Node/Express API:
+- `apps/customer` — marketplace (`@bookplus/customer`, :3002, React 18 + Vite,
+  React Router **v6**, 21 flat routes, 15 lazy pages, PWA with boot splash,
+  `--safe-top` safe-area handling, web-push, fresh-build reload).
+- `apps/business` — provider/staff/admin suite (`@bookplus/business`, :3003,
+  same stack + `@fullcalendar/*` + `@react-google-maps/api`, nested admin route
+  `/bkplus-command/insights`).
+- `apps/api` — Node/Express/MongoDB. **Not in this migration's scope to rewrite,
+  BUT it has two hard blockers this migration depends on — see "Backend
+  dependencies" below. Coordinate those from day one.**
 
-- `apps/customer` — marketplace (`@bookplus/customer`, port 3002, React 18 + Vite,
-  React Router v6, lazy-loaded pages under `src/pages`, components under
-  `src/components`). This is a PWA with a boot splash, `--safe-top` safe-area
-  handling, push notifications, and a "reload onto fresh build" mechanism.
-- `apps/business` — provider/staff/admin suite (`@bookplus/business`, port 3003,
-  same stack + FullCalendar + Google Maps).
-- `apps/api` — Node/Express/MongoDB (npm-managed). **Out of scope — do not touch.**
+Shared packages (must keep working): `packages/design-tokens` (`tokens.css`
+CSS custom properties + a Tailwind preset that is effectively dead code),
+`packages/api-client` (axios, `withCredentials: true`, JWT access + rotating
+refresh, `tokenVersion`), `packages/ui` (router-free), `packages/config`.
 
-Shared packages (must keep working):
-- `packages/design-tokens` — `tokens.css` (CSS custom properties: `--gold`
-  `#f03e16`, `--charcoal` `#040505`, `--off-white` `#e6e8e7`, radii, spacing,
-  motion, shadows) + a Tailwind preset. **Single source of truth for styling.**
-- `packages/api-client` — axios + JWT refresh interceptor + domain services.
-- `packages/ui` — shared components.
-- `packages/config` — shared tsconfig.
-
-Fonts are self-hosted variable fonts via `@fontsource-variable` — Plus Jakarta
-Sans (display) and Inter (body). Always reference `var(--font-display)` /
-`var(--font-body)`; never hardcode family names.
+Brand: orange `#f03e16`, black `#040505`, white `#e6e8e7`. Fonts:
+`var(--font-display)` = Plus Jakarta Sans, `var(--font-body)` = Inter.
 
 ## Objective
 
-Adopt **Ionic React** (`@ionic/react`, `@ionic/react-router`) for UI/navigation
-and **Capacitor** for native packaging, so both apps run as native iOS/Android
-apps and installable PWAs from the same React 18 codebase — while the Bookplus
-brand and design tokens remain the source of truth for all visual styling.
+Adopt **Ionic React** (`@ionic/react`, `@ionic/react-router`) + **Capacitor** so
+both apps run as native **iOS + Android** apps and installable PWAs from one
+React 18 codebase, with the Bookplus design tokens remaining the styling source
+of truth. Both apps are equal, required deliverables.
 
-**Both apps ship on both platforms.** `apps/customer` AND `apps/business` must
-each build and run as native **iOS** and **Android** apps (plus web/PWA). The
-customer app is migrated first only to prove the theming/routing approach; the
-business app is an equal, required deliverable — not optional follow-up.
+## Decisions (locked — flip in one line if you disagree)
 
-**Platform rendering: adaptive.** Call `setupIonicReact()` with the default
-adaptive mode so Ionic renders iOS conventions (Cupertino) on Apple devices and
-Material Design on Android automatically. The Bookplus brand — orange/black/white
-and Plus Jakarta Sans + Inter — stays identical across both platforms via the
-token bridge; only OS-level conventions (switches, back-nav, spacing) differ.
-Do NOT force a single mode.
+- **DECISION — Router: adopt `@ionic/react-router` (React Router v5).** This is
+  the full-Ionic path: native stack transitions + `IonTabs` routing. It requires
+  a v6→v5 **down-conversion** (see Risk 1) de-risked by the Phase-2 adapter.
+  *Alternative if you want to avoid that churn:* keep React Router v6 and use
+  Ionic UI components + Capacitor only (no `@ionic/react-router`) — you forgo
+  Ionic's native stack navigation and manage transitions yourself.
+- **DECISION — Platform rendering: adaptive** (`setupIonicReact()`, no fixed
+  `mode`) — iOS renders Cupertino, Android renders Material.
+  *Trade-off recorded:* adaptive renders different radii/shadows/ripple per
+  platform, which fights the hand-tuned "one rhythm everywhere" token scale and
+  doubles visual QA (2 apps × 2 platforms × light/dark). *Alternative:* force one
+  mode (e.g. `mode='ios'`) globally for brand consistency and simpler QA.
 
 ## Hard constraints (do not violate)
 
-1. **Design tokens win over Ionic defaults.** Bridge, don't replace. Map the
-   values in `packages/design-tokens/tokens.css` onto Ionic's CSS variables
-   (`--ion-color-primary`, `--ion-background-color`, `--ion-font-family`, the
-   `--ion-color-*` step ramps, etc.) in one central theme file per app. Never
-   hardcode a brand color inside a component — it must trace back to a token.
-2. **Keep both apps shippable at every commit.** No "big bang" rewrite. Migrate
-   incrementally behind a working build; each PR must build and run.
-3. **Preserve existing behavior:** auth + JWT refresh, push notifications, the
-   boot splash, safe-area (`--safe-top`) handling, fresh-build reload, SEO,
-   FullCalendar and Google Maps in business, and all current routes.
-4. **React 18 stays.** Ionic React runs on it — do not downgrade or fork React.
-5. **pnpm workspace + Vite stay.** Ionic React supports Vite; keep the Vite
-   toolchain and `workspace:*` package links. Do not introduce the Angular CLI.
-6. **API untouched.** No changes to `apps/api` contracts.
-7. **Branch/PR discipline per `CLAUDE.md`:** work on a `feat/*` branch, never
-   push to `main` (main is the deploy trigger). Keep customer + business
-   `package.json` versions in sync when bumping.
+1. **Design tokens win over Ionic defaults — bridge, don't replace.** See "Token
+   bridge" below; it is NOT a 1:1 alias.
+2. **Web stays shippable at every commit.** Push-to-`main` auto-deploys both web
+   apps (CI → Docker Hub → SSH compose up). Every merged PR is a production web
+   release. Native code paths stay gated behind `Capacitor.isNativePlatform()`.
+3. **Preserve behavior:** auth + JWT refresh, web-push, boot splash, `--safe-top`,
+   fresh-build reload, SEO, FullCalendar + Google Maps, all routes, guest
+   checkout on `/book-appointment` + `/complete-profile` (intentionally
+   **unguarded** — do not wrap them in a route guard).
+4. **React 18 stays. pnpm workspace + Vite stay.** No Ionic/Angular CLI eject.
+5. **Do not push to `main` or bump versions without approval.** Work on
+   `feat/dual-app-epic-*` branches.
 
-## Approach — phased, each phase independently shippable
+## Verified risks (confirmed against the real code + docs — plan around these)
 
-### Phase 0 — Spike & decision record (no app changes)
-- Add `@ionic/react`, `@ionic/react-router`, `@ionic/core`, and `@capacitor/core`
-  + `@capacitor/cli` to `apps/customer` only, behind a throwaway spike route.
-- Prove the token→Ionic-variable bridge on **one** screen (e.g. an `ion-page`
-  wrapper around the existing Home content) rendering in Bookplus brand colors
-  and fonts on both iOS and Android modes.
-- Write `docs/IONIC_MIGRATION.md` capturing: the token→`--ion-*` mapping table,
-  which routes become `IonRouterOutlet` + `IonTabs`, bundle-size delta, and any
-  component that resists theming. Get sign-off before Phase 1.
+**Risk 1 — Router is v5, your apps are v6 (HIGH).** `@ionic/react-router` (v8.x)
+peer-depends on `react-router@^5`. Both apps use v6 (`Routes`, `element=`,
+`Navigate`, `useNavigate`, `useSearchParams`). Adopting it means, per app:
+`useNavigate`→`useHistory().push` (11 pages + 4 components in customer),
+`useSearchParams`→`new URLSearchParams(useLocation().search)` (5 pages:
+VerifyEmail, BookAppointment, MyAppointments, ResetPassword, MyWaitingList),
+`<Navigate>`→`<Redirect>` (routes + `ProtectedRoute`), `<Routes>`→`<Switch>` in
+`IonRouterOutlet`. Watch for a duplicate react-router copy in the workspace
+(context errors) — confirmed no shared package imports react-router, so apps can
+migrate independently. **Mitigation: the Phase-2 adapter** shrinks the atomic
+swap to one reviewable outlet rewrite.
 
-### Phase 1 — Customer app shell
-- Wrap the app in `IonApp` + `setupIonicReact()` in **adaptive mode** (the
-  default — do not pass a fixed `mode`), so iOS renders Cupertino and Android
-  renders Material automatically while the brand stays consistent via the bridge.
-- Replace the React Router `BrowserRouter`/`Routes` tree in `apps/customer/src/App.jsx`
-  with `IonReactRouter` + `IonRouterOutlet`, preserving **every** current path
-  and the lazy-loading. Convert bottom navigation to `IonTabs`; keep the
-  `FooterGate` behavior (footer only on `/` and `/about`).
-- Fold the existing boot splash, `--safe-top`, and fresh-build reload logic into
-  the Ionic shell (Ionic has safe-area handling — reconcile, don't duplicate).
-- Create `apps/customer/src/theme/ionic-brand.css` mapping tokens → Ion vars and
-  import it once in `main.jsx` after `tokens.css`.
+**Risk 2 — Token bridge is not a 1:1 alias (HIGH).** Your *primary* CTA is
+**black** (`--ink #040505`); orange `#f03e16` is an accent, and white-on-orange
+fails AA. Ionic's color contract needs RGB triplets and contrast colors that
+hex can't be aliased into. Build a thin bridge (see below).
 
-### Phase 2 — Customer screens, highest-value first
-Migrate page-by-page to Ionic components where they add real native value; leave
-purely-content pages on existing markup wrapped in `IonPage`/`IonContent`:
-- `MyAppointments` → `IonList` + `ion-refresher` (pull-to-refresh) +
-  `ion-item-sliding` (swipe to cancel/reschedule).
-- `BookAppointment` → `IonDatetime` for date/time selection; `IonModal` /
-  `IonActionSheet` for confirmations (replace `RescheduleModal`,
-  `IntakeFormModal`, `ReviewModal`, `WalletTopUpModal` where it improves UX).
-- `Home` / `ProviderProfile*` → `IonSearchbar`, `IonInfiniteScroll` for the feed.
-- Keep `Toast`, `StatusOverlay` semantics (map to `IonToast`/`IonLoading` only if
-  cleaner). Verify every migrated screen against its `DUAL_APP_SPEC.md` criteria.
+**Risk 3 — FullCalendar + Google Maps break inside `IonContent` (HIGH).**
+0-width blank render when a page mounts hidden in Ionic's kept-alive stack (fix:
+`getApi().updateSize()` in `useIonViewDidEnter`); nested-scroll ownership
+(pick ONE scroller per view); 350ms long-press drag vs iOS swipe-back gesture
+(disable `swipeBackEnabled` on the calendar page); preserve the existing
+`events` `useMemo` (per-keystroke reprocessing froze the dashboard — native
+WebViews are slower). The dashboard already ships a scroll-to-top FAB workaround.
 
-### Phase 3 — Capacitor native layer (customer)
-- `npx cap init`, add `@capacitor/ios` and `@capacitor/android`; point
-  `webDir` at the Vite build output.
-- Wire native equivalents of existing web features via plugins:
-  `@capacitor/push-notifications` (reconcile with current web push +
-  `EnablePushBanner`/`PushToggle`), `@capacitor/app` (back button, deep links),
-  `@capacitor/splash-screen` (align with the current splash), `@capacitor/status-bar`.
-- Add `pnpm --filter @bookplus/customer cap:sync` / `cap:ios` / `cap:android`
-  scripts. Document local build prerequisites (Xcode/Android Studio) in
-  `docs/IONIC_MIGRATION.md`.
+## Backend dependencies (OUT OF SCOPE to build here, but native is DEAD without them — start day one)
 
-### Phase 4 — Business app
-- Repeat Phases 1–3 for `apps/business`. Extra care for the two heavy widgets:
-  **keep FullCalendar and Google Maps as-is inside `IonContent`** unless an
-  Ionic-native replacement is clearly better — verify scroll/gesture behavior
-  inside `IonContent` (nested scroll containers are a known friction point).
-- Preserve the `/bkplus-command` + `/insights` admin role-gating.
+1. **CORS allowlist.** `api-client` uses `withCredentials: true`, so the API
+   cannot send `Access-Control-Allow-Origin: *`. Add `capacitor://localhost`,
+   `http://localhost`, `https://localhost` to the credentialed CORS allowlist
+   (`CLIENT_URL`) or **every** native API call fails preflight.
+2. **Native push token endpoint.** `/push/subscribe` accepts a web
+   `PushSubscription` (VAPID). `@capacitor/push-notifications` yields an opaque
+   APNs/FCM token; the API needs a token store + APNs/FCM send path. Also: iOS
+   Push entitlement + APNs, Android FCM `google-services.json`.
 
-### Phase 5 — Shared packages & cleanup
-- If Ionic wrappers are reused across both apps, lift them into `packages/ui`.
-- Extend `packages/design-tokens` with the canonical token→`--ion-*` bridge so
-  both apps import one source (don't duplicate the mapping per app).
-- Update Playwright e2e (`apps/*/e2e`) for the new DOM; add at least a smoke test
-  per app. Update `README.md`, `SETUP.md`, `QUICK_REFERENCE.md`, `ARCHITECTURE.md`.
+Also register the native OAuth custom-scheme redirect URI on the API
+(`AuthCallBack.jsx` reads `?code=`).
 
-## Deliverables
-- Both apps building and running on web (`pnpm customer:dev` / `pnpm business:dev`)
-  and buildable as iOS + Android via Capacitor.
-- `docs/IONIC_MIGRATION.md`: token bridge table, routing map, plugin list, native
-  build steps, and a list of anything deferred.
-- Green e2e smoke tests per app.
-- Brand fidelity: a reviewer comparing before/after sees the same Bookplus look
-  (orange/black/white, Plus Jakarta Sans + Inter), now with native transitions.
+## The token bridge (author once, ideally in `packages/design-tokens`)
+
+Map the full `--ion-*` contract onto existing tokens, in `:root` AND
+`body.dark-mode`; wire `ThemeContext` to also toggle `.ion-palette-dark`:
+- `--ion-color-primary: var(--gold)` **with** `--ion-color-primary-rgb: 240,62,22`
+  and `--ion-color-primary-contrast: #040505` (NOT Ionic's default white).
+- `--ion-color-dark: var(--ink)` (contrast `#e6e8e7`) — the real black CTA.
+- `--ion-background-color: var(--off-white)`;
+  `--ion-item/card/toolbar/tab-bar-background: var(--card-bg)` (#fff) to keep
+  white-cards-on-gray.
+- `--ion-font-family: var(--font-body)` + an `IonTitle`/`IonCardTitle` override
+  to `var(--font-display)`.
+- success/warning/danger/secondary quartets. Do NOT import Ionic's dark palette.
+
+## Phased plan — each phase independently web-shippable
+
+### Phase 0 — Spike & go/no-go (throwaway, ~2 weeks)
+Prove the four project-killers on a real iOS simulator + Android emulator + web
+BEFORE migrating any production page: (a) toolchain coexistence + a single
+react-router copy after the v6→v5 downgrade under pnpm; (b) the token bridge
+renders `IonButton`/`IonToggle`/`IonCard`/`IonTabBar` on-brand in light + dark;
+(c) a native WebView authenticates against the API (needs the CORS ask — start
+it now); (d) FullCalendar survives `IonContent` via `updateSize()`. Also **kick
+off both backend dependencies.** Exit with a written go/no-go.
+
+### Phase 1 — Web-invisible foundations
+Add `@ionic/react`, `@ionic/react-router`, `@capacitor/core`, `@capacitor/cli`
+to both apps; regenerate + commit `pnpm-lock.yaml` (CI is `--frozen-lockfile`);
+add Capacitor native install-script packages to `onlyBuiltDependencies` in
+`pnpm-workspace.yaml`; author the token bridge (unimported); add `ios/` + `android/`
+to `.dockerignore` so the web Docker context doesn't bloat. Both web builds stay
+byte-identical.
+
+### Phase 2 — Routing adapter on v6 (pure refactor, per app)
+Create `src/routing/` adapters — `useNav()` over `useNavigate`, `useQueryParams()`
+over `useSearchParams`, `<AppRedirect replace>` over `<Navigate>` — still backed
+by v6. Migrate all call sites in small, behavior-preserving PRs validated by
+existing Playwright. This shrinks the eventual atomic swap to one outlet rewrite.
+
+### Phase 3 — Customer shell flip (atomic v5 swap, web-first)
+Lower-risk app first (no calendar/maps). Bump to `@ionic/react-router`; rewrite
+`App.jsx` to `IonReactRouter` + `IonRouterOutlet` + `<Switch>`; re-point the
+Phase-2 adapter internals to v5 (`useHistory`, `<Redirect>`); wrap pages in
+`IonPage`/`IonContent`; import Ionic CSS + the token bridge. Build `IonTabs`
+(Home / Bookings / Profile + a non-route "Suggest" tab presenting an `IonModal`);
+keep `book-appointment`, `providers/:id`, `b/:slug` OUTSIDE the tabs outlet as
+full-screen pushed pages (tab bar hidden, matching today's `hideBottomNav`).
+Move window-scroll UX into `ion-content` (Home hero-fade → `onIonScroll`;
+IntersectionObserver infinite-scroll → `IonInfiniteScroll`; scroll reset →
+`IonContent.scrollToTop()` in `ionViewWillEnter`); remove the
+`<div key={location.pathname}>` force-remount and the `--safe-top` paddingTop.
+Migrate modals to `IonModal`, retire `useModalChrome` (double scroll-lock).
+Gate `useLiveRefresh` on `useIonViewWillEnter/Leave` (Ionic keeps pages mounted).
+**Verify guest booking + `/b/:slug`→book still work after the outlet split.**
+
+### Phase 4 — Business shell flip (reuse the pattern) + heavy widgets
+Repeat Phase 3 for business. Preserve the nested `/bkplus-command/insights`
+(plan hash or fallback — deep paths 404 under Capacitor's static server on
+cold-start). Fix `AdminDashboard.jsx` raw `<a href>` → router nav. Reconcile
+FullCalendar (`updateSize()` in `ionViewDidEnter`, scroll ownership, disable
+swipe-back, keep the `events` memo, move FAB → `IonFab`) and MapPicker
+(defer native CSP/geolocation to Phase 5; leave web unchanged). Cross-app
+`window.location` redirect → deep link on native.
+
+### Phase 5 — Capacitor native shells (both apps, platform-gated)
+`capacitor.config` per app; bake `VITE_API_URL=https://api.bookplus.pro` into
+native builds (`inferApiBase` falls back to `localhost:5000` in a WebView).
+Extract a shared platform module and branch on `Capacitor.isNativePlatform()`:
+push fork (native `@capacitor/push-notifications`, web keeps VAPID + `sw.js`);
+gate `freshBuild.js` + `AppUpdater.jsx` OFF on native; `@capacitor/app`
+(`appUrlOpen` deep links for OAuth `/auth/callback`, `/manage/:token`, `/b/:slug`;
+Android hardware back button; `appStateChange`); `@capacitor/splash-screen`
+(`launchAutoHide:false` + `hide()` reconciled with `main.jsx`'s 650/8000ms
+timers); `@capacitor/status-bar` on the dark toggle; re-gate the `--safe-top`
+50px floor onto a Capacitor body class. MapPicker native CSP allowlist +
+`@capacitor/geolocation`. Web build + Docker→SSH deploy stay 100% unchanged.
+
+### Phase 6 — Native CI + store release + hardening
+New **macOS-runner** workflow for iOS (Xcode, signing, provisioning, Fastlane) —
+ubuntu can't build IPAs — + Android SDK/keystore; `cap sync` after `vite build`;
+store submission as a track parallel to the untouched web pipeline. Native assets
+via `@capacitor/assets`. Fold `CFBundleShortVersionString`/`versionCode` into the
+dual-`package.json` + `vX.Y.Z` tag rule. Add native smoke coverage
+(emulator/Maestro) — Playwright exercises only web. Final adaptive-mode QA
+(2 apps × 2 platforms × light/dark). Confirm the CORS allowlist + push token
+path are live.
+
+## Effort
+~4–6 months solo, ~3–4 months with two engineers — **gated on the two backend
+dependencies landing on time.** The web/PWA track (Phases 1–4) can ship
+independently; only native release (Phases 5–6) stalls if the backend slips.
 
 ## Acceptance criteria
-- [ ] Every existing customer + business route resolves (no dead links).
-- [ ] All brand color/type/spacing traces to `design-tokens` — zero hardcoded
-      hex brand values in components; Ionic defaults are overridden via the bridge.
-- [ ] Auth + JWT refresh, push, splash, safe-area, and fresh-build reload all work.
-- [ ] FullCalendar + Google Maps still function in business inside `IonContent`.
-- [ ] `pnpm install`, both `vite build`s, and `cap sync` succeed clean.
-- [ ] Bundle-size delta is measured and recorded, not ignored.
-- [ ] Each PR is independently shippable and passes CI.
+- [ ] Every existing customer + business route resolves; guest checkout intact.
+- [ ] All brand color/type/spacing traces to `design-tokens`; zero hardcoded brand
+      hex in components; Ionic defaults overridden via the bridge (incl. AA).
+- [ ] Auth + JWT refresh, push, splash, safe-area, fresh-build reload all work
+      (web AND native, correctly platform-gated).
+- [ ] FullCalendar + Maps function on device inside `IonContent` (no blank render,
+      no double scrollbars, drag/resize not stolen by swipe-back).
+- [ ] `pnpm install --frozen-lockfile`, both `vite build`s, and `cap sync` clean.
+- [ ] Both apps build as iOS + Android; web Docker→SSH pipeline unchanged.
+- [ ] Bundle-size delta measured and recorded.
+- [ ] Each PR independently shippable and CI-green.
 
 ## Explicitly out of scope / do NOT do
-- Do not modify `apps/api` or any API contract.
+- Do not rewrite `apps/api` beyond coordinating the two named dependencies.
 - Do not push to `main` or bump versions without approval.
-- Do not replace the design-token system with Ionic's theming — bridge onto it.
-- Do not rip out FullCalendar or Google Maps just to use Ionic equivalents.
-- Do not do a single massive rewrite PR; ship phase by phase.
+- Do not replace the design-token system with Ionic theming — bridge onto it.
+- Do not rip out FullCalendar or Google Maps for Ionic equivalents.
+- Do not guard `/book-appointment` or `/complete-profile` (guest checkout).
+- Do not do a single big-bang PR; ship phase by phase.
 
 ## First step
-Start with **Phase 0 only**: add the dependencies to `apps/customer`, build the
-one-screen token→Ionic-variable spike, write the mapping table into
-`docs/IONIC_MIGRATION.md`, and report the bundle-size delta + any theming
-blockers before touching routing or other screens. Stop and summarize for review
-at the end of Phase 0.
+Do **Phase 0 only**: stand up the throwaway spike proving the four killers on
+simulator/emulator/web, open the two backend coordination tickets, and write the
+go/no-go with a bundle-size delta and any theming blockers. Stop and summarize
+for review before touching production pages.
