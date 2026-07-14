@@ -5,18 +5,22 @@
 
 - **Last updated:** 2026-07-14
 - **Branch:** `claude/ionic-framework-overview-l3vwp9`
-- **Overall status:** 🟡 **Planning complete — no application code changed yet.**
-  The migration has been scoped, risk-verified against the real codebase, and
-  written up. Execution (Phase 0) has **not** started.
+- **Overall status:** 🟡 **Planning complete; Phase 0 partially started (the
+  device-independent deliverables are done).** The token→Ionic bridge is
+  authored and the two backend tickets are drafted. The device-gated proofs
+  (dep install + react-router downgrade, on-device auth, FullCalendar on device)
+  remain — they need a local machine with Xcode / Android Studio and were **not**
+  run in the cloud session.
 
 ---
 
 ## TL;DR — continue from here
 
-**Next action: Phase 0 (throwaway spike + go/no-go).** Nothing in `apps/` has
-been touched. Before writing any production code, stand up the spike that proves
-the four project-killers and open the two backend tickets. See
-[Next steps](#next-steps).
+**Next action: finish Phase 0 on a local machine** — the parts that need an
+iOS simulator / Android emulator. The device-independent Phase 0/1 deliverables
+are already committed: the token→Ionic bridge (`packages/design-tokens/ionic-bridge.css`)
+and the two backend tickets (`docs/ionic-native-backend-dependencies.md`).
+Nothing in `apps/` has been touched. See [Next steps](#next-steps).
 
 Two decisions are set as defaults and can still be flipped (see
 [Open decisions](#open-decisions)) — confirm or change them before Phase 3.
@@ -32,16 +36,21 @@ Two decisions are set as defaults and can still be flipped (see
 | 3 | Subsystem analysis of the real repo (routing, tokens, heavy widgets, native behaviors, infra) | ✅ Done |
 | 4 | Adversarial verification of top technical risks | ✅ Done (3 top risks confirmed HIGH) |
 | 5 | Full engineering brief → `IONIC_MIGRATION_PROMPT.md` | ✅ Committed |
-| 6 | Phase 0 spike | ⬜ Not started |
-| 7 | Backend dependency tickets (CORS, push token) | ⬜ Not raised |
+| 6 | Token→Ionic bridge → `packages/design-tokens/ionic-bridge.css` (+ package export) | ✅ Committed (unimported) |
+| 7 | Backend dependency tickets → `docs/ionic-native-backend-dependencies.md` | ✅ Drafted (file the issues) |
+| 8 | Phase 0 device proofs (deps + router downgrade, on-device auth, FullCalendar) | ⬜ Needs local Xcode/Android Studio |
 
 ### Commits on this branch
 ```
+(this commit)  feat(design-tokens): add token→Ionic bridge + draft backend tickets
+d730b26  docs: add migration progress + resume-point tracker
 0fe5eb5  docs: rewrite Ionic migration brief with verified risks and phased plan
 72b222c  docs: pin adaptive platform mode and both-app/both-platform scope
 bb154d6  docs: add Ionic React + Capacitor migration prompt
 ```
-No changes to `apps/customer`, `apps/business`, `apps/api`, or `packages/*`.
+Changes so far are **additive and inert**: a new unimported CSS file + a
+package export entry + docs. No changes to `apps/*`; both web builds are
+unaffected.
 
 ---
 
@@ -78,8 +87,11 @@ Both are set to defaults in the brief. **Confirm or flip before Phase 3.**
 
 ## Phase checklist
 
-- ⬜ **Phase 0** — Spike & go/no-go (throwaway): prove the 4 killers on
-  simulator/emulator/web; open the 2 backend tickets; write go/no-go.
+- 🟡 **Phase 0** — Spike & go/no-go (throwaway): token bridge ✅ authored,
+  backend tickets ✅ drafted. Remaining (needs local device tooling): install
+  Ionic + Capacitor, downgrade react-router to v5 & confirm a single copy,
+  prove on-device auth (needs CORS ticket live), prove FullCalendar in
+  `IonContent` via `updateSize()`; write the go/no-go + bundle-size delta.
 - ⬜ **Phase 1** — Web-invisible foundations (deps, lockfile, token bridge,
   `.dockerignore`), builds byte-identical.
 - ⬜ **Phase 2** — Routing adapter on v6 (pure refactor, per app).
@@ -96,13 +108,21 @@ dependencies. Web/PWA track (Phases 1–4) can ship independently of native.
 ## Next steps
 
 1. **Confirm the two open decisions** (or accept defaults).
-2. **Raise the two backend tickets** (CORS allowlist + native push token
-   endpoint) — long lead time, native is blocked without them.
-3. **Start Phase 0 spike** on a throwaway branch:
+2. **File the two backend tickets** from `docs/ionic-native-backend-dependencies.md`
+   — long lead time, native is blocked without them.
+3. **Finish Phase 0 locally** (needs Xcode / Android Studio — not runnable in
+   the cloud session):
    - Add Ionic + Capacitor to `apps/customer`; downgrade react-router to v5;
      confirm pnpm resolves a single copy.
-   - Author the token→`--ion-*` bridge; verify on-brand light + dark.
+   - Import `@bookplus/design-tokens/ionic-bridge.css` on a spike screen; verify
+     `IonButton`/`IonToggle`/`IonCard`/`IonTabBar` on-brand in light + dark.
    - Prove a native WebView authenticates against the API (needs CORS ticket).
    - Prove FullCalendar survives `IonContent` via `updateSize()`.
    - Write the go/no-go with a bundle-size delta.
 4. **Stop and review** before touching production pages (Phase 1+).
+
+### Already delivered for Phase 0/1 (device-independent)
+- `packages/design-tokens/ionic-bridge.css` — the full `--ion-*` mapping
+  (primary=orange accent, dark=black CTA, AA-safe contrast, white-cards-on-gray,
+  light + dark). Importable as `@bookplus/design-tokens/ionic-bridge.css`.
+- `docs/ionic-native-backend-dependencies.md` — ready-to-file CORS + push tickets.
