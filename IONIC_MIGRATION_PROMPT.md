@@ -40,20 +40,18 @@ both apps run as native **iOS + Android** apps and installable PWAs from one
 React 18 codebase, with the Bookplus design tokens remaining the styling source
 of truth. Both apps are equal, required deliverables.
 
-## Decisions (locked — flip in one line if you disagree)
+## Decisions (CONFIRMED 2026-07-14)
 
-- **DECISION — Router: adopt `@ionic/react-router` (React Router v5).** This is
-  the full-Ionic path: native stack transitions + `IonTabs` routing. It requires
-  a v6→v5 **down-conversion** (see Risk 1) de-risked by the Phase-2 adapter.
-  *Alternative if you want to avoid that churn:* keep React Router v6 and use
-  Ionic UI components + Capacitor only (no `@ionic/react-router`) — you forgo
-  Ionic's native stack navigation and manage transitions yourself.
-- **DECISION — Platform rendering: adaptive** (`setupIonicReact()`, no fixed
-  `mode`) — iOS renders Cupertino, Android renders Material.
-  *Trade-off recorded:* adaptive renders different radii/shadows/ripple per
-  platform, which fights the hand-tuned "one rhythm everywhere" token scale and
-  doubles visual QA (2 apps × 2 platforms × light/dark). *Alternative:* force one
-  mode (e.g. `mode='ios'`) globally for brand consistency and simpler QA.
+- **✅ Router: adopt `@ionic/react-router` (React Router v5).** The full-Ionic
+  path: native stack transitions + `IonTabs` routing. It requires a v6→v5
+  **down-conversion** (see Risk 1), de-risked by the Phase-2 adapter. (The
+  considered alternative — keep v6, use Ionic UI + Capacitor only — was declined
+  in favour of the full-Ionic experience.)
+- **✅ Platform rendering: adaptive** (`setupIonicReact()`, no fixed `mode`) —
+  iOS renders Cupertino, Android renders Material.
+  *Accepted trade-off:* adaptive renders different radii/shadows/ripple per
+  platform, which fights the "one rhythm everywhere" token scale and doubles
+  visual QA (2 apps × 2 platforms × light/dark) — budget for that QA in Phase 6.
 
 ## Hard constraints (do not violate)
 

@@ -24,8 +24,8 @@ are already committed: the token→Ionic bridge (`packages/design-tokens/ionic-b
 and the two backend tickets (`docs/ionic-native-backend-dependencies.md`).
 Nothing in `apps/` has been touched. See [Next steps](#next-steps).
 
-Two decisions are set as defaults and can still be flipped (see
-[Open decisions](#open-decisions)) — confirm or change them before Phase 3.
+Both open decisions are now **confirmed** (full Ionic router v5 + adaptive mode)
+— see [Decisions](#decisions--confirmed-2026-07-14).
 
 ---
 
@@ -76,14 +76,12 @@ Full detail lives in `IONIC_MIGRATION_PROMPT.md` → "Verified risks" and
 
 ---
 
-## Open decisions
+## Decisions (✅ confirmed 2026-07-14)
 
-Both are set to defaults in the brief. **Confirm or flip before Phase 3.**
-
-| Decision | Current default | Alternative |
-|----------|-----------------|-------------|
-| **Router** | Adopt `@ionic/react-router` (full Ionic, v5 down-conversion) | Keep React Router v6; use Ionic UI + Capacitor only |
-| **Platform mode** | Adaptive (iOS=Cupertino, Android=Material) | Force one mode (e.g. `mode='ios'`) for brand consistency + simpler QA |
+| Decision | Confirmed choice |
+|----------|------------------|
+| **Router** | Adopt `@ionic/react-router` (full Ionic, v5 down-conversion) |
+| **Platform mode** | Adaptive (iOS=Cupertino, Android=Material) — extra visual QA budgeted in Phase 6 |
 
 ---
 
@@ -124,7 +122,7 @@ dependencies. Web/PWA track (Phases 1–4) can ship independently of native.
 
 ## Next steps
 
-1. **Confirm the two open decisions** (or accept defaults).
+1. ~~Confirm the two open decisions~~ ✅ done — full Ionic router (v5) + adaptive mode.
 2. **Backend tickets filed** — [#66 CORS (P0)](https://github.com/ErastusM/Booking-Application/issues/66)
    and [#67 push tokens (P1)](https://github.com/ErastusM/Booking-Application/issues/67).
    Get them prioritized with the API owner — long lead time, native is blocked
