@@ -158,6 +158,13 @@ const allowedOrigins = new Set([
     // Production subdomains are added via the comma-separated CLIENT_URL env.
     'http://localhost:3002',
     'http://localhost:3003',
+    // Ionic/Capacitor native WebViews (iOS serves the app from capacitor://localhost,
+    // Android from http://localhost / https://localhost). Purely additive: a browser
+    // never presents these origins, so every web response is unchanged; the cors()
+    // callback still reflects the specific matched origin (never '*').
+    'capacitor://localhost',
+    'http://localhost',
+    'https://localhost',
 ]);
 
 app.use(cors({
