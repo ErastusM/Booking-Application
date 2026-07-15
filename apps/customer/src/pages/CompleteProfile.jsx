@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNav } from '../routing';
 import { useAuthContext } from '../context/AuthContext';
 import { authService } from '../services';
 import MAIN_CATEGORIES from '../constants/mainCategories';
@@ -7,7 +7,7 @@ import { cloudinaryAvatar } from '../utils/cloudinary';
 
 const CompleteProfile = () => {
     const { user, setUser } = useAuthContext();
-    const navigate = useNavigate();
+    const navigate = useNav();
     const [phone, setPhone] = useState('');
     const [category, setCategory] = useState('');
     const [customCategory, setCustomCategory] = useState('');

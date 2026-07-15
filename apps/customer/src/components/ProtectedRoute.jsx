@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { AppRedirect } from '../routing';
 import { useAuthContext } from '../context/AuthContext';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -20,13 +20,13 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
         );
     }
 
-    if (!user) return <Navigate to="/login" replace />;
+    if (!user) return <AppRedirect to="/login" replace />;
 
     if (allowedRoles && !allowedRoles.includes(user.role)) {
         // The customer app treats every signed-in user as a customer; the
         // business app is a separate site, so there is no in-app home to send
         // business roles to — just back to the marketplace.
-        return <Navigate to="/" replace />;
+        return <AppRedirect to="/" replace />;
     }
 
     return children;

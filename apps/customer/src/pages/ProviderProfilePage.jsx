@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import { useNav } from '../routing';
 import { providerMarketService, availabilityService, authService, favoriteService } from '../services';
 import { track } from '../services/client';
 import { useAuthContext } from '../context/AuthContext';
@@ -33,7 +34,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
     // When rendered from the /b/:slug route a resolved id is passed as a prop;
     // the normal /providers/:id route reads it from the URL.
     const id = providerId || params.id;
-    const navigate = useNavigate();
+    const navigate = useNav();
     const { user } = useAuthContext();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);

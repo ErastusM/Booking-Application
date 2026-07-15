@@ -1,12 +1,13 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useNav } from '../routing';
 import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { API_BASE } from '../services/api';
 
 const Login = () => {
     const { login } = useAuthContext();
-    const navigate = useNavigate();
+    const navigate = useNav();
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');

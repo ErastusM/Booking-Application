@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useNav, useQueryParams } from '../routing';
 import { appointmentService, reviewService, messageService } from '../services';
 import ReviewModal from '../components/ReviewModal';
 import IntakeFormModal from '../components/IntakeFormModal';
@@ -45,9 +46,9 @@ const buildGCalUrl = (a) => {
 };
 
 const MyAppointments = () => {
-    const navigate = useNavigate();
+    const navigate = useNav();
     const { user } = useAuthContext();
-    const [searchParams] = useSearchParams();
+    const searchParams = useQueryParams();
     const justConfirmed = searchParams.get('confirmed') === '1';
     const justWaitlisted = searchParams.get('waitlisted') === '1';
     const confirmedProvider = searchParams.get('provider') || '';

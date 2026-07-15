@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
-import { useParams, Navigate } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
+import { AppRedirect } from '../routing';
 import { providerMarketService } from '../services';
 import ProviderProfilePage from './ProviderProfilePage';
 
@@ -19,7 +20,7 @@ const ProviderProfileBySlug = () => {
         return () => { alive = false; };
     }, [slug]);
 
-    if (notFound) return <Navigate to="/" replace />;
+    if (notFound) return <AppRedirect to="/" replace />;
 
     if (!id) {
         return (

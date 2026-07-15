@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNav } from '../routing';
 import { useAuthContext } from '../context/AuthContext';
 import { waitingListService } from '../services';
 import StatusOverlay from './StatusOverlay';
@@ -11,7 +11,7 @@ import StatusOverlay from './StatusOverlay';
 // fails, and never stacked on top of the booking-confirm flow.
 const WaitlistCelebration = () => {
     const { user } = useAuthContext();
-    const navigate = useNavigate();
+    const navigate = useNav();
     const [promo, setPromo] = useState(null); // { id, subtitle }
     const busy = useRef(false);                // a fetch is in flight
     const up = useRef(false);                  // an overlay is currently showing

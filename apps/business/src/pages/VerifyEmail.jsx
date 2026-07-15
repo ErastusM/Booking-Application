@@ -1,13 +1,13 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Link } from 'react-router-dom';
+import { useNav, useQueryParams } from '../routing';
 import { CheckCircle, Clock, XCircle, AlertTriangle, Loader } from 'lucide-react';
 
 const VerifyEmail = () => {
-    const [searchParams] = useSearchParams();
+    const searchParams = useQueryParams();
     const [status, setStatus] = useState('loading');
     const [role, setRole] = useState('customer');
-    const navigate = useNavigate();
+    const navigate = useNav();
 
     useEffect(() => {
         const s = searchParams.get('status');

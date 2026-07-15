@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useNav } from '../routing';
 import { authService, reviewService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -83,7 +84,7 @@ const sidebarItems = [
 
 const ProviderAccount = () => {
     const { user, setUser } = useAuthContext();
-    const navigate = useNavigate();
+    const navigate = useNav();
     const { darkMode: darkModeOn, toggleDarkMode } = useTheme();
     const [section, setSection] = useState('profile');
 

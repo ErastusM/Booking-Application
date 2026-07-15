@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useNav } from '../routing';
 import { useAuthContext } from '../context/AuthContext';
 import { providerMarketService, favoriteService, appointmentService } from '../services';
 import { Search, Star, ArrowRight, Heart, MapPin } from 'lucide-react';
@@ -65,7 +66,7 @@ const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
 // carousel, an actions row (like + rating) and a caption. Single tap opens the profile;
 // double tap likes with a heart burst — the familiar Instagram/TikTok gestures.
 const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
-    const navigate = useNavigate();
+    const navigate = useNav();
     const id = String(p._id);
     const photos = ((p.photos && p.photos.length) ? p.photos : (p.coverImage ? [p.coverImage] : [])).slice(0, 5);
     const hasPhotos = photos.length > 0;
@@ -212,7 +213,7 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
 
 const Home = () => {
     const { user } = useAuthContext();
-    const navigate = useNavigate();
+    const navigate = useNav();
     const [query, setQuery] = useState('');
     const [searchLoc, setSearchLoc] = useState('');
     const [searchDate, setSearchDate] = useState('');

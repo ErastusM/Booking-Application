@@ -1,11 +1,11 @@
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNav } from '../routing';
 import { useAuthContext } from '../context/AuthContext';
 import API from '../services/api';
 
 const AuthCallback = () => {
     const { login } = useAuthContext();
-    const navigate = useNavigate();
+    const navigate = useNav();
     const [error, setError] = useState('');
 
     useEffect(() => {

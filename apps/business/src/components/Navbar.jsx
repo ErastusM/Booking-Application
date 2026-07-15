@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
-import { Link, useNavigate, useLocation } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
+import { useNav } from '../routing';
 import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import NotificationBell from './NotificationBell';
@@ -13,7 +14,7 @@ const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'http://localhost:3002
 const Navbar = () => {
     const { user, logout } = useAuthContext();
     const { darkMode, toggleDarkMode } = useTheme();
-    const navigate = useNavigate();
+    const navigate = useNav();
     const location = useLocation();
     const [scrolled, setScrolled] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);

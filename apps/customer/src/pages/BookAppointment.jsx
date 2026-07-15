@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams, Link } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useNav, useQueryParams } from '../routing';
 import { useAuthContext } from '../context/AuthContext';
 import { appointmentService, serviceService, waitingListService, providerMarketService, availabilityService, walletService } from '../services';
 import { Calendar, Clock, CalendarX2 } from 'lucide-react';
@@ -14,8 +15,8 @@ import { track } from '../services/client';
 
 const BookAppointment = () => {
     const { user } = useAuthContext();
-    const navigate = useNavigate();
-    const [searchParams] = useSearchParams();
+    const navigate = useNav();
+    const searchParams = useQueryParams();
     const rescheduleId = searchParams.get('reschedule'); // present → reschedule mode
 
     // Funnel: user entered the booking flow (fresh booking vs. reschedule).

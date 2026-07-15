@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNav } from '../routing';
 import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -57,7 +57,7 @@ const SettingRow = ({ icon: Icon, label, value, onClick, trailing, isLast, dange
 const Profile = () => {
     const { user, setUser, logout } = useAuthContext();
     const { darkMode, toggleDarkMode } = useTheme();
-    const navigate = useNavigate();
+    const navigate = useNav();
 
     // Which inline panel is expanded ('profile' | 'password' | 'notifications' | null)
     const [open, setOpen] = useState(null);

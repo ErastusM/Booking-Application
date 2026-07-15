@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Link, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useQueryParams } from '../routing';
 import { authService } from '../services';
 import MAIN_CATEGORIES from '../constants/mainCategories';
 import { API_BASE } from '../services/api';
@@ -17,7 +18,7 @@ const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'https://www.bookplus.
  */
 const Register = () => {
     // The login page's "create a business account" CTA carries the email across.
-    const [searchParams] = useSearchParams();
+    const searchParams = useQueryParams();
     const [submitted, setSubmitted] = useState(false);
     const [formData, setFormData] = useState({
         name: '',

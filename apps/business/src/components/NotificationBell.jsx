@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNav } from '../routing';
 import { notificationService } from '../services';
 
 const NotificationBell = ({ isTransparent }) => {
@@ -9,7 +9,7 @@ const NotificationBell = ({ isTransparent }) => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const dropdownRef = useRef(null);
-    const navigate = useNavigate();
+    const navigate = useNav();
 
     useEffect(() => {
         fetchNotifications();

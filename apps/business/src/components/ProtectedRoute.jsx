@@ -1,5 +1,5 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { AppRedirect } from '../routing';
 import { useAuthContext } from '../context/AuthContext';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
@@ -20,13 +20,13 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
         );
     }
 
-    if (!user) return <Navigate to="/login" replace />;
+    if (!user) return <AppRedirect to="/login" replace />;
 
     if (allowedRoles && !allowedRoles.includes(user.role)) {
         // Redirect to their rightful home inside the business app…
-        if (user.role === 'admin') return <Navigate to="/bkplus-command" replace />;
-        if (user.role === 'staff') return <Navigate to="/my-schedule" replace />;
-        if (user.role === 'provider') return <Navigate to="/dashboard" replace />;
+        if (user.role === 'admin') return <AppRedirect to="/bkplus-command" replace />;
+        if (user.role === 'staff') return <AppRedirect to="/my-schedule" replace />;
+        if (user.role === 'provider') return <AppRedirect to="/dashboard" replace />;
         // …customers belong in the customer app (cross-app hand-off).
         window.location.replace(import.meta.env.VITE_CUSTOMER_URL || 'http://localhost:3002');
         return null;

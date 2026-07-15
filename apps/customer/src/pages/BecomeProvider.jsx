@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNav } from '../routing';
 import { useAuthContext } from '../context/AuthContext';
 import { authService } from '../services';
 import MAIN_CATEGORIES from '../constants/mainCategories';
@@ -13,7 +13,7 @@ const PERKS = [
 
 const BecomeProvider = () => {
     const { user, setUser } = useAuthContext();
-    const navigate = useNavigate();
+    const navigate = useNav();
     const [category, setCategory] = useState('');
     const [customCategory, setCustomCategory] = useState('');
     const [loading, setLoading] = useState(false);

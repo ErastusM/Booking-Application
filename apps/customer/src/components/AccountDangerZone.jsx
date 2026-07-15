@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNav } from '../routing';
 import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { useModalChrome } from '../hooks/useModalChrome';
@@ -8,7 +8,7 @@ import { useModalChrome } from '../hooks/useModalChrome';
 // users, deactivate (reversible) or delete (irreversible) the account.
 const AccountDangerZone = () => {
     const { logout } = useAuthContext();
-    const navigate = useNavigate();
+    const navigate = useNav();
     const [blocked, setBlocked] = useState([]);
     const [confirm, setConfirm] = useState(null); // 'deactivate' | 'delete'
     const [password, setPassword] = useState('');

@@ -1,9 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useSearchParams } from 'react-router-dom';
+import { useQueryParams } from '../routing';
 import { waitingListService } from '../services';
 
 const MyWaitingList = () => {
-    const [searchParams] = useSearchParams();
+    const searchParams = useQueryParams();
     const justJoined = searchParams.get('joined') === '1';
     const [entries, setEntries] = useState([]);
     const [notifications, setNotifications] = useState([]);

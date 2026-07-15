@@ -1,10 +1,11 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
+import { useNav, useQueryParams } from '../routing';
 import { authService } from '../services';
 
 const ResetPassword = () => {
-    const [searchParams] = useSearchParams();
-    const navigate = useNavigate();
+    const searchParams = useQueryParams();
+    const navigate = useNav();
     const token = searchParams.get('token');
 
     const [password, setPassword] = useState('');
