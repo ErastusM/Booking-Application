@@ -4,6 +4,9 @@
 **/build
 **/dist
 **/coverage
+# Capacitor native projects — generated + gitignored; never belong in the web image.
+**/android
+**/ios
 **/.env
 **/.env.*
 !**/.env.example
