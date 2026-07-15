@@ -40,11 +40,17 @@ Both open decisions are now **confirmed** (full Ionic router v5 + adaptive mode)
 | 5 | Full engineering brief → `IONIC_MIGRATION_PROMPT.md` | ✅ Committed |
 | 6 | Token→Ionic bridge → `packages/design-tokens/ionic-bridge.css` (+ package export) | ✅ Committed (unimported) |
 | 7 | Backend dependency tickets → drafted in `docs/…` + filed as issues [#66](https://github.com/ErastusM/Booking-Application/issues/66) (CORS, P0) & [#67](https://github.com/ErastusM/Booking-Application/issues/67) (push, P1) | ✅ Filed |
-| 8 | Phase 0 device proofs (deps + router downgrade, on-device auth, FullCalendar) | ⬜ Needs local Xcode/Android Studio |
+| 8 | GitHub issue breakdown: epic [#68](https://github.com/ErastusM/Booking-Application/issues/68) + phases [#69–#74](https://github.com/ErastusM/Booking-Application/issues/68) as sub-issues | ✅ Created |
+| 9 | Both open decisions locked (router = full Ionic v5; mode = adaptive) | ✅ Confirmed 2026-07-14 |
+| 10 | PR [#75](https://github.com/ErastusM/Booking-Application/pull/75) opened (docs + token bridge → `main`) | ✅ Open · CI green · monitored |
+| 11 | Phase 0 device proofs (deps + router downgrade, on-device auth, FullCalendar) | ⬜ Needs local Xcode/Android Studio |
 
-### Commits on this branch
+### Commits on this branch (newest first)
 ```
-(this commit)  feat(design-tokens): add token→Ionic bridge + draft backend tickets
+d4ac174  docs: lock router (full Ionic v5) + platform mode (adaptive) decisions
+51b9e12  docs: link epic #68 + phase issues (#69-#74) in progress tracker
+32b93cc  docs: link filed backend dependency issues (#66 CORS, #67 push)
+f887c41  feat(design-tokens): add token->Ionic bridge + draft native backend tickets
 d730b26  docs: add migration progress + resume-point tracker
 0fe5eb5  docs: rewrite Ionic migration brief with verified risks and phased plan
 72b222c  docs: pin adaptive platform mode and both-app/both-platform scope
@@ -53,6 +59,17 @@ bb154d6  docs: add Ionic React + Capacitor migration prompt
 Changes so far are **additive and inert**: a new unimported CSS file + a
 package export entry + docs. No changes to `apps/*`; both web builds are
 unaffected.
+
+### PR & monitoring
+- **PR [#75](https://github.com/ErastusM/Booking-Application/pull/75)** (`claude/ionic-framework-overview-l3vwp9` → `main`): **open**,
+  `mergeable_state: clean`, CI **green** (`test` passing; `build-and-push` +
+  `deploy` correctly skipped — they only run on `main`), **0 review comments**.
+  Ready to merge on sign-off. Merging to `main` triggers the deploy pipeline,
+  but no app code changed so it redeploys identical web apps.
+- **Watch:** this session is subscribed to PR #75 activity (auto-responds to CI
+  failures / review comments until merged or closed). ⚠️ The proactive hourly
+  re-check could not be re-armed — the scheduling server (`Claude_Code_Remote`)
+  was disconnected; webhook-driven events still wake the session.
 
 ---
 
