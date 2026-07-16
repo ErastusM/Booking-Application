@@ -3,16 +3,17 @@
 > **Where we are and where to continue.** Companion to `IONIC_MIGRATION_PROMPT.md`
 > (the full engineering brief). This file tracks status; the brief holds the plan.
 
-- **Last updated:** 2026-07-14
+- **Last updated:** 2026-07-15
 - **Branch:** `claude/ionic-framework-overview-l3vwp9`
 - **Tracking:** epic [#68](https://github.com/ErastusM/Booking-Application/issues/68)
   with phases #69–#74 + blockers #66/#67 as sub-issues.
-- **Overall status:** 🟡 **Planning complete; Phase 0 partially started (the
-  device-independent deliverables are done).** The token→Ionic bridge is
-  authored and the two backend tickets are drafted. The device-gated proofs
-  (dep install + react-router downgrade, on-device auth, FullCalendar on device)
-  remain — they need a local machine with Xcode / Android Studio and were **not**
-  run in the cloud session.
+- **Overall status:** 🟢 **Phases 1 & 2 built (on branches); Phase 0 is 3/4 proven
+  on the web — no Mac needed.** Backend blockers #66/#67 are done as held PRs.
+  The only remaining go/no-go input is killer (c): native WebView auth + Google
+  OAuth, which needs a Mac/device. **Nothing merged; nothing deployed; `main`
+  untouched.** Branches: `feat/ionic-cors-origins` (#66), `feat/ionic-push-tokens`
+  (#67), `feat/ionic-p1-foundations` (P1), `feat/ionic-p2-routing-adapter` (P2),
+  `spike/ionic-phase0-web` (killers a/b/d).
 
 ---
 
@@ -119,18 +120,30 @@ Epic [#68](https://github.com/ErastusM/Booking-Application/issues/68) — sub-is
 
 ## Phase checklist
 
-- 🟡 **Phase 0** — Spike & go/no-go (throwaway): token bridge ✅ authored,
-  backend tickets ✅ drafted. Remaining (needs local device tooling): install
-  Ionic + Capacitor, downgrade react-router to v5 & confirm a single copy,
-  prove on-device auth (needs CORS ticket live), prove FullCalendar in
-  `IonContent` via `updateSize()`; write the go/no-go + bundle-size delta.
-- ⬜ **Phase 1** — Web-invisible foundations (deps, lockfile, token bridge,
-  `.dockerignore`), builds byte-identical.
-- ⬜ **Phase 2** — Routing adapter on v6 (pure refactor, per app).
-- ⬜ **Phase 3** — Customer shell flip (atomic v5 swap, web-first).
+- 🟢 **Phase 0** — Spike & go/no-go. Token bridge ✅ authored; backend tickets ✅
+  filed as held PRs (#66 → PR #76, #67 → PR #77). **3 of 4 killers proven on the
+  web (no Mac), branch `spike/ionic-phase0-web`:**
+  - **(a) ✅ single react-router copy** — customer downgraded to
+    `react-router-dom@5.3.4` resolves ONE copy that satisfies `@ionic/react-router@8`'s
+    `react-router ^5.0.1` peer (reverted after proving).
+  - **(b) ✅ token bridge on-brand** — computed styles: `color=primary` →
+    rgb(240,62,22) orange, `color=dark` (real CTA) → rgb(4,5,5) black, IonCard →
+    white; dark mode flips bg→rgb(10,10,11)/text→rgb(230,232,231) via `body.dark-mode`.
+  - **(d) ✅ FullCalendar in `IonContent`** — `getApi().updateSize()` after mount →
+    1389px height (not 0), 7 day columns, 96 time-slots, event rendered.
+  - **Bundle delta:** app-wide Ionic React adds **~178 KB gzip** (measured as the
+    lazy spike chunk; the main bundle was unaffected while unimported).
+  - **(c) ⬜ native WebView auth + Google OAuth** — the ONLY remaining killer;
+    needs a Mac/device. #66 (its CORS prereq) is done.
+- ✅ **Phase 1** — Web-invisible foundations (deps, lockfile, `.dockerignore`) —
+  `feat/ionic-p1-foundations`; both web builds **byte-identical** (deps unimported).
+- ✅ **Phase 2** — Routing adapter on v6 (`useNav`/`useQueryParams`/`AppRedirect`
+  over 28 call sites) — `feat/ionic-p2-routing-adapter`; e2e identical before/after.
+- 🟢 **Phase 3** — Customer shell flip (atomic v5 swap, web-first) — **READY**;
+  the router swap + bridge + FullCalendar are pre-proven. Gated only on killer (c).
 - ⬜ **Phase 4** — Business shell flip + FullCalendar/Maps.
-- ⬜ **Phase 5** — Capacitor native shells (both apps, platform-gated).
-- ⬜ **Phase 6** — Native CI + store release + hardening.
+- ⬜ **Phase 5** — Capacitor native shells (both apps, platform-gated). *Mac.*
+- ⬜ **Phase 6** — Native CI + store release + hardening. *Mac + store accounts.*
 
 **Effort:** ~4–6 months solo / ~3–4 with two engineers, gated on the backend
 dependencies. Web/PWA track (Phases 1–4) can ship independently of native.
@@ -140,23 +153,28 @@ dependencies. Web/PWA track (Phases 1–4) can ship independently of native.
 ## Next steps
 
 1. ~~Confirm the two open decisions~~ ✅ done — full Ionic router (v5) + adaptive mode.
-2. **Backend tickets filed** — [#66 CORS (P0)](https://github.com/ErastusM/Booking-Application/issues/66)
-   and [#67 push tokens (P1)](https://github.com/ErastusM/Booking-Application/issues/67).
-   Get them prioritized with the API owner — long lead time, native is blocked
-   without them.
-3. **Finish Phase 0 locally** (needs Xcode / Android Studio — not runnable in
-   the cloud session):
-   - Add Ionic + Capacitor to `apps/customer`; downgrade react-router to v5;
-     confirm pnpm resolves a single copy.
-   - Import `@bookplus/design-tokens/ionic-bridge.css` on a spike screen; verify
-     `IonButton`/`IonToggle`/`IonCard`/`IonTabBar` on-brand in light + dark.
-   - Prove a native WebView authenticates against the API (needs CORS ticket).
-   - Prove FullCalendar survives `IonContent` via `updateSize()`.
-   - Write the go/no-go with a bundle-size delta.
-4. **Stop and review** before touching production pages (Phase 1+).
+2. ~~File + build the backend blockers~~ ✅ done as **held PRs**: #66 → PR #76
+   (`feat/ionic-cors-origins`, +7 tests), #67 → PR #77 (`feat/ionic-push-tokens`,
+   +6 tests, backward-compatible, no index migration). Both additive/web-safe.
+   **Deploy them when ready** (they can ship to the live API independently).
+3. ~~Web-testable Phase 0 killers~~ ✅ done (no Mac) — killers (a), (b), (d) proven,
+   see the Phase-0 block above. Only **(c) native WebView auth + Google OAuth**
+   remains — the ONE thing needing a **Mac / device**:
+   - `npx cap add ios/android`, open the shell, sign in with **email/password**,
+     let the access token expire → confirm the **localStorage body-token refresh**
+     works (the `bp_rt` SSO cookie will NOT attach at `capacitor://localhost`).
+   - Attempt **Google sign-in in the WebView** — Google blocks its consent screen
+     in embedded WebViews (`disallowed_useragent`), so this likely needs a native
+     flow (Capacitor Google-Auth plugin / ASWebAuthenticationSession + Custom Tabs
+     with a custom-scheme redirect). **Treat OAuth feasibility as a go/no-go input.**
+   - Write the final go/no-go (the web half is already recorded above).
+4. On **GO**, Phase 3 (customer shell flip, web-first) is ready — the router swap,
+   bridge, and FullCalendar-in-IonContent are all pre-proven on the web.
 
-### Already delivered for Phase 0/1 (device-independent)
+### Already delivered / on branches (nothing merged, `main` untouched)
 - `packages/design-tokens/ionic-bridge.css` — the full `--ion-*` mapping
   (primary=orange accent, dark=black CTA, AA-safe contrast, white-cards-on-gray,
-  light + dark). Importable as `@bookplus/design-tokens/ionic-bridge.css`.
-- `docs/ionic-native-backend-dependencies.md` — ready-to-file CORS + push tickets.
+  light + dark). **Proven on the web** (see killer (b)).
+- **#66** CORS + **#67** push-token PRs (held); **P1** foundations + **P2** routing
+  adapter branches; **`spike/ionic-phase0-web`** (reproducible killer proofs).
+- `docs/ionic-native-backend-dependencies.md` — the CORS + push tickets.
