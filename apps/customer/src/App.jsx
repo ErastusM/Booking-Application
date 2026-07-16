@@ -33,6 +33,7 @@ const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const About = lazy(() => import('./pages/About'));
 const ManageBooking = lazy(() => import('./pages/ManageBooking'));
 const Wallet = lazy(() => import('./pages/Wallet'));
+const IonicSpike = lazy(() => import('./pages/IonicSpike')); // PHASE 0 SPIKE — throwaway
 
 // The footer only belongs on the two "website" pages — everywhere else the
 // app chrome stays clean (bottom nav on mobile, nothing on desktop).
@@ -76,6 +77,7 @@ function AppRoutes() {
                     {/* /services was folded into the home feed (search + category filters). Old links redirect. */}
                     <Route path="/services" element={<Navigate to="/" replace />} />
                     <Route path="/about" element={<About />} />
+                    <Route path="/ionic-spike" element={<IonicSpike />} />{/* PHASE 0 SPIKE — throwaway */}
                     <Route path="/providers/:id" element={<ProviderProfilePage />} />
                     {/* Shareable public booking link → resolves the slug to the profile */}
                     <Route path="/b/:slug" element={<ProviderProfileBySlug />} />
