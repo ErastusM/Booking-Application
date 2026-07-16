@@ -1,12 +1,21 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { API_BASE } from '../services/api';
 
+// Where to land after signing in. `?next=` lets a flow that had to interrupt the
+// visitor (e.g. joining a waiting list mid-booking) send them back where they
+// were instead of dropping them on Home. Only same-origin RELATIVE paths are
+// honoured — an absolute or protocol-relative URL would turn our own login into
+// an open redirect.
+const safeNext = (raw) => (raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : null);
+
 const Login = () => {
     const { login } = useAuthContext();
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
+    const next = safeNext(searchParams.get('next'));
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
@@ -29,7 +38,7 @@ const Login = () => {
             // clear error pointing at the business app instead of a wrong-side login.
             const response = await authService.login(formData);
             login(response.data.data);
-            navigate('/');
+            navigate(next || '/');
         } catch (err) {
             setError(err.response?.data?.message || 'Login failed');
             // 403 = this email is a business account with no customer account yet.

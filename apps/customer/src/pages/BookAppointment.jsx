@@ -10,7 +10,14 @@ import { mapsUrl } from '../utils/maps';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import RecurrenceFields from '../components/RecurrenceFields';
 import StatusOverlay from '../components/StatusOverlay';
+import AuthPrompt from '../components/AuthPrompt';
 import { track } from '../services/client';
+
+// The API answers a signed-out request with "No token, authorization denied".
+// That's server-speak for "you're signed out" — never show it. Anything else
+// (a real validation/conflict message) is worth surfacing as-is.
+const friendlyError = (err, fallback) =>
+    (err?.response?.status === 401 ? 'Please sign in to continue.' : (err?.response?.data?.message || fallback));
 
 const BookAppointment = () => {
     const { user } = useAuthContext();
@@ -40,6 +47,7 @@ const BookAppointment = () => {
     const [joining, setJoining] = useState(false); // waiting-list join in flight
     const [error, setError] = useState('');
     const [confirmedOverlay, setConfirmedOverlay] = useState(null); // full-screen success moment → { subtitle, next }
+    const [authPrompt, setAuthPrompt] = useState(null); // signed-out + needs an account → { title, message, allowGuest }
     const [providerAvailability, setProviderAvailability] = useState(null);
     const [availabilityError, setAvailabilityError] = useState('');
     const [bookedSlots, setBookedSlots] = useState([]); // [{startTime, endTime}]
@@ -335,13 +343,38 @@ const BookAppointment = () => {
                 }
             }
         } catch (err) {
+            // A 401 here means the session lapsed (a fresh booking is guest-friendly
+            // and never needs one). Offer the ways forward instead of the raw text —
+            // guest only when it can actually work, i.e. NOT for a reschedule, which
+            // is tied to the account that owns the appointment.
+            if (err.response?.status === 401) {
+                setAuthPrompt({
+                    title: rescheduleId ? 'Sign in to reschedule' : 'Sign in to finish booking',
+                    message: rescheduleId
+                        ? 'Changing an existing appointment needs the account it was booked with. You can also use the “Manage booking” link from your confirmation email.'
+                        : 'Your session has expired. Sign in to finish — or just carry on as a guest and we’ll email your confirmation.',
+                    allowGuest: !rescheduleId,
+                    guestLabel: 'Continue as guest',
+                });
+                setLoading(false);
+                return;
+            }
             // Stay ON the review screen so the Confirm button doesn't vanish —
             // the review-step error banner shows the reason; scroll it into view.
-            setError(err.response?.data?.message || (rescheduleId ? 'Failed to reschedule appointment' : 'Failed to book appointment'));
+            setError(friendlyError(err, rescheduleId ? 'Failed to reschedule appointment' : 'Failed to book appointment'));
             window.scrollTo({ top: 0, behavior: 'smooth' });
         } finally {
             setLoading(false);
         }
+    };
+
+    // A waiting list can't take guests: the entry is keyed to a real customer so we
+    // can reach them when the slot frees up. So ask up-front instead of firing a
+    // request that 401s and dumps "No token, authorization denied" in the banner.
+    const waitlistAuthPrompt = {
+        title: 'Sign in to join the waiting list',
+        message: 'Joining a waiting list needs an account — that’s how we reach you the moment this slot frees up. (Booking an open slot works without one.)',
+        allowGuest: false,
     };
 
     const handleJoinWaitingList = async () => {
@@ -349,6 +382,7 @@ const BookAppointment = () => {
             setError('Please fill in service, date and start time first');
             return;
         }
+        if (!user) { setError(''); setAuthPrompt(waitlistAuthPrompt); return; }
         setError('');
         setJoining(true);
         try {
@@ -362,7 +396,9 @@ const BookAppointment = () => {
                 }
             }, 120);
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to join waiting list');
+            // Session expired mid-flow → prompt rather than leak the 401 text.
+            if (err.response?.status === 401) setAuthPrompt(waitlistAuthPrompt);
+            else setError(friendlyError(err, 'Failed to join waiting list'));
             setJoining(false);
         }
     };
@@ -457,6 +493,19 @@ const BookAppointment = () => {
         ? new Date(formData.appointmentDate + 'T00:00:00').toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' })
         : '';
 
+    // Built ONCE and rendered from both returns below. The waiting-list prompt is
+    // triggered from the form screen and the booking one from the review screen —
+    // defining it here is what stops it existing in only one of them.
+    // `next` carries the current URL (which holds providerId/serviceId) so signing
+    // in returns the visitor to this business instead of dumping them on Home.
+    const authPromptEl = authPrompt && (
+        <AuthPrompt
+            {...authPrompt}
+            next={typeof window !== 'undefined' ? `${window.location.pathname}${window.location.search}` : undefined}
+            onClose={() => setAuthPrompt(null)}
+        />
+    );
+
     // â"€â"€â"€ REVIEW SCREEN â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     if (step === 'review') {
         return (
@@ -473,6 +522,7 @@ const BookAppointment = () => {
                         onDone={() => navigate(confirmedOverlay.next)}
                     />
                 )}
+                {authPromptEl}
                 {/* Header */}
                 <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
                     <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 20% 50%, rgba(240,62,22,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
@@ -643,6 +693,7 @@ const BookAppointment = () => {
                     onDone={() => navigate(confirmedOverlay.next)}
                 />
             )}
+            {authPromptEl}
             {/* Header */}
             <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 20% 50%, rgba(240,62,22,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
