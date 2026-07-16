@@ -2,6 +2,7 @@ const nodemailer = require('nodemailer');
 const pino = require('pino');
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const { primaryOrigin, businessOrigin, originForRole } = require('./origins');
+const { apptPhrase, ApptPhrase, quoted, servicePhrase } = require('./apptCopy');
 
 // Resend HTTP API (https://resend.com) — sends over port 443, so email works
 // even when the host firewalls outbound SMTP ports (465/587). Preferred when set.
@@ -302,8 +303,8 @@ exports.sendAppointmentCompleted = async (email, name, serviceName) => {
         from: FROM, to: email, subject: 'Thanks for visiting',
         html: shell({
             heading: `Thanks, ${escapeHtml(name)}!`,
-            preheader: `How was your ${serviceName}?`,
-            inner: `${p(`Your <strong>${escapeHtml(serviceName)}</strong> appointment is complete. We’d love your feedback.`)}
+            preheader: `How was ${apptPhrase(serviceName)}?`,
+            inner: `${p(`Your <strong>${quoted(escapeHtml(serviceName))}</strong> appointment is complete. We’d love your feedback.`)}
                 <div style="margin:24px 0;">${primaryButton(`${primaryOrigin() || '#'}/appointments`, 'Leave a review')}</div>`,
         }),
     });
@@ -358,12 +359,12 @@ exports.sendAppointmentRescheduledClient = async (email, name, serviceName, date
 exports.sendReminder24h = async (email, name, serviceName, date, time, extras = {}) => {
     const { gcalUrl, manageUrl, ics } = extras;
     await safeSend({
-        from: FROM, to: email, subject: `Reminder: ${serviceName} tomorrow`,
+        from: FROM, to: email, subject: `Reminder: ${apptPhrase(serviceName)} is tomorrow`,
         attachments: ics ? [icsAttachment(ics)] : undefined,
         html: shell({
             heading: `Hi ${escapeHtml(name)}, a quick reminder`,
-            preheader: `${serviceName} is tomorrow at ${time}`,
-            inner: `${p(`Your <strong>${escapeHtml(serviceName)}</strong> is coming up <strong>tomorrow</strong>. We look forward to seeing you.`)}
+            preheader: `${ApptPhrase(serviceName)} is tomorrow at ${time}`,
+            inner: `${p(`Your <strong>${quoted(escapeHtml(serviceName))}</strong> appointment is coming up <strong>tomorrow</strong>. We look forward to seeing you.`)}
                 ${detailsCard([['Service', escapeHtml(serviceName)], ['When', `${date}, ${time}`]])}
                 ${actionRow([
                     gcalUrl && { href: gcalUrl, label: 'Add to calendar' },
@@ -377,12 +378,12 @@ exports.sendReminder24h = async (email, name, serviceName, date, time, extras = 
 exports.sendReminder1h = async (email, name, serviceName, time, extras = {}) => {
     const { gcalUrl, manageUrl, ics } = extras;
     await safeSend({
-        from: FROM, to: email, subject: `Reminder: ${serviceName} in about an hour`,
+        from: FROM, to: email, subject: `Reminder: ${apptPhrase(serviceName)} is in about an hour`,
         attachments: ics ? [icsAttachment(ics)] : undefined,
         html: shell({
             heading: `Hi ${escapeHtml(name)}, see you soon`,
-            preheader: `${serviceName} is in about an hour, at ${time}`,
-            inner: `${p(`Your <strong>${escapeHtml(serviceName)}</strong> is in about an hour, at <strong>${time}</strong>. Please arrive a few minutes early.`)}
+            preheader: `${ApptPhrase(serviceName)} is in about an hour, at ${time}`,
+            inner: `${p(`Your <strong>${quoted(escapeHtml(serviceName))}</strong> appointment is in about an hour, at <strong>${time}</strong>. Please arrive a few minutes early.`)}
                 ${actionRow([
                     gcalUrl && { href: gcalUrl, label: 'Add to calendar' },
                     manageUrl && { href: manageUrl, label: 'Manage booking' },
@@ -394,10 +395,10 @@ exports.sendReminder1h = async (email, name, serviceName, time, extras = {}) => 
 exports.sendRebookingPrompt = async (email, name, serviceName, providerName, providerId) => {
     const href = `${primaryOrigin() || '#'}/book-appointment?providerId=${providerId || ''}`;
     await safeSend({
-        from: FROM, to: email, subject: `Time for another ${serviceName}?`,
+        from: FROM, to: email, subject: `Time for another ${quoted(serviceName)} appointment?`,
         html: shell({
             heading: `Hi ${escapeHtml(name)}, ready for your next visit?`,
-            preheader: `Rebook ${serviceName} with ${providerName}`,
+            preheader: `Rebook ${servicePhrase(serviceName)} with ${providerName}`,
             inner: `${p(`It’s been a little while since your <strong>${escapeHtml(serviceName)}</strong> with ${escapeHtml(providerName)}. Book your next appointment in a couple of taps.`)}
                 <div style="margin:24px 0;">${primaryButton(href, 'Book again')}</div>`,
         }),

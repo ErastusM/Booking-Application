@@ -4,6 +4,7 @@ const Appointment = require('../models/Appointment');
 const Service = require('../models/Service');
 const User = require('../models/User');
 const { createNotification } = require('./notificationhelper');
+const { servicePhrase } = require('./apptCopy');
 const emailService = require('./emailService');
 const pushService = require('./pushService');
 const { primaryOrigin } = require('./origins');
@@ -103,11 +104,11 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
         // In-app notification (bell) + a web push so they hear about it with the
         // app closed. The customer app also plays a full-screen celebratory moment
         // on next open (driven by the un-celebrated 'promoted' entry).
-        const goodNews = `Good news! A slot opened up for ${svc?.name || 'your service'} on ${dateStr} at ${startTime}. You've been booked in!`;
+        const goodNews = `Good news! A slot opened up for ${servicePhrase(svc?.name)} on ${dateStr} at ${startTime}. You’ve been booked in!`;
         await createNotification(next.customer._id, goodNews, 'waiting_list', '/appointments');
         pushService.sendToUser(next.customer._id, {
             title: 'A slot opened up! 🎉',
-            body: `You're booked for ${svc?.name || 'your service'} on ${dateStr} at ${startTime}.`,
+            body: `You’re booked for ${servicePhrase(svc?.name)} on ${dateStr} at ${startTime}.`,
             url: '/appointments',
         }).catch(() => {});
 

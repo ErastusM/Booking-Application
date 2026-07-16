@@ -6,6 +6,7 @@ const Availability = require('../models/Availability');
 const Service = require('../models/Service');
 const User = require('../models/User');
 const { createNotification, notifyAdmins } = require('../utils/notificationhelper');
+const { apptPhrase, ApptPhrase, theirApptPhrase, servicePhrase } = require('../utils/apptCopy');
 const walletService = require('../utils/walletService');
 const {
     sendAppointmentConfirmed,
@@ -488,7 +489,7 @@ exports.createAppointment = async (req, res) => {
                     }
                     // Provider override: keep the booking even though funds were short.
                 } else {
-                    createNotification(reservationClientId, `N$${basePrice.toFixed(2)} reserved for your ${svc.name} booking`, 'wallet', '/wallet');
+                    createNotification(reservationClientId, `N$${basePrice.toFixed(2)} reserved for ${apptPhrase(svc.name)}`, 'wallet', '/wallet');
                 }
             } catch (walletErr) {
                 logger.error({ err: walletErr }, 'Wallet reservation failed');
@@ -511,7 +512,7 @@ exports.createAppointment = async (req, res) => {
                 if (svc.provider) {
                     await createNotification(
                         svc.provider,
-                        `🎉 New booking — ${clientLabel} booked ${svc.name}${priceTag} on ${bookingDate} at ${startTime}`,
+                        `🎉 New booking — ${clientLabel} booked ${servicePhrase(svc.name)}${priceTag} on ${bookingDate} at ${startTime}`,
                         'appointment',
                         '/dashboard'
                     );
@@ -520,13 +521,13 @@ exports.createAppointment = async (req, res) => {
                 if (isProviderBooking && customerId) {
                     await createNotification(
                         bookingClient._id,
-                        `✅ You're booked — ${svc.name} with ${req.user.name} on ${bookingDate} at ${startTime}`,
+                        `✅ You’re booked for ${servicePhrase(svc.name)} with ${req.user.name} on ${bookingDate} at ${startTime}.`,
                         'appointment',
                         '/appointments'
                     );
                 }
                 await notifyAdmins(
-                    `New booking: ${svc.name} by ${clientLabel} on ${bookingDate} at ${startTime}`,
+                    `New booking: ${servicePhrase(svc.name)} by ${clientLabel} on ${bookingDate} at ${startTime}`,
                     'system',
                     '/bkplus-command'
                 );
@@ -809,7 +810,7 @@ exports.updateAppointmentStatus = async (req, res) => {
         try {
             if (status === 'completed') {
                 const r = await walletService.deductForCompletion({ appointmentId: appointment._id, resolvedBy: req.user._id });
-                if (r.deducted > 0) createNotification(appointment.customer._id, `N$${r.deducted.toFixed(2)} deducted from your wallet for ${appointment.service?.name}`, 'wallet', '/wallet');
+                if (r.deducted > 0) createNotification(appointment.customer._id, `N$${r.deducted.toFixed(2)} deducted from your wallet for ${apptPhrase(appointment.service?.name)}`, 'wallet', '/wallet');
             } else if (status === 'cancelled') {
                 const r = await walletService.releaseReservation({ appointmentId: appointment._id, resolvedBy: req.user._id });
                 if (r.released > 0) createNotification(appointment.customer._id, `N$${r.released.toFixed(2)} released back to your wallet`, 'wallet', '/wallet');
@@ -830,10 +831,10 @@ exports.updateAppointmentStatus = async (req, res) => {
         }
 
         const messages = {
-            confirmed: `Your appointment for ${appointment.service?.name} has been confirmed!`,
-            completed: `Your appointment for ${appointment.service?.name} is marked as completed. Leave a review!`,
-            cancelled: `Your appointment for ${appointment.service?.name} has been cancelled.`,
-            'no-show': `You missed your appointment for ${appointment.service?.name}. Contact your provider to rebook.`,
+            confirmed: `${ApptPhrase(appointment.service?.name)} has been confirmed.`,
+            completed: `${ApptPhrase(appointment.service?.name)} has been completed — leave a review!`,
+            cancelled: `${ApptPhrase(appointment.service?.name)} has been cancelled.`,
+            'no-show': `You missed ${apptPhrase(appointment.service?.name)}. Contact your provider to rebook.`,
         };
         // In-app notifications only reach registered accounts (guests have none).
         if (messages[status] && appointment.customer?._id) {
@@ -943,7 +944,7 @@ exports.providerRescheduleAppointment = async (req, res) => {
                 const customer = appointment.customer ? await User.findById(appointment.customer).select('name email') : null;
                 if (!customer) return; // walk-in / no account — nothing to notify
                 const dateStr = new Date(appointment.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-                await createNotification(customer._id, `Your ${appointment.service?.name || 'appointment'} was moved to ${dateStr} at ${startTime}.`, 'appointment', '/appointments');
+                await createNotification(customer._id, `${ApptPhrase(appointment.service?.name)} has been moved to ${dateStr} at ${startTime}.`, 'appointment', '/appointments');
                 if (customer.email) {
                     const providerDoc = await User.findById(appointment.provider).select('name businessProfile');
                     const location = providerDoc?.businessProfile?.address || undefined;
@@ -1048,9 +1049,9 @@ exports.rescheduleAppointment = async (req, res) => {
             try {
                 const dateStr = new Date(appointment.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
                 const cc = clientContact(appointment);
-                if (cc.userId) await createNotification(cc.userId, `Your ${appointment.service.name} is now ${dateStr} at ${startTime}.`, 'appointment', '/appointments');
+                if (cc.userId) await createNotification(cc.userId, `${ApptPhrase(appointment.service.name)} has been moved to ${dateStr} at ${startTime}.`, 'appointment', '/appointments');
                 if (appointment.provider) {
-                    await createNotification(appointment.provider, `${cc.name} rescheduled ${appointment.service.name} to ${dateStr} at ${startTime}.`, 'appointment', '/dashboard');
+                    await createNotification(appointment.provider, `${cc.name} rescheduled ${theirApptPhrase(appointment.service.name)} to ${dateStr} at ${startTime}.`, 'appointment', '/dashboard');
                 }
                 if (cc.email) {
                     const { gcalUrl, ics } = calendarHelper.appointmentCalendar(appointment, { description: 'Booked via Bookplus', status: 'CONFIRMED', sequence: 1 });
@@ -1093,7 +1094,7 @@ exports.createGroupBooking = async (req, res) => {
             teamMember: teamMember || null,
         }));
         const appointments = await Appointment.insertMany(docs);
-        await createNotification(req.user._id, `Group booking created: ${clients.length} client(s) for ${svc.name}`, 'appointment', '/dashboard?tab=confirmed');
+        await createNotification(req.user._id, `Group booking created: ${clients.length} client(s) for ${servicePhrase(svc.name)}`, 'appointment', '/dashboard?tab=confirmed');
         res.status(201).json({ success: true, data: appointments });
     } catch (error) {
         logger.error({ err: error }, 'Group booking failed');
@@ -1192,7 +1193,7 @@ exports.cancelAppointmentByToken = async (req, res) => {
             try {
                 if (appt.provider) {
                     const when = new Date(appt.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                    await createNotification(appt.provider, `${appt.customer?.name || appt.guestName || appt.walkInName || 'A client'} cancelled ${appt.service?.name} on ${when}.`, 'appointment', '/dashboard');
+                    await createNotification(appt.provider, `${appt.customer?.name || appt.guestName || appt.walkInName || 'A client'} cancelled ${theirApptPhrase(appt.service?.name)} on ${when}.`, 'appointment', '/dashboard');
                 }
                 // Email the client a cancellation confirmation (registered or guest).
                 const cc = clientContact(appt);
@@ -1264,7 +1265,7 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
             try {
                 if (appt.provider) {
                     const when = new Date(appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-                    await createNotification(appt.provider, `${appt.customer?.name || appt.guestName || appt.walkInName || 'A client'} rescheduled ${appt.service?.name} to ${when} at ${startTime}.`, 'appointment', '/dashboard');
+                    await createNotification(appt.provider, `${appt.customer?.name || appt.guestName || appt.walkInName || 'A client'} rescheduled ${theirApptPhrase(appt.service?.name)} to ${when} at ${startTime}.`, 'appointment', '/dashboard');
                 }
                 // Confirm the new time to the client with an updated calendar entry.
                 const cc = clientContact(appt);
@@ -1273,7 +1274,7 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
                     const { gcalUrl, ics } = calendarHelper.appointmentCalendar(appt, { description: 'Booked via Bookplus', status: 'CONFIRMED', sequence: 1 });
                     const manageUrl = primaryOrigin() ? `${primaryOrigin()}/manage/${req.params.token}` : undefined;
                     await sendAppointmentRescheduledClient(cc.email, cc.name, appt.service?.name, dateStr, startTime, { gcalUrl, ics, manageUrl });
-                    if (cc.userId) await createNotification(cc.userId, `Your ${appt.service?.name} is now ${dateStr} at ${startTime}.`, 'appointment', '/appointments');
+                    if (cc.userId) await createNotification(cc.userId, `${ApptPhrase(appt.service?.name)} has been moved to ${dateStr} at ${startTime}.`, 'appointment', '/appointments');
                 }
             } catch (err) { logger.error({ err }, 'Reschedule notification failed'); }
         });

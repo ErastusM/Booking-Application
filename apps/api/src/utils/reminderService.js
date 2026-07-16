@@ -6,6 +6,7 @@ const { sendReminder24h, sendReminder1h } = require('./emailService');
 const { appointmentCalendar } = require('./calendarHelper');
 const { primaryOrigin } = require('./origins');
 const pushService = require('./pushService');
+const { ApptPhrase } = require('./apptCopy');
 const { withLock } = require('./lock');
 
 const log = pino({ level: process.env.LOG_LEVEL || 'info' });
@@ -27,7 +28,7 @@ const realStartMs = (appt) => {
 const svcName = (appt) => appt.service?.name || 'your appointment';
 // Customer-facing reminder label — "Your Taper Fade appointment" when we know the
 // service, otherwise a plain "Your appointment".
-const apptLabel = (appt) => (appt.service?.name ? `Your ${appt.service.name} appointment` : 'Your appointment');
+const apptLabel = (appt) => ApptPhrase(appt.service?.name);
 // Reminder recipient: the registered customer, or the guest who booked (no account).
 const recipientEmail = (appt) => appt.customer?.email || appt.guestEmail || null;
 const recipientName = (appt) => appt.customer?.name || appt.guestName || 'there';

@@ -732,6 +732,7 @@ exports.deleteAccount = async (req, res) => {
             const Appointment = require('../models/Appointment');
             const walletService = require('../utils/walletService');
             const { createNotification } = require('../utils/notificationhelper');
+const { ApptPhrase } = require('../utils/apptCopy');
             const today = new Date(); today.setHours(0, 0, 0, 0);
             const upcoming = await Appointment.find({
                 $or: [{ customer: user._id }, { provider: user._id }],
@@ -746,7 +747,7 @@ exports.deleteAccount = async (req, res) => {
                 try { await walletService.releaseReservation({ appointmentId: appt._id, resolvedBy: user._id }); } catch (_) {}
                 const otherId = appt.customer?.toString() === user._id.toString() ? appt.provider : appt.customer;
                 if (otherId) {
-                    createNotification(otherId, `An appointment for ${appt.service?.name || 'a service'} was cancelled because the other party closed their account.`, 'appointment', '/appointments');
+                    createNotification(otherId, `${ApptPhrase(appt.service?.name)} was cancelled because the other party closed their account.`, 'appointment', '/appointments');
                 }
             }
         } catch (cleanupErr) {
