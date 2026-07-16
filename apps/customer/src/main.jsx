@@ -29,12 +29,13 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </React.StrictMode>
 );
 
-// Fade out the boot splash once the app has painted (min ~650ms so it reads as a
-// deliberate brand moment, not a flash). Removed after the transition.
+// Hold the boot splash a full 2s after paint, then fade (0.45s CSS transition) and
+// remove. Long enough to read the tagline as a deliberate brand moment AND to let
+// the home render/fetch behind it, so the app is settled when the splash lifts.
 const __splash = document.getElementById('app-splash');
 if (__splash) {
     window.setTimeout(() => {
         __splash.classList.add('app-splash--hidden');
         window.setTimeout(() => __splash.remove(), 500);
-    }, 650);
+    }, 2000);
 }
