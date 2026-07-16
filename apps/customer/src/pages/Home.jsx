@@ -225,19 +225,16 @@ const Home = () => {
     const [favorites, setFavorites] = useState([]);
     const [myAppointments, setMyAppointments] = useState([]);
     const [loading, setLoading] = useState(true);
-    const heroCopyRef = useRef(null);
     const searchWrapRef = useRef(null);
 
-    // Gently fade the hero copy as it scrolls away and let the search bar settle under
-    // the navbar with a soft shadow. Styles are written directly in a rAF callback (no
-    // per-frame re-render of the feed), so it tracks the scroll smoothly — no sudden snap.
+    // Let the sticky search bar settle under the navbar with a soft shadow once the
+    // feed scrolls. Styles are written directly in a rAF callback (no per-frame
+    // re-render of the feed), so it tracks the scroll smoothly — no sudden snap.
     useEffect(() => {
         let raf = 0;
         const apply = () => {
             raf = 0;
             const y = window.scrollY;
-            const copy = heroCopyRef.current;
-            if (copy) copy.style.opacity = String(Math.max(0, 1 - y / 220));
             const wrap = searchWrapRef.current;
             if (wrap) {
                 const stuck = y > 6;
@@ -455,28 +452,17 @@ const Home = () => {
     };
 
     return (
-        <div style={{ background: 'var(--off-white)' }}>
+        <div style={{ background: 'var(--off-white)', paddingTop: 'var(--page-hero-pad-top)' }}>
             <Seo
                 title="Bookplus — Book trusted local services"
                 description="Discover and book trusted local businesses — hair, beauty, barbers, wellness, automotive and more. Real-time availability and instant confirmation."
                 url={typeof window !== 'undefined' ? window.location.origin + '/' : 'https://www.bookplus.pro/'}
             />
 
-            {/* ── Hero copy — fades and scrolls away gently as the feed takes over ── */}
-            <section className="home-hero" style={{ position: 'relative', overflow: 'hidden', background: 'var(--off-white)' }}>
-                <div aria-hidden="true" className="home-hero-wash" style={{ position: 'absolute', inset: 0, pointerEvents: 'none' }} />
-                <div ref={heroCopyRef} className="container" style={{ position: 'relative', textAlign: 'center', maxWidth: '860px', marginLeft: 'auto', marginRight: 'auto', willChange: 'opacity' }}>
-                    <p className="fade-up home-hero-eyebrow" style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '1.1rem' }}>One platform</p>
-                    <h1 className="fade-up fade-up-delay-1" style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.6rem, 6.2vw, 4.6rem)', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1.05, letterSpacing: '-0.02em', margin: '0 0 1.25rem' }}>
-                        All the best services.<br /><span style={{ color: 'var(--gold)' }}>Anywhere.</span>
-                    </h1>
-                    <p className="fade-up fade-up-delay-2 home-hero-sub" style={{ color: 'var(--text-secondary)', fontSize: 'clamp(1rem, 2vw, 1.2rem)', lineHeight: 1.65, maxWidth: '680px', margin: '0 auto 0' }}>
-                        Book trusted professionals for any service, anytime.
-                    </p>
-                </div>
-            </section>
+            {/* Hero tagline lives on the boot splash now — the home opens straight
+                into search + the discover feed (no top hero block). */}
 
-            {/* ── Sticky search — settles under the navbar while the feed scrolls ── */}
+            {/* ── Sticky search — sits under the navbar and settles as the feed scrolls ── */}
             <div ref={searchWrapRef} style={{
                 position: 'sticky', top: 'calc(56px + var(--safe-top, 0px))', zIndex: 100,
                 background: 'var(--off-white)',

@@ -48,6 +48,19 @@
         font-size: 0.72rem; font-weight: 700; letter-spacing: 0.34em; text-transform: uppercase;
         color: #7a7a7a; margin-top: 0.45rem; padding-left: 0.34em;
       }
+      /* Hero tagline — moved here from the home page; the opening moment now
+         carries the promise, so the home opens straight into search. */
+      #app-splash .as-hero {
+        font-family: 'Plus Jakarta Sans Variable', system-ui, -apple-system, Segoe UI, sans-serif;
+        font-size: clamp(1.7rem, 8vw, 2.4rem); font-weight: 800; line-height: 1.08;
+        letter-spacing: -0.02em; color: #040505; text-align: center; margin-top: 1.7rem;
+      }
+      #app-splash .as-hero .as-hero-accent { color: #f03e16; }
+      #app-splash .as-hero-sub {
+        font-family: 'Plus Jakarta Sans Variable', system-ui, sans-serif;
+        font-size: 0.98rem; line-height: 1.5; color: #6a6a6a; text-align: center;
+        margin-top: 0.7rem; max-width: 19rem;
+      }
       @keyframes appSplashIn { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: none; } }
       @media (prefers-reduced-motion: reduce) { #app-splash .as-inner { animation: none; } }
     </style>
@@ -91,6 +104,8 @@
         <div class="as-inner">
             <div class="as-word"><span class="b">book</span><span class="as-pwrap"><span class="p">plus</span><svg class="as-smile" viewBox="0 0 120 24" aria-hidden="true"><path d="M4 5 Q 60 13 116 5 Q 60 23 4 5 Z" fill="#f03e16" /></svg></span></div>
             <div class="as-tag">for customers</div>
+            <div class="as-hero">All the best services.<br /><span class="as-hero-accent">Anywhere.</span></div>
+            <div class="as-hero-sub">Book trusted professionals for any service, anytime.</div>
         </div>
     </div>
     <div id="root"></div>
