@@ -35,6 +35,12 @@ const ProviderDashboard = () => {
     const location = useLocation();
     const toast = useToast();
     const calendarRef = useRef(null);
+    const fcWrapRef = useRef(null);
+    // Day/week calendar fills the space from its top down to just above the bottom
+    // nav, instead of a fixed 680px that left dead grey space on tall phones.
+    // Measured (scroll-corrected) so it's accurate across screen sizes; falls back
+    // to 680 if it can't measure. Month view keeps its natural 'auto' height.
+    const [calHeight, setCalHeight] = useState(680);
     const [showWizard, setShowWizard] = useState(false);
     const [appointments, setAppointments] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -66,6 +72,32 @@ const ProviderDashboard = () => {
     const [currentDate, setCurrentDate] = useState(new Date());
     const [calendarView, setCalendarView] = useState('day');
     const [calendarToast, setCalendarToast] = useState(null); // { msg, type }
+
+    // Size the day/week calendar to fill from its top down to just above the fixed
+    // bottom nav, instead of a hard 680px that left dead grey space on tall phones.
+    // rect.top + scrollY = the wrapper's offset from the PAGE top, so the measurement
+    // is stable no matter the scroll position. We recompute across a short settle
+    // window after mount because the setup-nudge / suggestion cards above the calendar
+    // load in asynchronously and shift its top down — a single measure at first paint
+    // would lock in the wrong height. Also recomputed on every viewport resize.
+    useEffect(() => {
+        if (calendarView === 'month') return; // month grid keeps its natural height
+        const recompute = () => {
+            const el = fcWrapRef.current;
+            if (!el) return;
+            const absTop = el.getBoundingClientRect().top + window.scrollY;
+            const bottomReserve = window.innerWidth <= 768 ? 96 : 32; // fixed bottom nav on phones
+            setCalHeight(Math.max(460, Math.round(window.innerHeight - absTop - bottomReserve)));
+        };
+        // Re-measure at a few points so late-rendering content above the calendar
+        // (nudge cards) can't leave it stuck at the initial-paint height.
+        const timers = [0, 200, 500, 1000, 1600].map((ms) => setTimeout(recompute, ms));
+        window.addEventListener('resize', recompute);
+        return () => {
+            timers.forEach(clearTimeout);
+            window.removeEventListener('resize', recompute);
+        };
+    }, [calendarView]);
     const [blockedTimes, setBlockedTimes] = useState([]);
     const [showBlockedTimeForm, setShowBlockedTimeForm] = useState(false);
     const [editingBlockedTime, setEditingBlockedTime] = useState(null);
@@ -2013,7 +2045,7 @@ const ProviderDashboard = () => {
                             </div>
                         </div>
 
-                        <div className="fc-bookplus-wrapper" style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                        <div ref={fcWrapRef} className="fc-bookplus-wrapper" style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                             <FullCalendar
                                 ref={calendarRef}
                                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -2021,7 +2053,7 @@ const ProviderDashboard = () => {
                                 initialDate={currentDate}
                                 views={{ timeGridThreeDay: { type: 'timeGrid', duration: { days: 3 }, buttonText: '3 day' } }}
                                 headerToolbar={{ left: 'prev,next', center: 'title', right: '' }}
-                                height={calendarView === 'month' ? 'auto' : 680}
+                                height={calendarView === 'month' ? 'auto' : calHeight}
                                 events={fullCalendarEvents}
                                 businessHours={businessHoursConfig}
                                 selectable
