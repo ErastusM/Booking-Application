@@ -362,7 +362,10 @@ const ProviderDashboard = () => {
             await blockedTimeService.deleteBlockedTime(id, { deleteMode: mode });
             await fetchBlockedTimes();
             setRecurringActionModal(null);
-        } catch { }
+            closeBlockedTimeForm(); // also dismiss the edit panel when deleting from it
+        } catch (err) {
+            toast(err?.response?.data?.message || 'Couldn’t remove the blocked time. Please try again.', 'error');
+        }
     };
 
     const confirmRecurringAction = () => {
@@ -2842,9 +2845,12 @@ const ProviderDashboard = () => {
 
             </div>
 
-            {/* Recurring blocked time action modal */}
+            {/* Recurring blocked time action modal. z-index 1100 so it sits ABOVE the
+                block-edit slide-in panel (z-1002) — otherwise, editing/deleting a
+                recurring block opened this "this / all" chooser BEHIND the panel and
+                looked like "Update did nothing". */}
             {recurringActionModal && (
-                <div className="sheet-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setRecurringActionModal(null); }}>
+                <div className="sheet-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setRecurringActionModal(null); }}>
                     <div className="sheet-panel" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius) var(--radius) 0 0', padding: '2rem 1.5rem 2.5rem', width: '100%', maxWidth: '480px', position: 'relative' }}>
                         <button onClick={() => setRecurringActionModal(null)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.4rem', color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
@@ -3261,6 +3267,15 @@ const ProviderDashboard = () => {
                             <button type="submit" disabled={savingBlockedTime} style={{ width: '100%', padding: '0.9rem', background: savingBlockedTime ? '#9ca3af' : 'var(--ink)', color: 'var(--on-ink)', border: 'none', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.95rem', fontWeight: '700', cursor: savingBlockedTime ? 'not-allowed' : 'pointer', letterSpacing: '0.03em' }}>
                                 {savingBlockedTime ? 'Saving...' : editingBlockedTime ? 'Update' : 'Save'}
                             </button>
+
+                            {/* Unblock / delete — only when editing an existing block. Opens the
+                                recurring "this / all" chooser for repeating blocks, otherwise
+                                removes it and closes the panel. */}
+                            {editingBlockedTime && (
+                                <button type="button" onClick={() => handleDeleteBlockedTime(editingBlockedTime)} disabled={savingBlockedTime} style={{ width: '100%', marginTop: '0.65rem', padding: '0.85rem', background: 'none', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: '700', cursor: savingBlockedTime ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                    <Ban size={16} /> Unblock this time
+                                </button>
+                            )}
                         </form>
                 </ChromeModal>
             )}
