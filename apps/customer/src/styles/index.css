@@ -331,7 +331,10 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
 
 /* Tablet / narrow desktop: stack booking layout before the sidebar crowds the form */
 @media (max-width: 900px) {
-  body { overflow-x: hidden; }
+  /* NO `body { overflow-x: hidden }` here — the global rule above already clips
+     horizontally with `clip`. Re-declaring `hidden` made body a SCROLL CONTAINER
+     (per spec, overflow-x:hidden forces overflow-y:visible -> auto), which then
+     swallowed touch scrolling on phones while having ~0 height to scroll. */
   .booking-grid { grid-template-columns: 1fr !important; }
   .booking-summary { display: none !important; }
   .booking-mobile-bar {
@@ -384,7 +387,9 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
   .hidden-mobile { display: none !important; }
   .show-mobile { display: flex !important; }
   .container { padding: 0 0.75rem; }
-  body { overflow-x: hidden; }
+  /* Deliberately NOT re-declaring body{overflow-x:hidden} — see the note in the
+     900px block above. `hidden` here turned body into a scroll container and
+     broke touch scrolling on phones. */
 
   .home-stats-grid { grid-template-columns: repeat(2, 1fr) !important; }
 
