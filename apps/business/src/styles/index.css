@@ -916,6 +916,53 @@ body.dark-mode .fc-bookplus-wrapper .fc-timegrid-slot-minor {
   text-overflow: ellipsis;
 }
 
+/* Which staff member the booking is assigned to — shown only when the
+   calendar is unfiltered ("All staff"), dot in the member's roster colour. */
+.fc-event-appt-staff {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.66rem;
+  font-weight: 600;
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fc-event-appt-staff-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Too short to hold a fourth line */
+.fc-bookplus-wrapper .fc-timegrid-event-short .fc-event-appt-staff {
+  display: none;
+}
+
+/* Staff-lanes view: non-working hours use the same "pattern + colour, not
+   colour alone" rule as .fc-non-business above, including the dark-mode swap
+   to light stripes so closed hours stay obvious on the near-black surface. */
+.staff-lane-offhours {
+  background-color: rgba(4, 5, 5, 0.12);
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(4, 5, 5, 0.22) 0 10px,
+    transparent 10px 20px
+  );
+}
+
+body.dark-mode .staff-lane-offhours {
+  background-color: rgba(0, 0, 0, 0.82);
+  background-image: repeating-linear-gradient(
+    135deg,
+    rgba(255, 255, 255, 0.06) 0 10px,
+    transparent 10px 20px
+  );
+}
+
 /* Blocked time event */
 .fc-event-blocked {
   padding: 4px 8px;

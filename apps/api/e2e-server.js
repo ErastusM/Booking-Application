@@ -11,6 +11,10 @@ const mongoose = require('mongoose');
 process.env.NODE_ENV = process.env.NODE_ENV || 'test';
 process.env.JWT_SECRET = process.env.JWT_SECRET || 'e2e-jwt-secret';
 process.env.REFRESH_TOKEN_SECRET = process.env.REFRESH_TOKEN_SECRET || 'e2e-refresh-secret';
+// passport.js instantiates the Google strategy at require time, so a machine
+// without apps/api/.env (fresh CI/container) needs stand-ins to boot at all.
+process.env.GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID || 'e2e-google-client-id';
+process.env.GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET || 'e2e-google-client-secret';
 // E2E must never attempt real email delivery — disable SMTP before the app loads.
 delete process.env.EMAIL_USER;
 delete process.env.EMAIL_PASS;
@@ -24,12 +28,17 @@ const PORT = process.env.PORT || 5050;
     const User = require('./src/models/User');
     const Service = require('./src/models/Service');
     const Availability = require('./src/models/Availability');
+    const TeamMember = require('./src/models/TeamMember');
+    const Appointment = require('./src/models/Appointment');
 
     // Seed a verified provider with a bookable service + full weekday availability
     const provider = await User.create({
         name: 'E2E Provider', email: 'e2e-provider@bookplus.dev', password: 'Password1!',
         phone: '+264810000000', role: 'provider', providerCategory: 'Beauty & Grooming',
         isVerified: true, provider: 'local',
+        // Onboarded, so the setup wizard doesn't overlay the dashboard and
+        // swallow clicks in specs that drive the calendar.
+        providerSetupComplete: true,
     });
     const service = await Service.create({
         name: 'E2E Haircut', description: 'A test haircut', price: 100, duration: 30,
@@ -48,6 +57,22 @@ const PORT = process.env.PORT || 5050;
     const customer = await User.create({
         name: 'E2E Customer', email: 'e2e-customer@bookplus.dev', password: 'Password1!',
         phone: '+264810000001', role: 'customer', isVerified: true, provider: 'local',
+    });
+
+    // Seed a two-person roster + one walk-in booked on Alex today, so the
+    // dashboard's staff filter and Staff (per-staff lanes) view have real
+    // content to assert against.
+    const [alex] = await TeamMember.create([
+        { provider: provider._id, name: 'Alex Stylist', role: 'Stylist', color: '#3B82F6' },
+        { provider: provider._id, name: 'Billie Barber', role: 'Barber', color: '#10B981' },
+    ]);
+    const today = new Date(); today.setHours(0, 0, 0, 0);
+    await Appointment.create({
+        service: service._id, provider: provider._id, teamMember: alex._id,
+        walkInName: 'Walk-in Wanda', appointmentDate: today,
+        // A full hour, so the calendar card is tall enough to show every line
+        // (short events hide the staff tag by design).
+        startTime: '10:00', endTime: '11:00', status: 'confirmed', totalPrice: 100,
     });
 
     const app = require('./server');

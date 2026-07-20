@@ -25,6 +25,7 @@ import { currencySymbol } from '../utils/currency';
 import { useToast } from '../components/Toast';
 import { statusConfig, ContactActions, ChromeModal, CloseButton, StatsSkeleton, RowsSkeleton, Avatar, fmtConvTime } from './dashboard/primitives';
 import { ProviderAccountTopUpModal, WalletAdjustmentModal } from './dashboard/WalletModals';
+import StaffLanesDay from './dashboard/StaffLanesDay';
 
 const ProviderDashboard = () => {
     const { user, setUser } = useAuthContext();
@@ -101,7 +102,7 @@ const ProviderDashboard = () => {
     const [blockedTimes, setBlockedTimes] = useState([]);
     const [showBlockedTimeForm, setShowBlockedTimeForm] = useState(false);
     const [editingBlockedTime, setEditingBlockedTime] = useState(null);
-    const [blockedTimeForm, setBlockedTimeForm] = useState({ blockType: 'Custom', title: '', date: '', startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', customDays: [] });
+    const [blockedTimeForm, setBlockedTimeForm] = useState({ blockType: 'Custom', title: '', date: '', startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', customDays: [], teamMember: '' });
     const [savingBlockedTime, setSavingBlockedTime] = useState(false);
     const [recurringActionModal, setRecurringActionModal] = useState(null);
     const [timeSelectionPreview, setTimeSelectionPreview] = useState(null);
@@ -112,7 +113,7 @@ const ProviderDashboard = () => {
     const [showApptModal, setShowApptModal] = useState(false);
     const [apptForm, setApptForm] = useState({ serviceId: '', date: '', startTime: '', clientMode: 'existing', customerId: '', clientName: '', notes: '', isRecurring: false, recurrenceType: 'weekly', recurrenceInterval: 1, recurrenceEndDate: '', isGroup: false, groupClients: [{ name: '' }], teamMember: '' });
     const [clientPickerSearch, setClientPickerSearch] = useState('');
-    const [calendarStaffFilter] = useState('all'); // 'all' | teamMember _id
+    const [calendarStaffFilter, setCalendarStaffFilter] = useState('all'); // 'all' | 'unassigned' | teamMember _id
     const [savingAppt, setSavingAppt] = useState(false);
     const [apptError, setApptError] = useState('');
     // Appointment history
@@ -279,10 +280,11 @@ const ProviderDashboard = () => {
                 isRecurring: item.isRecurring,
                 recurrenceType: item.recurrenceType || 'weekly',
                 recurrenceEndDate: item.recurrenceEndDate || '',
+                teamMember: String(item.teamMember?._id || item.teamMember || ''),
             });
         } else {
             setEditingBlockedTime(null);
-            setBlockedTimeForm({ blockType: 'Custom', title: '', date: new Date().toISOString().split('T')[0], startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '' });
+            setBlockedTimeForm({ blockType: 'Custom', title: '', date: new Date().toISOString().split('T')[0], startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', teamMember: '' });
         }
         setShowBlockedTimeForm(true);
     };
@@ -313,6 +315,7 @@ const ProviderDashboard = () => {
             endTime: blockedTimeForm.endTime,
             reason: blockedTimeForm.reason || blockedTimeForm.title || '',
             isRecurring: false,
+            teamMember: blockedTimeForm.teamMember || null,
         };
         if (!editingBlockedTime) {
             setBlockedTimes(prev => [...prev, optimisticEntry]);
@@ -350,6 +353,7 @@ const ProviderDashboard = () => {
                         endTime: blockedTimeForm.endTime,
                         reason: blockedTimeForm.reason || blockedTimeForm.title || '',
                         isRecurring: false,
+                        teamMember: blockedTimeForm.teamMember || undefined,
                     });
                 }
             } else {
@@ -361,6 +365,7 @@ const ProviderDashboard = () => {
                     isRecurring: blockedTimeForm.isRecurring,
                     recurrenceType: blockedTimeForm.isRecurring ? blockedTimeForm.recurrenceType : undefined,
                     recurrenceEndDate: blockedTimeForm.recurrenceEndDate || undefined,
+                    teamMember: blockedTimeForm.teamMember || undefined,
                 };
                 await blockedTimeService.createBlockedTime(payload);
             }
@@ -833,6 +838,18 @@ const ProviderDashboard = () => {
         return String(tmId) === String(calendarStaffFilter);
     };
 
+    // Blocked time can be business-wide (teamMember null → blocks everyone, always
+    // shown) or scoped to one staff member (shown when that member is in view).
+    const blockMatchesStaffFilter = (b) => {
+        const tmId = b.teamMember?._id || b.teamMember || null;
+        if (!tmId) return true;
+        if (calendarStaffFilter === 'all') return true;
+        if (calendarStaffFilter === 'unassigned') return false;
+        return String(tmId) === String(calendarStaffFilter);
+    };
+
+    const activeTeamMembers = teamMembers.filter(m => m.isActive !== false);
+
     const statusCalendarColors = {
         pending:   { bg: '#FEF3C7', text: '#92400E', borderColor: '#F59E0B' },
         confirmed: { bg: '#DBEAFE', text: '#1E40AF', borderColor: '#3B82F6' },
@@ -897,12 +914,14 @@ const ProviderDashboard = () => {
                     startTime: a.startTime,
                     endTime: a.endTime,
                     status: a.status,
+                    staffName: a.teamMember?.name || null,
+                    staffColor: a.teamMember?.color || null,
                     raw: a,
                 },
             };
         }).filter(Boolean);
 
-        const blockedEvents = blockedTimes.map(b => {
+        const blockedEvents = blockedTimes.filter(blockMatchesStaffFilter).map(b => {
             const start = mergeDateAndTime(b.date, b.startTime);
             const end = mergeDateAndTime(b.date, b.endTime);
             if (!start || !end) return null;
@@ -928,7 +947,7 @@ const ProviderDashboard = () => {
     }, [appointments, blockedTimes, calendarStaffFilter]);
 
     const getFullCalendarView = () => {
-        if (calendarView === 'day') return 'timeGridDay';
+        if (calendarView === 'day' || calendarView === 'staff') return 'timeGridDay'; // 'staff' renders its own view; this is the remount fallback
         if (calendarView === '3day') return 'timeGridThreeDay';
         if (calendarView === 'week') return 'timeGridWeek';
         return 'dayGridMonth';
@@ -954,6 +973,19 @@ const ProviderDashboard = () => {
         });
     };
 
+    // Shared by the FullCalendar views and the staff-lanes view.
+    const openApptDetail = (appt, { date, startTime } = {}) => {
+        if (!appt) return;
+        setApptRescheduleForm({
+            appointmentDate: date || toDateString(appt.appointmentDate),
+            startTime: startTime || appt.startTime,
+        });
+        setApptDetailError('');
+        setShowReschedule(false);
+        setShowApptContact(false);
+        setApptDetailModal(appt);
+    };
+
     const handleFullCalendarEventClick = (clickInfo) => {
         const event = clickInfo.event;
         if (event.extendedProps.kind === 'blocked') {
@@ -961,14 +993,10 @@ const ProviderDashboard = () => {
             openBlockedTimeForm(block || null);
             return;
         }
-        setApptRescheduleForm({
-            appointmentDate: toDateString(event.start),
+        openApptDetail(event.extendedProps.raw || null, {
+            date: toDateString(event.start),
             startTime: toTimeKey(event.start),
         });
-        setApptDetailError('');
-        setShowReschedule(false);
-        setShowApptContact(false);
-        setApptDetailModal(event.extendedProps.raw || null);
     };
 
     const showCalendarToast = (msg, type = 'success') => {
@@ -2004,12 +2032,22 @@ const ProviderDashboard = () => {
                         </button>
                         <div className="fc-toolbar-shell" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
                             <div style={{ display: 'inline-flex', background: 'var(--surface-sunken)', border: '1px solid var(--border)', borderRadius: '10px', padding: '3px', gap: '2px' }}>
-                                {[['day', 'Day'], ['3day', '3 Day'], ['week', 'Week'], ['month', 'Month']].map(([view, label]) => {
+                                {[['day', 'Day'], ['3day', '3 Day'], ['week', 'Week'], ['month', 'Month'], ...(activeTeamMembers.length > 0 ? [['staff', 'Staff']] : [])].map(([view, label]) => {
                                     const isActive = calendarView === view;
                                     return (
                                         <button
                                             key={view}
-                                            onClick={() => setCalendarView(view)}
+                                            onClick={() => {
+                                                // currentDate tracks FullCalendar's datesSet range START
+                                                // (Sunday / 1st grid cell), so entering the lanes view from
+                                                // Week/Month would land days before the one being viewed.
+                                                // Snap to FC's real anchor day instead.
+                                                if (view === 'staff') {
+                                                    const api = calendarRef.current?.getApi?.();
+                                                    if (api) setCurrentDate(api.getDate());
+                                                }
+                                                setCalendarView(view);
+                                            }}
                                             aria-pressed={isActive}
                                             style={{
                                                 padding: '0.4rem 1rem',
@@ -2052,7 +2090,57 @@ const ProviderDashboard = () => {
                             </div>
                         </div>
 
+                        {/* Staff filter — who's on the calendar. Chips mirror the view switcher. */}
+                        {teamMembers.length > 0 && (
+                            <div role="group" aria-label="Filter calendar by staff member" style={{ display: 'flex', gap: '0.45rem', overflowX: 'auto', marginBottom: '0.9rem', paddingBottom: '2px', WebkitOverflowScrolling: 'touch' }}>
+                                {[
+                                    { id: 'all', label: 'All staff' },
+                                    { id: 'unassigned', label: `${(user?.name || 'Me').split(' ')[0]} (me)` },
+                                    ...teamMembers.filter(m => m.isActive !== false).map(m => ({ id: String(m._id), label: m.name, color: m.color })),
+                                ].map(({ id, label, color }) => {
+                                    const isActive = String(calendarStaffFilter) === id;
+                                    return (
+                                        <button
+                                            key={id}
+                                            type="button"
+                                            onClick={() => setCalendarStaffFilter(id)}
+                                            aria-pressed={isActive}
+                                            style={{
+                                                display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0,
+                                                padding: '0.38rem 0.85rem', borderRadius: 'var(--radius-pill, 99px)', cursor: 'pointer',
+                                                border: `1px solid ${isActive ? 'var(--gold)' : 'var(--border)'}`,
+                                                background: isActive ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)',
+                                                color: isActive ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                                                fontSize: '0.8rem', fontWeight: isActive ? 700 : 500, fontFamily: 'var(--font-body)',
+                                                whiteSpace: 'nowrap', transition: 'background 0.18s ease, color 0.18s ease, border-color 0.18s ease',
+                                            }}
+                                        >
+                                            {color && <span aria-hidden="true" style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />}
+                                            {label}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+
                         <div ref={fcWrapRef} className="fc-bookplus-wrapper" style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                            {calendarView === 'staff' && activeTeamMembers.length > 0 ? (
+                                <StaffLanesDay
+                                    date={currentDate}
+                                    onDateChange={setCurrentDate}
+                                    ownerName={user?.name}
+                                    teamMembers={teamMembers}
+                                    staffFilter={calendarStaffFilter}
+                                    appointments={appointments}
+                                    blockedTimes={blockedTimes}
+                                    availability={availability}
+                                    statusColors={statusCalendarColors}
+                                    height={calHeight}
+                                    onApptClick={openApptDetail}
+                                    onBlockClick={(block) => openBlockedTimeForm(block)}
+                                    onSlotClick={(sel) => { setApptError(''); setTimeSelectionPreview(sel); }}
+                                />
+                            ) : (
                             <FullCalendar
                                 ref={calendarRef}
                                 plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
@@ -2091,7 +2179,7 @@ const ProviderDashboard = () => {
                                 eventResize={handleFullCalendarEventResize}
                                 datesSet={(arg) => setCurrentDate(arg.start)}
                                 eventContent={(arg) => {
-                                    const { kind, customerName, startTime, endTime } = arg.event.extendedProps;
+                                    const { kind, customerName, startTime, endTime, staffName, staffColor } = arg.event.extendedProps;
                                     if (kind !== 'appointment') {
                                         return (
                                             <div className="fc-event-blocked">
@@ -2099,15 +2187,25 @@ const ProviderDashboard = () => {
                                             </div>
                                         );
                                     }
+                                    // Staff tag only when the calendar is showing everyone —
+                                    // filtered to one member, it would just repeat the filter.
+                                    const showStaffTag = staffName && calendarStaffFilter === 'all';
                                     return (
                                         <div className="fc-event-appt">
                                             <div className="fc-event-appt-time">{startTime}{endTime ? ` – ${endTime}` : ''}</div>
                                             <div className="fc-event-appt-client">{customerName}</div>
                                             <div className="fc-event-appt-service">{arg.event.title}</div>
+                                            {showStaffTag && (
+                                                <div className="fc-event-appt-staff">
+                                                    <span className="fc-event-appt-staff-dot" style={{ background: staffColor || 'var(--gold)' }} aria-hidden="true" />
+                                                    {staffName}
+                                                </div>
+                                            )}
                                         </div>
                                     );
                                 }}
                             />
+                            )}
                         </div>
 
                         {/* Drag/drop/resize feedback toast */}
@@ -2134,11 +2232,13 @@ const ProviderDashboard = () => {
                                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>What's this time for?</h3>
                                         <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                                             {new Date(`${timeSelectionPreview.date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · {timeSelectionPreview.startTime} – {timeSelectionPreview.endTime}
+                                            {timeSelectionPreview.teamMember ? ` · ${teamMembers.find(m => String(m._id) === String(timeSelectionPreview.teamMember))?.name || 'Staff'}` : ''}
                                         </p>
                                     </div>
                                     <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                                         <button onClick={() => {
-                                            setApptForm(prev => ({ ...prev, date: timeSelectionPreview.date, startTime: timeSelectionPreview.startTime }));
+                                            // teamMember is set when the selection came from a staff lane
+                                            setApptForm(prev => ({ ...prev, date: timeSelectionPreview.date, startTime: timeSelectionPreview.startTime, teamMember: timeSelectionPreview.teamMember !== undefined ? timeSelectionPreview.teamMember : prev.teamMember }));
                                             setShowApptModal(true);
                                             setTimeSelectionPreview(null);
                                         }} className="btn-primary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.8rem' }}>
@@ -2151,6 +2251,7 @@ const ProviderDashboard = () => {
                                                 date: timeSelectionPreview.date,
                                                 startTime: timeSelectionPreview.startTime,
                                                 endTime: timeSelectionPreview.endTime,
+                                                teamMember: timeSelectionPreview.teamMember !== undefined ? timeSelectionPreview.teamMember : prev.teamMember,
                                             }));
                                             setTimeSelectionPreview(null);
                                         }} className="btn-outline" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.8rem' }}>
@@ -3005,6 +3106,13 @@ const ProviderDashboard = () => {
                                         <select value={apptForm.teamMember} onChange={e => setApptForm(f => ({ ...f, teamMember: e.target.value }))} className="input" style={{ width: '100%' }}>
                                             <option value="">Me / unassigned</option>
                                             {teamMembers.filter(m => m.isActive !== false).map(m => <option key={m._id} value={m._id}>{m.name}{m.role ? ` · ${m.role}` : ''}</option>)}
+                                            {/* Booking from an inactive member's lane (they can still hold
+                                                appointments) must not render a blank select */}
+                                            {apptForm.teamMember && !teamMembers.some(m => String(m._id) === String(apptForm.teamMember) && m.isActive !== false) && (
+                                                <option value={apptForm.teamMember}>
+                                                    {teamMembers.find(m => String(m._id) === String(apptForm.teamMember))?.name || 'Staff member'} · inactive
+                                                </option>
+                                            )}
                                         </select>
                                     </div>
                                 )}
@@ -3243,15 +3351,40 @@ const ProviderDashboard = () => {
                                 </div>
                             </div>
 
-                            {/* Team member display */}
+                            {/* Who does this block apply to? Business-wide (blocks every lane) or one
+                                staff member. The update API can't move a block between staff, so when
+                                editing we show the scope read-only. */}
                             <div>
-                                <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Team member</label>
-                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem 0.875rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--warm-gray)' }}>
-                                    <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: user?.avatar ? 'transparent' : 'var(--ink)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                        {user?.avatar ? <img src={cloudinaryAvatar(user.avatar)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ color: 'var(--gold)', fontWeight: '700', fontSize: '0.8rem' }}>{user?.name?.[0]}</span>}
+                                <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Applies to</label>
+                                {!editingBlockedTime && activeTeamMembers.length > 0 ? (
+                                    <select
+                                        className="input"
+                                        value={blockedTimeForm.teamMember}
+                                        onChange={e => setBlockedTimeForm(p => ({ ...p, teamMember: e.target.value }))}
+                                        style={{ width: '100%', boxSizing: 'border-box' }}
+                                    >
+                                        <option value="">Whole business (everyone)</option>
+                                        {activeTeamMembers.map(m => <option key={m._id} value={m._id}>{m.name}{m.role ? ` · ${m.role}` : ''} only</option>)}
+                                        {blockedTimeForm.teamMember && !activeTeamMembers.some(m => String(m._id) === String(blockedTimeForm.teamMember)) && (
+                                            <option value={blockedTimeForm.teamMember}>
+                                                {teamMembers.find(m => String(m._id) === String(blockedTimeForm.teamMember))?.name || 'Staff member'} · inactive
+                                            </option>
+                                        )}
+                                    </select>
+                                ) : (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem 0.875rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--warm-gray)' }}>
+                                        <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: user?.avatar && !blockedTimeForm.teamMember ? 'transparent' : 'var(--ink)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                            {user?.avatar && !blockedTimeForm.teamMember
+                                                ? <img src={cloudinaryAvatar(user.avatar)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                : <span style={{ color: 'var(--gold)', fontWeight: '700', fontSize: '0.8rem' }}>{(blockedTimeForm.teamMember ? teamMembers.find(m => String(m._id) === blockedTimeForm.teamMember)?.name : user?.name)?.[0] || '?'}</span>}
+                                        </div>
+                                        <span style={{ fontSize: '0.875rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)', fontWeight: '500' }}>
+                                            {blockedTimeForm.teamMember
+                                                ? `${teamMembers.find(m => String(m._id) === blockedTimeForm.teamMember)?.name || 'Staff member'} only`
+                                                : (activeTeamMembers.length > 0 ? 'Whole business (everyone)' : user?.name)}
+                                        </span>
                                     </div>
-                                    <span style={{ fontSize: '0.875rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)', fontWeight: '500' }}>{user?.name}</span>
-                                </div>
+                                )}
                             </div>
 
                             {/* Frequency */}

@@ -20,6 +20,7 @@ test.describe('Business-side session persistence', () => {
         // bootstrapSession must exchange the business-scoped cookie for a fresh
         // token — landing back on /login would mean persistence is broken.
         await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
-        await expect(page.getByText(SEED.providerName).first()).toBeVisible();
+        // Greeting uses the first name; the full name only lives in hidden menus.
+        await expect(page.getByRole('heading', { name: /^Good (morning|afternoon|evening), E2E/ })).toBeVisible({ timeout: 15_000 });
     });
 });

@@ -6,7 +6,8 @@ import { CalendarClock } from 'lucide-react';
 /**
  * Epic 2.4 — the staff principal's landing view: ONLY their own column
  * (the API scopes /appointments to their TeamMember server-side).
- * The full staff calendar lands with the dashboard route split.
+ * Owners see everyone at once via the dashboard calendar's Staff view
+ * (per-staff lanes) and its staff filter — see dashboard/StaffLanesDay.jsx.
  */
 const MySchedule = () => {
     const { user } = useAuthContext();

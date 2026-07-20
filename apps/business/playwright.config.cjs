@@ -26,6 +26,11 @@ module.exports = defineConfig({
         baseURL: BASE_URL,
         trace: 'on-first-retry',
         screenshot: 'only-on-failure',
+        // Sandboxed containers often pre-install one Chromium at a fixed path
+        // instead of the exact build this @playwright/test version downloads.
+        ...(process.env.PW_EXECUTABLE_PATH
+            ? { launchOptions: { executablePath: process.env.PW_EXECUTABLE_PATH } }
+            : {}),
     },
     projects: [
         { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
