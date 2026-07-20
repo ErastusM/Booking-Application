@@ -103,6 +103,9 @@ const appointmentSchema = new mongoose.Schema(
             }],
             default: [],
         },
+        // The mutually-exclusive service variant chosen at booking (Service.options),
+        // recorded so the price/duration match what the customer was quoted.
+        selectedOptionName: { type: String, default: null },
         reminderSent24h: { type: Boolean, default: false },
         reminderSent5h:  { type: Boolean, default: false },
         reminderSent1h:  { type: Boolean, default: false },

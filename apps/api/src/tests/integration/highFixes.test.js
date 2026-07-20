@@ -96,6 +96,41 @@ describe('#7 — a cancelled booking can’t be revived into a re-sold slot', ()
     });
 });
 
+describe('#10 — a chosen service option is priced from the catalogue', () => {
+    it('records the option price and duration, not the base', async () => {
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id, {
+            price: 150, duration: 30,
+            options: [{ name: 'Deluxe', price: 400, duration: 90 }],
+        });
+        const customer = await makeUser();
+        const res = await request(app).post('/api/appointments').set(authHeader(customer)).send({
+            service: svc._id.toString(), appointmentDate: weekdayAhead(5),
+            startTime: '10:00', endTime: '11:30', // 90 min = the Deluxe duration
+            selectedOptionName: 'Deluxe',
+        });
+        expect(res.status).toBe(201);
+        expect(res.body.data.totalPrice).toBe(400); // Deluxe price, not the base 150
+        expect(res.body.data.selectedOptionName).toBe('Deluxe');
+    });
+
+    it('rejects a window that does not match the CLAIMED option length', async () => {
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id, {
+            price: 150, duration: 30,
+            options: [{ name: 'Deluxe', price: 400, duration: 90 }],
+        });
+        const customer = await makeUser();
+        // Claim the 90-min Deluxe option but send a 30-min window — validation tightens
+        // to the chosen option's length, so this mismatch is rejected.
+        const res = await request(app).post('/api/appointments').set(authHeader(customer)).send({
+            service: svc._id.toString(), appointmentDate: weekdayAhead(5),
+            startTime: '10:00', endTime: '10:30', selectedOptionName: 'Deluxe',
+        });
+        expect(res.status).toBe(400);
+    });
+});
+
 describe('#8 — conflict check is per-staff, not provider-wide', () => {
     it('lets a booking reschedule onto a time another staff member holds', async () => {
         const provider = await makeProvider();

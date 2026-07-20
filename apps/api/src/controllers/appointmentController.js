@@ -325,7 +325,7 @@ const advanceDate = (date, type, interval = 1) => {
 
 exports.createAppointment = async (req, res) => {
     try {
-        const { service, appointmentDate, startTime, endTime, notes, selectedAddOns, walkInName, customerId,
+        const { service, appointmentDate, startTime, endTime, notes, selectedAddOns, selectedOptionName, walkInName, customerId,
                 isRecurring, recurrenceType, recurrenceInterval, recurrenceEndDate, teamMember, paymentMethod,
                 guestName, guestEmail, guestPhone } = req.body;
         if (!service || !appointmentDate || !startTime || !endTime) {
@@ -422,19 +422,30 @@ exports.createAppointment = async (req, res) => {
         const addOnPrice = resolvedAddOns.reduce((s, a) => s + a.price, 0);
         const addOnDuration = resolvedAddOns.reduce((s, a) => s + a.duration, 0);
 
+        // A service OPTION (mutually-exclusive variant, e.g. Adults/Students) carries
+        // its own price and duration. The client sends the chosen option's NAME; we
+        // resolve it against the catalogue so the recorded price is the real variant
+        // price — the client priced the booking off the option, but the server used to
+        // silently fall back to svc.price, under-charging on every pricier variant.
+        const chosenOption = (svc.options || []).find(o => o.name === selectedOptionName) || null;
+        const baseServicePrice = chosenOption ? (chosenOption.price || 0) : (svc.price || 0);
+
         // The booking window must match the service's real length. The client sends
         // startTime/endTime, and every conflict guard below — schedule, blocked time,
         // per-staff overlap — is computed from that window. A shrunk window (a 2h
         // service posted as 15m) double-books the provider invisibly; an inverted
         // window (end < start) makes every half-open overlap test trivially false and
-        // slips past all of them. Options each carry their own duration, so any option
-        // length is valid; server-resolved add-on minutes are additive. Providers keep
-        // their override — post-ownership-check they can only affect their own calendar.
+        // slips past all of them. When an option is chosen we validate against ITS
+        // length; otherwise any option's length (or the base) is acceptable, plus the
+        // server-resolved add-on minutes. Providers keep their override — post-
+        // ownership-check they can only affect their own calendar.
         if (isCustomerLike) {
             let bookingDuration = parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime);
             if (bookingDuration < 0) bookingDuration += 24 * 60; // booking crosses midnight
-            const baseDurations = [svc.duration, ...(svc.options || []).map(o => o.duration)]
-                .filter(dur => typeof dur === 'number' && dur > 0);
+            const baseDurations = (chosenOption
+                ? [chosenOption.duration]
+                : [svc.duration, ...(svc.options || []).map(o => o.duration)]
+            ).filter(dur => typeof dur === 'number' && dur > 0);
             if (!baseDurations.length) baseDurations.push(svc.duration || 30);
             const allowed = new Set(baseDurations.map(dur => dur + addOnDuration));
             if (bookingDuration <= 0 || !allowed.has(bookingDuration)) {
@@ -531,7 +542,7 @@ exports.createAppointment = async (req, res) => {
             }
         }
 
-        const basePrice = (svc.price || 0) + addOnPrice;
+        const basePrice = baseServicePrice + addOnPrice;
 
         // Resolve how this booking is paid. When the provider's wallet is on, the
         // client picks wallet or cash (falling back to the provider's default);
@@ -562,6 +573,7 @@ exports.createAppointment = async (req, res) => {
             endTime,
             notes: notes || '',
             selectedAddOns: resolvedAddOns,
+            selectedOptionName: chosenOption ? chosenOption.name : null,
             totalPrice: basePrice,
             status: 'confirmed',
             statusHistory: [{ status: 'confirmed', changedBy: req.user?._id || null }],

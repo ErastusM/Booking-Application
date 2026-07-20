@@ -313,6 +313,10 @@ const BookAppointment = () => {
                 const res = await appointmentService.createAppointment({
                     ...formData,
                     selectedAddOns,
+                    // The chosen variant's NAME — the server resolves its real price
+                    // from the catalogue so the booking records what the customer was
+                    // quoted, not the base service price.
+                    ...(selectedOption?.name ? { selectedOptionName: selectedOption.name } : {}),
                     ...(selectedStaff?._id ? { teamMember: selectedStaff._id } : {}),
                     ...(wallet?.settings?.enabled ? { paymentMethod } : {}),
                     // Guest checkout: send contact details instead of relying on a session.
