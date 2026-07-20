@@ -463,11 +463,13 @@ const BookAppointment = () => {
             if (blocks.length === 0) return [];
         }
 
-        // Convert booked appointments to minute ranges
+        // Convert busy times to minute ranges. The API returns both real bookings
+        // and provider-blocked time (lunch, day off); `kind` keeps them apart so a
+        // blocked hour reads "Unavailable" rather than offering a pointless waitlist.
         const bookedRanges = bookedSlots.map(b => {
             const [bsH, bsM] = b.startTime.split(':').map(Number);
             const [beH, beM] = b.endTime.split(':').map(Number);
-            return { start: bsH * 60 + bsM, end: beH * 60 + beM };
+            return { start: bsH * 60 + bsM, end: beH * 60 + beM, kind: b.kind };
         });
 
         // For today, hide times that have already passed
@@ -927,7 +929,10 @@ const BookAppointment = () => {
                                                         type="button"
                                                         className="pressable"
                                                         data-testid={slot.isBooked ? 'booking-time-booked' : 'booking-time'}
-                                                        onClick={() => handleTimeSelect(slot.time)}
+                                                        // Blocked time isn't held by anyone, so there's no waitlist to join —
+                                                        // the slot is simply not offered.
+                                                        disabled={slot.isBlocked}
+                                                        onClick={() => { if (!slot.isBlocked) handleTimeSelect(slot.time); }}
                                                         style={{
                                                             width: '100%',
                                                             padding: '1rem 1.25rem',
@@ -937,7 +942,7 @@ const BookAppointment = () => {
                                                             color: slot.isBooked ? 'var(--text-muted)' : isSelected ? 'var(--gold-dark)' : 'var(--charcoal)',
                                                             fontWeight: isSelected ? '600' : '400',
                                                             fontSize: '1rem',
-                                                            cursor: 'pointer',
+                                                            cursor: slot.isBlocked ? 'not-allowed' : 'pointer',
                                                             fontFamily: 'var(--font-body)',
                                                             textAlign: 'left',
                                                             display: 'flex',
@@ -948,7 +953,9 @@ const BookAppointment = () => {
                                                     >
                                                         <span>{slot.time}</span>
                                                         {slot.isBooked && (
-                                                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>Taken — tap to join waitlist</span>
+                                                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                                                                {slot.isBlocked ? 'Unavailable' : 'Taken — tap to join waitlist'}
+                                                            </span>
                                                         )}
                                                     </button>
                                                 );

@@ -89,10 +89,11 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                 .filter((b) => b.end > b.start);
             if (!blocks.length) return [];
         }
+        // Includes provider-blocked time as well as real bookings — `kind` marks which.
         const bookedRanges = bookedSlots.map((b) => {
             const [bsH, bsM] = b.startTime.split(':').map(Number);
             const [beH, beM] = b.endTime.split(':').map(Number);
-            return { start: bsH * 60 + bsM, end: beH * 60 + beM };
+            return { start: bsH * 60 + bsM, end: beH * 60 + beM, kind: b.kind };
         });
         let minStart = -1;
         const now = new Date();
@@ -188,7 +189,7 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                             ) : (
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: '0.5rem' }}>
                                     {slots.map((s, i) => (
-                                        <button key={i} disabled={s.isBooked || busy} onClick={() => setPendingTime(s.time)} title={s.isBooked ? 'Already booked' : ''} style={{
+                                        <button key={i} disabled={s.isBooked || busy} onClick={() => setPendingTime(s.time)} title={s.isBooked ? (s.isBlocked ? 'Unavailable' : 'Already booked') : ''} style={{
                                             padding: '0.6rem 0.4rem', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontWeight: '600', fontSize: '0.9rem',
                                             border: `1.5px solid ${s.isBooked ? 'var(--border)' : 'var(--gold)'}`,
                                             background: s.isBooked ? 'var(--surface-sunken)' : 'white',

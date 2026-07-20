@@ -5,6 +5,7 @@ const Service = require('../models/Service');
 const User = require('../models/User');
 const { createNotification } = require('./notificationhelper');
 const { servicePhrase } = require('./apptCopy');
+const { overlapsBlockedTime } = require('./blockedTime');
 const emailService = require('./emailService');
 const pushService = require('./pushService');
 const { primaryOrigin } = require('./origins');
@@ -21,7 +22,11 @@ const toMinutes = (t) => {
     return h * 60 + m;
 };
 
-// Is [startTime,endTime] free of any active appointment for this provider that day?
+// Is [startTime,endTime] free for this provider that day — no active appointment
+// AND no blocked time? Promotion books on the customer's behalf, so it must
+// respect a block just as a customer booking does; otherwise cancelling an
+// appointment that sits inside a newly-blocked window would auto-book the next
+// person in line straight into the provider's time off.
 const slotIsFree = async (providerId, appointmentDate, startTime, endTime) => {
     if (!providerId) return true;
     const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
@@ -33,7 +38,10 @@ const slotIsFree = async (providerId, appointmentDate, startTime, endTime) => {
     }).select('startTime endTime');
     const nStart = toMinutes(startTime);
     const nEnd = toMinutes(endTime || startTime);
-    return !existing.some(a => nStart < toMinutes(a.endTime) && nEnd > toMinutes(a.startTime));
+    if (existing.some(a => nStart < toMinutes(a.endTime) && nEnd > toMinutes(a.startTime))) return false;
+    return !(await overlapsBlockedTime({
+        providerId, appointmentDate, startTime, endTime: endTime || startTime,
+    }));
 };
 
 exports.promoteFromWaitingList = async (service, appointmentDate, startTime, endTime) => {

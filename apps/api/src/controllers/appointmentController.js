@@ -18,6 +18,7 @@ const {
 } = require('../utils/emailService');
 const calendarHelper = require('../utils/calendarHelper');
 const { resolveBookingStaff } = require('../utils/staffBooking');
+const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, toDateKey, BLOCKED_MESSAGE } = require('../utils/blockedTime');
 const { checkCancellationWindow } = require('../utils/cancellationPolicy');
 const { primaryOrigin } = require('../utils/origins');
 
@@ -97,9 +98,83 @@ const hasConflictingAppointment = async (providerId, appointmentDate, startTime,
 };
 
 /**
+ * Which dates of a recurring series can actually be booked?
+ *
+ * Only the FIRST occurrence used to be validated — the rest were inserted
+ * blind, so a weekly series booked straight through the provider's blocked
+ * days, and a daily one booked through closed weekends. Conflicting dates are
+ * SKIPPED and the rest of the series still books: one clash three months out
+ * shouldn't cost the customer the whole booking. The caller reports the
+ * skipped dates back so nobody is surprised by a missing week.
+ *
+ * Batched into two queries, so a 60-occurrence series stays cheap.
+ * `schedule`/blocked filtering is only applied for customer-like bookings —
+ * providers keep the same override they have for a single booking — but an
+ * overlapping APPOINTMENT is skipped for everyone, since nobody may double-book.
+ */
+const filterBookableOccurrences = async ({
+    providerId, dates, startTime, endTime, teamMember, schedule, duration, enforceHoursAndBlocks,
+}) => {
+    if (!providerId || dates.length <= 1) return { kept: dates, skipped: [] };
+
+    const keys = dates.map(toDateKey);
+    const rangeStart = new Date(dates[0]); rangeStart.setHours(0, 0, 0, 0);
+    const rangeEnd = new Date(dates[dates.length - 1]); rangeEnd.setHours(23, 59, 59, 999);
+
+    const [blocks, appts] = await Promise.all([
+        enforceHoursAndBlocks ? findBlocksForDates(providerId, keys, teamMember) : [],
+        Appointment.find({
+            provider: providerId,
+            teamMember: teamMember || null,
+            appointmentDate: { $gte: rangeStart, $lte: rangeEnd },
+            status: { $nin: ['cancelled'] },
+        }).select('appointmentDate startTime endTime').lean(),
+    ]);
+
+    const bucket = (arr, keyOf) => arr.reduce((m, x) => {
+        const k = keyOf(x);
+        (m[k] = m[k] || []).push(x);
+        return m;
+    }, {});
+    const blocksByDate = bucket(blocks, b => b.date);
+    const apptsByDate = bucket(appts, a => toDateKey(a.appointmentDate));
+
+    const start = parseTimeToMinutes(startTime);
+    const end = parseTimeToMinutes(endTime);
+    const clashes = (list) => (list || []).some(x =>
+        start < parseTimeToMinutes(x.endTime) && end > parseTimeToMinutes(x.startTime));
+
+    const kept = [];
+    const skipped = [];
+    dates.forEach((d, i) => {
+        const key = keys[i];
+        // The first occurrence already passed the full booking checks above; never
+        // drop it here, or a series could come back empty.
+        if (i > 0) {
+            const closedThatDay = enforceHoursAndBlocks && schedule
+                && !isTimeWithinSchedule(schedule, d, startTime, duration);
+            if (closedThatDay || clashes(blocksByDate[key]) || clashes(apptsByDate[key])) {
+                skipped.push(key);
+                return;
+            }
+        }
+        kept.push(d);
+    });
+
+    return { kept, skipped };
+};
+
+/**
  * GET /api/appointments/booked-slots?providerId=&date=YYYY-MM-DD
- * Public — returns start/end times of all non-cancelled appointments for a provider on a given date.
- * Used by the booking page to grey out taken time slots.
+ * Public — returns the start/end times a provider is UNAVAILABLE on a given date:
+ * every non-cancelled appointment, plus every blocked time (lunch, day off,
+ * recurring blocks). Used by the booking page to grey out unavailable slots.
+ *
+ * Blocked time is included because the slot list previously only knew about
+ * appointments, so a blocked slot rendered as free and customers booked over it.
+ * Each entry carries a `kind` so the UI can say "Taken" vs "Unavailable"; older
+ * clients that ignore `kind` still treat every entry as busy, which is the
+ * behaviour that matters.
  */
 exports.getBookedSlots = async (req, res) => {
     try {
@@ -121,10 +196,17 @@ exports.getBookedSlots = async (req, res) => {
         // stays provider-wide, exactly as before.
         if (teamMember) query.teamMember = teamMember;
 
-        const appointments = await Appointment.find(query)
-            .select('startTime endTime teamMember -_id');
+        const [appointments, blocks] = await Promise.all([
+            Appointment.find(query).select('startTime endTime teamMember -_id').lean(),
+            findBlocksForDate(providerId, date, teamMember || null),
+        ]);
 
-        res.status(200).json({ success: true, data: appointments });
+        const busy = [
+            ...appointments.map(a => ({ ...a, kind: 'appointment' })),
+            ...blocks.map(b => ({ startTime: b.startTime, endTime: b.endTime, kind: 'blocked' })),
+        ];
+
+        res.status(200).json({ success: true, data: busy });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -292,11 +374,13 @@ exports.createAppointment = async (req, res) => {
         // Enforce the provider's published availability for customer bookings. Providers
         // may book outside hours (walk-ins/overrides). Only enforced when availability
         // has actually been set, so providers who never published hours aren't blocked.
+        let providerSchedule = null; // reused by the recurring-series filter below
         if (isCustomerLike && providerId) {
             const availabilityDoc = await Availability.findOne({ provider: providerId });
-            if (availabilityDoc?.schedule) {
+            providerSchedule = availabilityDoc?.schedule || null;
+            if (providerSchedule) {
                 const bookingDuration = parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime);
-                if (!isTimeWithinSchedule(availabilityDoc.schedule, appointmentDate, startTime, bookingDuration)) {
+                if (!isTimeWithinSchedule(providerSchedule, appointmentDate, startTime, bookingDuration)) {
                     return res.status(400).json({ success: false, message: 'Selected time is outside the provider availability schedule' });
                 }
             }
@@ -318,6 +402,20 @@ exports.createAppointment = async (req, res) => {
                 return res.status(resolution.status).json({ success: false, message: resolution.error });
             }
             resolvedTeamMember = resolution.teamMember;
+        }
+
+        // Blocked time is a hard stop for customers and guests. resolveBookingStaff
+        // only checks blocks when the business HAS staff (it returns early for a
+        // zero-staff business), so without this a solo provider's lunch break or
+        // day off could be booked straight over. Providers keep their override —
+        // they may deliberately book a walk-in into their own blocked time.
+        if (isCustomerLike && providerId) {
+            const blocked = await overlapsBlockedTime({
+                providerId, appointmentDate, startTime, endTime, teamMember: resolvedTeamMember,
+            });
+            if (blocked) {
+                return res.status(400).json({ success: false, message: BLOCKED_MESSAGE });
+            }
         }
 
         if (providerId) {
@@ -408,6 +506,9 @@ exports.createAppointment = async (req, res) => {
         };
 
         let appointment;
+        // Dates in a recurring series that had to be skipped (blocked/closed/taken),
+        // reported back so the client knows which weeks didn't book.
+        let skippedDates = [];
 
         if (isRecurring && recurrenceType && ['daily', 'weekly', 'monthly'].includes(recurrenceType)) {
             const groupId = randomUUID();
@@ -418,13 +519,25 @@ exports.createAppointment = async (req, res) => {
                 d.setMonth(d.getMonth() + 3);
                 return d;
             })();
-            const docs = [];
+            const candidates = [];
             let cur = new Date(appointmentDate);
             const MAX = 60;
-            while (cur <= seriesEnd && docs.length < MAX) {
-                docs.push({ ...baseDoc, appointmentDate: new Date(cur), isRecurring: true, recurrenceType, recurrenceInterval: interval, recurrenceGroupId: groupId, recurrenceEndDate: seriesEnd, manageToken: randomUUID() });
+            while (cur <= seriesEnd && candidates.length < MAX) {
+                candidates.push(new Date(cur));
                 cur = advanceDate(cur, recurrenceType, interval);
             }
+
+            // Drop occurrences that land on blocked time, a closed day, or an
+            // existing booking — previously every date was inserted unchecked.
+            const { kept, skipped } = await filterBookableOccurrences({
+                providerId, dates: candidates, startTime, endTime,
+                teamMember: resolvedTeamMember, schedule: providerSchedule,
+                duration: parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime),
+                enforceHoursAndBlocks: isCustomerLike,
+            });
+            skippedDates = skipped;
+
+            const docs = kept.map(d => ({ ...baseDoc, appointmentDate: new Date(d), isRecurring: true, recurrenceType, recurrenceInterval: interval, recurrenceGroupId: groupId, recurrenceEndDate: seriesEnd, manageToken: randomUUID() }));
             const created = await Appointment.insertMany(docs);
             appointment = created[0];
             await appointment.populate(['service', { path: 'customer', select: 'name email' }]);
@@ -496,8 +609,17 @@ exports.createAppointment = async (req, res) => {
             }
         }
 
-        // Respond immediately — notifications and email run in the background
-        res.status(201).json({ success: true, message: 'Appointment confirmed', data: appointment });
+        // Respond immediately — notifications and email run in the background.
+        // A recurring series reports any dates it had to skip (blocked, closed or
+        // already taken) so the customer isn't silently missing a week.
+        res.status(201).json({
+            success: true,
+            message: skippedDates.length
+                ? `Appointment confirmed. ${skippedDates.length} date(s) in the series were unavailable and were skipped.`
+                : 'Appointment confirmed',
+            data: appointment,
+            ...(skippedDates.length ? { skippedDates } : {}),
+        });
 
         // Notify the provider (in-app) and alert admins of the new booking (fire-and-forget)
         setImmediate(async () => {
@@ -1012,6 +1134,13 @@ exports.rescheduleAppointment = async (req, res) => {
             if (conflict) {
                 return res.status(400).json({ success: false, message: 'This time slot is already booked' });
             }
+            // Same hard stop as booking: a customer must not be able to move an
+            // appointment onto time the provider has blocked off.
+            if (await overlapsBlockedTime({
+                providerId, appointmentDate, startTime, endTime, teamMember: appointment.teamMember || null,
+            })) {
+                return res.status(400).json({ success: false, message: BLOCKED_MESSAGE });
+            }
         }
 
         appointment.appointmentDate = new Date(appointmentDate);
@@ -1250,6 +1379,12 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
             }
             if (await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appt._id)) {
                 return res.status(400).json({ success: false, message: 'That time slot is already booked.' });
+            }
+            // Guest "manage my booking" reschedule — same blocked-time hard stop.
+            if (await overlapsBlockedTime({
+                providerId, appointmentDate, startTime, endTime, teamMember: appt.teamMember || null,
+            })) {
+                return res.status(400).json({ success: false, message: BLOCKED_MESSAGE });
             }
         }
 

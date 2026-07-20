@@ -19,10 +19,14 @@ export const fmtMinutes = (mins) =>
 /**
  * @param {Object}   args
  * @param {{start:number,end:number}[]} args.blocks       working blocks for the day
- * @param {{start:number,end:number}[]} args.bookedRanges  already-booked ranges
+ * @param {{start:number,end:number,kind?:string}[]} args.bookedRanges  busy ranges.
+ *        `kind:'blocked'` marks provider-blocked time (lunch, day off) as opposed
+ *        to a real booking — an hour busy ONLY because of those is "Unavailable",
+ *        not "Taken", and offering its waitlist would be meaningless. A range with
+ *        no `kind` is treated as a booking, so older callers behave exactly as before.
  * @param {number}   args.duration  service length in minutes (also the slot grid)
  * @param {number}   [args.minStart] earliest allowed start (e.g. "now" for today); -1 = none
- * @returns {{time:string, isBooked:boolean}[]}
+ * @returns {{time:string, isBooked:boolean, isBlocked:boolean}[]}
  */
 export const buildTimeSlots = ({ blocks, bookedRanges = [], duration, minStart = -1 }) => {
     const slots = [];
@@ -41,16 +45,24 @@ export const buildTimeSlots = ({ blocks, bookedRanges = [], duration, minStart =
         for (let hourStart = firstHour; hourStart < block.end; hourStart += 60) {
             let anyFree = false;
             let occupied = false;
+            let hitRealBooking = false;
             for (let start = hourStart; start < hourStart + 60 && start < block.end; start += step) {
                 if (!usable(start)) continue;
-                if (overlapsRange(bookedRanges, start, start + duration)) { occupied = true; continue; }
-                slots.push({ time: fmtMinutes(start), isBooked: false });
+                const end = start + duration;
+                const hits = bookedRanges.filter((b) => start < b.end && end > b.start);
+                if (hits.length) {
+                    occupied = true;
+                    if (hits.some((h) => h.kind !== 'blocked')) hitRealBooking = true;
+                    continue;
+                }
+                slots.push({ time: fmtMinutes(start), isBooked: false, isBlocked: false });
                 anyFree = true;
             }
-            // Fully-taken but genuinely-bookable hour → one greyed pill so the
-            // waitlist still works. Never show a pill for a past/unusable hour.
+            // Fully-busy but genuinely-bookable hour → one greyed pill. If nothing
+            // but blocked time caused it, mark it so the UI can say "Unavailable"
+            // and skip the waitlist. Never show a pill for a past/unusable hour.
             if (!anyFree && occupied && usable(hourStart)) {
-                slots.push({ time: fmtMinutes(hourStart), isBooked: true });
+                slots.push({ time: fmtMinutes(hourStart), isBooked: true, isBlocked: !hitRealBooking });
             }
         }
     });

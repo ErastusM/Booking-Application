@@ -886,7 +886,12 @@ const ProviderDashboard = () => {
                 extendedProps: {
                     kind: 'appointment',
                     appointmentId: a._id,
-                    customerName: a.customer?.name || '',
+                    // An appointment's client is a registered customer, a guest
+                    // (guest checkout) or a provider-logged walk-in. Reading only
+                    // `customer` left guest and walk-in bookings nameless on the
+                    // calendar, so the owner couldn't tell who was coming.
+                    // Same precedence the API uses for emails/notifications.
+                    customerName: a.customer?.name || a.guestName || a.walkInName || 'Client',
                     startTime: a.startTime,
                     endTime: a.endTime,
                     status: a.status,
@@ -3332,9 +3337,15 @@ const ProviderDashboard = () => {
                         {(() => {
                             const cust = apptDetailModal.customer;
                             const isRegistered = !!cust?._id;
-                            const displayName = apptDetailModal.walkInName || cust?.name || 'Walk-in';
-                            const subtitle = cust?.phone || cust?.email || (isRegistered ? '' : 'Walk-in - no saved contact');
-                            const canContact = isRegistered || cust?.phone || cust?.email;
+                            // A client is a registered customer, a guest (guest checkout,
+                            // contact captured but no account) or a walk-in the provider
+                            // logged. Guests used to fall through to "Walk-in - no saved
+                            // contact" even though we hold their name, email and phone.
+                            const displayName = cust?.name || apptDetailModal.guestName || apptDetailModal.walkInName || 'Client';
+                            const phone = cust?.phone || apptDetailModal.guestPhone || '';
+                            const email = cust?.email || apptDetailModal.guestEmail || '';
+                            const subtitle = phone || email || (isRegistered ? '' : 'No saved contact');
+                            const canContact = isRegistered || phone || email;
                             return (
                                 <div style={{ padding: '1.1rem 1.5rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
@@ -3364,8 +3375,8 @@ const ProviderDashboard = () => {
                                     {showApptContact && canContact && (
                                         <div style={{ marginTop: '0.85rem' }}>
                                             <ContactActions
-                                                phone={cust?.phone}
-                                                email={cust?.email}
+                                                phone={phone}
+                                                email={email}
                                                 onMessage={isRegistered ? () => openChatForAppointment(apptDetailModal) : undefined}
                                             />
                                         </div>
