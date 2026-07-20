@@ -38,11 +38,43 @@ Uncaught JS errors, unhandled promise rejections and React render crashes in
 **both** apps are POSTed to `POST /api/client-errors`, which logs them and pages
 the same webhook (deduplicated, rate-limited). No third-party account needed.
 
-## What you still need to set up (external, one-time)
-
+### 4. External uptime probe (GitHub Actions — the baseline monitor)
 Container health tells the *host* something is wrong; it can't tell *you* if the
-whole box is down. Add an external monitor (UptimeRobot, BetterStack, Pingdom —
-all have free tiers):
+whole box is down. `.github/workflows/uptime.yml` probes the three production
+URLs **from outside** (GitHub-hosted runners) every ~10 minutes, plus on demand
+via the workflow's **Run workflow** button:
+
+| Target             | URL                                   | Healthy |
+|--------------------|---------------------------------------|---------|
+| API readiness      | `https://api.bookplus.pro/api/health` | `200` (503 = Mongo down) |
+| Customer site      | `https://www.bookplus.pro/`           | `<400`  |
+| Business app       | `https://business.bookplus.pro/`      | `<400`  |
+
+Each target gets **3 attempts** (15 s timeout, 20 s apart) before it counts as
+down, so a single transient blip doesn't page anyone. When something is down:
+
+- **GitHub issue (always):** the run opens an issue labeled `uptime`, titled
+  `Uptime: <host> failing` — one per target. Subsequent failing runs comment on
+  the existing open issue instead of opening duplicates; close it once the
+  target is confirmed healthy. No setup needed.
+- **Webhook (optional):** if the `ALERT_WEBHOOK_URL` **GitHub repo secret** is
+  set (Settings → Secrets and variables → Actions), the run POSTs the same
+  Slack/Discord-style `{ text }` payload as the backend alerts — point it at
+  the same channel. Silently skipped if the secret is unset.
+- Per-target results (HTTP code, up/DOWN) appear in the run's step summary,
+  and the run itself goes red.
+
+Caveats: GitHub cron is best-effort — runs can start late or be skipped under
+load — and GitHub auto-disables scheduled workflows after ~60 days without repo
+activity (one click re-enables). Good enough as a baseline; see below for
+tighter guarantees.
+
+## Optional extra redundancy: a dedicated external monitor
+
+The GitHub Actions probe above covers the basics, but it can't promise exact
+intervals and can't alert if github.com itself is having a bad day. For
+guaranteed 1–5 min checks, add a dedicated monitor (UptimeRobot, BetterStack,
+Pingdom — all have free tiers) on the same three URLs:
 
 | Monitor            | URL                                   | Healthy | Interval |
 |--------------------|---------------------------------------|---------|----------|
@@ -54,8 +86,9 @@ Point the monitor's alert at the same Slack/Discord channel as `ALERT_WEBHOOK_UR
 (or an email/SMS). Recommended alert rules: status ≠ expected for 2 consecutive
 checks, or response time > 3s.
 
-Set `ALERT_WEBHOOK_URL` in the host `.env.production` (and optionally as a GitHub
-secret seeded on deploy) so backend + frontend alerts actually deliver.
+Set `ALERT_WEBHOOK_URL` in the host `.env.production` (backend + frontend error
+alerts) **and** as a GitHub Actions repo secret (uptime workflow) so everything
+pages the same place.
 
 ## Optional hardening (not enabled — deliberate)
 

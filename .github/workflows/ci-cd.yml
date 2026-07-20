@@ -155,8 +155,11 @@ jobs:
               echo "waiting for API health ($status)..."; sleep 3
             done
             # One-off data migrations, all idempotent — safe on every deploy.
-            docker compose exec -T server node scripts/migrate_team_colors.js || true
+            # They run via `exec` against the NEW container (hence the health gate
+            # above), so a failure can't gate the rollout itself — but it must fail
+            # this deploy step loudly instead of being silently swallowed.
+            docker compose exec -T server node scripts/migrate_team_colors.js || { echo "DEPLOY FAILED: migrate_team_colors.js exited non-zero" >&2; exit 1; }
             # Email + account-type auth: backfill accountType and swap the
             # unique email index for the compound {email, accountType} one.
-            docker compose exec -T server node scripts/migrate_account_types.js || true
+            docker compose exec -T server node scripts/migrate_account_types.js || { echo "DEPLOY FAILED: migrate_account_types.js exited non-zero" >&2; exit 1; }
             docker image prune -f

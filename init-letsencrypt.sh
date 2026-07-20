@@ -4,7 +4,7 @@
 
 set -e
 
-domains=(bookplus.pro www.bookplus.pro api.bookplus.pro business.bookplus.pro)
+domains=(bookplus.pro www.bookplus.pro app.bookplus.pro api.bookplus.pro business.bookplus.pro)
 email="bookplusdigital@gmail.com"
 data_path="./certbot"
 rsa_key_size=4096

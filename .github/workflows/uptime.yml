@@ -1,0 +1,162 @@
+# Baseline uptime monitor — probes the three production URLs from GitHub's
+# runners every ~10 minutes (GitHub cron is best-effort, not exact-interval).
+# Documented in MONITORING.md ("External uptime probe").
+#
+# Alert path when a target is down:
+#   1. If the ALERT_WEBHOOK_URL repo secret is set, POST a Slack/Discord-style
+#      { text } payload (same shape as apps/api/src/utils/alerts.js) so it can
+#      point at the same channel. Optional — skipped silently if unset.
+#   2. Always open a GitHub issue labeled `uptime` (one per target) — or
+#      comment on the existing open one instead of creating a duplicate.
+# Per-target results also land in the run's step summary, and the run goes red.
+#
+# Self-contained bash + curl + gh/jq (all preinstalled on ubuntu runners);
+# no checkout, no third-party actions.
+
+name: Uptime
+
+on:
+  schedule:
+    - cron: '*/10 * * * *'
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+concurrency:
+  group: uptime
+  cancel-in-progress: false
+
+jobs:
+  probe:
+    name: Probe production URLs
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check endpoints
+        id: check
+        run: |
+          set -u
+          # name|url — the API target uses its real readiness path (/api/health
+          # returns 200 only when Mongo is connected, 503 otherwise); the two
+          # SPAs are healthy on any <400 response from /.
+          targets=(
+            'www.bookplus.pro|https://www.bookplus.pro/'
+            'business.bookplus.pro|https://business.bookplus.pro/'
+            'api.bookplus.pro|https://api.bookplus.pro/api/health'
+          )
+
+          {
+            echo '## Uptime check'
+            echo ''
+            echo '| Target | URL | HTTP | Result |'
+            echo '|--------|-----|------|--------|'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          failed=()
+          for entry in "${targets[@]}"; do
+            name="${entry%%|*}"
+            url="${entry#*|}"
+            # 3 attempts (15s timeout each, 20s apart) before a target counts
+            # as down, so one transient blip doesn't page anyone. --fail turns
+            # HTTP >=400 into a curl error; --retry-all-errors retries those
+            # too, not just network errors. 000 = no HTTP response at all.
+            code="$(curl --silent --show-error --fail --output /dev/null \
+                         --user-agent 'bookplus-uptime (github-actions)' \
+                         --max-time 15 --retry 2 --retry-delay 20 --retry-all-errors \
+                         --write-out '%{http_code}' "$url")" \
+              && result='up' \
+              || { result='DOWN'; failed+=("${name}|${url}|${code}"); }
+            echo "${name}: HTTP ${code} (${result})"
+            echo "| ${name} | ${url} | ${code} | ${result} |" >> "$GITHUB_STEP_SUMMARY"
+          done
+
+          if [ "${#failed[@]}" -eq 0 ]; then
+            echo 'failed=' >> "$GITHUB_OUTPUT"
+            echo 'All targets up.'
+            exit 0
+          fi
+          {
+            echo 'failed<<UPTIME_EOF'
+            printf '%s\n' "${failed[@]}"
+            echo 'UPTIME_EOF'
+          } >> "$GITHUB_OUTPUT"
+          echo "${#failed[@]} target(s) DOWN."
+          exit 1
+
+      - name: Alert webhook (optional, if secret configured)
+        if: failure() && steps.check.outputs.failed != ''
+        env:
+          WEBHOOK_URL: ${{ secrets.ALERT_WEBHOOK_URL }}
+          FAILED: ${{ steps.check.outputs.failed }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -u
+          if [ -z "$WEBHOOK_URL" ]; then
+            echo 'ALERT_WEBHOOK_URL secret not set — skipping webhook (the issue alert below still runs).'
+            exit 0
+          fi
+          summary=''
+          while IFS='|' read -r name url code; do
+            [ -n "$name" ] || continue
+            summary="${summary}${name} (HTTP ${code}); "
+          done <<< "$FAILED"
+          # sites[] carries the structured data; text is the Slack/Discord-style
+          # human line (extra fields are ignored by Slack-compatible receivers).
+          sites_json="$(printf '%s\n' "$FAILED" \
+            | jq -R 'select(length > 0) | split("|") | {site: .[0], url: .[1], status: .[2]}' \
+            | jq -s '.')"
+          payload="$(jq -n \
+            --arg text "Bookplus uptime check FAILED — ${summary}run: ${RUN_URL}" \
+            --arg run_url "$RUN_URL" \
+            --argjson sites "$sites_json" \
+            '{text: $text, sites: $sites, run_url: $run_url}')"
+          curl --silent --show-error --fail --max-time 10 \
+               --header 'Content-Type: application/json' \
+               --data "$payload" "$WEBHOOK_URL" \
+            || echo 'Webhook POST failed (non-fatal — the uptime issue is still opened/updated).'
+
+      - name: Open or update `uptime` issue per failing target
+        if: failure() && steps.check.outputs.failed != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+          FAILED: ${{ steps.check.outputs.failed }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          # pipefail matters: without it a transient `gh issue list` failure is
+          # masked by the `| head` (pipeline exits with head's 0), the dedup
+          # lookup silently comes back empty, and a duplicate issue is minted.
+          set -u -o pipefail
+          # Ensure the label exists first (idempotent — --force updates in place;
+          # `gh issue list --label` would error on a missing label).
+          gh label create uptime \
+            --repo "$GITHUB_REPOSITORY" \
+            --description 'Automated uptime-monitor alerts (.github/workflows/uptime.yml)' \
+            --color D93F0B --force
+
+          now="$(date -u +'%Y-%m-%d %H:%M UTC')"
+          while IFS='|' read -r name url code; do
+            [ -n "$name" ] || continue
+            title="Uptime: ${name} failing"
+            # Dedup: comment on an existing OPEN issue with the exact same
+            # title + label instead of opening another one.
+            existing="$(TITLE="$title" gh issue list --repo "$GITHUB_REPOSITORY" \
+              --state open --label uptime --json number,title \
+              --jq '.[] | select(.title == env.TITLE) | .number' | head -n 1)"
+            if [ -n "$existing" ]; then
+              echo "Open issue #${existing} already tracks ${name} — commenting instead of duplicating."
+              gh issue comment "$existing" --repo "$GITHUB_REPOSITORY" \
+                --body "Still failing: HTTP ${code} as of ${now}. Run: ${RUN_URL}"
+            else
+              body="$(printf '%s\n' \
+                "The scheduled uptime check could not reach **${name}**." \
+                '' \
+                "- URL probed: ${url}" \
+                "- Last HTTP status: \`${code}\` (\`000\` = no HTTP response at all)" \
+                "- First failing run: ${RUN_URL}" \
+                '' \
+                'Opened automatically by `.github/workflows/uptime.yml` (probes every ~10 min, 3 attempts per run). Subsequent failing runs comment here instead of opening duplicates — close this once the target is confirmed healthy.')"
+              gh issue create --repo "$GITHUB_REPOSITORY" \
+                --title "$title" --label uptime --body "$body"
+            fi
+          done <<< "$FAILED"
