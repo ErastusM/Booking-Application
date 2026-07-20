@@ -109,10 +109,13 @@ describe('POST /api/appointments – booking creation', () => {
         expect(res.body.message).toMatch(/already booked|waiting list/i);
     });
 
-    it('calculates totalPrice = service.price + add-on prices', async () => {
+    it('calculates totalPrice = service.price + catalogue add-on prices', async () => {
         const customer = await makeUser();
         const provider = await makeProvider();
-        const svc = await makeService(provider._id, { price: 50 });
+        const svc = await makeService(provider._id, {
+            price: 50,
+            addOns: [{ name: 'Shampoo', price: 10, duration: 0 }, { name: 'Trim', price: 5, duration: 0 }],
+        });
 
         const res = await request(app)
             .post('/api/appointments')
@@ -126,6 +129,30 @@ describe('POST /api/appointments – booking creation', () => {
             });
         expect(res.status).toBe(201);
         expect(res.body.data.totalPrice).toBe(65);
+    });
+
+    it('ignores request-body add-on prices — uses the catalogue, drops unknown add-ons', async () => {
+        const customer = await makeUser();
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id, {
+            price: 50,
+            addOns: [{ name: 'Shampoo', price: 10, duration: 0 }],
+        });
+
+        const res = await request(app)
+            .post('/api/appointments')
+            .set(authHeader(customer))
+            .send({
+                service: svc._id.toString(),
+                appointmentDate: tomorrow(),
+                startTime: '14:00',
+                endTime: '14:30',
+                // Attacker lies about Shampoo's price and injects a fake negative add-on.
+                selectedAddOns: [{ name: 'Shampoo', price: -1000 }, { name: 'Fake', price: -50 }],
+            });
+        expect(res.status).toBe(201);
+        expect(res.body.data.totalPrice).toBe(60); // 50 + catalogue Shampoo 10; lie ignored, fake dropped
+        expect(res.body.data.selectedAddOns).toHaveLength(1);
     });
 });
 

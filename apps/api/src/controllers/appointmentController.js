@@ -322,8 +322,18 @@ exports.createAppointment = async (req, res) => {
         // guest books like a customer but must supply contact details and can't
         // use provider-only powers (walk-in / book-on-behalf) or the wallet.
         const isGuest = !req.user;
-        const isProviderBooking = req.user?.role === 'provider';
-        const isCustomerLike = isGuest || req.user.role === 'customer';
+        // Provider-override powers (log a walk-in, book on behalf, skip published
+        // hours / blocked time / past dates) apply ONLY when the provider owns the
+        // service. A provider booking ANOTHER business's service is just a customer
+        // of that business and is treated exactly like one — otherwise they'd bypass
+        // a stranger's schedule and blocked time and inject bookings onto that
+        // calendar with no ownership check (audit #2). Ownership, not merely the
+        // 'provider' role, is what unlocks the override.
+        const ownsService = req.user?.role === 'provider' && svc.provider
+            && String(svc.provider) === String(req.user._id);
+        const isProviderBooking = ownsService;
+        const isCustomerLike = isGuest || req.user?.role === 'customer'
+            || (req.user?.role === 'provider' && !ownsService);
 
         // Customers, guests and providers book here; admins never did (the route
         // dropped authorize() for guest checkout, so re-assert that contract).
@@ -370,6 +380,39 @@ exports.createAppointment = async (req, res) => {
 
         // Block double-bookings: check provider time overlap (not just same service+time)
         const providerId = svc.provider;
+
+        // Resolve add-ons against the service's OWN catalogue by name, using the
+        // stored price/duration — never the values in the request body. Otherwise a
+        // client can invent a line item or post a negative price to drive totalPrice
+        // (and the wallet reservation) to zero and get a wallet-required service for
+        // free, or poison recorded revenue. Unknown add-ons are dropped, not trusted.
+        const catalogueAddOns = Array.isArray(svc.addOns) ? svc.addOns : [];
+        const resolvedAddOns = (Array.isArray(selectedAddOns) ? selectedAddOns : [])
+            .map(sel => catalogueAddOns.find(a => a.name === sel?.name))
+            .filter(Boolean)
+            .map(a => ({ name: a.name, price: a.price || 0, duration: a.duration || 0 }));
+        const addOnPrice = resolvedAddOns.reduce((s, a) => s + a.price, 0);
+        const addOnDuration = resolvedAddOns.reduce((s, a) => s + a.duration, 0);
+
+        // The booking window must match the service's real length. The client sends
+        // startTime/endTime, and every conflict guard below — schedule, blocked time,
+        // per-staff overlap — is computed from that window. A shrunk window (a 2h
+        // service posted as 15m) double-books the provider invisibly; an inverted
+        // window (end < start) makes every half-open overlap test trivially false and
+        // slips past all of them. Options each carry their own duration, so any option
+        // length is valid; server-resolved add-on minutes are additive. Providers keep
+        // their override — post-ownership-check they can only affect their own calendar.
+        if (isCustomerLike) {
+            let bookingDuration = parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime);
+            if (bookingDuration < 0) bookingDuration += 24 * 60; // booking crosses midnight
+            const baseDurations = [svc.duration, ...(svc.options || []).map(o => o.duration)]
+                .filter(dur => typeof dur === 'number' && dur > 0);
+            if (!baseDurations.length) baseDurations.push(svc.duration || 30);
+            const allowed = new Set(baseDurations.map(dur => dur + addOnDuration));
+            if (bookingDuration <= 0 || !allowed.has(bookingDuration)) {
+                return res.status(400).json({ success: false, message: 'The selected time doesn’t match the service length. Please choose your service and time again.' });
+            }
+        }
 
         // Enforce the provider's published availability for customer bookings. Providers
         // may book outside hours (walk-ins/overrides). Only enforced when availability
@@ -460,7 +503,7 @@ exports.createAppointment = async (req, res) => {
             }
         }
 
-        const basePrice = (svc.price || 0) + (Array.isArray(selectedAddOns) ? selectedAddOns.reduce((sum, a) => sum + (a.price || 0), 0) : 0);
+        const basePrice = (svc.price || 0) + addOnPrice;
 
         // Resolve how this booking is paid. When the provider's wallet is on, the
         // client picks wallet or cash (falling back to the provider's default);
@@ -490,7 +533,7 @@ exports.createAppointment = async (req, res) => {
             startTime,
             endTime,
             notes: notes || '',
-            selectedAddOns: Array.isArray(selectedAddOns) ? selectedAddOns : [],
+            selectedAddOns: resolvedAddOns,
             totalPrice: basePrice,
             status: 'confirmed',
             statusHistory: [{ status: 'confirmed', changedBy: req.user?._id || null }],

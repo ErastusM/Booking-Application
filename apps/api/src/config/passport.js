@@ -1,3 +1,4 @@
+const crypto = require('crypto');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const User = require('../models/User');
@@ -21,11 +22,38 @@ passport.use(new GoogleStrategy({
         let user = await User.findOne({ googleId: profile.id, role: roleFilter });
 
         if (!user) {
-            user = await User.findOne({ email: profile.emails[0].value, role: roleFilter });
-            if (user) {
-                user.googleId = profile.id;
-                if (!user.avatar) user.avatar = profile.photos[0]?.value;
-                await user.save();
+            const email = profile.emails[0].value;
+            // Whether Google actually verified this address. Adopting an existing
+            // local account off an UNVERIFIED Google email is an account-takeover
+            // vector, so we never do it.
+            const googleVerified = profile.emails[0].verified === true
+                || profile.emails[0].verified === 'true'
+                || profile._json?.email_verified === true;
+
+            const existing = await User.findOne({ email, role: roleFilter });
+            if (existing) {
+                // Can't prove this Google user owns the mailbox → refuse to link.
+                if (!googleVerified) return done(null, false);
+
+                existing.googleId = profile.id;
+                if (!existing.avatar) existing.avatar = profile.photos[0]?.value;
+                // A pre-existing UNVERIFIED local account on this email may be an
+                // attacker who pre-registered on the victim's address (local register
+                // issues tokens without proving mailbox ownership, and isVerified
+                // gates nothing). Google has now proved the person signing in controls
+                // the mailbox, so we take the account over — but burn any pre-set
+                // password and revoke existing sessions (tokenVersion bump + clear
+                // refresh jtis) so the pre-registrant can't ride the merged account.
+                // An already-verified account is a genuine owner adding Google as a
+                // second sign-in; leave its credentials untouched.
+                if (!existing.isVerified) {
+                    existing.isVerified = true;
+                    existing.password = crypto.randomBytes(32).toString('hex'); // unknown to anyone → disables password login
+                    existing.tokenVersion = (existing.tokenVersion || 0) + 1;
+                    existing.refreshTokenJtis = [];
+                }
+                await existing.save();
+                user = existing;
             } else {
                 user = await User.create({
                     name: profile.displayName,

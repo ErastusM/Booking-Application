@@ -105,7 +105,8 @@ const BookAppointment = () => {
             setSelectedService(service);
             setSelectedOption(null);
             setSelectedAddOns([]);
-            setFormData(prev => ({ ...prev, service: service._id }));
+            // Clear any time picked earlier: it was end-timed for a different service.
+            setFormData(prev => ({ ...prev, service: service._id, startTime: '', endTime: '' }));
         }
     };
 
@@ -113,7 +114,8 @@ const BookAppointment = () => {
         setSelectedService(optionSheet);
         setSelectedOption(option);
         setSelectedAddOns([]);
-        setFormData(prev => ({ ...prev, service: optionSheet._id }));
+        // A different option means a different length — force a fresh time pick.
+        setFormData(prev => ({ ...prev, service: optionSheet._id, startTime: '', endTime: '' }));
         setOptionSheet(null);
     };
 
@@ -123,6 +125,11 @@ const BookAppointment = () => {
                 ? prev.filter(a => a.name !== addOn.name)
                 : [...prev, addOn]
         );
+        // Adding/removing an add-on changes the total duration, so a previously
+        // picked time no longer maps to the right end time. Clear it (the server now
+        // rejects a window that doesn't match the service length) so the customer
+        // re-picks against the new duration rather than getting a confirm-time error.
+        setFormData(prev => ({ ...prev, startTime: '', endTime: '' }));
     };
 
     useEffect(() => {
