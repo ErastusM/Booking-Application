@@ -9,8 +9,10 @@ service-based businesses:
   waiting list.
 - **Business management app** — providers, staff and admins run their calendar,
   services, clients, earnings and team (`business.bookplus.pro`).
-- **Shared API** — one Node/Express/MongoDB backend with JWT SSO across both
-  apps (`api.bookplus.pro`).
+- **Shared API** — one Node/Express/MongoDB backend serving both apps
+  (`api.bookplus.pro`). Sessions are scoped per side: customer and business
+  accounts are separate (`User.accountType`), so logging into one app never
+  signs you into the other.
 
 Each surface is a fully responsive website **and** an installable, app-like PWA
 (bottom-tab nav, safe-area support, splash screen) with Android builds via
@@ -48,7 +50,7 @@ workspace.
 | Shared    | pnpm workspaces; TypeScript packages consumed by both apps |
 | Backend   | Node.js, Express, Mongoose |
 | Database  | MongoDB (nightly mongodump backups with retention) |
-| Auth      | JWT (access + rotating refresh, `tokenVersion` revocation), cross-app SSO cookie, Google OAuth option, role-based access |
+| Auth      | JWT (access + rotating refresh, `tokenVersion` revocation), per-side sessions (separate customer/business accounts, `accountType`-scoped refresh), Google OAuth option, role-based access |
 | Email     | Resend HTTP API (port 443) when configured; skipped without credentials |
 | Push      | Web Push (VAPID) — live in production; disabled without keys |
 | Images    | Cloudinary uploads |
@@ -79,8 +81,8 @@ Server (`apps/api/.env` — see `apps/api/.env.example`):
 | `MONGODB_URI` | MongoDB connection string |
 | `JWT_SECRET`, `REFRESH_TOKEN_SECRET` | Token signing secrets (≥32 chars in prod) |
 | `CLIENT_URL` | Comma-separated CORS allowlist / canonical origins |
-| `PUBLIC_ORIGIN`, `BUSINESS_ORIGIN` | Canonical customer / business origins for links + SSO |
-| `COOKIE_DOMAIN` | Shared cookie scope for cross-app SSO (`.bookplus.pro`) |
+| `PUBLIC_ORIGIN`, `BUSINESS_ORIGIN` | Canonical customer / business origins for links + auth redirects |
+| `COOKIE_DOMAIN` | Refresh-cookie `Domain` scope (`.bookplus.pro`) — refreshes are `accountType`-scoped, so the cookie never bridges customer and business sessions |
 | `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET` | Google OAuth (optional) |
 | `EMAIL_API_KEY` | Resend HTTP email (optional — emails skipped when absent) |
 | `VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, `VAPID_SUBJECT` | Web push (optional) |
@@ -174,8 +176,10 @@ Admins log into the business app; the admin console is role-gated at
 - Per-provider **social share cards** (Facebook/WhatsApp unfurls) still show the
   generic site card — Googlebot gets per-page tags, but non-JS scrapers would
   need prerendering (tracked follow-up).
-- Reminder + waitlist jobs run in-process (no external queue) — fine for one
-  instance.
+- Reminder + wallet-expiry jobs run in-process on cron, and waitlist
+  promotion runs inline when a slot frees up (no external queue); a
+  Mongo-backed distributed lock (`apps/api/src/utils/lock.js`) plus atomic
+  waitlist promotion make them safe across multiple API instances.
 - Waitlist auto-promotion matches exact service + date + start time.
 - Buffer times apply to new bookings' conflict checks; existing appointments'
   own buffers aren't retro-checked.
@@ -188,8 +192,8 @@ Admins log into the business app; the admin console is role-gated at
 | `ARCHITECTURE.md` / `DESIGN.md` / `PRODUCT.md` | System, design-system and product references |
 | `DEPLOY_DUAL_APP.md` | Deploy topology (images, nginx, DNS, CI/CD) |
 | `MONITORING.md` | Healthchecks + external uptime-monitor setup |
-| `QUICK_REFERENCE.md` / `FILE_INDEX.md` | Command + file-map cheat sheets |
+| `START_HERE.md` / `QUICK_REFERENCE.md` | Orientation page + command cheat sheet |
 
 > **Status:** the dual-app restructure is complete and live — customer
-> marketplace + business app on one backend, cross-app SSO, multi-staff
-> scheduling, native builds, SEO and guest checkout all shipped.
+> marketplace + business app on one backend, per-side account sessions,
+> multi-staff scheduling, native builds, SEO and guest checkout all shipped.

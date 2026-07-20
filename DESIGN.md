@@ -6,19 +6,20 @@ Bookplus is a premium multi-role booking platform. The interface should feel mod
 
 ## Visual Direction
 
-The visual language is warm-structured and high-contrast: charcoal surfaces, gold accents, off-white backgrounds, clean borders, and a mix of serif and sans-serif typography to separate hierarchy from body copy.
+The visual language is warm-structured and high-contrast: near-black surfaces, brand-orange accents, off-white backgrounds, clean borders, and a display/body type pairing to separate hierarchy from body copy.
 
 ## Color System
 
-- Primary: gold accents for actions and emphasis
-- Base: charcoal and off-white for contrast and clarity
+- Primary: brand orange `#f03e16` for actions and emphasis
+- Base: near-black `#040505` and off-white `#e6e8e7` for contrast and clarity
 - Supporting neutrals: warm gray, muted text, soft borders
 - Status colors: reserved for booking states and alerts only
+- All values come from `@bookplus/design-tokens/tokens.css` — never redeclare tokens locally
 
 ## Typography
 
-- Headings: Cormorant Garamond for a premium, editorial-feeling hierarchy
-- Body: Outfit for crisp, readable UI text
+- Headings: Plus Jakarta Sans via `var(--font-display)` for a confident, modern hierarchy
+- Body: Inter via `var(--font-body)` for crisp, readable UI text (both self-hosted via @fontsource-variable — never hardcode family names)
 - Use strong size contrast, balanced line lengths, and calm spacing
 
 ## Shape & Elevation

@@ -29,6 +29,7 @@ epics, acceptance criteria) before working on that initiative.**
   (3000/3001/5000 are taken by other stacks on this machine)
 - API tests: `npm test` in `apps/api` (jest, in-memory Mongo)
 - E2E: `pnpm --filter @bookplus/customer test:e2e` (playwright; boots its own API)
+  and `pnpm --filter @bookplus/business test:e2e` (boots API + both apps)
 - Or: `start.bat` → option 3 (starts both servers)
 
 ## Workflow
@@ -37,8 +38,8 @@ epics, acceptance criteria) before working on that initiative.**
   trigger (CI builds images → Docker Hub → SSH auto-deploy).
 - Keep the app shippable at every commit; verify each spec task against its
   acceptance criteria before moving on.
-- Version bump = both `apps/api` + `client` package.json and an annotated
-  `vX.Y.Z` tag.
+- Version bump = `apps/api` + `apps/customer` + `apps/business` package.json
+  and an annotated `vX.Y.Z` tag.
 
 ## Design system
 - All headings: `fontFamily: 'var(--font-display)'`

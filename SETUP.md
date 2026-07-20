@@ -13,9 +13,9 @@ Before you begin, ensure you have the following installed on your system:
 
 ```
 Booking Application/
-├── apps/api/                 # Backend API (Node.js + Express)
+├── apps/api/                 # Backend API (Node.js + Express, npm-managed)
 │   ├── src/
-│   │   ├── models/        # Database models (User, Service, Appointment)
+│   │   ├── models/        # Database models (User, Service, Appointment, …)
 │   │   ├── routes/        # API routes
 │   │   ├── controllers/   # Route handlers
 │   │   ├── middleware/    # Custom middleware (auth, error handling)
@@ -24,22 +24,18 @@ Booking Application/
 │   ├── server.js          # Main server file
 │   └── .env.example       # Environment variables template
 │
-├── client/                 # Frontend (React.js)
-│   ├── public/            # Static files
-│   ├── src/
-│   │   ├── components/    # Reusable React components
-│   │   ├── pages/         # Page components
-│   │   ├── services/      # API calls
-│   │   ├── context/       # React context for state management
-│   │   ├── hooks/         # Custom React hooks
-│   │   ├── styles/        # Global styles
-│   │   ├── App.js         # Main app component
-│   │   └── index.js       # Entry point
-│   ├── package.json
-│   └── .env.example       # Environment variables template
+├── apps/customer/          # Customer marketplace (Vite + React 18)
+├── apps/business/          # Business management app (Vite + React 18)
+├── packages/               # Shared pnpm-workspace packages
+│   ├── design-tokens/     # tokens.css + tailwind preset
+│   ├── api-client/        # TypeScript axios client + domain services
+│   ├── ui/                # Shared React components
+│   └── config/            # Shared tsconfig
 │
 └── README.md              # Project documentation
 ```
+
+(The legacy CRA `client/` app is retired — the two Vite apps replaced it.)
 
 ## Installation Steps
 
@@ -71,7 +67,7 @@ Create a `.env` file from the template:
 Copy-Item .env.example -Destination .env
 
 # Or manually create .env and add:
-PORT=5000
+PORT=5050
 MONGODB_URI=mongodb://localhost:27017/bookplus
 JWT_SECRET=your_super_secret_jwt_key_change_this_in_production
 NODE_ENV=development
@@ -104,28 +100,22 @@ docker run -d -p 27017:27017 --name bookplus-mongo mongo:6.0
 
 ### 4. Frontend Setup
 
-Install dependencies from the **repo root** (pnpm workspace — covers the
-client plus the shared `packages/*`; `npm install` inside `client/` will fail
+Install dependencies from the **repo root** (pnpm workspace — covers both
+apps plus the shared `packages/*`; `npm install` inside an app will fail
 on the `workspace:*` dependencies):
 
 ```bash
 pnpm install
 ```
 
-Then navigate to the client directory:
-
-```bash
-cd apps/customer
-```
-
-Create a `.env` file:
+Then create a `.env` in each app (`apps/customer`, `apps/business`):
 
 ```bash
 # Windows PowerShell
 Copy-Item .env.example -Destination .env
 
-# Or manually create .env and add:
-REACT_APP_API_URL=http://localhost:5000
+# Or manually create .env and add (API origin only — the api-client appends /api):
+VITE_API_URL=http://localhost:5050
 ```
 
 ## Running the Application
@@ -139,31 +129,31 @@ cd apps/api
 npm run dev
 ```
 
-This will start the server on `http://localhost:5000` and watch for file changes.
+This will start the server on `http://localhost:5050` and watch for file changes.
 
-**Terminal 2 - Start Frontend:**
+**Terminal 2 - Start Frontends (from the repo root):**
 
 ```bash
-cd apps/customer
-npx vite --port 3002
+pnpm customer:dev    # customer app on http://localhost:3002
+pnpm business:dev    # business app on http://localhost:3003
 ```
 
-This will start the React development server on `http://localhost:3000` and open it in your browser.
+(Ports 3000/3001/5000 are taken by other stacks on this machine.)
 
 ### Production Mode
 
-**Build Frontend:**
+**Build Frontends:**
 
 ```bash
-cd apps/customer
-npm run build
+pnpm --filter @bookplus/customer build
+pnpm --filter @bookplus/business build
 ```
 
 **Start Backend:**
 
 ```bash
 cd apps/api
-npx vite --port 3002
+npm start
 ```
 
 ## Using Docker Compose (Recommended)
@@ -177,7 +167,8 @@ docker-compose up -d
 This will:
 - Start MongoDB on port 27017
 - Start the backend server on port 5000
-- Start the frontend on port 3000
+- Start the customer + business apps, fronted by nginx (plus certbot and the
+  nightly backup service)
 
 To stop:
 
@@ -194,7 +185,7 @@ Use tools like **Postman** or **Insomnia** to test the API endpoints.
 **Register a User:**
 
 ```bash
-POST http://localhost:5000/api/auth/register
+POST http://localhost:5050/api/auth/register
 Content-Type: application/json
 
 {
@@ -208,7 +199,7 @@ Content-Type: application/json
 **Login:**
 
 ```bash
-POST http://localhost:5000/api/auth/login
+POST http://localhost:5050/api/auth/login
 Content-Type: application/json
 
 {
@@ -220,13 +211,13 @@ Content-Type: application/json
 **Get All Services:**
 
 ```bash
-GET http://localhost:5000/api/services
+GET http://localhost:5050/api/services
 ```
 
 **Create an Appointment:**
 
 ```bash
-POST http://localhost:5000/api/appointments
+POST http://localhost:5050/api/appointments
 Authorization: Bearer <your_jwt_token>
 Content-Type: application/json
 
@@ -333,7 +324,7 @@ Content-Type: application/json
 
 ### Port Already in Use
 - Change the PORT in apps/api/.env
-- Change the port for client in package.json dev script
+- Change the app ports in the root package.json `customer:dev` / `business:dev` scripts
 
 ### Module Not Found
 - Delete `node_modules` folder and `package-lock.json`
@@ -341,33 +332,25 @@ Content-Type: application/json
 
 ### CORS Error
 - The backend already has CORS enabled
-- Ensure REACT_APP_API_URL points to the correct backend URL
+- Ensure VITE_API_URL points to the correct backend origin
 
 ## Next Steps
 
 1. **Customize Branding**
-   - Update colors in `client/tailwind.config.js`
+   - Update tokens in `packages/design-tokens` (tokens.css + tailwind preset)
    - Change logo and images
 
-2. **Add Admin Dashboard**
-   - Create AdminDashboard page component
-   - Implement statistics and management features
-
-3. **Add Payment Integration**
+2. **Add Payment Integration** *(currently an explicit product non-goal — see
+   the README's "Intentionally omitted" section)*
    - Integrate Stripe or PayPal
    - Add payment status to appointments
 
-4. **Add Email Notifications**
-   - Use Nodemailer for appointment confirmations
-   - Send reminder emails
-
-5. **Implement Real-time Updates**
+3. **Implement Real-time Updates**
    - Add Socket.io for live appointment updates
    - Real-time availability notifications
 
-6. **Add Testing**
-   - Write unit tests with Jest
-   - Add integration tests
+(Admin dashboard, email notifications, reminders and the test suite already
+exist — see README.)
 
 ## Support & Resources
 

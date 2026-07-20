@@ -31,3 +31,7 @@ Generic SaaS dashboards, cluttered card stacks, beige-brass luxury defaults, ove
 ## Accessibility & Inclusion
 
 Target WCAG AA contrast, full keyboard support, clear focus states, and usable layouts on small screens. Support reduced motion, avoid relying on color alone for meaning, and keep form and status text readable in every role.
+
+## Future ideas (parked, not scheduled)
+
+Carried over from the original roadmap docs: SMS notifications, multi-location support, a loyalty program, and Redis caching / rate limiting. Online payment processing was also on that early roadmap, but is currently an explicit product non-goal (see the README's "Intentionally omitted" section).

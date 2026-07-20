@@ -1,5 +1,13 @@
 # 🏗️ Bookplus Booking Application - Architecture Guide
 
+> **Note (historical):** this guide predates the dual-app split and describes
+> the original single-app layout — a `client/` CRA frontend on port 3000 and
+> the API on port 5000. That client is retired. The current system is
+> `apps/customer` (:3002 local) + `apps/business` (:3003 local) +
+> `apps/api` (:5050 local, :5000 in Docker) behind nginx — see
+> `DUAL_APP_ARCHITECTURE.md` and `README.md` for the up-to-date picture.
+> The request-lifecycle and auth-flow concepts below still broadly apply.
+
 ## System Architecture Overview
 
 ```
@@ -481,7 +489,6 @@ Booking Application/
 ├── 📄 README.md                 # Project overview
 ├── 📄 SETUP.md                  # Installation guide
 ├── 📄 START_HERE.md             # Getting started
-├── 📄 PROJECT_SUMMARY.md        # Technical overview
 ├── 📄 QUICK_REFERENCE.md        # Cheat sheet
 ├── 📄 start.bat                 # Windows quick start
 └── 📄 start.sh                  # Unix quick start

@@ -17,7 +17,8 @@ epics, acceptance criteria) before working on that initiative.**
   `packages/api-client` (axios instance + refresh interceptor + domain
   services, TypeScript), `packages/ui` (shared components), `packages/config`
   (shared tsconfig)
-- Fonts: Plus Jakarta Sans only, via `var(--font-display)` / `var(--font-body)`
+- Fonts: Plus Jakarta Sans (display/headings) + Inter (body/UI), via
+  `var(--font-display)` / `var(--font-body)` — never hardcode family names
 - Colors: orange `#f03e16`, black `#040505`, white `#e6e8e7`
 
 ## Commands
@@ -35,8 +36,8 @@ epics, acceptance criteria) before working on that initiative.**
   trigger (CI builds images → Docker Hub → SSH auto-deploy).
 - Keep the app shippable at every commit; verify each spec task against its
   acceptance criteria before moving on.
-- Version bump = both `apps/api` + `client` package.json and an annotated
-  `vX.Y.Z` tag.
+- Version bump = `apps/api` + `apps/customer` + `apps/business` package.json
+  and an annotated `vX.Y.Z` tag.
 
 ## Design system
 - All headings: `fontFamily: 'var(--font-display)'`
