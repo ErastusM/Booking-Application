@@ -354,9 +354,20 @@ exports.createAppointment = async (req, res) => {
             ? { _id: null, name: guestName.trim(), email: guestEmail.trim(), phone: (guestPhone || '').trim() }
             : req.user;
         if (isProviderBooking && customerId) {
-            const client = await User.findById(customerId).select('name email phone');
+            const client = await User.findById(customerId).select('name email phone role');
             if (!client) {
                 return res.status(404).json({ success: false, message: 'Selected client not found' });
+            }
+            // A provider may only book on behalf of a real client of THEIRS — a
+            // customer account that has booked them before. Without this, a provider
+            // could attach a confirmed booking to (and read the name + email of) ANY
+            // account on the platform, and reserve against a stranger's wallet held
+            // with them. First-time in-person clients go through the walk-in path
+            // (walkInName), which needs no pre-existing relationship.
+            const isMyClient = client.role === 'customer'
+                && await Appointment.exists({ customer: customerId, provider: req.user._id });
+            if (!isMyClient) {
+                return res.status(403).json({ success: false, message: 'You can only book on behalf of an existing client. Use a walk-in for a first-time client.' });
             }
             bookingClient = client;
         }
@@ -964,6 +975,29 @@ exports.updateAppointmentStatus = async (req, res) => {
         // notifications, emails and status-history entries for the same appointment.
         if (appointment.status === status) {
             return res.status(200).json({ success: true, data: appointment });
+        }
+        // Reviving a cancelled booking (cancelled → confirmed/pending) drops it back
+        // into a slot the system already treated as free — and likely re-sold, since
+        // cancellation triggers waiting-list promotion below. Re-run the same conflict
+        // and blocked-time guards a fresh booking faces, so a revive can't silently
+        // double-book the provider.
+        if (appointment.status === 'cancelled' && ['confirmed', 'pending'].includes(status)) {
+            const revProviderId = appointment.provider || appointment.service?.provider;
+            if (revProviderId) {
+                const conflict = await hasConflictingAppointment(
+                    revProviderId, appointment.appointmentDate, appointment.startTime, appointment.endTime, appointment._id,
+                );
+                if (conflict) {
+                    return res.status(400).json({ success: false, message: 'That slot has since been booked, so this cancelled appointment can’t be reinstated.' });
+                }
+                if (await overlapsBlockedTime({
+                    providerId: revProviderId, appointmentDate: appointment.appointmentDate,
+                    startTime: appointment.startTime, endTime: appointment.endTime,
+                    teamMember: appointment.teamMember || null,
+                })) {
+                    return res.status(400).json({ success: false, message: 'That time is now blocked, so this cancelled appointment can’t be reinstated.' });
+                }
+            }
         }
         appointment.status = status;
         appointment.statusHistory.push({ status, changedBy: req.user._id });

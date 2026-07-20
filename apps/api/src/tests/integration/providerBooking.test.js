@@ -19,7 +19,7 @@ jest.mock('../../utils/emailService', () => ({
 
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
-const { makeProvider, makeService, makeUser, authHeader } = require('../helpers/factories');
+const { makeProvider, makeService, makeUser, makeAppointment, authHeader } = require('../helpers/factories');
 const Appointment = require('../../models/Appointment');
 
 beforeAll(() => testDb.connect());
@@ -79,6 +79,12 @@ describe('Provider creates an appointment from the calendar', () => {
         const provider = await makeProvider();
         const svc = await makeService(provider._id, { duration: 30 });
         const client = await makeUser({ name: 'Existing Client', email: 'existing@test.com' });
+        // Book-on-behalf is only allowed for a real client of this provider — one who
+        // has booked before (the dashboard's client list is built from past bookings).
+        // A far-past appointment establishes the relationship without conflicting.
+        await makeAppointment(client._id, svc._id, provider._id, {
+            appointmentDate: new Date('2020-01-15T00:00:00Z'), startTime: '08:00', endTime: '08:30',
+        });
 
         const res = await request(app)
             .post('/api/appointments')
