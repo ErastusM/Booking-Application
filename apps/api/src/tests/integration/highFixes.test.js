@@ -5,6 +5,7 @@
  *   #9  createAppointment trusted client-supplied customerId (book for / read any user)
  */
 const request = require('supertest');
+const mongoose = require('mongoose');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = require('../helpers/factories');
@@ -92,5 +93,49 @@ describe('#7 — a cancelled booking can’t be revived into a re-sold slot', ()
         const revive = await request(app).put(`/api/appointments/${a.body.data._id}/status`)
             .set(authHeader(provider)).send({ status: 'confirmed' });
         expect(revive.status).toBe(200);
+    });
+});
+
+describe('#8 — conflict check is per-staff, not provider-wide', () => {
+    it('lets a booking reschedule onto a time another staff member holds', async () => {
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id, { duration: 30 });
+        const customer = await makeUser();
+        const staffA = new mongoose.Types.ObjectId();
+        const staffB = new mongoose.Types.ObjectId();
+        const date = weekdayAhead(6);
+
+        // Staff A's booking at 09:00 (owned by the customer, so they can reschedule it).
+        const apptA = await makeAppointment(customer._id, svc._id, provider._id, {
+            teamMember: staffA, appointmentDate: new Date(`${date}T00:00:00Z`), startTime: '09:00', endTime: '09:30',
+        });
+        // Staff B is busy at 10:00 — a DIFFERENT column.
+        await makeAppointment(customer._id, svc._id, provider._id, {
+            teamMember: staffB, appointmentDate: new Date(`${date}T00:00:00Z`), startTime: '10:00', endTime: '10:30',
+        });
+
+        // Move A to 10:00. A is free then; only B is busy. Provider-wide would 400.
+        const res = await request(app).put(`/api/appointments/${apptA._id}/reschedule`)
+            .set(authHeader(customer)).send({ appointmentDate: date, startTime: '10:00' });
+        expect(res.status).toBe(200);
+    });
+
+    it('still rejects rescheduling onto the SAME staff member’s existing booking', async () => {
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id, { duration: 30 });
+        const customer = await makeUser();
+        const staffA = new mongoose.Types.ObjectId();
+        const date = weekdayAhead(8);
+
+        const apptEarly = await makeAppointment(customer._id, svc._id, provider._id, {
+            teamMember: staffA, appointmentDate: new Date(`${date}T00:00:00Z`), startTime: '09:00', endTime: '09:30',
+        });
+        await makeAppointment(customer._id, svc._id, provider._id, {
+            teamMember: staffA, appointmentDate: new Date(`${date}T00:00:00Z`), startTime: '10:00', endTime: '10:30',
+        });
+
+        const res = await request(app).put(`/api/appointments/${apptEarly._id}/reschedule`)
+            .set(authHeader(customer)).send({ appointmentDate: date, startTime: '10:00' });
+        expect(res.status).toBe(400); // same staff, real conflict
     });
 });

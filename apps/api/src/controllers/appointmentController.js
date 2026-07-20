@@ -80,8 +80,9 @@ const isTimeWithinSchedule = (schedule, appointmentDate, startTime, durationMinu
     });
 };
 
-const hasConflictingAppointment = async (providerId, appointmentDate, startTime, endTime, excludeId) => {
+const hasConflictingAppointment = async (providerId, appointmentDate, startTime, endTime, excludeId, opts = {}) => {
     if (!providerId) return false;
+    const { teamMember = null, bufferBefore = 0, bufferAfter = 0 } = opts;
     const start = new Date(appointmentDate);
     start.setHours(0, 0, 0, 0);
     const end = new Date(appointmentDate);
@@ -90,12 +91,28 @@ const hasConflictingAppointment = async (providerId, appointmentDate, startTime,
         provider: providerId,
         appointmentDate: { $gte: start, $lte: end },
         status: { $nin: ['cancelled'] },
+        // Per-staff: only the SAME member's bookings collide — different staff can
+        // hold the same clock time, and teamMember null is the owner's own column.
+        // Without this the check was provider-wide, so one colleague's booking made
+        // that time unreschedulable for every other staff member (a slot the public
+        // booking page happily sells fresh). Callers pass the appointment's own member.
+        teamMember: teamMember || null,
         _id: { $ne: excludeId },
     }).select('startTime endTime');
-    const newStart = parseTimeToMinutes(startTime);
-    const newEnd = parseTimeToMinutes(endTime);
+    // Expand the incoming booking by its service buffers so a reschedule can't land
+    // flush against a booking whose service reserves cleanup time.
+    const newStart = parseTimeToMinutes(startTime) - (bufferBefore || 0);
+    const newEnd = parseTimeToMinutes(endTime) + (bufferAfter || 0);
     return existing.some(a => timesOverlap(newStart, newEnd, parseTimeToMinutes(a.startTime), parseTimeToMinutes(a.endTime)));
 };
+
+// The teamMember + buffers a reschedule/revival must check against — the moved
+// booking's own assigned member and its service's cleanup buffers.
+const conflictScope = (appointment) => ({
+    teamMember: appointment.teamMember || null,
+    bufferBefore: appointment.service?.bufferBefore || 0,
+    bufferAfter: appointment.service?.bufferAfter || 0,
+});
 
 /**
  * Which dates of a recurring series can actually be booked?
@@ -797,7 +814,7 @@ exports.updateAppointment = async (req, res) => {
                 if (!isTimeWithinSchedule(schedule, newDate, newStart, duration)) {
                     return res.status(400).json({ success: false, message: 'Selected time is outside the availability schedule' });
                 }
-                if (await hasConflictingAppointment(providerId, newDate, newStart, newEnd, appointment._id)) {
+                if (await hasConflictingAppointment(providerId, newDate, newStart, newEnd, appointment._id, conflictScope(appointment))) {
                     return res.status(400).json({ success: false, message: 'This time slot is already booked' });
                 }
             }
@@ -985,7 +1002,7 @@ exports.updateAppointmentStatus = async (req, res) => {
             const revProviderId = appointment.provider || appointment.service?.provider;
             if (revProviderId) {
                 const conflict = await hasConflictingAppointment(
-                    revProviderId, appointment.appointmentDate, appointment.startTime, appointment.endTime, appointment._id,
+                    revProviderId, appointment.appointmentDate, appointment.startTime, appointment.endTime, appointment._id, conflictScope(appointment),
                 );
                 if (conflict) {
                     return res.status(400).json({ success: false, message: 'That slot has since been booked, so this cancelled appointment can’t be reinstated.' });
@@ -1126,7 +1143,7 @@ exports.providerRescheduleAppointment = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Selected time is outside your availability schedule' });
         }
 
-        const conflict = await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appointment._id);
+        const conflict = await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appointment._id, conflictScope(appointment));
         if (conflict) {
             return res.status(400).json({ success: false, message: 'This time slot is already booked' });
         }
@@ -1207,7 +1224,7 @@ exports.rescheduleAppointment = async (req, res) => {
             if (!isTimeWithinSchedule(schedule, appointmentDate, startTime, duration)) {
                 return res.status(400).json({ success: false, message: 'Selected time is outside the provider availability schedule' });
             }
-            const conflict = await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appointment._id);
+            const conflict = await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appointment._id, conflictScope(appointment));
             if (conflict) {
                 return res.status(400).json({ success: false, message: 'This time slot is already booked' });
             }
@@ -1509,7 +1526,7 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
             if (availabilityDoc?.schedule && !isTimeWithinSchedule(availabilityDoc.schedule, appointmentDate, startTime, duration)) {
                 return res.status(400).json({ success: false, message: 'That time is outside the provider availability schedule.' });
             }
-            if (await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appt._id)) {
+            if (await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appt._id, conflictScope(appt))) {
                 return res.status(400).json({ success: false, message: 'That time slot is already booked.' });
             }
             // Guest "manage my booking" reschedule — same blocked-time hard stop.
