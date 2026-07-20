@@ -371,13 +371,15 @@ const Navbar = () => {
                 pointerEvents: 'none',
                 // Rendered through a portal to <body> so NO ancestor (a route-transition
                 // wrapper, a provider, a hovered/animated card) can ever become its
-                // containing block and strand it mid-page. translateZ(0) keeps it on its
-                // own compositing layer so iOS repaints it during momentum scroll — but we
-                // deliberately DO NOT use `will-change: transform`: on iOS that composites
-                // a position:fixed element INTO the scroll layer, so it rides with the
-                // content and "sticks" where you stopped scrolling. Solid (no backdrop-
-                // filter) background is the other half of the fix.
-                transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)',
+                // containing block and strand it mid-page.
+                //
+                // NO transform here, deliberately. `will-change: transform` was already
+                // rejected because on iOS it composites a position:fixed element INTO the
+                // scroll layer, so it rides with the content and "sticks" where you
+                // stopped scrolling — but `translateZ(0)` promotes the element the exact
+                // same way, so it caused the very drift it was added to prevent. A plain
+                // fixed element takes the browser's normal fixed-position path and tracks
+                // the viewport. Solid (no backdrop-filter) background is the other half.
             }}>
                 <div style={{
                     pointerEvents: 'auto', width: '100%', maxWidth: '460px',

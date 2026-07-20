@@ -442,9 +442,18 @@ const Navbar = () => {
                 display: 'flex', justifyContent: 'center',
                 padding: '0 12px calc(3px + env(safe-area-inset-bottom, 0))',
                 pointerEvents: 'none',
-                // Portalled to <body> so no ancestor can strand it mid-page; translateZ(0)
-                // keeps it on its own layer for iOS scroll repaint (see customer app).
-                transform: 'translateZ(0)', WebkitTransform: 'translateZ(0)',
+                // Portalled to <body> so no ancestor can ever become its containing
+                // block and strand it mid-page.
+                //
+                // NO transform here, deliberately. `translateZ(0)` was meant to give the
+                // bar its own compositing layer for iOS repaint, but promoting a
+                // position:fixed element is exactly what makes iOS Safari paint it
+                // against the DOCUMENT instead of tracking the viewport — so it lagged
+                // behind momentum scroll and stranded mid-screen. (`will-change:
+                // transform` was already rejected for this same reason; translateZ(0)
+                // promotes identically, so it had the same effect.) A plain fixed element
+                // uses the browser's normal fixed-position path and stays put. The solid
+                // (non-backdrop-filter) background below is the other half of the fix.
             }}>
                 <div style={{
                     pointerEvents: 'auto', width: '100%', maxWidth: '440px',
