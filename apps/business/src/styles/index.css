@@ -998,7 +998,10 @@ body.dark-mode .fc-bookplus-wrapper .fc-timegrid-slot-minor {
     font-size: 0.75rem;
   }
 
-  .fc-event-appt-service {
+  /* Hide the service only on events too short to hold three lines. A full-hour
+     booking has plenty of room, and blanking the service there left the owner
+     looking at a time and a name with no idea what was booked. */
+  .fc-bookplus-wrapper .fc-timegrid-event-short .fc-event-appt-service {
     display: none;
   }
 }

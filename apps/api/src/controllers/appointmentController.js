@@ -1203,6 +1203,61 @@ exports.createGroupBooking = async (req, res) => {
         }
         const svc = await Service.findById(service);
         if (!svc) return res.status(404).json({ success: false, message: 'Service not found' });
+
+        // This path used to insert straight to the DB with no validation at all,
+        // while the single-booking path enforced every one of these. Flipping the
+        // "Group booking" toggle in the dashboard was enough to write over an
+        // existing client's slot, or to reference another business's service or
+        // staff. The guards below bring it back to parity.
+        const providerId = svc.provider || null;
+
+        // The service must belong to the caller — otherwise another business's
+        // service id could be booked onto this provider's calendar.
+        if (providerId && String(providerId) !== String(req.user._id)) {
+            return res.status(403).json({ success: false, message: 'That service does not belong to your business' });
+        }
+
+        // Same per-staff resolution every other booking path runs: confirms the
+        // requested member is on THIS provider's roster and performs the service.
+        let resolvedTeamMember = teamMember || null;
+        if (providerId) {
+            const resolution = await resolveBookingStaff({
+                svc, providerId, appointmentDate, startTime, endTime,
+                requestedTeamMember: teamMember || null, requester: req.user,
+            });
+            if (resolution.error) {
+                return res.status(resolution.status).json({ success: false, message: resolution.error });
+            }
+            resolvedTeamMember = resolution.teamMember;
+        }
+
+        // Double-booking guard, mirroring createAppointment. A group legitimately
+        // puts N clients in ONE slot, so we compare only against appointments that
+        // ALREADY exist — the group's own rows are inserted together below and
+        // must not be treated as conflicting with each other.
+        if (providerId) {
+            const [newSH, newSM] = startTime.split(':').map(Number);
+            const [newEH, newEM] = endTime.split(':').map(Number);
+            const newStart = newSH * 60 + newSM - (svc.bufferBefore || 0);
+            const newEnd = newEH * 60 + newEM + (svc.bufferAfter || 0);
+            const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
+            const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
+            const existing = await Appointment.find({
+                provider: providerId,
+                appointmentDate: { $gte: dayStart, $lte: dayEnd },
+                status: { $nin: ['cancelled'] },
+                teamMember: resolvedTeamMember,
+            }).select('startTime endTime');
+            const hasOverlap = existing.some(a => {
+                const [aSH, aSM] = a.startTime.split(':').map(Number);
+                const [aEH, aEM] = a.endTime.split(':').map(Number);
+                return newStart < (aEH * 60 + aEM) && newEnd > (aSH * 60 + aSM);
+            });
+            if (hasOverlap) {
+                return res.status(400).json({ success: false, message: 'This time slot is already booked. You can join the waiting list instead.' });
+            }
+        }
+
         const gid = randomUUID();
         // `customer` is required on the model. Name-only group clients are walk-ins, so
         // they belong to the provider — exactly how a single walk-in booking resolves the
@@ -1211,7 +1266,7 @@ exports.createGroupBooking = async (req, res) => {
             customer: c.customerId || req.user._id,
             walkInName: c.customerId ? null : (c.name || 'Group Client'),
             service,
-            provider: req.user._id,
+            provider: providerId || req.user._id,
             appointmentDate: new Date(appointmentDate),
             startTime,
             endTime,
@@ -1220,7 +1275,7 @@ exports.createGroupBooking = async (req, res) => {
             notes: notes || '',
             groupId: gid,
             groupSize: groupSize || clients.length,
-            teamMember: teamMember || null,
+            teamMember: resolvedTeamMember,
         }));
         const appointments = await Appointment.insertMany(docs);
         await createNotification(req.user._id, `Group booking created: ${clients.length} client(s) for ${servicePhrase(svc.name)}`, 'appointment', '/dashboard?tab=confirmed');

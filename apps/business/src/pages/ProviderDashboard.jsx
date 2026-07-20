@@ -887,11 +887,13 @@ const ProviderDashboard = () => {
                     kind: 'appointment',
                     appointmentId: a._id,
                     // An appointment's client is a registered customer, a guest
-                    // (guest checkout) or a provider-logged walk-in. Reading only
-                    // `customer` left guest and walk-in bookings nameless on the
-                    // calendar, so the owner couldn't tell who was coming.
-                    // Same precedence the API uses for emails/notifications.
-                    customerName: a.customer?.name || a.guestName || a.walkInName || 'Client',
+                    // (guest checkout) or a provider-logged walk-in.
+                    // walkInName/guestName MUST be checked before `customer`: a
+                    // walk-in or group booking stores the PROVIDER's own id in
+                    // `customer` (the model requires one, and there's no account
+                    // for a walk-in), so reading `customer` first labelled every
+                    // walk-in with the owner's own name instead of the client's.
+                    customerName: a.walkInName || a.guestName || a.customer?.name || 'Client',
                     startTime: a.startTime,
                     endTime: a.endTime,
                     status: a.status,
@@ -3335,13 +3337,20 @@ const ProviderDashboard = () => {
 
                         {/* Client card - tap the name to reveal contact options (call / email / chat) */}
                         {(() => {
-                            const cust = apptDetailModal.customer;
-                            const isRegistered = !!cust?._id;
                             // A client is a registered customer, a guest (guest checkout,
                             // contact captured but no account) or a walk-in the provider
                             // logged. Guests used to fall through to "Walk-in - no saved
                             // contact" even though we hold their name, email and phone.
-                            const displayName = cust?.name || apptDetailModal.guestName || apptDetailModal.walkInName || 'Client';
+                            //
+                            // A walk-in has no account, but the model still demands a
+                            // `customer`, so the booking stores the PROVIDER's own id as a
+                            // placeholder. Taking that at face value showed the owner their
+                            // OWN name, phone and email as if they were the client's — so a
+                            // walk-in ignores `customer` entirely.
+                            const isWalkIn = !!apptDetailModal.walkInName;
+                            const cust = isWalkIn ? null : apptDetailModal.customer;
+                            const isRegistered = !!cust?._id;
+                            const displayName = apptDetailModal.walkInName || apptDetailModal.guestName || cust?.name || 'Client';
                             const phone = cust?.phone || apptDetailModal.guestPhone || '';
                             const email = cust?.email || apptDetailModal.guestEmail || '';
                             const subtitle = phone || email || (isRegistered ? '' : 'No saved contact');
