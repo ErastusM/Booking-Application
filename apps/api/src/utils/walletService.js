@@ -203,21 +203,30 @@ const createTopUp = async ({ customer, provider, amount, reference, proofUrl, me
 // Allocate a pending top-up → credit total balance. The approver is the wallet's
 // provider OR an admin (providerId omitted means an admin is allocating).
 const approveTopUp = async ({ transactionId, providerId, resolvedBy }) => {
-    const query = { _id: transactionId, type: 'topup' };
+    const query = { _id: transactionId, type: 'topup', status: 'pending' };
     if (providerId) query.provider = providerId;
-    const txn = await WalletTransaction.findOne(query);
-    if (!txn) return { ok: false, reason: 'not_found' };
-    if (txn.status !== 'pending') return { ok: false, reason: 'already_resolved' };
+    // Atomically CLAIM the pending top-up by flipping its status. A top-up is
+    // approvable from two endpoints (provider + admin) and a double-click, so a
+    // read-check-then-$inc let two approvals both credit the balance — doubling
+    // real money with only one ledger row. Now the status flip is the gate: only
+    // the racer whose findOneAndUpdate matches `status:'pending'` proceeds; the
+    // loser gets null and credits nothing.
+    const txn = await WalletTransaction.findOneAndUpdate(
+        query,
+        { $set: { status: 'approved', resolvedBy: resolvedBy || providerId || null, resolvedAt: new Date() } },
+        { new: true }
+    );
+    if (!txn) {
+        const exists = await WalletTransaction.exists({ _id: transactionId, type: 'topup' });
+        return { ok: false, reason: exists ? 'already_resolved' : 'not_found' };
+    }
 
     const wallet = await Wallet.findById(txn.wallet);
     const before = snap(wallet);
     const updated = await Wallet.findByIdAndUpdate(wallet._id, { $inc: { totalBalance: txn.amount } }, { new: true });
 
-    txn.status = 'approved';
     txn.balanceBefore = before;
     txn.balanceAfter = snap(updated);
-    txn.resolvedBy = resolvedBy || providerId || null;
-    txn.resolvedAt = new Date();
     await txn.save();
     return { ok: true, transaction: txn, wallet: updated };
 };
@@ -253,11 +262,22 @@ const createAdjustment = async ({ provider, customer, amount, direction, reason,
 
 /** Client approves a pending adjustment → apply credit or debit. */
 const approveAdjustment = async ({ transactionId, customerId }) => {
-    const txn = await WalletTransaction.findOne({
-        _id: transactionId, customer: customerId, type: { $in: ['adjustment', 'refund'] },
-    });
-    if (!txn) return { ok: false, reason: 'not_found' };
-    if (txn.status !== 'pending') return { ok: false, reason: 'already_resolved' };
+    // Atomically CLAIM the pending adjustment so two concurrent approvals (or a
+    // double-click by the beneficiary) can't both apply it. The balance predicate
+    // on the debit branch below only guards OVERDRAFT, not double-apply — so
+    // without this gate both a credit AND a debit could be applied twice. The
+    // status flip is the single-winner gate for both directions.
+    const txn = await WalletTransaction.findOneAndUpdate(
+        { _id: transactionId, customer: customerId, type: { $in: ['adjustment', 'refund'] }, status: 'pending' },
+        { $set: { status: 'approved', resolvedBy: customerId, resolvedAt: new Date() } },
+        { new: true }
+    );
+    if (!txn) {
+        const exists = await WalletTransaction.exists({
+            _id: transactionId, customer: customerId, type: { $in: ['adjustment', 'refund'] },
+        });
+        return { ok: false, reason: exists ? 'already_resolved' : 'not_found' };
+    }
 
     const wallet = await Wallet.findById(txn.wallet);
     const before = snap(wallet);
@@ -272,14 +292,18 @@ const approveAdjustment = async ({ transactionId, customerId }) => {
             { $inc: { totalBalance: -txn.amount } },
             { new: true }
         );
-        if (!updated) return { ok: false, reason: 'insufficient_balance' };
+        if (!updated) {
+            // Roll the claim back to pending so the client can retry once funded.
+            txn.status = 'pending';
+            txn.resolvedBy = null;
+            txn.resolvedAt = null;
+            await txn.save();
+            return { ok: false, reason: 'insufficient_balance' };
+        }
     }
 
-    txn.status = 'approved';
     txn.balanceBefore = before;
     txn.balanceAfter = snap(updated);
-    txn.resolvedBy = customerId;
-    txn.resolvedAt = new Date();
     await txn.save();
     return { ok: true, transaction: txn, wallet: updated };
 };

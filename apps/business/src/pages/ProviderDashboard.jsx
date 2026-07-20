@@ -666,8 +666,7 @@ const ProviderDashboard = () => {
         if (!seriesCancelModal) return;
         try {
             await appointmentService.cancelAppointmentSeries(seriesCancelModal._id, seriesCancelMode);
-            const res = await appointmentService.getAllAppointments();
-            setAppointments(res.data.data || []);
+            await fetchAppointments(); // {all:true} — a bare refetch truncates the calendar to 20
             setSeriesCancelModal(null);
         } catch { /* ignore */ }
     };
@@ -3082,8 +3081,7 @@ const ProviderDashboard = () => {
                                         recurrenceEndDate: apptForm.isRecurring && apptForm.recurrenceEndDate ? apptForm.recurrenceEndDate : undefined,
                                     });
                                 }
-                                const res = await appointmentService.getAllAppointments();
-                                setAppointments(res.data.data || []);
+                                await fetchAppointments(); // {all:true} — a bare refetch truncates the calendar to 20
                                 setShowApptModal(false);
                             } catch (err) {
                                 setApptError(err.response?.data?.message || 'Failed to create appointment');

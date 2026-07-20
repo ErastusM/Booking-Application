@@ -95,19 +95,27 @@ exports.getTopUps = async (req, res) => {
 // POST /api/provider-wallet/admin/topups/:id/approve — credit the provider's balance.
 exports.approveTopUp = async (req, res) => {
     try {
-        const txn = await ProviderWalletTransaction.findOne({ _id: req.params.id, type: 'topup' });
-        if (!txn) return res.status(404).json({ success: false, message: 'Top-up not found' });
-        if (txn.status !== 'pending') return res.status(409).json({ success: false, message: 'Already resolved' });
+        // Atomically CLAIM the pending top-up (flip status) before crediting, so two
+        // admins acting on the same alert — or a double-click — can't both $inc the
+        // balance and double real money against one ledger row.
+        const txn = await ProviderWalletTransaction.findOneAndUpdate(
+            { _id: req.params.id, type: 'topup', status: 'pending' },
+            { $set: { status: 'approved', resolvedBy: req.user._id, resolvedAt: new Date() } },
+            { new: true }
+        );
+        if (!txn) {
+            const exists = await ProviderWalletTransaction.exists({ _id: req.params.id, type: 'topup' });
+            return exists
+                ? res.status(409).json({ success: false, message: 'Already resolved' })
+                : res.status(404).json({ success: false, message: 'Top-up not found' });
+        }
 
         const wallet = await getOrCreateWallet(txn.provider);
         const before = wallet.balance;
         const updated = await ProviderWallet.findByIdAndUpdate(wallet._id, { $inc: { balance: txn.amount } }, { new: true });
 
-        txn.status = 'approved';
         txn.balanceBefore = before;
         txn.balanceAfter = updated.balance;
-        txn.resolvedBy = req.user._id;
-        txn.resolvedAt = new Date();
         await txn.save();
 
         createNotification(txn.provider, `Your ${money(txn.amount)} account top-up was approved`, 'wallet', '/dashboard?tab=wallet');

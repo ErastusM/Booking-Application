@@ -60,6 +60,35 @@ const book = (client, svc, startTime = '10:00', endTime = '10:30') =>
     });
 
 // ─────────────────────────────────────────────────────────────────────────────
+describe('Wallet approvals are race-safe (audit #11/#12)', () => {
+    it('two concurrent top-up approvals credit the balance only once', async () => {
+        const { provider, client } = await setup();
+        const txn = await walletService.createTopUp({ customer: client._id, provider: provider._id, amount: 5000 });
+        const [a, b] = await Promise.all([
+            walletService.approveTopUp({ transactionId: txn._id, providerId: provider._id, resolvedBy: provider._id }),
+            walletService.approveTopUp({ transactionId: txn._id, providerId: provider._id, resolvedBy: provider._id }),
+        ]);
+        expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1); // exactly one winner
+        const w = await getWallet(client, provider._id);
+        expect(w.totalBalance).toBe(5000); // credited once, not 10000
+    });
+
+    it('two concurrent adjustment (credit) approvals apply only once', async () => {
+        const { provider, client } = await setup();
+        const adj = await walletService.createAdjustment({
+            provider: provider._id, customer: client._id, amount: 2000, direction: 'credit', reason: 'goodwill',
+        });
+        const [a, b] = await Promise.all([
+            walletService.approveAdjustment({ transactionId: adj._id, customerId: client._id }),
+            walletService.approveAdjustment({ transactionId: adj._id, customerId: client._id }),
+        ]);
+        expect([a.ok, b.ok].filter(Boolean)).toHaveLength(1);
+        const w = await getWallet(client, provider._id);
+        expect(w.totalBalance).toBe(2000); // credited once, not 4000
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 describe('Wallet top-up flow', () => {
     it('approving a top-up credits the total balance', async () => {
         const { provider, client } = await setup();

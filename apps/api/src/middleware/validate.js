@@ -95,7 +95,16 @@ const createAppointmentRules = [
         .matches(/^\d{2}:\d{2}$/).withMessage('Start time must be HH:MM format'),
     body('endTime')
         .notEmpty().withMessage('End time is required')
-        .matches(/^\d{2}:\d{2}$/).withMessage('End time must be HH:MM format'),
+        .matches(/^\d{2}:\d{2}$/).withMessage('End time must be HH:MM format')
+        // An inverted window (end <= start) makes every half-open overlap test
+        // trivially false, so it slips past the blocked-time, staff and double-book
+        // guards. Zero-padded HH:MM compares correctly as strings.
+        .custom((value, { req }) => {
+            if (req.body.startTime && value <= req.body.startTime) {
+                throw new Error('End time must be after start time');
+            }
+            return true;
+        }),
     body('notes')
         .optional()
         .trim()
@@ -250,7 +259,15 @@ const joinWaitingListRules = [
         .matches(/^\d{2}:\d{2}$/).withMessage('Start time must be HH:MM format'),
     body('endTime')
         .notEmpty().withMessage('End time is required')
-        .matches(/^\d{2}:\d{2}$/).withMessage('End time must be HH:MM format'),
+        .matches(/^\d{2}:\d{2}$/).withMessage('End time must be HH:MM format')
+        // Same inverted-window guard as booking: a waitlist entry with end <= start
+        // would carry the bypass into promoteFromWaitingList, which books it unchecked.
+        .custom((value, { req }) => {
+            if (req.body.startTime && value <= req.body.startTime) {
+                throw new Error('End time must be after start time');
+            }
+            return true;
+        }),
     handleValidationErrors,
 ];
 
