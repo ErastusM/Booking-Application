@@ -2,6 +2,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const { primaryOrigin, businessOrigin, originForRole } = require('../utils/origins');
+const { buildState, roleFromState, cookieHeader, clearCookieHeader, verifyState } = require('../utils/oauthState');
 const crypto = require('crypto');
 const {
     register,
@@ -75,7 +76,12 @@ const passport = require('../config/passport');
 // Kick off Google OAuth — carry the chosen role (provider/customer) via OAuth state
 router.get('/google', (req, res, next) => {
     const role = req.query.role === 'provider' ? 'provider' : 'customer';
-    passport.authenticate('google', { scope: ['profile', 'email'], session: false, state: role })(req, res, next);
+    // Bind this flow to THIS browser: the nonce goes out in `state` and into an
+    // HttpOnly cookie, and the callback below refuses any state without a matching
+    // cookie. Without it the callback accepted any code from any browser (#13).
+    const { state, nonce } = buildState(role);
+    res.setHeader('Set-Cookie', cookieHeader(nonce));
+    passport.authenticate('google', { scope: ['profile', 'email'], session: false, state })(req, res, next);
 });
 
 // Google redirects here — issue a short-lived one-time code; client exchanges it
@@ -86,7 +92,14 @@ router.get('/google', (req, res, next) => {
 router.get('/google/callback', (req, res, next) => {
     // `state` carries the role chosen at /google; use it for the failure origin
     // (auth failed → no user to read a role from).
-    const stateOrigin = req.query.state === 'provider' ? businessOrigin() : primaryOrigin();
+    const stateOrigin = roleFromState(req.query.state) === 'provider' ? businessOrigin() : primaryOrigin();
+    // Reject a callback that did not originate from a flow this browser started —
+    // the login-CSRF gate. Always clear the one-shot cookie either way.
+    if (!verifyState(req)) {
+        res.setHeader('Set-Cookie', clearCookieHeader());
+        return res.redirect(`${stateOrigin}/login?error=google_failed`);
+    }
+    res.setHeader('Set-Cookie', clearCookieHeader());
     passport.authenticate('google', { session: false }, async (err, user) => {
         if (err || !user) {
             return res.redirect(`${stateOrigin}/login?error=google_failed`);
