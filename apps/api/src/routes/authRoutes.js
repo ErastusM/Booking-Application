@@ -1,4 +1,5 @@
 const express = require('express');
+const rateLimit = require('express-rate-limit');
 const router = express.Router();
 const { primaryOrigin, businessOrigin, originForRole } = require('../utils/origins');
 const crypto = require('crypto');
@@ -34,7 +35,20 @@ const {
 } = require('../middleware/validate');
 const User = require('../models/User');
 
-router.post('/register', registerRules, register);
+// Registration necessarily tells a real signer-up that an email is already taken —
+// that message is good UX and stays. What we deny is SCALE: a per-IP cap makes
+// sweeping a list of addresses impractical, which is the actual enumeration risk
+// (finding #23). Password reset is capped for the same reason. Generous for a human
+// (nobody legitimately registers 20 accounts an hour from one IP), hostile to a script.
+const accountProbeLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: process.env.NODE_ENV === 'test' ? 10000 : 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: { success: false, message: 'Too many attempts from this connection. Please try again later.' },
+});
+
+router.post('/register', accountProbeLimiter, registerRules, register);
 router.post('/login', loginRules, login);
 router.post('/logout', auth, logout);
 router.post('/refresh', refresh);
@@ -50,7 +64,7 @@ router.delete('/account', auth, deleteAccount);
 router.get('/blocked-users', auth, getBlockedUsers);
 router.post('/block', auth, blockUser);
 router.delete('/block/:userId', auth, unblockUser);
-router.post('/forgot-password', forgotPassword);
+router.post('/forgot-password', accountProbeLimiter, forgotPassword);
 router.post('/reset-password', resetPassword);
 router.get('/verify-email', verifyEmail);
 router.post('/resend-verification', resendVerification);
