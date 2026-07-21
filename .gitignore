@@ -12,3 +12,15 @@ build/
 test-results/
 playwright-report/
 .claude/
+# Added by code-review-graph
+.code-review-graph/
+# MCP server config: hardcodes an absolute path to a local Python venv, so it is
+# per-machine and would break for anyone else who cloned this.
+.mcp.json
+
+# Capacitor native output — regenerated with `npx cap add android && npx cap sync`
+# (see MOBILE.md). Ignored rather than committed so the repo doesn't carry ~2.5MB
+# of build artefacts. If you ever hand-edit native config or signing here, drop
+# these two lines and commit the folders instead.
+apps/business/android/
+apps/customer/android/
