@@ -303,6 +303,38 @@ describe('Reservation adjustment (service change, §8)', () => {
     });
 });
 
+describe('Payment instructions exposure (audit #26)', () => {
+    const INSTRUCTIONS = 'Bank: FNB\nAcc: 62012345678\nRef: your name';
+
+    it('returns the provider payment instructions while the wallet is enabled', async () => {
+        // Legitimate flow: a prospective client (no prior wallet) views the booking /
+        // top-up page and must see how to pay an active wallet provider.
+        const provider = await makeProvider({
+            walletSettings: { enabled: true, bookingPaymentMode: 'wallet_required', paymentInstructions: INSTRUCTIONS },
+        });
+        const client = await makeUser();
+
+        const res = await request(app).get(`/api/wallet/mine/${provider._id}`).set(authHeader(client));
+        expect(res.status).toBe(200);
+        expect(res.body.data.settings.enabled).toBe(true);
+        expect(res.body.data.settings.paymentInstructions).toBe(INSTRUCTIONS);
+    });
+
+    it('withholds payment instructions once the provider switches the wallet off', async () => {
+        // The provider configured banking details then disabled the wallet: those
+        // free-text details must no longer be emitted to arbitrary authenticated callers.
+        const provider = await makeProvider({
+            walletSettings: { enabled: false, bookingPaymentMode: 'wallet_required', paymentInstructions: INSTRUCTIONS },
+        });
+        const client = await makeUser();
+
+        const res = await request(app).get(`/api/wallet/mine/${provider._id}`).set(authHeader(client));
+        expect(res.status).toBe(200);
+        expect(res.body.data.settings.enabled).toBe(false);
+        expect(res.body.data.settings.paymentInstructions).toBe('');
+    });
+});
+
 describe('Provider summary', () => {
     it('reports funds held, reserved and pending counts', async () => {
         const { provider, svc, client } = await setup({ price: 100, fund: 500 });

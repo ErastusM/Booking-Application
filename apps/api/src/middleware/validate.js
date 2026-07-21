@@ -109,9 +109,26 @@ const createAppointmentRules = [
         .optional()
         .trim()
         .isLength({ max: 500 }).withMessage('Notes cannot exceed 500 characters'),
+    // Cap the array length. Add-ons are resolved by name against the service's
+    // own catalogue in the controller, but resolution does NOT de-duplicate:
+    // N copies of one valid add-on name survive as N stored line items, land in
+    // baseDoc.selectedAddOns, and are spread into every occurrence of a recurring
+    // series (up to MAX = 60) before a single insertMany. Unbounded, one request
+    // could store megabytes per document across 60 documents — pure write, oplog
+    // and replication amplification (the cost is document size, not index churn:
+    // no index covers selectedAddOns). Neighbouring free-text fields (notes) are
+    // already capped, so this was the outlier. A real service catalogue never has
+    // 50 add-ons, so this is far above any legitimate booking.
     body('selectedAddOns')
         .optional()
-        .isArray().withMessage('Add-ons must be an array'),
+        .isArray({ max: 50 }).withMessage('Too many add-ons selected'),
+    // Per-element shape/size guard: bound the name (the only field the controller
+    // reads; price/duration come from the catalogue). 100 matches the service name
+    // length elsewhere.
+    body('selectedAddOns.*.name')
+        .optional()
+        .isString().withMessage('Add-on name must be a string')
+        .isLength({ max: 100 }).withMessage('Add-on name is too long'),
     body('customerId')
         .optional({ nullable: true })
         .isMongoId().withMessage('Invalid client ID'),

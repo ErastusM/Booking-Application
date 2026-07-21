@@ -31,7 +31,13 @@ exports.markAllRead = async (req, res) => {
 
 exports.markOneRead = async (req, res) => {
     try {
-        await Notification.findByIdAndUpdate(req.params.id, { read: true });
+        // Scope by owner. Matching only on the id (findByIdAndUpdate) let any
+        // authenticated user flip another tenant's notification to read via its
+        // id (IDOR) — every sibling handler here already scopes on req.user._id.
+        await Notification.findOneAndUpdate(
+            { _id: req.params.id, user: req.user._id },
+            { read: true }
+        );
         res.status(200).json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
@@ -40,7 +46,10 @@ exports.markOneRead = async (req, res) => {
 
 exports.deleteNotification = async (req, res) => {
     try {
-        await Notification.findByIdAndDelete(req.params.id);
+        // Scope by owner. Matching only on the id (findByIdAndDelete) let any
+        // authenticated user destroy another tenant's notification via its id
+        // (IDOR) — every sibling handler here already scopes on req.user._id.
+        await Notification.findOneAndDelete({ _id: req.params.id, user: req.user._id });
         res.status(200).json({ success: true });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });

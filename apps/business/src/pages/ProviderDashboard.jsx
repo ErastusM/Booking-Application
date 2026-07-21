@@ -780,7 +780,11 @@ const ProviderDashboard = () => {
         setApptDetailError('');
         try {
             const res = await appointmentService.providerRescheduleAppointment(id, { appointmentDate, startTime });
-            setAppointments(prev => prev.map(a => a._id === id ? { ...a, ...res.data.data } : a));
+            // The reschedule endpoint only populates `service`; its `customer`/`teamMember`
+            // come back as bare ObjectIds. Keep the already-populated relations so the
+            // client's name/email/phone don't vanish from the calendar and lists — a
+            // reschedule never changes who the booking is for.
+            setAppointments(prev => prev.map(a => a._id === id ? { ...a, ...res.data.data, customer: a.customer, teamMember: a.teamMember } : a));
             setApptDetailModal(null);
         } catch (err) {
             setApptDetailError(err.response?.data?.message || 'Failed to reschedule');
@@ -1029,8 +1033,15 @@ const ProviderDashboard = () => {
         const { kind, id, appointmentDate, startTime, endTime, info } = pendingMove;
         try {
             if (kind === 'appointment') {
-                const res = await appointmentService.providerRescheduleAppointment(id, { appointmentDate, startTime });
-                setAppointments(prev => prev.map(a => a._id === id ? { ...a, ...res.data.data } : a));
+                // Pass endTime so a custom duration set by a prior resize survives the
+                // drag. Without it the API recomputes end from service.duration and
+                // silently discards the resized length — while the toast below still
+                // claims the dragged range. endTime is undefined for a never-resized
+                // move, which the API correctly falls back to recomputing.
+                const res = await appointmentService.providerRescheduleAppointment(id, { appointmentDate, startTime, endTime });
+                // Response only populates `service`; keep the populated customer/teamMember
+                // so the client's name/email/phone don't get clobbered by bare ObjectIds.
+                setAppointments(prev => prev.map(a => a._id === id ? { ...a, ...res.data.data, customer: a.customer, teamMember: a.teamMember } : a));
             } else {
                 await blockedTimeService.updateBlockedTime(id, { date: appointmentDate, startTime, endTime });
                 await fetchBlockedTimes();
@@ -1102,7 +1113,9 @@ const ProviderDashboard = () => {
             const startTime = toTimeKey(event.start);
             const endTime = event.end ? toTimeKey(event.end) : undefined;
             const res = await appointmentService.providerRescheduleAppointment(appointmentId, { appointmentDate, startTime, endTime });
-            setAppointments(prev => prev.map(a => a._id === appointmentId ? { ...a, ...res.data.data } : a));
+            // Response only populates `service`; keep the populated customer/teamMember so
+            // the resize doesn't wipe the client's name from the calendar with bare ObjectIds.
+            setAppointments(prev => prev.map(a => a._id === appointmentId ? { ...a, ...res.data.data, customer: a.customer, teamMember: a.teamMember } : a));
             showCalendarToast(`Duration updated · ${startTime}–${endTime}`);
         } catch (err) {
             showCalendarToast(err.response?.data?.message || 'Could not change duration', 'error');

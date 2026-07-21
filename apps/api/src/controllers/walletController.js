@@ -60,7 +60,14 @@ exports.getMyWalletWithProvider = async (req, res) => {
                     enabled: s.enabled,
                     bookingPaymentMode: s.bookingPaymentMode,
                     refundsAllowed: s.refundsAllowed,
-                    paymentInstructions: s.paymentInstructions,
+                    // paymentInstructions is client-facing by design (User.js documents it
+                    // as bank/eWallet/PayToday "details shown to clients"), so the booking
+                    // and top-up flows must keep receiving it for first-time clients who have
+                    // no prior wallet relationship — a "must already be a client" gate would
+                    // break those flows. But a provider who configured the wallet and then
+                    // switched it OFF has withdrawn that payment offer, so don't keep leaking
+                    // their free-text banking details to every authenticated caller.
+                    paymentInstructions: s.enabled ? s.paymentInstructions : '',
                 },
             },
         });

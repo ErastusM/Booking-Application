@@ -189,7 +189,22 @@ async function buildProviderProfilePayload(provider) {
             avatar: provider.avatar,
             providerCategory: provider.providerCategory || null,
             currency: provider.businessProfile?.currency || 'NAD',
-            businessProfile: provider.businessProfile || null,
+            // SECURITY: this payload is served on TWO unauthenticated routes
+            // (GET /:id and GET /by-slug/:slug). Do NOT spread the whole
+            // businessProfile subdocument — it also carries private onboarding
+            // answers (teamSize, locationType, currentSoftware, referralSource)
+            // and the exact map-pin coordinates, none of which the public UI
+            // consumes. Whitelist only the public fields the customer app reads
+            // off provider.businessProfile (businessName/address/description/slug,
+            // plus currency + the public heart count for parity).
+            businessProfile: provider.businessProfile ? {
+                businessName: provider.businessProfile.businessName || '',
+                currency: provider.businessProfile.currency || 'NAD',
+                description: provider.businessProfile.description || '',
+                address: provider.businessProfile.address || '',
+                slug: provider.businessProfile.slug || null,
+                likesCount: Math.max(0, provider.businessProfile.likesCount || 0),
+            } : null,
             address: provider.businessProfile?.address || '',
             // Contact + visual fields for the social-style profile page
             phone: provider.phone || '',

@@ -15,13 +15,21 @@ const toMinutes = (t) => {
 exports.joinWaitingList = async (req, res) => {
     try {
         const { service, appointmentDate, startTime, endTime } = req.body;
-        let { provider } = req.body;
-
         const svc = await Service.findById(service).select('name provider');
         if (!svc) {
             return res.status(404).json({ success: false, message: 'Service not found' });
         }
-        if (!provider) provider = svc.provider;
+        // SECURITY: the provider is a property of the service, NEVER client input.
+        // We used to read `provider` from req.body and only fall back to svc.provider
+        // when absent — but joinWaitingListRules validates no such field, so a caller
+        // could inject any id. That value was persisted on the waitlist row and used
+        // verbatim as the createNotification / pushService.sendToUser target, injecting
+        // rows + push into any account. Worse, on promotion it flows into
+        // waitingListHelper's Appointment.create({ provider }), which can write a REAL
+        // confirmed booking onto a victim provider's calendar. Deriving it solely from
+        // the service owner mirrors the canonical booking path (appointmentController:
+        // `const providerId = svc.provider`).
+        const provider = svc.provider || null;
 
         const dateObj = new Date(appointmentDate);
         const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
