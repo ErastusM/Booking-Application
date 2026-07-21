@@ -27,7 +27,7 @@ const toMinutes = (t) => {
 // respect a block just as a customer booking does; otherwise cancelling an
 // appointment that sits inside a newly-blocked window would auto-book the next
 // person in line straight into the provider's time off.
-const slotIsFree = async (providerId, appointmentDate, startTime, endTime) => {
+const slotIsFree = async (providerId, appointmentDate, startTime, endTime, teamMember = null) => {
     if (!providerId) return true;
     const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
     const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
@@ -35,12 +35,19 @@ const slotIsFree = async (providerId, appointmentDate, startTime, endTime) => {
         provider: providerId,
         appointmentDate: { $gte: dayStart, $lte: dayEnd },
         status: { $nin: ['cancelled'] },
+        // Per-staff: a colleague booked at the same clock time does NOT make this slot
+        // occupied for the member this entry is for. Without the filter a multi-staff
+        // business could never promote a waitlisted customer while any other staff
+        // member was busy at that time (finding #16). null = the owner's own column.
+        teamMember: teamMember || null,
     }).select('startTime endTime');
     const nStart = toMinutes(startTime);
     const nEnd = toMinutes(endTime || startTime);
     if (existing.some(a => nStart < toMinutes(a.endTime) && nEnd > toMinutes(a.startTime))) return false;
+    // Pass teamMember so a block owned by ONE staff member doesn't suppress promotion
+    // business-wide (the same staff-blindness applied to blocked time).
     return !(await overlapsBlockedTime({
-        providerId, appointmentDate, startTime, endTime: endTime || startTime,
+        providerId, appointmentDate, startTime, endTime: endTime || startTime, teamMember: teamMember || null,
     }));
 };
 
@@ -76,7 +83,7 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
 
         // Only promote into a genuinely free slot — guards against a race where the
         // slot was re-taken between the cancellation and this promotion.
-        if (!(await slotIsFree(providerId, appointmentDate, startTime, endTime))) {
+        if (!(await slotIsFree(providerId, appointmentDate, startTime, endTime, next.teamMember))) {
             // Release the claim so they keep their place in line.
             await WaitingList.updateOne({ _id: next._id, status: 'promoting' }, { $set: { status: 'waiting' } });
             logger.warn({ service: String(service), startTime }, 'Skipped waitlist promotion — slot no longer free');
@@ -90,6 +97,10 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
                 customer: next.customer._id,
                 service,
                 provider: providerId,
+                // Promote onto the SAME staff column the waitlist entry targeted, so the
+                // booking is visible to (and counted against) the right member instead of
+                // silently landing on the owner's unassigned column (finding #16).
+                teamMember: next.teamMember || null,
                 appointmentDate,
                 startTime,
                 endTime,

@@ -34,9 +34,15 @@ exports.createPackage = async (req, res) => {
 
 exports.updatePackage = async (req, res) => {
     try {
+        // The {provider} filter only proves ownership at LOOKUP time — it does not
+        // restrict which paths the update writes. Passing req.body verbatim let a
+        // provider set `provider` in the body and reassign the package to another
+        // business in the same call that passed the ownership check (finding #25).
+        // Strip ownership/identity fields; every other field stays updatable.
+        const { provider, createdBy, _id, ...safe } = req.body;
         const pkg = await Package.findOneAndUpdate(
             { _id: req.params.id, provider: req.user._id },
-            req.body,
+            safe,
             { new: true, runValidators: true }
         ).populate('services', 'name price duration');
         if (!pkg) return res.status(404).json({ success: false, message: 'Package not found' });
@@ -117,20 +123,28 @@ exports.getMyClientPackages = async (req, res) => {
 // Redeem one session from a client package
 exports.redeemSession = async (req, res) => {
     try {
-        const clientPkg = await ClientPackage.findOne({
-            _id: req.params.id,
-            customer: req.user._id,
-            status: 'active',
-        });
-        if (!clientPkg) return res.status(404).json({ success: false, message: 'Active package not found' });
-        if (clientPkg.sessionsRemaining <= 0) {
-            return res.status(400).json({ success: false, message: 'No sessions remaining' });
+        // Atomic decrement guarded on sessionsRemaining > 0. The old read-check-then-
+        // save let two concurrent redeems both pass the check and each decrement, so a
+        // package could be consumed more times than sessions held (finding #21). Now the
+        // filter itself is the gate: only one racer matches when one session is left.
+        const clientPkg = await ClientPackage.findOneAndUpdate(
+            { _id: req.params.id, customer: req.user._id, status: 'active', sessionsRemaining: { $gt: 0 } },
+            { $inc: { sessionsUsed: 1, sessionsRemaining: -1 } },
+            { new: true }
+        );
+        if (!clientPkg) {
+            // No match: either no active package, or it is exhausted — distinguish.
+            const exists = await ClientPackage.exists({ _id: req.params.id, customer: req.user._id, status: 'active' });
+            return res.status(exists ? 400 : 404).json({
+                success: false,
+                message: exists ? 'No sessions remaining' : 'Active package not found',
+            });
         }
-
-        clientPkg.sessionsUsed += 1;
-        clientPkg.sessionsRemaining -= 1;
-        if (clientPkg.sessionsRemaining === 0) clientPkg.status = 'used';
-        await clientPkg.save();
+        // Mark used once the last session is consumed (idempotent follow-up).
+        if (clientPkg.sessionsRemaining === 0 && clientPkg.status === 'active') {
+            clientPkg.status = 'used';
+            await clientPkg.save();
+        }
 
         res.status(200).json({ success: true, data: clientPkg });
     } catch (error) {

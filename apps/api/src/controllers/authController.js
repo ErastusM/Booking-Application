@@ -484,7 +484,11 @@ exports.logout = async (req, res) => {
  */
 exports.getProfile = async (req, res) => {
     try {
-        const user = await User.findById(req.user.id);
+        // Exclude the live email-verification credential from the profile response.
+        // password / refreshTokenJtis / oauthCode / passwordResetToken are already
+        // select:false, but verificationToken is NOT — returning it let an
+        // authenticated user read a reusable self-verification token (finding #27).
+        const user = await User.findById(req.user.id).select('-verificationToken -verificationTokenExpiry');
 
         res.status(200).json({
             success: true,
@@ -624,6 +628,12 @@ exports.becomeProvider = async (req, res) => {
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
         if (user.role === 'admin') {
             return res.status(400).json({ success: false, message: 'Admin accounts cannot become providers' });
+        }
+        // A staff member belongs to a business owner's roster; letting them self-upgrade
+        // to a full provider would escape the owner's control and mint a merchant account
+        // outside onboarding (finding #20). Only a plain customer may become a provider.
+        if (user.role === 'staff' || user.staffOf) {
+            return res.status(403).json({ success: false, message: 'Staff accounts cannot upgrade to a provider. Ask your business owner.' });
         }
         if (!providerCategory || !providerCategory.trim()) {
             return res.status(400).json({ success: false, message: 'Please choose your main service category' });
