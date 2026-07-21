@@ -46,17 +46,19 @@ const setup = async () => {
 };
 
 describe('customer cancel (DELETE /api/appointments/:id)', () => {
-    it('blocks inside the default 24h window, allows outside it', async () => {
+    it('is unrestricted by default — a client can cancel even a booking starting soon', async () => {
+        // The default window is now 0 (anytime). The old 24h default silently
+        // rejected late cancellations, so the booking stayed CONFIRMED on the
+        // business calendar and the slot was never released to the waiting list.
         const { provider, service, customer } = await setup();
         const inside = await apptAt(customer, service, provider, 5);
         const outside = await apptAt(customer, service, provider, 48);
 
-        const blocked = await request(app).delete(`/api/appointments/${inside._id}`).set(authHeader(customer));
-        expect(blocked.status).toBe(400);
-        expect(blocked.body.message).toMatch(/24 hours notice/i);
+        const soon = await request(app).delete(`/api/appointments/${inside._id}`).set(authHeader(customer));
+        expect(soon.status).toBe(200);
 
-        const ok = await request(app).delete(`/api/appointments/${outside._id}`).set(authHeader(customer));
-        expect(ok.status).toBe(200);
+        const later = await request(app).delete(`/api/appointments/${outside._id}`).set(authHeader(customer));
+        expect(later.status).toBe(200);
     });
 
     it("honours the provider's custom window, and 0 = cancel anytime", async () => {
@@ -95,8 +97,10 @@ describe('customer cancel (DELETE /api/appointments/:id)', () => {
 });
 
 describe('customer reschedule (PUT /api/appointments/:id/reschedule)', () => {
-    it('blocks moving a booking that is inside the window', async () => {
+    it('blocks moving a booking inside a window the provider explicitly set', async () => {
         const { provider, service, customer } = await setup();
+        provider.bookingPolicy = { cancellationWindowHours: 24 }; // opt in; no longer the default
+        await provider.save();
         const inside = await apptAt(customer, service, provider, 5);
         const res = await request(app)
             .put(`/api/appointments/${inside._id}/reschedule`)
@@ -104,6 +108,16 @@ describe('customer reschedule (PUT /api/appointments/:id/reschedule)', () => {
             .send({ appointmentDate: '2027-03-03', startTime: '10:00' });
         expect(res.status).toBe(400);
         expect(res.body.message).toMatch(/24 hours notice/i);
+    });
+
+    it('allows moving a booking starting soon when no window is set (the default)', async () => {
+        const { provider, service, customer } = await setup();
+        const inside = await apptAt(customer, service, provider, 5);
+        const res = await request(app)
+            .put(`/api/appointments/${inside._id}/reschedule`)
+            .set(authHeader(customer))
+            .send({ appointmentDate: '2027-03-03', startTime: '10:00' });
+        expect(res.status).toBe(200);
     });
 });
 
@@ -137,8 +151,10 @@ describe('customer reschedule of past bookings', () => {
 });
 
 describe('manage-token (no-login) paths', () => {
-    it('enforces the window on token cancel and token reschedule', async () => {
+    it('enforces an explicitly-set window on token cancel and token reschedule', async () => {
         const { provider, service, customer } = await setup();
+        provider.bookingPolicy = { cancellationWindowHours: 24 }; // opt in; no longer the default
+        await provider.save();
         const inside = await apptAt(customer, service, provider, 5);
 
         const cancel = await request(app).post(`/api/appointments/manage/${inside.manageToken}/cancel`);
@@ -160,7 +176,8 @@ describe('manage-token (no-login) paths', () => {
         const appt = await apptAt(customer, service, provider, 48);
         const res = await request(app).get(`/api/appointments/manage/${appt.manageToken}`);
         expect(res.status).toBe(200);
-        expect(res.body.data.cancellationWindowHours).toBe(24);
+        expect(res.body.data.cancellationWindowHours).toBe(0); // 0 = cancel anytime
+
     });
 });
 
@@ -182,8 +199,16 @@ describe('provider settings (PUT /api/auth/profile)', () => {
     it('the public provider profile advertises the window', async () => {
         const { provider } = await setup();
         await makeService(provider._id); // profile needs at least the provider to resolve
-        const res = await request(app).get(`/api/providers/${provider._id}`);
-        expect(res.status).toBe(200);
-        expect(res.body.data.provider.cancellationWindowHours).toBe(24);
+
+        // Default: no window advertised (0 = cancel anytime).
+        const def = await request(app).get(`/api/providers/${provider._id}`);
+        expect(def.status).toBe(200);
+        expect(def.body.data.provider.cancellationWindowHours).toBe(0);
+
+        // ...and a provider who opts in has it advertised.
+        provider.bookingPolicy = { cancellationWindowHours: 12 };
+        await provider.save();
+        const set = await request(app).get(`/api/providers/${provider._id}`);
+        expect(set.body.data.provider.cancellationWindowHours).toBe(12);
     });
 });

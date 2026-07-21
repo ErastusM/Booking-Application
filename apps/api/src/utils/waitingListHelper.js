@@ -125,6 +125,18 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
         // on next open (driven by the un-celebrated 'promoted' entry).
         const goodNews = `Good news! A slot opened up for ${servicePhrase(svc?.name)} on ${dateStr} at ${startTime}. You’ve been booked in!`;
         await createNotification(next.customer._id, goodNews, 'waiting_list', '/appointments');
+
+        // Tell the BUSINESS too — a promotion writes a brand-new confirmed booking
+        // onto their calendar. Without this it just appears out of nowhere, which
+        // reads like a glitch right after they saw a cancellation.
+        if (providerId) {
+            await createNotification(
+                providerId,
+                `🔁 Slot refilled — ${next.customer.name} was booked from the waiting list for ${servicePhrase(svc?.name)} on ${dateStr} at ${startTime}.`,
+                'appointment',
+                '/dashboard'
+            );
+        }
         pushService.sendToUser(next.customer._id, {
             title: 'A slot opened up! 🎉',
             body: `You’re booked for ${servicePhrase(svc?.name)} on ${dateStr} at ${startTime}.`,

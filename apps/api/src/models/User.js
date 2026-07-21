@@ -131,7 +131,9 @@ const userSchema = new mongoose.Schema(
         // Cancellation policy (providers). Customers may cancel/reschedule up to
         // this many hours before the start time; 0 = anytime. Staff/admin exempt.
         bookingPolicy: {
-            cancellationWindowHours: { type: Number, default: 24, min: 0, max: 168 },
+            // 0 = cancel/reschedule anytime (the default). A provider can set a notice
+            // window here to re-enable enforcement for their business.
+            cancellationWindowHours: { type: Number, default: 0, min: 0, max: 168 },
         },
         // Providers this user has saved (customer-facing favorites)
         favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],

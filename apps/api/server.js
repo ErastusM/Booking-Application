@@ -266,6 +266,21 @@ if (require.main === module) {
         } catch (err) {
             logger.error({ err: err.message }, 'Waitlist celebrated backfill failed (non-fatal)');
         }
+        // Retire the old 24h cancellation window. Accounts created under the previous
+        // schema have 24 PERSISTED, so changing the schema default alone would leave
+        // them enforcing it — clients still blocked from cancelling, slot never
+        // released to the waiting list. Only the old default value is cleared, so a
+        // provider who deliberately picks a window later keeps it. Idempotent.
+        try {
+            const User = require('./src/models/User');
+            const { modifiedCount } = await User.updateMany(
+                { 'bookingPolicy.cancellationWindowHours': 24 },
+                { $set: { 'bookingPolicy.cancellationWindowHours': 0 } }
+            );
+            logger.info({ modifiedCount }, 'Legacy 24h cancellation window cleared');
+        } catch (err) {
+            logger.error({ err: err.message }, 'Cancellation-window reset failed (non-fatal)');
+        }
         const server = app.listen(PORT, () => {
             logger.info({ port: PORT }, 'Server running');
             startReminderJob();

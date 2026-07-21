@@ -885,6 +885,24 @@ exports.cancelAppointment = async (req, res) => {
             logger.error({ err: walletErr }, 'Wallet release on cancel failed');
         }
 
+        // Tell the BUSINESS their client cancelled. Without this the slot silently
+        // vanished from the calendar with no explanation — the owner only found out
+        // by noticing the gap. createNotification also fires a web push.
+        try {
+            const cancelProviderId = appointment.provider || appointment.service?.provider;
+            if (cancelProviderId) {
+                const who = appointment.walkInName || appointment.guestName || appointment.customer?.name || 'A client';
+                const when = new Date(appointment.appointmentDate)
+                    .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                await createNotification(
+                    cancelProviderId,
+                    `❌ Cancelled — ${who} cancelled ${apptPhrase(appointment.service?.name)} on ${when} at ${appointment.startTime}. The slot is free again.`,
+                    'appointment',
+                    '/dashboard'
+                );
+            }
+        } catch (err) { logger.error({ err }, 'Provider cancellation notification failed'); }
+
         const { promoteFromWaitingList } = require('../utils/waitingListHelper');
         await promoteFromWaitingList(
             appointment.service._id,
@@ -1471,6 +1489,23 @@ exports.cancelAppointmentByToken = async (req, res) => {
         try {
             await walletService.releaseReservation({ appointmentId: appt._id, resolvedBy: appt.customer?._id || null });
         } catch (err) { logger.error({ err }, 'Wallet release after token-cancel failed'); }
+
+        // Tell the BUSINESS — a guest cancelling via their manage link is the one
+        // cancellation path with no signed-in customer, so it used to be completely
+        // silent to the owner.
+        try {
+            if (appt.provider) {
+                const who = appt.walkInName || appt.guestName || appt.customer?.name || 'A client';
+                const when = new Date(appt.appointmentDate)
+                    .toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                await createNotification(
+                    appt.provider,
+                    `❌ Cancelled — ${who} cancelled ${apptPhrase(appt.service?.name)} on ${when} at ${appt.startTime}. The slot is free again.`,
+                    'appointment',
+                    '/dashboard'
+                );
+            }
+        } catch (err) { logger.error({ err }, 'Provider cancellation notification failed (token path)'); }
 
         // Open the slot to the waiting list, like any other cancellation
         try {

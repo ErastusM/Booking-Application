@@ -6,7 +6,13 @@
  */
 const User = require('../models/User');
 
-const DEFAULT_WINDOW_HOURS = 24;
+// 0 = clients may cancel/reschedule at ANY time. Deliberately relaxed (owner
+// request): the previous 24h default silently rejected late cancellations, so the
+// booking stayed confirmed on the provider's calendar and the slot was never
+// released to the waiting list — the business just saw a no-show. The machinery
+// below is intact: a provider setting bookingPolicy.cancellationWindowHours > 0
+// re-enables enforcement for their business.
+const DEFAULT_WINDOW_HOURS = 0;
 
 const hoursUntilStart = (appointmentDate, startTime) => {
     const dt = new Date(appointmentDate);
