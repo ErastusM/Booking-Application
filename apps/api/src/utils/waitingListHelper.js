@@ -6,6 +6,7 @@ const User = require('../models/User');
 const { createNotification } = require('./notificationhelper');
 const { servicePhrase } = require('./apptCopy');
 const { overlapsBlockedTime } = require('./blockedTime');
+const { googleCalendarUrl } = require('./calendarHelper');
 const emailService = require('./emailService');
 const pushService = require('./pushService');
 const { primaryOrigin } = require('./origins');
@@ -146,14 +147,14 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
         // Email the promoted customer their confirmation (fire-and-forget; safeSend never throws)
         if (next.customer.email) {
             const timeStr = `${startTime}${endTime ? ` – ${endTime}` : ''}`;
-            const _pad = (n) => String(n).padStart(2, '0');
-            const _fmt = (d) => `${d.getFullYear()}${_pad(d.getMonth() + 1)}${_pad(d.getDate())}T${_pad(d.getHours())}${_pad(d.getMinutes())}00`;
-            const _base = new Date(appointmentDate);
-            const [_sh, _sm] = String(startTime).split(':').map(Number);
-            const [_eh, _em] = String(endTime || startTime).split(':').map(Number);
-            const gcalStart = new Date(_base.getFullYear(), _base.getMonth(), _base.getDate(), _sh, _sm);
-            const gcalEnd = new Date(_base.getFullYear(), _base.getMonth(), _base.getDate(), _eh, _em);
-            const gcalUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(svc?.name || 'Appointment')}&dates=${_fmt(gcalStart)}/${_fmt(gcalEnd)}&details=${encodeURIComponent('Booked via Bookplus')}`;
+            // Shared helper (real UTC instant). The old inline builder wrote a floating
+            // stamp with no zone, which Google reads as UTC — advertising a 10:00 slot
+            // as 12:00 to a CAT (UTC+2) reader.
+            const gcalUrl = googleCalendarUrl({
+                title: svc?.name || 'Appointment',
+                appointmentDate, startTime, endTime: endTime || startTime,
+                details: 'Booked via Bookplus',
+            });
 
             const providerDoc = providerId ? await User.findById(providerId).select('name businessProfile') : null;
             const address = providerDoc?.businessProfile?.address || '';

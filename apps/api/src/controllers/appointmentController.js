@@ -741,14 +741,13 @@ exports.createAppointment = async (req, res) => {
             try {
                 const dateStr = new Date(appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
                 const timeStr = `${startTime} – ${endTime}`;
-                const _pad = (n) => String(n).padStart(2, '0');
-                const _fmt = (d) => `${d.getFullYear()}${_pad(d.getMonth()+1)}${_pad(d.getDate())}T${_pad(d.getHours())}${_pad(d.getMinutes())}00`;
-                const _base = new Date(appointmentDate);
-                const [_sh, _sm] = startTime.split(':').map(Number);
-                const [_eh, _em] = endTime.split(':').map(Number);
-                const _gcalStart = new Date(_base.getFullYear(), _base.getMonth(), _base.getDate(), _sh, _sm);
-                const _gcalEnd = new Date(_base.getFullYear(), _base.getMonth(), _base.getDate(), _eh, _em);
-                const gcalUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(svc.name)}&dates=${_fmt(_gcalStart)}/${_fmt(_gcalEnd)}&details=${encodeURIComponent('Booked via Bookplus')}`;
+                // Shared helper: emits a real UTC instant. The old inline builder wrote a
+                // floating stamp with no zone, which Google reads as UTC — showing a 10:00
+                // booking as 12:00 to a CAT (UTC+2) reader.
+                const gcalUrl = calendarHelper.googleCalendarUrl({
+                    title: svc.name, appointmentDate, startTime, endTime,
+                    details: 'Booked via Bookplus',
+                });
 
                 // Extras for the confirmation email: venue, manage link, directions
                 const providerDoc = svc.provider ? await User.findById(svc.provider).select('name businessProfile') : null;
@@ -1098,14 +1097,14 @@ exports.updateAppointmentStatus = async (req, res) => {
             const time = `${appointment.startTime} – ${appointment.endTime}`;
 
             if (status === 'confirmed') {
-                const _pad = (n) => String(n).padStart(2, '0');
-                const _fmt = (d) => `${d.getFullYear()}${_pad(d.getMonth()+1)}${_pad(d.getDate())}T${_pad(d.getHours())}${_pad(d.getMinutes())}00`;
-                const _base = new Date(appointment.appointmentDate);
-                const [_sh, _sm] = (appointment.startTime || '09:00').split(':').map(Number);
-                const [_eh, _em] = (appointment.endTime || '10:00').split(':').map(Number);
-                const _gcalStart = new Date(_base.getFullYear(), _base.getMonth(), _base.getDate(), _sh, _sm);
-                const _gcalEnd = new Date(_base.getFullYear(), _base.getMonth(), _base.getDate(), _eh, _em);
-                const gcalUrl = `https://www.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(serviceName)}&dates=${_fmt(_gcalStart)}/${_fmt(_gcalEnd)}&details=${encodeURIComponent('Booked via Bookplus')}`;
+                // Shared helper (real UTC instant) — see the note on the booking path.
+                const gcalUrl = calendarHelper.googleCalendarUrl({
+                    title: serviceName,
+                    appointmentDate: appointment.appointmentDate,
+                    startTime: appointment.startTime || '09:00',
+                    endTime: appointment.endTime || '10:00',
+                    details: 'Booked via Bookplus',
+                });
                 await sendAppointmentConfirmed(customerEmail, customerName, serviceName, date, time, gcalUrl);
             } else if (status === 'completed') {
                 await sendAppointmentCompleted(customerEmail, customerName, serviceName);

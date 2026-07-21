@@ -23,9 +23,32 @@ const utcStamp = (date) => {
     return `${d.getUTCFullYear()}${pad(d.getUTCMonth() + 1)}${pad(d.getUTCDate())}T${pad(d.getUTCHours())}${pad(d.getUTCMinutes())}${pad(d.getUTCSeconds())}Z`;
 };
 
+// Bookplus operates on Namibian time (Africa/Windhoek): UTC+2 all year — the
+// country abolished DST in 2017, so a fixed offset is exact, not an approximation.
+const BUSINESS_UTC_OFFSET_MINUTES = 2 * 60;
+
+/**
+ * The booked wall-clock time as a real UTC instant, "YYYYMMDDTHHMMSSZ".
+ *
+ * A FLOATING stamp (no Z, no TZID) was the bug: Google Calendar reads the
+ * `dates=` parameter as UTC when it carries no zone, so a 10:00 booking was
+ * advertised to a CAT (UTC+2) reader as 12:00 — two hours late, in the reminder
+ * email and its "Add to Calendar" chip. A true UTC instant is unambiguous to
+ * Google, Apple and Outlook alike and needs no VTIMEZONE block or `ctz=` param.
+ */
+const utcStampFromLocal = (appointmentDate, hhmm) => {
+    const d = new Date(appointmentDate);
+    const [h, m] = String(hhmm || '00:00').split(':').map(Number);
+    // appointmentDate is stored at UTC-midnight of the booked day, so take its UTC
+    // date parts and apply the local time, then shift back to the UTC instant.
+    const ms = Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h || 0, m || 0, 0)
+        - BUSINESS_UTC_OFFSET_MINUTES * 60 * 1000;
+    return utcStamp(new Date(ms));
+};
+
 // "Add to Google Calendar" template URL.
 const googleCalendarUrl = ({ title, appointmentDate, startTime, endTime, details, location }) => {
-    const dates = `${localStamp(appointmentDate, startTime)}/${localStamp(appointmentDate, endTime || startTime)}`;
+    const dates = `${utcStampFromLocal(appointmentDate, startTime)}/${utcStampFromLocal(appointmentDate, endTime || startTime)}`;
     const params = [
         `text=${encodeURIComponent(title || 'Appointment')}`,
         `dates=${dates}`,
@@ -63,8 +86,8 @@ const buildIcs = ({ uid, title, appointmentDate, startTime, endTime, description
         'BEGIN:VEVENT',
         `UID:${uid}`,
         `DTSTAMP:${utcStamp()}`,
-        `DTSTART:${localStamp(appointmentDate, startTime)}`,
-        `DTEND:${localStamp(appointmentDate, endTime || startTime)}`,
+        `DTSTART:${utcStampFromLocal(appointmentDate, startTime)}`,
+        `DTEND:${utcStampFromLocal(appointmentDate, endTime || startTime)}`,
         `SUMMARY:${icsEscape(title || 'Appointment')}`,
         description ? `DESCRIPTION:${icsEscape(description)}` : '',
         location ? `LOCATION:${icsEscape(location)}` : '',
@@ -93,4 +116,4 @@ const appointmentCalendar = (appt, { title, description, location, status, seque
     };
 };
 
-module.exports = { googleCalendarUrl, buildIcs, appointmentCalendar, localStamp, utcStamp };
+module.exports = { googleCalendarUrl, buildIcs, appointmentCalendar, localStamp, utcStamp, utcStampFromLocal };
