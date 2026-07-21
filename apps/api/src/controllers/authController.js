@@ -956,7 +956,12 @@ exports.forgotPassword = async (req, res) => {
             user.passwordResetToken = crypto.createHash('sha256').update(rawToken).digest('hex');
             user.passwordResetExpiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
             await user.save({ validateBeforeSave: false });
-            await sendPasswordResetEmail(user.email, user.name, rawToken, user.role);
+            // Fire-and-forget, exactly like every other outbound email here. Awaiting
+            // the send made a HIT measurably slower than a MISS, so the response time
+            // leaked whether the address was registered even though the body is
+            // deliberately generic (finding #23).
+            sendPasswordResetEmail(user.email, user.name, rawToken, user.role)
+                .catch((err) => console.error('Password reset email failed:', err.message));
         }
 
         // Always the same response so attackers cannot enumerate registered emails

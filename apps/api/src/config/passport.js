@@ -3,6 +3,7 @@ const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const User = require('../models/User');
 const { sendWelcomeEmail } = require('../utils/emailService');
+const { roleFromState } = require('../utils/oauthState');
 
 passport.use(new GoogleStrategy({
     clientID: process.env.GOOGLE_CLIENT_ID,
@@ -16,7 +17,10 @@ passport.use(new GoogleStrategy({
         // determines WHICH side's account this sign-in targets: one Google
         // identity may hold both a customer and a business account, so every
         // lookup below is scoped to the requested account type.
-        const requestedRole = req.query.state === 'provider' ? 'provider' : 'customer';
+        // `state` is now "<role>.<nonce>" (the nonce is the CSRF binding verified in
+        // authRoutes before we ever get here), so the role must be parsed out rather
+        // than compared whole — a raw === 'provider' would now always miss.
+        const requestedRole = roleFromState(req.query.state);
         const roleFilter = User.roleFilterForAccountType(User.accountTypeForRole(requestedRole));
 
         let user = await User.findOne({ googleId: profile.id, role: roleFilter });
