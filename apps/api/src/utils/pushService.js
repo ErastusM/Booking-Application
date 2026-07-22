@@ -36,7 +36,11 @@ exports.sendToUser = async (userId, payload) => {
     if (!configured || !webpush) return;
     try {
         const PushSubscription = require('../models/PushSubscription');
-        const subs = await PushSubscription.find({ user: userId });
+        // Only WEB Push-capable rows (those carrying encryption keys). Native
+        // Capacitor device tokens live in the same collection but have no keys and
+        // are delivered by the native sender (future ticket), not web-push. The
+        // keys.auth check also covers legacy rows that predate the `platform` field.
+        const subs = await PushSubscription.find({ user: userId, 'keys.auth': { $exists: true } });
         if (!subs.length) return;
         const body = JSON.stringify({
             title: payload.title || 'Bookplus',
