@@ -116,6 +116,11 @@ const Navbar = () => {
         <p style={{ margin: '0.9rem 0 0.1rem', padding: '0.4rem 1.2rem 0', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>{label}</p>
     );
 
+    // The admin console has its own full-bleed, branded sign-in — the marketing
+    // nav (with its Login / Sign Up links) would clutter it and blur "this is the
+    // admin portal". Hide the whole navbar on that route.
+    if (location.pathname === '/bkplus-command/login') return null;
+
     return (
     <>
         {/* Dark backdrop behind the status bar so its white text stays legible in light mode too (installed PWA).

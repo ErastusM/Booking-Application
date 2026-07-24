@@ -2,7 +2,7 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 
-const ProtectedRoute = ({ children, allowedRoles }) => {
+const ProtectedRoute = ({ children, allowedRoles, loginPath = '/login' }) => {
     const { user, loading } = useAuthContext();
 
     if (loading) {
@@ -20,7 +20,10 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
         );
     }
 
-    if (!user) return <Navigate to="/login" replace />;
+    // Unauthenticated: send them to the sign-in page for THIS area — the admin
+    // console has its own branded entrance, so it never dumps a would-be admin on
+    // the generic provider login.
+    if (!user) return <Navigate to={loginPath} replace />;
 
     if (allowedRoles && !allowedRoles.includes(user.role)) {
         // Redirect to their rightful home inside the business app…

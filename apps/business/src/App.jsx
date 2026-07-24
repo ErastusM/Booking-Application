@@ -18,6 +18,7 @@ const Team = lazy(() => import('./pages/Team'));
 const MySchedule = lazy(() => import('./pages/MySchedule'));
 const ProviderAccount = lazy(() => import('./pages/ProviderAccount'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
+const AdminLogin = lazy(() => import('./pages/AdminLogin'));
 const AnalyticsDashboard = lazy(() => import('./pages/AnalyticsDashboard'));
 const Register = lazy(() => import('./pages/Register'));
 const AuthCallback = lazy(() => import('./pages/AuthCallBack'));
@@ -78,14 +79,16 @@ function AppRoutes() {
                         </ProtectedRoute>
                     } />
 
-                    {/* Admin — role-gated area of the business app */}
+                    {/* Admin — role-gated area of the business app, with its own
+                        branded sign-in so it's unmistakably the admin console. */}
+                    <Route path="/bkplus-command/login" element={<AdminLogin />} />
                     <Route path="/bkplus-command" element={
-                        <ProtectedRoute allowedRoles={['admin']}>
+                        <ProtectedRoute allowedRoles={['admin']} loginPath="/bkplus-command/login">
                             <AdminDashboard />
                         </ProtectedRoute>
                     } />
                     <Route path="/bkplus-command/insights" element={
-                        <ProtectedRoute allowedRoles={['admin']}>
+                        <ProtectedRoute allowedRoles={['admin']} loginPath="/bkplus-command/login">
                             <AnalyticsDashboard />
                         </ProtectedRoute>
                     } />
