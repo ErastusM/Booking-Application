@@ -19,10 +19,14 @@ exports.getMyEarnings = async (req, res) => {
             const d = new Date(s);
             return isNaN(d.getTime()) ? fallback : d;
         };
+        // Date math is anchored to UTC end-to-end (parsing, day bucketing, zero-fill
+        // and labels) so the report stays internally consistent regardless of the
+        // server's local timezone. Mixing UTC bucketing with local-time zero-fill
+        // used to drop or misalign bars whenever the server wasn't running in UTC.
         const rangeFrom = parseDate(req.query.from, new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000));
-        rangeFrom.setHours(0, 0, 0, 0);
+        rangeFrom.setUTCHours(0, 0, 0, 0);
         const rangeTo = parseDate(req.query.to, now);
-        rangeTo.setHours(23, 59, 59, 999);
+        rangeTo.setUTCHours(23, 59, 59, 999);
 
         // Month windows for the comparison cards (independent of the range)
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
@@ -85,7 +89,7 @@ exports.getMyEarnings = async (req, res) => {
             { $match: { ...completedBase, appointmentDate: { $gte: rangeFrom, $lte: rangeTo } } },
             {
                 $group: {
-                    _id: { $dateToString: { format: '%Y-%m-%d', date: '$appointmentDate' } },
+                    _id: { $dateToString: { format: '%Y-%m-%d', date: '$appointmentDate', timezone: 'UTC' } },
                     earned: { $sum: '$totalPrice' },
                     count: { $sum: 1 },
                 },
@@ -98,39 +102,70 @@ exports.getMyEarnings = async (req, res) => {
         const MAX_DAYS = 370; // safety cap for very wide ranges
         let guard = 0;
         while (dayCursor <= rangeTo && guard < MAX_DAYS) {
-            const key = `${dayCursor.getFullYear()}-${String(dayCursor.getMonth() + 1).padStart(2, '0')}-${String(dayCursor.getDate()).padStart(2, '0')}`;
+            const key = `${dayCursor.getUTCFullYear()}-${String(dayCursor.getUTCMonth() + 1).padStart(2, '0')}-${String(dayCursor.getUTCDate()).padStart(2, '0')}`;
             const found = overTimeMap.get(key);
             overTime.push({
                 date: key,
-                label: dayCursor.toLocaleDateString('en-US', { month: 'short', day: 'numeric' }),
+                label: dayCursor.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }),
                 earned: found ? found.earned : 0,
                 count: found ? found.count : 0,
             });
-            dayCursor.setDate(dayCursor.getDate() + 1);
+            dayCursor.setUTCDate(dayCursor.getUTCDate() + 1);
             guard += 1;
         }
 
         // ── Top clients (within range) ──
+        // A completed appointment belongs to a registered customer, a guest (email),
+        // or a provider-logged walk-in (name). Grouping on `customer` alone collapsed
+        // every guest and walk-in into a single null "Walk-in" row; group on a
+        // per-identity key so distinct guests are counted separately and named.
         const topClientsRaw = await Appointment.aggregate([
             { $match: { ...completedBase, appointmentDate: { $gte: rangeFrom, $lte: rangeTo } } },
-            { $group: { _id: '$customer', earned: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
+            {
+                $group: {
+                    _id: { $ifNull: ['$customer', { $ifNull: ['$guestEmail', '$walkInName'] }] },
+                    earned: { $sum: '$totalPrice' },
+                    count: { $sum: 1 },
+                    customer: { $first: '$customer' },
+                    guestName: { $first: '$guestName' },
+                    walkInName: { $first: '$walkInName' },
+                },
+            },
             { $sort: { earned: -1 } },
             { $limit: 5 },
-            { $lookup: { from: 'users', localField: '_id', foreignField: '_id', as: 'u' } },
+            { $lookup: { from: 'users', localField: 'customer', foreignField: '_id', as: 'u' } },
             { $unwind: { path: '$u', preserveNullAndEmptyArrays: true } },
-            { $project: { name: { $ifNull: ['$u.name', 'Walk-in'] }, earned: 1, count: 1 } },
+            { $project: { name: { $ifNull: ['$u.name', { $ifNull: ['$guestName', { $ifNull: ['$walkInName', 'Walk-in'] }] }] }, earned: 1, count: 1 } },
         ]);
+
+        // ── Earnings by team member (within range) ──
+        // Appointments carry the staff member who performed them. Only surface this
+        // breakdown for businesses that actually assign staff — a solo provider's
+        // bookings are all unassigned, so the section stays empty (byTeamMember: [])
+        // rather than showing a lone, meaningless "Unassigned" row.
+        const byTeamMemberRaw = await Appointment.aggregate([
+            { $match: { ...completedBase, appointmentDate: { $gte: rangeFrom, $lte: rangeTo } } },
+            { $group: { _id: '$teamMember', earned: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
+            { $lookup: { from: 'teammembers', localField: '_id', foreignField: '_id', as: 'tm' } },
+            { $unwind: { path: '$tm', preserveNullAndEmptyArrays: true } },
+            { $project: { name: { $ifNull: ['$tm.name', 'Unassigned'] }, earned: 1, count: 1 } },
+            { $sort: { earned: -1 } },
+        ]);
+        const hasAssignedStaff = byTeamMemberRaw.some(r => r._id != null);
+        const byTeamMember = hasAssignedStaff
+            ? byTeamMemberRaw.map(r => ({ name: r.name, earned: r.earned, count: r.count }))
+            : [];
 
         // ── Recent completed appointments (latest 10, range-independent) ──
         const recentDocs = await Appointment.find(completedBase)
-            .select('customer walkInName service appointmentDate startTime endTime totalPrice')
+            .select('customer guestName walkInName service appointmentDate startTime endTime totalPrice')
             .populate('service', 'name')
             .populate('customer', 'name')
             .sort({ appointmentDate: -1 })
             .limit(10);
         const recent = recentDocs.map(a => ({
             _id: a._id,
-            client: a.walkInName || a.customer?.name || 'Walk-in',
+            client: a.customer?.name || a.guestName || a.walkInName || 'Walk-in',
             service: a.service?.name || 'Unknown',
             date: a.appointmentDate,
             time: a.startTime ? `${a.startTime} – ${a.endTime}` : '',
@@ -152,7 +187,7 @@ exports.getMyEarnings = async (req, res) => {
                 lastMonth: { earned: lastMonthEarned, completedCount: agg?.lastMonthCount || 0 },
                 growthPct,
                 byService,
-                byTeamMember: [], // appointments are not yet linked to individual team members
+                byTeamMember,
                 overTime,
                 topClients: topClientsRaw,
                 recent,

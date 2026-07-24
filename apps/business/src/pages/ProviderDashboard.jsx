@@ -507,6 +507,11 @@ const ProviderDashboard = () => {
         rows.push([]);
         rows.push(['Service', `Earned (${curCode})`, 'Completed']);
         earnings.byService.forEach(s => rows.push([s.name, s.earned, s.count]));
+        if (earnings.byTeamMember?.length > 0) {
+            rows.push([]);
+            rows.push(['Staff member', `Earned (${curCode})`, 'Completed']);
+            earnings.byTeamMember.forEach(m => rows.push([m.name, m.earned, m.count]));
+        }
         const csv = rows.map(r => r.map(c => `"${String(c ?? '')}"`).join(',')).join('\n');
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
@@ -1989,6 +1994,32 @@ const ProviderDashboard = () => {
                                         </div>
                                     )}
                                 </div>
+
+                                {/* By team member — only shown for businesses that assign staff */}
+                                {earnings.byTeamMember?.length > 0 && (
+                                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1.5rem' }}>
+                                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>Earnings by staff member</h3>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
+                                            {earnings.byTeamMember.map((m, i) => {
+                                                const max = earnings.byTeamMember[0]?.earned || 1;
+                                                return (
+                                                    <div key={i}>
+                                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
+                                                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</span>
+                                                            <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexShrink: 0, whiteSpace: 'nowrap' }}>
+                                                                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{m.count} job{m.count !== 1 ? 's' : ''}</span>
+                                                                <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)' }}>{curSym} {m.earned.toLocaleString()}</span>
+                                                            </div>
+                                                        </div>
+                                                        <div style={{ height: '6px', borderRadius: '99px', background: 'var(--warm-gray)', overflow: 'hidden' }}>
+                                                            <div style={{ height: '100%', borderRadius: '99px', background: 'var(--gold)', width: `${(m.earned / max) * 100}%`, transition: 'width 0.5s ease' }} />
+                                                        </div>
+                                                    </div>
+                                                );
+                                            })}
+                                        </div>
+                                    </div>
+                                )}
 
                                 {/* Recent completed */}
                                 <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
