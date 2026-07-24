@@ -39,6 +39,7 @@ const clientErrorRoutes = require('./src/routes/clientErrorRoutes');
 const eventRoutes = require('./src/routes/eventRoutes');
 const startReminderJob = require('./src/utils/reminderService');
 const startWalletExpiryJob = require('./src/utils/walletExpiryService');
+const startAutoCompleteJob = require('./src/utils/autoCompleteService');
 const passport = require('./src/config/passport');
 const User = require('./src/models/User');
 
@@ -285,6 +286,7 @@ if (require.main === module) {
             logger.info({ port: PORT }, 'Server running');
             startReminderJob();
             startWalletExpiryJob();
+            startAutoCompleteJob();
         });
 
         const shutdown = async (signal) => {
