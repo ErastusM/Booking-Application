@@ -23,8 +23,19 @@ beforeAll(() => testDb.connect());
 afterAll(() => testDb.closeDatabase());
 afterEach(async () => { await testDb.clearDatabase(); jest.clearAllMocks(); });
 
-// 2026-08-05 is a Wednesday — enabled in every default schedule, in the future.
-const DATE = '2026-08-05';
+// The search endpoint floors an opening list to "now" for the current day, so a
+// DATE of *today* makes this whole suite depend on the wall-clock time it runs at
+// (green in the morning, red in the evening once the fixture hours are in the
+// past) — and a hardcoded past date is rejected outright with a 400. Use the next
+// Wednesday strictly in the future instead: always ahead of "now" (no flooring)
+// and still a Wednesday, which every default schedule below enables. Built from
+// local date parts to match how the controller derives "today".
+const nextFutureWednesday = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + ((3 - d.getDay() + 7) % 7 || 7)); // 3 = Wednesday, always strictly future
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const DATE = nextFutureWednesday();
 
 const search = (params) => request(app).get('/api/providers/search').query(params);
 
