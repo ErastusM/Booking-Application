@@ -27,8 +27,17 @@ beforeAll(() => testDb.connect());
 afterAll(() => testDb.closeDatabase());
 afterEach(async () => { await testDb.clearDatabase(); jest.clearAllMocks(); });
 
-// 2026-08-05 is a Wednesday — a weekday for every default schedule.
-const DATE = '2026-08-05';
+// Bookings for a slot in the past are rejected (400), so a DATE of *today* makes
+// this suite pass only when it happens to run before the fixture start time and
+// fail later in the day; a past date fails outright. Use the next Wednesday
+// strictly in the future — always ahead of "now", and still a weekday every
+// default schedule enables. Built from local date parts to match the controller.
+const nextFutureWednesday = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + ((3 - d.getDay() + 7) % 7 || 7)); // 3 = Wednesday, always strictly future
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const DATE = nextFutureWednesday();
 
 const book = (asUser, svc, { teamMember, startTime = '10:00', endTime = '10:30' } = {}) =>
     request(app)
