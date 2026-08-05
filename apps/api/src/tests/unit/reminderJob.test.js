@@ -175,6 +175,52 @@ describe('Reminder cron – 1h window', () => {
 });
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Reschedule resets reminder flags (so the new time gets fresh reminders)
+// ─────────────────────────────────────────────────────────────────────────────
+describe('Reschedule – reminder flags', () => {
+    it('clears reminderSent flags when the appointment time changes', async () => {
+        const customer = await makeUser();
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id);
+
+        const appt = await makeAppointment(customer._id, svc._id, provider._id, {
+            status: 'confirmed',
+            reminderSent24h: true,
+            reminderSent5h: true,
+            reminderSent1h: true,
+        });
+
+        // Simulate a reschedule to a new day/time (as the controllers do).
+        appt.appointmentDate = new Date(Date.now() + 5 * 24 * 60 * 60 * 1000);
+        appt.startTime = '14:00';
+        appt.endTime = '14:30';
+        await appt.save();
+
+        const fresh = await Appointment.findById(appt._id);
+        expect(fresh.reminderSent24h).toBe(false);
+        expect(fresh.reminderSent5h).toBe(false);
+        expect(fresh.reminderSent1h).toBe(false);
+    });
+
+    it('does NOT clear flags when an unrelated field changes', async () => {
+        const customer = await makeUser();
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id);
+
+        const appt = await makeAppointment(customer._id, svc._id, provider._id, {
+            status: 'confirmed',
+            reminderSent24h: true,
+        });
+
+        appt.notes = 'Please arrive 5 minutes early';
+        await appt.save();
+
+        const fresh = await Appointment.findById(appt._id);
+        expect(fresh.reminderSent24h).toBe(true);
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Waiting List Promotion
 // ─────────────────────────────────────────────────────────────────────────────
 describe('promoteFromWaitingList', () => {
