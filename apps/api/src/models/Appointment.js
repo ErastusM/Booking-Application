@@ -162,6 +162,22 @@ appointmentSchema.pre('save', function (next) {
     next();
 });
 
+// Rescheduling moves the booking to a new instant, so any reminders that already
+// fired for the OLD slot must not suppress the reminders for the NEW one. Clear
+// the flags whenever an existing booking's date/time actually changes — the cron
+// then re-evaluates its windows against the new start and re-sends. Without this,
+// a client who reschedules after their 24h/1h reminder went out gets no reminder
+// for the new time. New docs already default to false, and the cron marks flags
+// via findByIdAndUpdate (which bypasses this hook), so neither is affected.
+appointmentSchema.pre('save', function (next) {
+    if (!this.isNew && (this.isModified('appointmentDate') || this.isModified('startTime'))) {
+        this.reminderSent24h = false;
+        this.reminderSent5h = false;
+        this.reminderSent1h = false;
+    }
+    next();
+});
+
 appointmentSchema.pre('insertMany', function (next, docs) {
     if (Array.isArray(docs)) {
         for (const doc of docs) {
