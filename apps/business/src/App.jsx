@@ -22,6 +22,7 @@ const AdminLogin = lazy(() => import('./pages/AdminLogin'));
 const AnalyticsDashboard = lazy(() => import('./pages/AnalyticsDashboard'));
 const Register = lazy(() => import('./pages/Register'));
 const AuthCallback = lazy(() => import('./pages/AuthCallBack'));
+const CompleteProfile = lazy(() => import('./pages/CompleteProfile'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
@@ -53,6 +54,7 @@ function AppRoutes() {
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<Register />} />
                     <Route path="/auth/callback" element={<AuthCallback />} />
+                    <Route path="/complete-profile" element={<CompleteProfile />} />
                     <Route path="/verify-email" element={<VerifyEmail />} />
                     <Route path="/forgot-password" element={<ForgotPassword />} />
                     <Route path="/reset-password" element={<ResetPassword />} />
@@ -64,7 +66,7 @@ function AppRoutes() {
                         </ProtectedRoute>
                     } />
                     <Route path="/team" element={
-                        <ProtectedRoute allowedRoles={['provider', 'admin']}>
+                        <ProtectedRoute allowedRoles={['provider']}>
                             <Team />
                         </ProtectedRoute>
                     } />

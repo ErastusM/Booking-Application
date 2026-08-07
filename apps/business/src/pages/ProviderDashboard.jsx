@@ -135,6 +135,7 @@ const ProviderDashboard = () => {
     const [walletSummary, setWalletSummary] = useState(null);
     const [walletSettings, setWalletSettings] = useState(null);
     const [walletTopups, setWalletTopups] = useState([]);
+    const [resolvingTopUpId, setResolvingTopUpId] = useState(null); // top-up _id currently being approved/rejected — blocks a double-click
     const [walletClientWallets, setWalletClientWallets] = useState([]);
     const [walletAdjustments, setWalletAdjustments] = useState([]);
     const [walletLoading, setWalletLoading] = useState(false);
@@ -163,6 +164,7 @@ const ProviderDashboard = () => {
     const [loadingPackages, setLoadingPackages] = useState(false);
     const [showPackageForm, setShowPackageForm] = useState(false);
     const [packageForm, setPackageForm] = useState({ name: '', description: '', totalSessions: '', price: '', validityDays: '365' });
+    const [editingPackage, setEditingPackage] = useState(null); // membership plan being edited, else null = creating
     const [savingPackage, setSavingPackage] = useState(false);
 
     // Team members
@@ -346,15 +348,29 @@ const ProviderDashboard = () => {
                     }
                     cur.setDate(cur.getDate() + 1);
                 }
+                // Sequential POSTs (no batch endpoint) — one date failing shouldn't hide
+                // that the others went through, so track successes instead of letting
+                // the first error abort the loop with a blanket "failed" message.
+                let created = 0;
+                let firstErr = null;
                 for (const d of dates) {
-                    await blockedTimeService.createBlockedTime({
-                        date: d,
-                        startTime: blockedTimeForm.startTime,
-                        endTime: blockedTimeForm.endTime,
-                        reason: blockedTimeForm.reason || blockedTimeForm.title || '',
-                        isRecurring: false,
-                        teamMember: blockedTimeForm.teamMember || undefined,
-                    });
+                    try {
+                        await blockedTimeService.createBlockedTime({
+                            date: d,
+                            startTime: blockedTimeForm.startTime,
+                            endTime: blockedTimeForm.endTime,
+                            reason: blockedTimeForm.reason || blockedTimeForm.title || '',
+                            isRecurring: false,
+                            teamMember: blockedTimeForm.teamMember || undefined,
+                        });
+                        created += 1;
+                    } catch (err) {
+                        if (!firstErr) firstErr = err;
+                    }
+                }
+                if (created === 0) throw firstErr || new Error('Failed to save blocked time.');
+                if (created < dates.length) {
+                    toast(`Blocked ${created} of ${dates.length} days · ${dates.length - created} could not be created`, 'error');
                 }
             } else {
                 const payload = {
@@ -454,10 +470,12 @@ const ProviderDashboard = () => {
     };
 
     const resolveTopUp = async (id, approve) => {
+        if (resolvingTopUpId) return; // already resolving one — ignore a rapid double-click
+        setResolvingTopUpId(id);
         try {
             approve ? await walletService.approveTopUp(id) : await walletService.rejectTopUp(id);
             await fetchWalletData();
-        } catch (err) { toast(err.response?.data?.message || 'Could not update top-up', 'error'); }
+        } catch (err) { toast(err.response?.data?.message || 'Could not update top-up', 'error'); } finally { setResolvingTopUpId(null); }
     };
 
     const submitAdjustment = async ({ customerId, amount, direction, reason, isRefund }) => {
@@ -574,7 +592,7 @@ const ProviderDashboard = () => {
         try {
             const payload = { ...clientNoteForm, tags: clientNoteForm.tags.split(',').map(t => t.trim()).filter(Boolean) };
             await clientCRMService.upsertClientNote(selectedClient.customer._id, payload);
-        } catch { /* ignore */ } finally { setSavingClientNote(false); }
+        } catch (err) { toast(err.response?.data?.message || 'Could not save client note', 'error'); } finally { setSavingClientNote(false); }
     };
 
     const fetchConversations = async () => {
@@ -600,7 +618,7 @@ const ProviderDashboard = () => {
             const res = await messageService.sendMessage(selectedConversation.appointment._id, newMessage.trim());
             setConversationMessages(prev => [...prev, res.data.data]);
             setNewMessage('');
-        } catch { /* ignore */ } finally { setSendingMessage(false); }
+        } catch (err) { toast(err.response?.data?.message || 'Message could not be sent', 'error'); } finally { setSendingMessage(false); }
     };
 
     // Jump from an appointment (or a client name) straight into that client's
@@ -635,18 +653,25 @@ const ProviderDashboard = () => {
     const handleCreatePackage = async () => {
         setSavingPackage(true);
         try {
-            const res = await packageService.createPackage({ ...packageForm, totalSessions: Number(packageForm.totalSessions), price: Number(packageForm.price), validityDays: Number(packageForm.validityDays) });
-            setMyPackages(prev => [res.data.data, ...prev]);
+            const payload = { ...packageForm, totalSessions: Number(packageForm.totalSessions), price: Number(packageForm.price), validityDays: Number(packageForm.validityDays) };
+            if (editingPackage) {
+                const res = await packageService.updatePackage(editingPackage._id, payload);
+                setMyPackages(prev => prev.map(p => p._id === editingPackage._id ? res.data.data : p));
+            } else {
+                const res = await packageService.createPackage(payload);
+                setMyPackages(prev => [res.data.data, ...prev]);
+            }
             setShowPackageForm(false);
+            setEditingPackage(null);
             setPackageForm({ name: '', description: '', totalSessions: '', price: '', validityDays: '365' });
-        } catch { /* ignore */ } finally { setSavingPackage(false); }
+        } catch (err) { toast(err.response?.data?.message || 'Could not save membership plan', 'error'); } finally { setSavingPackage(false); }
     };
 
     const togglePackageActive = async (pkg) => {
         try {
             const res = await packageService.updatePackage(pkg._id, { isActive: !pkg.isActive });
             setMyPackages(prev => prev.map(p => p._id === pkg._id ? res.data.data : p));
-        } catch { /* ignore */ }
+        } catch (err) { toast(err.response?.data?.message || 'Could not update plan', 'error'); }
     };
 
     const fetchTeam = async () => {
@@ -700,21 +725,21 @@ const ProviderDashboard = () => {
                 setTeamMembers(prev => [...prev, res.data.data]);
             }
             setShowTeamForm(false);
-        } catch { /* ignore */ } finally { setSavingTeam(false); }
+        } catch (err) { toast(err.response?.data?.message || 'Could not save team member', 'error'); } finally { setSavingTeam(false); }
     };
 
     const handleDeleteMember = async (id) => {
         try {
             await teamService.deleteMember(id);
             setTeamMembers(prev => prev.filter(m => m._id !== id));
-        } catch { /* ignore */ }
+        } catch (err) { toast(err.response?.data?.message || 'Could not remove team member', 'error'); }
     };
 
     const handleToggleMemberActive = async (m) => {
         try {
             const res = await teamService.updateMember(m._id, { isActive: !m.isActive });
             setTeamMembers(prev => prev.map(x => x._id === m._id ? res.data.data : x));
-        } catch { /* ignore */ }
+        } catch (err) { toast(err.response?.data?.message || 'Could not update team member', 'error'); }
     };
 
     const fetchMyServices = async () => {
@@ -2622,7 +2647,7 @@ const ProviderDashboard = () => {
                                 </div>
                                 {/* Composer */}
                                 <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--border)', display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
-                                    <input value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && handleSendMessage()} placeholder="Message…" className="input" style={{ flex: 1, borderRadius: '999px', padding: '0.6rem 1rem' }} />
+                                    <input value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && !sendingMessage && newMessage.trim() && handleSendMessage()} placeholder="Message…" className="input" style={{ flex: 1, borderRadius: '999px', padding: '0.6rem 1rem' }} />
                                     <button onClick={handleSendMessage} disabled={sendingMessage || !newMessage.trim()} aria-label="Send message" style={{ flexShrink: 0, width: '42px', height: '42px', borderRadius: '50%', border: 'none', background: newMessage.trim() ? 'var(--gold)' : 'var(--border)', color: 'var(--ink)', cursor: newMessage.trim() ? 'pointer' : 'not-allowed', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}>
                                         <Send size={18} />
                                     </button>
@@ -2641,13 +2666,13 @@ const ProviderDashboard = () => {
                             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Memberships</h2>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginTop: '0.25rem' }}>Multi-session plans clients can enroll in and redeem over time.</p>
                         </div>
-                        <button onClick={() => { setShowPackageForm(true); setPackageForm({ name: '', description: '', price: '', totalSessions: '', validityDays: '365' }); }} className="btn-primary" style={{ padding: '0.65rem 1.25rem', fontSize: '0.875rem' }}>+ New Membership</button>
+                        <button onClick={() => { setEditingPackage(null); setShowPackageForm(true); setPackageForm({ name: '', description: '', price: '', totalSessions: '', validityDays: '365' }); }} className="btn-primary" style={{ padding: '0.65rem 1.25rem', fontSize: '0.875rem' }}>+ New Membership</button>
                     </div>
 
                     {showPackageForm && (
                         <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--gold)', padding: '1.75rem', marginBottom: '1.5rem', boxShadow: 'var(--shadow-sm)', marginTop: '1.5rem' }}>
                             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '700', marginBottom: '1.25rem', color: 'var(--charcoal)' }}>
-                                {packageForm.name ? `Editing: ${packageForm.name}` : 'New Membership Plan'}
+                                {editingPackage ? `Editing: ${editingPackage.name}` : 'New Membership Plan'}
                             </h3>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                                 {[
@@ -2667,8 +2692,8 @@ const ProviderDashboard = () => {
                                 </div>
                             </div>
                             <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                <button onClick={handleCreatePackage} disabled={savingPackage} className="btn-primary" style={{ padding: '0.65rem 1.5rem' }}>{savingPackage ? 'Saving...' : 'Save Plan'}</button>
-                                <button onClick={() => setShowPackageForm(false)} className="btn-outline" style={{ padding: '0.65rem 1.25rem' }}>Cancel</button>
+                                <button onClick={handleCreatePackage} disabled={savingPackage} className="btn-primary" style={{ padding: '0.65rem 1.5rem' }}>{savingPackage ? 'Saving...' : editingPackage ? 'Update Plan' : 'Save Plan'}</button>
+                                <button onClick={() => { setShowPackageForm(false); setEditingPackage(null); }} className="btn-outline" style={{ padding: '0.65rem 1.25rem' }}>Cancel</button>
                             </div>
                         </div>
                     )}
@@ -2713,7 +2738,7 @@ const ProviderDashboard = () => {
                                     </div>
                                     <div style={{ padding: '0.75rem 1.5rem', borderTop: '1px solid var(--border)', display: 'flex', gap: '0.5rem' }}>
                                         <button
-                                            onClick={() => { setPackageForm({ name: pkg.name, description: pkg.description, price: String(pkg.price), totalSessions: String(pkg.totalSessions), validityDays: String(pkg.validityDays) }); setShowPackageForm(true); }}
+                                            onClick={() => { setEditingPackage(pkg); setPackageForm({ name: pkg.name, description: pkg.description, price: String(pkg.price), totalSessions: String(pkg.totalSessions), validityDays: String(pkg.validityDays) }); setShowPackageForm(true); }}
                                             style={{ flex: 1, background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.45rem', fontSize: '0.8rem', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}>
                                             Edit
                                         </button>
@@ -2852,8 +2877,8 @@ const ProviderDashboard = () => {
                                                 </div>
                                                 {t.status === 'pending' ? (
                                                     <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
-                                                        <button onClick={() => resolveTopUp(t._id, true)} className="btn-primary" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}>Approve</button>
-                                                        <button onClick={() => resolveTopUp(t._id, false)} className="btn-outline" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}>Reject</button>
+                                                        <button onClick={() => resolveTopUp(t._id, true)} disabled={resolvingTopUpId === t._id} className="btn-primary" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem', opacity: resolvingTopUpId === t._id ? 0.6 : 1 }}>{resolvingTopUpId === t._id ? '…' : 'Approve'}</button>
+                                                        <button onClick={() => resolveTopUp(t._id, false)} disabled={resolvingTopUpId === t._id} className="btn-outline" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem', opacity: resolvingTopUpId === t._id ? 0.6 : 1 }}>Reject</button>
                                                     </div>
                                                 ) : (
                                                     <span style={{ fontSize: '0.75rem', fontWeight: '600', padding: '0.2rem 0.6rem', borderRadius: '99px', textTransform: 'capitalize', background: t.status === 'approved' ? '#d1fae5' : '#fee2e2', color: t.status === 'approved' ? '#065f46' : '#991b1b' }}>{t.status}</span>
@@ -3253,12 +3278,28 @@ const ProviderDashboard = () => {
                                                 if (b.length) blocks = b;
                                             }
                                         }
-                                        const bookedRanges = (appointments || []).filter(a => {
-                                            const ad = new Date(a.appointmentDate);
-                                            const ds = `${ad.getFullYear()}-${String(ad.getMonth() + 1).padStart(2, '0')}-${String(ad.getDate()).padStart(2, '0')}`;
-                                            const tm = a.teamMember?._id || a.teamMember || '';
-                                            return ds === apptForm.date && a.status !== 'cancelled' && (apptForm.teamMember ? String(tm) === String(apptForm.teamMember) : true);
-                                        }).map(a => { const [sh, sm] = (a.startTime || '0:0').split(':').map(Number); const [eh, em] = (a.endTime || '0:0').split(':').map(Number); return { start: sh * 60 + sm, end: eh * 60 + em }; });
+                                        // Lane matching mirrors StaffLanesDay: an appointment/block with no team
+                                        // member (or one that's since left the roster) sits in the owner's
+                                        // "unassigned" lane; a scoped block also blocks every other lane so it
+                                        // can't be booked around, but a specific member's own bookings never
+                                        // conflict with a DIFFERENT member's or the owner's slot.
+                                        const rosterIds = new Set(teamMembers.map(m => String(m._id)));
+                                        const laneOf = (tmId) => (tmId && rosterIds.has(String(tmId))) ? String(tmId) : '';
+                                        const selectedLane = apptForm.teamMember ? String(apptForm.teamMember) : '';
+                                        const toMinutes = (t) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m; };
+                                        const bookedRanges = [
+                                            ...(appointments || []).filter(a => {
+                                                if (a.status === 'cancelled') return false;
+                                                if (toDateString(a.appointmentDate) !== apptForm.date) return false;
+                                                return laneOf(a.teamMember?._id || a.teamMember || '') === selectedLane;
+                                            }).map(a => ({ start: toMinutes(a.startTime), end: toMinutes(a.endTime) })),
+                                            // Blocked time is a hard stop too — it was being ignored entirely before.
+                                            ...(blockedTimes || []).filter(b => {
+                                                if (toDateString(b.date) !== apptForm.date) return false;
+                                                const tm = b.teamMember?._id || b.teamMember || '';
+                                                return !tm || String(tm) === selectedLane; // whole-business blocks hit every lane
+                                            }).map(b => ({ start: toMinutes(b.startTime), end: toMinutes(b.endTime) })),
+                                        ];
                                         let minStart = -1;
                                         const now = new Date();
                                         const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
