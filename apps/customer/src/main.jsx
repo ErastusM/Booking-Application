@@ -29,13 +29,17 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </React.StrictMode>
 );
 
-// Hold the boot splash a full 2s after paint, then fade (0.45s CSS transition) and
-// remove. Long enough to read the tagline as a deliberate brand moment AND to let
-// the home render/fetch behind it, so the app is settled when the splash lifts.
+// Hold the boot splash after paint, then fade (0.45s CSS transition) and remove.
+// First-ever open: a full 2s — long enough to read the taglines as a deliberate
+// brand moment AND to let the home render/fetch behind it. Every launch after
+// that, index.html's inline script already dropped the taglines (logo only, see
+// data-repeat-launch), so a brief hold is enough — just settle the home behind it.
 const __splash = document.getElementById('app-splash');
 if (__splash) {
+    const __repeatLaunch = document.documentElement.getAttribute('data-repeat-launch') === 'true';
+    const __holdMs = __repeatLaunch ? 700 : 2000;
     window.setTimeout(() => {
         __splash.classList.add('app-splash--hidden');
         window.setTimeout(() => __splash.remove(), 500);
-    }, 2000);
+    }, __holdMs);
 }
