@@ -47,6 +47,13 @@ const parseTimeToMinutes = (time) => {
     return h * 60 + m;
 };
 
+// Inverse of parseTimeToMinutes — clamps into a 24h day so a back-to-back
+// multi-service span that crosses midnight still formats as HH:MM.
+const minutesToTime = (mins) => {
+    const m = (((mins % (24 * 60)) + 24 * 60) % (24 * 60));
+    return `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+};
+
 const timesOverlap = (startA, endA, startB, endB) => startA < endB && endA > startB;
 
 // True if the given date + start time is in the past (1-minute grace).
@@ -259,6 +266,7 @@ exports.getAllAppointments = async (req, res) => {
             .populate('customer', 'name email phone')
             .populate('service', 'name price duration')
             .populate('teamMember', 'name color')
+            .populate('services.teamMember', 'name color')
             .sort({ appointmentDate: -1 });
 
         if (fetchAll) {
@@ -783,6 +791,147 @@ exports.createAppointment = async (req, res) => {
             } catch (err) { logger.error({ err }, 'Booking confirmation email failed'); }
         });
     } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+// Provider-built multi-service booking: several of the provider's OWN services
+// performed back-to-back within a single appointment (the "Add service" flow).
+// Provider-only + provider-owned services, so it inherits the provider's override
+// of schedule/past/blocked time — it just needs ownership, a valid client, a
+// same-staff overlap check, and wallet handling for the summed total. The
+// single-service createAppointment above is deliberately left untouched.
+exports.createMultiServiceAppointment = async (req, res) => {
+    try {
+        if (req.user?.role !== 'provider') {
+            return res.status(403).json({ success: false, message: 'Only providers can build a multi-service booking here.' });
+        }
+        const { appointmentDate, startTime, services: reqServices, notes, customerId, walkInName, teamMember, paymentMethod } = req.body;
+        if (!appointmentDate || !startTime || !Array.isArray(reqServices) || reqServices.length === 0) {
+            return res.status(400).json({ success: false, message: 'Provide a date, start time and at least one service.' });
+        }
+        if (reqServices.length > 20) {
+            return res.status(400).json({ success: false, message: 'Too many services in one appointment.' });
+        }
+        const startMin = parseTimeToMinutes(startTime);
+        if (!(startMin >= 0)) return res.status(400).json({ success: false, message: 'Invalid start time.' });
+
+        // Load + validate every service belongs to this provider. Price/duration/name
+        // come from the catalogue, never the request body, and each service is laid
+        // out back-to-back from startTime.
+        const providerId = req.user._id;
+        const built = [];
+        let cursor = startMin;
+        for (const item of reqServices) {
+            const svc = await Service.findById(item?.serviceId);
+            if (!svc) return res.status(404).json({ success: false, message: 'One of the selected services was not found.' });
+            if (String(svc.provider) !== String(providerId)) {
+                return res.status(403).json({ success: false, message: 'You can only add your own services.' });
+            }
+            const duration = (typeof svc.duration === 'number' && svc.duration > 0) ? svc.duration : 30;
+            built.push({
+                service: svc._id,
+                name: svc.name,
+                price: svc.price || 0,
+                duration,
+                startTime: minutesToTime(cursor),
+                endTime: minutesToTime(cursor + duration),
+                teamMember: item?.teamMember || teamMember || null,
+            });
+            cursor += duration;
+        }
+
+        const spanStart = startTime;
+        const spanEnd = minutesToTime(cursor);
+        const totalPrice = built.reduce((s, x) => s + x.price, 0);
+        const primaryTeamMember = built[0].teamMember || teamMember || null;
+
+        // Resolve the client: an existing client of THIS provider, or a walk-in
+        // (matches the ownership rule the single-service create enforces).
+        let bookingClient = { _id: null, name: walkInName?.trim() || null };
+        if (customerId) {
+            const client = await User.findById(customerId).select('name email phone role');
+            if (!client) return res.status(404).json({ success: false, message: 'Selected client not found' });
+            const isMyClient = client.role === 'customer' && await Appointment.exists({ customer: customerId, provider: providerId });
+            if (!isMyClient) {
+                return res.status(403).json({ success: false, message: 'You can only book on behalf of an existing client. Use a walk-in for a first-time client.' });
+            }
+            bookingClient = client;
+        } else if (!bookingClient.name) {
+            return res.status(400).json({ success: false, message: 'Choose a client or enter a walk-in name.' });
+        }
+
+        // Same-staff overlap across the whole span (different staff can be concurrent).
+        const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
+        const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
+        const existing = await Appointment.find({
+            provider: providerId,
+            appointmentDate: { $gte: dayStart, $lte: dayEnd },
+            status: { $nin: ['cancelled'] },
+            teamMember: primaryTeamMember,
+        }).select('startTime endTime');
+        const clash = existing.some(a => startMin < parseTimeToMinutes(a.endTime) && cursor > parseTimeToMinutes(a.startTime));
+        if (clash) {
+            return res.status(400).json({ success: false, message: 'That time overlaps an existing booking for this staff member.' });
+        }
+
+        // Payment: reuse the provider's wallet config. Provider bookings are never
+        // blocked on insufficient funds — reserve the summed total when possible.
+        const provWallet = await User.findById(providerId).select('walletSettings');
+        const walletCfg = provWallet?.walletSettings || null;
+        let chosenMethod = 'cash';
+        if (walletCfg?.enabled && customerId) {
+            chosenMethod = (paymentMethod === 'wallet' || paymentMethod === 'cash')
+                ? paymentMethod
+                : (walletCfg.bookingPaymentMode === 'wallet_required' ? 'wallet' : 'cash');
+        }
+
+        const appointment = await Appointment.create({
+            customer: bookingClient._id,
+            service: built[0].service, // back-compat: top-level service = the first one
+            provider: providerId,
+            appointmentDate: new Date(appointmentDate),
+            startTime: spanStart,
+            endTime: spanEnd,
+            notes: notes || '',
+            services: built,
+            totalPrice,
+            status: 'confirmed',
+            statusHistory: [{ status: 'confirmed', changedBy: req.user._id }],
+            walkInName: customerId ? null : bookingClient.name,
+            teamMember: primaryTeamMember,
+            paymentMethod: chosenMethod,
+            manageToken: randomUUID(),
+        });
+        await appointment.populate(['service', { path: 'customer', select: 'name email' }, { path: 'services.service', select: 'name price duration' }]);
+
+        if (customerId && walletCfg?.enabled && chosenMethod === 'wallet' && totalPrice > 0) {
+            try {
+                const result = await walletService.reserveFunds({
+                    customer: bookingClient._id, provider: providerId,
+                    amount: totalPrice, appointmentId: appointment._id, initiatedBy: req.user._id,
+                });
+                if (result.ok) createNotification(bookingClient._id, `N$${totalPrice.toFixed(2)} reserved for your appointment`, 'wallet', '/wallet');
+            } catch (walletErr) {
+                logger.error({ err: walletErr }, 'Multi-service wallet reservation failed');
+            }
+        }
+
+        res.status(201).json({ success: true, message: 'Appointment booked', data: appointment });
+
+        setImmediate(async () => {
+            try {
+                const bookingDate = new Date(appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+                const label = customerId ? bookingClient.name : (bookingClient.name || 'a walk-in client');
+                const svcNames = built.map(b => b.name).join(', ');
+                await createNotification(providerId, `🎉 New booking — ${label}: ${svcNames} (N$${totalPrice.toFixed(2)}) on ${bookingDate} at ${spanStart}`, 'appointment', '/dashboard');
+                if (customerId) {
+                    await createNotification(bookingClient._id, `✅ You’re booked for ${svcNames} with ${req.user.name} on ${bookingDate} at ${spanStart}.`, 'appointment', '/appointments');
+                }
+            } catch (err) { logger.error({ err }, 'Multi-service booking notification failed'); }
+        });
+    } catch (error) {
+        logger.error({ err: error }, 'createMultiServiceAppointment failed');
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
