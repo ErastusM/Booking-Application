@@ -15,19 +15,21 @@ export interface ApiClientOptions {
 
 export const inferApiBase = (explicit?: string): string => {
     if (explicit) return explicit;
-    if (typeof window === 'undefined') return 'http://localhost:5000';
+    if (typeof window === 'undefined') return 'http://localhost:5050';
 
     const { protocol, hostname } = window.location;
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
-        return 'http://localhost:5000';
+        return 'http://localhost:5050';
     }
     if (hostname.startsWith('api.')) {
         return `${protocol}//${hostname}`;
     }
-    if (hostname.startsWith('www.')) {
-        return `${protocol}//api.${hostname.slice(4)}`;
-    }
-    return `${protocol}//api.${hostname}`;
+    // Strip any subdomain (www., app., business., …) down to the root
+    // registrable domain, then prefix with api. — app.bookplus.pro must
+    // resolve to api.bookplus.pro, not api.app.bookplus.pro.
+    const parts = hostname.split('.');
+    const rootDomain = parts.length > 2 ? parts.slice(-2).join('.') : hostname;
+    return `${protocol}//api.${rootDomain}`;
 };
 
 // Clear the session and bounce to login. Only used when we truly can't recover
@@ -87,6 +89,11 @@ export const createHttp = (apiBase: string): AxiosInstance => {
         // stores cookies when the request itself carried credentials). The API
         // whitelists exact origins with credentials:true, so this is safe.
         withCredentials: true,
+        // Without this, a hung refresh (or any hung request) leaves isRefreshing
+        // true and every queued request waiting until the OS socket times out —
+        // effectively indefinitely. Bound it to something a slow network can
+        // still clear, but that fails fast enough to unblock the queue.
+        timeout: 20000,
     });
 
     // Add token to requests
@@ -165,7 +172,17 @@ export const createHttp = (apiBase: string): AxiosInstance => {
                 );
                 const newToken = data?.data?.token;
                 const newRefreshToken = data?.data?.refreshToken;
-                if (!newToken) throw new Error('No token in refresh response');
+                if (!newToken) {
+                    // A 2xx with no token is just as unrecoverable as a 401/403 refresh:
+                    // there is no valid session to keep waiters queued behind. Mark it
+                    // so the catch below forces the same clean logout, instead of
+                    // leaving the stale token in place and retrying forever.
+                    const noTokenError = new Error('No token in refresh response') as Error & {
+                        isAuthFailure?: boolean;
+                    };
+                    noTokenError.isAuthFailure = true;
+                    throw noTokenError;
+                }
 
                 localStorage.setItem('token', newToken);
                 if (newRefreshToken) localStorage.setItem('refreshToken', newRefreshToken);
@@ -180,7 +197,9 @@ export const createHttp = (apiBase: string): AxiosInstance => {
                 // the user out; a later request will retry the refresh.
                 onRefreshed(null);
                 const st = (refreshError as AxiosError).response?.status;
-                if (st === 401 || st === 403) forceLogout();
+                const isAuthFailure =
+                    st === 401 || st === 403 || (refreshError as { isAuthFailure?: boolean })?.isAuthFailure === true;
+                if (isAuthFailure) forceLogout();
                 return Promise.reject(refreshError);
             } finally {
                 isRefreshing = false;

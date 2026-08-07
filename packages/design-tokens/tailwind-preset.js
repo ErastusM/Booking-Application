@@ -2,10 +2,11 @@
 //
 // Color values track the brand palette in tokens.css (orange/black/white);
 // the `gold`/`charcoal` KEY names are legacy — rename alongside the CSS vars
-// in Epic 1+. NOTE: fontFamily still names Playfair Display / DM Sans, which
-// the app no longer loads (pre-monorepo drift, frozen deliberately), and the
-// boxShadow values predate the elevation scale in tokens.css — reconcile the
-// drift in Epic 1, not here.
+// in Epic 1+. fontFamily tracks tokens.css's --font-display/--font-body
+// (Plus Jakarta Sans / Inter, both self-hosted via @fontsource-variable) —
+// it previously named Playfair Display / DM Sans, fonts no app loads, so
+// those utilities silently fell back. The boxShadow values predate the
+// elevation scale in tokens.css — reconcile that drift in Epic 1, not here.
 module.exports = {
     theme: {
         extend: {
@@ -23,8 +24,8 @@ module.exports = {
                 'warm-gray': '#dcdedd',
             },
             fontFamily: {
-                display: ['Playfair Display', 'serif'],
-                sans: ['DM Sans', 'sans-serif'],
+                display: ['Plus Jakarta Sans Variable', 'Plus Jakarta Sans', 'sans-serif'],
+                sans: ['Inter Variable', 'Inter', 'sans-serif'],
             },
             borderRadius: {
                 DEFAULT: '14px',

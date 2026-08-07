@@ -28,7 +28,7 @@ const radius = { sm: '8px', DEFAULT: '14px', lg: '20px', pill: '999px' };
 
 const fonts = {
     display: "'Plus Jakarta Sans', sans-serif",
-    body: "'Plus Jakarta Sans', sans-serif",
+    body: "'Inter', sans-serif",
 };
 
 module.exports = { colors, radius, fonts };
