@@ -152,6 +152,7 @@ const ProviderDashboard = () => {
     const [clientDetail, setClientDetail] = useState(null);
     const [clientNoteForm, setClientNoteForm] = useState({ notes: '', allergies: '', conditions: '', internalNotes: '', tags: '', birthday: '' });
     const [savingClientNote, setSavingClientNote] = useState(false);
+    const [clientSearchQuery, setClientSearchQuery] = useState('');
 
     const [conversations, setConversations] = useState([]);
     const [loadingConversations, setLoadingConversations] = useState(false);
@@ -593,6 +594,25 @@ const ProviderDashboard = () => {
             const payload = { ...clientNoteForm, tags: clientNoteForm.tags.split(',').map(t => t.trim()).filter(Boolean) };
             await clientCRMService.upsertClientNote(selectedClient.customer._id, payload);
         } catch (err) { toast(err.response?.data?.message || 'Could not save client note', 'error'); } finally { setSavingClientNote(false); }
+    };
+
+    // Reuses the same New Appointment modal/flow used from the calendar, just
+    // pre-selecting this client so the provider only has to pick service/date/time.
+    const openApptModalForClient = (client) => {
+        const customerId = client?.customer?._id || '';
+        if (!customerId) return;
+        setApptError('');
+        setApptForm(prev => ({
+            ...prev,
+            clientMode: 'existing',
+            customerId,
+            clientName: '',
+            isGroup: false,
+            date: prev.date || toDateKey(new Date()),
+            startTime: '',
+        }));
+        setClientPickerSearch(client.customer?.name || '');
+        setShowApptModal(true);
     };
 
     const fetchConversations = async () => {
@@ -2448,7 +2468,27 @@ const ProviderDashboard = () => {
                             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>My Clients</h2>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{clients.length} total</span>
                         </div>
-                        {loadingClients ? <RowsSkeleton /> : (
+                        <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
+                            <input
+                                type="text"
+                                value={clientSearchQuery}
+                                onChange={e => setClientSearchQuery(e.target.value)}
+                                placeholder="Search clients by name or phone"
+                                aria-label="Search clients"
+                                className="input"
+                                style={{ width: '100%', maxWidth: '360px' }}
+                            />
+                        </div>
+                        {loadingClients ? <RowsSkeleton /> : (() => {
+                            const q = clientSearchQuery.trim().toLowerCase();
+                            const filteredClients = q
+                                ? clients.filter(c => {
+                                    const name = (c.customer?.name || '').toLowerCase();
+                                    const phone = (c.customer?.phone || '').toLowerCase();
+                                    return name.includes(q) || phone.includes(q);
+                                })
+                                : clients;
+                            return (
                             <div style={{ overflowX: 'auto' }}>
                                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                                     <thead>
@@ -2459,8 +2499,8 @@ const ProviderDashboard = () => {
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        {clients.map((c, i) => (
-                                            <tr key={i} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.1s' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--warm-gray)'} onMouseLeave={e => e.currentTarget.style.background = 'white'}>
+                                        {filteredClients.map((c, i) => (
+                                            <tr key={i} onClick={() => { setSelectedClient(c); fetchClientDetail(c.customer._id); }} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.1s', cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--warm-gray)'} onMouseLeave={e => e.currentTarget.style.background = 'white'}>
                                                 <td style={{ padding: '0.875rem 1rem' }}>
                                                     <div style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{c.customer?.name}</div>
                                                     <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{c.customer?.email}</div>
@@ -2469,15 +2509,17 @@ const ProviderDashboard = () => {
                                                 <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{c.lastVisit ? new Date(c.lastVisit).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</td>
                                                 <td style={{ padding: '0.875rem 1rem', color: 'var(--gold-dark)', fontWeight: '600' }}>{nMoney(c.totalSpend)}</td>
                                                 <td style={{ padding: '0.875rem 1rem' }}>
-                                                    <button onClick={() => { setSelectedClient(c); fetchClientDetail(c.customer._id); }} style={{ background: 'rgba(240,62,22,0.08)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--gold-dark)', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600' }}>View</button>
+                                                    <button onClick={e => { e.stopPropagation(); setSelectedClient(c); fetchClientDetail(c.customer._id); }} style={{ background: 'rgba(240,62,22,0.08)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--gold-dark)', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600' }}>View</button>
                                                 </td>
                                             </tr>
                                         ))}
                                     </tbody>
                                 </table>
                                 {clients.length === 0 && <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No clients yet. Clients will appear here once they book with you.</div>}
+                                {clients.length > 0 && filteredClients.length === 0 && <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No clients match “{clientSearchQuery}”.</div>}
                             </div>
-                        )}
+                            );
+                        })()}
                     </div>
                     {selectedClient && clientDetail && (
                         <div className="client-detail-panel" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', position: 'sticky', top: 'calc(100px + env(safe-area-inset-top, 0px))' }}>
@@ -2497,6 +2539,13 @@ const ProviderDashboard = () => {
                                 </div>
                             </div>
                             <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '70vh', overflowY: 'auto' }}>
+                                <button
+                                    onClick={() => openApptModalForClient(selectedClient)}
+                                    className="btn-primary"
+                                    style={{ width: '100%', padding: '0.65rem', fontSize: '0.85rem', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+                                >
+                                    <CalendarPlus size={15} strokeWidth={2} /> Book Appointment
+                                </button>
                                 {/* Quick contact - call / email / chat */}
                                 {(() => {
                                     const cust = selectedClient.customer;

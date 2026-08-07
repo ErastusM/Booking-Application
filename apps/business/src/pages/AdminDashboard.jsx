@@ -538,7 +538,7 @@ const AdminDashboard = () => {
                             <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                                 <thead>
                                     <tr style={{ background: 'var(--warm-gray)', borderBottom: '1px solid var(--border)' }}>
-                                        {['User', 'Email', 'Phone', 'Role', 'Status', 'Actions'].map(h => <th key={h} style={thStyle}>{h}</th>)}
+                                        {['User', 'Email', 'Phone', 'Role', 'Status', 'Signup survey', 'Actions'].map(h => <th key={h} style={thStyle}>{h}</th>)}
                                     </tr>
                                 </thead>
                                 <tbody>
@@ -589,6 +589,27 @@ const AdminDashboard = () => {
                                                 }}>
                                                     {u.isActive === false ? 'Suspended' : 'Active'}
                                                 </span>
+                                            </td>
+                                            <td style={{ padding: '0.875rem 1rem' }}>
+                                                {/* Read-only surface of the post-signup "did you have difficulty
+                                                    signing up?" prompt — hover the badge for the free-text comment. */}
+                                                {u.signupSurvey ? (
+                                                    <span
+                                                        title={u.signupSurvey.comment || ''}
+                                                        style={{
+                                                            display: 'inline-block', padding: '0.2rem 0.65rem',
+                                                            borderRadius: '99px', fontSize: '0.72rem', fontWeight: '600',
+                                                            background: u.signupSurvey.hadDifficulty ? '#fee2e2' : '#d1fae5',
+                                                            color: u.signupSurvey.hadDifficulty ? '#991b1b' : '#065f46',
+                                                            cursor: u.signupSurvey.comment ? 'help' : 'default',
+                                                        }}
+                                                    >
+                                                        {u.signupSurvey.hadDifficulty ? '⚠ Had trouble' : 'No issues'}
+                                                        {u.signupSurvey.comment ? ' · has comment' : ''}
+                                                    </span>
+                                                ) : (
+                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>—</span>
+                                                )}
                                             </td>
                                             <td style={{ padding: '0.875rem 1rem' }}>
                                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
