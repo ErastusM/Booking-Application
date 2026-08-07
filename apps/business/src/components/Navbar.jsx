@@ -90,8 +90,15 @@ const Navbar = () => {
         paddingTop: 'env(safe-area-inset-top, 0px)',
         // Always-ink chrome: the business product is visually distinct from the
         // customer site at a glance, in both themes.
-        background: darkMode ? 'rgba(10,10,11,0.97)' : 'rgba(4,5,5,0.97)',
-        backdropFilter: 'blur(12px)',
+        //
+        // SOLID background, NO backdrop-filter — same reasoning as the bottom nav
+        // below: a backdrop-filtered `position: fixed` bar is exactly what makes
+        // iOS Safari fail to repaint it during momentum scroll, so the bar (and
+        // whatever text sat under it at the moment scrolling started) stays
+        // stuck/ghosted mid-page instead of tracking the viewport. Opaque solid
+        // colors repaint correctly. This was the root cause of the top navbar
+        // overlapping/duplicating page content while scrolling.
+        background: darkMode ? '#0a0a0b' : '#040505',
         boxShadow: 'var(--shadow-sm)',
         borderBottom: '1px solid rgba(255,255,255,0.10)',
         color: '#fff',

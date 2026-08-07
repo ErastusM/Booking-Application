@@ -29,13 +29,17 @@ ReactDOM.createRoot(document.getElementById('root')).render(
     </React.StrictMode>
 );
 
-// Hold the boot splash a full 2s after paint, then fade (0.45s CSS transition) and
-// remove. Long enough to read the tagline as a deliberate brand moment AND to let
-// the dashboard render/fetch behind it, so the app is settled when the splash lifts.
+// Hold the boot splash after paint, then fade (0.45s CSS transition) and remove.
+// First-EVER open: a full 2s hold, long enough to read the tagline as a
+// deliberate brand moment AND to let the dashboard render/fetch behind it, so
+// the app is settled when the splash lifts. Every launch after (the inline
+// boot script in index.html already stamped `data-splash="brief"` and hid the
+// tagline/hero copy before first paint): just a brief logo flash.
 const __splash = document.getElementById('app-splash');
 if (__splash) {
+    const __briefSplash = document.documentElement.getAttribute('data-splash') === 'brief';
     window.setTimeout(() => {
         __splash.classList.add('app-splash--hidden');
         window.setTimeout(() => __splash.remove(), 500);
-    }, 2000);
+    }, __briefSplash ? 450 : 2000);
 }

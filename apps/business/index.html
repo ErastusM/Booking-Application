@@ -15,6 +15,18 @@
         document.documentElement.setAttribute('data-theme', __dark ? 'dark' : 'light');
         document.querySelector('meta[name="theme-color"]').setAttribute('content', __dark ? '#0a0a0b' : '#ffffff');
       } catch (e) {}
+      // Splash: the full logo + tagline splash is a first-EVER-open brand moment
+      // only. Every launch after that shows a brief logo-only splash instead. The
+      // flag is read (and immediately set) before first paint so the decision is
+      // baked into the very first frame — no flash of the full splash on repeat
+      // launches. Keyed distinctly for the business app.
+      try {
+        if (localStorage.getItem('bp_business_launched') === 'true') {
+          document.documentElement.setAttribute('data-splash', 'brief');
+        } else {
+          localStorage.setItem('bp_business_launched', 'true');
+        }
+      } catch (e) {}
     </script>
     <style>
       /* Boot splash — the BUSINESS brand mark: "Bookplus" with an orange underline,
@@ -62,6 +74,11 @@
       }
       @keyframes appSplashIn { from { opacity: 0; transform: translateY(10px) scale(0.96); } to { opacity: 1; transform: none; } }
       @media (prefers-reduced-motion: reduce) { #app-splash .as-inner { animation: none; } }
+      /* Repeat launch — logo only, tagline/hero copy dropped so the splash reads
+         as a brief brand flash rather than the first-open moment. */
+      html[data-splash="brief"] #app-splash .as-tag,
+      html[data-splash="brief"] #app-splash .as-hero,
+      html[data-splash="brief"] #app-splash .as-hero-sub { display: none; }
     </style>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/favicon.ico" sizes="48x48" />

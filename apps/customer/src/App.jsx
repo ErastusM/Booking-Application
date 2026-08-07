@@ -7,6 +7,7 @@ import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import AppUpdater from './components/AppUpdater';
 import WaitlistCelebration from './components/WaitlistCelebration';
+import SignupSurveyModal from './components/SignupSurveyModal';
 import ProtectedRoute from './components/ProtectedRoute';
 import { track } from './services/client';
 import Home from './pages/Home';
@@ -135,6 +136,7 @@ function App() {
                 <ToastProvider>
                     <AppUpdater />
                     <WaitlistCelebration />
+                    <SignupSurveyModal />
                     <Navbar />
                     <AppRoutes />
                     <FooterGate />

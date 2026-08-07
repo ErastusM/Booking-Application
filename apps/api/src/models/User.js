@@ -2,6 +2,15 @@ const mongoose = require('mongoose');
 const bcrypt = require('bcryptjs');
 const MAIN_CATEGORIES = require('../constants/mainCategories');
 
+// One-time post-signup friction survey ("Did you experience any difficulties
+// signing up?"). Stored as a nullable subdoc: null until the user answers or
+// dismisses, so the app shows the in-app prompt exactly once. Admin-visible.
+const signupSurveySchema = new mongoose.Schema({
+    hadDifficulty: { type: Boolean, default: false },
+    comment: { type: String, default: '', trim: true, maxlength: 1000 },
+    submittedAt: { type: Date, default: Date.now },
+}, { _id: false });
+
 const userSchema = new mongoose.Schema(
     {
         name: {
@@ -135,6 +144,13 @@ const userSchema = new mongoose.Schema(
             // window here to re-enable enforcement for their business.
             cancellationWindowHours: { type: Number, default: 0, min: 0, max: 168 },
         },
+        // Post-signup friction survey response (null until answered/dismissed).
+        signupSurvey: { type: signupSurveySchema, default: null },
+        // True only for accounts created AFTER this feature shipped, so the
+        // one-time survey prompt targets genuine new signups. Default false means
+        // every pre-existing user hydrates as "don't prompt" — no org-wide blast.
+        // Cleared when the survey is answered or dismissed.
+        signupSurveyPending: { type: Boolean, default: false },
         // Providers this user has saved (customer-facing favorites)
         favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
         // Users this account has blocked — blocks bookings + messaging both ways.

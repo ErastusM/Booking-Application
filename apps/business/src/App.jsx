@@ -1,11 +1,12 @@
-import React, { Suspense, lazy } from 'react';
+import React, { Suspense, lazy, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { AuthProvider, useAuthContext } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
 import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppUpdater from './components/AppUpdater';
+import SignupSurveyModal, { shouldShowSignupSurvey } from './components/SignupSurveyModal';
 import { track } from './services/client';
 import Login from './pages/Login';
 
@@ -103,6 +104,19 @@ function AppRoutes() {
     );
 }
 
+// Post-signup survey — a one-time "did signup go smoothly?" prompt for the
+// provider who owns the account (the person who actually went through /register).
+// Gated on the profile's `signupSurvey` field (null/undefined = not answered
+// yet) with a localStorage backstop so it never re-shows after submit/dismiss.
+// Lives at the app shell level (not tied to any one route) since sign-up →
+// email verification → login can land the user on any page.
+function SignupSurveyGate() {
+    const { user } = useAuthContext();
+    const [dismissed, setDismissed] = useState(false);
+    if (dismissed || !user || user.role !== 'provider' || !shouldShowSignupSurvey(user)) return null;
+    return <SignupSurveyModal onDone={() => setDismissed(true)} />;
+}
+
 export default function App() {
     return (
         <Router>
@@ -113,6 +127,7 @@ export default function App() {
                     <AppUpdater />
                     <Navbar />
                     <AppRoutes />
+                    <SignupSurveyGate />
                 </ToastProvider>
             </AuthProvider>
             </ThemeProvider>
