@@ -503,6 +503,26 @@ exports.getProfile = async (req, res) => {
 };
 
 /**
+ * Record the one-time post-signup friction survey ("Did you experience any
+ * difficulties signing up?"). Writing sets the nullable signupSurvey subdoc,
+ * which hides the in-app prompt from then on. Safe to overwrite.
+ */
+exports.submitSignupSurvey = async (req, res) => {
+    try {
+        const hadDifficulty = !!req.body.hadDifficulty;
+        const comment = typeof req.body.comment === 'string' ? req.body.comment.trim().slice(0, 1000) : '';
+        const user = await User.findByIdAndUpdate(
+            req.user.id,
+            { signupSurvey: { hadDifficulty, comment, submittedAt: new Date() } },
+            { new: true, runValidators: true }
+        ).select('signupSurvey');
+        res.status(200).json({ success: true, data: user?.signupSurvey || null });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
  * =========================
  * UPDATE PROFILE
  * =========================

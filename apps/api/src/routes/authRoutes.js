@@ -11,6 +11,7 @@ const {
     refresh,
     getProfile,
     updateProfile,
+    submitSignupSurvey,
     updatePortfolio,
     completeProviderSetup,
     generateBookingSlug,
@@ -55,6 +56,7 @@ router.post('/logout', auth, logout);
 router.post('/refresh', refresh);
 router.get('/profile', auth, getProfile);
 router.put('/profile', auth, updateProfileRules, updateProfile);
+router.post('/signup-survey', auth, submitSignupSurvey);
 router.put('/portfolio', auth, updatePortfolio);
 router.post('/provider-setup', auth, completeProviderSetup);
 router.post('/booking-slug', auth, generateBookingSlug);
