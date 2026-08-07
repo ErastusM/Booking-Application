@@ -20,6 +20,7 @@ const calendarHelper = require('../utils/calendarHelper');
 const { resolveBookingStaff } = require('../utils/staffBooking');
 const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, toDateKey, BLOCKED_MESSAGE } = require('../utils/blockedTime');
 const { checkCancellationWindow } = require('../utils/cancellationPolicy');
+const { realStartMs } = require('../utils/appointmentTime');
 const { primaryOrigin } = require('../utils/origins');
 
 // Who a client-facing email/notification for this appointment should go to: the
@@ -50,12 +51,13 @@ const timesOverlap = (startA, endA, startB, endB) => startA < endB && endA > sta
 
 // True if the given date + start time is in the past (1-minute grace).
 // Used to stop customers booking/rescheduling into a time that has already passed.
+// Uses the shared Africa/Windhoek-aware instant so this agrees with the reminder
+// cron and the cancellation window — a plain setHours() here read startTime as
+// server-local (UTC), which made the check 2 hours off in production.
 const isPastSlot = (appointmentDate, startTime) => {
-    const dt = new Date(appointmentDate);
-    if (isNaN(dt.getTime())) return false; // let other validation handle bad dates
-    const [h, m] = String(startTime).split(':').map(Number);
-    dt.setHours(h || 0, m || 0, 0, 0);
-    return dt.getTime() < Date.now() - 60 * 1000;
+    const t = realStartMs(appointmentDate, startTime);
+    if (isNaN(t)) return false; // let other validation handle bad dates
+    return t < Date.now() - 60 * 1000;
 };
 
 const getProviderSchedule = async (providerId) => {

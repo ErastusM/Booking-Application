@@ -8,22 +8,17 @@ const { primaryOrigin } = require('./origins');
 const pushService = require('./pushService');
 const { ApptPhrase } = require('./apptCopy');
 const { withLock } = require('./lock');
+const { realStartMs } = require('./appointmentTime');
 
 const log = pino({ level: process.env.LOG_LEVEL || 'info' });
 
 let consecutiveCronFailures = 0;
 const MAX_FAILURES_BEFORE_ALERT = 3;
 
-// Bookplus operates in Namibia (Africa/Windhoek, UTC+2, no DST). appointmentDate is
-// stored at UTC-midnight of the booked day and startTime is the local wall-clock
-// "HH:MM", so the real appointment instant in UTC is that date at (startTime − 2h).
-// Computing in UTC keeps this independent of the server's own timezone.
-const NAMIBIA_OFFSET_MIN = 120;
-const realStartMs = (appt) => {
-    const d = new Date(appt.appointmentDate);
-    const [h, m] = String(appt.startTime || '00:00').split(':').map(Number);
-    return Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate(), h || 0, m || 0) - NAMIBIA_OFFSET_MIN * 60 * 1000;
-};
+// The real appointment instant (Africa/Windhoek UTC+2) comes from the shared
+// appointmentTime helper — the same source the past-slot and cancellation-window
+// checks use, so reminder timing can never drift from those.
+const apptStartMs = (appt) => realStartMs(appt.appointmentDate, appt.startTime);
 
 const svcName = (appt) => appt.service?.name || 'your appointment';
 // Customer-facing reminder label — "Your Taper Fade appointment" when we know the
@@ -98,7 +93,7 @@ const startReminderJob = () => {
             }).populate('customer', 'name email').populate('service', 'name');
 
             for (const appt of appts) {
-                const minsUntil = (realStartMs(appt) - now) / 60000;
+                const minsUntil = (apptStartMs(appt) - now) / 60000;
                 for (const rule of RULES) {
                     if (minsUntil >= rule.lo && minsUntil <= rule.hi) {
                         // Claim the reminder atomically BEFORE sending, so it fires

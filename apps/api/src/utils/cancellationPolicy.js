@@ -5,6 +5,7 @@
  * exempt — enforcement happens at the customer-facing call sites only.
  */
 const User = require('../models/User');
+const { realStartMs } = require('./appointmentTime');
 
 // 0 = clients may cancel/reschedule at ANY time. Deliberately relaxed (owner
 // request): the previous 24h default silently rejected late cancellations, so the
@@ -14,12 +15,13 @@ const User = require('../models/User');
 // re-enables enforcement for their business.
 const DEFAULT_WINDOW_HOURS = 0;
 
+// Hours from now until the booking's real start. Uses the shared
+// Africa/Windhoek-aware instant so the notice window matches the actual start
+// (a plain setHours() read startTime as server-local/UTC → 2 hours off).
 const hoursUntilStart = (appointmentDate, startTime) => {
-    const dt = new Date(appointmentDate);
-    if (isNaN(dt.getTime())) return Infinity; // bad date → let other validation reject
-    const [h, m] = String(startTime).split(':').map(Number);
-    dt.setHours(h || 0, m || 0, 0, 0);
-    return (dt.getTime() - Date.now()) / (60 * 60 * 1000);
+    const t = realStartMs(appointmentDate, startTime);
+    if (isNaN(t)) return Infinity; // bad date → let other validation reject
+    return (t - Date.now()) / (60 * 60 * 1000);
 };
 
 /**
