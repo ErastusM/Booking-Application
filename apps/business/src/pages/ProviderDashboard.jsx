@@ -598,6 +598,17 @@ const ProviderDashboard = () => {
 
     // Reuses the same New Appointment modal/flow used from the calendar, just
     // pre-selecting this client so the provider only has to pick service/date/time.
+    // Client/service fields for a FRESH booking — used to reset the New Appointment
+    // form so a generic "+ Appointment" never inherits a client left over from the
+    // client-detail "Book Appointment" entry point (or a prior open).
+    const blankApptFields = { serviceId: '', clientMode: 'existing', customerId: '', clientName: '', isGroup: false, groupClients: [{ name: '' }], notes: '', startTime: '', teamMember: '' };
+    const openBlankApptModal = (extra = {}) => {
+        setApptError('');
+        setApptForm(prev => ({ ...prev, ...blankApptFields, date: toDateKey(new Date()), ...extra }));
+        setClientPickerSearch('');
+        setShowApptModal(true);
+    };
+
     const openApptModalForClient = (client) => {
         const customerId = client?.customer?._id || '';
         if (!customerId) return;
@@ -2158,11 +2169,7 @@ const ProviderDashboard = () => {
                             </div>
                             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                 <button
-                                    onClick={() => {
-                                        setApptError('');
-                                        setApptForm(prev => ({ ...prev, date: toDateKey(new Date()) }));
-                                        setShowApptModal(true);
-                                    }}
+                                    onClick={() => openBlankApptModal()}
                                     className="btn-primary"
                                     style={{ padding: '0.5rem 0.9rem', fontSize: '0.82rem' }}
                                 >
@@ -2325,8 +2332,11 @@ const ProviderDashboard = () => {
                                     </div>
                                     <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                                         <button onClick={() => {
-                                            // teamMember is set when the selection came from a staff lane
-                                            setApptForm(prev => ({ ...prev, date: timeSelectionPreview.date, startTime: timeSelectionPreview.startTime, teamMember: timeSelectionPreview.teamMember !== undefined ? timeSelectionPreview.teamMember : prev.teamMember }));
+                                            // Fresh booking at the picked slot — clear any client left from a
+                                            // prior open. teamMember comes from the staff lane if the selection did.
+                                            setApptError('');
+                                            setApptForm(prev => ({ ...prev, ...blankApptFields, date: timeSelectionPreview.date, startTime: timeSelectionPreview.startTime, teamMember: timeSelectionPreview.teamMember !== undefined ? timeSelectionPreview.teamMember : prev.teamMember }));
+                                            setClientPickerSearch('');
                                             setShowApptModal(true);
                                             setTimeSelectionPreview(null);
                                         }} className="btn-primary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.8rem' }}>

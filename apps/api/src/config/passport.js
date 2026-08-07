@@ -69,6 +69,7 @@ passport.use(new GoogleStrategy({
                     password: undefined,
                     isVerified: true,
                     consentedAt: new Date(), // consent gated on the "Continue with Google" button
+                    signupSurveyPending: true, // new social sign-up → prompt the one-time survey
                 });
                 // Welcome email for new social sign-ups (providers and customers alike)
                 sendWelcomeEmail(user.email, user.name, user.role).catch(() => {});

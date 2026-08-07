@@ -144,6 +144,7 @@ exports.register = async (req, res) => {
             verificationToken,
             verificationTokenExpiry,
             consentedAt: new Date(), // consent captured at sign-up (gated in the UI)
+            signupSurveyPending: true, // prompt the one-time friction survey for this new account
         });
 
         if (assignedRole === 'provider') {
@@ -509,13 +510,18 @@ exports.getProfile = async (req, res) => {
  */
 exports.submitSignupSurvey = async (req, res) => {
     try {
-        const hadDifficulty = !!req.body.hadDifficulty;
-        const comment = typeof req.body.comment === 'string' ? req.body.comment.trim().slice(0, 1000) : '';
+        // Either the user answered, or dismissed. Both clear signupSurveyPending so
+        // the one-time prompt never reappears (across devices), but a dismissal
+        // stores no survey row so admins don't see a fake "no issues" answer.
+        const update = { signupSurveyPending: false };
+        if (!req.body.dismissed) {
+            const hadDifficulty = !!req.body.hadDifficulty;
+            const comment = typeof req.body.comment === 'string' ? req.body.comment.trim().slice(0, 1000) : '';
+            update.signupSurvey = { hadDifficulty, comment, submittedAt: new Date() };
+        }
         const user = await User.findByIdAndUpdate(
-            req.user.id,
-            { signupSurvey: { hadDifficulty, comment, submittedAt: new Date() } },
-            { new: true, runValidators: true }
-        ).select('signupSurvey');
+            req.user.id, update, { new: true, runValidators: true }
+        ).select('signupSurvey signupSurveyPending');
         res.status(200).json({ success: true, data: user?.signupSurvey || null });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });

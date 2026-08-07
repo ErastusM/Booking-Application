@@ -146,6 +146,11 @@ const userSchema = new mongoose.Schema(
         },
         // Post-signup friction survey response (null until answered/dismissed).
         signupSurvey: { type: signupSurveySchema, default: null },
+        // True only for accounts created AFTER this feature shipped, so the
+        // one-time survey prompt targets genuine new signups. Default false means
+        // every pre-existing user hydrates as "don't prompt" — no org-wide blast.
+        // Cleared when the survey is answered or dismissed.
+        signupSurveyPending: { type: Boolean, default: false },
         // Providers this user has saved (customer-facing favorites)
         favorites: [{ type: mongoose.Schema.Types.ObjectId, ref: 'User' }],
         // Users this account has blocked — blocks bookings + messaging both ways.

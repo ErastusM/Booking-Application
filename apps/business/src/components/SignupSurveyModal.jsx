@@ -11,6 +11,9 @@ const STORAGE_KEY = 'bp_business_signup_survey_done';
 // hasn't already submitted/dismissed locally.
 export const shouldShowSignupSurvey = (user) => {
     if (!user || user.signupSurvey) return false;
+    // Only prompt genuine new signups: signupSurveyPending is set true only at
+    // registration, so pre-existing accounts (field absent/false) never see it.
+    if (!user.signupSurveyPending) return false;
     try {
         return localStorage.getItem(STORAGE_KEY) !== 'true';
     } catch {
@@ -32,6 +35,12 @@ const SignupSurveyModal = ({ onDone }) => {
     const [error, setError] = useState('');
 
     const finish = () => { markDone(); onDone(); };
+    // Skip: clear the pending flag server-side (so it won't reappear elsewhere),
+    // storing no survey row, then close.
+    const dismiss = () => {
+        API.post('/auth/signup-survey', { dismissed: true }).catch(() => {});
+        finish();
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -116,7 +125,7 @@ const SignupSurveyModal = ({ onDone }) => {
                     )}
 
                     <div style={{ display: 'flex', gap: '0.6rem' }}>
-                        <button type="button" onClick={finish} className="btn-outline" style={{ flex: 1, padding: '0.75rem' }}>
+                        <button type="button" onClick={dismiss} className="btn-outline" style={{ flex: 1, padding: '0.75rem' }}>
                             Skip
                         </button>
                         <button

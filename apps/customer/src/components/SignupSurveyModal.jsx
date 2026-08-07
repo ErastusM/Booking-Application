@@ -26,6 +26,9 @@ const SignupSurveyModal = () => {
         try { dismissed = localStorage.getItem(DISMISSED_KEY) === 'true'; } catch { /* storage disabled */ }
         if (dismissed) return;
         if (user.signupSurvey) return; // already answered — { hadDifficulty, comment, submittedAt }
+        // Only prompt genuine new signups. signupSurveyPending is set true only at
+        // registration, so pre-existing accounts (field absent/false) never see it.
+        if (!user.signupSurveyPending) return;
         setOpen(true);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [user]);
@@ -46,7 +49,13 @@ const SignupSurveyModal = () => {
         setOpen(false);
     };
 
-    const dismiss = () => markDone();
+    const dismiss = () => {
+        // Clear the pending flag server-side so it never reappears on another device;
+        // no survey row is stored for a dismissal.
+        API.post('/auth/signup-survey', { dismissed: true }).catch(() => {});
+        setUser(prev => prev ? { ...prev, signupSurveyPending: false } : prev);
+        markDone();
+    };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
@@ -60,7 +69,7 @@ const SignupSurveyModal = () => {
                 ...(trimmedComment ? { comment: trimmedComment } : {}),
             });
             // Reflect it locally right away so nothing re-triggers this session.
-            setUser(prev => prev ? { ...prev, signupSurvey: { hadDifficulty, comment: trimmedComment || undefined, submittedAt: new Date().toISOString() } } : prev);
+            setUser(prev => prev ? { ...prev, signupSurveyPending: false, signupSurvey: { hadDifficulty, comment: trimmedComment || undefined, submittedAt: new Date().toISOString() } } : prev);
             markDone();
         } catch {
             setError('Could not submit — please try again.');
