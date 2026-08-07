@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { waitingListService } from '../services';
 import StatusOverlay from './StatusOverlay';
+import { apptLocalDate } from '../utils/date';
 
 // When a waiting-list slot opens up, the API promotes the next customer into a
 // real booking and pushes them a notification. This mounts app-wide so that the
@@ -29,7 +30,7 @@ const WaitlistCelebration = () => {
             if (p && !shown.current.has(p._id)) {
                 const svcName = p.service?.name || 'your service';
                 const when = p.appointmentDate
-                    ? new Date(p.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
+                    ? apptLocalDate(p.appointmentDate)?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })
                     : '';
                 up.current = true;
                 setPromo({

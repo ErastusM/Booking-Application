@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { appointmentService, serviceService, waitingListService, providerMarketService, availabilityService, walletService } from '../services';
@@ -72,6 +72,11 @@ const BookAppointment = () => {
     const totalDuration = selectedService
         ? effectiveDuration + selectedAddOns.reduce((sum, a) => sum + (a.duration || 0), 0)
         : 0;
+
+    // Wallet chosen but the balance can't cover it — the summary panel already warns
+    // about this, but nothing stopped the customer proceeding anyway; gate both the
+    // "Review & Confirm" step-over and the final Confirm on it too.
+    const walletShort = !!(wallet?.settings?.enabled && paymentMethod === 'wallet' && selectedService && totalPrice > (wallet.wallet?.availableBalance ?? 0));
 
     // Which provider are we booking? Prefer the URL, but fall back to the selected
     // service's owner so availability + booked slots still load in the generic
@@ -173,11 +178,15 @@ const BookAppointment = () => {
 
     // Load booked slots for the chosen provider + date. Re-runs if the provider only
     // becomes known once a service is selected (generic flow), keeping "taken" slots accurate.
+    // `stale` guards against an out-of-order response (e.g. a fast date-to-date flip)
+    // painting an earlier request's slots over the day the user is actually looking at.
     useEffect(() => {
         if (!effectiveProviderId || !formData.appointmentDate) { setBookedSlots([]); return; }
+        let stale = false;
         appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate, selectedStaff?._id || undefined)
-            .then(res => setBookedSlots(res.data.data || []))
-            .catch(() => setBookedSlots([]));
+            .then(res => { if (!stale) setBookedSlots(res.data.data || []); })
+            .catch(() => { if (!stale) setBookedSlots([]); });
+        return () => { stale = true; };
     }, [effectiveProviderId, formData.appointmentDate, selectedStaff]);
 
     // Live updates — while a date is open, keep its taken/free slots current so a
@@ -231,18 +240,31 @@ const BookAppointment = () => {
         setAvailabilityError('');
     }, [providerAvailability, formData.appointmentDate, formData.startTime]);
 
+    // Re-runs whenever the ?providerId query param itself changes (not just on mount) —
+    // e.g. navigating from one business's booking link to another's, or to the generic
+    // (no-provider) flow — so the service list/prices/provider info never linger stale
+    // from whichever business was loaded first. A previously made selection is cleared
+    // when the provider actually changes so a stale price/duration can't carry over.
+    const prevUrlProviderIdRef = useRef(urlProviderId);
     useEffect(() => {
         // Guest checkout: no login required to browse services or book. Signed-in
         // users are picked up automatically; guests supply contact details at the
         // confirm step.
+        const providerChanged = prevUrlProviderIdRef.current !== urlProviderId;
+        prevUrlProviderIdRef.current = urlProviderId;
         const fetchServices = async () => {
             try {
-                const providerId = searchParams.get('providerId');
+                if (providerChanged) {
+                    setSelectedService(null);
+                    setSelectedOption(null);
+                    setSelectedAddOns([]);
+                    setFormData(prev => ({ ...prev, service: '', startTime: '', endTime: '' }));
+                }
                 const preSelectedServiceId = searchParams.get('serviceId');
                 let servicesData = [];
 
-                if (providerId) {
-                    const response = await providerMarketService.getProviderProfile(providerId);
+                if (urlProviderId) {
+                    const response = await providerMarketService.getProviderProfile(urlProviderId);
                     setProviderInfo(response.data.data.provider);
                     const allCategories = Object.values(response.data.data.categories);
                     const seen = new Set();
@@ -257,6 +279,10 @@ const BookAppointment = () => {
                 } else {
                     const response = await serviceService.getAllServices();
                     servicesData = response.data.data;
+                    // No provider in the URL: the generic-flow effect below resolves
+                    // providerInfo once a service picks one. Clear any stale info left
+                    // over from a previous ?providerId visit.
+                    setProviderInfo(null);
                 }
                 setServices(servicesData);
                 if (preSelectedServiceId) {
@@ -268,7 +294,22 @@ const BookAppointment = () => {
             }
         };
         fetchServices();
-    }, [user, navigate]);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [user, navigate, urlProviderId]);
+
+    // Generic flow (no ?providerId): providerInfo isn't loaded by the effect above, so
+    // the review screen would otherwise show the default cancellation policy/currency
+    // even though the picked service belongs to a real provider. Resolve it once the
+    // service selection tells us who that provider is.
+    useEffect(() => {
+        if (urlProviderId) return; // already loaded (with the full catalogue) above
+        if (!effectiveProviderId) { setProviderInfo(null); return; }
+        let stale = false;
+        providerMarketService.getProviderProfile(effectiveProviderId)
+            .then(res => { if (!stale) setProviderInfo(res.data.data.provider); })
+            .catch(() => { if (!stale) setProviderInfo(null); });
+        return () => { stale = true; };
+    }, [urlProviderId, effectiveProviderId]);
 
     const handleChange = (e) => {
         const { name, value } = e.target;
@@ -494,7 +535,7 @@ const BookAppointment = () => {
 
     const timeSlots = generateTimeSlots(formData.appointmentDate);
     const selectedSlotBooked = formData.startTime && timeSlots.find(s => s.time === formData.startTime)?.isBooked;
-    const canReview = formData.service && formData.appointmentDate && formData.startTime && !availabilityError && !selectedSlotBooked;
+    const canReview = formData.service && formData.appointmentDate && formData.startTime && !availabilityError && !selectedSlotBooked && !walletShort;
 
     const labelStyle = { display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' };
     const cardStyle = { background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '2rem', boxShadow: 'var(--shadow-sm)' };
@@ -669,7 +710,7 @@ const BookAppointment = () => {
                                 <button
                                     data-testid="booking-confirm"
                                     onClick={handleConfirm}
-                                    disabled={loading || !!confirmedOverlay || (!user && !guestReady)}
+                                    disabled={loading || !!confirmedOverlay || (!user && !guestReady) || walletShort}
                                     style={{ width: '100%', padding: '0.875rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.95rem', fontWeight: '600', fontFamily: 'var(--font-body)', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, letterSpacing: '0.03em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem' }}
                                 >
                                     {loading && <span style={{ display: 'inline-block', width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
@@ -686,7 +727,7 @@ const BookAppointment = () => {
                         <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)' }}>{curSym} {totalPrice}</div>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>Estimated total</div>
                     </div>
-                    <button data-testid="booking-confirm-mobile" onClick={handleConfirm} disabled={loading || !!confirmedOverlay || (!user && !guestReady)} style={{ flex: 1, marginLeft: '0.9rem', justifyContent: 'center', padding: '0.875rem 1rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '700', fontFamily: 'var(--font-body)', cursor: (loading || (!user && !guestReady)) ? 'not-allowed' : 'pointer', opacity: (loading || (!user && !guestReady)) ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <button data-testid="booking-confirm-mobile" onClick={handleConfirm} disabled={loading || !!confirmedOverlay || (!user && !guestReady) || walletShort} style={{ flex: 1, marginLeft: '0.9rem', justifyContent: 'center', padding: '0.875rem 1rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '700', fontFamily: 'var(--font-body)', cursor: (loading || (!user && !guestReady) || walletShort) ? 'not-allowed' : 'pointer', opacity: (loading || (!user && !guestReady) || walletShort) ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         {loading && <span style={{ display: 'inline-block', width: '15px', height: '15px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
                         {loading ? 'Confirming...' : rescheduleId ? 'Confirm reschedule' : 'Confirm'}
                     </button>
@@ -1114,13 +1155,13 @@ const BookAppointment = () => {
         {optionSheet && (
             <>
                 <div onClick={() => setOptionSheet(null)} className="scrim-in" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 900, backdropFilter: 'blur(2px)' }} />
-                <div style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', zIndex: 901, maxHeight: '90dvh', overflowY: 'auto', boxShadow: '0 -8px 40px rgba(0,0,0,0.2)', animation: 'slideUp var(--dur) var(--ease-out)' }}>
+                <div role="dialog" aria-modal="true" aria-labelledby="option-sheet-title" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', zIndex: 901, maxHeight: '90dvh', overflowY: 'auto', boxShadow: '0 -8px 40px rgba(0,0,0,0.2)', animation: 'slideUp var(--dur) var(--ease-out)' }}>
                     <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
-                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>{optionSheet.name}</h2>
+                            <h2 id="option-sheet-title" style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>{optionSheet.name}</h2>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.2rem 0 0' }}>Select an option · Required</p>
                         </div>
-                        <button onClick={() => setOptionSheet(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.6rem', color: 'var(--text-muted)', lineHeight: 1, padding: 0 }}>×</button>
+                        <button onClick={() => setOptionSheet(null)} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.6rem', color: 'var(--text-muted)', lineHeight: 1, padding: 0 }}>×</button>
                     </div>
                     <div style={{ padding: '0.5rem 0' }}>
                         {optionSheet.options.map((opt, i) => (
@@ -1146,7 +1187,10 @@ const BookAppointment = () => {
                             <span style={{ fontWeight: '700', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}>{curSym} {Math.min(...optionSheet.options.map(o => o.price))}</span>
                             <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>{Math.min(...optionSheet.options.map(o => o.duration))} – {Math.max(...optionSheet.options.map(o => o.duration))} min</span>
                         </div>
-                        <button onClick={() => setOptionSheet(null)} style={{ padding: '0.65rem 1.5rem', background: 'var(--warm-gray)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: '600', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}>Add</button>
+                        {/* This footer button never applied a selection — each option row
+                            above already selects + closes on tap (handleOptionConfirm). Label
+                            it for what it actually does instead of the misleading "Add". */}
+                        <button onClick={() => setOptionSheet(null)} style={{ padding: '0.65rem 1.5rem', background: 'var(--warm-gray)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontWeight: '600', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}>Cancel</button>
                     </div>
                 </div>
             </>

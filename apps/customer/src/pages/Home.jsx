@@ -1,7 +1,7 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
-import { providerMarketService, favoriteService, appointmentService } from '../services';
+import { providerMarketService, favoriteService, appointmentService, serviceService } from '../services';
 import { Search, Star, ArrowRight, Heart, MapPin } from 'lucide-react';
 import { cloudinaryThumb } from '../utils/cloudinary';
 import { normalizeTown } from '../utils/namibiaTowns';
@@ -255,6 +255,27 @@ const Home = () => {
             .finally(() => setLoading(false));
     }, []);
 
+    // The search bar's placeholder promises "services or businesses", but provider
+    // cards only carry a serviceCount, not the names — pull the public catalogue once
+    // so the search box can actually match a service name (e.g. "haircut") to the
+    // business that offers it, not just business/location/category text.
+    const [allServices, setAllServices] = useState([]);
+    useEffect(() => {
+        serviceService.getAllServices()
+            .then(res => setAllServices(res.data.data || []))
+            .catch(() => setAllServices([]));
+    }, []);
+    const serviceNamesByProvider = useMemo(() => {
+        const map = new Map();
+        allServices.forEach(s => {
+            const pid = String(s.provider?._id || s.provider || '');
+            if (!pid || !s.name) return;
+            if (!map.has(pid)) map.set(pid, []);
+            map.get(pid).push(s.name.toLowerCase());
+        });
+        return map;
+    }, [allServices]);
+
     // Availability-first: when a date (and optional time) is picked, fetch which
     // businesses have a real opening then, so the feed can narrow to bookable ones.
     useEffect(() => {
@@ -414,13 +435,14 @@ const Home = () => {
         if (q) result = result.filter(p =>
             (p.businessName || p.name || '').toLowerCase().includes(q) ||
             (p.location || '').toLowerCase().includes(q) ||
-            (p.providerCategory || '').toLowerCase().includes(q)
+            (p.providerCategory || '').toLowerCase().includes(q) ||
+            (serviceNamesByProvider.get(String(p._id)) || []).some(name => name.includes(q))
         );
         if (activeCategory) result = result.filter(p => p.providerCategory === activeCategory);
         if (searchLoc) result = result.filter(p => (p.location || '').toLowerCase().includes(searchLoc.toLowerCase()));
         if (openingsMap) result = result.filter(p => openingsMap[p._id]);
         return result;
-    }, [discoverFeed, query, activeCategory, searchLoc, openingsMap]);
+    }, [discoverFeed, query, activeCategory, searchLoc, openingsMap, serviceNamesByProvider]);
 
     // Infinite scroll: reveal the feed in chunks and pull in more as a sentinel near the
     // bottom scrolls into view — no pagination, no "next page" buttons.

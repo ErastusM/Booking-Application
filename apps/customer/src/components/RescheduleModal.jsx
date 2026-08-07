@@ -26,6 +26,9 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
     const [error, setError] = useState('');
     const [pendingTime, setPendingTime] = useState(null); // slot awaiting a confirm tap
     const didAutoSelect = useRef(false);
+    // Guards against an out-of-order getBookedSlots response (fast date-chip flipping)
+    // painting a previous day's booked slots over the day currently selected.
+    const bookedReqRef = useRef(0);
 
     // Escape-to-close + body scroll lock + initial focus into the dialog. Guard
     // close while a reschedule request is in flight.
@@ -56,9 +59,10 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
         setSelectedDate(dateStr);
         setError('');
         if (providerId) {
+            const reqId = ++bookedReqRef.current;
             appointmentService.getBookedSlots(providerId, dateStr)
-                .then((res) => setBookedSlots(res.data.data || []))
-                .catch(() => setBookedSlots([]));
+                .then((res) => { if (reqId === bookedReqRef.current) setBookedSlots(res.data.data || []); })
+                .catch(() => { if (reqId === bookedReqRef.current) setBookedSlots([]); });
         }
     };
 

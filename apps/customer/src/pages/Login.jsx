@@ -11,6 +11,14 @@ import { API_BASE } from '../services/api';
 // an open redirect.
 const safeNext = (raw) => (raw && raw.startsWith('/') && !raw.startsWith('//') ? raw : null);
 
+// ?error= codes other flows redirect here with (the axios refresh interceptor on a
+// lapsed session, the Google OAuth callback on failure) — map the known ones to a
+// friendly message instead of silently dropping them.
+const ERROR_MESSAGES = {
+    session_expired: 'Your session has expired. Please sign in again.',
+    google_failed: 'Google sign-in didn’t go through. Please try again or sign in with your email and password.',
+};
+
 const Login = () => {
     const { login } = useAuthContext();
     const navigate = useNavigate();
@@ -18,7 +26,7 @@ const Login = () => {
     const next = safeNext(searchParams.get('next'));
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState('');
+    const [error, setError] = useState(() => ERROR_MESSAGES[searchParams.get('error')] || '');
     // Shown when the email belongs to a business account (403): a business owner
     // can hold a SEPARATE customer account with the same email — offer to make it.
     const [offerCustomerSignup, setOfferCustomerSignup] = useState(false);

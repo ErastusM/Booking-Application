@@ -2,14 +2,17 @@ import React, { useEffect, useState } from 'react';
 import { walletService } from '../services';
 import { uploadProof } from '../utils/uploadImage';
 import { useModalChrome } from '../hooks/useModalChrome';
+import { currencySymbol } from '../utils/currency';
 import { X, Upload, Check } from 'lucide-react';
 
 const labelStyle = { display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' };
 const newRef = () => `BP-${Math.floor(10000 + Math.random() * 89999)}`;
 
 // Submit a wallet top-up request (amount + proof of payment) to a provider.
-// Reused by the client wallet page and every provider profile.
-const WalletTopUpModal = ({ providerId, providerName, onClose, onDone }) => {
+// Reused by the client wallet page and every provider profile — both already know
+// the provider's pricing currency, so pass it in (`currency` is optional; the API's
+// own getMyWalletWithProvider response doesn't carry it, see comment below).
+const WalletTopUpModal = ({ providerId, providerName, currency, onClose, onDone }) => {
     const [amount, setAmount] = useState('');
     const [reference, setReference] = useState(newRef());
     const [proofUrl, setProofUrl] = useState('');
@@ -18,6 +21,7 @@ const WalletTopUpModal = ({ providerId, providerName, onClose, onDone }) => {
     const [method, setMethod] = useState('manual');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
+    const cur = currencySymbol(currency);
 
     // Escape-to-close + body scroll lock + initial focus. Guard close while a
     // submit is in flight so Escape can't abandon an in-progress request.
@@ -90,7 +94,7 @@ const WalletTopUpModal = ({ providerId, providerName, onClose, onDone }) => {
                                 : <>Pay {providerName} directly (bank transfer, eWallet, PayToday or cash deposit), then submit this request with your reference. They’ll approve it once the money arrives.</>}
                     </div>
 
-                    <label style={labelStyle}>Amount (N$)</label>
+                    <label style={labelStyle}>Amount ({cur})</label>
                     <input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 500" className="input" style={{ width: '100%', marginBottom: '1rem' }} required />
 
                     <label style={labelStyle}>Payment reference</label>

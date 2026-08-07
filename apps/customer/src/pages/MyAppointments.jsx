@@ -9,6 +9,7 @@ import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { useAuthContext } from '../context/AuthContext';
 import { mapsUrl } from '../utils/maps';
 import { currencySymbol } from '../utils/currency';
+import { apptLocalDate } from '../utils/date';
 import { cloudinaryThumb } from '../utils/cloudinary';
 import { CalendarClock, CalendarPlus, MessageSquare, ClipboardList, Star, X, RefreshCw, MapPin, Copy, Check, ChevronDown } from 'lucide-react';
 import EnablePushBanner from '../components/EnablePushBanner';
@@ -16,8 +17,8 @@ import EnablePushBanner from '../components/EnablePushBanner';
 // True once the appointment's start time has passed — past bookings are
 // history: no reschedule/cancel/calendar/forms, matching the server guards.
 const isPastAppt = (a) => {
-    const dt = new Date(a.appointmentDate);
-    if (isNaN(dt.getTime())) return false;
+    const dt = apptLocalDate(a.appointmentDate);
+    if (!dt) return false;
     const [h, m] = String(a.startTime || '00:00').split(':').map(Number);
     dt.setHours(h || 0, m || 0, 0, 0);
     return dt.getTime() < Date.now();
@@ -34,7 +35,7 @@ const statusConfig = {
 const buildGCalUrl = (a) => {
     try {
         const pad = (n) => String(n).padStart(2, '0');
-        const base = new Date(a.appointmentDate);
+        const base = apptLocalDate(a.appointmentDate) || new Date(a.appointmentDate);
         const [sh, sm] = (a.startTime || '09:00').split(':').map(Number);
         const [eh, em] = (a.endTime || '10:00').split(':').map(Number);
         const start = new Date(base.getFullYear(), base.getMonth(), base.getDate(), sh, sm);
@@ -123,6 +124,9 @@ const MyAppointments = () => {
             ]);
             setAppointments(apptRes.data.data);
             setReviewedIds(reviewRes.data.data.map(r => r.appointment));
+            // A later successful load (e.g. the 30s live refresh) should clear any
+            // earlier fetch failure — otherwise the banner just sits there forever.
+            setError('');
         } catch {
             setError('Failed to fetch appointments');
         } finally {
@@ -324,7 +328,7 @@ const MyAppointments = () => {
                         <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', padding: '1.1rem 1.4rem', marginBottom: '1.5rem' }}>
                             <div>
                                 <p style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', margin: '0 0 0.25rem', fontWeight: '700' }}>Book again</p>
-                                <p style={{ margin: 0, color: 'var(--charcoal)', fontWeight: '600' }}>{last.service?.name}<span style={{ color: 'var(--text-muted)', fontWeight: '400' }}> · last on {new Date(last.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span></p>
+                                <p style={{ margin: 0, color: 'var(--charcoal)', fontWeight: '600' }}>{last.service?.name}<span style={{ color: 'var(--text-muted)', fontWeight: '400' }}> · last on {apptLocalDate(last.appointmentDate)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span></p>
                             </div>
                             <button onClick={() => navigate(`/book-appointment?providerId=${providerId}&serviceId=${serviceId}`)} className="btn btn--primary" style={{ flexShrink: 0 }}>
                                 Rebook this →
@@ -422,7 +426,7 @@ const MyAppointments = () => {
                                     <div>
                                         <p style={labelStyle}>Date</p>
                                         <p style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem' }}>
-                                            {new Date(a.appointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
+                                            {apptLocalDate(a.appointmentDate)?.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
                                         </p>
                                     </div>
                                     <div>
@@ -562,7 +566,7 @@ const MyAppointments = () => {
                                     Message Business
                                 </h2>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.2rem 0 0', fontFamily: 'var(--font-body)' }}>
-                                    {msgModal.service?.name} · {new Date(msgModal.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+                                    {msgModal.service?.name} · {apptLocalDate(msgModal.appointmentDate)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                 </p>
                             </div>
                             <button onClick={() => setMsgModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.4rem', lineHeight: 1, padding: 0 }}>×</button>
@@ -622,7 +626,7 @@ const MyAppointments = () => {
                         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>What would you like to do?</h2>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem', fontFamily: 'var(--font-body)', lineHeight: '1.5' }}>
                             <strong style={{ color: 'var(--charcoal)' }}>{showCancelModal.service?.name}</strong> on{' '}
-                            {new Date(showCancelModal.appointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at {showCancelModal.startTime}.
+                            {apptLocalDate(showCancelModal.appointmentDate)?.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at {showCancelModal.startTime}.
                         </p>
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                             <button

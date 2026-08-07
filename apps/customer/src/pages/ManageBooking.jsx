@@ -3,6 +3,7 @@ import { useParams, Link } from 'react-router-dom';
 import { appointmentService } from '../services';
 import { buildTimeSlots } from '../utils/bookingSlots';
 import { currencySymbol } from '../utils/currency';
+import { apptLocalDate } from '../utils/date';
 import { Calendar, Clock, MapPin, Scissors, User, CheckCircle2, XCircle } from 'lucide-react';
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -42,7 +43,7 @@ const ManageBooking = () => {
 
     const today = new Date().toISOString().split('T')[0];
     const toInputDate = (d) => {
-        const x = new Date(d); const p = (n) => String(n).padStart(2, '0');
+        const x = apptLocalDate(d) || new Date(d); const p = (n) => String(n).padStart(2, '0');
         return `${x.getFullYear()}-${p(x.getMonth() + 1)}-${p(x.getDate())}`;
     };
 
@@ -120,7 +121,7 @@ const ManageBooking = () => {
 
                             {appt.provider?.name && <Row icon={MapPin}>{appt.provider.name}{appt.provider.address ? ` · ${appt.provider.address}` : ''}</Row>}
                             {appt.service?.name && <Row icon={Scissors}>{appt.service.name}{appt.service.price ? ` · ${currencySymbol(appt.provider?.currency || appt.provider?.businessProfile?.currency)} ${appt.service.price}` : ''}</Row>}
-                            <Row icon={Calendar}>{new Date(appt.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</Row>
+                            <Row icon={Calendar}>{apptLocalDate(appt.appointmentDate)?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</Row>
                             <Row icon={Clock}>{appt.startTime} – {appt.endTime}</Row>
                             {appt.staff && <Row icon={User}>with {appt.staff}</Row>}
 
