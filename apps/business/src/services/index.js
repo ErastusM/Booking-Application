@@ -2,10 +2,18 @@
 // import shape. The endpoint definitions live in packages/api-client.
 import client from './client';
 
+// POST /appointments/multi (provider-only "Add service" multi-service booking —
+// see ProviderDashboard's New Appointment modal). Not yet ported into
+// packages/api-client, so it's layered on here against the same shared axios
+// instance (`client.api`) the rest of appointmentService already uses.
+export const appointmentService = {
+    ...client.services.appointmentService,
+    createMultiAppointment: (data) => client.api.post('/appointments/multi', data),
+};
+
 export const {
     authService,
     serviceService,
-    appointmentService,
     userService,
     favoriteService,
     waitingListService,
