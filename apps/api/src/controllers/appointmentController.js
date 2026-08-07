@@ -1140,7 +1140,10 @@ exports.providerRescheduleAppointment = async (req, res) => {
         if (!appointment) {
             return res.status(404).json({ success: false, message: 'Appointment not found' });
         }
-        if (appointment.provider.toString() !== req.user._id.toString()) {
+        // Null-safe: older waiting-list promotions can have provider unset, so fall
+        // back to the service's provider rather than dereferencing null (which 500'd).
+        const ownerId = appointment.provider?.toString() || appointment.service?.provider?.toString();
+        if (ownerId !== req.user._id.toString()) {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
         if (!['pending', 'confirmed'].includes(appointment.status)) {
@@ -1417,6 +1420,17 @@ exports.getGroupBooking = async (req, res) => {
             .populate('customer', 'name email phone')
             .populate('service', 'name price duration')
             .sort({ createdAt: 1 });
+        if (!appointments.length) return res.status(404).json({ success: false, message: 'Group booking not found' });
+
+        // Authorization: only a participant (a customer in the group), the group's
+        // provider, or an admin may view it. Without this any authenticated user who
+        // guessed/obtained a groupId could read every participant's name/email/phone
+        // (IDOR). The groupId being a UUID was the only prior barrier.
+        const uid = req.user._id.toString();
+        const authorized = req.user.role === 'admin'
+            || appointments.some(a => a.customer?._id?.toString() === uid || a.provider?.toString() === uid);
+        if (!authorized) return res.status(403).json({ success: false, message: 'Not authorized' });
+
         res.status(200).json({ success: true, data: appointments });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
