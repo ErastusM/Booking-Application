@@ -1465,7 +1465,7 @@ exports.getAppointmentByToken = async (req, res) => {
                 startTime: appt.startTime,
                 endTime: appt.endTime,
                 service: appt.service ? { name: appt.service.name, price: appt.service.price, duration: appt.service.duration } : null,
-                provider: appt.provider ? { name: appt.provider.name, address: appt.provider.businessProfile?.address || '' } : null,
+                provider: appt.provider ? { name: appt.provider.name, address: appt.provider.businessProfile?.address || '', currency: appt.provider.businessProfile?.currency || 'NAD' } : null,
                 staff: appt.teamMember ? appt.teamMember.name : null,
                 clientName: appt.walkInName || appt.guestName || null,
                 schedule,
