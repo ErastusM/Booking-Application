@@ -85,4 +85,12 @@ body.dark-mode {
   --input-bg: #1a1a1c;
   --surface-raised: #1a1a1c;
   --surface-sunken: #0d0d0e;
+  /* Status tokens — the light-mode *-bg/*-fg pairs are near-white/near-black
+     and fail contrast (and look like unstyled paper) on dark cards; darken
+     the bg and lighten the fg the same way --gold-dark flips above. Base
+     --success/--info/--warning/--danger stay unchanged (functional, not brand). */
+  --success-bg: #0f2e22; --success-fg: #6ee7b7;
+  --info-bg: #172554;    --info-fg: #93c5fd;
+  --warning-bg: #3a2e05; --warning-fg: #fcd34d;
+  --danger-bg: #3f1212;  --danger-fg: #fca5a5;
 }

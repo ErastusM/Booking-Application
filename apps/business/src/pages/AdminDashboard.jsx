@@ -67,6 +67,7 @@ const AdminDashboard = () => {
     const [pwWallets, setPwWallets] = useState([]);
     const [clientTopUps, setClientTopUps] = useState([]); // consumer wallet top-ups awaiting allocation
     const [pwAdjust, setPwAdjust] = useState(null); // provider wallet being adjusted
+    const [resolvingTopUpId, setResolvingTopUpId] = useState(null); // top-up _id currently being approved/rejected (provider or client) — blocks a double-click
 
     // Revenue tab — per-provider earnings + platform roll-up
     const [revenue, setRevenue] = useState(null);
@@ -105,17 +106,21 @@ const AdminDashboard = () => {
     useEffect(() => { if (activeTab === 'wallet') fetchProviderWalletData(); }, [activeTab]);
 
     const resolveProviderTopUp = async (id, approve) => {
+        if (resolvingTopUpId) return; // already resolving one — ignore a rapid double-click
+        setResolvingTopUpId(id);
         try {
             approve ? await providerWalletService.approveTopUp(id) : await providerWalletService.rejectTopUp(id);
-            fetchProviderWalletData();
-        } catch (err) { alert(err.response?.data?.message || 'Could not update top-up'); }
+            await fetchProviderWalletData();
+        } catch (err) { alert(err.response?.data?.message || 'Could not update top-up'); } finally { setResolvingTopUpId(null); }
     };
 
     const resolveClientTopUp = async (id, approve) => {
+        if (resolvingTopUpId) return; // already resolving one — ignore a rapid double-click
+        setResolvingTopUpId(id);
         try {
             approve ? await walletService.adminApproveClientTopUp(id) : await walletService.adminRejectClientTopUp(id);
-            fetchProviderWalletData();
-        } catch (err) { alert(err.response?.data?.message || 'Could not update top-up'); }
+            await fetchProviderWalletData();
+        } catch (err) { alert(err.response?.data?.message || 'Could not update top-up'); } finally { setResolvingTopUpId(null); }
     };
 
     const fetchUsers = async () => {
@@ -235,6 +240,9 @@ const AdminDashboard = () => {
     };
 
     const handleRoleChange = async (id, role) => {
+        if (role === 'admin' && !window.confirm('Grant this user admin access? Admins can manage all users, services, and platform funds.')) {
+            return;
+        }
         try {
             await userService.updateUserRole(id, role);
             setUsers(users.map(u => u._id === id ? { ...u, role } : u));
@@ -369,7 +377,7 @@ const AdminDashboard = () => {
                         {/* Status filter toolbar */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
                             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                {['', 'pending', 'confirmed', 'completed', 'cancelled'].map(st => (
+                                {['', 'pending', 'confirmed', 'completed', 'cancelled', 'no-show'].map(st => (
                                     <button key={st || 'all'} onClick={() => { setApptStatusFilter(st); setApptPage(1); }} style={chipStyle(apptStatusFilter === st)}>
                                         {st === '' ? 'All' : st}
                                     </button>
@@ -405,7 +413,7 @@ const AdminDashboard = () => {
                                                     <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{a.service?.name}</td>
                                                     <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{new Date(a.appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</td>
                                                     <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{a.startTime} – {a.endTime}</td>
-                                                <td style={{ padding: '0.875rem 1rem', fontWeight: '600', color: 'var(--charcoal)' }}>${a.totalPrice}</td>
+                                                <td style={{ padding: '0.875rem 1rem', fontWeight: '600', color: 'var(--charcoal)' }}>{nMoney(a.totalPrice)}</td>
                                                 <td style={{ padding: '0.875rem 1rem' }}>
                                                     <span style={{ padding: '0.2rem 0.65rem', borderRadius: '99px', fontSize: '0.72rem', fontWeight: '600', background: s.bg, color: s.color }}>{s.label}</span>
                                                 </td>
@@ -480,7 +488,7 @@ const AdminDashboard = () => {
                                             <td style={{ padding: '0.875rem 1rem', color: 'var(--text-muted)', maxWidth: '280px' }}>
                                                 <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{s.description}</span>
                                             </td>
-                                            <td style={{ padding: '0.875rem 1rem', fontWeight: '600', color: 'var(--gold-dark)' }}>${s.price}</td>
+                                            <td style={{ padding: '0.875rem 1rem', fontWeight: '600', color: 'var(--gold-dark)' }}>{nMoney(s.price)}</td>
                                             <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{s.duration} min</td>
                                             <td style={{ padding: '0.875rem 1rem' }}>
                                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -722,8 +730,8 @@ const AdminDashboard = () => {
                                     </div>
                                     {t.status === 'pending' ? (
                                         <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
-                                            <button onClick={() => resolveProviderTopUp(t._id, true)} className="btn-primary" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}>Approve</button>
-                                            <button onClick={() => resolveProviderTopUp(t._id, false)} className="btn-outline" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}>Reject</button>
+                                            <button onClick={() => resolveProviderTopUp(t._id, true)} disabled={resolvingTopUpId === t._id} className="btn-primary" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem', opacity: resolvingTopUpId === t._id ? 0.6 : 1 }}>{resolvingTopUpId === t._id ? '…' : 'Approve'}</button>
+                                            <button onClick={() => resolveProviderTopUp(t._id, false)} disabled={resolvingTopUpId === t._id} className="btn-outline" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem', opacity: resolvingTopUpId === t._id ? 0.6 : 1 }}>Reject</button>
                                         </div>
                                     ) : (
                                         <span style={{ fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.6rem', borderRadius: '99px', textTransform: 'capitalize', background: t.status === 'approved' ? '#d1fae5' : '#fee2e2', color: t.status === 'approved' ? '#065f46' : '#991b1b' }}>{t.status}</span>
@@ -757,8 +765,8 @@ const AdminDashboard = () => {
                                     </div>
                                     {t.status === 'pending' ? (
                                         <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
-                                            <button onClick={() => resolveClientTopUp(t._id, true)} className="btn-primary" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}>Approve</button>
-                                            <button onClick={() => resolveClientTopUp(t._id, false)} className="btn-outline" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem' }}>Reject</button>
+                                            <button onClick={() => resolveClientTopUp(t._id, true)} disabled={resolvingTopUpId === t._id} className="btn-primary" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem', opacity: resolvingTopUpId === t._id ? 0.6 : 1 }}>{resolvingTopUpId === t._id ? '…' : 'Approve'}</button>
+                                            <button onClick={() => resolveClientTopUp(t._id, false)} disabled={resolvingTopUpId === t._id} className="btn-outline" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem', opacity: resolvingTopUpId === t._id ? 0.6 : 1 }}>Reject</button>
                                         </div>
                                     ) : (
                                         <span style={{ fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.6rem', borderRadius: '99px', textTransform: 'capitalize', background: t.status === 'approved' ? '#d1fae5' : '#fee2e2', color: t.status === 'approved' ? '#065f46' : '#991b1b' }}>{t.status}</span>

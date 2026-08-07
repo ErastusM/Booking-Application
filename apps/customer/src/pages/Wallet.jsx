@@ -1,41 +1,45 @@
-import React, { useEffect, useState, useCallback } from 'react';
+import React, { useEffect, useState, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { walletService } from '../services';
 import { cloudinaryAvatar } from '../utils/cloudinary';
+import { currencySymbol } from '../utils/currency';
 import { Wallet as WalletIcon, Clock, Check, ChevronDown, ChevronUp } from 'lucide-react';
 import WalletTopUpModal from '../components/WalletTopUpModal';
 import { useToast } from '../components/Toast';
 
-const money = (n) => `N$${Number(n || 0).toFixed(2)}`;
+// Wallet.currency (the API's own field) is never set away from its schema default —
+// the provider's real pricing currency lives on their businessProfile, which
+// getMyWallets populates. Prefer that; fall back to N$ if it's ever missing.
+const money = (n, cur) => `${currencySymbol(cur)}${Number(n || 0).toFixed(2)}`;
 
 // Human label + colour for a transaction row.
-const describe = (t) => {
+const describe = (t, cur) => {
     const credit = 'var(--success)', debit = 'var(--danger)', hold = 'var(--warning)', muted = 'var(--text-muted)';
     switch (t.type) {
         case 'topup':
-            if (t.status === 'pending') return { label: 'Top-up — awaiting approval', amount: `+${money(t.amount)}`, color: muted };
-            if (t.status === 'approved') return { label: 'Top-up approved', amount: `+${money(t.amount)}`, color: credit };
-            return { label: 'Top-up rejected', amount: money(t.amount), color: muted };
+            if (t.status === 'pending') return { label: 'Top-up — awaiting approval', amount: `+${money(t.amount, cur)}`, color: muted };
+            if (t.status === 'approved') return { label: 'Top-up approved', amount: `+${money(t.amount, cur)}`, color: credit };
+            return { label: 'Top-up rejected', amount: money(t.amount, cur), color: muted };
         case 'reservation':
-            if (t.status === 'reserved') return { label: 'Reserved for booking', amount: `${money(t.amount)} held`, color: hold };
-            if (t.status === 'released') return { label: 'Reservation released', amount: `${money(t.amount)} freed`, color: credit };
-            return { label: 'Reservation used', amount: money(t.amount), color: muted };
+            if (t.status === 'reserved') return { label: 'Reserved for booking', amount: `${money(t.amount, cur)} held`, color: hold };
+            if (t.status === 'released') return { label: 'Reservation released', amount: `${money(t.amount, cur)} freed`, color: credit };
+            return { label: 'Reservation used', amount: money(t.amount, cur), color: muted };
         case 'deduction':
-            return { label: 'Service deduction', amount: `−${money(t.amount)}`, color: debit };
+            return { label: 'Service deduction', amount: `−${money(t.amount, cur)}`, color: debit };
         case 'refund':
-            if (t.status === 'pending') return { label: 'Refund — awaiting your approval', amount: `+${money(t.amount)}`, color: muted };
-            if (t.status === 'approved') return { label: 'Refund applied', amount: `+${money(t.amount)}`, color: credit };
-            return { label: 'Refund declined', amount: money(t.amount), color: muted };
+            if (t.status === 'pending') return { label: 'Refund — awaiting your approval', amount: `+${money(t.amount, cur)}`, color: muted };
+            if (t.status === 'approved') return { label: 'Refund applied', amount: `+${money(t.amount, cur)}`, color: credit };
+            return { label: 'Refund declined', amount: money(t.amount, cur), color: muted };
         case 'adjustment': {
             const isCredit = t.direction === 'credit';
             const verb = t.status === 'pending' ? '— awaiting your approval' : t.status === 'approved' ? 'applied' : 'declined';
             return {
                 label: `${isCredit ? 'Credit' : 'Debit'} adjustment ${verb}`,
-                amount: `${isCredit ? '+' : '−'}${money(t.amount)}`,
+                amount: `${isCredit ? '+' : '−'}${money(t.amount, cur)}`,
                 color: t.status !== 'approved' ? muted : (isCredit ? credit : debit),
             };
         }
-        default: return { label: t.type, amount: money(t.amount), color: muted };
+        default: return { label: t.type, amount: money(t.amount, cur), color: muted };
     }
 };
 
@@ -61,6 +65,18 @@ const Wallet = () => {
     }, []);
 
     useEffect(() => { load(); }, [load]);
+
+    // getMyPendingAdjustments doesn't populate the provider's businessProfile (only
+    // `name`), so borrow the currency from the matching wallet already loaded here —
+    // a pending adjustment always implies an existing wallet with that provider.
+    const currencyByProvider = useMemo(() => {
+        const map = {};
+        wallets.forEach((w) => {
+            const pid = String(w.provider?._id || w.provider || '');
+            if (pid) map[pid] = w.provider?.businessProfile?.currency;
+        });
+        return map;
+    }, [wallets]);
 
     const openHistory = async (providerId) => {
         if (expanded === providerId) { setExpanded(null); return; }
@@ -99,10 +115,11 @@ const Wallet = () => {
                 <div style={{ marginBottom: '1.75rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     {pendingAdjustments.map((a) => {
                         const isCredit = a.direction === 'credit';
+                        const cur = currencyByProvider[String(a.provider?._id || a.provider || '')];
                         return (
                             <div key={a._id} style={{ background: 'rgba(240,62,22,0.08)', border: '1px solid var(--gold)', borderRadius: 'var(--radius)', padding: '1rem 1.25rem' }}>
                                 <p style={{ margin: '0 0 0.35rem', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem' }}>
-                                    {a.provider?.name} proposes a {isCredit ? 'credit of' : 'debit of'} <strong>{money(a.amount)}</strong>
+                                    {a.provider?.name} proposes a {isCredit ? 'credit of' : 'debit of'} <strong>{money(a.amount, cur)}</strong>
                                 </p>
                                 {a.reason && <p style={{ margin: '0 0 0.6rem', color: 'var(--text-secondary)', fontSize: '0.85rem' }}>“{a.reason}”</p>}
                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
@@ -151,6 +168,7 @@ const Wallet = () => {
                     {wallets.map((w) => {
                         const pid = w.provider?._id || w.provider;
                         const open = expanded === pid;
+                        const cur = w.provider?.businessProfile?.currency;
                         return (
                             <div key={w._id} style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                                 <div style={{ padding: '1.25rem 1.5rem' }}>
@@ -172,7 +190,7 @@ const Wallet = () => {
                                         ].map((b) => (
                                             <div key={b.label} style={{ background: b.accent ? 'rgba(240,62,22,0.1)' : 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '0.7rem 0.5rem', textAlign: 'center' }}>
                                                 <div style={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{b.label}</div>
-                                                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '700', color: b.accent ? 'var(--gold-dark)' : 'var(--charcoal)' }}>{money(b.val)}</div>
+                                                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '700', color: b.accent ? 'var(--gold-dark)' : 'var(--charcoal)' }}>{money(b.val, cur)}</div>
                                             </div>
                                         ))}
                                     </div>
@@ -204,7 +222,7 @@ const Wallet = () => {
                                         ) : (
                                             <div>
                                                 {txns[pid].map((t) => {
-                                                    const d = describe(t);
+                                                    const d = describe(t, cur);
                                                     return (
                                                         <div key={t._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.7rem 1.5rem', borderBottom: '1px solid var(--border)', gap: '1rem' }}>
                                                             <div style={{ minWidth: 0 }}>
@@ -216,7 +234,7 @@ const Wallet = () => {
                                                             </div>
                                                             <div style={{ textAlign: 'right', flexShrink: 0 }}>
                                                                 <div style={{ fontWeight: '700', fontSize: '0.85rem', color: d.color }}>{d.amount}</div>
-                                                                {t.balanceAfter?.total != null && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>bal {money(t.balanceAfter.total)}</div>}
+                                                                {t.balanceAfter?.total != null && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>bal {money(t.balanceAfter.total, cur)}</div>}
                                                             </div>
                                                         </div>
                                                     );
@@ -235,6 +253,7 @@ const Wallet = () => {
                 <WalletTopUpModal
                     providerId={topUpFor.provider?._id || topUpFor.provider}
                     providerName={topUpFor.provider?.name || 'Business'}
+                    currency={topUpFor.provider?.businessProfile?.currency}
                     onClose={() => setTopUpFor(null)}
                     onDone={() => { setTopUpFor(null); setTxns({}); setExpanded(null); load(); }}
                 />

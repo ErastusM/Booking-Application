@@ -67,9 +67,15 @@ const reserveFunds = async ({ customer, provider, amount, appointmentId, initiat
  */
 const releaseReservation = async ({ appointmentId, resolvedBy }) => {
     if (!appointmentId) return { ok: true, released: 0 };
-    const reservation = await WalletTransaction.findOne({
-        appointment: appointmentId, type: 'reservation', status: 'reserved',
-    });
+    // Atomically CLAIM the live reservation by flipping reserved→released in one
+    // conditional update. Only the caller that wins the flip proceeds, so two
+    // concurrent releases (or a release racing a completion) can't both act on the
+    // same hold. Idempotent: a second call finds nothing reserved → no-op.
+    const reservation = await WalletTransaction.findOneAndUpdate(
+        { appointment: appointmentId, type: 'reservation', status: 'reserved' },
+        { $set: { status: 'released', resolvedBy: resolvedBy || null, resolvedAt: new Date() } },
+        { new: true }
+    );
     if (!reservation) return { ok: true, released: 0 };
 
     const wallet = await Wallet.findById(reservation.wallet);
@@ -82,11 +88,6 @@ const releaseReservation = async ({ appointmentId, resolvedBy }) => {
         [{ $set: { reservedBalance: { $max: [0, { $subtract: ['$reservedBalance', reservation.amount] }] } } }],
         { new: true }
     );
-
-    reservation.status = 'released';
-    reservation.resolvedBy = resolvedBy || null;
-    reservation.resolvedAt = new Date();
-    await reservation.save();
 
     await WalletTransaction.create({
         wallet: wallet._id, customer: reservation.customer, provider: reservation.provider,
@@ -105,9 +106,16 @@ const releaseReservation = async ({ appointmentId, resolvedBy }) => {
  */
 const deductForCompletion = async ({ appointmentId, resolvedBy }) => {
     if (!appointmentId) return { ok: true, deducted: 0 };
-    const reservation = await WalletTransaction.findOne({
-        appointment: appointmentId, type: 'reservation', status: 'reserved',
-    });
+    // Atomically CLAIM the live reservation by flipping reserved→completed in one
+    // conditional update. Two concurrent "complete" calls (double-click / retry)
+    // previously both passed a findOne status check and both ran the debit —
+    // charging the client twice for one booking. Now only the caller that wins the
+    // flip debits; the loser gets null → no-op. Idempotent on repeat.
+    const reservation = await WalletTransaction.findOneAndUpdate(
+        { appointment: appointmentId, type: 'reservation', status: 'reserved' },
+        { $set: { status: 'completed', resolvedBy: resolvedBy || null, resolvedAt: new Date() } },
+        { new: true }
+    );
     if (!reservation) return { ok: true, deducted: 0 };
 
     const wallet = await Wallet.findById(reservation.wallet);
@@ -123,11 +131,6 @@ const deductForCompletion = async ({ appointmentId, resolvedBy }) => {
         } }],
         { new: true }
     );
-
-    reservation.status = 'completed';
-    reservation.resolvedBy = resolvedBy || null;
-    reservation.resolvedAt = new Date();
-    await reservation.save();
 
     const transaction = await WalletTransaction.create({
         wallet: wallet._id, customer: reservation.customer, provider: reservation.provider,
@@ -233,16 +236,21 @@ const approveTopUp = async ({ transactionId, providerId, resolvedBy }) => {
 
 /** Reject a pending top-up → no balance change (provider or admin). */
 const rejectTopUp = async ({ transactionId, providerId, resolvedBy, reason }) => {
-    const query = { _id: transactionId, type: 'topup' };
+    const query = { _id: transactionId, type: 'topup', status: 'pending' };
     if (providerId) query.provider = providerId;
-    const txn = await WalletTransaction.findOne(query);
-    if (!txn) return { ok: false, reason: 'not_found' };
-    if (txn.status !== 'pending') return { ok: false, reason: 'already_resolved' };
-    txn.status = 'rejected';
-    txn.reason = reason || txn.reason;
-    txn.resolvedBy = resolvedBy || providerId || null;
-    txn.resolvedAt = new Date();
-    await txn.save();
+    // Atomically CLAIM via the status flip. A non-atomic reject could race an
+    // approve: approve credits + sets 'approved', then a reject that already read
+    // 'pending' saves 'rejected' over it — money credited but recorded as rejected.
+    // The conditional flip makes approve/reject mutually exclusive.
+    const txn = await WalletTransaction.findOneAndUpdate(
+        query,
+        { $set: { status: 'rejected', resolvedBy: resolvedBy || providerId || null, resolvedAt: new Date(), ...(reason ? { reason } : {}) } },
+        { new: true }
+    );
+    if (!txn) {
+        const exists = await WalletTransaction.exists({ _id: transactionId, type: 'topup' });
+        return { ok: false, reason: exists ? 'already_resolved' : 'not_found' };
+    }
     return { ok: true, transaction: txn };
 };
 
@@ -310,15 +318,18 @@ const approveAdjustment = async ({ transactionId, customerId }) => {
 
 /** Client rejects a pending adjustment → no balance change. */
 const rejectAdjustment = async ({ transactionId, customerId }) => {
-    const txn = await WalletTransaction.findOne({
-        _id: transactionId, customer: customerId, type: { $in: ['adjustment', 'refund'] },
-    });
-    if (!txn) return { ok: false, reason: 'not_found' };
-    if (txn.status !== 'pending') return { ok: false, reason: 'already_resolved' };
-    txn.status = 'rejected';
-    txn.resolvedBy = customerId;
-    txn.resolvedAt = new Date();
-    await txn.save();
+    // Atomically CLAIM via the status flip so reject can't race the approve path.
+    const txn = await WalletTransaction.findOneAndUpdate(
+        { _id: transactionId, customer: customerId, type: { $in: ['adjustment', 'refund'] }, status: 'pending' },
+        { $set: { status: 'rejected', resolvedBy: customerId, resolvedAt: new Date() } },
+        { new: true }
+    );
+    if (!txn) {
+        const exists = await WalletTransaction.exists({
+            _id: transactionId, customer: customerId, type: { $in: ['adjustment', 'refund'] },
+        });
+        return { ok: false, reason: exists ? 'already_resolved' : 'not_found' };
+    }
     return { ok: true, transaction: txn };
 };
 

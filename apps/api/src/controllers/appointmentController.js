@@ -20,6 +20,7 @@ const calendarHelper = require('../utils/calendarHelper');
 const { resolveBookingStaff } = require('../utils/staffBooking');
 const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, toDateKey, BLOCKED_MESSAGE } = require('../utils/blockedTime');
 const { checkCancellationWindow } = require('../utils/cancellationPolicy');
+const { realStartMs } = require('../utils/appointmentTime');
 const { primaryOrigin } = require('../utils/origins');
 
 // Who a client-facing email/notification for this appointment should go to: the
@@ -50,12 +51,13 @@ const timesOverlap = (startA, endA, startB, endB) => startA < endB && endA > sta
 
 // True if the given date + start time is in the past (1-minute grace).
 // Used to stop customers booking/rescheduling into a time that has already passed.
+// Uses the shared Africa/Windhoek-aware instant so this agrees with the reminder
+// cron and the cancellation window — a plain setHours() here read startTime as
+// server-local (UTC), which made the check 2 hours off in production.
 const isPastSlot = (appointmentDate, startTime) => {
-    const dt = new Date(appointmentDate);
-    if (isNaN(dt.getTime())) return false; // let other validation handle bad dates
-    const [h, m] = String(startTime).split(':').map(Number);
-    dt.setHours(h || 0, m || 0, 0, 0);
-    return dt.getTime() < Date.now() - 60 * 1000;
+    const t = realStartMs(appointmentDate, startTime);
+    if (isNaN(t)) return false; // let other validation handle bad dates
+    return t < Date.now() - 60 * 1000;
 };
 
 const getProviderSchedule = async (providerId) => {
@@ -298,7 +300,7 @@ exports.getMyAppointments = async (req, res) => {
                 // Pull the provider's business location (for "Getting there") plus their
                 // avatar / first portfolio photo so the booking card can show the business
                 // image — same picture customers see on the home feed.
-                populate: { path: 'provider', select: 'name avatar businessProfile.businessName businessProfile.address businessProfile.locationType portfolio.images' },
+                populate: { path: 'provider', select: 'name avatar businessProfile.businessName businessProfile.address businessProfile.locationType businessProfile.currency portfolio.images' },
             })
             .populate('teamMember', 'name')
             .sort({ appointmentDate: -1 });
@@ -1138,7 +1140,10 @@ exports.providerRescheduleAppointment = async (req, res) => {
         if (!appointment) {
             return res.status(404).json({ success: false, message: 'Appointment not found' });
         }
-        if (appointment.provider.toString() !== req.user._id.toString()) {
+        // Null-safe: older waiting-list promotions can have provider unset, so fall
+        // back to the service's provider rather than dereferencing null (which 500'd).
+        const ownerId = appointment.provider?.toString() || appointment.service?.provider?.toString();
+        if (ownerId !== req.user._id.toString()) {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
         if (!['pending', 'confirmed'].includes(appointment.status)) {
@@ -1415,6 +1420,17 @@ exports.getGroupBooking = async (req, res) => {
             .populate('customer', 'name email phone')
             .populate('service', 'name price duration')
             .sort({ createdAt: 1 });
+        if (!appointments.length) return res.status(404).json({ success: false, message: 'Group booking not found' });
+
+        // Authorization: only a participant (a customer in the group), the group's
+        // provider, or an admin may view it. Without this any authenticated user who
+        // guessed/obtained a groupId could read every participant's name/email/phone
+        // (IDOR). The groupId being a UUID was the only prior barrier.
+        const uid = req.user._id.toString();
+        const authorized = req.user.role === 'admin'
+            || appointments.some(a => a.customer?._id?.toString() === uid || a.provider?.toString() === uid);
+        if (!authorized) return res.status(403).json({ success: false, message: 'Not authorized' });
+
         res.status(200).json({ success: true, data: appointments });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
@@ -1449,7 +1465,7 @@ exports.getAppointmentByToken = async (req, res) => {
                 startTime: appt.startTime,
                 endTime: appt.endTime,
                 service: appt.service ? { name: appt.service.name, price: appt.service.price, duration: appt.service.duration } : null,
-                provider: appt.provider ? { name: appt.provider.name, address: appt.provider.businessProfile?.address || '' } : null,
+                provider: appt.provider ? { name: appt.provider.name, address: appt.provider.businessProfile?.address || '', currency: appt.provider.businessProfile?.currency || 'NAD' } : null,
                 staff: appt.teamMember ? appt.teamMember.name : null,
                 clientName: appt.walkInName || appt.guestName || null,
                 schedule,

@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { waitingListService } from '../services';
+import { apptLocalDate } from '../utils/date';
 
 const MyWaitingList = () => {
     const [searchParams] = useSearchParams();
@@ -133,7 +134,7 @@ const MyWaitingList = () => {
                                     You've been promoted for <strong>{n.service?.name}</strong>!
                                 </p>
                                 <p style={{ color: '#047857', fontSize: '0.85rem', marginTop: '0.35rem' }}>
-                                    {new Date(n.appointmentDate).toLocaleDateString('en-US', {
+                                    {apptLocalDate(n.appointmentDate)?.toLocaleDateString('en-US', {
                                         weekday: 'long', month: 'long', day: 'numeric'
                                     })} at {n.startTime} — your appointment has been confirmed.
                                 </p>
@@ -230,7 +231,7 @@ const MyWaitingList = () => {
                                     </h3>
                                     <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap' }}>
                                         <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                                            📅 {new Date(entry.appointmentDate).toLocaleDateString('en-US', {
+                                            📅 {apptLocalDate(entry.appointmentDate)?.toLocaleDateString('en-US', {
                                                 weekday: 'long', month: 'long', day: 'numeric'
                                             })}
                                         </span>

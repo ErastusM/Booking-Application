@@ -722,6 +722,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                 <WalletTopUpModal
                     providerId={id}
                     providerName={businessName}
+                    currency={provider.currency}
                     onClose={() => setShowTopUp(false)}
                     onDone={() => setShowTopUp(false)}
                 />

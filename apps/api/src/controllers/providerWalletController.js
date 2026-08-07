@@ -128,14 +128,20 @@ exports.approveTopUp = async (req, res) => {
 // POST /api/provider-wallet/admin/topups/:id/reject
 exports.rejectTopUp = async (req, res) => {
     try {
-        const txn = await ProviderWalletTransaction.findOne({ _id: req.params.id, type: 'topup' });
-        if (!txn) return res.status(404).json({ success: false, message: 'Top-up not found' });
-        if (txn.status !== 'pending') return res.status(409).json({ success: false, message: 'Already resolved' });
-        txn.status = 'rejected';
-        txn.reason = (req.body.reason || '').toString().slice(0, 200) || txn.reason;
-        txn.resolvedBy = req.user._id;
-        txn.resolvedAt = new Date();
-        await txn.save();
+        // Atomically CLAIM (flip status) so a reject can't race an approve and
+        // overwrite an already-credited top-up back to 'rejected'.
+        const reason = (req.body.reason || '').toString().slice(0, 200);
+        const txn = await ProviderWalletTransaction.findOneAndUpdate(
+            { _id: req.params.id, type: 'topup', status: 'pending' },
+            { $set: { status: 'rejected', resolvedBy: req.user._id, resolvedAt: new Date(), ...(reason ? { reason } : {}) } },
+            { new: true }
+        );
+        if (!txn) {
+            const exists = await ProviderWalletTransaction.exists({ _id: req.params.id, type: 'topup' });
+            return exists
+                ? res.status(409).json({ success: false, message: 'Already resolved' })
+                : res.status(404).json({ success: false, message: 'Top-up not found' });
+        }
         createNotification(txn.provider, `Your ${money(txn.amount)} account top-up was rejected`, 'wallet', '/dashboard?tab=wallet');
         res.status(200).json({ success: true, message: 'Top-up rejected', data: txn });
     } catch (error) {

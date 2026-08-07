@@ -18,18 +18,24 @@ jest.mock('../../utils/emailService', () => ({
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeAdmin, makeService, makeAppointment, authHeader } = require('../helpers/factories');
+const { NAMIBIA_OFFSET_MIN } = require('../../utils/appointmentTime');
 
 beforeAll(() => testDb.connect());
 afterAll(() => testDb.closeDatabase());
 afterEach(async () => { await testDb.clearDatabase(); jest.clearAllMocks(); });
 
-// A confirmed appointment starting `hoursFromNow` hours from now (local time).
+// A confirmed appointment whose REAL start is `hoursFromNow` from now. startTime is
+// stored as Africa/Windhoek (UTC+2) wall-clock — exactly how a real booking records
+// local time — so the policy checks (which map it back via realStartMs) see the
+// intended notice. Building it from server-local hours instead would be 2h off and
+// only "worked" against the old, equally-2h-off past/window checks.
 const apptAt = async (customer, service, provider, hoursFromNow, overrides = {}) => {
     const at = new Date(Date.now() + hoursFromNow * 60 * 60 * 1000);
-    const hh = String(at.getHours()).padStart(2, '0');
-    const mm = String(at.getMinutes()).padStart(2, '0');
+    const wall = new Date(at.getTime() + NAMIBIA_OFFSET_MIN * 60 * 1000); // Windhoek wall-clock for `at`
+    const hh = String(wall.getUTCHours()).padStart(2, '0');
+    const mm = String(wall.getUTCMinutes()).padStart(2, '0');
     return makeAppointment(customer._id, service._id, provider._id, {
-        appointmentDate: at,
+        appointmentDate: wall, // its UTC calendar day is the booked (Windhoek) day
         startTime: `${hh}:${mm}`,
         endTime: `${hh}:${mm}`, // end is irrelevant to the policy
         status: 'confirmed',
