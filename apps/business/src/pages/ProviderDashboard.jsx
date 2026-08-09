@@ -55,8 +55,6 @@ const ProviderDashboard = () => {
     const navigate = useNavigate();
     const toast = useToast();
     const fcWrapRef = useRef(null);
-    // The full-screen Calendar frame — pinned to the visual viewport (see effect below).
-    const calFrameRef = useRef(null);
     // Day/week calendar fills the space from its top down to just above the bottom
     // nav, instead of a fixed 680px that left dead grey space on tall phones.
     // Measured (scroll-corrected) so it's accurate across screen sizes; falls back
@@ -315,42 +313,6 @@ const ProviderDashboard = () => {
             window.scrollTo(0, scrollY);
         };
     }, [activeTab]);
-
-    // Pin the calendar frame to the VISUAL viewport.
-    //
-    // `position: fixed` resolves against the LAYOUT viewport, but iOS Safari
-    // shrinks/grows the VISUAL viewport as its address bar collapses and expands.
-    // A frame anchored with top+bottom therefore slides relative to what the user
-    // actually sees — the drift that survived locking the page scroll. The
-    // VisualViewport API reports the real thing, so we translate the frame by its
-    // offsetTop and size it from its height, keeping the same insets the CSS
-    // declares (read once, before we override them, so the env() safe-area maths
-    // stays authoritative). Browsers without the API keep the CSS behaviour.
-    useEffect(() => {
-        const vv = typeof window !== 'undefined' ? window.visualViewport : null;
-        const el = calFrameRef.current;
-        if (activeTab !== 'calendar' || !vv || !el) return undefined;
-
-        const cs = getComputedStyle(el);
-        const topInset = parseFloat(cs.top) || 0;      // 56px + safe-area-top, resolved
-        const bottomInset = parseFloat(cs.bottom) || 0; // 52px + safe-area-bottom, resolved
-
-        const apply = () => {
-            el.style.top = `${vv.offsetTop + topInset}px`;
-            el.style.bottom = 'auto';
-            el.style.height = `${Math.max(vv.height - topInset - bottomInset, 120)}px`;
-        };
-        apply();
-        vv.addEventListener('resize', apply);
-        vv.addEventListener('scroll', apply);
-        return () => {
-            vv.removeEventListener('resize', apply);
-            vv.removeEventListener('scroll', apply);
-            el.style.top = '';
-            el.style.bottom = '';
-            el.style.height = '';
-        };
-    }, [activeTab, calendarView]);
 
     // When the New Appointment modal opens, load the client list (for the "existing
     // client" picker) and the availability schedule (so the time picker matches the
@@ -1812,7 +1774,7 @@ const ProviderDashboard = () => {
                                 <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: '1 1 140px', minWidth: 0 }}>
                                     <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
                                     <span style={{ position: 'relative', display: 'block' }}>
-                                        <input type="date" value={earningsRange[key]} onChange={e => setEarningsRange(r => ({ ...r, [key]: e.target.value }))} aria-label={aria} className="input" style={{ padding: '0.45rem 0.6rem', width: '100%', minWidth: 0 }} />
+                                        <input type="date" value={earningsRange[key]} onChange={e => setEarningsRange(r => ({ ...r, [key]: e.target.value }))} aria-label={aria} className="input" style={{ padding: '0.55rem 0.7rem', width: '100%', minWidth: 0, minHeight: '44px' }} />
                                         {/* iOS Safari renders an EMPTY date input as a blank box — no
                                             "dd/mm/yyyy" hint like Chrome — so the field reads as broken.
                                             This overlay supplies that hint and disappears once a date is
@@ -2075,7 +2037,7 @@ const ProviderDashboard = () => {
 
                 {/* Calendar tab */}
                 {activeTab === 'calendar' && (
-                    <div ref={calFrameRef} style={{ position: 'fixed', top: 'calc(56px + env(safe-area-inset-top, 0px))', left: 0, right: 0, bottom: 'calc(52px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', background: 'var(--card-bg)', zIndex: 20 }}>
+                    <div style={{ position: 'fixed', top: 'calc(56px + env(safe-area-inset-top, 0px))', left: 0, right: 0, bottom: 'calc(52px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', background: 'var(--card-bg)', zIndex: 20 }}>
                         {/* Full-screen, pinned calendar: fixed between the top navbar and the
                             bottom nav so the page itself never scrolls (only the grid body does).
                             The view switcher lives in the calendar header (one control strip);
