@@ -2,10 +2,9 @@
 //
 // Color values track the brand palette in tokens.css (orange/black/white);
 // the `gold`/`charcoal` KEY names are legacy — rename alongside the CSS vars
-// in Epic 1+. fontFamily tracks tokens.css's --font-display/--font-body
-// (Plus Jakarta Sans / Inter, both self-hosted via @fontsource-variable) —
-// it previously named Playfair Display / DM Sans, fonts no app loads, so
-// those utilities silently fell back. The boxShadow values predate the
+// in Epic 1+. fontFamily tracks tokens.css's --font-display/--font-body — the
+// SF Pro system stack (via -apple-system), with self-hosted Plus Jakarta Sans
+// / Inter kept as non-Apple fallbacks. The boxShadow values predate the
 // elevation scale in tokens.css — reconcile that drift in Epic 1, not here.
 module.exports = {
     theme: {
@@ -24,8 +23,8 @@ module.exports = {
                 'warm-gray': '#dcdedd',
             },
             fontFamily: {
-                display: ['Plus Jakarta Sans Variable', 'Plus Jakarta Sans', 'sans-serif'],
-                sans: ['Inter Variable', 'Inter', 'sans-serif'],
+                display: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Display', 'SF Pro', 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', 'Segoe UI', 'Roboto', 'system-ui', 'sans-serif'],
+                sans: ['-apple-system', 'BlinkMacSystemFont', 'SF Pro Text', 'SF Pro', 'Inter Variable', 'Inter', 'Segoe UI', 'Roboto', 'system-ui', 'sans-serif'],
             },
             borderRadius: {
                 DEFAULT: '14px',

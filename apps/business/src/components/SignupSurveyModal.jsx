@@ -78,7 +78,7 @@ const SignupSurveyModal = ({ onDone }) => {
                     animation: 'slideUp 0.24s var(--ease-out, cubic-bezier(0.16,1,0.3,1))',
                 }}
             >
-                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.5rem' }}>
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)', margin: '0 0 0.5rem' }}>
                     Quick question
                 </h2>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 1.25rem', lineHeight: 1.6 }}>
@@ -103,7 +103,7 @@ const SignupSurveyModal = ({ onDone }) => {
                                     border: `1.5px solid ${hadDifficulty === opt.v ? 'var(--gold)' : 'var(--border)'}`,
                                     background: hadDifficulty === opt.v ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)',
                                     color: hadDifficulty === opt.v ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                                    fontWeight: '700', fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'var(--font-body)',
+                                    fontWeight: '600', fontSize: '0.9rem', cursor: 'pointer', fontFamily: 'var(--font-body)',
                                     transition: 'all 0.15s',
                                 }}
                             >

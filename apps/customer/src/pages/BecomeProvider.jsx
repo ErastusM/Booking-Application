@@ -55,7 +55,7 @@ const BecomeProvider = () => {
                         <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.1rem' }}>
                             <Briefcase size={26} strokeWidth={2} />
                         </div>
-                        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.9rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.4rem' }}>List your business</h1>
+                        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.9rem', fontWeight: '600', color: 'var(--charcoal)', margin: '0 0 0.4rem' }}>List your business</h1>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', lineHeight: 1.6, margin: '0 0 1.5rem' }}>
                             Turn your Bookplus account into a business — no new sign-up. You'll still be able to book other businesses as a customer.
                         </p>

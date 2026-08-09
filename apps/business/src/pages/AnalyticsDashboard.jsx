@@ -83,7 +83,7 @@ const MiniStat = ({ label, value, sub, icon, trend }) => (
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
             <div>
                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.35rem' }}>{label}</p>
-                <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.8rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{value}</p>
+                <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.8rem', fontWeight: '600', color: 'var(--charcoal)', lineHeight: 1 }}>{value}</p>
                 {sub && <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>{sub}</p>}
             </div>
             <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(240,62,22,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>
@@ -195,7 +195,7 @@ const AnalyticsDashboard = () => {
                 <div className="container" style={{ position: 'relative', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: '1rem' }}>
                     <div>
                         <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Insights</p>
-                        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'white' }}>Analytics</h1>
+                        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '600', color: 'white' }}>Analytics</h1>
                     </div>
                     <button onClick={fetchAnalytics} disabled={refreshing} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', color: 'white', padding: '0.5rem 1.25rem', borderRadius: 'var(--radius-sm)', cursor: refreshing ? 'default' : 'pointer', fontSize: '0.85rem', fontFamily: 'var(--font-body)', opacity: refreshing ? 0.6 : 1 }}>
                         <span style={{ display: 'inline-block', animation: refreshing ? 'spin 0.8s linear infinite' : 'none' }}>↻</span>
@@ -279,7 +279,7 @@ const AnalyticsDashboard = () => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                             {popularServices.map((s, i) => (
                                 <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: i === 0 ? 'var(--gold)' : 'var(--warm-gray)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: '700', color: i === 0 ? 'var(--charcoal)' : 'var(--text-muted)', flexShrink: 0 }}>
+                                    <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: i === 0 ? 'var(--gold)' : 'var(--warm-gray)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: '600', color: i === 0 ? 'var(--charcoal)' : 'var(--text-muted)', flexShrink: 0 }}>
                                         {i + 1}
                                     </div>
                                     <div style={{ flex: 1 }}>
@@ -329,7 +329,7 @@ const AnalyticsDashboard = () => {
                                         </div>
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                             <StarRating rating={s.avgRating} />
-                                            <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--charcoal)' }}>{s.avgRating}</span>
+                                            <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--charcoal)' }}>{s.avgRating}</span>
                                         </div>
                                     </div>
                                 ))

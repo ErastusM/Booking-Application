@@ -131,7 +131,7 @@ const Register = () => {
                     <Link to="/" style={{
                         fontFamily: 'var(--font-display)',
                         fontSize: '1.8rem',
-                        fontWeight: '700',
+                        fontWeight: '600',
                         color: 'white',
                         textDecoration: 'none',
                         display: 'block',
@@ -142,7 +142,7 @@ const Register = () => {
                     <h2 style={{
                         fontFamily: 'var(--font-display)',
                         fontSize: 'clamp(2rem, 3vw, 2.8rem)',
-                        fontWeight: '700',
+                        fontWeight: '600',
                         color: 'white',
                         lineHeight: 1.2,
                         marginBottom: '1.5rem',
@@ -175,7 +175,7 @@ const Register = () => {
                         <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}>
                             <MailCheck size={56} strokeWidth={1.5} style={{ color: 'var(--gold)' }} />
                         </div>
-                        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
+                        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
                             Check your email!
                         </h1>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.7, marginBottom: '2rem' }}>
@@ -199,7 +199,7 @@ const Register = () => {
                         <h1 style={{
                             fontFamily: 'var(--font-display)',
                             fontSize: '2rem',
-                            fontWeight: '700',
+                            fontWeight: '600',
                             color: 'var(--charcoal)',
                             marginBottom: '0.5rem',
                         }}>

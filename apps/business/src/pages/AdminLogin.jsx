@@ -54,7 +54,7 @@ const AdminLogin = () => {
     };
 
     const label = {
-        display: 'block', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em',
+        display: 'block', fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.08em',
         textTransform: 'uppercase', color: 'rgba(230,232,231,0.55)', marginBottom: '0.5rem',
     };
     const field = {
@@ -86,14 +86,14 @@ const AdminLogin = () => {
                     display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
                     background: 'rgba(240,62,22,0.14)', border: '1px solid rgba(240,62,22,0.35)',
                     color: 'var(--gold)', padding: '0.25rem 0.7rem', borderRadius: '99px',
-                    fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase',
+                    fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.1em', textTransform: 'uppercase',
                 }}>
                     <Lock size={12} strokeWidth={2.5} /> Restricted
                 </div>
 
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', margin: '1.25rem 0 0.35rem' }}>
                     <ShieldCheck size={30} strokeWidth={2} style={{ color: 'var(--gold)' }} />
-                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.7rem', fontWeight: 800, letterSpacing: '-0.02em' }}>
+                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.7rem', fontWeight: 600, letterSpacing: '-0.02em' }}>
                         Book<span style={{ color: 'var(--gold)' }}>plus</span> Command
                     </div>
                 </div>
@@ -136,7 +136,7 @@ const AdminLogin = () => {
                     </div>
                     <button type="submit" disabled={loading} style={{
                         marginTop: '0.35rem', width: '100%', padding: '0.9rem', borderRadius: '10px', border: 'none',
-                        background: 'var(--gold)', color: '#fff', fontFamily: 'var(--font-body)', fontWeight: 700,
+                        background: 'var(--gold)', color: '#fff', fontFamily: 'var(--font-body)', fontWeight: 600,
                         fontSize: '0.95rem', cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.7 : 1,
                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
                     }}>

@@ -122,7 +122,7 @@ export const RowsSkeleton = ({ rows = 6 }) => (
 // Initials avatar + relative time for the iOS-style Messages list.
 export const initialsOf = (name) => ((name || '?').trim().split(/\s+/).map((w) => w[0]).slice(0, 2).join('').toUpperCase() || '?');
 export const Avatar = ({ name, size = 40 }) => (
-    <div aria-hidden="true" style={{ flexShrink: 0, width: size, height: size, borderRadius: '50%', background: 'linear-gradient(135deg, var(--gold), var(--gold-dark))', color: 'var(--ink)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: size * 0.4, fontFamily: 'var(--font-body)' }}>
+    <div aria-hidden="true" style={{ flexShrink: 0, width: size, height: size, borderRadius: '50%', background: 'linear-gradient(135deg, var(--gold), var(--gold-dark))', color: 'var(--ink)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: size * 0.4, fontFamily: 'var(--font-body)' }}>
         {initialsOf(name)}
     </div>
 );

@@ -83,7 +83,7 @@ const MyWaitingList = () => {
                     <h1 style={{
                         fontFamily: 'var(--font-display)',
                         fontSize: 'clamp(2rem, 4vw, 3rem)',
-                        fontWeight: '700', color: 'white',
+                        fontWeight: '600', color: 'white',
                     }}>
                         My Waiting List
                     </h1>
@@ -209,7 +209,7 @@ const MyWaitingList = () => {
                                     }}>No.</span>
                                     <span style={{
                                         fontSize: '1.3rem',
-                                        fontWeight: '700',
+                                        fontWeight: '600',
                                         fontFamily: 'var(--font-body)',
                                         color: entry.position === 1 ? 'var(--charcoal)' : 'var(--text-secondary)',
                                         lineHeight: 1,

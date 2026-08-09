@@ -95,7 +95,7 @@ p, li, label, input, textarea, select, button, a {
   background: var(--ink);
   color: var(--on-ink);
   font-family: var(--font-body);
-  font-weight: 600;
+  font-weight: 500;
   font-size: 0.9rem;
   padding: 0.75rem 1.75rem;
   border-radius: var(--radius-pill);
@@ -115,7 +115,7 @@ p, li, label, input, textarea, select, button, a {
   background: transparent;
   color: var(--charcoal);
   font-family: var(--font-body);
-  font-weight: 600;
+  font-weight: 500;
   font-size: 0.9rem;
   padding: 0.75rem 1.75rem;
   border-radius: var(--radius-pill);
@@ -361,7 +361,7 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
 
 .appt-block { border-radius: 6px; padding: 6px 8px; box-shadow: 0 8px 18px rgba(4,5,5,0.06); transition: transform 0.12s cubic-bezier(.2,.9,.3,1), box-shadow 0.12s cubic-bezier(.2,.9,.3,1); }
 .appt-block:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(4,5,5,0.10); }
-.appt-block .title { font-weight: 700; font-size: 0.82rem; color: var(--charcoal); }
+.appt-block .title { font-weight: 600; font-size: 0.82rem; color: var(--charcoal); }
 .appt-block .meta { font-size: 0.72rem; color: var(--text-secondary); }
 
 /* Resize handle: larger hit area for touch, subtle grip lines and grab icon */
@@ -706,7 +706,7 @@ body.dark-mode .booking-confirm-mobile {
 .fc-bookplus-wrapper .fc-toolbar-title {
   font-family: var(--font-display);
   font-size: 1.25rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--charcoal);
 }
 
@@ -756,7 +756,7 @@ body.dark-mode .booking-confirm-mobile {
 
 .fc-bookplus-wrapper .fc-col-header-cell-cushion {
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-secondary);
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -899,7 +899,7 @@ body.dark-mode .fc-bookplus-wrapper .fc-timegrid-slot-minor {
 
 .fc-event-appt-time {
   font-size: 0.68rem;
-  font-weight: 700;
+  font-weight: 600;
   opacity: 0.75;
   white-space: nowrap;
   overflow: hidden;
@@ -908,7 +908,7 @@ body.dark-mode .fc-bookplus-wrapper .fc-timegrid-slot-minor {
 
 .fc-event-appt-client {
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -960,7 +960,7 @@ body.dark-mode .fc-bookplus-wrapper .fc-timegrid-slot-minor {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* Select mirror (what you see while drawing) */
@@ -1018,7 +1018,7 @@ body.dark-mode .fc-bookplus-wrapper .fc-timegrid-slot-minor {
 /* Button system */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
-  font-family: var(--font-body); font-weight: 600; font-size: 0.9rem; line-height: 1;
+  font-family: var(--font-body); font-weight: 500; font-size: 0.9rem; line-height: 1;
   padding: 0 1.25rem; height: 44px; border-radius: var(--radius-sm); border: 1.5px solid transparent;
   cursor: pointer; white-space: nowrap; user-select: none; position: relative;
   transition: transform var(--dur-fast) var(--ease-out), background-color var(--dur) ease,

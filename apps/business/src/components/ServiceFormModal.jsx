@@ -18,7 +18,7 @@ const fmtDur = (m) => {
 
 const blank = { name: '', category: '', description: '', priceType: 'fixed', price: '', duration: 60, bufferBefore: '', bufferAfter: '', location: '', address: '', options: [] };
 
-const sectionTitle = { fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 1rem' };
+const sectionTitle = { fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 1rem' };
 const label = { display: 'block', fontSize: '0.9rem', fontWeight: 600, color: 'var(--charcoal)', marginBottom: '0.45rem' };
 const helper = { fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.4rem 0 0' };
 const field = { marginBottom: '1.5rem' };
@@ -123,7 +123,7 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
         <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'var(--off-white)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)', animation: 'fadeIn var(--dur) var(--ease-out) both' }}>
             {/* Header */}
             <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
-                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 700, color: 'var(--charcoal)', margin: 0 }}>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 600, color: 'var(--charcoal)', margin: 0 }}>
                     {editing ? 'Edit service' : 'New service'}
                 </h1>
                 <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.4rem', display: 'flex' }}>

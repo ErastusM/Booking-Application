@@ -45,7 +45,7 @@ const SetupChecklistNudge = () => {
         <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderLeft: '3px solid var(--gold)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', padding: '1.1rem 1.25rem', marginBottom: '1.5rem' }}>
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                    <p style={{ margin: 0, fontWeight: 700, color: 'var(--charcoal)', fontSize: '0.95rem' }}>Finish setting up your business</p>
+                    <p style={{ margin: 0, fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.95rem' }}>Finish setting up your business</p>
                     <p style={{ margin: '2px 0 0', color: 'var(--text-secondary)', fontSize: '0.82rem' }}>
                         {done} of {ITEMS.length} done — complete the rest so clients can find and book you.
                     </p>

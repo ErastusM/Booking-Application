@@ -115,7 +115,7 @@ const Navbar = () => {
                         <button
                             onClick={() => goToBusinessApp(user.role === 'admin' ? '/bkplus-command' : '/dashboard')}
                             title="Open the business app"
-                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.1rem', borderRadius: '999px', border: '1.5px solid var(--gold)', cursor: 'pointer', background: 'rgba(240,62,22,0.10)', color: isTransparent ? 'white' : 'var(--gold-dark)', fontSize: '0.85rem', fontWeight: '700', fontFamily: 'var(--font-body)', transition: 'all 0.2s' }}
+                            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.1rem', borderRadius: '999px', border: '1.5px solid var(--gold)', cursor: 'pointer', background: 'rgba(240,62,22,0.10)', color: isTransparent ? 'white' : 'var(--gold-dark)', fontSize: '0.85rem', fontWeight: '600', fontFamily: 'var(--font-body)', transition: 'all 0.2s' }}
                         >
                             <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01"/></svg>
                             Business
@@ -124,7 +124,7 @@ const Navbar = () => {
                         <a
                             href={user ? '/become-provider' : BUSINESS_URL}
                             onClick={user ? (e => { e.preventDefault(); navigate('/become-provider'); }) : undefined}
-                            style={{ display: 'inline-flex', alignItems: 'center', padding: '0.55rem 1.15rem', borderRadius: '999px', border: `1px solid ${isTransparent ? 'rgba(255,255,255,0.4)' : 'var(--border)'}`, background: isTransparent ? 'rgba(255,255,255,0.10)' : 'var(--card-bg)', color: isTransparent ? 'white' : 'var(--charcoal)', fontSize: '0.85rem', fontWeight: '700', textDecoration: 'none', boxShadow: isTransparent ? 'none' : 'var(--shadow-sm)', transition: 'all 0.2s' }}
+                            style={{ display: 'inline-flex', alignItems: 'center', padding: '0.55rem 1.15rem', borderRadius: '999px', border: `1px solid ${isTransparent ? 'rgba(255,255,255,0.4)' : 'var(--border)'}`, background: isTransparent ? 'rgba(255,255,255,0.10)' : 'var(--card-bg)', color: isTransparent ? 'white' : 'var(--charcoal)', fontSize: '0.85rem', fontWeight: '600', textDecoration: 'none', boxShadow: isTransparent ? 'none' : 'var(--shadow-sm)', transition: 'all 0.2s' }}
                         >
                             List your business
                         </a>
@@ -140,7 +140,7 @@ const Navbar = () => {
                                 aria-expanded={profileOpen}
                                 style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', padding: '4px 8px 4px 4px', borderRadius: '999px', border: `1px solid ${isTransparent ? 'rgba(255,255,255,0.35)' : 'var(--border)'}`, background: isTransparent ? 'rgba(255,255,255,0.10)' : 'var(--card-bg)', cursor: 'pointer', boxShadow: isTransparent ? 'none' : 'var(--shadow-sm)' }}
                             >
-                                <span style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)', fontWeight: '700', fontSize: '0.8rem', flexShrink: 0 }}>
+                                <span style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)', fontWeight: '600', fontSize: '0.8rem', flexShrink: 0 }}>
                                     {user.avatar
                                         ? <img src={cloudinaryAvatar(user.avatar)} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                         : user.name?.charAt(0).toUpperCase()}
@@ -153,7 +153,7 @@ const Navbar = () => {
                                     <div onClick={() => setProfileOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 1100 }} />
                                     <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 10px)', zIndex: 1101, width: '250px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '16px', boxShadow: '0 16px 44px rgba(4,5,5,0.20)', overflow: 'hidden', padding: '0.4rem' }}>
                                         <div style={{ padding: '0.65rem 0.85rem 0.7rem', borderBottom: '1px solid var(--border)', marginBottom: '0.35rem' }}>
-                                            <p style={{ margin: 0, fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.92rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</p>
+                                            <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.92rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</p>
                                             <p style={{ margin: '1px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</p>
                                         </div>
                                         {[
@@ -267,7 +267,7 @@ const Navbar = () => {
                     {user && (
                         <div style={{ background: 'rgba(240,62,22,0.07)', borderBottom: '1px solid var(--border)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.2rem' }}>
-                                <div style={{ width: '38px', height: '38px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)', fontWeight: '700', fontSize: '0.9rem', flexShrink: 0 }}>
+                                <div style={{ width: '38px', height: '38px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)', fontWeight: '600', fontSize: '0.9rem', flexShrink: 0 }}>
                                     {user.avatar
                                         ? <img src={cloudinaryAvatar(user.avatar)} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                         : user.name?.charAt(0).toUpperCase()
@@ -284,7 +284,7 @@ const Navbar = () => {
                                 <div style={{ padding: '0 1.2rem 0.85rem' }}>
                                     <button
                                         onClick={() => goToBusinessApp(user.role === 'admin' ? '/bkplus-command' : '/dashboard')}
-                                        style={{ width: '100%', padding: '0.55rem', borderRadius: '99px', border: '1.5px solid var(--gold)', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark,#b32c0d)', fontSize: '0.78rem', fontWeight: '700', fontFamily: 'var(--font-body)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}
+                                        style={{ width: '100%', padding: '0.55rem', borderRadius: '99px', border: '1.5px solid var(--gold)', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark,#b32c0d)', fontSize: '0.78rem', fontWeight: '600', fontFamily: 'var(--font-body)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}
                                     >
                                         <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01"/></svg>
                                         Open the Business app →
@@ -415,7 +415,7 @@ const Navbar = () => {
                                     transition: 'background 0.18s ease, color 0.18s ease',
                                 }}>{icon}</span>
                                 <span style={{
-                                    fontSize: '0.6rem', fontWeight: active ? '700' : '500',
+                                    fontSize: '0.6rem', fontWeight: active ? '600' : '500',
                                     color: active ? 'var(--gold-dark)' : 'var(--text-muted)',
                                     fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', lineHeight: 1.1,
                                 }}>{label}</span>

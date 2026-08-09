@@ -97,7 +97,7 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
             <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '460px', maxHeight: '85dvh', display: 'flex', flexDirection: 'column', boxShadow: '0 20px 60px rgba(4,5,5,0.3)', overflow: 'hidden' }}>
                 <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
                     <div style={{ minWidth: 0 }}>
-                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Reschedule</h2>
+                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Reschedule</h2>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.15rem 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{appointment?.service?.name} · {duration} min</p>
                     </div>
                     <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.25rem', flexShrink: 0 }}><X size={20} /></button>
@@ -105,7 +105,7 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
 
                 <div style={{ padding: '1rem 1.25rem', overflowY: 'auto' }}>
                     {/* Date chips */}
-                    <p style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 0.6rem' }}>Pick a day</p>
+                    <p style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '0 0 0.6rem' }}>Pick a day</p>
                     <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.5rem', scrollbarWidth: 'none' }}>
                         {days.map((d) => {
                             const ds = fmtDate(d);
@@ -118,7 +118,7 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                                     color: active ? 'var(--gold-dark)' : 'var(--text-secondary)', fontFamily: 'var(--font-body)',
                                 }}>
                                     <div style={{ fontSize: '0.66rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{d.toLocaleDateString('en-US', { weekday: 'short' })}</div>
-                                    <div style={{ fontSize: '1.05rem', fontWeight: '700' }}>{d.getDate()}</div>
+                                    <div style={{ fontSize: '1.05rem', fontWeight: '600' }}>{d.getDate()}</div>
                                     <div style={{ fontSize: '0.6rem', color: 'var(--text-muted)' }}>{d.toLocaleDateString('en-US', { month: 'short' })}</div>
                                 </button>
                             );
@@ -128,7 +128,7 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                     {/* Time slots */}
                     {selectedDate && (
                         <>
-                            <p style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '1rem 0 0.6rem' }}>Pick a time</p>
+                            <p style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '1rem 0 0.6rem' }}>Pick a time</p>
                             {slots.length === 0 ? (
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', padding: '0.5rem 0' }}>No open slots that day — try another.</p>
                             ) : (

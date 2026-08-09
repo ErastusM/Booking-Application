@@ -126,7 +126,7 @@ const IntakeFormModal = ({ appointmentId, onClose, onCompleted }) => {
             <div onClick={() => { if (!saving) onClose(); }} className="scrim-in" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, backdropFilter: 'blur(2px)' }} />
             <div ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" className="modal-center scale-in" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '480px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto', background: 'var(--card-bg)', borderRadius: 'var(--radius)', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', zIndex: 1101, outline: 'none' }}>
                 <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0 }}>
-                    <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.2rem', fontWeight: '700', margin: 0 }}>{active?.template?.title || 'Forms'}</h2>
+                    <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.2rem', fontWeight: '600', margin: 0 }}>{active?.template?.title || 'Forms'}</h2>
                     <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1 }}>×</button>
                 </div>
                 <div style={{ padding: '1.5rem' }}>
@@ -153,7 +153,7 @@ const IntakeFormModal = ({ appointmentId, onClose, onCompleted }) => {
                             {active?.completed && <p style={{ fontSize: '0.8rem', color: '#059669', marginBottom: '1rem' }}>✓ Already submitted — you can update your answers.</p>}
                             {active?.template?.fields.map(renderField)}
                             {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', marginBottom: '0.75rem' }}>{error}</p>}
-                            <button onClick={submit} disabled={saving} className="btn-primary" style={{ width: '100%', padding: '0.85rem', fontWeight: '700' }}>{saving ? 'Submitting…' : 'Submit form'}</button>
+                            <button onClick={submit} disabled={saving} className="btn-primary" style={{ width: '100%', padding: '0.85rem', fontWeight: '600' }}>{saving ? 'Submitting…' : 'Submit form'}</button>
                         </>
                     )}
                 </div>

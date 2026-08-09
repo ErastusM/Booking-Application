@@ -7,7 +7,7 @@ import MiniCalendar from './MiniCalendar';
 // New Appointment modal so the experience is identical.
 const pill = (active) => ({
     padding: '0.45rem 0.95rem', borderRadius: '99px', cursor: 'pointer', fontFamily: 'var(--font-body)',
-    fontSize: '0.82rem', fontWeight: active ? '700' : '500',
+    fontSize: '0.82rem', fontWeight: active ? '600' : '500',
     border: `1.5px solid ${active ? 'var(--gold)' : 'var(--border)'}`,
     background: active ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)',
     color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
@@ -55,7 +55,7 @@ const RecurrenceFields = ({ value, onChange, minDate }) => {
                     )}
 
                     <div>
-                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>
+                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>
                             Ends on <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional — defaults to 3 months)</span>
                         </label>
                         <MiniCalendar value={recurrenceEndDate} onChange={(ds) => set({ recurrenceEndDate: ds })} min={minDate} />

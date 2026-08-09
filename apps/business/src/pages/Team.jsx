@@ -82,7 +82,7 @@ const MemberCard = ({ member, services, onChanged }) => {
             <button type="button" onClick={() => setOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '1rem 1.25rem', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-body)' }}>
                 <span aria-hidden="true" style={{ width: '14px', height: '14px', borderRadius: '50%', background: member.color || 'var(--gold)', flexShrink: 0 }} />
                 <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: 'block', fontWeight: 700, color: 'var(--charcoal)', fontSize: '0.98rem' }}>{member.name}</span>
+                    <span style={{ display: 'block', fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.98rem' }}>{member.name}</span>
                     <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                         {member.role || 'Staff'}{member.user ? ' · has login' : ' · roster only'}
                         {(member.services || []).length ? ` · ${member.services.length} service${member.services.length > 1 ? 's' : ''}` : ' · all services'}
@@ -99,7 +99,7 @@ const MemberCard = ({ member, services, onChanged }) => {
                     {/* Invite to log in */}
                     {!member.user && (
                         <div style={{ marginTop: '1rem' }}>
-                            <p style={{ margin: '0 0 0.5rem', fontWeight: 700, fontSize: '0.85rem', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Mail size={14} /> Invite to log in</p>
+                            <p style={{ margin: '0 0 0.5rem', fontWeight: 600, fontSize: '0.85rem', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Mail size={14} /> Invite to log in</p>
                             <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                                 <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="their@email.com" className="input" style={{ maxWidth: '260px' }} data-testid="invite-email" />
                                 <button type="button" className="btn-primary" onClick={invite} disabled={busy === 'invite'} data-testid="invite-send" style={{ padding: '0.6rem 1.3rem' }}>
@@ -111,7 +111,7 @@ const MemberCard = ({ member, services, onChanged }) => {
 
                     {/* Services this member performs */}
                     <div style={{ marginTop: '1.25rem' }}>
-                        <p style={{ margin: '0 0 0.5rem', fontWeight: 700, fontSize: '0.85rem', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Scissors size={14} /> Services <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>(none selected = performs all)</span></p>
+                        <p style={{ margin: '0 0 0.5rem', fontWeight: 600, fontSize: '0.85rem', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Scissors size={14} /> Services <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>(none selected = performs all)</span></p>
                         <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
                             {services.map(svc => (
                                 <Chip key={svc._id} active={assigned.includes(String(svc._id))} onClick={() => toggleService(String(svc._id))} data-testid="member-service-chip">
@@ -124,7 +124,7 @@ const MemberCard = ({ member, services, onChanged }) => {
 
                     {/* Working hours */}
                     <div style={{ marginTop: '1.25rem' }}>
-                        <p style={{ margin: '0 0 0.5rem', fontWeight: 700, fontSize: '0.85rem', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Clock size={14} /> Working hours</p>
+                        <p style={{ margin: '0 0 0.5rem', fontWeight: 600, fontSize: '0.85rem', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Clock size={14} /> Working hours</p>
                         {schedule === null && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading…</p>}
                         {schedule === 'inherit' && (
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
@@ -190,7 +190,7 @@ const Team = () => {
 
     return (
         <div className="container" style={{ paddingTop: 'calc(56px + 2rem)', paddingBottom: '4rem', maxWidth: '760px' }}>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.35rem' }}>Team</h1>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.35rem' }}>Team</h1>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', margin: '0 0 1.75rem' }}>
                 Invite staff to log in, set who performs which services, and give anyone their own working hours. Clients can pick their professional when booking.
             </p>
