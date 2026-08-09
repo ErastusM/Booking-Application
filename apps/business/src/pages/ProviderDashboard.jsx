@@ -1549,9 +1549,9 @@ const ProviderDashboard = () => {
                                             <div style={{ fontWeight: '600', color: config.enabled ? 'var(--charcoal)' : 'var(--text-muted)', fontSize: '1rem', textTransform: 'capitalize', marginBottom: config.enabled ? '0.55rem' : 0 }}>{day}</div>
                                             {config.enabled ? (
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                                    <input type="time" value={config.slots[0]?.start || '09:00'} onChange={e => handleTimeChange(day, 'start', e.target.value)} className="input" style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '0.9rem' }} />
+                                                    <input type="time" value={config.slots[0]?.start || '09:00'} onChange={e => handleTimeChange(day, 'start', e.target.value)} className="input" style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '1rem' }} />
                                                     <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', flexShrink: 0 }}>to</span>
-                                                    <input type="time" value={config.slots[0]?.end || '17:00'} onChange={e => handleTimeChange(day, 'end', e.target.value)} className="input" style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '0.9rem' }} />
+                                                    <input type="time" value={config.slots[0]?.end || '17:00'} onChange={e => handleTimeChange(day, 'end', e.target.value)} className="input" style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '1rem' }} />
                                                 </div>
                                             ) : (
                                                 <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Not available</div>
@@ -1814,9 +1814,9 @@ const ProviderDashboard = () => {
                                 }}>{label}</button>
                             ))}
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center', marginLeft: '0.25rem' }}>
-                                <input type="date" value={insightsRange.from} onChange={e => setInsightsRange(r => ({ ...r, from: e.target.value }))} className="input" style={{ fontSize: '0.78rem', padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
+                                <input type="date" value={insightsRange.from} onChange={e => setInsightsRange(r => ({ ...r, from: e.target.value }))} className="input" style={{ padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
                                 <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>–</span>
-                                <input type="date" value={insightsRange.to} onChange={e => setInsightsRange(r => ({ ...r, to: e.target.value }))} className="input" style={{ fontSize: '0.78rem', padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
+                                <input type="date" value={insightsRange.to} onChange={e => setInsightsRange(r => ({ ...r, to: e.target.value }))} className="input" style={{ padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
                                 <button onClick={() => { setInsightsPreset('custom'); fetchInsights('custom', insightsRange); }} disabled={!insightsRange.from || !insightsRange.to} style={{ padding: '0.4rem 0.85rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: '600', cursor: (insightsRange.from && insightsRange.to) ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-body)' }}>Apply</button>
                             </div>
                         </div>
@@ -1941,9 +1941,9 @@ const ProviderDashboard = () => {
                                 }}>{label}</button>
                             ))}
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center', marginLeft: '0.25rem' }}>
-                                <input type="date" value={earningsRange.from} onChange={e => setEarningsRange(r => ({ ...r, from: e.target.value }))} className="input" style={{ fontSize: '0.78rem', padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
+                                <input type="date" value={earningsRange.from} onChange={e => setEarningsRange(r => ({ ...r, from: e.target.value }))} className="input" style={{ padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
                                 <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>–</span>
-                                <input type="date" value={earningsRange.to} onChange={e => setEarningsRange(r => ({ ...r, to: e.target.value }))} className="input" style={{ fontSize: '0.78rem', padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
+                                <input type="date" value={earningsRange.to} onChange={e => setEarningsRange(r => ({ ...r, to: e.target.value }))} className="input" style={{ padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
                                 <button onClick={() => { setEarningsPreset('custom'); fetchEarnings('custom', earningsRange); }} disabled={!earningsRange.from || !earningsRange.to} style={{ padding: '0.4rem 0.85rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: '600', cursor: (earningsRange.from && earningsRange.to) ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-body)' }}>Apply</button>
                             </div>
                         </div>
@@ -2325,7 +2325,7 @@ const ProviderDashboard = () => {
 
                         {/* On selection release: ask whether to book a client or block the time */}
                         {timeSelectionPreview && (
-                            <div onClick={() => setTimeSelectionPreview(null)} className="sheet-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0' }}>
+                            <div onClick={() => setTimeSelectionPreview(null)} className="sheet-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.6)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0' }}>
                                 <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in sheet-panel" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                                     <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>What's this time for?</h3>
@@ -2367,7 +2367,7 @@ const ProviderDashboard = () => {
 
                         {/* Drag-to-move confirmation (appointments + blocked time) */}
                         {pendingMove && (
-                            <div className="sheet-overlay" onClick={cancelPendingMove} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                            <div className="sheet-overlay" onClick={cancelPendingMove} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.6)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
                                 <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in sheet-panel" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                                     <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>
@@ -2387,7 +2387,7 @@ const ProviderDashboard = () => {
 
                         {/* Tap grayed area → adjust working hours for that day */}
                         {adjustHours && (
-                            <div className="sheet-overlay" onClick={() => setAdjustHours(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                            <div className="sheet-overlay" onClick={() => setAdjustHours(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.6)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
                                 <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in sheet-panel" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                                     <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Adjust working hours</h3>
@@ -2598,17 +2598,17 @@ const ProviderDashboard = () => {
                                     {[['Notes', 'notes'], ['Allergies', 'allergies'], ['Conditions', 'conditions'], ['Internal Notes', 'internalNotes']].map(([label, key]) => (
                                         <div key={key} style={{ marginBottom: '0.75rem' }}>
                                             <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>{label}</label>
-                                            <textarea rows={2} value={clientNoteForm[key]} onChange={e => setClientNoteForm(prev => ({ ...prev, [key]: e.target.value }))} className="input" style={{ fontSize: '0.82rem', resize: 'none' }} />
+                                            <textarea rows={2} value={clientNoteForm[key]} onChange={e => setClientNoteForm(prev => ({ ...prev, [key]: e.target.value }))} className="input" style={{ fontSize: '1rem', resize: 'none' }} />
                                         </div>
                                     ))}
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
                                         <div>
                                             <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Tags (comma-separated)</label>
-                                            <input value={clientNoteForm.tags} onChange={e => setClientNoteForm(prev => ({ ...prev, tags: e.target.value }))} className="input" style={{ fontSize: '0.82rem' }} placeholder="vip, regular" />
+                                            <input value={clientNoteForm.tags} onChange={e => setClientNoteForm(prev => ({ ...prev, tags: e.target.value }))} className="input" style={{ fontSize: '1rem' }} placeholder="vip, regular" />
                                         </div>
                                         <div>
                                             <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Birthday (MM-DD)</label>
-                                            <input value={clientNoteForm.birthday} onChange={e => setClientNoteForm(prev => ({ ...prev, birthday: e.target.value }))} className="input" style={{ fontSize: '0.82rem' }} placeholder="03-15" />
+                                            <input value={clientNoteForm.birthday} onChange={e => setClientNoteForm(prev => ({ ...prev, birthday: e.target.value }))} className="input" style={{ fontSize: '1rem' }} placeholder="03-15" />
                                         </div>
                                     </div>
                                     <button onClick={saveClientNote} disabled={savingClientNote} className="btn-primary" style={{ width: '100%', padding: '0.65rem', fontSize: '0.85rem' }}>
@@ -3122,7 +3122,7 @@ const ProviderDashboard = () => {
                 looked like "Update did nothing". */}
             {recurringActionModal && (
                 <div className="sheet-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setRecurringActionModal(null); }}>
-                    <div className="sheet-panel" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius) var(--radius) 0 0', padding: '2rem 1.5rem 2.5rem', width: '100%', maxWidth: '480px', position: 'relative' }}>
+                    <div className="sheet-panel" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius) var(--radius) 0 0', padding: '2rem 1.5rem calc(2.5rem + env(safe-area-inset-bottom, 0px))', width: '100%', maxWidth: '480px', position: 'relative' }}>
                         <button onClick={() => setRecurringActionModal(null)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.4rem', color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                             {recurringActionModal.action === 'update' ? 'Update blocked time' : 'Delete blocked time'}
@@ -3812,11 +3812,11 @@ const ProviderDashboard = () => {
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.85rem' }}>
                                         <div>
                                             <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontFamily: 'var(--font-body)' }}>New date</label>
-                                            <input type="date" className="input" value={apptRescheduleForm.appointmentDate} onChange={e => setApptRescheduleForm(f => ({ ...f, appointmentDate: e.target.value }))} style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }} />
+                                            <input type="date" className="input" value={apptRescheduleForm.appointmentDate} onChange={e => setApptRescheduleForm(f => ({ ...f, appointmentDate: e.target.value }))} style={{ fontSize: '1rem', padding: '0.5rem 0.75rem' }} />
                                         </div>
                                         <div>
                                             <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontFamily: 'var(--font-body)' }}>Start time</label>
-                                            <input type="time" className="input" value={apptRescheduleForm.startTime} onChange={e => setApptRescheduleForm(f => ({ ...f, startTime: e.target.value }))} style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }} />
+                                            <input type="time" className="input" value={apptRescheduleForm.startTime} onChange={e => setApptRescheduleForm(f => ({ ...f, startTime: e.target.value }))} style={{ fontSize: '1rem', padding: '0.5rem 0.75rem' }} />
                                         </div>
                                     </div>
                                     {apptDetailError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem', marginBottom: '0.75rem', fontFamily: 'var(--font-body)' }}>{apptDetailError}</p>}
@@ -3895,7 +3895,7 @@ const ProviderDashboard = () => {
             {/* Recurring series cancel modal */}
             {seriesCancelModal && (
                 <>
-                    <div onClick={() => setSeriesCancelModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, backdropFilter: 'blur(2px)' }} />
+                    <div onClick={() => setSeriesCancelModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1100 }} />
                     <div className="modal-center" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '380px', maxWidth: '95vw', background: 'var(--card-bg)', borderRadius: 'var(--radius)', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', zIndex: 1101, overflow: 'hidden' }}>
                         <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.2rem', fontWeight: '700', margin: 0 }}>Cancel recurring appointment</h2>

@@ -24,7 +24,7 @@ const MiniCalendar = ({ value, onChange, min, max }) => {
 
     const today = new Date(); today.setHours(0, 0, 0, 0);
     const isDisabled = (d) => (minD && d < minD) || (maxD && d > maxD);
-    const navBtn = { background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', width: '30px', height: '30px', cursor: 'pointer', color: 'var(--charcoal)' };
+    const navBtn = { background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', width: '40px', height: '40px', cursor: 'pointer', color: 'var(--charcoal)' };
 
     return (
         <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.85rem', background: 'var(--card-bg)', maxWidth: '320px' }}>

@@ -369,7 +369,7 @@ const ProviderAccount = () => {
                                                     {geoLoading ? <span style={{ display: 'inline-block', width: '11px', height: '11px', border: '2px solid rgba(240,62,22,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /> : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>}
                                                     {geoLoading ? 'Detecting…' : 'Use current location'}
                                                 </button>
-                                                <textarea value={profileForm.address} onChange={e => setProfileForm(p => ({ ...p, address: e.target.value }))} className="input" rows={2} placeholder="e.g. 12 Independence Ave, Windhoek" style={{ resize: 'vertical', fontSize: '0.875rem' }} />
+                                                <textarea value={profileForm.address} onChange={e => setProfileForm(p => ({ ...p, address: e.target.value }))} className="input" rows={2} placeholder="e.g. 12 Independence Ave, Windhoek" style={{ resize: 'vertical', fontSize: '1rem' }} />
                                             </div>
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Cancellation policy</label>

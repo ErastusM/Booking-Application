@@ -175,7 +175,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
     const darkBtn = { width: '100%', padding: '0.95rem', borderRadius: '999px', border: 'none', background: 'var(--ink, #040505)', color: '#fff', fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: 700, cursor: 'pointer' };
 
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'var(--off-white)', display: 'flex', flexDirection: 'column' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'var(--off-white)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
             {/* Progress bar */}
             <div style={{ height: '4px', background: 'var(--border)', flexShrink: 0 }}>
                 <div style={{ height: '100%', width: `${progress}%`, background: 'var(--gold)', transition: 'width 0.4s ease' }} />
