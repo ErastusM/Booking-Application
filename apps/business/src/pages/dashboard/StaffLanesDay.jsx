@@ -251,7 +251,9 @@ const StaffLanesDay = ({
             </div>
 
             {/* One scroll container for both axes; lane headers stick to its top, the time gutter to its left. */}
-            <div style={{ flex: 1, minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            {/* overscrollBehavior:'none' — same as CalendarGrid: suppress iOS's elastic
+                bounce so dragging past the last hour can't open a gap at the frame edge. */}
+            <div style={{ flex: 1, minHeight: 0, overflow: 'auto', overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: `${GUTTER_W}px repeat(${lanes.length}, minmax(${LANE_MIN_W}px, 1fr))`, minWidth: `${GUTTER_W + lanes.length * LANE_MIN_W}px` }}>
                     {/* Sticky header row */}
                     <div style={{ position: 'sticky', top: 0, left: 0, zIndex: 6, background: 'var(--card-bg)', borderBottom: '2px solid var(--border)' }} />
