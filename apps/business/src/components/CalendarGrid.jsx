@@ -40,16 +40,24 @@ const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', '
 // alpha wash so it reads on light and dark grounds; ink stays neutral for
 // contrast, letting the rail + wash carry the staff identity (like the proto).
 const hexToRgb = (hex) => {
-    const h = String(hex || '').replace('#', '');
+    // Only real hex colours parse. Non-hex values (e.g. a CSS var like
+    // 'var(--gold)', which owner appointments use) must return null so the
+    // caller falls back — otherwise parseInt('va',16) yields NaN and the card
+    // gets an invalid `rgba(NaN,…)` background that renders as light paper
+    // (invisible in dark mode).
+    const h = String(hex || '').replace('#', '').trim();
+    if (!/^([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(h)) return null;
     if (h.length === 3) return { r: parseInt(h[0] + h[0], 16), g: parseInt(h[1] + h[1], 16), b: parseInt(h[2] + h[2], 16) };
-    if (h.length >= 6) return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
-    return null;
+    return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
 };
 const staffPalette = (hex) => {
     const rgb = hexToRgb(hex);
-    if (!rgb) return { bg: 'rgba(240,62,22,0.12)', rail: 'var(--gold)' };
-    const { r, g, b } = rgb;
-    return { bg: `rgba(${r},${g},${b},0.14)`, rail: hex };
+    const { r, g, b } = rgb || { r: 240, g: 62, b: 22 };
+    const rail = rgb ? hex : 'var(--gold)';
+    // Lay the staff wash over an OPAQUE var(--card-bg) so the card is always the
+    // theme's own lightness (light in light mode, dark in dark mode) — the tint
+    // only colours it, it can never flip the card to the wrong ground.
+    return { bg: `linear-gradient(0deg, rgba(${r},${g},${b},0.20), rgba(${r},${g},${b},0.20)), var(--card-bg)`, rail };
 };
 
 // Overlap layout: side-by-side columns for events that share time (greedy),
@@ -173,23 +181,27 @@ const CalendarGrid = ({
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [appointments, blockedTimes, dayKeys.join(','), staffFilter, teamMembers]);
 
-    // Visible time window: business hours across the shown days, expanded to
-    // include anything booked off-grid, padded an hour each side, snapped to
-    // whole hours. Defaults to 08:00–20:00.
-    const { winStart, winEnd } = useMemo(() => {
-        let start = 8 * 60; let end = 20 * 60;
+    // The grid spans the FULL day (00:00–24:00) and scrolls on its time axis —
+    // the whole day is reachable, nothing is clipped off the top or bottom. We
+    // still find the first "interesting" minute (business open or earliest
+    // booking across the shown days) so the view opens scrolled to the day's
+    // content instead of the empty pre-dawn hours.
+    const winStart = 0;
+    const winEnd = 24 * 60;
+    const firstContentMin = useMemo(() => {
+        let first = null;
+        const consider = (v) => { first = first == null ? v : Math.min(first, v); };
         days.forEach((d) => {
             const cfg = availability?.[DAY_NAMES[d.getDay()]];
-            const slots = (cfg?.enabled && Array.isArray(cfg.slots) ? cfg.slots : []).filter((s) => s?.start && s?.end);
-            slots.forEach((s) => { start = Math.min(start, minutesOf(s.start)); end = Math.max(end, minutesOf(s.end)); });
+            (cfg?.enabled && Array.isArray(cfg.slots) ? cfg.slots : [])
+                .filter((s) => s?.start && s?.end)
+                .forEach((s) => consider(minutesOf(s.start)));
         });
         dayKeys.forEach((k) => {
-            (perDay[k]?.appts || []).forEach((e) => { start = Math.min(start, e.startMin); end = Math.max(end, e.endMin); });
-            (perDay[k]?.blocks || []).forEach((e) => { start = Math.min(start, e.startMin); end = Math.max(end, e.endMin); });
+            (perDay[k]?.appts || []).forEach((e) => consider(e.startMin));
+            (perDay[k]?.blocks || []).forEach((e) => consider(e.startMin));
         });
-        start = Math.max(0, Math.floor(start / 60) * 60 - 60);
-        end = Math.min(24 * 60, Math.ceil(end / 60) * 60 + 60);
-        return { winStart: start, winEnd: Math.max(end, start + 60) };
+        return first == null ? 8 * 60 : Math.max(0, Math.floor(first / 60) * 60);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dayKeys.join(','), perDay, availability]);
 
@@ -209,7 +221,9 @@ const CalendarGrid = ({
     };
 
     const hourMarks = [];
-    for (let m = winStart; m <= winEnd; m += 60) hourMarks.push(m);
+    // Exclude the 24:00 boundary so the gutter doesn't print a misleading
+    // "12 PM" at the very bottom (midnight of the next day).
+    for (let m = winStart; m < winEnd; m += 60) hourMarks.push(m);
 
     const nowMin = today.getHours() * 60 + today.getMinutes();
 
@@ -223,11 +237,13 @@ const CalendarGrid = ({
 
     const bodyRef = useRef(null);
     const isTodayInView = showsToday;
-    // Open the scroll near the start of the working day.
+    // Open the scroll at the day's first content (business open / earliest
+    // booking), a touch above it, so the schedule is visible immediately while
+    // the full 24 h stays scrollable above and below.
     useEffect(() => {
-        if (bodyRef.current) bodyRef.current.scrollTop = Math.max(0, ((9 * 60) - winStart) / 60 * HOUR_PX - 12);
+        if (bodyRef.current) bodyRef.current.scrollTop = Math.max(0, (firstContentMin / 60) * HOUR_PX - 12);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [view, dateKey(firstDay), winStart]);
+    }, [view, dateKey(firstDay), firstContentMin]);
 
     const shift = (delta) => onDateChange && onDateChange(addDays(anchor, delta * cols));
 
@@ -325,8 +341,11 @@ const CalendarGrid = ({
                                         style={{
                                             position: 'absolute', top: `${pxOf(blk.startMin)}px`, height: `${((blk.endMin - blk.startMin) / 60) * HOUR_PX}px`,
                                             left: '2px', right: '2px', zIndex: 1, overflow: 'hidden',
-                                            background: '#e5e7eb', borderLeft: '3px solid #b7b7b3', borderRadius: '8px',
-                                            color: '#5f5f5b', fontSize: '0.68rem', fontWeight: 600, padding: '3px 8px', cursor: 'pointer',
+                                            // Neutral wash over the theme surface so it reads as muted/greyed in
+                                            // both light and dark mode (was hardcoded light paper).
+                                            background: 'linear-gradient(0deg, rgba(140,143,142,0.16), rgba(140,143,142,0.16)), var(--card-bg)',
+                                            border: '1px solid var(--border)', borderLeft: '3px solid var(--text-muted)', borderRadius: '8px',
+                                            color: 'var(--charcoal)', fontSize: '0.68rem', fontWeight: 600, padding: '3px 8px', cursor: 'pointer',
                                         }}
                                     >
                                         {blk.isRecurring && <span aria-hidden="true" style={{ position: 'absolute', top: '2px', right: '4px', fontSize: '0.66rem', opacity: 0.6 }}>⟳</span>}
@@ -350,7 +369,7 @@ const CalendarGrid = ({
                                                 left: `calc(${(ev.col / ev.cols) * 100}% + 2px)`, width: `calc(${100 / ev.cols}% - 4px)`,
                                                 zIndex: 2, textAlign: 'left', overflow: 'hidden', cursor: 'pointer',
                                                 display: 'flex', flexDirection: 'column', lineHeight: 1.15,
-                                                background: pal.bg, border: 'none', borderLeft: `3px ${dim ? 'dashed' : 'solid'} ${pal.rail}`, borderRadius: '8px',
+                                                background: pal.bg, border: '1px solid var(--border)', borderLeft: `3px ${dim ? 'dashed' : 'solid'} ${pal.rail}`, borderRadius: '8px',
                                                 padding: '0.28rem 0.42rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)',
                                                 boxShadow: 'var(--shadow-sm)', opacity: dim ? 0.78 : 1,
                                             }}
