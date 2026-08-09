@@ -1,9 +1,6 @@
 import React, { useEffect, useMemo, useState, useRef, lazy, Suspense } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import FullCalendar from '@fullcalendar/react';
-import dayGridPlugin from '@fullcalendar/daygrid';
-import timeGridPlugin from '@fullcalendar/timegrid';
-import interactionPlugin from '@fullcalendar/interaction';
+import CalendarGrid from '../components/CalendarGrid';
 import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService, waitingListService, earningsService, analyticsService, walletService, providerWalletService, authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 // Lazy — pulls in the Google Maps SDK only when a new provider is onboarding,
@@ -36,7 +33,6 @@ const ProviderDashboard = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const toast = useToast();
-    const calendarRef = useRef(null);
     const fcWrapRef = useRef(null);
     // Day/week calendar fills the space from its top down to just above the bottom
     // nav, instead of a fixed 680px that left dead grey space on tall phones.
@@ -88,7 +84,7 @@ const ProviderDashboard = () => {
             const el = fcWrapRef.current;
             if (!el) return;
             const absTop = el.getBoundingClientRect().top + window.scrollY;
-            const bottomReserve = window.innerWidth <= 768 ? 96 : 32; // fixed bottom nav on phones
+            const bottomReserve = window.innerWidth <= 768 ? 84 : 32; // flat fixed bottom nav (~tab height + safe-area) on phones
             setCalHeight(Math.max(460, Math.round(window.innerHeight - absTop - bottomReserve)));
         };
         // Re-measure at a few points so late-rendering content above the calendar
@@ -960,101 +956,6 @@ const ProviderDashboard = () => {
         return new Date(`${dateStr}T${timeValue}:00`);
     };
 
-    // Memoized so re-renders that DON'T change the underlying data (e.g. typing in the
-    // reschedule form, which lives in this same big component) don't hand FullCalendar a
-    // brand-new events array each render and force it to re-process the whole calendar.
-    // That per-keystroke re-processing on the main thread was what froze the dashboard.
-    const fullCalendarEvents = useMemo(() => {
-        // Cancelled appointments are dropped from the calendar entirely — they free the slot and
-        // the red blocks just add visual noise. They're still reachable via the Cancelled tab.
-        const appointmentEvents = appointments.filter(a => a.status !== 'cancelled').filter(matchesStaffFilter).map(a => {
-            const start = mergeDateAndTime(a.appointmentDate, a.startTime);
-            const end = mergeDateAndTime(a.appointmentDate, a.endTime);
-            const colors = statusCalendarColors[a.status] || statusCalendarColors.pending;
-            if (!start || !end) return null;
-            return {
-                id: `appt_${a._id}`,
-                title: a.service?.name || 'Appointment',
-                start,
-                end,
-                backgroundColor: colors.bg,
-                borderColor: colors.borderColor || colors.bg,
-                textColor: colors.text,
-                extendedProps: {
-                    kind: 'appointment',
-                    appointmentId: a._id,
-                    // An appointment's client is a registered customer, a guest
-                    // (guest checkout) or a provider-logged walk-in.
-                    // walkInName/guestName MUST be checked before `customer`: a
-                    // walk-in or group booking stores the PROVIDER's own id in
-                    // `customer` (the model requires one, and there's no account
-                    // for a walk-in), so reading `customer` first labelled every
-                    // walk-in with the owner's own name instead of the client's.
-                    customerName: a.walkInName || a.guestName || a.customer?.name || 'Client',
-                    startTime: a.startTime,
-                    endTime: a.endTime,
-                    status: a.status,
-                    isRecurring: a.isRecurring,
-                    staffName: a.teamMember?.name || null,
-                    staffColor: a.teamMember?.color || null,
-                    raw: a,
-                },
-            };
-        }).filter(Boolean);
-
-        const blockedEvents = blockedTimes.filter(blockMatchesStaffFilter).map(b => {
-            const start = mergeDateAndTime(b.date, b.startTime);
-            const end = mergeDateAndTime(b.date, b.endTime);
-            if (!start || !end) return null;
-            return {
-                id: `block_${b._id}`,
-                title: b.reason || b.title || 'Blocked',
-                start,
-                end,
-                backgroundColor: '#e5e7eb',
-                borderColor: '#d1d5db',
-                textColor: '#374151',
-                editable: false,
-                extendedProps: {
-                    kind: 'blocked',
-                    blockedId: b._id,
-                    isRecurring: b.isRecurring,
-                    raw: b,
-                },
-            };
-        }).filter(Boolean);
-
-        return [...appointmentEvents, ...blockedEvents];
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [appointments, blockedTimes, calendarStaffFilter]);
-
-    const getFullCalendarView = () => {
-        if (calendarView === 'day' || calendarView === 'staff') return 'timeGridDay'; // 'staff' renders its own view; this is the remount fallback
-        if (calendarView === '3day') return 'timeGridThreeDay';
-        if (calendarView === 'week') return 'timeGridWeek';
-        return 'dayGridMonth';
-    };
-
-    // Switch views in place (changeView) instead of remounting the whole
-    // calendar via key= — keeps scroll position and avoids a flash/reflow.
-    useEffect(() => {
-        const api = calendarRef.current?.getApi?.();
-        if (api && api.view.type !== getFullCalendarView()) {
-            api.changeView(getFullCalendarView());
-        }
-        // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [calendarView]);
-
-    const handleFullCalendarSelect = (selection) => {
-        // Offer a choice (appointment vs block) instead of jumping straight to a form.
-        setApptError('');
-        setTimeSelectionPreview({
-            date: toDateKey(selection.start),
-            startTime: toTimeKey(selection.start),
-            endTime: selection.end ? toTimeKey(selection.end) : toTimeKey(selection.start),
-        });
-    };
-
     // Shared by the FullCalendar views and the staff-lanes view.
     const openApptDetail = (appt, { date, startTime } = {}) => {
         if (!appt) return;
@@ -1068,139 +969,6 @@ const ProviderDashboard = () => {
         setApptDetailModal(appt);
     };
 
-    const handleFullCalendarEventClick = (clickInfo) => {
-        const event = clickInfo.event;
-        if (event.extendedProps.kind === 'blocked') {
-            const block = blockedTimes.find(b => b._id === event.extendedProps.blockedId);
-            openBlockedTimeForm(block || null);
-            return;
-        }
-        openApptDetail(event.extendedProps.raw || null, {
-            date: toDateString(event.start),
-            startTime: toTimeKey(event.start),
-        });
-    };
-
-    const showCalendarToast = (msg, type = 'success') => {
-        setCalendarToast({ msg, type });
-        window.clearTimeout(showCalendarToast._t);
-        showCalendarToast._t = window.setTimeout(() => setCalendarToast(null), 3200);
-    };
-
-    // On drop, don't save immediately — ask the provider to confirm the move first.
-    // Works for both appointments and blocked time.
-    const handleFullCalendarEventDrop = (dropInfo) => {
-        const event = dropInfo.event;
-        const kind = event.extendedProps.kind;
-        if (kind !== 'appointment' && kind !== 'blocked') { dropInfo.revert(); return; }
-        if (navigator.vibrate) { try { navigator.vibrate(12); } catch (_) {} }
-        const appointmentDate = toDateString(event.start);
-        const startTime = toTimeKey(event.start);
-        const endTime = event.end ? toTimeKey(event.end) : undefined;
-        setPendingMove({
-            kind,
-            info: dropInfo,
-            id: kind === 'appointment' ? event.extendedProps.appointmentId : event.extendedProps.blockedId,
-            title: event.title,
-            appointmentDate, startTime, endTime,
-            label: `${event.start.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · ${startTime}${endTime ? `–${endTime}` : ''}`,
-        });
-    };
-
-    const confirmPendingMove = async () => {
-        if (!pendingMove) return;
-        const { kind, id, appointmentDate, startTime, endTime, info } = pendingMove;
-        try {
-            if (kind === 'appointment') {
-                // Pass endTime so a custom duration set by a prior resize survives the
-                // drag. Without it the API recomputes end from service.duration and
-                // silently discards the resized length — while the toast below still
-                // claims the dragged range. endTime is undefined for a never-resized
-                // move, which the API correctly falls back to recomputing.
-                const res = await appointmentService.providerRescheduleAppointment(id, { appointmentDate, startTime, endTime });
-                // Response only populates `service`; keep the populated customer/teamMember
-                // so the client's name/email/phone don't get clobbered by bare ObjectIds.
-                setAppointments(prev => prev.map(a => a._id === id ? { ...a, ...res.data.data, customer: a.customer, teamMember: a.teamMember } : a));
-            } else {
-                await blockedTimeService.updateBlockedTime(id, { date: appointmentDate, startTime, endTime });
-                await fetchBlockedTimes();
-            }
-            showCalendarToast(`Moved to ${pendingMove.label}`);
-        } catch (err) {
-            showCalendarToast(err.response?.data?.message || 'Could not move', 'error');
-            info.revert();
-        } finally {
-            setPendingMove(null);
-        }
-    };
-
-    const cancelPendingMove = () => {
-        if (pendingMove) { pendingMove.info.revert(); setPendingMove(null); }
-    };
-
-    // Tap a grayed (non-working) slot → quick-edit that day's working hours.
-    const handleCalendarDateClick = (info) => {
-        if (!availability) return;
-        const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-        const dayName = dayNames[info.date.getDay()];
-        const cfg = availability[dayName] || {};
-        const slot = cfg.slots?.[0];
-        const mins = info.date.getHours() * 60 + info.date.getMinutes();
-        const within = cfg.enabled && slot && (() => {
-            const [sh, sm] = slot.start.split(':').map(Number);
-            const [eh, em] = slot.end.split(':').map(Number);
-            return mins >= sh * 60 + sm && mins < eh * 60 + em;
-        })();
-        if (within) return; // inside working hours — leave for drag-to-book
-        setAdjustHours({
-            day: dayName,
-            label: info.date.toLocaleDateString('en-US', { weekday: 'long' }),
-            enabled: cfg.enabled ?? true,
-            start: slot?.start || '09:00',
-            end: slot?.end || '17:00',
-        });
-    };
-
-    const saveAdjustHours = async () => {
-        if (!adjustHours) return;
-        const { day, enabled, start, end } = adjustHours;
-        if (enabled && start >= end) { showCalendarToast('End time must be after start time', 'error'); return; }
-        setSavingAdjustHours(true);
-        const next = { ...availability, [day]: { enabled, slots: [{ start, end }] } };
-        try {
-            await availabilityService.updateMyAvailability(next);
-            setAvailability(next);
-            showCalendarToast(`Working hours updated for ${adjustHours.label}`);
-            setAdjustHours(null);
-        } catch {
-            showCalendarToast('Could not update hours', 'error');
-        } finally {
-            setSavingAdjustHours(false);
-        }
-    };
-
-    // Resize-to-change-duration. Sends an explicit endTime.
-    const handleFullCalendarEventResize = async (resizeInfo) => {
-        const event = resizeInfo.event;
-        if (event.extendedProps.kind !== 'appointment') {
-            resizeInfo.revert();
-            return;
-        }
-        try {
-            const appointmentId = event.extendedProps.appointmentId;
-            const appointmentDate = toDateString(event.start);
-            const startTime = toTimeKey(event.start);
-            const endTime = event.end ? toTimeKey(event.end) : undefined;
-            const res = await appointmentService.providerRescheduleAppointment(appointmentId, { appointmentDate, startTime, endTime });
-            // Response only populates `service`; keep the populated customer/teamMember so
-            // the resize doesn't wipe the client's name from the calendar with bare ObjectIds.
-            setAppointments(prev => prev.map(a => a._id === appointmentId ? { ...a, ...res.data.data, customer: a.customer, teamMember: a.teamMember } : a));
-            showCalendarToast(`Duration updated · ${startTime}–${endTime}`);
-        } catch (err) {
-            showCalendarToast(err.response?.data?.message || 'Could not change duration', 'error');
-            resizeInfo.revert();
-        }
-    };
 
     const appointmentTabs = ['pending', 'confirmed', 'completed', 'cancelled'];
     // Earliest booking first (date + start time), so the soonest is always at the top.
@@ -1225,42 +993,6 @@ const ProviderDashboard = () => {
         { label: 'Confirmed', value: counts.confirmed, Icon: Calendar },
         { label: 'Completed', value: counts.completed, Icon: TrendingUp },
     ];
-
-    // Build FullCalendar businessHours from the provider's availability so the
-    // calendar greys out non-working time (and constrains drag/resize to it).
-    const businessHoursConfig = useMemo(() => {
-        if (!availability) return false;
-        const idx = { sunday: 0, monday: 1, tuesday: 2, wednesday: 3, thursday: 4, friday: 5, saturday: 6 };
-        const out = [];
-        Object.entries(availability).forEach(([day, cfg]) => {
-            if (cfg?.enabled && Array.isArray(cfg.slots)) {
-                cfg.slots.forEach(s => { if (s?.start && s?.end) out.push({ daysOfWeek: [idx[day]], startTime: s.start, endTime: s.end }); });
-            }
-        });
-        return out.length ? out : false;
-    }, [availability]);
-
-    // Span the calendar to the provider's ACTUAL working hours AND anything already
-    // scheduled outside them (appointments / blocked times), widening the default
-    // 07:00–22:00 window as needed — so nothing bookable or booked is hidden off-grid.
-    // The calendar shows the full 24h day (non-working hours are greyed via
-    // businessHours below); open it scrolled to the earliest hour the provider
-    // works, falling back to 07:00.
-    const calendarScrollTime = useMemo(() => {
-        let minM = 7 * 60;
-        if (availability) {
-            Object.values(availability).forEach(cfg => {
-                if (cfg?.enabled && Array.isArray(cfg.slots)) {
-                    cfg.slots.forEach(s => {
-                        const [sh, sm] = String(s?.start || '').split(':').map(Number);
-                        if (Number.isFinite(sh)) minM = Math.min(minM, sh * 60 + (sm || 0));
-                    });
-                }
-            });
-        }
-        const h = Math.max(0, Math.floor(minM / 60));
-        return `${String(h).padStart(2, '0')}:00:00`;
-    }, [availability]);
 
     const labelStyle = { display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', letterSpacing: '0.05em', textTransform: 'uppercase' };
 
@@ -2113,22 +1845,12 @@ const ProviderDashboard = () => {
                         </button>
                         <div className="fc-toolbar-shell" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
                             <div style={{ display: 'inline-flex', background: 'var(--surface-sunken)', border: '1px solid var(--border)', borderRadius: '10px', padding: '3px', gap: '2px' }}>
-                                {[['day', 'Day'], ['3day', '3 Day'], ['week', 'Week'], ['month', 'Month'], ...(activeTeamMembers.length > 0 ? [['staff', 'Staff']] : [])].map(([view, label]) => {
+                                {[['day', 'Day'], ['3day', '3 Day'], ['week', 'Week'], ...(activeTeamMembers.length > 0 ? [['staff', 'Staff']] : [])].map(([view, label]) => {
                                     const isActive = calendarView === view;
                                     return (
                                         <button
                                             key={view}
-                                            onClick={() => {
-                                                // currentDate tracks FullCalendar's datesSet range START
-                                                // (Sunday / 1st grid cell), so entering the lanes view from
-                                                // Week/Month would land days before the one being viewed.
-                                                // Snap to FC's real anchor day instead.
-                                                if (view === 'staff') {
-                                                    const api = calendarRef.current?.getApi?.();
-                                                    if (api) setCurrentDate(api.getDate());
-                                                }
-                                                setCalendarView(view);
-                                            }}
+                                            onClick={() => setCalendarView(view)}
                                             aria-pressed={isActive}
                                             style={{
                                                 padding: '0.4rem 1rem',
@@ -2218,72 +1940,21 @@ const ProviderDashboard = () => {
                                     onSlotClick={(sel) => { setApptError(''); setTimeSelectionPreview(sel); }}
                                 />
                             ) : (
-                            <FullCalendar
-                                ref={calendarRef}
-                                plugins={[dayGridPlugin, timeGridPlugin, interactionPlugin]}
-                                initialView={getFullCalendarView()}
-                                initialDate={currentDate}
-                                views={{ timeGridThreeDay: { type: 'timeGrid', duration: { days: 3 }, buttonText: '3 day' } }}
-                                headerToolbar={{ left: 'prev,next', center: 'title', right: '' }}
-                                height={calendarView === 'month' ? 'auto' : calHeight}
-                                events={fullCalendarEvents}
-                                businessHours={businessHoursConfig}
-                                selectable
-                                selectMirror={false}
-                                longPressDelay={350}
-                                eventLongPressDelay={350}
-                                selectLongPressDelay={350}
-                                editable
-                                eventDurationEditable
-                                eventResizableFromStart
-                                dayMaxEvents={3}
-                                slotMinTime="00:00:00"
-                                slotMaxTime="24:00:00"
-                                slotDuration="00:15:00"
-                                slotLabelInterval="01:00:00"
-                                slotLabelFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
-                                eventTimeFormat={{ hour: '2-digit', minute: '2-digit', hour12: false }}
-                                slotEventOverlap={false}
-                                eventMinHeight={42}
-                                eventShortHeight={64}
-                                allDaySlot={false}
-                                nowIndicator
-                                scrollTime={calendarScrollTime}
-                                select={handleFullCalendarSelect}
-                                dateClick={handleCalendarDateClick}
-                                eventClick={handleFullCalendarEventClick}
-                                eventDrop={handleFullCalendarEventDrop}
-                                eventResize={handleFullCalendarEventResize}
-                                datesSet={(arg) => setCurrentDate(arg.start)}
-                                eventContent={(arg) => {
-                                    const { kind, customerName, startTime, endTime, staffName, staffColor, isRecurring } = arg.event.extendedProps;
-                                    if (kind !== 'appointment') {
-                                        return (
-                                            <div className="fc-event-blocked">
-                                                {isRecurring && <span className="fc-event-recur" aria-hidden="true" title="Repeats">⟳</span>}
-                                                <span>{arg.event.title}</span>
-                                            </div>
-                                        );
-                                    }
-                                    // Staff tag only when the calendar is showing everyone —
-                                    // filtered to one member, it would just repeat the filter.
-                                    const showStaffTag = staffName && calendarStaffFilter === 'all';
-                                    return (
-                                        <div className="fc-event-appt">
-                                            {isRecurring && <span className="fc-event-recur" aria-hidden="true" title="Repeats">⟳</span>}
-                                            <div className="fc-event-appt-time">{startTime}{endTime ? ` – ${endTime}` : ''}</div>
-                                            <div className="fc-event-appt-client">{customerName}</div>
-                                            <div className="fc-event-appt-service">{arg.event.title}</div>
-                                            {showStaffTag && (
-                                                <div className="fc-event-appt-staff">
-                                                    <span className="fc-event-appt-staff-dot" style={{ background: staffColor || 'var(--gold)' }} aria-hidden="true" />
-                                                    {staffName}
-                                                </div>
-                                            )}
-                                        </div>
-                                    );
-                                }}
-                            />
+                                <CalendarGrid
+                                    view={calendarView}
+                                    date={currentDate}
+                                    onDateChange={setCurrentDate}
+                                    appointments={appointments}
+                                    blockedTimes={blockedTimes}
+                                    teamMembers={teamMembers}
+                                    ownerName={user?.name}
+                                    staffFilter={calendarStaffFilter}
+                                    availability={availability}
+                                    height={calHeight}
+                                    onEventClick={openApptDetail}
+                                    onBlockClick={(block) => openBlockedTimeForm(block)}
+                                    onSlotClick={(sel) => { setApptError(''); setTimeSelectionPreview(sel); }}
+                                />
                             )}
                         </div>
 
