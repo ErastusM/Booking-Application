@@ -11,7 +11,7 @@ import ApptFormsView from '../components/ApptFormsView';
 import EnablePushBanner from '../components/EnablePushBanner';
 import SetupChecklistNudge from '../components/SetupChecklistNudge';
 import ServiceFormModal from '../components/ServiceFormModal';
-import { Calendar, History, Scissors, CalendarClock, Clock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, CalendarPlus, Ban, Wallet as WalletIcon, ChevronDown, ChevronLeft, Send } from 'lucide-react';
+import { Calendar, History, Scissors, CalendarClock, Clock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, CalendarPlus, Ban, Wallet as WalletIcon, ChevronDown, ChevronLeft, Send, X, Trophy, Download } from 'lucide-react';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { NAMIBIAN_TOWNS, normalizeTown } from '../utils/namibiaTowns';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
@@ -23,6 +23,27 @@ import { useToast } from '../components/Toast';
 import { statusConfig, ContactActions, ChromeModal, CloseButton, StatsSkeleton, RowsSkeleton, Avatar, fmtConvTime } from './dashboard/primitives';
 import { ProviderAccountTopUpModal, WalletAdjustmentModal } from './dashboard/WalletModals';
 import StaffLanesDay from './dashboard/StaffLanesDay';
+
+// Clear (✕) button for a search field. Sits at the right edge of the input, so
+// the parent must be position:relative and the input needs right padding to
+// keep its text from running underneath.
+const SearchClear = ({ onClear, label = 'Clear search' }) => (
+    <button
+        type="button"
+        onClick={onClear}
+        aria-label={label}
+        title={label}
+        style={{
+            position: 'absolute', right: '0.4rem', top: '50%', transform: 'translateY(-50%)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            width: '2rem', height: '2rem', padding: 0, borderRadius: '50%',
+            border: 'none', background: 'var(--surface-sunken)', color: 'var(--text-secondary)',
+            cursor: 'pointer', lineHeight: 1,
+        }}
+    >
+        <X size={14} strokeWidth={2.5} />
+    </button>
+);
 
 const ProviderDashboard = () => {
     const { user, setUser } = useAuthContext();
@@ -1209,7 +1230,8 @@ const ProviderDashboard = () => {
                                     <circle cx="11" cy="11" r="8" />
                                     <line x1="21" y1="21" x2="16.65" y2="16.65" />
                                 </svg>
-                                <input value={catalogueSearch} onChange={e => setCatalogueSearch(e.target.value)} placeholder="Search service name" aria-label="Search services" className="input" style={{ paddingLeft: '2.5rem' }} />
+                                <input value={catalogueSearch} onChange={e => setCatalogueSearch(e.target.value)} placeholder="Search service name" aria-label="Search services" className="input" style={{ paddingLeft: '2.5rem', paddingRight: catalogueSearch ? '2.6rem' : undefined }} />
+                                {catalogueSearch && <SearchClear onClear={() => setCatalogueSearch('')} label="Clear service search" />}
                             </div>
                         </div>
 
@@ -1597,7 +1619,7 @@ const ProviderDashboard = () => {
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>Insights</h2>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>How busy you are, when, and who's coming back.</p>
                             </div>
-                            <button onClick={exportInsightsCsv} disabled={!insights} style={{ padding: '0.5rem 1rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: insights ? 'pointer' : 'not-allowed', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}>⬇ Export CSV</button>
+                            <button onClick={exportInsightsCsv} disabled={!insights} style={{ padding: '0.5rem 1rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: insights ? 'pointer' : 'not-allowed', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><Download size={14} strokeWidth={2} /> Export CSV</button>
                         </div>
 
                         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
@@ -1721,13 +1743,17 @@ const ProviderDashboard = () => {
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>Earnings</h2>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>Value of your completed appointments. Collected in person.</p>
                             </div>
-                            <button onClick={exportEarningsCsv} disabled={!earnings} style={{ padding: '0.5rem 1rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: earnings ? 'pointer' : 'not-allowed', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}>
-                                ⬇ Export CSV
+                            <button onClick={exportEarningsCsv} disabled={!earnings} style={{ padding: '0.5rem 1rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: earnings ? 'pointer' : 'not-allowed', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <Download size={14} strokeWidth={2} /> Export CSV
                             </button>
                         </div>
 
-                        {/* Date range presets */}
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+                        {/* Date range presets. alignItems:center is load-bearing — the row is a
+                            flex container, and without it the pills STRETCH to the height of the
+                            tallest item on their line, which turned a border-radius:99px preset
+                            into a giant oval next to the custom-range block. The custom range now
+                            lives on its own labelled row instead of sharing this one. */}
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '0.75rem' }}>
                             {[['week','This week'],['month','This month'],['lastMonth','Last month'],['30d','Last 30 days']].map(([key, label]) => (
                                 <button key={key} onClick={() => { setEarningsPreset(key); fetchEarnings(key); }} style={{
                                     padding: '0.4rem 1rem', borderRadius: '99px', border: '1.5px solid',
@@ -1735,14 +1761,22 @@ const ProviderDashboard = () => {
                                     background: earningsPreset === key ? 'rgba(240,62,22,0.12)' : 'var(--card-bg)',
                                     color: earningsPreset === key ? 'var(--gold-dark)' : 'var(--text-secondary)',
                                     fontSize: '0.8rem', fontWeight: earningsPreset === key ? '600' : '400', cursor: 'pointer', fontFamily: 'var(--font-body)',
+                                    whiteSpace: 'nowrap', lineHeight: 1.4,
                                 }}>{label}</button>
                             ))}
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center', marginLeft: '0.25rem' }}>
-                                <input type="date" value={earningsRange.from} onChange={e => setEarningsRange(r => ({ ...r, from: e.target.value }))} className="input" style={{ padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
-                                <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>–</span>
-                                <input type="date" value={earningsRange.to} onChange={e => setEarningsRange(r => ({ ...r, to: e.target.value }))} className="input" style={{ padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
-                                <button onClick={() => { setEarningsPreset('custom'); fetchEarnings('custom', earningsRange); }} disabled={!earningsRange.from || !earningsRange.to} style={{ padding: '0.4rem 0.85rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: '600', cursor: (earningsRange.from && earningsRange.to) ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-body)' }}>Apply</button>
-                            </div>
+                        </div>
+                        {/* Custom range — labelled From/To so it's obvious what the two empty
+                            date fields are for, and Apply says what it will do. */}
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'flex-end', marginBottom: '1.5rem' }}>
+                            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: '1 1 140px', minWidth: 0 }}>
+                                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>From</span>
+                                <input type="date" value={earningsRange.from} onChange={e => setEarningsRange(r => ({ ...r, from: e.target.value }))} aria-label="Custom range start date" className="input" style={{ padding: '0.45rem 0.6rem', width: '100%', minWidth: 0 }} />
+                            </label>
+                            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: '1 1 140px', minWidth: 0 }}>
+                                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>To</span>
+                                <input type="date" value={earningsRange.to} onChange={e => setEarningsRange(r => ({ ...r, to: e.target.value }))} aria-label="Custom range end date" className="input" style={{ padding: '0.45rem 0.6rem', width: '100%', minWidth: 0 }} />
+                            </label>
+                            <button onClick={() => { setEarningsPreset('custom'); fetchEarnings('custom', earningsRange); }} disabled={!earningsRange.from || !earningsRange.to} style={{ padding: '0.55rem 1.1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: '600', cursor: (earningsRange.from && earningsRange.to) ? 'pointer' : 'not-allowed', opacity: (earningsRange.from && earningsRange.to) ? 1 : 0.55, fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}>Apply range</button>
                         </div>
 
                         {loadingEarnings ? (
@@ -1755,19 +1789,23 @@ const ProviderDashboard = () => {
                         ) : earnings ? (
                             <>
                                 {/* KPI row */}
-                                <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '1rem', marginBottom: '1.5rem' }}>
+                                <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '0.75rem', marginBottom: '1.5rem' }}>
                                     {[
-                                        { label: 'Earned (range)', value: `${curSym} ${earnings.totals.earned.toLocaleString()}`, icon: '💰', sub: `${earnings.totals.completedCount} completed` },
-                                        { label: 'This month', value: `${curSym} ${earnings.thisMonth.earned.toLocaleString()}`, icon: '📅', sub: `${earnings.growthPct >= 0 ? '▲' : '▼'} ${Math.abs(earnings.growthPct)}% vs last month`, trend: earnings.growthPct },
-                                        { label: 'Avg / appointment', value: `${curSym} ${earnings.totals.avgPerAppointment.toLocaleString()}`, icon: '📈', sub: 'In selected range' },
-                                        { label: 'All-time earned', value: `${curSym} ${earnings.totals.allTimeEarned.toLocaleString()}`, icon: '🏆', sub: `${earnings.totals.allTimeCount} completed` },
+                                        { label: 'Earned (range)', value: `${curSym} ${earnings.totals.earned.toLocaleString()}`, Icon: WalletIcon, sub: `${earnings.totals.completedCount} completed` },
+                                        { label: 'This month', value: `${curSym} ${earnings.thisMonth.earned.toLocaleString()}`, Icon: Calendar, sub: `${earnings.growthPct >= 0 ? '▲' : '▼'} ${Math.abs(earnings.growthPct)}% vs last month`, trend: earnings.growthPct },
+                                        { label: 'Avg / appointment', value: `${curSym} ${earnings.totals.avgPerAppointment.toLocaleString()}`, Icon: TrendingUp, sub: 'In selected range' },
+                                        { label: 'All-time earned', value: `${curSym} ${earnings.totals.allTimeEarned.toLocaleString()}`, Icon: Trophy, sub: `${earnings.totals.allTimeCount} completed` },
                                     ].map((s, i) => (
-                                        <div key={i} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                                            <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(240,62,22,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
-                                            <div>
-                                                <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{s.label}</p>
-                                                <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.4rem', fontWeight: '600', color: 'var(--charcoal)', lineHeight: 1.1 }}>{s.value}</p>
-                                                {s.sub && <p style={{ fontSize: '0.72rem', color: s.trend !== undefined ? (s.trend >= 0 ? '#059669' : '#dc2626') : 'var(--text-muted)', marginTop: '0.25rem' }}>{s.sub}</p>}
+                                        <div key={i} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', minWidth: 0 }}>
+                                            <div style={{ width: '38px', height: '38px', borderRadius: '10px', background: 'rgba(240,62,22,0.1)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                                <s.Icon size={18} strokeWidth={2} />
+                                            </div>
+                                            <div style={{ minWidth: 0 }}>
+                                                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.15rem' }}>{s.label}</p>
+                                                {/* nowrap + fluid size: a money value must never break across
+                                                    lines ("N$" on one line, "18,660" on the next). */}
+                                                <p className="tnum" style={{ fontFamily: 'var(--font-body)', fontSize: '1.35rem', fontWeight: '600', color: 'var(--charcoal)', lineHeight: 1.15, whiteSpace: 'nowrap' }}>{s.value}</p>
+                                                {s.sub && <p style={{ fontSize: '0.7rem', color: s.trend !== undefined ? (s.trend >= 0 ? '#059669' : '#dc2626') : 'var(--text-muted)', marginTop: '0.2rem' }}>{s.sub}</p>}
                                             </div>
                                         </div>
                                     ))}
@@ -2173,15 +2211,18 @@ const ProviderDashboard = () => {
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{clients.length} total</span>
                         </div>
                         <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
-                            <input
-                                type="text"
-                                value={clientSearchQuery}
-                                onChange={e => setClientSearchQuery(e.target.value)}
-                                placeholder="Search clients by name or phone"
-                                aria-label="Search clients"
-                                className="input"
-                                style={{ width: '100%', maxWidth: '360px' }}
-                            />
+                            <div style={{ position: 'relative', maxWidth: '360px' }}>
+                                <input
+                                    type="text"
+                                    value={clientSearchQuery}
+                                    onChange={e => setClientSearchQuery(e.target.value)}
+                                    placeholder="Search clients by name or phone"
+                                    aria-label="Search clients"
+                                    className="input"
+                                    style={{ width: '100%', paddingRight: clientSearchQuery ? '2.6rem' : undefined }}
+                                />
+                                {clientSearchQuery && <SearchClear onClear={() => setClientSearchQuery('')} label="Clear client search" />}
+                            </div>
                         </div>
                         {loadingClients ? <RowsSkeleton /> : (() => {
                             const q = clientSearchQuery.trim().toLowerCase();
@@ -3062,7 +3103,10 @@ const ProviderDashboard = () => {
                                                         </p>
                                                     ) : (
                                                         <>
-                                                            <input type="text" value={clientPickerSearch} onChange={e => setClientPickerSearch(e.target.value)} placeholder="Search by name or email" className="input" style={{ width: '100%', marginBottom: '0.4rem' }} />
+                                                            <div style={{ position: 'relative', marginBottom: '0.4rem' }}>
+                                                                <input type="text" value={clientPickerSearch} onChange={e => setClientPickerSearch(e.target.value)} placeholder="Search by name or email" className="input" style={{ width: '100%', paddingRight: clientPickerSearch ? '2.6rem' : undefined }} />
+                                                                {clientPickerSearch && <SearchClear onClear={() => setClientPickerSearch('')} label="Clear client search" />}
+                                                            </div>
                                                             <select value={apptForm.customerId} onChange={e => setApptForm(f => ({ ...f, customerId: e.target.value }))} required className="input" style={{ width: '100%' }}>
                                                                 <option value="">Select a client</option>
                                                                 {clients
