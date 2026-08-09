@@ -298,8 +298,12 @@ const CalendarGrid = ({
                 })}
             </div>
 
-            {/* Scrollable grid body */}
-            <div ref={bodyRef} style={{ flex: 1, minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
+            {/* Scrollable grid body.
+                overscrollBehavior:'none' is what stops the calendar "moving": without it
+                iOS applies its elastic bounce when you drag past the first or last hour,
+                pulling the grid away from the frame edge and exposing a gap above or
+                below it. `none` also prevents the drag chaining to the page behind. */}
+            <div ref={bodyRef} style={{ flex: 1, minHeight: 0, overflow: 'auto', overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: colTemplate, position: 'relative' }}>
                     {/* Time gutter */}
                     <div style={{ position: 'relative', height: `${bodyH}px`, borderRight: '1px solid var(--border)' }}>

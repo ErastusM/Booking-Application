@@ -209,6 +209,13 @@ select:focus-visible {
   }
 }
 
+/* Tell the engine which palette native UI should use. Without this, native
+   controls (date pickers, spinners, scrollbars, the datetime text itself) render
+   with the LIGHT defaults even in dark mode — dark glyphs on our dark input
+   background, i.e. an apparently empty field. */
+:root { color-scheme: light; }
+body.dark-mode { color-scheme: dark; }
+
 /* Normalize native date/time inputs so they never overflow their container (esp. iOS Safari) */
 input[type="date"],
 input[type="time"] {
@@ -218,6 +225,15 @@ input[type="time"] {
   max-width: 100%;
 }
 input[type="date"]::-webkit-date-and-time-value { text-align: left; }
+/* Belt and braces: force the date text to the theme colour. color-scheme fixes
+   this in modern engines, but the shadow parts don't always inherit on older
+   iOS Safari. */
+input[type="date"]::-webkit-datetime-edit,
+input[type="date"]::-webkit-datetime-edit-text,
+input[type="date"]::-webkit-datetime-edit-month-field,
+input[type="date"]::-webkit-datetime-edit-day-field,
+input[type="date"]::-webkit-datetime-edit-year-field,
+input[type="time"]::-webkit-datetime-edit { color: var(--text-primary); }
 
 /* Date & time picker grid — shrinkable cells, stacks on narrow phones */
 .datetime-grid > div { min-width: 0; }

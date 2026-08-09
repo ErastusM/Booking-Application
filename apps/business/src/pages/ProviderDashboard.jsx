@@ -78,6 +78,8 @@ const ProviderDashboard = () => {
     const [earningsPreset, setEarningsPreset] = useState('month'); // week|month|lastMonth|30d|custom
     const [earningsRange, setEarningsRange] = useState({ from: '', to: '' });
     const [earningsChartMode, setEarningsChartMode] = useState('earned'); // earned|count
+    const [earningsChartSel, setEarningsChartSel] = useState(null);   // index of the tapped bar
+    const [earningsShowTable, setEarningsShowTable] = useState(false); // table view of the same data
     const [insights, setInsights] = useState(null);
     const [loadingInsights, setLoadingInsights] = useState(false);
     const [insightsError, setInsightsError] = useState('');
@@ -1806,14 +1808,23 @@ const ProviderDashboard = () => {
                         {/* Custom range — labelled From/To so it's obvious what the two empty
                             date fields are for, and Apply says what it will do. */}
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'flex-end', marginBottom: '1.5rem' }}>
-                            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: '1 1 140px', minWidth: 0 }}>
-                                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>From</span>
-                                <input type="date" value={earningsRange.from} onChange={e => setEarningsRange(r => ({ ...r, from: e.target.value }))} aria-label="Custom range start date" className="input" style={{ padding: '0.45rem 0.6rem', width: '100%', minWidth: 0 }} />
-                            </label>
-                            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: '1 1 140px', minWidth: 0 }}>
-                                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>To</span>
-                                <input type="date" value={earningsRange.to} onChange={e => setEarningsRange(r => ({ ...r, to: e.target.value }))} aria-label="Custom range end date" className="input" style={{ padding: '0.45rem 0.6rem', width: '100%', minWidth: 0 }} />
-                            </label>
+                            {[['from', 'From', 'Custom range start date'], ['to', 'To', 'Custom range end date']].map(([key, label, aria]) => (
+                                <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: '1 1 140px', minWidth: 0 }}>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
+                                    <span style={{ position: 'relative', display: 'block' }}>
+                                        <input type="date" value={earningsRange[key]} onChange={e => setEarningsRange(r => ({ ...r, [key]: e.target.value }))} aria-label={aria} className="input" style={{ padding: '0.45rem 0.6rem', width: '100%', minWidth: 0 }} />
+                                        {/* iOS Safari renders an EMPTY date input as a blank box — no
+                                            "dd/mm/yyyy" hint like Chrome — so the field reads as broken.
+                                            This overlay supplies that hint and disappears once a date is
+                                            picked. pointerEvents:none keeps taps going to the input. */}
+                                        {!earningsRange[key] && (
+                                            <span aria-hidden="true" style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.85rem', pointerEvents: 'none', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                                <Calendar size={13} strokeWidth={2} /> Pick a date
+                                            </span>
+                                        )}
+                                    </span>
+                                </label>
+                            ))}
                             <button onClick={() => { setEarningsPreset('custom'); fetchEarnings('custom', earningsRange); }} disabled={!earningsRange.from || !earningsRange.to} style={{ padding: '0.55rem 1.1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: '600', cursor: (earningsRange.from && earningsRange.to) ? 'pointer' : 'not-allowed', opacity: (earningsRange.from && earningsRange.to) ? 1 : 0.55, fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}>Apply range</button>
                         </div>
 
@@ -1861,20 +1872,89 @@ const ProviderDashboard = () => {
                                     </div>
                                     {(() => {
                                         const data = earnings.overTime;
-                                        const max = Math.max(...data.map(d => d[earningsChartMode]), 1);
+                                        const isMoney = earningsChartMode === 'earned';
+                                        const valOf = (d) => d[earningsChartMode] || 0;
+                                        const fmt = (v) => (isMoney ? `${curSym} ${v.toLocaleString()}` : `${v} booking${v === 1 ? '' : 's'}`);
+                                        // Round the axis top up to a clean number so the ticks read
+                                        // 0 / 1,000 / 2,000 rather than 0 / 843 / 1,686.
+                                        const rawMax = Math.max(...data.map(valOf), 0);
+                                        const niceCeil = (v) => {
+                                            if (v <= 0) return 1;
+                                            const mag = 10 ** Math.floor(Math.log10(v));
+                                            return [1, 2, 2.5, 5, 10].map(s => s * mag).find(s => s >= v) || 10 * mag;
+                                        };
+                                        const axisMax = niceCeil(rawMax);
+                                        const ticks = [axisMax, axisMax / 2, 0];
+                                        // Bounds-checked: switching preset changes the number of bars,
+                                        // which would otherwise leave the index pointing past the end.
+                                        const sel = (earningsChartSel != null && earningsChartSel < data.length) ? data[earningsChartSel] : null;
+                                        const total = data.reduce((a, d) => a + valOf(d), 0);
                                         return (
                                             <>
-                                                <div style={{ display: 'flex', alignItems: 'flex-end', gap: '2px', height: '160px' }}>
-                                                    {data.map((d, i) => (
-                                                        <div key={i} title={`${d.label}: ${earningsChartMode === 'earned' ? curSym + ' ' + d.earned : d.count + ' booking(s)'}`} style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', height: '100%' }}>
-                                                            <div style={{ height: `${(d[earningsChartMode] / max) * 100}%`, minHeight: d[earningsChartMode] > 0 ? '3px' : '0', background: 'var(--gold)', borderRadius: '3px 3px 0 0', transition: 'height 0.4s ease' }} />
+                                                {/* Readout: what the bars are worth, in text. The chart is not
+                                                    the only way to read a value (a tooltip must never gate data). */}
+                                                <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', marginBottom: '0.75rem', minHeight: '1.2em' }}>
+                                                    {sel
+                                                        ? <><span style={{ fontWeight: 600, color: 'var(--charcoal)' }}>{fmt(valOf(sel))}</span> on {sel.label}</>
+                                                        : <>Total <span style={{ fontWeight: 600, color: 'var(--charcoal)' }}>{fmt(total)}</span> · tap a bar for a single day</>}
+                                                </p>
+                                                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                                    {/* Y axis ticks */}
+                                                    <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'space-between', height: '160px', flexShrink: 0 }}>
+                                                        {ticks.map((t, i) => (
+                                                            <span key={i} className="tnum" style={{ fontSize: '0.65rem', color: 'var(--text-muted)', lineHeight: 1, transform: 'translateY(-0.3em)' }}>
+                                                                {isMoney ? t.toLocaleString() : t}
+                                                            </span>
+                                                        ))}
+                                                    </div>
+                                                    <div style={{ position: 'relative', flex: 1, minWidth: 0, height: '160px' }}>
+                                                        {/* Hairline gridlines, solid and recessive */}
+                                                        {ticks.map((t, i) => (
+                                                            <div key={i} aria-hidden="true" style={{ position: 'absolute', left: 0, right: 0, top: `${(i / (ticks.length - 1)) * 100}%`, borderTop: '1px solid var(--border)', opacity: 0.7 }} />
+                                                        ))}
+                                                        <div style={{ position: 'absolute', inset: 0, display: 'flex', alignItems: 'flex-end', gap: '2px' }}>
+                                                            {data.map((d, i) => {
+                                                                const v = valOf(d);
+                                                                const on = earningsChartSel === i;
+                                                                return (
+                                                                    <button
+                                                                        key={i}
+                                                                        type="button"
+                                                                        onClick={() => setEarningsChartSel(on ? null : i)}
+                                                                        aria-label={`${d.label}: ${fmt(v)}`}
+                                                                        aria-pressed={on}
+                                                                        style={{ flex: 1, minWidth: 0, height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'flex-end', background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+                                                                    >
+                                                                        {/* Capped at 24px and centred — a bar never fills its slot. */}
+                                                                        <span style={{ display: 'block', width: '100%', maxWidth: '24px', margin: '0 auto', height: `${(v / axisMax) * 100}%`, minHeight: v > 0 ? '3px' : '0', background: 'var(--gold)', opacity: earningsChartSel == null || on ? 1 : 0.45, borderRadius: '4px 4px 0 0', transition: 'height 0.4s ease, opacity 0.2s ease' }} />
+                                                                    </button>
+                                                                );
+                                                            })}
                                                         </div>
-                                                    ))}
+                                                    </div>
                                                 </div>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginTop: '0.5rem' }}>
                                                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{data[0]?.label}</span>
                                                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{data[data.length - 1]?.label}</span>
                                                 </div>
+                                                {/* Table twin — every value readable without touching the chart. */}
+                                                <button type="button" onClick={() => setEarningsShowTable(s => !s)} style={{ marginTop: '0.75rem', background: 'none', border: 'none', padding: 0, color: 'var(--gold-dark)', fontSize: '0.75rem', fontWeight: 600, cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+                                                    {earningsShowTable ? 'Hide table' : 'Show as table'}
+                                                </button>
+                                                {earningsShowTable && (
+                                                    <div style={{ marginTop: '0.5rem', maxHeight: '220px', overflowY: 'auto', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
+                                                        <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.78rem' }}>
+                                                            <tbody>
+                                                                {data.map((d, i) => (
+                                                                    <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                                                                        <td style={{ padding: '0.4rem 0.6rem', color: 'var(--text-secondary)' }}>{d.label}</td>
+                                                                        <td className="tnum" style={{ padding: '0.4rem 0.6rem', textAlign: 'right', color: 'var(--charcoal)', fontWeight: 600, whiteSpace: 'nowrap' }}>{fmt(valOf(d))}</td>
+                                                                    </tr>
+                                                                ))}
+                                                            </tbody>
+                                                        </table>
+                                                    </div>
+                                                )}
                                             </>
                                         );
                                     })()}
