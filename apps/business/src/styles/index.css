@@ -411,6 +411,9 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
   .booking-grid { grid-template-columns: 1fr !important; }
   .booking-summary { display: none !important; }
   .provider-account-grid { grid-template-columns: 1fr !important; }
+  /* Single-column on mobile: the account menu must scroll with the page, not stay
+     stuck at the top overlapping the profile content underneath it. */
+  .provider-account-sidebar { position: relative !important; top: auto !important; }
 
   .catalogue-grid { grid-template-columns: 1fr !important; }
 

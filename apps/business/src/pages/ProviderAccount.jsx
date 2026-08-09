@@ -268,7 +268,7 @@ const ProviderAccount = () => {
                 <div className="provider-account-grid" style={{ display: 'grid', gridTemplateColumns: '220px 1fr', gap: '2rem', alignItems: 'start' }}>
 
                     {/* Sidebar */}
-                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 0.75rem', position: 'sticky', top: 'calc(90px + env(safe-area-inset-top, 0px))' }}>
+                    <div className="provider-account-sidebar" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 0.75rem', position: 'sticky', top: 'calc(90px + env(safe-area-inset-top, 0px))' }}>
                         <p style={{ fontSize: '0.7rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.1em', textTransform: 'uppercase', padding: '0 0.5rem', marginBottom: '0.5rem' }}>Your account</p>
                         {sidebarItems.map(item => (
                             <button key={item.id} onClick={() => setSection(item.id)} style={sideStyle(item.id)}>
