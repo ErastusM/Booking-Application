@@ -497,8 +497,22 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
   .stats-grid > div > div { min-width: 0; }
   .stats-grid > div p { overflow-wrap: break-word; }
   /* Enlarge the value line only. These cards are label + value + sub, so target
-     the 2nd <p>; :last-child would blow the sub-caption up to 1.3rem. */
-  .stats-grid > div p:nth-child(2) { font-size: 1.3rem !important; }
+     the 2nd <p>; :last-child would blow the sub-caption up to 1.3rem.
+     The value must NOT inherit break-word — that split money across lines
+     ("N$" above "18,660"). Sized to fit the narrowest 2-up card without
+     clipping; below 380px the grid drops to one column (see next block). */
+  .stats-grid > div p:nth-child(2) {
+    font-size: 1.05rem !important;
+    white-space: nowrap;
+    overflow-wrap: normal;
+  }
+
+  /* Very small phones: one card per row. Two 160px-ish cards leave too little
+     room beside the icon for a long value like "N$ 18,660", so full-width
+     cards keep every number on one line and readable. */
+  @media (max-width: 380px) {
+    .stats-grid { grid-template-columns: 1fr !important; }
+  }
 
   .table-scroll { overflow-x: auto; -webkit-overflow-scrolling: touch; }
   .table-scroll table { min-width: 600px; }
