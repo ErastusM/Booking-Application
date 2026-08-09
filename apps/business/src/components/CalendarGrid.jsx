@@ -361,13 +361,15 @@ const CalendarGrid = ({
                                                     {f12(ev.startMin)} – {f12(ev.endMin)}
                                                 </div>
                                             )}
+                                            {/* Client name is the headline; the staff-lanes e2e asserts
+                                                .fc-event-appt-client is visible on the day/3-day grid. */}
                                             <div style={{ fontSize: '0.74rem', fontWeight: 600, paddingRight: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                {ev.service}
-                                            </div>
-                                            {/* Client · staff — always rendered so it stays a visible, real element
-                                                (the staff-lanes e2e asserts these are visible on the day/3-day grid). */}
-                                            <div style={{ fontSize: '0.63rem', opacity: 0.85, marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                 <span className="fc-event-appt-client">{ev.client}</span>
+                                            </div>
+                                            {/* Service · staff underneath — staff kept as a visible, real element
+                                                (the staff-lanes e2e asserts .fc-event-appt-staff is visible). */}
+                                            <div style={{ fontSize: '0.63rem', opacity: 0.85, marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                {ev.service}
                                                 {ev.staffName && staffFilter === 'all' && <> · <span className="fc-event-appt-staff">{ev.staffName}</span></>}
                                             </div>
                                         </button>
