@@ -79,6 +79,7 @@ const StaffLanesDay = ({
     onApptClick,             // (rawAppointment) => void
     onBlockClick,            // (rawBlockedTime) => void
     onSlotClick,             // ({date, startTime, endTime, teamMember}) => void — teamMember '' = unassigned
+    headerControl,           // optional node rendered in the header row (e.g. the view switcher)
 }) => {
     const dayKey = dateKeyOf(date);
     const isToday = dayKey === dateKeyOf(new Date());
@@ -235,9 +236,10 @@ const StaffLanesDay = ({
                     <button type="button" aria-label="Previous day" onClick={() => shiftDay(-1)} style={navBtnStyle}><ChevronLeft size={17} /></button>
                     <button type="button" aria-label="Next day" onClick={() => shiftDay(1)} style={navBtnStyle}><ChevronRight size={17} /></button>
                 </div>
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 600, color: 'var(--charcoal)', textAlign: 'center', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 600, color: 'var(--charcoal)', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {date.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' })}
                 </span>
+                {headerControl}
                 <button
                     type="button"
                     onClick={() => onDateChange(new Date())}
