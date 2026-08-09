@@ -1016,7 +1016,12 @@ const ProviderDashboard = () => {
 
     // Compact view switcher for the calendar header — a dropdown (not a pill row)
     // so the whole control strip fits one line, matching the prototype.
-    const calendarViewOptions = [['day', 'Day'], ['3day', '3 Day'], ['week', 'Week'], ...(activeTeamMembers.length > 0 ? [['staff', 'Staff']] : [])];
+    // The multi-lane "Staff" view only earns its place when there's more than one
+    // person to compare side by side. With a single staff member the lanes add
+    // nothing over the normal calendar, so hide the option (and fall back to the
+    // normal grid below if 'staff' was somehow still selected).
+    const showStaffView = activeTeamMembers.length > 1;
+    const calendarViewOptions = [['day', 'Day'], ['3day', '3 Day'], ['week', 'Week'], ...(showStaffView ? [['staff', 'Staff']] : [])];
     const calendarViewLabel = (calendarViewOptions.find(([v]) => v === calendarView) || ['', calendarView])[1];
     const viewMenu = (
         <div style={{ position: 'relative', flexShrink: 0 }}>
@@ -1928,7 +1933,7 @@ const ProviderDashboard = () => {
                         )}
 
                         <div ref={fcWrapRef} className="fc-bookplus-wrapper fc-fullbleed" style={{ background: 'var(--card-bg)', overflow: 'hidden', flex: 1, minHeight: 0 }}>
-                            {calendarView === 'staff' && activeTeamMembers.length > 0 ? (
+                            {calendarView === 'staff' && showStaffView ? (
                                 <StaffLanesDay
                                     date={currentDate}
                                     onDateChange={setCurrentDate}
