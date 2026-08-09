@@ -1806,14 +1806,23 @@ const ProviderDashboard = () => {
                         {/* Custom range — labelled From/To so it's obvious what the two empty
                             date fields are for, and Apply says what it will do. */}
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', alignItems: 'flex-end', marginBottom: '1.5rem' }}>
-                            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: '1 1 140px', minWidth: 0 }}>
-                                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>From</span>
-                                <input type="date" value={earningsRange.from} onChange={e => setEarningsRange(r => ({ ...r, from: e.target.value }))} aria-label="Custom range start date" className="input" style={{ padding: '0.45rem 0.6rem', width: '100%', minWidth: 0 }} />
-                            </label>
-                            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: '1 1 140px', minWidth: 0 }}>
-                                <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>To</span>
-                                <input type="date" value={earningsRange.to} onChange={e => setEarningsRange(r => ({ ...r, to: e.target.value }))} aria-label="Custom range end date" className="input" style={{ padding: '0.45rem 0.6rem', width: '100%', minWidth: 0 }} />
-                            </label>
+                            {[['from', 'From', 'Custom range start date'], ['to', 'To', 'Custom range end date']].map(([key, label, aria]) => (
+                                <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: '1 1 140px', minWidth: 0 }}>
+                                    <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
+                                    <span style={{ position: 'relative', display: 'block' }}>
+                                        <input type="date" value={earningsRange[key]} onChange={e => setEarningsRange(r => ({ ...r, [key]: e.target.value }))} aria-label={aria} className="input" style={{ padding: '0.45rem 0.6rem', width: '100%', minWidth: 0 }} />
+                                        {/* iOS Safari renders an EMPTY date input as a blank box — no
+                                            "dd/mm/yyyy" hint like Chrome — so the field reads as broken.
+                                            This overlay supplies that hint and disappears once a date is
+                                            picked. pointerEvents:none keeps taps going to the input. */}
+                                        {!earningsRange[key] && (
+                                            <span aria-hidden="true" style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.85rem', pointerEvents: 'none', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                                <Calendar size={13} strokeWidth={2} /> Pick a date
+                                            </span>
+                                        )}
+                                    </span>
+                                </label>
+                            ))}
                             <button onClick={() => { setEarningsPreset('custom'); fetchEarnings('custom', earningsRange); }} disabled={!earningsRange.from || !earningsRange.to} style={{ padding: '0.55rem 1.1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: '600', cursor: (earningsRange.from && earningsRange.to) ? 'pointer' : 'not-allowed', opacity: (earningsRange.from && earningsRange.to) ? 1 : 0.55, fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}>Apply range</button>
                         </div>
 
