@@ -2193,26 +2193,40 @@ const ProviderDashboard = () => {
                                 })
                                 : clients;
                             return (
-                            <div style={{ overflowX: 'auto' }}>
-                                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
+                            <div className="clients-table-wrap" style={{ overflowX: 'auto' }}>
+                                <table className="clients-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
                                     <thead>
                                         <tr style={{ background: 'var(--warm-gray)', textAlign: 'left' }}>
-                                            {['Client', 'Total Visits', 'Last Visit', 'Total Spend', ''].map(h => (
-                                                <th key={h} style={{ padding: '0.75rem 1rem', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{h}</th>
+                                            {[['Client', 'Client'], ['Total Visits', 'Visits'], ['Last Visit', 'Last'], ['Total Spend', 'Spend'], ['', '']].map(([h, short]) => (
+                                                <th key={h} style={{ padding: '0.75rem 1rem', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                                    {/* Full caption on desktop, short one on phones so the header stays
+                                                        a single line beside the compacted columns. */}
+                                                    <span className="lbl-full">{h}</span>
+                                                    <span className="lbl-compact">{short}</span>
+                                                </th>
                                             ))}
                                         </tr>
                                     </thead>
                                     <tbody>
                                         {filteredClients.map((c, i) => (
-                                            <tr key={i} onClick={() => { setSelectedClient(c); fetchClientDetail(c.customer._id); }} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.1s', cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--warm-gray)'} onMouseLeave={e => e.currentTarget.style.background = 'white'}>
+                                            <tr key={i} onClick={() => { setSelectedClient(c); fetchClientDetail(c.customer._id); }} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.1s', cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--warm-gray)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
                                                 <td style={{ padding: '0.875rem 1rem' }}>
-                                                    <div style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{c.customer?.name}</div>
-                                                    <div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{c.customer?.email}</div>
+                                                    <div className="client-name" style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{c.customer?.name}</div>
+                                                    <div className="client-email" style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{c.customer?.email}</div>
                                                 </td>
                                                 <td style={{ padding: '0.875rem 1rem', color: 'var(--charcoal)', fontWeight: '500' }}>{c.visits}</td>
-                                                <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{c.lastVisit ? new Date(c.lastVisit).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : '—'}</td>
+                                                <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>
+                                                    {c.lastVisit ? (
+                                                        <>
+                                                            {/* Same date, two widths — CSS shows the compact one on phones so
+                                                                the row never wraps to a second line. */}
+                                                            <span className="date-full">{new Date(c.lastVisit).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
+                                                            <span className="date-compact">{new Date(c.lastVisit).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</span>
+                                                        </>
+                                                    ) : '—'}
+                                                </td>
                                                 <td style={{ padding: '0.875rem 1rem', color: 'var(--gold-dark)', fontWeight: '600' }}>{nMoney(c.totalSpend)}</td>
-                                                <td style={{ padding: '0.875rem 1rem' }}>
+                                                <td className="col-view" style={{ padding: '0.875rem 1rem' }}>
                                                     <button onClick={e => { e.stopPropagation(); setSelectedClient(c); fetchClientDetail(c.customer._id); }} style={{ background: 'rgba(240,62,22,0.08)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--gold-dark)', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600' }}>View</button>
                                                 </td>
                                             </tr>
