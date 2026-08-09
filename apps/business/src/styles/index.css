@@ -314,6 +314,10 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
 ::-webkit-scrollbar-track { background: var(--warm-gray); }
 ::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 3px; }
 
+/* Dual-width dates (clients table): full form by default, compact on phones —
+   the mobile swap lives in the max-width: 900px block below. */
+.date-compact, .lbl-compact { display: none; }
+
 /* Tablet / narrow desktop: stack booking layout before the sidebar crowds the form */
 @media (max-width: 900px) {
   /* NO `body { overflow-x: hidden }` here — the global rule above already clips
@@ -425,6 +429,40 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
   .clients-grid { grid-template-columns: 1fr !important; }
   .clients-grid.has-selection .clients-list { display: none; }
   .client-detail-panel { position: static !important; top: auto !important; }
+
+  /* Clients table on phones: ONE LINE PER CLIENT. Five columns can't fit a
+     phone, so the row is compacted rather than wrapped — the email moves to the
+     detail panel (tap the row), the View button goes (the whole row is already
+     tappable), dates use the compact form, and the name truncates. Nothing
+     wraps, so every client is exactly one line with no sideways scrolling. */
+  .clients-table { font-size: 0.8rem !important; table-layout: fixed; width: 100%; }
+  /* Only the DATA cells are forced onto one line — the header labels may wrap,
+     so a long caption like "TOTAL SPEND" can't push the table wider than the
+     screen and get clipped. */
+  .clients-table td { white-space: nowrap !important; }
+  .clients-table th,
+  .clients-table td { padding: 0.7rem 0.4rem !important; }
+  .clients-table th { white-space: normal; }
+  .clients-table .client-email { display: none; }
+  .clients-table .col-view,
+  .clients-table th:nth-child(5) { display: none; }
+  /* Name takes the remaining space (and ellipsizes); the numeric columns get
+     fixed room sized to their longest realistic value, so nothing is cut off at
+     the right edge. */
+  .clients-table th:nth-child(1) { width: auto; }
+  .clients-table th:nth-child(2) { width: 3.8rem; }
+  .clients-table th:nth-child(3) { width: 5.4rem; }
+  .clients-table th:nth-child(4) { width: 6.6rem; }
+  .clients-table .client-name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .clients-table-wrap { overflow-x: hidden !important; }
+  .clients-table .date-full,
+  .clients-table .lbl-full { display: none; }
+  .clients-table .date-compact,
+  .clients-table .lbl-compact { display: inline; }
 
   /* Messages: iOS-style single pane. Show the list, or the open thread with a
      back button — never both squeezed side by side. */
