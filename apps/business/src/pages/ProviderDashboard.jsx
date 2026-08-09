@@ -111,7 +111,11 @@ const ProviderDashboard = () => {
     const [savingAdjustHours, setSavingAdjustHours] = useState(false);
     const [recurringMode, setRecurringMode] = useState('this');
     const [showApptModal, setShowApptModal] = useState(false);
-    const [apptForm, setApptForm] = useState({ serviceId: '', date: '', startTime: '', clientMode: 'existing', customerId: '', clientName: '', notes: '', isRecurring: false, recurrenceType: 'weekly', recurrenceInterval: 1, recurrenceEndDate: '', isGroup: false, groupClients: [{ name: '' }], teamMember: '' });
+    // `services` is a list of { serviceId } rows — the "Add service" flow lets a
+    // provider stack several services into one booking (POST /appointments/multi).
+    // Group bookings and the legacy single-service create path only ever read
+    // services[0], so they're unaffected by the extra rows.
+    const [apptForm, setApptForm] = useState({ services: [{ serviceId: '' }], date: '', startTime: '', clientMode: 'existing', customerId: '', clientName: '', notes: '', isRecurring: false, recurrenceType: 'weekly', recurrenceInterval: 1, recurrenceEndDate: '', isGroup: false, groupClients: [{ name: '' }], teamMember: '' });
     const [clientPickerSearch, setClientPickerSearch] = useState('');
     const [calendarStaffFilter, setCalendarStaffFilter] = useState('all'); // 'all' | 'unassigned' | teamMember _id
     const [savingAppt, setSavingAppt] = useState(false);
@@ -601,7 +605,7 @@ const ProviderDashboard = () => {
     // Client/service fields for a FRESH booking — used to reset the New Appointment
     // form so a generic "+ Appointment" never inherits a client left over from the
     // client-detail "Book Appointment" entry point (or a prior open).
-    const blankApptFields = { serviceId: '', clientMode: 'existing', customerId: '', clientName: '', isGroup: false, groupClients: [{ name: '' }], notes: '', startTime: '', teamMember: '' };
+    const blankApptFields = { services: [{ serviceId: '' }], clientMode: 'existing', customerId: '', clientName: '', isGroup: false, groupClients: [{ name: '' }], notes: '', startTime: '', teamMember: '' };
     const openBlankApptModal = (extra = {}) => {
         setApptError('');
         setApptForm(prev => ({ ...prev, ...blankApptFields, date: toDateKey(new Date()), ...extra }));
@@ -1545,9 +1549,9 @@ const ProviderDashboard = () => {
                                             <div style={{ fontWeight: '600', color: config.enabled ? 'var(--charcoal)' : 'var(--text-muted)', fontSize: '1rem', textTransform: 'capitalize', marginBottom: config.enabled ? '0.55rem' : 0 }}>{day}</div>
                                             {config.enabled ? (
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                                    <input type="time" value={config.slots[0]?.start || '09:00'} onChange={e => handleTimeChange(day, 'start', e.target.value)} className="input" style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '0.9rem' }} />
+                                                    <input type="time" value={config.slots[0]?.start || '09:00'} onChange={e => handleTimeChange(day, 'start', e.target.value)} className="input" style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '1rem' }} />
                                                     <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', flexShrink: 0 }}>to</span>
-                                                    <input type="time" value={config.slots[0]?.end || '17:00'} onChange={e => handleTimeChange(day, 'end', e.target.value)} className="input" style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '0.9rem' }} />
+                                                    <input type="time" value={config.slots[0]?.end || '17:00'} onChange={e => handleTimeChange(day, 'end', e.target.value)} className="input" style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '1rem' }} />
                                                 </div>
                                             ) : (
                                                 <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Not available</div>
@@ -1810,9 +1814,9 @@ const ProviderDashboard = () => {
                                 }}>{label}</button>
                             ))}
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center', marginLeft: '0.25rem' }}>
-                                <input type="date" value={insightsRange.from} onChange={e => setInsightsRange(r => ({ ...r, from: e.target.value }))} className="input" style={{ fontSize: '0.78rem', padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
+                                <input type="date" value={insightsRange.from} onChange={e => setInsightsRange(r => ({ ...r, from: e.target.value }))} className="input" style={{ padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
                                 <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>–</span>
-                                <input type="date" value={insightsRange.to} onChange={e => setInsightsRange(r => ({ ...r, to: e.target.value }))} className="input" style={{ fontSize: '0.78rem', padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
+                                <input type="date" value={insightsRange.to} onChange={e => setInsightsRange(r => ({ ...r, to: e.target.value }))} className="input" style={{ padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
                                 <button onClick={() => { setInsightsPreset('custom'); fetchInsights('custom', insightsRange); }} disabled={!insightsRange.from || !insightsRange.to} style={{ padding: '0.4rem 0.85rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: '600', cursor: (insightsRange.from && insightsRange.to) ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-body)' }}>Apply</button>
                             </div>
                         </div>
@@ -1937,9 +1941,9 @@ const ProviderDashboard = () => {
                                 }}>{label}</button>
                             ))}
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center', marginLeft: '0.25rem' }}>
-                                <input type="date" value={earningsRange.from} onChange={e => setEarningsRange(r => ({ ...r, from: e.target.value }))} className="input" style={{ fontSize: '0.78rem', padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
+                                <input type="date" value={earningsRange.from} onChange={e => setEarningsRange(r => ({ ...r, from: e.target.value }))} className="input" style={{ padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
                                 <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>–</span>
-                                <input type="date" value={earningsRange.to} onChange={e => setEarningsRange(r => ({ ...r, to: e.target.value }))} className="input" style={{ fontSize: '0.78rem', padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
+                                <input type="date" value={earningsRange.to} onChange={e => setEarningsRange(r => ({ ...r, to: e.target.value }))} className="input" style={{ padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
                                 <button onClick={() => { setEarningsPreset('custom'); fetchEarnings('custom', earningsRange); }} disabled={!earningsRange.from || !earningsRange.to} style={{ padding: '0.4rem 0.85rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: '600', cursor: (earningsRange.from && earningsRange.to) ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-body)' }}>Apply</button>
                             </div>
                         </div>
@@ -2321,7 +2325,7 @@ const ProviderDashboard = () => {
 
                         {/* On selection release: ask whether to book a client or block the time */}
                         {timeSelectionPreview && (
-                            <div onClick={() => setTimeSelectionPreview(null)} className="sheet-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0' }}>
+                            <div onClick={() => setTimeSelectionPreview(null)} className="sheet-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.6)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0' }}>
                                 <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in sheet-panel" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                                     <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>What's this time for?</h3>
@@ -2363,7 +2367,7 @@ const ProviderDashboard = () => {
 
                         {/* Drag-to-move confirmation (appointments + blocked time) */}
                         {pendingMove && (
-                            <div className="sheet-overlay" onClick={cancelPendingMove} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                            <div className="sheet-overlay" onClick={cancelPendingMove} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.6)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
                                 <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in sheet-panel" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                                     <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>
@@ -2383,7 +2387,7 @@ const ProviderDashboard = () => {
 
                         {/* Tap grayed area → adjust working hours for that day */}
                         {adjustHours && (
-                            <div className="sheet-overlay" onClick={() => setAdjustHours(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.5)', backdropFilter: 'blur(2px)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
+                            <div className="sheet-overlay" onClick={() => setAdjustHours(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.6)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
                                 <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in sheet-panel" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                                     <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Adjust working hours</h3>
@@ -2594,17 +2598,17 @@ const ProviderDashboard = () => {
                                     {[['Notes', 'notes'], ['Allergies', 'allergies'], ['Conditions', 'conditions'], ['Internal Notes', 'internalNotes']].map(([label, key]) => (
                                         <div key={key} style={{ marginBottom: '0.75rem' }}>
                                             <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>{label}</label>
-                                            <textarea rows={2} value={clientNoteForm[key]} onChange={e => setClientNoteForm(prev => ({ ...prev, [key]: e.target.value }))} className="input" style={{ fontSize: '0.82rem', resize: 'none' }} />
+                                            <textarea rows={2} value={clientNoteForm[key]} onChange={e => setClientNoteForm(prev => ({ ...prev, [key]: e.target.value }))} className="input" style={{ fontSize: '1rem', resize: 'none' }} />
                                         </div>
                                     ))}
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
                                         <div>
                                             <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Tags (comma-separated)</label>
-                                            <input value={clientNoteForm.tags} onChange={e => setClientNoteForm(prev => ({ ...prev, tags: e.target.value }))} className="input" style={{ fontSize: '0.82rem' }} placeholder="vip, regular" />
+                                            <input value={clientNoteForm.tags} onChange={e => setClientNoteForm(prev => ({ ...prev, tags: e.target.value }))} className="input" style={{ fontSize: '1rem' }} placeholder="vip, regular" />
                                         </div>
                                         <div>
                                             <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Birthday (MM-DD)</label>
-                                            <input value={clientNoteForm.birthday} onChange={e => setClientNoteForm(prev => ({ ...prev, birthday: e.target.value }))} className="input" style={{ fontSize: '0.82rem' }} placeholder="03-15" />
+                                            <input value={clientNoteForm.birthday} onChange={e => setClientNoteForm(prev => ({ ...prev, birthday: e.target.value }))} className="input" style={{ fontSize: '1rem' }} placeholder="03-15" />
                                         </div>
                                     </div>
                                     <button onClick={saveClientNote} disabled={savingClientNote} className="btn-primary" style={{ width: '100%', padding: '0.65rem', fontSize: '0.85rem' }}>
@@ -3118,7 +3122,7 @@ const ProviderDashboard = () => {
                 looked like "Update did nothing". */}
             {recurringActionModal && (
                 <div className="sheet-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setRecurringActionModal(null); }}>
-                    <div className="sheet-panel" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius) var(--radius) 0 0', padding: '2rem 1.5rem 2.5rem', width: '100%', maxWidth: '480px', position: 'relative' }}>
+                    <div className="sheet-panel" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius) var(--radius) 0 0', padding: '2rem 1.5rem calc(2.5rem + env(safe-area-inset-bottom, 0px))', width: '100%', maxWidth: '480px', position: 'relative' }}>
                         <button onClick={() => setRecurringActionModal(null)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.4rem', color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                             {recurringActionModal.action === 'update' ? 'Update blocked time' : 'Delete blocked time'}
@@ -3170,13 +3174,19 @@ const ProviderDashboard = () => {
                         <form onSubmit={async e => {
                             e.preventDefault();
                             setApptError('');
-                            const svc = myServices.find(s => s._id === apptForm.serviceId);
-                            if (!svc) { setApptError('Please select a service'); return; }
+                            // Resolve every picked service row against the catalogue (drops
+                            // blank/duplicate-removed rows) — this is also what decides which
+                            // create path runs below.
+                            const selectedServices = apptForm.services
+                                .map(row => myServices.find(s => s._id === row.serviceId))
+                                .filter(Boolean);
+                            if (selectedServices.length === 0) { setApptError('Please select at least one service'); return; }
                             if (!apptForm.isGroup && apptForm.clientMode === 'existing' && !apptForm.customerId) {
                                 setApptError('Please choose a client, or switch to Walk-in.'); return;
                             }
                             if (!apptForm.date) { setApptError('Please pick a date'); return; }
                             if (!apptForm.startTime) { setApptError('Please pick a start time'); return; }
+                            const svc = selectedServices[0];
                             const [h, m] = apptForm.startTime.split(':').map(Number);
                             const endMins = h * 60 + m + (svc.duration || 30);
                             const endTime = `${String(Math.floor(endMins / 60)).padStart(2,'0')}:${String(endMins % 60).padStart(2,'0')}`;
@@ -3185,7 +3195,7 @@ const ProviderDashboard = () => {
                                 if (apptForm.isGroup) {
                                     const validClients = apptForm.groupClients.filter(c => c.name.trim());
                                     await appointmentService.createGroupBooking({
-                                        service: apptForm.serviceId,
+                                        service: svc._id,
                                         appointmentDate: apptForm.date,
                                         startTime: apptForm.startTime,
                                         endTime,
@@ -3193,9 +3203,11 @@ const ProviderDashboard = () => {
                                         notes: apptForm.notes,
                                         teamMember: apptForm.teamMember || undefined,
                                     });
-                                } else {
+                                } else if (selectedServices.length === 1) {
+                                    // Exactly one service — keep hitting the original single-service
+                                    // endpoint unchanged.
                                     await appointmentService.createAppointment({
-                                        service: apptForm.serviceId,
+                                        service: svc._id,
                                         appointmentDate: apptForm.date,
                                         startTime: apptForm.startTime,
                                         endTime,
@@ -3208,6 +3220,16 @@ const ProviderDashboard = () => {
                                         recurrenceInterval: apptForm.isRecurring ? apptForm.recurrenceInterval : undefined,
                                         recurrenceEndDate: apptForm.isRecurring && apptForm.recurrenceEndDate ? apptForm.recurrenceEndDate : undefined,
                                     });
+                                } else {
+                                    // 2+ services — provider-built multi-service booking.
+                                    await appointmentService.createMultiAppointment({
+                                        appointmentDate: apptForm.date,
+                                        startTime: apptForm.startTime,
+                                        customerId: apptForm.clientMode === 'existing' ? (apptForm.customerId || undefined) : undefined,
+                                        walkInName: apptForm.clientMode === 'walkin' ? (apptForm.clientName.trim() || undefined) : undefined,
+                                        teamMember: apptForm.teamMember || undefined,
+                                        services: selectedServices.map(s => ({ serviceId: s._id })),
+                                    });
                                 }
                                 await fetchAppointments(); // {all:true} — a bare refetch truncates the calendar to 20
                                 setShowApptModal(false);
@@ -3218,14 +3240,61 @@ const ProviderDashboard = () => {
                             }
                         }} style={{ padding: '1.5rem', overflowY: 'auto', minHeight: 0 }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Service</label>
-                                    <select value={apptForm.serviceId} onChange={e => setApptForm(f => ({ ...f, serviceId: e.target.value }))} required className="input" style={{ width: '100%' }}>
-                                        <option value="">Select a service</option>
-                                        {myServices.map(s => <option key={s._id} value={s._id}>{s.name} ({s.duration} min)</option>)}
-                                    </select>
-                                    {myServices.length === 0 && <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.35rem' }}>No services found. Add services in the Catalogue tab first.</p>}
-                                </div>
+                                {apptForm.isGroup ? (
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Service</label>
+                                        <select value={apptForm.services[0]?.serviceId || ''} onChange={e => setApptForm(f => ({ ...f, services: [{ serviceId: e.target.value }] }))} required className="input" style={{ width: '100%' }}>
+                                            <option value="">Select a service</option>
+                                            {myServices.map(s => <option key={s._id} value={s._id}>{s.name} ({s.duration} min)</option>)}
+                                        </select>
+                                        {myServices.length === 0 && <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.35rem' }}>No services found. Add services in the Catalogue tab first.</p>}
+                                    </div>
+                                ) : (
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Services</label>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                            {apptForm.services.map((row, i) => {
+                                                const rowSvc = myServices.find(s => s._id === row.serviceId);
+                                                return (
+                                                    <div key={i} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
+                                                        <select
+                                                            value={row.serviceId}
+                                                            onChange={e => setApptForm(f => ({ ...f, services: f.services.map((r, j) => j === i ? { ...r, serviceId: e.target.value } : r) }))}
+                                                            required
+                                                            className="input"
+                                                            style={{ flex: 1, minWidth: 0 }}
+                                                        >
+                                                            <option value="">Select a service</option>
+                                                            {myServices.map(s => <option key={s._id} value={s._id}>{s.name} ({s.duration} min)</option>)}
+                                                        </select>
+                                                        {rowSvc && (
+                                                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
+                                                                {curSym} {rowSvc.price} · {rowSvc.duration}m
+                                                            </span>
+                                                        )}
+                                                        {apptForm.services.length > 1 && (
+                                                            <button type="button" onClick={() => setApptForm(f => ({ ...f, services: f.services.filter((_, j) => j !== i) }))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1rem', flexShrink: 0 }}>×</button>
+                                                        )}
+                                                    </div>
+                                                );
+                                            })}
+                                            <button type="button" onClick={() => setApptForm(f => ({ ...f, services: [...f.services, { serviceId: '' }] }))} style={{ alignSelf: 'flex-start', fontSize: '0.75rem', padding: '0.25rem 0.65rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(240,62,22,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add service</button>
+                                        </div>
+                                        {myServices.length === 0 && <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.35rem' }}>No services found. Add services in the Catalogue tab first.</p>}
+                                        {(() => {
+                                            const selected = apptForm.services.map(r => myServices.find(s => s._id === r.serviceId)).filter(Boolean);
+                                            if (selected.length === 0) return null;
+                                            const total = selected.reduce((s, x) => s + (x.price || 0), 0);
+                                            const totalDuration = selected.reduce((s, x) => s + (x.duration || 0), 0);
+                                            return (
+                                                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.6rem', padding: '0.6rem 0.85rem', background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)' }}>
+                                                    <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: '600' }}>{totalDuration} min total</span>
+                                                    <span style={{ fontSize: '0.92rem', fontWeight: '700', color: 'var(--charcoal)' }}>Total: {curSym} {total}</span>
+                                                </div>
+                                            );
+                                        })()}
+                                    </div>
+                                )}
                                 {teamMembers.length > 0 && (
                                     <div>
                                         <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Staff member</label>
@@ -3325,8 +3394,13 @@ const ProviderDashboard = () => {
                                     <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Start Time</label>
                                     {(() => {
                                         if (!apptForm.date) return <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>Pick a date first.</p>;
-                                        const svc = myServices.find(s => s._id === apptForm.serviceId);
-                                        const duration = svc?.duration || 30;
+                                        // Group bookings only ever use services[0]; a multi-service booking
+                                        // needs the FULL span (every row's duration) reserved so the slot
+                                        // picker never offers a start time the whole chain can't fit into.
+                                        const selectedRowServices = apptForm.services.map(r => myServices.find(s => s._id === r.serviceId)).filter(Boolean);
+                                        const duration = apptForm.isGroup
+                                            ? (selectedRowServices[0]?.duration || 30)
+                                            : (selectedRowServices.reduce((s, x) => s + (x.duration || 0), 0) || 30);
                                         let blocks = [{ start: 8 * 60, end: 20 * 60 }];
                                         if (availability) {
                                             const [yy, mm, dd] = apptForm.date.split('-').map(Number);
@@ -3605,7 +3679,9 @@ const ProviderDashboard = () => {
                         <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                             <div>
                                 <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.25rem', fontWeight: '700', margin: '0 0 0.2rem' }}>Appointment</h2>
-                                <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', margin: 0, fontFamily: 'var(--font-body)' }}>{apptDetailModal.service?.name}</p>
+                                <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', margin: 0, fontFamily: 'var(--font-body)' }}>
+                                    {apptDetailModal.services?.length > 1 ? `${apptDetailModal.services.length} services` : apptDetailModal.service?.name}
+                                </p>
                             </div>
                             <CloseButton onClick={() => setApptDetailModal(null)} />
                         </div>
@@ -3672,12 +3748,40 @@ const ProviderDashboard = () => {
                         <div style={{ padding: '1.5rem', flex: 1, display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             {/* Details */}
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0' }}>
+                                {apptDetailModal.services?.length > 1 && (
+                                    // Multi-service booking (POST /appointments/multi) — each line performed
+                                    // back-to-back within the appointment's overall time span, summed below.
+                                    <div style={{ padding: '0.7rem 0', borderBottom: '1px solid var(--border)' }}>
+                                        <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '0.6rem', fontFamily: 'var(--font-body)' }}>Services</span>
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                                            {apptDetailModal.services.map((s, i) => (
+                                                <div key={s._id || i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
+                                                    <span style={{ minWidth: 0 }}>
+                                                        <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: '600', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}>{s.name || s.service?.name || 'Service'}</span>
+                                                        <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>
+                                                            {s.startTime}–{s.endTime}{s.teamMember?.name ? ` · ${s.teamMember.name}` : ''}
+                                                        </span>
+                                                    </span>
+                                                    <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--charcoal)', whiteSpace: 'nowrap', flexShrink: 0, fontFamily: 'var(--font-body)' }}>{curSym} {s.price}</span>
+                                                </div>
+                                            ))}
+                                        </div>
+                                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', paddingTop: '0.6rem', borderTop: '1px dashed var(--border)' }}>
+                                            <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}>Total</span>
+                                            <span style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--gold-dark)', fontFamily: 'var(--font-body)' }}>{curSym} {apptDetailModal.totalPrice}</span>
+                                        </div>
+                                    </div>
+                                )}
                                 {[
-                                    ['Service',   apptDetailModal.service?.name || '—'],
+                                    ...(apptDetailModal.services?.length > 1 ? [] : [
+                                        ['Service',   apptDetailModal.service?.name || '—'],
+                                    ]),
                                     ['Date',      apptDetailModal.appointmentDate ? new Date(apptDetailModal.appointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—'],
                                     ['Time',      `${apptDetailModal.startTime} – ${apptDetailModal.endTime}`],
-                                    ['Duration',  apptDetailModal.service?.duration ? `${apptDetailModal.service.duration} min` : '—'],
-                                    ['Price',     apptDetailModal.totalPrice ? `${curSym} ${apptDetailModal.totalPrice}` : '—'],
+                                    ...(apptDetailModal.services?.length > 1 ? [] : [
+                                        ['Duration',  apptDetailModal.service?.duration ? `${apptDetailModal.service.duration} min` : '—'],
+                                        ['Price',     apptDetailModal.totalPrice ? `${curSym} ${apptDetailModal.totalPrice}` : '—'],
+                                    ]),
                                     ['Booking ref', apptDetailModal.bookingReference || (apptDetailModal._id ? apptDetailModal._id.slice(-8).toUpperCase() : '—')],
                                 ].map(([label, value]) => (
                                     <div key={label} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.7rem 0', borderBottom: '1px solid var(--border)' }}>
@@ -3708,11 +3812,11 @@ const ProviderDashboard = () => {
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.85rem' }}>
                                         <div>
                                             <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontFamily: 'var(--font-body)' }}>New date</label>
-                                            <input type="date" className="input" value={apptRescheduleForm.appointmentDate} onChange={e => setApptRescheduleForm(f => ({ ...f, appointmentDate: e.target.value }))} style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }} />
+                                            <input type="date" className="input" value={apptRescheduleForm.appointmentDate} onChange={e => setApptRescheduleForm(f => ({ ...f, appointmentDate: e.target.value }))} style={{ fontSize: '1rem', padding: '0.5rem 0.75rem' }} />
                                         </div>
                                         <div>
                                             <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontFamily: 'var(--font-body)' }}>Start time</label>
-                                            <input type="time" className="input" value={apptRescheduleForm.startTime} onChange={e => setApptRescheduleForm(f => ({ ...f, startTime: e.target.value }))} style={{ fontSize: '0.85rem', padding: '0.5rem 0.75rem' }} />
+                                            <input type="time" className="input" value={apptRescheduleForm.startTime} onChange={e => setApptRescheduleForm(f => ({ ...f, startTime: e.target.value }))} style={{ fontSize: '1rem', padding: '0.5rem 0.75rem' }} />
                                         </div>
                                     </div>
                                     {apptDetailError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem', marginBottom: '0.75rem', fontFamily: 'var(--font-body)' }}>{apptDetailError}</p>}
@@ -3791,7 +3895,7 @@ const ProviderDashboard = () => {
             {/* Recurring series cancel modal */}
             {seriesCancelModal && (
                 <>
-                    <div onClick={() => setSeriesCancelModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.5)', zIndex: 1100, backdropFilter: 'blur(2px)' }} />
+                    <div onClick={() => setSeriesCancelModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1100 }} />
                     <div className="modal-center" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '380px', maxWidth: '95vw', background: 'var(--card-bg)', borderRadius: 'var(--radius)', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', zIndex: 1101, overflow: 'hidden' }}>
                         <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.2rem', fontWeight: '700', margin: 0 }}>Cancel recurring appointment</h2>

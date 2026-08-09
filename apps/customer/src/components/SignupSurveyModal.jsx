@@ -85,7 +85,7 @@ const SignupSurveyModal = () => {
             onClick={dismiss}
             className="sheet-overlay"
             style={{
-                position: 'fixed', inset: 0, zIndex: 1000,
+                position: 'fixed', inset: 0, zIndex: 1400,
                 background: 'rgba(4,5,5,0.55)', backdropFilter: 'blur(3px)',
                 display: 'flex', alignItems: 'flex-end', justifyContent: 'center',
                 padding: '0', animation: 'fadeIn 0.18s ease',

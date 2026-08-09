@@ -106,6 +106,23 @@ const appointmentSchema = new mongoose.Schema(
         // The mutually-exclusive service variant chosen at booking (Service.options),
         // recorded so the price/duration match what the customer was quoted.
         selectedOptionName: { type: String, default: null },
+        // Multi-service bookings (provider-built): several services performed
+        // back-to-back within THIS one appointment. Empty for ordinary single-service
+        // bookings. The top-level `service`/`totalPrice`/`endTime` stay populated
+        // (first service, summed total, full span) so the calendar, earnings, emails
+        // and reminders that read them keep working unchanged.
+        services: {
+            type: [{
+                service:    { type: mongoose.Schema.ObjectId, ref: 'Service' },
+                name:       { type: String },
+                price:      { type: Number, default: 0 },
+                duration:   { type: Number, default: 0 },
+                startTime:  { type: String },
+                endTime:    { type: String },
+                teamMember: { type: mongoose.Schema.Types.ObjectId, ref: 'TeamMember', default: null },
+            }],
+            default: [],
+        },
         reminderSent24h: { type: Boolean, default: false },
         reminderSent5h:  { type: Boolean, default: false },
         reminderSent1h:  { type: Boolean, default: false },

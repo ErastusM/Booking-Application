@@ -96,6 +96,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                 pointerEvents: open ? 'auto' : 'none',
                 transition: 'transform 0.28s cubic-bezier(0.4,0,0.2,1), visibility 0.28s cubic-bezier(0.4,0,0.2,1)',
                 display: 'flex', flexDirection: 'column', overflowY: 'auto',
+                paddingTop: 'env(safe-area-inset-top, 0px)',
             }}>
                 {/* Header */}
                 <div style={{ background: 'var(--ink)', padding: '1.5rem 1.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
@@ -106,7 +107,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                     <button onClick={doClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0, marginTop: '2px' }}>×</button>
                 </div>
 
-                <div style={{ padding: '1.75rem', flex: 1 }}>
+                <div style={{ padding: '1.75rem', paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom, 0px))', flex: 1 }}>
                     {sent ? (
                         <div style={{ textAlign: 'center', padding: '3rem 1rem' }}>
                             <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>🎉</div>

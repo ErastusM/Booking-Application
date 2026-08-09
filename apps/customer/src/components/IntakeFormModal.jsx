@@ -87,7 +87,7 @@ const IntakeFormModal = ({ appointmentId, onClose, onCompleted }) => {
     const renderField = (f) => {
         if (!fieldVisible(f, answers)) return null;
         const v = answers[f.label];
-        const common = { className: 'input', style: { fontSize: '0.9rem' } };
+        const common = { className: 'input', style: { fontSize: '1rem' } };
         return (
             <div key={f.label} style={{ marginBottom: '1rem' }}>
                 <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>

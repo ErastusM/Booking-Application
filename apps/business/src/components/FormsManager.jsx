@@ -196,7 +196,7 @@ const FormsManager = () => {
                                     {form.fields.map((fl, idx) => (
                                         <div key={idx} style={{ background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '0.85rem' }}>
                                             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                                <input className="input" placeholder="Question label" value={fl.label} onChange={e => updateField(idx, { label: e.target.value })} style={{ flex: 1, fontSize: '0.85rem' }} />
+                                                <input className="input" placeholder="Question label" value={fl.label} onChange={e => updateField(idx, { label: e.target.value })} style={{ flex: 1, fontSize: '1rem' }} />
                                                 <button type="button" onClick={() => setForm(f => ({ ...f, fields: f.fields.filter((_, i) => i !== idx) }))} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '1.1rem' }}>×</button>
                                             </div>
                                             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
@@ -208,7 +208,7 @@ const FormsManager = () => {
                                                 </label>
                                             </div>
                                             {(fl.type === 'select' || fl.type === 'radio') && (
-                                                <input className="input" placeholder="Options, comma-separated" value={(fl.options || []).join(', ')} onChange={e => updateField(idx, { options: e.target.value.split(',').map(o => o.trim()).filter(Boolean) })} style={{ marginTop: '0.5rem', fontSize: '0.82rem' }} />
+                                                <input className="input" placeholder="Options, comma-separated" value={(fl.options || []).join(', ')} onChange={e => updateField(idx, { options: e.target.value.split(',').map(o => o.trim()).filter(Boolean) })} style={{ marginTop: '0.5rem', fontSize: '1rem' }} />
                                             )}
                                         </div>
                                     ))}

@@ -254,7 +254,7 @@ const AnalyticsDashboard = () => {
                 </Card>
 
                 {/* ── Middle row ── */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1.5rem', marginBottom: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: '1.5rem', marginBottom: '1.5rem' }}>
 
                     {/* Appointment breakdown */}
                     <Card title="Appointment Breakdown">
@@ -272,7 +272,7 @@ const AnalyticsDashboard = () => {
                 </div>
 
                 {/* ── Bottom row ── */}
-                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: '1.5rem' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem' }}>
 
                     {/* Popular services */}
                     <Card title="Most Booked Services">

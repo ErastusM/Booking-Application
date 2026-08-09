@@ -16,6 +16,7 @@ const guestBookingLimiter = rateLimit({
 });
 const {
     createAppointment,
+    createMultiServiceAppointment,
     getAllAppointments,
     getMyAppointments,
     cancelAppointment,
@@ -52,6 +53,8 @@ router.post('/manage/:token/reschedule', rescheduleAppointmentByToken);
 // signed in; the controller enforces guest contact fields when it's absent, and
 // still gates provider-only powers (walk-ins, book-on-behalf) on req.user.role.
 router.post('/', optionalAuth, guestBookingLimiter, createAppointmentRules, createAppointment);
+// Provider-built multi-service booking ("Add service" flow) — provider-only.
+router.post('/multi', auth, authorize('provider'), createMultiServiceAppointment);
 router.get('/my-appointments', auth, getMyAppointments);
 router.get('/history', auth, authorize('provider', 'admin'), getAppointmentHistory);
 router.post('/group', auth, authorize('provider', 'admin'), createGroupBooking);

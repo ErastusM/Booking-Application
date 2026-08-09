@@ -1154,7 +1154,7 @@ const BookAppointment = () => {
         {/* ── Service options bottom sheet ── */}
         {optionSheet && (
             <>
-                <div onClick={() => setOptionSheet(null)} className="scrim-in" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.45)', zIndex: 900, backdropFilter: 'blur(2px)' }} />
+                <div onClick={() => setOptionSheet(null)} className="scrim-in" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.55)', zIndex: 900 }} />
                 <div role="dialog" aria-modal="true" aria-labelledby="option-sheet-title" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', zIndex: 901, maxHeight: '90dvh', overflowY: 'auto', boxShadow: '0 -8px 40px rgba(0,0,0,0.2)', animation: 'slideUp var(--dur) var(--ease-out)' }}>
                     <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
@@ -1181,7 +1181,7 @@ const BookAppointment = () => {
                             </button>
                         ))}
                     </div>
-                    <div style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <div style={{ padding: '1rem 1.5rem calc(1rem + env(safe-area-inset-bottom, 0px))', borderTop: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <div>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>from </span>
                             <span style={{ fontWeight: '700', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}>{curSym} {Math.min(...optionSheet.options.map(o => o.price))}</span>
