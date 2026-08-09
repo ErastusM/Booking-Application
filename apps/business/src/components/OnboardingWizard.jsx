@@ -27,7 +27,7 @@ const StepHeading = ({ Icon, title, sub }) => (
         <div style={{ width: '52px', height: '52px', borderRadius: '14px', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1rem' }}>
             <Icon size={26} strokeWidth={2} />
         </div>
-        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.7rem, 5vw, 2.2rem)', fontWeight: 700, color: 'var(--charcoal)', marginBottom: '0.5rem', lineHeight: 1.1 }}>{title}</h1>
+        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.7rem, 5vw, 2.2rem)', fontWeight: 600, color: 'var(--charcoal)', marginBottom: '0.5rem', lineHeight: 1.1 }}>{title}</h1>
         {sub && <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.6 }}>{sub}</p>}
     </div>
 );
@@ -172,7 +172,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
     const photosReady = !!avatarUrl && postImages.length >= 1;
     const primaryDisabled = saving || uploading || (current.id === 'photos' && !photosReady);
 
-    const darkBtn = { width: '100%', padding: '0.95rem', borderRadius: '999px', border: 'none', background: 'var(--ink, #040505)', color: '#fff', fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: 700, cursor: 'pointer' };
+    const darkBtn = { width: '100%', padding: '0.95rem', borderRadius: '999px', border: 'none', background: 'var(--ink, #040505)', color: '#fff', fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: 600, cursor: 'pointer' };
 
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'var(--off-white)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
@@ -206,7 +206,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                             <div style={{ width: '60px', height: '60px', borderRadius: '16px', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.25rem' }}>
                                 <Scissors size={30} strokeWidth={2} />
                             </div>
-                            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.9rem, 6vw, 2.5rem)', fontWeight: 700, color: 'var(--charcoal)', marginBottom: '0.6rem', lineHeight: 1.1 }}>
+                            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.9rem, 6vw, 2.5rem)', fontWeight: 600, color: 'var(--charcoal)', marginBottom: '0.6rem', lineHeight: 1.1 }}>
                                 Let’s set up your business
                             </h1>
                             <p style={{ color: 'var(--text-muted)', fontSize: '1rem', lineHeight: 1.65, marginBottom: '1.75rem' }}>
@@ -343,7 +343,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                             <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(34,197,94,0.14)', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem' }}>
                                 <Check size={34} strokeWidth={2.5} />
                             </div>
-                            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.7rem, 5vw, 2.2rem)', fontWeight: 700, color: 'var(--charcoal)', marginBottom: '0.5rem' }}>Your link is ready</h1>
+                            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.7rem, 5vw, 2.2rem)', fontWeight: 600, color: 'var(--charcoal)', marginBottom: '0.5rem' }}>Your link is ready</h1>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.6, marginBottom: '1.5rem' }}>
                                 Share this link so clients open your profile and book you directly.
                             </p>

@@ -312,7 +312,7 @@ const AdminDashboard = () => {
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 30%, rgba(240,62,22,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Management</p>
-                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.2rem, 4vw, 3.25rem)', fontWeight: '700', color: 'white', lineHeight: 1.05, marginBottom: '0.35rem' }}>Admin Dashboard</h1>
+                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.2rem, 4vw, 3.25rem)', fontWeight: '600', color: 'white', lineHeight: 1.05, marginBottom: '0.35rem' }}>Admin Dashboard</h1>
                     <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: '0.98rem', maxWidth: '56ch', lineHeight: 1.65 }}>
                         Oversee appointments, services, users, and per-provider revenue with a clearer hierarchy and faster decision-making.
                     </p>
@@ -342,7 +342,7 @@ const AdminDashboard = () => {
                             </div>
                             <div>
                                 <p style={{ fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: '0.2rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{s.label}</p>
-                                <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.85rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
+                                <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.85rem', fontWeight: '600', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
                             </div>
                         </div>
                     ))}
@@ -362,7 +362,7 @@ const AdminDashboard = () => {
                             borderColor: activeTab === tab ? 'var(--gold)' : 'var(--border)',
                             borderRadius: '999px',
                             color: activeTab === tab ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                            fontWeight: activeTab === tab ? '700' : '500', fontSize: '0.85rem',
+                            fontWeight: activeTab === tab ? '600' : '500', fontSize: '0.85rem',
                             cursor: 'pointer', fontFamily: 'var(--font-body)',
                             textTransform: 'capitalize', transition: 'all 0.2s', whiteSpace: 'nowrap',
                         }}>
@@ -546,7 +546,7 @@ const AdminDashboard = () => {
                                         <tr key={u._id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'white' : 'rgba(230,232,231,0.5)' }}>
                                             <td style={{ padding: '0.875rem 1rem' }}>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: '700', color: 'var(--ink)', flexShrink: 0 }}>
+                                                    <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: '600', color: 'var(--ink)', flexShrink: 0 }}>
                                                         {u.name?.charAt(0).toUpperCase()}
                                                     </div>
                                                     <span style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{u.name}</span>
@@ -661,7 +661,7 @@ const AdminDashboard = () => {
                                     ].map((c) => (
                                         <div key={c.label} style={{ background: c.accent ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.1rem 1.25rem' }}>
                                             <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>{c.label}</div>
-                                            <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: '700', color: c.accent ? 'var(--gold-dark)' : 'var(--charcoal)', lineHeight: 1.1 }}>{c.val}</div>
+                                            <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: '600', color: c.accent ? 'var(--gold-dark)' : 'var(--charcoal)', lineHeight: 1.1 }}>{c.val}</div>
                                             {c.sub && <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.3rem' }}>{c.sub}</div>}
                                         </div>
                                     ))}
@@ -685,14 +685,14 @@ const AdminDashboard = () => {
                                                     <tr key={p._id} style={{ borderBottom: '1px solid var(--border)', background: i % 2 === 0 ? 'white' : 'rgba(230,232,231,0.5)' }}>
                                                         <td style={{ padding: '0.875rem 1rem' }}>
                                                             <button onClick={() => setRevDetailId(p._id)} style={{ background: 'none', border: 'none', padding: 0, textAlign: 'left', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
-                                                                <span style={{ fontWeight: '700', color: 'var(--gold-dark)', fontSize: '0.875rem', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{p.name}</span>
+                                                                <span style={{ fontWeight: '600', color: 'var(--gold-dark)', fontSize: '0.875rem', textDecoration: 'underline', textUnderlineOffset: '2px' }}>{p.name}</span>
                                                                 <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.72rem' }}>{p.category || p.email}{p.isActive ? '' : ' · suspended'}</span>
                                                             </button>
                                                         </td>
                                                         <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{p.completedCount}</td>
                                                         <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{nMoney0(p.servicesRevenue)}</td>
                                                         <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{p.packageCount > 0 ? nMoney0(p.packageRevenue) : '—'}</td>
-                                                        <td style={{ padding: '0.875rem 1rem', fontWeight: '700', color: 'var(--charcoal)' }}>{nMoney0(p.totalRevenue)}</td>
+                                                        <td style={{ padding: '0.875rem 1rem', fontWeight: '600', color: 'var(--charcoal)' }}>{nMoney0(p.totalRevenue)}</td>
                                                         <td style={{ padding: '0.875rem 1rem', color: 'var(--gold-dark)', fontWeight: '600' }}>{nMoney0(p.walletBalance)}</td>
                                                     </tr>
                                                 ))}
@@ -721,7 +721,7 @@ const AdminDashboard = () => {
                             ].map((c) => (
                                 <div key={c.label} style={{ background: c.accent ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.1rem 1.25rem' }}>
                                     <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>{c.label}</div>
-                                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: c.accent ? 'var(--gold-dark)' : 'var(--charcoal)' }}>{c.val}</div>
+                                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '600', color: c.accent ? 'var(--gold-dark)' : 'var(--charcoal)' }}>{c.val}</div>
                                 </div>
                             ))}
                         </div>
@@ -741,7 +741,7 @@ const AdminDashboard = () => {
                                         <p style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                                             {new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{t.reference ? ` · ${t.reference}` : ''}
                                             {t.method === 'cash' ? (
-                                                <span style={{ display: 'inline-block', marginLeft: '0.4rem', fontSize: '0.68rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '99px', background: '#fef3c7', color: '#92400e' }}>Cash · no proof needed</span>
+                                                <span style={{ display: 'inline-block', marginLeft: '0.4rem', fontSize: '0.68rem', fontWeight: 600, padding: '0.1rem 0.45rem', borderRadius: '99px', background: '#fef3c7', color: '#92400e' }}>Cash · no proof needed</span>
                                             ) : t.proofUrl ? (
                                                 <> · <a href={t.proofUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--gold-dark)' }}>View {t.proofType === 'pdf' ? 'PDF' : 'proof'}</a></>
                                             ) : (
@@ -776,7 +776,7 @@ const AdminDashboard = () => {
                                         <p style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                                             {new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{t.reference ? ` · ${t.reference}` : ''}
                                             {t.method === 'cash' ? (
-                                                <span style={{ display: 'inline-block', marginLeft: '0.4rem', fontSize: '0.68rem', fontWeight: 700, padding: '0.1rem 0.45rem', borderRadius: '99px', background: '#fef3c7', color: '#92400e' }}>Cash · no proof needed</span>
+                                                <span style={{ display: 'inline-block', marginLeft: '0.4rem', fontSize: '0.68rem', fontWeight: 600, padding: '0.1rem 0.45rem', borderRadius: '99px', background: '#fef3c7', color: '#92400e' }}>Cash · no proof needed</span>
                                             ) : t.proofUrl ? (
                                                 <> · <a href={t.proofUrl} target="_blank" rel="noreferrer" style={{ color: 'var(--gold-dark)' }}>View proof</a></>
                                             ) : (
@@ -811,7 +811,7 @@ const AdminDashboard = () => {
                                             {pwWallets.map((w) => (
                                                 <tr key={w._id} style={{ borderBottom: '1px solid var(--border)' }}>
                                                     <td style={{ padding: '0.7rem 1rem' }}><div style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{w.provider?.name || '—'}</div><div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{w.provider?.email}</div></td>
-                                                    <td style={{ padding: '0.7rem 1rem', fontWeight: '700', color: 'var(--gold-dark)' }}>{nMoney(w.balance)}</td>
+                                                    <td style={{ padding: '0.7rem 1rem', fontWeight: '600', color: 'var(--gold-dark)' }}>{nMoney(w.balance)}</td>
                                                     <td style={{ padding: '0.7rem 1rem', textAlign: 'right' }}><button onClick={() => setPwAdjust(w)} className="btn-outline" style={{ padding: '0.3rem 0.8rem', fontSize: '0.78rem' }}>Credit / Debit</button></td>
                                                 </tr>
                                             ))}
@@ -857,7 +857,7 @@ const AdminAdjustModal = ({ wallet, onClose, onDone }) => {
         <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
             <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '400px', overflow: 'hidden' }}>
                 <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
-                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Adjust · {wallet.provider?.name}</h2>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Adjust · {wallet.provider?.name}</h2>
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>Current balance {nMoney(wallet.balance)}</p>
                 </div>
                 <form onSubmit={submit} style={{ padding: '1.25rem' }}>
@@ -922,7 +922,7 @@ const ProviderRevenueModal = ({ providerId, onClose }) => {
                         {/* Header */}
                         <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem' }}>
                             <div style={{ minWidth: 0 }}>
-                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>{data.provider.name}</h2>
+                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>{data.provider.name}</h2>
                                 <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>
                                     {data.provider.category || 'Provider'} · {data.provider.email}
                                     {data.provider.joinedAt ? ` · joined ${new Date(data.provider.joinedAt).toLocaleDateString('en-US', { month: 'short', year: 'numeric' })}` : ''}
@@ -945,7 +945,7 @@ const ProviderRevenueModal = ({ providerId, onClose }) => {
                                 ].map((c) => (
                                     <div key={c.label} style={{ background: c.accent ? 'rgba(240,62,22,0.1)' : 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '0.9rem 1rem' }}>
                                         <div style={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.25rem' }}>{c.label}</div>
-                                        <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '700', color: c.accent ? 'var(--gold-dark)' : 'var(--charcoal)' }}>{c.val}</div>
+                                        <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '600', color: c.accent ? 'var(--gold-dark)' : 'var(--charcoal)' }}>{c.val}</div>
                                         {c.trend !== undefined && (
                                             <div style={{ fontSize: '0.7rem', fontWeight: '600', marginTop: '0.2rem', color: c.trend >= 0 ? '#065f46' : '#991b1b' }}>
                                                 {c.trend >= 0 ? '▲' : '▼'} {Math.abs(c.trend)}% vs last month
@@ -984,7 +984,7 @@ const ProviderRevenueModal = ({ providerId, onClose }) => {
                                             {data.topServices.map((s, i) => (
                                                 <div key={i} style={{ display: 'flex', justifyContent: 'space-between', gap: '0.5rem', fontSize: '0.82rem' }}>
                                                     <span style={{ color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name} <span style={{ color: 'var(--text-muted)', fontSize: '0.72rem' }}>×{s.count}</span></span>
-                                                    <span style={{ fontWeight: '700', color: 'var(--charcoal)', flexShrink: 0 }}>{nMoney0(s.revenue)}</span>
+                                                    <span style={{ fontWeight: '600', color: 'var(--charcoal)', flexShrink: 0 }}>{nMoney0(s.revenue)}</span>
                                                 </div>
                                             ))}
                                         </div>

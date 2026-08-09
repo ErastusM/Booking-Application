@@ -80,7 +80,7 @@ p, li, label, input, textarea, select, button, a {
   background: var(--ink);
   color: var(--on-ink);
   font-family: var(--font-body);
-  font-weight: 600;
+  font-weight: 500;
   font-size: 0.9rem;
   padding: 0.75rem 1.75rem;
   border-radius: var(--radius-pill);
@@ -100,7 +100,7 @@ p, li, label, input, textarea, select, button, a {
   background: transparent;
   color: var(--charcoal);
   font-family: var(--font-body);
-  font-weight: 600;
+  font-weight: 500;
   font-size: 0.9rem;
   padding: 0.75rem 1.75rem;
   border-radius: var(--radius-pill);
@@ -345,7 +345,7 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
 
 .appt-block { border-radius: 6px; padding: 6px 8px; box-shadow: 0 8px 18px rgba(4,5,5,0.06); transition: transform 0.12s cubic-bezier(.2,.9,.3,1), box-shadow 0.12s cubic-bezier(.2,.9,.3,1); }
 .appt-block:hover { transform: translateY(-2px); box-shadow: 0 12px 26px rgba(4,5,5,0.10); }
-.appt-block .title { font-weight: 700; font-size: 0.82rem; color: var(--charcoal); }
+.appt-block .title { font-weight: 600; font-size: 0.82rem; color: var(--charcoal); }
 .appt-block .meta { font-size: 0.72rem; color: var(--text-secondary); }
 
 /* Resize handle: larger hit area for touch, subtle grip lines and grab icon */
@@ -701,7 +701,7 @@ body.dark-mode .fc-bookplus-wrapper .fc .fc-non-business {
 .fc-bookplus-wrapper .fc-toolbar-title {
   font-family: var(--font-display);
   font-size: 1.25rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--charcoal);
 }
 
@@ -751,7 +751,7 @@ body.dark-mode .fc-bookplus-wrapper .fc .fc-non-business {
 
 .fc-bookplus-wrapper .fc-col-header-cell-cushion {
   font-size: 0.78rem;
-  font-weight: 700;
+  font-weight: 600;
   color: var(--text-secondary);
   letter-spacing: 0.05em;
   text-transform: uppercase;
@@ -779,6 +779,23 @@ body.dark-mode .fc-bookplus-wrapper .fc .fc-non-business {
 /* Slot rows — minor lines thinner */
 .fc-bookplus-wrapper .fc-timegrid-slot-minor {
   border-top-color: #dcdedd !important;
+}
+
+/* Taller time slots so appointment cards have room to breathe (the default
+   ~21px/15min cramped them). Roughly the working day fills the visible height
+   and the rest of the 24h span scrolls. */
+.fc-bookplus-wrapper .fc-timegrid-slot {
+  height: 2.4rem;
+}
+
+/* Full-bleed calendar: the wrapper breaks out of the width-capped .container to
+   run edge-to-edge (geometry set inline on the element); drop the framing so it
+   reads as a full-screen surface, not a card. */
+.fc-bookplus-wrapper.fc-fullbleed {
+  box-sizing: border-box;
+  border: none;
+  border-radius: 0;
+  box-shadow: none;
 }
 
 /* Evenly spaced prev / next so the ‹ › chevrons don't look cramped or joined */
@@ -873,6 +890,7 @@ body.dark-mode .fc-bookplus-wrapper .fc-timegrid-slot-minor {
 
 /* Custom event content — appointment */
 .fc-event-appt {
+  position: relative;
   padding: 4px 8px;
   height: 100%;
   display: flex;
@@ -880,6 +898,17 @@ body.dark-mode .fc-bookplus-wrapper .fc-timegrid-slot-minor {
   gap: 0;
   line-height: 1.2;
   overflow: hidden;
+}
+
+/* Recurring ⟳ badge — top-right corner of an appointment or blocked-time card. */
+.fc-event-recur {
+  position: absolute;
+  top: 2px;
+  right: 4px;
+  font-size: 0.72rem;
+  line-height: 1;
+  opacity: 0.7;
+  pointer-events: none;
 }
 
 /* Short appointments (≈15–30 min) are too short to hold three stacked lines,
@@ -895,7 +924,7 @@ body.dark-mode .fc-bookplus-wrapper .fc-timegrid-slot-minor {
 
 .fc-event-appt-time {
   font-size: 0.68rem;
-  font-weight: 700;
+  font-weight: 600;
   opacity: 0.75;
   white-space: nowrap;
   overflow: hidden;
@@ -904,7 +933,7 @@ body.dark-mode .fc-bookplus-wrapper .fc-timegrid-slot-minor {
 
 .fc-event-appt-client {
   font-size: 0.8rem;
-  font-weight: 700;
+  font-weight: 600;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -968,6 +997,7 @@ body.dark-mode .staff-lane-offhours {
 
 /* Blocked time event */
 .fc-event-blocked {
+  position: relative;
   padding: 4px 8px;
   height: 100%;
   display: flex;
@@ -1003,7 +1033,7 @@ body.dark-mode .staff-lane-offhours {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-weight: 700;
+  font-weight: 600;
 }
 
 /* Select mirror (what you see while drawing) */
@@ -1064,7 +1094,7 @@ body.dark-mode .staff-lane-offhours {
 /* Button system */
 .btn {
   display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem;
-  font-family: var(--font-body); font-weight: 600; font-size: 0.9rem; line-height: 1;
+  font-family: var(--font-body); font-weight: 500; font-size: 0.9rem; line-height: 1;
   padding: 0 1.25rem; height: 44px; border-radius: var(--radius-sm); border: 1.5px solid transparent;
   cursor: pointer; white-space: nowrap; user-select: none; position: relative;
   transition: transform var(--dur-fast) var(--ease-out), background-color var(--dur) ease,

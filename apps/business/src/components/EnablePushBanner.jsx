@@ -46,7 +46,7 @@ const EnablePushBanner = () => {
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem', background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.32)', borderRadius: 'var(--radius)', padding: '0.85rem 1rem', marginBottom: '1.5rem' }}>
             <span style={{ fontSize: '1.3rem', flexShrink: 0 }} aria-hidden="true">🔔</span>
             <div style={{ flex: 1, minWidth: 0 }}>
-                <p style={{ margin: 0, fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.92rem' }}>
+                <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.92rem' }}>
                     {mode === 'ios' ? 'Get booking alerts on your lock screen' : 'Never miss a booking'}
                 </p>
                 <p style={{ margin: '2px 0 0', color: 'var(--text-secondary)', fontSize: '0.82rem', lineHeight: 1.5 }}>

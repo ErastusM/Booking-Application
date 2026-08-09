@@ -212,7 +212,7 @@ const MyAppointments = () => {
             <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Your Schedule</p>
-                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'white' }}>My Appointments</h1>
+                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '600', color: 'white' }}>My Appointments</h1>
                 </div>
             </div>
             <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
@@ -277,7 +277,7 @@ const MyAppointments = () => {
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 50%, rgba(240,62,22,0.045) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Your Schedule</p>
-                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '700', color: 'white' }}>My Appointments</h1>
+                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '600', color: 'white' }}>My Appointments</h1>
                 </div>
             </div>
 
@@ -327,7 +327,7 @@ const MyAppointments = () => {
                     return (
                         <div className="card" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', padding: '1.1rem 1.4rem', marginBottom: '1.5rem' }}>
                             <div>
-                                <p style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', margin: '0 0 0.25rem', fontWeight: '700' }}>Book again</p>
+                                <p style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--text-muted)', margin: '0 0 0.25rem', fontWeight: '600' }}>Book again</p>
                                 <p style={{ margin: 0, color: 'var(--charcoal)', fontWeight: '600' }}>{last.service?.name}<span style={{ color: 'var(--text-muted)', fontWeight: '400' }}> · last on {apptLocalDate(last.appointmentDate)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span></p>
                             </div>
                             <button onClick={() => navigate(`/book-appointment?providerId=${providerId}&serviceId=${serviceId}`)} className="btn btn--primary" style={{ flexShrink: 0 }}>
@@ -351,7 +351,7 @@ const MyAppointments = () => {
                         }}>
                             {f === 'all' ? 'All' : f.charAt(0).toUpperCase() + f.slice(1)}
                             {counts[f] > 0 && (
-                                <span style={{ marginLeft: '0.4rem', background: activeFilter === f ? 'var(--gold)' : 'var(--warm-gray)', color: activeFilter === f ? 'var(--charcoal)' : 'var(--text-muted)', fontSize: '0.7rem', fontWeight: '700', padding: '0.1rem 0.45rem', borderRadius: '99px' }}>
+                                <span style={{ marginLeft: '0.4rem', background: activeFilter === f ? 'var(--gold)' : 'var(--warm-gray)', color: activeFilter === f ? 'var(--charcoal)' : 'var(--text-muted)', fontSize: '0.7rem', fontWeight: '600', padding: '0.1rem 0.45rem', borderRadius: '99px' }}>
                                     {counts[f]}
                                 </span>
                             )}
@@ -393,13 +393,13 @@ const MyAppointments = () => {
                                         const bizImg = prov?.avatar || prov?.portfolio?.images?.[0] || null;
                                         const header = (
                                             <>
-                                                <div style={{ width: '48px', height: '48px', borderRadius: '50%', overflow: 'hidden', background: 'rgba(240,62,22,0.15)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '1.1rem', flexShrink: 0, fontFamily: 'var(--font-display)' }}>
+                                                <div style={{ width: '48px', height: '48px', borderRadius: '50%', overflow: 'hidden', background: 'rgba(240,62,22,0.15)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '1.1rem', flexShrink: 0, fontFamily: 'var(--font-display)' }}>
                                                     {bizImg
                                                         ? <img src={cloudinaryThumb(bizImg, 96)} alt={company} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                                         : company.trim().charAt(0).toUpperCase()}
                                                 </div>
                                                 <div style={{ minWidth: 0 }}>
-                                                    <p style={{ margin: 0, fontWeight: '700', color: 'var(--charcoal)', fontSize: '1rem', fontFamily: 'var(--font-display)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                                                    <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '1rem', fontFamily: 'var(--font-display)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
                                                         {company}
                                                         {provId && <span aria-hidden="true" style={{ color: 'var(--text-muted)', fontSize: '0.8rem', fontWeight: '400' }}>›</span>}
                                                     </p>
@@ -515,7 +515,7 @@ const MyAppointments = () => {
                                                         style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', minHeight: '36px', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontFamily: 'var(--font-body)', fontSize: '0.78rem' }}
                                                     >
                                                         <span style={{ textTransform: 'uppercase', letterSpacing: '0.06em', color: 'var(--text-muted)' }}>Booking ref</span>
-                                                        <span style={{ fontFamily: 'monospace', fontWeight: 700, color: 'var(--charcoal)', letterSpacing: '0.08em' }}>{ref}</span>
+                                                        <span style={{ fontFamily: 'monospace', fontWeight: 600, color: 'var(--charcoal)', letterSpacing: '0.08em' }}>{ref}</span>
                                                         {copiedRef === ref ? <Check size={14} color="#059669" /> : <Copy size={13} color="var(--text-muted)" />}
                                                     </button>
                                                     {address && (
@@ -531,7 +531,7 @@ const MyAppointments = () => {
                                                 </div>
                                                 {open && address && (
                                                     <div style={{ marginTop: '1rem', animation: 'slideUp var(--dur) var(--ease-out)' }}>
-                                                        {bizName && <p style={{ fontWeight: 700, color: 'var(--charcoal)', fontSize: '0.9rem', margin: '0 0 0.2rem', fontFamily: 'var(--font-body)' }}>{bizName}</p>}
+                                                        {bizName && <p style={{ fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.9rem', margin: '0 0 0.2rem', fontFamily: 'var(--font-body)' }}>{bizName}</p>}
                                                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: '0 0 0.75rem', fontFamily: 'var(--font-body)', lineHeight: 1.5 }}>{address}</p>
                                                         <iframe
                                                             title={`Map to ${bizName || 'appointment location'}`}
@@ -562,7 +562,7 @@ const MyAppointments = () => {
                         {/* Header */}
                         <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                             <div>
-                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>
+                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>
                                     Message Business
                                 </h2>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.2rem 0 0', fontFamily: 'var(--font-body)' }}>
@@ -623,7 +623,7 @@ const MyAppointments = () => {
             {showCancelModal && (
                 <div className="scrim-in" style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
                     <div className="scale-in" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', padding: '2rem', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(4,5,5,0.25)' }}>
-                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>What would you like to do?</h2>
+                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>What would you like to do?</h2>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem', fontFamily: 'var(--font-body)', lineHeight: '1.5' }}>
                             <strong style={{ color: 'var(--charcoal)' }}>{showCancelModal.service?.name}</strong> on{' '}
                             {apptLocalDate(showCancelModal.appointmentDate)?.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} at {showCancelModal.startTime}.

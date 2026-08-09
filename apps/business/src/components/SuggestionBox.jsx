@@ -101,7 +101,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                 {/* Header */}
                 <div style={{ background: 'var(--ink)', padding: '1.5rem 1.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
                     <div>
-                        <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.4rem', fontWeight: '700', margin: '0 0 0.25rem' }}>Suggestion Box</h2>
+                        <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.4rem', fontWeight: '600', margin: '0 0 0.25rem' }}>Suggestion Box</h2>
                         <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.8rem', margin: 0 }}>Help us make Bookplus better</p>
                     </div>
                     <button onClick={doClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0, marginTop: '2px' }}>×</button>
@@ -118,7 +118,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                     ) : (
                         <form onSubmit={handleSubmit}>
                             {/* Category selector */}
-                            <p style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.65rem' }}>Category</p>
+                            <p style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.65rem' }}>Category</p>
                             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginBottom: '1.5rem' }}>
                                 {CATEGORIES.map(cat => {
                                     const meta = categoryMeta[cat];
@@ -132,7 +132,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                                                 border: `1.5px solid ${active ? meta.color : 'var(--border)'}`,
                                                 background: active ? `${meta.color}14` : 'white',
                                                 color: active ? meta.color : 'var(--text-secondary)',
-                                                fontSize: '0.8rem', fontWeight: active ? '700' : '400',
+                                                fontSize: '0.8rem', fontWeight: active ? '600' : '400',
                                                 cursor: 'pointer', fontFamily: 'var(--font-body)',
                                                 display: 'flex', alignItems: 'center', gap: '0.3rem',
                                                 transition: 'all 0.15s',
@@ -145,7 +145,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                             </div>
 
                             {/* Message */}
-                            <p style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>Your message</p>
+                            <p style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>Your message</p>
                             <textarea
                                 value={message}
                                 onChange={e => setMessage(e.target.value)}
@@ -168,7 +168,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                             {/* Sender info (read-only if logged in) */}
                             {user && (
                                 <div style={{ background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '0.75rem 1rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                    <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)', fontWeight: '700', fontSize: '0.85rem', flexShrink: 0 }}>
+                                    <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)', fontWeight: '600', fontSize: '0.85rem', flexShrink: 0 }}>
                                         {user.avatar ? <img src={cloudinaryAvatar(user.avatar)} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : user.name?.[0]?.toUpperCase()}
                                     </div>
                                     <div>
@@ -181,7 +181,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                             <button
                                 type="submit"
                                 disabled={submitting}
-                                style={{ width: '100%', padding: '0.85rem', background: submitting ? '#9ca3af' : 'var(--ink)', color: 'var(--on-ink)', border: 'none', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: '700', cursor: submitting ? 'not-allowed' : 'pointer', letterSpacing: '0.03em', transition: 'background 0.15s' }}
+                                style={{ width: '100%', padding: '0.85rem', background: submitting ? '#9ca3af' : 'var(--ink)', color: 'var(--on-ink)', border: 'none', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: '600', cursor: submitting ? 'not-allowed' : 'pointer', letterSpacing: '0.03em', transition: 'background 0.15s' }}
                             >
                                 {submitting ? 'Sending...' : 'Send Suggestion'}
                             </button>

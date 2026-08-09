@@ -4,7 +4,7 @@ import React from 'react';
 // underline under "plus". Matches the new brand / for-business logo (the "Business"
 // pill next to it in the navbar carries the "for business" distinction).
 const Wordmark = ({ size = '1.6rem', bookColor = 'var(--charcoal)' }) => (
-    <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: size, letterSpacing: '-0.03em', lineHeight: 1, display: 'inline-flex', alignItems: 'baseline' }}>
+    <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: size, letterSpacing: '-0.03em', lineHeight: 1, display: 'inline-flex', alignItems: 'baseline' }}>
         <span style={{ color: bookColor }}>Book</span>
         <span style={{ position: 'relative', display: 'inline-block', color: 'var(--gold)' }}>
             plus

@@ -133,7 +133,7 @@ const Register = () => {
                 {step === 1 && (
                     <div style={{ width: '100%', maxWidth: '560px' }} className="fade-up">
                         <div style={{ textAlign: 'center', marginBottom: '2.5rem' }}>
-                            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
+                            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.8rem, 4vw, 2.5rem)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
                                 What brings you here?
                             </h1>
                             <p style={{ color: 'var(--text-muted)', fontSize: '1rem' }}>
@@ -190,7 +190,7 @@ const Register = () => {
                             </span>
                         </div>
 
-                        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
+                        <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                             Create your account
                         </h1>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '2rem' }}>
@@ -338,7 +338,7 @@ const Register = () => {
                         {step === 3 && (
                             <div style={{ width: '100%', maxWidth: '440px', textAlign: 'center' }} className="fade-up">
                                 <div style={{ marginBottom: '1.5rem', display: 'flex', justifyContent: 'center' }}><MailCheck size={56} strokeWidth={1.5} style={{ color: 'var(--gold)' }} /></div>
-                                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
+                                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
                                     Check your email!
                                 </h1>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.7, marginBottom: '2rem' }}>

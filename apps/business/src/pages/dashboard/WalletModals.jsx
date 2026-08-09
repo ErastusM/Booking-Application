@@ -38,12 +38,12 @@ export const ProviderAccountTopUpModal = ({ curSym, onClose, onDone }) => {
         } catch (err) { setError(err.response?.data?.message || 'Could not submit'); setBusy(false); }
     };
 
-    const lbl = { display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' };
+    const lbl = { display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' };
     return (
         <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
             <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '420px', maxHeight: '90dvh', overflowY: 'auto', overscrollBehavior: 'contain' }}>
                 <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
-                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Top up your Bookplus account</h2>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Top up your Bookplus account</h2>
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>Pay Bookplus, attach proof, and we’ll verify and credit your account.</p>
                 </div>
                 <form onSubmit={submit} style={{ padding: '1.25rem' }}>
@@ -109,7 +109,7 @@ export const WalletAdjustmentModal = ({ wallet, refundsAllowed, curSym, onClose,
         <div onClick={onClose} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
             <div onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '420px', boxShadow: '0 20px 60px rgba(4,5,5,0.3)', overflow: 'hidden' }}>
                 <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
-                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Adjust wallet · {wallet.customer?.name}</h2>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Adjust wallet · {wallet.customer?.name}</h2>
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>Proposed — your client approves before it applies.</p>
                 </div>
                 <form onSubmit={submit} style={{ padding: '1.25rem' }}>
@@ -131,10 +131,10 @@ export const WalletAdjustmentModal = ({ wallet, refundsAllowed, curSym, onClose,
                         </label>
                     )}
 
-                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Amount ({curSym})</label>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Amount ({curSym})</label>
                     <input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 50" className="input" style={{ width: '100%', marginBottom: '1rem' }} required />
 
-                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Reason</label>
+                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Reason</label>
                     <input type="text" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Loyalty credit, no-show penalty" className="input" style={{ width: '100%', marginBottom: '1rem' }} maxLength={200} />
 
                     {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}

@@ -42,7 +42,7 @@ const StatusOverlay = ({ variant = 'confirmed', title, subtitle, onDone, duratio
                 <circle className="so-circle" cx="26" cy="26" r="24" fill="none" stroke="rgba(255,255,255,0.9)" strokeWidth="2" />
                 <path className="so-check" d="M15 27 l7.5 7.5 L38 19" fill="none" stroke="#fff" strokeWidth="3.2" strokeLinecap="round" strokeLinejoin="round" />
             </svg>
-            <h2 className="so-title" style={{ fontFamily: 'var(--font-display)', color: '#fff', fontSize: 'clamp(1.7rem, 6vw, 2.4rem)', fontWeight: 700, margin: 0, letterSpacing: '-0.01em', lineHeight: 1.1 }}>
+            <h2 className="so-title" style={{ fontFamily: 'var(--font-display)', color: '#fff', fontSize: 'clamp(1.7rem, 6vw, 2.4rem)', fontWeight: 600, margin: 0, letterSpacing: '-0.01em', lineHeight: 1.1 }}>
                 {title}
             </h2>
             {subtitle && (

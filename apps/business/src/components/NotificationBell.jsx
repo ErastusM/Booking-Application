@@ -116,7 +116,7 @@ const NotificationBell = ({ isTransparent }) => {
                         d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
                 </svg>
                 {unreadCount > 0 && (
-                    <span style={{ position: 'absolute', top: '4px', right: '4px', minWidth: '16px', height: '16px', padding: '0 3px', borderRadius: '99px', background: 'var(--danger, #ef4444)', color: '#fff', fontSize: '0.62rem', fontWeight: '700', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, pointerEvents: 'none' }}>
+                    <span style={{ position: 'absolute', top: '4px', right: '4px', minWidth: '16px', height: '16px', padding: '0 3px', borderRadius: '99px', background: 'var(--danger, #ef4444)', color: '#fff', fontSize: '0.62rem', fontWeight: '600', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1, pointerEvents: 'none' }}>
                         {unreadCount > 9 ? '9+' : unreadCount}
                     </span>
                 )}
@@ -127,7 +127,7 @@ const NotificationBell = ({ isTransparent }) => {
                 <div className="notif-dropdown" style={{ position: 'absolute', right: 0, top: 'calc(100% + 8px)', width: '320px', maxWidth: '90vw', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-lg, 0 12px 40px rgba(0,0,0,0.18))', zIndex: 1000, overflow: 'hidden' }}>
                     {/* Header */}
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.85rem 1rem', borderBottom: '1px solid var(--border)' }}>
-                        <h3 style={{ fontWeight: '700', color: 'var(--charcoal)', fontFamily: 'var(--font-display)', fontSize: '1rem', margin: 0 }}>Notifications</h3>
+                        <h3 style={{ fontWeight: '600', color: 'var(--charcoal)', fontFamily: 'var(--font-display)', fontSize: '1rem', margin: 0 }}>Notifications</h3>
                         {unreadCount > 0 && (
                             <button onClick={handleMarkAllRead} disabled={loading} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', color: 'var(--gold-dark)' }}>
                                 Mark all read
@@ -163,7 +163,7 @@ const NotificationBell = ({ isTransparent }) => {
                                 >
                                     {/* Avatar with a small type badge, like the notifications feed */}
                                     <div style={{ position: 'relative', flexShrink: 0 }}>
-                                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: pal.bg, color: pal.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', fontSize: '0.95rem' }}>{initial}</div>
+                                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: pal.bg, color: pal.fg, display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '0.95rem' }}>{initial}</div>
                                         <span style={{ position: 'absolute', bottom: '-2px', right: '-3px', fontSize: '0.65rem', background: 'var(--card-bg)', borderRadius: '50%', width: '17px', height: '17px', display: 'flex', alignItems: 'center', justifyContent: 'center', lineHeight: 1 }}>{typeIcon(n.type)}</span>
                                     </div>
                                     <div style={{ flex: 1, minWidth: 0, paddingRight: '1rem' }}>

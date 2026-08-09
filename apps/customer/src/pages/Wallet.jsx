@@ -104,7 +104,7 @@ const Wallet = () => {
         <div style={{ maxWidth: '860px', margin: '0 auto', padding: 'calc(56px + 1.5rem) 1rem 4rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem' }}>
                 <WalletIcon size={26} color="var(--gold)" />
-                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>My Wallet</h1>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>My Wallet</h1>
             </div>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', margin: '0 0 1.75rem' }}>
                 Prepaid balances you hold with your businesses. Top up by paying the business directly — they approve it and your balance updates.
@@ -175,9 +175,9 @@ const Wallet = () => {
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1rem' }}>
                                         {w.provider?.avatar
                                             ? <img src={cloudinaryAvatar(w.provider.avatar, 96)} alt="" style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }} />
-                                            : <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--warm-gray)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '700', color: 'var(--gold-dark)' }}>{(w.provider?.name || '?')[0]}</div>}
+                                            : <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--warm-gray)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', color: 'var(--gold-dark)' }}>{(w.provider?.name || '?')[0]}</div>}
                                         <div>
-                                            <p style={{ margin: 0, fontWeight: '700', color: 'var(--charcoal)' }}>{w.provider?.name || 'Business'}</p>
+                                            <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)' }}>{w.provider?.name || 'Business'}</p>
                                             <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>{w.provider?.providerCategory || w.provider?.businessProfile?.businessName || ''}</p>
                                         </div>
                                     </div>
@@ -190,7 +190,7 @@ const Wallet = () => {
                                         ].map((b) => (
                                             <div key={b.label} style={{ background: b.accent ? 'rgba(240,62,22,0.1)' : 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '0.7rem 0.5rem', textAlign: 'center' }}>
                                                 <div style={{ fontSize: '0.68rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{b.label}</div>
-                                                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '700', color: b.accent ? 'var(--gold-dark)' : 'var(--charcoal)' }}>{money(b.val, cur)}</div>
+                                                <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '600', color: b.accent ? 'var(--gold-dark)' : 'var(--charcoal)' }}>{money(b.val, cur)}</div>
                                             </div>
                                         ))}
                                     </div>
@@ -233,7 +233,7 @@ const Wallet = () => {
                                                                 </p>
                                                             </div>
                                                             <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                                                                <div style={{ fontWeight: '700', fontSize: '0.85rem', color: d.color }}>{d.amount}</div>
+                                                                <div style={{ fontWeight: '600', fontSize: '0.85rem', color: d.color }}>{d.amount}</div>
                                                                 {t.balanceAfter?.total != null && <div style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>bal {money(t.balanceAfter.total, cur)}</div>}
                                                             </div>
                                                         </div>

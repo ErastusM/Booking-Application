@@ -51,7 +51,7 @@ const AuthPrompt = ({
                 style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '400px', boxShadow: '0 20px 60px rgba(4,5,5,0.3)', outline: 'none' }}
             >
                 <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h2 id="auth-prompt-title" style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>{title}</h2>
+                    <h2 id="auth-prompt-title" style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>{title}</h2>
                     <button onClick={() => onClose?.()} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
                 </div>
 
@@ -71,7 +71,7 @@ const AuthPrompt = ({
                         <>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', margin: '0.9rem 0' }}>
                                 <span style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
-                                <span style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>or</span>
+                                <span style={{ fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.08em', color: 'var(--text-muted)', textTransform: 'uppercase' }}>or</span>
                                 <span style={{ flex: 1, height: '1px', background: 'var(--border)' }} />
                             </div>
                             <button type="button" className="btn-outline" style={{ ...actionStyle, marginBottom: 0 }} onClick={() => { onClose?.(); onGuest?.(); }}>

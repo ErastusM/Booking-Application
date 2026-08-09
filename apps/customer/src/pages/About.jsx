@@ -25,8 +25,8 @@ const About = () => {
             <section style={{ position: 'relative', overflow: 'hidden', paddingTop: 'clamp(4rem, 10vh, 9rem)', paddingBottom: 'clamp(2rem, 5vh, 3.5rem)' }}>
                 <div aria-hidden="true" style={{ position: 'absolute', inset: 0, background: 'radial-gradient(60% 45% at 50% 0%, rgba(240,62,22,0.14), transparent 70%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative', maxWidth: '760px', marginLeft: 'auto', marginRight: 'auto', textAlign: 'center' }}>
-                    <p style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '1rem' }}>About us</p>
-                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.2rem, 5.5vw, 3.6rem)', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1.08, letterSpacing: '-0.02em', margin: 0 }}>
+                    <p style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '600', letterSpacing: '0.18em', textTransform: 'uppercase', marginBottom: '1rem' }}>About us</p>
+                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.2rem, 5.5vw, 3.6rem)', fontWeight: '600', color: 'var(--charcoal)', lineHeight: 1.08, letterSpacing: '-0.02em', margin: 0 }}>
                         A local app to link <span style={{ color: 'var(--gold)' }}>everyone together</span>
                     </h1>
                 </div>
@@ -47,8 +47,8 @@ const About = () => {
             <section style={{ background: 'var(--card-bg)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: 'clamp(3rem, 7vh, 5rem) 0' }}>
                 <div className="container">
                     <div style={{ textAlign: 'center', marginBottom: '2.75rem' }}>
-                        <p style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '700', letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Why us</p>
-                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.7rem, 4vw, 2.6rem)', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Booking, done beautifully</h2>
+                        <p style={{ color: 'var(--gold-dark)', fontSize: '0.78rem', fontWeight: '600', letterSpacing: '0.16em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Why us</p>
+                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.7rem, 4vw, 2.6rem)', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Booking, done beautifully</h2>
                     </div>
                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(230px, 1fr))', gap: '1.25rem' }}>
                         {features.map(({ Icon, title, description }, i) => (
@@ -56,7 +56,7 @@ const About = () => {
                                 <div style={{ width: '46px', height: '46px', borderRadius: '12px', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.1rem' }}>
                                     <Icon size={22} strokeWidth={2} />
                                 </div>
-                                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.5rem' }}>{title}</h3>
+                                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '600', color: 'var(--charcoal)', margin: '0 0 0.5rem' }}>{title}</h3>
                                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.65, margin: 0 }}>{description}</p>
                             </div>
                         ))}
@@ -67,7 +67,7 @@ const About = () => {
             {/* CTA */}
             <section style={{ padding: 'clamp(3rem, 7vh, 5rem) 0', textAlign: 'center' }}>
                 <div className="container" style={{ maxWidth: '560px' }}>
-                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.6rem, 4vw, 2.4rem)', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 1rem' }}>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.6rem, 4vw, 2.4rem)', fontWeight: '600', color: 'var(--charcoal)', margin: '0 0 1rem' }}>
                         {isProvider ? 'Grow your business with Bookplus' : 'Find your next appointment'}
                     </h2>
                     <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', lineHeight: 1.6, margin: '0 0 2rem' }}>

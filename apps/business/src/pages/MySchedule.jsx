@@ -25,7 +25,7 @@ const MySchedule = () => {
 
     return (
         <div className="container" style={{ paddingTop: 'calc(56px + 2rem)', paddingBottom: '4rem', maxWidth: '680px' }}>
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.35rem' }}>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.35rem' }}>
                 My schedule
             </h1>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', margin: '0 0 1.75rem' }}>
@@ -43,10 +43,10 @@ const MySchedule = () => {
                 upcoming.map(a => (
                     <div key={a._id} data-testid="my-schedule-appt" style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.9rem 1.15rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         <div style={{ textAlign: 'center', minWidth: '64px' }}>
-                            <p style={{ margin: 0, fontWeight: 700, color: 'var(--gold-dark)', fontSize: '0.8rem' }}>
+                            <p style={{ margin: 0, fontWeight: 600, color: 'var(--gold-dark)', fontSize: '0.8rem' }}>
                                 {new Date(a.appointmentDate).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}
                             </p>
-                            <p className="tnum" style={{ margin: 0, fontWeight: 700, color: 'var(--charcoal)', fontSize: '0.95rem' }}>{a.startTime}</p>
+                            <p className="tnum" style={{ margin: 0, fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.95rem' }}>{a.startTime}</p>
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
                             <p style={{ margin: 0, fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.92rem' }}>{a.service?.name || 'Service'}</p>

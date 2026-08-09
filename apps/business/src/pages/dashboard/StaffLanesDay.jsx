@@ -235,7 +235,7 @@ const StaffLanesDay = ({
                     <button type="button" aria-label="Previous day" onClick={() => shiftDay(-1)} style={navBtnStyle}><ChevronLeft size={17} /></button>
                     <button type="button" aria-label="Next day" onClick={() => shiftDay(1)} style={navBtnStyle}><ChevronRight size={17} /></button>
                 </div>
-                <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 700, color: 'var(--charcoal)', textAlign: 'center', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: 600, color: 'var(--charcoal)', textAlign: 'center', flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {date.toLocaleDateString('en-US', { weekday: 'short', month: 'long', day: 'numeric' })}
                 </span>
                 <button
@@ -257,7 +257,7 @@ const StaffLanesDay = ({
                         <div key={`h_${lane.id}`} data-testid="staff-lane-header" style={{ position: 'sticky', top: 0, zIndex: 5, background: 'var(--card-bg)', borderBottom: '2px solid var(--border)', borderLeft: '1px solid var(--border)', padding: '0.55rem 0.75rem', overflow: 'hidden' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', minWidth: 0 }}>
                                 <span aria-hidden="true" style={{ width: '10px', height: '10px', borderRadius: '50%', background: lane.color, flexShrink: 0 }} />
-                                <span style={{ fontSize: '0.83rem', fontWeight: 700, color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lane.name}</span>
+                                <span style={{ fontSize: '0.83rem', fontWeight: 600, color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lane.name}</span>
                             </div>
                             <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                 {lane.sub}{perLane[lane.id]?.appts.length ? ` · ${perLane[lane.id].appts.length} booked` : ''}
@@ -339,11 +339,11 @@ const StaffLanesDay = ({
                                             }}
                                         >
                                             {h >= 40 && (
-                                                <div className="tnum" style={{ fontSize: '0.66rem', fontWeight: 700, opacity: 0.75, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                <div className="tnum" style={{ fontSize: '0.66rem', fontWeight: 600, opacity: 0.75, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                     {ev.raw.startTime}{ev.raw.endTime ? ` – ${ev.raw.endTime}` : ''}
                                                 </div>
                                             )}
-                                            <div style={{ fontSize: '0.78rem', fontWeight: 700, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{clientName}</div>
+                                            <div style={{ fontSize: '0.78rem', fontWeight: 600, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{clientName}</div>
                                             {h >= 56 && (
                                                 <div style={{ fontSize: '0.7rem', opacity: 0.8, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{ev.raw.service?.name || 'Appointment'}</div>
                                             )}

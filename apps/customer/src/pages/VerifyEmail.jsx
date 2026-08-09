@@ -80,7 +80,7 @@ const VerifyEmail = () => {
         <div style={{ minHeight: '100dvh', background: 'var(--off-white)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
             <div style={{ width: '100%', maxWidth: '480px', textAlign: 'center' }} className="fade-up">
 
-                <Link to="/" style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: '700', color: 'var(--charcoal)', textDecoration: 'none', display: 'block', marginBottom: '2.5rem' }}>
+                <Link to="/" style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: '600', color: 'var(--charcoal)', textDecoration: 'none', display: 'block', marginBottom: '2.5rem' }}>
                     Book<span style={{ color: 'var(--gold)' }}>plus</span>
                 </Link>
 
@@ -95,7 +95,7 @@ const VerifyEmail = () => {
                             }
                         </div>
 
-                        <h1 style={{ fontFamily: 'var(--font-body)', fontSize: '1.8rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
+                        <h1 style={{ fontFamily: 'var(--font-body)', fontSize: '1.8rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>
                             {current.title}
                         </h1>
 

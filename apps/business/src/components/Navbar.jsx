@@ -120,8 +120,34 @@ const Navbar = () => {
     // Small uppercase divider so the drawer reads as grouped sections (Primary /
     // More / Settings) instead of one long flat list.
     const drawerSection = (label) => (
-        <p style={{ margin: '0.9rem 0 0.1rem', padding: '0.4rem 1.2rem 0', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>{label}</p>
+        <p style={{ margin: '0.9rem 0 0.1rem', padding: '0.4rem 1.2rem 0', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>{label}</p>
     );
+
+    // Compact mobile bottom-nav tab. Active logic mirrors the desktop pills:
+    // Calendar (the tab-less dashboard) stays active for any non-nav ?tab. No
+    // underline indicator — active state reads from the tinted chip + gold label.
+    const bottomTab = ({ to, icon, label }) => {
+        const [toPath, toQs] = to.split('?');
+        const toTab = toQs ? new URLSearchParams(toQs).get('tab') : null;
+        const curTab = new URLSearchParams(location.search).get('tab');
+        const active = location.pathname === toPath && (toTab ? curTab === toTab : (toPath === '/dashboard' ? !curTab : true));
+        return (
+            <Link key={to} to={to} aria-label={label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', textDecoration: 'none', minWidth: 0, WebkitTapHighlightColor: 'transparent' }}>
+                <span style={{
+                    width: '38px', height: '28px', borderRadius: '9px',
+                    display: 'flex', alignItems: 'center', justifyContent: 'center',
+                    background: active ? 'rgba(240,62,22,0.16)' : 'transparent',
+                    color: active ? 'var(--gold-dark)' : 'var(--text-muted)',
+                    transition: 'background 0.18s ease, color 0.18s ease',
+                }}>{icon}</span>
+                <span style={{
+                    fontSize: '0.58rem', fontWeight: active ? 700 : 500,
+                    color: active ? 'var(--gold-dark)' : 'var(--text-muted)',
+                    fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', lineHeight: 1,
+                }}>{label}</span>
+            </Link>
+        );
+    };
 
     // The admin console has its own full-bleed, branded sign-in — the marketing
     // nav (with its Login / Sign Up links) would clutter it and blur "this is the
@@ -139,7 +165,7 @@ const Navbar = () => {
                 {/* Logo */}
                 <Link to="/" style={{ textDecoration: 'none', flexShrink: 0, display: 'inline-flex', alignItems: 'center', gap: '0.55rem' }}>
                     <Wordmark size="1.6rem" bookColor="#fff" />
-                    <span style={{ marginLeft: '0.15rem', fontSize: '0.6rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-light)', border: '1px solid rgba(240,62,22,0.5)', borderRadius: '999px', padding: '0.2rem 0.5rem', flexShrink: 0 }}>Business</span>
+                    <span style={{ marginLeft: '0.15rem', fontSize: '0.6rem', fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-light)', border: '1px solid rgba(240,62,22,0.5)', borderRadius: '999px', padding: '0.2rem 0.5rem', flexShrink: 0 }}>Business</span>
                 </Link>
 
                 {/* Desktop primary tabs — product navigation only. The cross-app
@@ -207,7 +233,7 @@ const Navbar = () => {
                                     onMouseEnter={e => e.currentTarget.style.background = 'rgba(255,255,255,0.12)'}
                                     onMouseLeave={e => e.currentTarget.style.background = 'rgba(255,255,255,0.06)'}
                                 >
-                                    <span style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)', fontWeight: '700', fontSize: '0.8rem', flexShrink: 0 }}>
+                                    <span style={{ width: '32px', height: '32px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)', fontWeight: '600', fontSize: '0.8rem', flexShrink: 0 }}>
                                         {user.avatar
                                             ? <img src={cloudinaryAvatar(user.avatar)} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                             : user.name?.charAt(0).toUpperCase()}
@@ -220,7 +246,7 @@ const Navbar = () => {
                                         <div onClick={() => setProfileOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 1100 }} />
                                         <div style={{ position: 'absolute', right: 0, top: 'calc(100% + 10px)', zIndex: 1101, width: '250px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '16px', boxShadow: '0 16px 44px rgba(4,5,5,0.28)', overflow: 'hidden', padding: '0.4rem' }}>
                                             <div style={{ padding: '0.65rem 0.85rem 0.7rem', borderBottom: '1px solid var(--border)', marginBottom: '0.35rem' }}>
-                                                <p style={{ margin: 0, fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.92rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</p>
+                                                <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.92rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</p>
                                                 <p style={{ margin: '1px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</p>
                                             </div>
                                             {user.role === 'provider' && (
@@ -234,7 +260,7 @@ const Navbar = () => {
                                             )}
                                             {user.role === 'provider' && (
                                                 <>
-                                                    <p style={{ margin: '0.35rem 0 0.15rem', padding: '0 0.85rem', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Settings</p>
+                                                    <p style={{ margin: '0.35rem 0 0.15rem', padding: '0 0.85rem', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Settings</p>
                                                     {SETTINGS_LINKS.map(l => (
                                                         <Link key={l.to} to={l.to} onClick={() => setProfileOpen(false)} style={{ display: 'block', padding: '0.55rem 0.85rem', borderRadius: '10px', textDecoration: 'none', color: 'var(--charcoal)', fontSize: '0.88rem', fontWeight: 600 }}
                                                             onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
@@ -335,7 +361,7 @@ const Navbar = () => {
                     <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.1rem 1.2rem', borderBottom: '1px solid var(--border)' }}>
                         <Link to="/" onClick={() => setMenuOpen(false)} style={{ textDecoration: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
                             <Wordmark size="1.4rem" />
-                            <span style={{ marginLeft: '0.1rem', fontSize: '0.55rem', fontWeight: 800, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-dark)', border: '1px solid rgba(240,62,22,0.5)', borderRadius: '999px', padding: '0.18rem 0.45rem', flexShrink: 0 }}>Business</span>
+                            <span style={{ marginLeft: '0.1rem', fontSize: '0.55rem', fontWeight: 600, letterSpacing: '0.14em', textTransform: 'uppercase', color: 'var(--gold-dark)', border: '1px solid rgba(240,62,22,0.5)', borderRadius: '999px', padding: '0.18rem 0.45rem', flexShrink: 0 }}>Business</span>
                         </Link>
                         <button onClick={() => setMenuOpen(false)} aria-label="Close menu" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.55rem', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                             <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24">
@@ -354,7 +380,7 @@ const Navbar = () => {
                     {user && (
                         <div style={{ background: 'rgba(240,62,22,0.07)', borderBottom: '1px solid var(--border)' }}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '1rem 1.2rem' }}>
-                                <div style={{ width: '38px', height: '38px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)', fontWeight: '700', fontSize: '0.9rem', flexShrink: 0 }}>
+                                <div style={{ width: '38px', height: '38px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--ink)', fontWeight: '600', fontSize: '0.9rem', flexShrink: 0 }}>
                                     {user.avatar
                                         ? <img src={cloudinaryAvatar(user.avatar)} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                                         : user.name?.charAt(0).toUpperCase()
@@ -469,52 +495,46 @@ const Navbar = () => {
             }}>
                 <div style={{
                     pointerEvents: 'auto', width: '100%', maxWidth: '440px',
-                    display: 'flex', justifyContent: 'space-around', alignItems: 'flex-start',
+                    display: 'flex', justifyContent: 'space-around', alignItems: 'center',
                     // Solid (NOT backdrop-filter): a backdrop-filtered fixed bar is exactly
                     // what makes iOS Safari fail to repaint it during momentum scroll and
                     // "stick" mid-page. Matches the customer app's bottom nav.
                     background: darkMode ? '#17181c' : '#ffffff',
                     border: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid var(--border)',
                     borderRadius: '20px', boxShadow: '0 8px 22px rgba(4,5,5,0.13)',
-                    padding: '7px 6px 6px',
+                    padding: '6px 8px',
                 }}>
-                    {[
-                        { to: '/dashboard', label: 'Calendar', icon: (
-                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
-                        ) },
-                        { to: '/dashboard?tab=clients', label: 'Clients', icon: (
-                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 4.5a3.5 3.5 0 010 7M21 20c0-2.6-1.6-4.8-4-5.7"/></svg>
-                        ) },
-                        { to: '/dashboard?tab=earnings', label: 'Earnings', icon: (
-                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
-                        ) },
-                        { to: '/account', label: 'Account', icon: (
-                            <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
-                        ) },
-                    ].map(({ to, icon, label }) => {
-                        const [toPath, toQs] = to.split('?');
-                        const toTab = toQs ? new URLSearchParams(toQs).get('tab') : null;
-                        const curTab = new URLSearchParams(location.search).get('tab');
-                        // Calendar (no tab) is the dashboard default — it stays active for any tab that isn't another nav item's.
-                        const active = location.pathname === toPath && (toTab ? curTab === toTab : (toPath === '/dashboard' ? !curTab : true));
-                        return (
-                            <Link key={to} to={to} aria-label={label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '5px', textDecoration: 'none', minWidth: 0, WebkitTapHighlightColor: 'transparent' }}>
-                                <span style={{
-                                    width: '38px', height: '38px', borderRadius: '50%',
-                                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                                    background: active ? 'rgba(240,62,22,0.20)' : 'rgba(240,62,22,0.09)',
-                                    color: active ? 'var(--gold-dark)' : 'var(--gold)',
-                                    transition: 'background 0.18s ease, color 0.18s ease',
-                                }}>{icon}</span>
-                                <span style={{
-                                    fontSize: '0.6rem', fontWeight: active ? '700' : '500',
-                                    color: active ? 'var(--gold-dark)' : 'var(--text-muted)',
-                                    fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', lineHeight: 1.1,
-                                }}>{label}</span>
-                                <span style={{ width: '16px', height: '2px', borderRadius: '99px', background: active ? 'var(--gold)' : 'transparent', transition: 'background 0.18s ease' }} />
-                            </Link>
-                        );
-                    })}
+                    {bottomTab({ to: '/dashboard', label: 'Calendar', icon: (
+                        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
+                    ) })}
+                    {bottomTab({ to: '/dashboard?tab=clients', label: 'Clients', icon: (
+                        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.5"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><path d="M16 4.5a3.5 3.5 0 010 7M21 20c0-2.6-1.6-4.8-4-5.7"/></svg>
+                    ) })}
+
+                    {/* Raised center "+" — starts a new booking. Navbar can't reach the
+                        dashboard's modal state, so it deep-links to /dashboard?new=1,
+                        which ProviderDashboard turns into openBlankApptModal(). The lift
+                        is a transform on THIS span only (a grandchild), never on the
+                        fixed bar itself — so the iOS repaint fix above is untouched. */}
+                    <Link to="/dashboard?new=1" aria-label="New booking" style={{ flexShrink: 0, alignSelf: 'center', margin: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', WebkitTapHighlightColor: 'transparent' }}>
+                        <span style={{
+                            width: '48px', height: '48px', borderRadius: '50%',
+                            background: 'var(--gold)', color: '#fff',
+                            display: 'flex', alignItems: 'center', justifyContent: 'center',
+                            boxShadow: '0 8px 18px rgba(240,62,22,0.45)',
+                            transform: 'translateY(-14px)',
+                            border: `3px solid ${darkMode ? '#17181c' : '#ffffff'}`,
+                        }}>
+                            <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14"/></svg>
+                        </span>
+                    </Link>
+
+                    {bottomTab({ to: '/dashboard?tab=earnings', label: 'Earnings', icon: (
+                        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
+                    ) })}
+                    {bottomTab({ to: '/account', label: 'Account', icon: (
+                        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
+                    ) })}
                 </div>
             </div>,
             document.body

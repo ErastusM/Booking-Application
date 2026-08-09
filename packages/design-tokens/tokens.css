@@ -50,11 +50,16 @@
   /* --ink never flips: dark surfaces (hero headers, primary buttons) stay dark in both modes */
   --ink: #040505;
   --on-ink: #e6e8e7;
-  /* Type pairing: Plus Jakarta Sans gives headings their character; Inter is
-     the strongest small-size UI face for dense mobile body text. Both are
-     self-hosted variable fonts (imported via @fontsource in each app). */
-  --font-display: 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', -apple-system, 'Segoe UI', sans-serif;
-  --font-body: 'Inter Variable', 'Inter', -apple-system, 'Segoe UI', sans-serif;
+  /* Type system: SF Pro (Apple's system face) is the primary UI font — led by
+     -apple-system / BlinkMacSystemFont so Apple devices render SF Pro Display
+     (large) and SF Pro Text (small) with automatic optical sizing. SF Pro is
+     proprietary and can't be self-hosted, so the self-hosted Plus Jakarta Sans
+     (display) and Inter (body), still loaded via @fontsource in each app, stay
+     in the stack as graceful fallbacks for non-Apple platforms.
+     Weight scale: names/headings Semibold (600), buttons Medium (500),
+     body/secondary Regular (400), numbers/prices Medium–Semibold (500–600). */
+  --font-display: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro', 'Plus Jakarta Sans Variable', 'Plus Jakarta Sans', 'Segoe UI', Roboto, system-ui, sans-serif;
+  --font-body: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro', 'Inter Variable', 'Inter', 'Segoe UI', Roboto, system-ui, sans-serif;
   /* Semantic status tokens — functional, not brand; do not retint */
   --success: #10b981; --success-bg: #d1fae5; --success-fg: #065f46;
   --info: #3b82f6;    --info-bg: #dbeafe;    --info-fg: #1e40af;

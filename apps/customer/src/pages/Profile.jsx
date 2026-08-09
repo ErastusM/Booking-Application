@@ -20,7 +20,7 @@ const errMsg = { background: '#fee2e2', border: '1px solid #fca5a5', color: '#99
 const panelStyle = { background: 'var(--surface-sunken)', borderBottom: '1px solid var(--border)', padding: '1.1rem 1.25rem' };
 
 const SectionLabel = ({ children }) => (
-    <p style={{ fontSize: '0.72rem', fontWeight: '700', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', margin: '0 0 0.6rem 0.4rem' }}>{children}</p>
+    <p style={{ fontSize: '0.72rem', fontWeight: '600', letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', margin: '0 0 0.6rem 0.4rem' }}>{children}</p>
 );
 
 const Card = ({ children, style }) => (
@@ -121,7 +121,7 @@ const Profile = () => {
 
             {/* Title */}
             <div style={{ paddingTop: 'clamp(4.5rem, 7vw, 4.75rem)', paddingBottom: '1.5rem', textAlign: 'center' }}>
-                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Profile</h1>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Profile</h1>
             </div>
 
             <div className="container" style={{ maxWidth: '640px' }}>
@@ -131,22 +131,22 @@ const Profile = () => {
                     {user?.avatar ? (
                         <img src={cloudinaryAvatar(user.avatar)} alt={user.name} style={{ width: '54px', height: '54px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--gold)', flexShrink: 0 }} onError={e => { e.target.style.display = 'none'; }} />
                     ) : (
-                        <div style={{ width: '54px', height: '54px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', fontWeight: '700', color: 'var(--ink)', fontFamily: 'var(--font-body)', flexShrink: 0 }}>
+                        <div style={{ width: '54px', height: '54px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.25rem', fontWeight: '600', color: 'var(--ink)', fontFamily: 'var(--font-body)', flexShrink: 0 }}>
                             {getInitials(user?.name)}
                         </div>
                     )}
                     <div style={{ minWidth: 0, flex: 1 }}>
-                        <h2 style={{ fontFamily: 'var(--font-body)', fontSize: '1.05rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name}</h2>
+                        <h2 style={{ fontFamily: 'var(--font-body)', fontSize: '1.05rem', fontWeight: '600', color: 'var(--charcoal)', margin: '0 0 0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.name}</h2>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user?.email}</p>
                     </div>
-                    <span style={{ flexShrink: 0, fontSize: '0.68rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0.2rem 0.6rem', borderRadius: '99px', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', border: '1px solid rgba(240,62,22,0.25)' }}>{user?.role}</span>
+                    <span style={{ flexShrink: 0, fontSize: '0.68rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', padding: '0.2rem 0.6rem', borderRadius: '99px', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', border: '1px solid rgba(240,62,22,0.25)' }}>{user?.role}</span>
                 </div>
 
                 {/* Account-mode banner — keep switching / upgrading discoverable */}
                 {user?.role === 'customer' && (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', background: 'var(--card-bg)', border: '1px solid var(--border)', borderLeft: '3px solid var(--gold)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', padding: '1.1rem 1.25rem', marginBottom: '1.5rem' }}>
                         <div>
-                            <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.2rem' }}>Grow your business on Bookplus</h3>
+                            <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', margin: '0 0 0.2rem' }}>Grow your business on Bookplus</h3>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>List your services and take bookings — you keep this customer account too.</p>
                         </div>
                         <button onClick={() => navigate('/become-provider')} className="btn-primary" style={{ padding: '0.65rem 1.4rem', whiteSpace: 'nowrap' }}>Become a Business →</button>
@@ -155,7 +155,7 @@ const Profile = () => {
                 {user?.role === 'provider' && (
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', background: 'var(--card-bg)', border: '1px solid var(--border)', borderLeft: '3px solid var(--gold)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', padding: '1.1rem 1.25rem', marginBottom: '1.5rem' }}>
                         <div>
-                            <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.2rem' }}>You're on the customer site</h3>
+                            <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', margin: '0 0 0.2rem' }}>You're on the customer site</h3>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>Browsing and booking as a customer. Your business lives in the Business app.</p>
                         </div>
                         <button onClick={() => { window.location.href = `${import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003'}/dashboard`; }} className="btn-primary" style={{ padding: '0.65rem 1.4rem', whiteSpace: 'nowrap' }}>Open the Business app →</button>

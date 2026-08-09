@@ -75,7 +75,7 @@ const AccountDangerZone = () => {
             {confirm && (
                 <div onClick={() => !busy && setConfirm(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
                     <div onClick={(e) => e.stopPropagation()} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '420px', padding: '1.5rem' }}>
-                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.5rem' }}>
+                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)', margin: '0 0 0.5rem' }}>
                             {confirm === 'delete' ? 'Delete your account?' : 'Deactivate your account?'}
                         </h3>
                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.6, margin: '0 0 1rem' }}>
@@ -89,7 +89,7 @@ const AccountDangerZone = () => {
                         {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                             <button onClick={() => setConfirm(null)} disabled={busy} className="btn-outline" style={{ padding: '0.6rem 1.1rem' }}>Cancel</button>
-                            <button onClick={confirm === 'delete' ? doDelete : doDeactivate} disabled={busy} style={{ padding: '0.6rem 1.3rem', borderRadius: 'var(--radius-sm)', border: 'none', background: confirm === 'delete' ? '#dc2626' : 'var(--ink)', color: 'var(--on-ink)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '700' }}>
+                            <button onClick={confirm === 'delete' ? doDelete : doDeactivate} disabled={busy} style={{ padding: '0.6rem 1.3rem', borderRadius: 'var(--radius-sm)', border: 'none', background: confirm === 'delete' ? '#dc2626' : 'var(--ink)', color: 'var(--on-ink)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600' }}>
                                 {busy ? 'Please wait…' : confirm === 'delete' ? 'Delete forever' : 'Deactivate'}
                             </button>
                         </div>

@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef, lazy, Suspense } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import FullCalendar from '@fullcalendar/react';
 import dayGridPlugin from '@fullcalendar/daygrid';
 import timeGridPlugin from '@fullcalendar/timegrid';
@@ -14,7 +14,7 @@ import ApptFormsView from '../components/ApptFormsView';
 import EnablePushBanner from '../components/EnablePushBanner';
 import SetupChecklistNudge from '../components/SetupChecklistNudge';
 import ServiceFormModal from '../components/ServiceFormModal';
-import { Calendar, History, Scissors, CalendarClock, Clock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, UserCog, CalendarPlus, Ban, Wallet as WalletIcon, ChevronDown, ChevronLeft, Send } from 'lucide-react';
+import { Calendar, History, Scissors, CalendarClock, Clock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, CalendarPlus, Ban, Wallet as WalletIcon, ChevronDown, ChevronLeft, Send } from 'lucide-react';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { NAMIBIAN_TOWNS, normalizeTown } from '../utils/namibiaTowns';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
@@ -34,6 +34,7 @@ const ProviderDashboard = () => {
     const curSym = currencySymbol(curCode);
     const nMoney = (n) => `${curSym}${Number(n || 0).toFixed(2)}`;
     const location = useLocation();
+    const navigate = useNavigate();
     const toast = useToast();
     const calendarRef = useRef(null);
     const fcWrapRef = useRef(null);
@@ -71,7 +72,7 @@ const ProviderDashboard = () => {
     const [catalogueCategory, setCatalogueCategory] = useState('all');
     const [catalogueSearch, setCatalogueSearch] = useState('');
     const [currentDate, setCurrentDate] = useState(new Date());
-    const [calendarView, setCalendarView] = useState('day');
+    const [calendarView, setCalendarView] = useState('3day');
     const [calendarToast, setCalendarToast] = useState(null); // { msg, type }
 
     // Size the day/week calendar to fill from its top down to just above the fixed
@@ -133,7 +134,7 @@ const ProviderDashboard = () => {
     const [savingApptDetail, setSavingApptDetail] = useState(false);
     const [apptDetailError, setApptDetailError] = useState('');
     const [showReschedule, setShowReschedule] = useState(false); // reschedule form is collapsed by default to keep actions reachable
-    const [showApptContact, setShowApptContact] = useState(false); // contact options reveal when the provider taps the client name
+    const [showApptActions, setShowApptActions] = useState(false); // compact "Actions ▾" dropdown popover in the appt detail sheet
 
     // Wallet (prepaid balances the provider holds for clients)
     const [walletSummary, setWalletSummary] = useState(null);
@@ -188,7 +189,8 @@ const ProviderDashboard = () => {
     }, [user]);
 
     useEffect(() => {
-        const tab = new URLSearchParams(location.search).get('tab');
+        const params = new URLSearchParams(location.search);
+        const tab = params.get('tab');
         const validTabs = ['calendar', 'pending', 'confirmed', 'completed', 'cancelled', 'history', 'services', 'availability', 'overview', 'waitlist', 'earnings', 'insights', 'clients', 'messages', 'memberships', 'team', 'forms', 'wallet'];
         if (tab && validTabs.includes(tab)) {
             setActiveTab(tab);
@@ -196,7 +198,17 @@ const ProviderDashboard = () => {
             // Bare /dashboard (e.g. the bottom-nav Dashboard button) → default view
             setActiveTab('calendar');
         }
-    }, [location.search]);
+        // Raised "+" in the mobile bottom nav can't reach this component's modal
+        // state, so it deep-links to /dashboard?new=1. Open a fresh booking and
+        // strip the flag (via router replace, so a subsequent "+" tap is a real
+        // change to location.search and re-opens cleanly).
+        if (params.get('new') === '1') {
+            openBlankApptModal();
+            params.delete('new');
+            const qs = params.toString();
+            navigate(qs ? `${location.pathname}?${qs}` : location.pathname, { replace: true });
+        }
+    }, [location.search]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => { // eslint-disable-line react-hooks/exhaustive-deps
         // Run all initial fetches in parallel — don't wait for one before starting the next
@@ -982,6 +994,7 @@ const ProviderDashboard = () => {
                     startTime: a.startTime,
                     endTime: a.endTime,
                     status: a.status,
+                    isRecurring: a.isRecurring,
                     staffName: a.teamMember?.name || null,
                     staffColor: a.teamMember?.color || null,
                     raw: a,
@@ -1005,6 +1018,7 @@ const ProviderDashboard = () => {
                 extendedProps: {
                     kind: 'blocked',
                     blockedId: b._id,
+                    isRecurring: b.isRecurring,
                     raw: b,
                 },
             };
@@ -1050,7 +1064,7 @@ const ProviderDashboard = () => {
         });
         setApptDetailError('');
         setShowReschedule(false);
-        setShowApptContact(false);
+        setShowApptActions(false);
         setApptDetailModal(appt);
     };
 
@@ -1212,23 +1226,6 @@ const ProviderDashboard = () => {
         { label: 'Completed', value: counts.completed, Icon: TrendingUp },
     ];
 
-    // Personal, at-a-glance greeting for the dashboard landing (iOS feel)
-    const _now = new Date();
-    const greeting = _now.getHours() < 12 ? 'Good morning' : _now.getHours() < 18 ? 'Good afternoon' : 'Good evening';
-    const firstName = (user?.name || '').trim().split(' ')[0];
-    const todayLabel = _now.toLocaleDateString('en-US', { weekday: 'long', day: 'numeric', month: 'long' });
-    const todaysAppts = appointments.filter(a => {
-        const d = new Date(a.appointmentDate);
-        return d.toDateString() === _now.toDateString() && a.status !== 'cancelled';
-    });
-    const todaysCount = todaysAppts.length;
-    // "Coming up" = today's appointments that haven't finished yet, so a booking
-    // that already ended this morning doesn't get advertised as still pending.
-    const upcomingTodayCount = todaysAppts.filter(a => {
-        const end = mergeDateAndTime(a.appointmentDate, a.endTime || a.startTime);
-        return !end || end.getTime() > _now.getTime();
-    }).length;
-
     // Build FullCalendar businessHours from the provider's availability so the
     // calendar greys out non-working time (and constrains drag/resize to it).
     const businessHoursConfig = useMemo(() => {
@@ -1281,31 +1278,12 @@ const ProviderDashboard = () => {
                 </Suspense>
             )}
 
-            {/* Header */}
-            <div className="provider-header" style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '1.75rem', position: 'relative', overflow: 'hidden' }}>
-                <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 70% 40%, rgba(240,62,22,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
-                <div className="container" style={{ position: 'relative' }}>
-                    <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>{todayLabel}</p>
-                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2.2rem, 4vw, 3.25rem)', fontWeight: '700', color: 'white', lineHeight: 1.05, marginBottom: '0.5rem' }}>
-                        {greeting}{firstName ? <>, <span style={{ color: 'var(--gold)' }}>{firstName}</span></> : ''}
-                    </h1>
-                    <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: '0.98rem', maxWidth: '56ch', lineHeight: 1.65, marginBottom: '1.25rem' }}>
-                        {upcomingTodayCount > 0
-                            ? `You have ${upcomingTodayCount} appointment${upcomingTodayCount > 1 ? 's' : ''} coming up today.`
-                            : todaysCount > 0
-                                ? "You're all caught up — no more appointments today."
-                                : 'No appointments scheduled for today.'}
-                    </p>
-                    <div style={{ display: 'flex', gap: '0.75rem', flexWrap: 'wrap' }}>
-                    <Link to="/account" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', color: 'rgba(255,255,255,0.7)', fontFamily: 'var(--font-body)', fontSize: '0.85rem', textDecoration: 'none', border: '1px solid rgba(255,255,255,0.2)', padding: '0.45rem 0.9rem', borderRadius: 'var(--radius-sm)', transition: 'all 0.2s' }}
-                        onMouseEnter={e => e.currentTarget.style.color = 'white'}
-                        onMouseLeave={e => e.currentTarget.style.color = 'rgba(255,255,255,0.7)'}
-                    ><UserCog size={15} strokeWidth={2} /> My Account</Link>
-                    </div>
-                </div>
-            </div>
-
-            <div className="container" style={{ paddingTop: '1.5rem', paddingBottom: '5rem' }}>
+            {/* Greeting hero removed — the calendar now leads. The container below is
+                the top of the page, so it carries the clearance for the fixed navbar
+                (56px + safe-area) that the hero's page-hero-pad-top used to provide.
+                The calendar tab keeps this tight so the grid starts high; other tabs
+                read fine with the same offset. */}
+            <div className="container" style={{ paddingTop: 'calc(56px + env(safe-area-inset-top, 0px) + 0.75rem)', paddingBottom: '5rem' }}>
 
                 <EnablePushBanner />
                 <SetupChecklistNudge />
@@ -1359,7 +1337,7 @@ const ProviderDashboard = () => {
                                                 <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.35rem' }}>Service</p>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                                                     <p style={{ fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>{a.service?.name}</p>
-                                                    {a.isRecurring && <span title="Recurring appointment" style={{ fontSize: '0.7rem', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', borderRadius: '99px', padding: '0.1rem 0.4rem', fontWeight: '700' }}>↻</span>}
+                                                    {a.isRecurring && <span title="Recurring appointment" style={{ fontSize: '0.7rem', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', borderRadius: '99px', padding: '0.1rem 0.4rem', fontWeight: '600' }}>↻</span>}
                                                 </div>
                                                 <p style={{ color: 'var(--gold-dark)', fontWeight: '600', fontSize: '0.875rem' }}>{curSym} {a.service?.price} · {a.service?.duration} min</p>
                                             </div>
@@ -1444,7 +1422,7 @@ const ProviderDashboard = () => {
                                     <>
                                         {/* Categories sidebar */}
                                         <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem' }}>
-                                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '1rem' }}>Categories</h3>
+                                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem' }}>Categories</h3>
                                             {sidebarItems.map(item => {
                                                 const active = catalogueCategory === item.id;
                                                 return (
@@ -1494,7 +1472,7 @@ const ProviderDashboard = () => {
                                                     if (svcs.length === 0) return null;
                                                     return (
                                                         <div key={group.id} style={{ marginBottom: '1.5rem' }}>
-                                                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>{group.name}</h3>
+                                                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>{group.name}</h3>
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                                                 {svcs.map(s => (
                                                                     <div key={s._id} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', borderLeft: '3px solid var(--gold)', padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
@@ -1503,7 +1481,7 @@ const ProviderDashboard = () => {
                                                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{s.duration} min{s.location ? ` · 📍 ${s.location}` : ''}</p>
                                                                         </div>
                                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
-                                                                            <span style={{ fontFamily: 'var(--font-body)', fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.95rem', whiteSpace: 'nowrap' }}>{curSym} {s.price}</span>
+                                                                            <span style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem', whiteSpace: 'nowrap' }}>{curSym} {s.price}</span>
                                                                             <button onClick={() => handleEditService(s)} style={{ background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Edit</button>
                                                                             <button onClick={() => handleDeleteService(s._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Delete</button>
                                                                         </div>
@@ -1647,7 +1625,7 @@ const ProviderDashboard = () => {
                                         <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(240,62,22,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
                                         <div>
                                             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{s.label}</p>
-                                            <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
+                                            <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.5rem', fontWeight: '600', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
                                             {s.sub && <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{s.sub}</p>}
                                         </div>
                                     </div>
@@ -1667,7 +1645,7 @@ const ProviderDashboard = () => {
                                                     <div key={i}>
                                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '0.5rem', marginBottom: '0.3rem' }}>
                                                             <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: '500', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
-                                                            <span style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--charcoal)', flexShrink: 0, whiteSpace: 'nowrap' }}>{s.count} booking{s.count !== 1 ? 's' : ''}</span>
+                                                            <span style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--charcoal)', flexShrink: 0, whiteSpace: 'nowrap' }}>{s.count} booking{s.count !== 1 ? 's' : ''}</span>
                                                         </div>
                                                         <div style={{ height: '6px', borderRadius: '99px', background: 'var(--warm-gray)', overflow: 'hidden' }}>
                                                             <div style={{ height: '100%', borderRadius: '99px', background: 'var(--gold)', width: `${(s.count / max) * 100}%`, transition: 'width 0.5s ease' }} />
@@ -1690,7 +1668,7 @@ const ProviderDashboard = () => {
                                                 <div key={st}>
                                                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '0.35rem' }}>
                                                         <span style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontWeight: '500', textTransform: 'capitalize' }}>{cfg?.label || st}</span>
-                                                        <span style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--charcoal)' }}>{cnt}</span>
+                                                        <span style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--charcoal)' }}>{cnt}</span>
                                                     </div>
                                                     <div style={{ height: '8px', borderRadius: '99px', background: 'var(--warm-gray)', overflow: 'hidden' }}>
                                                         <div style={{ height: '100%', borderRadius: '99px', background: cfg?.bg || 'var(--gold)', width: `${(cnt / total) * 100}%`, transition: 'width 0.5s ease' }} />
@@ -1705,7 +1683,7 @@ const ProviderDashboard = () => {
                             {providerWaitlist.length > 0 && (
                                 <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1.5rem' }}>
                                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>
-                                        Waiting List <span style={{ fontSize: '0.75rem', fontWeight: '700', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', borderRadius: '99px', padding: '0.15rem 0.6rem', marginLeft: '0.4rem' }}>{providerWaitlist.length}</span>
+                                        Waiting List <span style={{ fontSize: '0.75rem', fontWeight: '600', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', borderRadius: '99px', padding: '0.15rem 0.6rem', marginLeft: '0.4rem' }}>{providerWaitlist.length}</span>
                                     </h3>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                         {providerWaitlist.slice(0, 6).map((w) => (
@@ -1841,7 +1819,7 @@ const ProviderDashboard = () => {
                                             <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(240,62,22,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
                                             <div>
                                                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{s.label}</p>
-                                                <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
+                                                <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.5rem', fontWeight: '600', color: 'var(--charcoal)', lineHeight: 1 }}>{s.value}</p>
                                                 <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>{s.sub}</p>
                                             </div>
                                         </div>
@@ -1969,7 +1947,7 @@ const ProviderDashboard = () => {
                                             <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(240,62,22,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
                                             <div>
                                                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginBottom: '0.2rem' }}>{s.label}</p>
-                                                <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1.1 }}>{s.value}</p>
+                                                <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.4rem', fontWeight: '600', color: 'var(--charcoal)', lineHeight: 1.1 }}>{s.value}</p>
                                                 {s.sub && <p style={{ fontSize: '0.72rem', color: s.trend !== undefined ? (s.trend >= 0 ? '#059669' : '#dc2626') : 'var(--text-muted)', marginTop: '0.25rem' }}>{s.sub}</p>}
                                             </div>
                                         </div>
@@ -2023,7 +2001,7 @@ const ProviderDashboard = () => {
                                                                 <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
                                                                 <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexShrink: 0, whiteSpace: 'nowrap' }}>
                                                                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{s.count} job{s.count !== 1 ? 's' : ''}</span>
-                                                                    <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)' }}>{curSym} {s.earned.toLocaleString()}</span>
+                                                                    <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--charcoal)' }}>{curSym} {s.earned.toLocaleString()}</span>
                                                                 </div>
                                                             </div>
                                                             <div style={{ height: '6px', borderRadius: '99px', background: 'var(--warm-gray)', overflow: 'hidden' }}>
@@ -2042,12 +2020,12 @@ const ProviderDashboard = () => {
                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.875rem' }}>
                                                 {earnings.topClients.map((c, i) => (
                                                     <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                                                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: i === 0 ? 'var(--gold)' : 'var(--warm-gray)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: '700', color: i === 0 ? 'var(--ink)' : 'var(--text-muted)', flexShrink: 0 }}>{i + 1}</div>
+                                                        <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: i === 0 ? 'var(--gold)' : 'var(--warm-gray)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.75rem', fontWeight: '600', color: i === 0 ? 'var(--ink)' : 'var(--text-muted)', flexShrink: 0 }}>{i + 1}</div>
                                                         <div style={{ flex: 1, minWidth: 0 }}>
                                                             <p style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{c.name}</p>
                                                             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: 0 }}>{c.count} visit{c.count !== 1 ? 's' : ''}</p>
                                                         </div>
-                                                        <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)', flexShrink: 0, whiteSpace: 'nowrap' }}>{curSym} {c.earned.toLocaleString()}</span>
+                                                        <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--charcoal)', flexShrink: 0, whiteSpace: 'nowrap' }}>{curSym} {c.earned.toLocaleString()}</span>
                                                     </div>
                                                 ))}
                                             </div>
@@ -2068,7 +2046,7 @@ const ProviderDashboard = () => {
                                                             <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontWeight: '500', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{m.name}</span>
                                                             <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexShrink: 0, whiteSpace: 'nowrap' }}>
                                                                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{m.count} job{m.count !== 1 ? 's' : ''}</span>
-                                                                <span style={{ fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)' }}>{curSym} {m.earned.toLocaleString()}</span>
+                                                                <span style={{ fontSize: '0.85rem', fontWeight: '600', color: 'var(--charcoal)' }}>{curSym} {m.earned.toLocaleString()}</span>
                                                             </div>
                                                         </div>
                                                         <div style={{ height: '6px', borderRadius: '99px', background: 'var(--warm-gray)', overflow: 'hidden' }}>
@@ -2105,7 +2083,7 @@ const ProviderDashboard = () => {
                                                             <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{r.service}</td>
                                                             <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{new Date(r.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</td>
                                                             <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{r.time}</td>
-                                                            <td style={{ padding: '0.875rem 1rem', fontWeight: '700', color: 'var(--charcoal)' }}>{curSym} {r.amount.toLocaleString()}</td>
+                                                            <td style={{ padding: '0.875rem 1rem', fontWeight: '600', color: 'var(--charcoal)' }}>{curSym} {r.amount.toLocaleString()}</td>
                                                         </tr>
                                                     ))}
                                                 </tbody>
@@ -2158,7 +2136,7 @@ const ProviderDashboard = () => {
                                                 border: 'none',
                                                 cursor: 'pointer',
                                                 fontSize: '0.82rem',
-                                                fontWeight: isActive ? '700' : '500',
+                                                fontWeight: isActive ? '600' : '500',
                                                 fontFamily: 'var(--font-body)',
                                                 background: isActive ? 'var(--card-bg)' : 'transparent',
                                                 color: isActive ? 'var(--charcoal)' : 'var(--text-secondary)',
@@ -2222,7 +2200,7 @@ const ProviderDashboard = () => {
                             </div>
                         )}
 
-                        <div ref={fcWrapRef} className="fc-bookplus-wrapper" style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                        <div ref={fcWrapRef} className="fc-bookplus-wrapper fc-fullbleed" style={{ background: 'var(--card-bg)', overflow: 'hidden', width: '100vw', marginLeft: 'calc(50% - 50vw)' }}>
                             {calendarView === 'staff' && activeTeamMembers.length > 0 ? (
                                 <StaffLanesDay
                                     date={currentDate}
@@ -2278,10 +2256,11 @@ const ProviderDashboard = () => {
                                 eventResize={handleFullCalendarEventResize}
                                 datesSet={(arg) => setCurrentDate(arg.start)}
                                 eventContent={(arg) => {
-                                    const { kind, customerName, startTime, endTime, staffName, staffColor } = arg.event.extendedProps;
+                                    const { kind, customerName, startTime, endTime, staffName, staffColor, isRecurring } = arg.event.extendedProps;
                                     if (kind !== 'appointment') {
                                         return (
                                             <div className="fc-event-blocked">
+                                                {isRecurring && <span className="fc-event-recur" aria-hidden="true" title="Repeats">⟳</span>}
                                                 <span>{arg.event.title}</span>
                                             </div>
                                         );
@@ -2291,6 +2270,7 @@ const ProviderDashboard = () => {
                                     const showStaffTag = staffName && calendarStaffFilter === 'all';
                                     return (
                                         <div className="fc-event-appt">
+                                            {isRecurring && <span className="fc-event-recur" aria-hidden="true" title="Repeats">⟳</span>}
                                             <div className="fc-event-appt-time">{startTime}{endTime ? ` – ${endTime}` : ''}</div>
                                             <div className="fc-event-appt-client">{customerName}</div>
                                             <div className="fc-event-appt-service">{arg.event.title}</div>
@@ -2328,7 +2308,7 @@ const ProviderDashboard = () => {
                             <div onClick={() => setTimeSelectionPreview(null)} className="sheet-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.6)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0' }}>
                                 <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in sheet-panel" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                                     <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
-                                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>What's this time for?</h3>
+                                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>What's this time for?</h3>
                                         <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
                                             {new Date(`${timeSelectionPreview.date}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} · {timeSelectionPreview.startTime} – {timeSelectionPreview.endTime}
                                             {timeSelectionPreview.teamMember ? ` · ${teamMembers.find(m => String(m._id) === String(timeSelectionPreview.teamMember))?.name || 'Staff'}` : ''}
@@ -2370,7 +2350,7 @@ const ProviderDashboard = () => {
                             <div className="sheet-overlay" onClick={cancelPendingMove} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.6)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
                                 <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in sheet-panel" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                                     <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
-                                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>
+                                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>
                                             Move {pendingMove.kind === 'blocked' ? 'blocked time' : 'appointment'}?
                                         </h3>
                                         <p style={{ margin: '0.4rem 0 0', fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
@@ -2390,7 +2370,7 @@ const ProviderDashboard = () => {
                             <div className="sheet-overlay" onClick={() => setAdjustHours(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.6)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }}>
                                 <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in sheet-panel" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                                     <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
-                                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Adjust working hours</h3>
+                                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Adjust working hours</h3>
                                         <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{adjustHours.label}</p>
                                     </div>
                                     <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -2423,7 +2403,7 @@ const ProviderDashboard = () => {
                     <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                             <div>
-                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Appointment History</h2>
+                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Appointment History</h2>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>Past appointments sorted newest first</p>
                             </div>
                             <span style={{ background: 'var(--warm-gray)', color: 'var(--text-secondary)', padding: '0.3rem 0.85rem', borderRadius: '99px', fontSize: '0.8rem', fontWeight: '600' }}>{historyTotal} total</span>
@@ -2448,7 +2428,7 @@ const ProviderDashboard = () => {
                                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '1rem', flexWrap: 'wrap' }}>
                                                 <div style={{ minWidth: 0 }}>
                                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.35rem' }}>
-                                                        <p style={{ fontWeight: '700', fontSize: '0.95rem', color: 'var(--charcoal)', margin: 0 }}>{a.walkInName || a.customer?.name || '—'}</p>
+                                                        <p style={{ fontWeight: '600', fontSize: '0.95rem', color: 'var(--charcoal)', margin: 0 }}>{a.walkInName || a.customer?.name || '—'}</p>
                                                         {a.isRecurring && <span title="Recurring" style={{ fontSize: '0.7rem', color: 'var(--gold-dark)', background: 'rgba(240,62,22,0.12)', padding: '0.1rem 0.4rem', borderRadius: '99px', fontWeight: '600' }}>↻ Recurring</span>}
                                                     </div>
                                                     <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 0.25rem' }}>{a.service?.name}</p>
@@ -2457,8 +2437,8 @@ const ProviderDashboard = () => {
                                                     </p>
                                                 </div>
                                                 <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.35rem', flexShrink: 0 }}>
-                                                    <span style={{ fontSize: '0.72rem', fontWeight: '700', padding: '0.2rem 0.65rem', borderRadius: '99px', background: sc.bg, color: sc.color, textTransform: 'capitalize' }}>{a.status}</span>
-                                                    <span style={{ fontSize: '0.875rem', fontWeight: '700', color: 'var(--charcoal)' }}>{curSym} {a.totalPrice || 0}</span>
+                                                    <span style={{ fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.65rem', borderRadius: '99px', background: sc.bg, color: sc.color, textTransform: 'capitalize' }}>{a.status}</span>
+                                                    <span style={{ fontSize: '0.875rem', fontWeight: '600', color: 'var(--charcoal)' }}>{curSym} {a.totalPrice || 0}</span>
                                                 </div>
                                             </div>
                                         </div>
@@ -2627,7 +2607,7 @@ const ProviderDashboard = () => {
                     {/* Conversation list */}
                     <div className="messages-list" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
                         <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
-                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Messages</h3>
+                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Messages</h3>
                         </div>
                         {loadingConversations ? (
                             <RowsSkeleton />
@@ -2651,14 +2631,14 @@ const ProviderDashboard = () => {
                                             <Avatar name={name} />
                                             <div style={{ minWidth: 0, flex: 1 }}>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', gap: '0.5rem' }}>
-                                                    <span style={{ fontWeight: 700, color: 'var(--charcoal)', fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                                                    <span style={{ fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
                                                     {conv.lastMessage?.createdAt && <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', flexShrink: 0 }}>{fmtConvTime(conv.lastMessage.createdAt)}</span>}
                                                 </div>
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '0.15rem' }}>
                                                     <span style={{ flex: 1, minWidth: 0, fontSize: '0.8rem', color: conv.unread > 0 ? 'var(--charcoal)' : 'var(--text-muted)', fontWeight: conv.unread > 0 ? 600 : 400, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                                                         {conv.lastMessage?.content || conv.appointment?.service?.name}
                                                     </span>
-                                                    {conv.unread > 0 && <span style={{ flexShrink: 0, minWidth: '18px', height: '18px', padding: '0 5px', borderRadius: '99px', background: 'var(--gold)', color: 'var(--ink)', fontSize: '0.68rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{conv.unread}</span>}
+                                                    {conv.unread > 0 && <span style={{ flexShrink: 0, minWidth: '18px', height: '18px', padding: '0 5px', borderRadius: '99px', background: 'var(--gold)', color: 'var(--ink)', fontSize: '0.68rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>{conv.unread}</span>}
                                                 </div>
                                             </div>
                                         </button>
@@ -2684,7 +2664,7 @@ const ProviderDashboard = () => {
                                     </button>
                                     <Avatar name={selectedConversation.appointment?.customer?.name || 'Client'} size={38} />
                                     <div style={{ minWidth: 0 }}>
-                                        <div style={{ fontWeight: 700, color: 'var(--charcoal)', fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedConversation.appointment?.customer?.name}</div>
+                                        <div style={{ fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.95rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedConversation.appointment?.customer?.name}</div>
                                         <div style={{ color: 'var(--text-muted)', fontSize: '0.76rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{selectedConversation.appointment?.service?.name}</div>
                                     </div>
                                 </div>
@@ -2734,7 +2714,7 @@ const ProviderDashboard = () => {
 
                     {showPackageForm && (
                         <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--gold)', padding: '1.75rem', marginBottom: '1.5rem', boxShadow: 'var(--shadow-sm)', marginTop: '1.5rem' }}>
-                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '700', marginBottom: '1.25rem', color: 'var(--charcoal)' }}>
+                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '600', marginBottom: '1.25rem', color: 'var(--charcoal)' }}>
                                 {editingPackage ? `Editing: ${editingPackage.name}` : 'New Membership Plan'}
                             </h3>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
@@ -2777,8 +2757,8 @@ const ProviderDashboard = () => {
                                     <div style={{ height: '4px', background: pkg.isActive ? 'var(--gold)' : '#e5e7eb' }} />
                                     <div style={{ padding: '1.5rem', flex: 1 }}>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '0.75rem' }}>
-                                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0, flex: 1, paddingRight: '0.5rem' }}>{pkg.name}</h3>
-                                            <span style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem', borderRadius: '99px', border: '1px solid', cursor: 'pointer', borderColor: pkg.isActive ? '#6ee7b7' : '#d1d5db', background: pkg.isActive ? '#d1fae5' : '#f3f4f6', color: pkg.isActive ? '#065f46' : '#6b7280', fontWeight: '700', whiteSpace: 'nowrap', flexShrink: 0 }}
+                                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0, flex: 1, paddingRight: '0.5rem' }}>{pkg.name}</h3>
+                                            <span style={{ fontSize: '0.7rem', padding: '0.2rem 0.6rem', borderRadius: '99px', border: '1px solid', cursor: 'pointer', borderColor: pkg.isActive ? '#6ee7b7' : '#d1d5db', background: pkg.isActive ? '#d1fae5' : '#f3f4f6', color: pkg.isActive ? '#065f46' : '#6b7280', fontWeight: '600', whiteSpace: 'nowrap', flexShrink: 0 }}
                                                 onClick={() => togglePackageActive(pkg)}>
                                                 {pkg.isActive ? '● Active' : '○ Inactive'}
                                             </span>
@@ -2787,15 +2767,15 @@ const ProviderDashboard = () => {
                                         <div style={{ display: 'flex', gap: '1.5rem', marginBottom: '1rem' }}>
                                             <div>
                                                 <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>Sessions</p>
-                                                <p style={{ fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{pkg.totalSessions}</p>
+                                                <p style={{ fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)', lineHeight: 1 }}>{pkg.totalSessions}</p>
                                             </div>
                                             <div>
                                                 <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>Valid for</p>
-                                                <p style={{ fontSize: '1.3rem', fontWeight: '700', color: 'var(--charcoal)', lineHeight: 1 }}>{pkg.validityDays}d</p>
+                                                <p style={{ fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)', lineHeight: 1 }}>{pkg.validityDays}d</p>
                                             </div>
                                             <div style={{ marginLeft: 'auto', textAlign: 'right' }}>
                                                 <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '2px' }}>Price</p>
-                                                <p style={{ fontSize: '1.5rem', fontWeight: '700', color: 'var(--gold-dark)', lineHeight: 1 }}>{curSym} {pkg.price}</p>
+                                                <p style={{ fontSize: '1.5rem', fontWeight: '600', color: 'var(--gold-dark)', lineHeight: 1 }}>{curSym} {pkg.price}</p>
                                             </div>
                                         </div>
                                     </div>
@@ -2829,7 +2809,7 @@ const ProviderDashboard = () => {
                             <div style={{ background: 'linear-gradient(135deg, var(--ink), #1c1c1e)', borderRadius: 'var(--radius)', padding: '1.25rem 1.5rem', marginBottom: '1.5rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div>
                                     <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.5)', marginBottom: '0.2rem' }}>Your Bookplus account balance</div>
-                                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: '700', color: 'var(--gold)' }}>{nMoney(providerBalance?.balance)}</div>
+                                    <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: '600', color: 'var(--gold)' }}>{nMoney(providerBalance?.balance)}</div>
                                     <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', marginTop: '0.15rem' }}>Topped up by Bookplus once your payment is verified</div>
                                 </div>
                                 <button onClick={() => setShowAccountTopUp(true)} className="btn-primary" style={{ padding: '0.6rem 1.4rem' }}>Top up account</button>
@@ -2838,7 +2818,7 @@ const ProviderDashboard = () => {
                             {/* Recent account top-ups (provider ↔ platform) */}
                             {providerWalletTxns.length > 0 && (
                                 <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', marginBottom: '1.5rem' }}>
-                                    <div style={{ padding: '0.85rem 1.25rem', borderBottom: '1px solid var(--border)', fontSize: '0.78rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Your account activity</div>
+                                    <div style={{ padding: '0.85rem 1.25rem', borderBottom: '1px solid var(--border)', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Your account activity</div>
                                     {providerWalletTxns.slice(0, 8).map((t) => (
                                         <div key={t._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.6rem 1.25rem', borderBottom: '1px solid var(--border)', fontSize: '0.82rem' }}>
                                             <span style={{ color: 'var(--charcoal)' }}>
@@ -2864,7 +2844,7 @@ const ProviderDashboard = () => {
                                 ].map((c) => (
                                     <div key={c.label} style={{ background: c.accent ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.1rem 1.25rem' }}>
                                         <div style={{ fontSize: '0.7rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', marginBottom: '0.3rem' }}>{c.label}</div>
-                                        <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: c.accent ? 'var(--gold-dark)' : 'var(--charcoal)' }}>{nMoney(c.val)}</div>
+                                        <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '600', color: c.accent ? 'var(--gold-dark)' : 'var(--charcoal)' }}>{nMoney(c.val)}</div>
                                     </div>
                                 ))}
                             </div>
@@ -3034,7 +3014,7 @@ const ProviderDashboard = () => {
                     {/* Add / Edit form */}
                     {showTeamForm && (
                         <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--gold)', padding: '1.75rem', marginBottom: '1.5rem', boxShadow: 'var(--shadow-sm)', marginTop: '1.5rem' }}>
-                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '700', marginBottom: '1.25rem', color: 'var(--charcoal)' }}>
+                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: '600', marginBottom: '1.25rem', color: 'var(--charcoal)' }}>
                                 {editingMember ? 'Edit team member' : 'New team member'}
                             </h3>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
@@ -3079,7 +3059,7 @@ const ProviderDashboard = () => {
                             {teamMembers.map(m => (
                                 <div key={m._id} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                     {/* Colour avatar */}
-                                    <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: '700', fontSize: '1rem', flexShrink: 0, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
+                                    <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: m.color, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: '600', fontSize: '1rem', flexShrink: 0, textShadow: '0 1px 2px rgba(0,0,0,0.3)' }}>
                                         {m.name.charAt(0).toUpperCase()}
                                     </div>
                                     <div style={{ flex: 1, minWidth: 0 }}>
@@ -3124,7 +3104,7 @@ const ProviderDashboard = () => {
                 <div className="sheet-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setRecurringActionModal(null); }}>
                     <div className="sheet-panel" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius) var(--radius) 0 0', padding: '2rem 1.5rem calc(2.5rem + env(safe-area-inset-bottom, 0px))', width: '100%', maxWidth: '480px', position: 'relative' }}>
                         <button onClick={() => setRecurringActionModal(null)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.4rem', color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
-                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
+                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                             {recurringActionModal.action === 'update' ? 'Update blocked time' : 'Delete blocked time'}
                         </h3>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1.5rem' }}>This blocked time is a recurring blocked time.</p>
@@ -3166,7 +3146,7 @@ const ProviderDashboard = () => {
                 >
                         <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                             <div>
-                                <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.25rem', fontWeight: '700', margin: '0 0 0.15rem' }}>New Appointment</h2>
+                                <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.25rem', fontWeight: '600', margin: '0 0 0.15rem' }}>New Appointment</h2>
                                 <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', margin: 0 }}>Book a slot for a client</p>
                             </div>
                             <CloseButton onClick={() => setShowApptModal(false)} />
@@ -3289,7 +3269,7 @@ const ProviderDashboard = () => {
                                             return (
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.6rem', padding: '0.6rem 0.85rem', background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)' }}>
                                                     <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: '600' }}>{totalDuration} min total</span>
-                                                    <span style={{ fontSize: '0.92rem', fontWeight: '700', color: 'var(--charcoal)' }}>Total: {curSym} {total}</span>
+                                                    <span style={{ fontSize: '0.92rem', fontWeight: '600', color: 'var(--charcoal)' }}>Total: {curSym} {total}</span>
                                                 </div>
                                             );
                                         })()}
@@ -3344,7 +3324,7 @@ const ProviderDashboard = () => {
                                                             border: `1.5px solid ${active ? 'var(--gold)' : 'var(--border)'}`,
                                                             background: active ? 'rgba(240,62,22,0.1)' : 'white',
                                                             color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                                                            fontWeight: active ? '700' : '500', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'var(--font-body)',
+                                                            fontWeight: active ? '600' : '500', fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'var(--font-body)',
                                                         }}>{opt.label}</button>
                                                     );
                                                 })}
@@ -3470,7 +3450,7 @@ const ProviderDashboard = () => {
                                     />
                                 </div>
                                 {apptError && <p style={{ color: '#dc2626', fontSize: '0.85rem', margin: 0 }}>{apptError}</p>}
-                                <button type="submit" disabled={savingAppt} style={{ width: '100%', padding: '0.9rem', background: savingAppt ? '#9ca3af' : 'var(--ink)', color: 'var(--on-ink)', border: 'none', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.95rem', fontWeight: '700', cursor: savingAppt ? 'not-allowed' : 'pointer' }}>
+                                <button type="submit" disabled={savingAppt} style={{ width: '100%', padding: '0.9rem', background: savingAppt ? '#9ca3af' : 'var(--ink)', color: 'var(--on-ink)', border: 'none', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.95rem', fontWeight: '600', cursor: savingAppt ? 'not-allowed' : 'pointer' }}>
                                     {savingAppt ? 'Saving...' : apptForm.isRecurring ? 'Book Recurring Series' : 'Book Appointment'}
                                 </button>
                             </div>
@@ -3489,7 +3469,7 @@ const ProviderDashboard = () => {
                         {/* Panel header */}
                         <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                             <div>
-                                <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.25rem', fontWeight: '700', margin: '0 0 0.2rem' }}>
+                                <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.25rem', fontWeight: '600', margin: '0 0 0.2rem' }}>
                                     {editingBlockedTime ? 'Edit Blocked Time' : 'Add blocked time'}
                                 </h2>
                                 <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', margin: 0 }}>Block off time when you're unavailable</p>
@@ -3501,7 +3481,7 @@ const ProviderDashboard = () => {
                             {/* Block type */}
                             {!editingBlockedTime && (
                                 <div>
-                                    <p style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.65rem' }}>Block time type</p>
+                                    <p style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.65rem' }}>Block time type</p>
                                     <div style={{ display: 'flex', gap: '0.75rem' }}>
                                         {[
                                             { id: 'Custom', icon: '✏️', desc: 'New blocked time' },
@@ -3528,7 +3508,7 @@ const ProviderDashboard = () => {
                                                 }}
                                             >
                                                 <div style={{ fontSize: '1.2rem', marginBottom: '0.25rem' }}>{t.icon}</div>
-                                                <div style={{ fontSize: '0.75rem', fontWeight: '700', color: blockedTimeForm.blockType === t.id ? 'var(--gold-dark)' : 'var(--charcoal)', fontFamily: 'var(--font-body)' }}>{t.id}</div>
+                                                <div style={{ fontSize: '0.75rem', fontWeight: '600', color: blockedTimeForm.blockType === t.id ? 'var(--gold-dark)' : 'var(--charcoal)', fontFamily: 'var(--font-body)' }}>{t.id}</div>
                                                 <div style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '0.1rem', fontFamily: 'var(--font-body)' }}>{t.desc}</div>
                                             </button>
                                         ))}
@@ -3538,14 +3518,14 @@ const ProviderDashboard = () => {
 
                             {/* Title */}
                             <div>
-                                <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Title <span style={{ fontWeight: 400, textTransform: 'none' }}>(Optional)</span></label>
+                                <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Title <span style={{ fontWeight: 400, textTransform: 'none' }}>(Optional)</span></label>
                                 <input className="input" type="text" placeholder="e.g. Lunch meeting" maxLength={80} value={blockedTimeForm.title || blockedTimeForm.reason} onChange={e => setBlockedTimeForm(p => ({ ...p, title: e.target.value, reason: e.target.value }))} style={{ width: '100%', boxSizing: 'border-box' }} />
                             </div>
 
                             {/* Date */}
                             {!editingBlockedTime && (
                                 <div>
-                                    <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Date</label>
+                                    <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Date</label>
                                     <input required className="input" type="date" value={blockedTimeForm.date} onChange={e => setBlockedTimeForm(p => ({ ...p, date: e.target.value }))} style={{ width: '100%', boxSizing: 'border-box' }} />
                                 </div>
                             )}
@@ -3553,11 +3533,11 @@ const ProviderDashboard = () => {
                             {/* Start / End time */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                                 <div>
-                                    <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Start time</label>
+                                    <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Start time</label>
                                     <input required className="input" type="time" value={blockedTimeForm.startTime} onChange={e => setBlockedTimeForm(p => ({ ...p, startTime: e.target.value }))} style={{ width: '100%', boxSizing: 'border-box' }} />
                                 </div>
                                 <div>
-                                    <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>End time</label>
+                                    <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>End time</label>
                                     <input required className="input" type="time" value={blockedTimeForm.endTime} onChange={e => setBlockedTimeForm(p => ({ ...p, endTime: e.target.value }))} style={{ width: '100%', boxSizing: 'border-box' }} />
                                     {blockedTimeForm.startTime && blockedTimeForm.endTime && blockedTimeForm.endTime > blockedTimeForm.startTime && (
                                         <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
@@ -3571,7 +3551,7 @@ const ProviderDashboard = () => {
                                 staff member. The update API can't move a block between staff, so when
                                 editing we show the scope read-only. */}
                             <div>
-                                <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Applies to</label>
+                                <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Applies to</label>
                                 {!editingBlockedTime && activeTeamMembers.length > 0 ? (
                                     <select
                                         className="input"
@@ -3592,7 +3572,7 @@ const ProviderDashboard = () => {
                                         <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: user?.avatar && !blockedTimeForm.teamMember ? 'transparent' : 'var(--ink)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                             {user?.avatar && !blockedTimeForm.teamMember
                                                 ? <img src={cloudinaryAvatar(user.avatar)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                : <span style={{ color: 'var(--gold)', fontWeight: '700', fontSize: '0.8rem' }}>{(blockedTimeForm.teamMember ? teamMembers.find(m => String(m._id) === blockedTimeForm.teamMember)?.name : user?.name)?.[0] || '?'}</span>}
+                                                : <span style={{ color: 'var(--gold)', fontWeight: '600', fontSize: '0.8rem' }}>{(blockedTimeForm.teamMember ? teamMembers.find(m => String(m._id) === blockedTimeForm.teamMember)?.name : user?.name)?.[0] || '?'}</span>}
                                         </div>
                                         <span style={{ fontSize: '0.875rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)', fontWeight: '500' }}>
                                             {blockedTimeForm.teamMember
@@ -3606,7 +3586,7 @@ const ProviderDashboard = () => {
                             {/* Frequency */}
                             {!editingBlockedTime && (
                                 <div>
-                                    <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Frequency</label>
+                                    <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Frequency</label>
                                     <select className="input" value={blockedTimeForm.isRecurring ? blockedTimeForm.recurrenceType : 'none'} onChange={e => {
                                         if (e.target.value === 'none') setBlockedTimeForm(p => ({ ...p, isRecurring: false, recurrenceType: 'weekly', customDays: [] }));
                                         else setBlockedTimeForm(p => ({ ...p, isRecurring: true, recurrenceType: e.target.value }));
@@ -3619,7 +3599,7 @@ const ProviderDashboard = () => {
                                     </select>
                                     {blockedTimeForm.isRecurring && blockedTimeForm.recurrenceType === 'custom' && (
                                         <div style={{ marginTop: '0.65rem' }}>
-                                            <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.5rem' }}>Repeat on</label>
+                                            <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.5rem' }}>Repeat on</label>
                                             <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                                                 {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d, i) => {
                                                     const selected = (blockedTimeForm.customDays || []).includes(i);
@@ -3635,7 +3615,7 @@ const ProviderDashboard = () => {
                                     )}
                                     {blockedTimeForm.isRecurring && (
                                         <div style={{ marginTop: '0.65rem' }}>
-                                            <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>End date <span style={{ fontWeight: 400, textTransform: 'none' }}>(Optional)</span></label>
+                                            <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>End date <span style={{ fontWeight: 400, textTransform: 'none' }}>(Optional)</span></label>
                                             <input className="input" type="date" value={blockedTimeForm.recurrenceEndDate} onChange={e => setBlockedTimeForm(p => ({ ...p, recurrenceEndDate: e.target.value }))} style={{ width: '100%', boxSizing: 'border-box' }} />
                                         </div>
                                     )}
@@ -3644,7 +3624,7 @@ const ProviderDashboard = () => {
 
                             {/* Description */}
                             <div>
-                                <label style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Description <span style={{ fontWeight: 400, textTransform: 'none' }}>(Optional)</span></label>
+                                <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Description <span style={{ fontWeight: 400, textTransform: 'none' }}>(Optional)</span></label>
                                 <textarea className="input" rows={3} maxLength={255} placeholder="Add description or note" value={blockedTimeForm.reason} onChange={e => setBlockedTimeForm(p => ({ ...p, reason: e.target.value, title: p.title || e.target.value }))} style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'var(--font-body)' }} />
                                 <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'right', marginTop: '0.25rem' }}>{(blockedTimeForm.reason || '').length}/255</p>
                             </div>
@@ -3652,7 +3632,7 @@ const ProviderDashboard = () => {
                             <div style={{ flexGrow: 1 }} />
 
                             {/* Save button */}
-                            <button type="submit" disabled={savingBlockedTime} style={{ width: '100%', padding: '0.9rem', background: savingBlockedTime ? '#9ca3af' : 'var(--ink)', color: 'var(--on-ink)', border: 'none', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.95rem', fontWeight: '700', cursor: savingBlockedTime ? 'not-allowed' : 'pointer', letterSpacing: '0.03em' }}>
+                            <button type="submit" disabled={savingBlockedTime} style={{ width: '100%', padding: '0.9rem', background: savingBlockedTime ? '#9ca3af' : 'var(--ink)', color: 'var(--on-ink)', border: 'none', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.95rem', fontWeight: '600', cursor: savingBlockedTime ? 'not-allowed' : 'pointer', letterSpacing: '0.03em' }}>
                                 {savingBlockedTime ? 'Saving...' : editingBlockedTime ? 'Update' : 'Save'}
                             </button>
 
@@ -3660,7 +3640,7 @@ const ProviderDashboard = () => {
                                 recurring "this / all" chooser for repeating blocks, otherwise
                                 removes it and closes the panel. */}
                             {editingBlockedTime && (
-                                <button type="button" onClick={() => handleDeleteBlockedTime(editingBlockedTime)} disabled={savingBlockedTime} style={{ width: '100%', marginTop: '0.65rem', padding: '0.85rem', background: 'none', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: '700', cursor: savingBlockedTime ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                <button type="button" onClick={() => handleDeleteBlockedTime(editingBlockedTime)} disabled={savingBlockedTime} style={{ width: '100%', marginTop: '0.65rem', padding: '0.85rem', background: 'none', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: '600', cursor: savingBlockedTime ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
                                     <Ban size={16} /> Unblock this time
                                 </button>
                             )}
@@ -3678,7 +3658,7 @@ const ProviderDashboard = () => {
                         {/* Header */}
                         <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                             <div>
-                                <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.25rem', fontWeight: '700', margin: '0 0 0.2rem' }}>Appointment</h2>
+                                <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.25rem', fontWeight: '600', margin: '0 0 0.2rem' }}>Appointment</h2>
                                 <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', margin: 0, fontFamily: 'var(--font-body)' }}>
                                     {apptDetailModal.services?.length > 1 ? `${apptDetailModal.services.length} services` : apptDetailModal.service?.name}
                                 </p>
@@ -3686,7 +3666,9 @@ const ProviderDashboard = () => {
                             <CloseButton onClick={() => setApptDetailModal(null)} />
                         </div>
 
-                        {/* Client card - tap the name to reveal contact options (call / email / chat) */}
+                        {/* Client card — name + a persistent contact row (Call · Email ·
+                            Message) followed by an accent Actions ▾ chip whose compact
+                            dropdown holds the status/reschedule/cancel actions. */}
                         {(() => {
                             // A client is a registered customer, a guest (guest checkout,
                             // contact captured but no account) or a walk-in the provider
@@ -3705,42 +3687,122 @@ const ProviderDashboard = () => {
                             const phone = cust?.phone || apptDetailModal.guestPhone || '';
                             const email = cust?.email || apptDetailModal.guestEmail || '';
                             const subtitle = phone || email || (isRegistered ? '' : 'No saved contact');
-                            const canContact = isRegistered || phone || email;
+                            // Reschedule / cancel apply until an appointment is finished; the
+                            // complete / no-show transitions only make sense while it's still
+                            // pending or confirmed. Hide the Actions chip once there's nothing
+                            // left to do (completed / cancelled).
+                            const canConfirm = apptDetailModal.status === 'pending';
+                            const canReschedule = apptDetailModal.status !== 'cancelled' && apptDetailModal.status !== 'completed';
+                            const canFinish = apptDetailModal.status === 'pending' || apptDetailModal.status === 'confirmed';
+                            const hasApptActions = canConfirm || canReschedule || canFinish;
+                            const menuItem = { display: 'flex', alignItems: 'center', gap: '0.55rem', width: '100%', textAlign: 'left', padding: '0.6rem 0.75rem', borderRadius: '9px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.86rem', fontWeight: 600, color: 'var(--charcoal)' };
                             return (
                                 <div style={{ padding: '1.1rem 1.5rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem' }}>
-                                        {canContact ? (
-                                            <button
-                                                onClick={() => setShowApptContact(v => !v)}
-                                                aria-expanded={showApptContact}
-                                                aria-label={`${showApptContact ? 'Hide' : 'Show'} contact options for ${displayName}`}
-                                                style={{ flex: 1, minWidth: 0, display: 'flex', alignItems: 'center', gap: '0.5rem', background: 'none', border: 'none', padding: 0, cursor: 'pointer', textAlign: 'left' }}
-                                            >
-                                                <span style={{ minWidth: 0 }}>
-                                                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: 700, color: 'var(--charcoal)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
-                                                    {subtitle && <span style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--font-body)' }}>{subtitle}</span>}
-                                                </span>
-                                                <ChevronDown size={16} color="var(--text-muted)" style={{ flexShrink: 0, transform: showApptContact ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
-                                            </button>
-                                        ) : (
-                                            <div style={{ minWidth: 0 }}>
-                                                <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: 700, color: 'var(--charcoal)', display: 'block' }}>{displayName}</span>
-                                                {subtitle && <span style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>{subtitle}</span>}
-                                            </div>
-                                        )}
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.85rem' }}>
+                                        <div style={{ minWidth: 0 }}>
+                                            <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: 600, color: 'var(--charcoal)', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{displayName}</span>
+                                            {subtitle && <span style={{ display: 'block', fontSize: '0.76rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontFamily: 'var(--font-body)' }}>{subtitle}</span>}
+                                        </div>
                                         {isRegistered && (
                                             <button onClick={() => openClientProfile(cust)} style={{ flexShrink: 0, fontSize: '0.72rem', fontWeight: 600, color: 'var(--gold-dark)', background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', borderRadius: 'var(--radius-sm)', padding: '0.4rem 0.6rem', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', minHeight: '36px' }}>Profile</button>
                                         )}
                                     </div>
-                                    {showApptContact && canContact && (
-                                        <div style={{ marginTop: '0.85rem' }}>
+                                    {/* Contact row: Call · Email · Message · Actions ▾ */}
+                                    <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.5rem' }}>
+                                        <div style={{ flex: 1, minWidth: 0 }}>
                                             <ContactActions
                                                 phone={phone}
                                                 email={email}
                                                 onMessage={isRegistered ? () => openChatForAppointment(apptDetailModal) : undefined}
                                             />
                                         </div>
-                                    )}
+                                        {hasApptActions && (
+                                            <div style={{ position: 'relative', flexShrink: 0 }}>
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setShowApptActions(v => !v)}
+                                                    aria-haspopup="menu"
+                                                    aria-expanded={showApptActions}
+                                                    style={{ height: '100%', display: 'flex', alignItems: 'center', gap: '0.3rem', padding: '0.55rem 0.7rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--gold)', background: 'rgba(240,62,22,0.1)', color: 'var(--gold-dark)', fontSize: '0.8rem', fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer', whiteSpace: 'nowrap' }}
+                                                >
+                                                    Actions
+                                                    <ChevronDown size={14} style={{ transform: showApptActions ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+                                                </button>
+                                                {showApptActions && (
+                                                    <>
+                                                        {/* Outside-tap catcher closes the popover */}
+                                                        <div onClick={() => setShowApptActions(false)} style={{ position: 'fixed', inset: 0, zIndex: 1 }} />
+                                                        <div role="menu" style={{ position: 'absolute', right: 0, top: 'calc(100% + 6px)', zIndex: 2, width: '210px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '12px', boxShadow: '0 16px 40px rgba(4,5,5,0.28)', overflow: 'hidden', padding: '0.3rem' }}>
+                                                            {canConfirm && (
+                                                                <button role="menuitem" type="button" style={menuItem}
+                                                                    onClick={async () => { setShowApptActions(false); await handleStatusUpdate(apptDetailModal._id, 'confirmed'); setApptDetailModal(null); }}
+                                                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
+                                                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                                                >
+                                                                    <svg width="16" height="16" fill="none" stroke="#2563eb" strokeWidth="2.4" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M20 6L9 17l-5-5" /></svg> Confirm booking
+                                                                </button>
+                                                            )}
+                                                            {canReschedule && (
+                                                                <button role="menuitem" type="button" style={menuItem}
+                                                                    onClick={() => { setShowApptActions(false); setShowReschedule(true); }}
+                                                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
+                                                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                                                >
+                                                                    <CalendarClock size={16} color="var(--text-muted)" /> Reschedule
+                                                                </button>
+                                                            )}
+                                                            {canFinish && (
+                                                                <button role="menuitem" type="button" style={menuItem}
+                                                                    onClick={async () => { setShowApptActions(false); await handleStatusUpdate(apptDetailModal._id, 'completed'); setApptDetailModal(null); }}
+                                                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
+                                                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                                                >
+                                                                    <span aria-hidden="true" style={{ display: 'inline-flex', width: 16, justifyContent: 'center', color: '#059669', fontWeight: 600 }}>✓</span> Mark complete
+                                                                </button>
+                                                            )}
+                                                            {canFinish && (
+                                                                <button role="menuitem" type="button" style={menuItem}
+                                                                    onClick={async () => { setShowApptActions(false); if (window.confirm('Mark this appointment as a no-show?')) { await handleStatusUpdate(apptDetailModal._id, 'no-show'); setApptDetailModal(null); } }}
+                                                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
+                                                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                                                >
+                                                                    <Ban size={16} color="#7c3aed" /> Mark no-show
+                                                                </button>
+                                                            )}
+                                                            {canReschedule && (
+                                                                <>
+                                                                    <div style={{ borderTop: '1px solid var(--border)', margin: '0.3rem 0' }} />
+                                                                    <button role="menuitem" type="button" style={{ ...menuItem, color: 'var(--danger)' }}
+                                                                        onClick={async () => {
+                                                                            setShowApptActions(false);
+                                                                            // Recurring bookings open the this/future/all chooser;
+                                                                            // one-offs confirm and cancel in place. Same logic the
+                                                                            // old standalone Cancel button used.
+                                                                            if (apptDetailModal.isRecurring) {
+                                                                                setSeriesCancelModal(apptDetailModal);
+                                                                                setSeriesCancelMode('this');
+                                                                                setApptDetailModal(null);
+                                                                                return;
+                                                                            }
+                                                                            if (window.confirm('Cancel this appointment?')) {
+                                                                                await handleStatusUpdate(apptDetailModal._id, 'cancelled');
+                                                                                setApptDetailModal(null);
+                                                                            }
+                                                                        }}
+                                                                        onMouseEnter={e => e.currentTarget.style.background = '#fee2e2'}
+                                                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                                                    >
+                                                                        <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                                                                        Cancel appointment
+                                                                    </button>
+                                                                </>
+                                                            )}
+                                                        </div>
+                                                    </>
+                                                )}
+                                            </div>
+                                        )}
+                                    </div>
                                 </div>
                             );
                         })()}
@@ -3752,7 +3814,7 @@ const ProviderDashboard = () => {
                                     // Multi-service booking (POST /appointments/multi) — each line performed
                                     // back-to-back within the appointment's overall time span, summed below.
                                     <div style={{ padding: '0.7rem 0', borderBottom: '1px solid var(--border)' }}>
-                                        <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '0.6rem', fontFamily: 'var(--font-body)' }}>Services</span>
+                                        <span style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', display: 'block', marginBottom: '0.6rem', fontFamily: 'var(--font-body)' }}>Services</span>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                                             {apptDetailModal.services.map((s, i) => (
                                                 <div key={s._id || i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
@@ -3767,8 +3829,8 @@ const ProviderDashboard = () => {
                                             ))}
                                         </div>
                                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.75rem', paddingTop: '0.6rem', borderTop: '1px dashed var(--border)' }}>
-                                            <span style={{ fontSize: '0.8rem', fontWeight: '700', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}>Total</span>
-                                            <span style={{ fontSize: '0.95rem', fontWeight: '700', color: 'var(--gold-dark)', fontFamily: 'var(--font-body)' }}>{curSym} {apptDetailModal.totalPrice}</span>
+                                            <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}>Total</span>
+                                            <span style={{ fontSize: '0.95rem', fontWeight: '600', color: 'var(--gold-dark)', fontFamily: 'var(--font-body)' }}>{curSym} {apptDetailModal.totalPrice}</span>
                                         </div>
                                     </div>
                                 )}
@@ -3791,7 +3853,7 @@ const ProviderDashboard = () => {
                                 ))}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.7rem 0' }}>
                                     <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>Status</span>
-                                    <span style={{ fontSize: '0.72rem', fontWeight: '700', padding: '0.2rem 0.7rem', borderRadius: '99px', background: (statusCalendarColors[apptDetailModal.status] || statusCalendarColors.pending).bg, color: (statusCalendarColors[apptDetailModal.status] || statusCalendarColors.pending).text, textTransform: 'capitalize' }}>
+                                    <span style={{ fontSize: '0.72rem', fontWeight: '600', padding: '0.2rem 0.7rem', borderRadius: '99px', background: (statusCalendarColors[apptDetailModal.status] || statusCalendarColors.pending).bg, color: (statusCalendarColors[apptDetailModal.status] || statusCalendarColors.pending).text, textTransform: 'capitalize' }}>
                                         {apptDetailModal.status}
                                     </span>
                                 </div>
@@ -3804,7 +3866,7 @@ const ProviderDashboard = () => {
                             {apptDetailModal.status !== 'cancelled' && apptDetailModal.status !== 'completed' && (
                                 <div style={{ background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
                                     <button onClick={() => setShowReschedule(s => !s)} aria-expanded={showReschedule} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.85rem 1rem', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
-                                        <span style={{ fontSize: '0.72rem', fontWeight: '700', color: 'var(--charcoal)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Reschedule</span>
+                                        <span style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--charcoal)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Reschedule</span>
                                         <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', transform: showReschedule ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }}>{'▾'}</span>
                                     </button>
                                     {showReschedule && (
@@ -3832,62 +3894,9 @@ const ProviderDashboard = () => {
                                 </div>
                             )}
 
-                            <div style={{ flexGrow: 1 }} />
-
-                            {/* Quick status actions */}
-                            {(apptDetailModal.status === 'pending' || apptDetailModal.status === 'confirmed') && (
-                                <div style={{ display: 'flex', gap: '0.6rem' }}>
-                                    {apptDetailModal.status === 'pending' && (
-                                        <button
-                                            onClick={async () => { await handleStatusUpdate(apptDetailModal._id, 'confirmed'); setApptDetailModal(null); }}
-                                            style={{ flex: 1, padding: '0.8rem', background: '#d1fae5', color: '#065f46', border: '1px solid #6ee7b7', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600', fontSize: '0.85rem' }}
-                                        >
-                                            Confirm
-                                        </button>
-                                    )}
-                                    <button
-                                        onClick={async () => { await handleStatusUpdate(apptDetailModal._id, 'completed'); setApptDetailModal(null); }}
-                                        style={{ flex: 1, padding: '0.8rem', background: 'rgba(240,62,22,0.1)', color: 'var(--gold-dark)', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600', fontSize: '0.85rem' }}
-                                    >
-                                        Complete
-                                    </button>
-                                    <button
-                                        onClick={async () => {
-                                            if (window.confirm('Mark this appointment as a no-show?')) {
-                                                await handleStatusUpdate(apptDetailModal._id, 'no-show');
-                                                setApptDetailModal(null);
-                                            }
-                                        }}
-                                        style={{ flex: 1, padding: '0.8rem', background: '#ede9fe', color: '#5b21b6', border: '1px solid #c4b5fd', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600', fontSize: '0.85rem' }}
-                                    >
-                                        No-show
-                                    </button>
-                                </div>
-                            )}
-
-                            {/* Cancel button — smart: if recurring, offer series cancel */}
-                            {apptDetailModal.status !== 'cancelled' && apptDetailModal.status !== 'completed' && (
-                                apptDetailModal.isRecurring ? (
-                                    <button
-                                        onClick={() => { setSeriesCancelModal(apptDetailModal); setSeriesCancelMode('this'); setApptDetailModal(null); }}
-                                        style={{ width: '100%', padding: '0.875rem', background: 'none', color: 'var(--danger)', border: '1.5px solid #fca5a5', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600', fontSize: '0.875rem' }}
-                                    >
-                                        Cancel appointment…
-                                    </button>
-                                ) : (
-                                    <button
-                                        onClick={async () => {
-                                            if (window.confirm('Cancel this appointment?')) {
-                                                await handleStatusUpdate(apptDetailModal._id, 'cancelled');
-                                                setApptDetailModal(null);
-                                            }
-                                        }}
-                                        style={{ width: '100%', padding: '0.875rem', background: 'none', color: 'var(--danger)', border: '1.5px solid #fca5a5', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600', fontSize: '0.875rem' }}
-                                    >
-                                        Cancel appointment
-                                    </button>
-                                )
-                            )}
+                            {/* Status transitions, reschedule and cancel now live in the
+                                Actions ▾ dropdown up in the contact row — no redundant
+                                primary buttons here. "Mark complete" is the finish action. */}
                         </div>
                 </ChromeModal>
             )}
@@ -3898,7 +3907,7 @@ const ProviderDashboard = () => {
                     <div onClick={() => setSeriesCancelModal(null)} style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1100 }} />
                     <div className="modal-center" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '380px', maxWidth: '95vw', background: 'var(--card-bg)', borderRadius: 'var(--radius)', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', zIndex: 1101, overflow: 'hidden' }}>
                         <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                            <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.2rem', fontWeight: '700', margin: 0 }}>Cancel recurring appointment</h2>
+                            <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.2rem', fontWeight: '600', margin: 0 }}>Cancel recurring appointment</h2>
                             <button onClick={() => setSeriesCancelModal(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0 }}>×</button>
                         </div>
                         <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
@@ -3915,7 +3924,7 @@ const ProviderDashboard = () => {
                             ))}
                             <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
                                 <button onClick={() => setSeriesCancelModal(null)} style={{ flex: 1, padding: '0.85rem', background: 'var(--warm-gray)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--text-secondary)' }}>Keep</button>
-                                <button onClick={handleSeriesCancel} style={{ flex: 1, padding: '0.85rem', background: '#ef4444', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '700', color: 'white' }}>Cancel</button>
+                                <button onClick={handleSeriesCancel} style={{ flex: 1, padding: '0.85rem', background: '#ef4444', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600', color: 'white' }}>Cancel</button>
                             </div>
                         </div>
                     </div>

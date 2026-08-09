@@ -4,7 +4,7 @@ import React from 'react';
 // an orange smile under "plus". Replaces the old calendar squircle mark so the
 // in-app logo matches the new brand (and the splash / for-customers logo).
 const Wordmark = ({ size = '1.6rem', bookColor = 'var(--charcoal)' }) => (
-    <span style={{ fontFamily: 'var(--font-display)', fontWeight: 800, fontSize: size, letterSpacing: '-0.03em', lineHeight: 1, display: 'inline-flex', alignItems: 'baseline' }}>
+    <span style={{ fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: size, letterSpacing: '-0.03em', lineHeight: 1, display: 'inline-flex', alignItems: 'baseline' }}>
         <span style={{ color: bookColor }}>book</span>
         <span style={{ position: 'relative', display: 'inline-block', color: 'var(--gold)' }}>
             plus

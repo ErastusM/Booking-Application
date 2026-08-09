@@ -49,7 +49,7 @@ const AppUpdater = () => {
     return (
         <div style={{ position: 'fixed', inset: 0, zIndex: 100000, background: 'var(--off-white)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1.1rem', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
             <div style={{ width: '44px', height: '44px', border: '3px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'bp-spin 0.8s linear infinite' }} />
-            <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: 700, color: 'var(--charcoal)', margin: 0 }}>Updating…</p>
+            <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: 600, color: 'var(--charcoal)', margin: 0 }}>Updating…</p>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>Getting the latest version</p>
             <style>{`@keyframes bp-spin { to { transform: rotate(360deg); } }`}</style>
         </div>

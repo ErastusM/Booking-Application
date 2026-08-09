@@ -5,7 +5,7 @@ import { useModalChrome } from '../hooks/useModalChrome';
 import { currencySymbol } from '../utils/currency';
 import { X, Upload, Check } from 'lucide-react';
 
-const labelStyle = { display: 'block', fontSize: '0.72rem', fontWeight: '700', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' };
+const labelStyle = { display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' };
 const newRef = () => `BP-${Math.floor(10000 + Math.random() * 89999)}`;
 
 // Submit a wallet top-up request (amount + proof of payment) to a provider.
@@ -63,7 +63,7 @@ const WalletTopUpModal = ({ providerId, providerName, currency, onClose, onDone 
         <div onClick={() => { if (!busy && !uploading) onClose(); }} className="scrim-in" style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
             <div ref={panelRef} tabIndex={-1} onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '440px', maxHeight: '90vh', overflowY: 'auto', boxShadow: '0 20px 60px rgba(4,5,5,0.3)', outline: 'none' }}>
                 <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '700', color: 'var(--charcoal)', margin: 0 }}>Top up · {providerName}</h2>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Top up · {providerName}</h2>
                     <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)' }}><X size={20} /></button>
                 </div>
                 <form onSubmit={submit} style={{ padding: '1.25rem' }}>
@@ -82,7 +82,7 @@ const WalletTopUpModal = ({ providerId, providerName, currency, onClose, onDone 
                             border: '1.5px dashed var(--border)', background: 'var(--warm-gray)', color: 'var(--text-muted)',
                         }}>
                             Card (DPO)
-                            <span style={{ display: 'block', fontSize: '0.62rem', fontWeight: '700', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Coming soon</span>
+                            <span style={{ display: 'block', fontSize: '0.62rem', fontWeight: '600', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)' }}>Coming soon</span>
                         </button>
                     </div>
 

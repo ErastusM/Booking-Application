@@ -29,7 +29,7 @@ class ErrorBoundary extends React.Component {
                 padding: '2rem', gap: '0.5rem', background: 'var(--off-white)', color: 'var(--charcoal)',
                 fontFamily: 'var(--font-body)',
             }}>
-                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 700, margin: 0 }}>
+                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 600, margin: 0 }}>
                     Something went wrong
                 </h1>
                 <p style={{ color: 'var(--text-muted)', maxWidth: '32ch', margin: '0.25rem 0 1.25rem' }}>

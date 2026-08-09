@@ -360,7 +360,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                         <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 70% 30%, rgba(240,62,22,0.15) 0%, transparent 60%)' }} />
                         {provider.avatar
                             ? <img src={cloudinaryAvatar(provider.avatar)} alt={provider.name} style={{ width: '104px', height: '104px', borderRadius: '50%', objectFit: 'cover', border: '3px solid var(--gold)', position: 'relative', zIndex: 1 }} />
-                            : <div style={{ width: '104px', height: '104px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '2.5rem', fontWeight: 700, color: 'var(--ink)', position: 'relative', zIndex: 1 }}>{getInitials(provider.name)}</div>}
+                            : <div style={{ width: '104px', height: '104px', borderRadius: '50%', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '2.5rem', fontWeight: 600, color: 'var(--ink)', position: 'relative', zIndex: 1 }}>{getInitials(provider.name)}</div>}
                     </div>
                 )}
 
@@ -395,7 +395,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                     </div>
                 </div>
                 {photos.length > 1 && (
-                    <div style={{ position: 'absolute', bottom: '12px', right: '12px', background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '0.72rem', fontWeight: 700, padding: '0.2rem 0.6rem', borderRadius: '99px', pointerEvents: 'none' }}>{heroIdx + 1} / {photos.length}</div>
+                    <div style={{ position: 'absolute', bottom: '12px', right: '12px', background: 'rgba(0,0,0,0.6)', color: '#fff', fontSize: '0.72rem', fontWeight: 600, padding: '0.2rem 0.6rem', borderRadius: '99px', pointerEvents: 'none' }}>{heroIdx + 1} / {photos.length}</div>
                 )}
             </div>
 
@@ -403,14 +403,14 @@ const ProviderProfilePage = ({ providerId } = {}) => {
             <div className="container" style={{ paddingTop: '1.25rem' }}>
                 {/* The ref is on the title: the compact bar appears exactly when the
                     business name scrolls out of view (Fresha's trigger). */}
-                <h1 ref={headerRef} style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.55rem, 5.5vw, 2.2rem)', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.15rem', lineHeight: 1.15 }}>{businessName}</h1>
+                <h1 ref={headerRef} style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.55rem, 5.5vw, 2.2rem)', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.15rem', lineHeight: 1.15 }}>{businessName}</h1>
                 {provider.providerCategory && (
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', margin: '0 0 0.6rem' }}>{provider.providerCategory}</p>
                 )}
                 {provider.avgRating && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.95rem', marginBottom: '0.45rem' }}>
                         <Star size={16} fill="#f03e16" strokeWidth={0} />
-                        <span style={{ fontWeight: 700, color: 'var(--charcoal)' }}>{provider.avgRating}</span>
+                        <span style={{ fontWeight: 600, color: 'var(--charcoal)' }}>{provider.avgRating}</span>
                         <span style={{ color: 'var(--gold-dark)', fontWeight: 600 }}>({provider.reviewCount})</span>
                     </div>
                 )}
@@ -419,7 +419,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                     // variants); the icon and headline inherit it via currentColor.
                     <div className={`profile-open-status ${openStatus.open ? 'is-open' : 'is-closed'}`} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.9rem', marginBottom: '0.85rem' }}>
                         <Clock size={14} style={{ flexShrink: 0 }} />
-                        <span style={{ fontWeight: 700 }}>{openStatus.headline}</span>
+                        <span style={{ fontWeight: 600 }}>{openStatus.headline}</span>
                         {openStatus.detail && <span style={{ color: 'var(--text-secondary)' }}>— {openStatus.detail}</span>}
                     </div>
                 )}
@@ -436,7 +436,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
             <div className="profile-compact-bar" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000, background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', boxShadow: '0 2px 10px rgba(4,5,5,0.07)', paddingTop: 'var(--safe-top, 0px)', transform: showCompact ? 'translateY(0)' : 'translateY(-110%)', transition: 'transform 0.25s ease, visibility 0.25s', visibility: showCompact ? 'visible' : 'hidden', pointerEvents: showCompact ? 'auto' : 'none' }}>
                 <div className="container" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', height: '52px' }}>
                     <button onClick={() => navigate('/')} aria-label="Back" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', padding: '0.4rem 0.4rem 0.4rem 0' }}><ChevronLeft size={24} strokeWidth={2.5} /></button>
-                    <span style={{ flex: 1, minWidth: 0, fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.05rem', color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{businessName}</span>
+                    <span style={{ flex: 1, minWidth: 0, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '1.05rem', color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{businessName}</span>
                     <button onClick={handleShare} aria-label="Share" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', padding: '0.4rem' }}><Share2 size={19} /></button>
                     {!isOwner && <button onClick={toggleFav} aria-label={isFav ? 'Saved' : 'Save'} style={{ background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '0.4rem' }}><Heart size={20} fill={isFav ? '#e0245e' : 'none'} color={isFav ? '#e0245e' : 'var(--charcoal)'} /></button>}
                 </div>
@@ -460,7 +460,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                         {/* About — description with Read more, right under the header */}
                         {description && (
                             <div id="section-about" style={{ scrollMarginTop: 'calc(var(--safe-top, 0px) + 104px)', marginBottom: '2rem' }}>
-                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.6rem' }}>About</h2>
+                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.6rem' }}>About</h2>
                                 <p ref={aboutRef} style={{ fontSize: '0.92rem', color: 'var(--text-secondary)', lineHeight: 1.65, margin: 0, ...(aboutExpanded ? {} : { display: '-webkit-box', WebkitLineClamp: 4, WebkitBoxOrient: 'vertical', overflow: 'hidden' }) }}>
                                     {description}
                                 </p>
@@ -474,7 +474,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
 
                         {/* Services — heading + category pills (Fresha-style) */}
                         <div id="section-services" style={{ scrollMarginTop: 'calc(var(--safe-top, 0px) + 104px)' }}>
-                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.85rem' }}>Services</h2>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.85rem' }}>Services</h2>
                             <div style={{ display: 'flex', gap: '0.5rem', overflowX: 'auto', paddingBottom: '0.4rem', marginBottom: '1.1rem', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
                                 {categoryKeys.map(key => {
                                     const cat = categories[key];
@@ -518,7 +518,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.75rem', flexShrink: 0 }}>
-                                            <span style={{ fontFamily: 'var(--font-body)', fontSize: '1.2rem', fontWeight: '700', color: 'var(--charcoal)' }}>{cur} {service.price}</span>
+                                            <span style={{ fontFamily: 'var(--font-body)', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)' }}>{cur} {service.price}</span>
                                             {user?._id !== provider._id && (
                                                 <button
                                                     onClick={() => navigate(`/book-appointment?serviceId=${service._id}&providerId=${provider._id}`)}
@@ -538,7 +538,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                         {/* Team — colored initial circles from the public staff endpoint */}
                         {staff.length > 0 && (
                             <div id="section-team" style={{ scrollMarginTop: 'calc(var(--safe-top, 0px) + 104px)', marginTop: '2.25rem' }}>
-                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 1rem' }}>Team</h2>
+                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 1rem' }}>Team</h2>
                                 <div style={{ display: 'flex', gap: '1.4rem', overflowX: 'auto', paddingBottom: '0.5rem', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
                                     {staff.map(member => {
                                         // The hex+alpha tint only parses for 6-digit hex; anything
@@ -548,7 +548,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                         const hex = /^#[0-9a-f]{6}$/i.test(member.color || '') ? member.color : null;
                                         return (
                                         <div key={member._id} style={{ flexShrink: 0, width: '86px', textAlign: 'center' }}>
-                                            <div style={{ width: '76px', height: '76px', borderRadius: '50%', margin: '0 auto 0.5rem', background: hex ? `${hex}22` : 'rgba(240,62,22,0.13)', color: hex ? 'var(--charcoal)' : 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '1.7rem', fontWeight: 700 }}>
+                                            <div style={{ width: '76px', height: '76px', borderRadius: '50%', margin: '0 auto 0.5rem', background: hex ? `${hex}22` : 'rgba(240,62,22,0.13)', color: hex ? 'var(--charcoal)' : 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '1.7rem', fontWeight: 600 }}>
                                                 {(member.name || '?').charAt(0).toUpperCase()}
                                             </div>
                                             <p style={{ margin: 0, fontWeight: 600, fontSize: '0.85rem', color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.name}</p>
@@ -563,7 +563,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                         {/* Reviews — headline stars + the latest reviews (Fresha-style) */}
                         {reviews.length > 0 && (
                             <div id="section-reviews" style={{ scrollMarginTop: 'calc(var(--safe-top, 0px) + 104px)', marginTop: '2.25rem' }}>
-                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.75rem' }}>Reviews</h2>
+                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.75rem' }}>Reviews</h2>
                                 {provider.avgRating && (
                                     <div style={{ marginBottom: '1.25rem' }}>
                                         <div style={{ display: 'flex', gap: '3px', marginBottom: '0.35rem' }}>
@@ -571,7 +571,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                                 <Star key={s} size={26} fill={s <= Math.round(provider.avgRating) ? '#f03e16' : 'var(--border)'} strokeWidth={0} />
                                             ))}
                                         </div>
-                                        <span style={{ fontWeight: 700, fontSize: '1.05rem', color: 'var(--charcoal)' }}>{provider.avgRating}</span>{' '}
+                                        <span style={{ fontWeight: 600, fontSize: '1.05rem', color: 'var(--charcoal)' }}>{provider.avgRating}</span>{' '}
                                         <span style={{ color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.95rem' }}>({provider.reviewCount})</span>
                                     </div>
                                 )}
@@ -579,7 +579,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                     {reviews.map(review => (
                                         <div key={review._id} style={{ padding: '1rem 0', borderBottom: '1px solid var(--border)' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', marginBottom: '0.5rem' }}>
-                                                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--surface-sunken)', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.95rem', flexShrink: 0 }}>
+                                                <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'var(--surface-sunken)', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '0.95rem', flexShrink: 0 }}>
                                                     {(review.customer?.name || '?').charAt(0).toUpperCase()}
                                                 </div>
                                                 <div style={{ minWidth: 0 }}>
@@ -708,10 +708,10 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                 <div className="provider-book-bar" style={{ position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 95, background: 'var(--card-bg)', borderTop: '1px solid var(--border)', boxShadow: '0 -4px 20px rgba(4,5,5,0.10)' }}>
                     <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.8rem 1.5rem calc(0.8rem + env(safe-area-inset-bottom, 0px))' }}>
                         <div style={{ minWidth: 0 }}>
-                            <div style={{ fontWeight: 700, fontSize: '0.95rem', color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{provider.serviceCount} service{provider.serviceCount !== 1 ? 's' : ''} available</div>
+                            <div style={{ fontWeight: 600, fontSize: '0.95rem', color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{provider.serviceCount} service{provider.serviceCount !== 1 ? 's' : ''} available</div>
                             {minPrice != null && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>from {cur} {minPrice}</div>}
                         </div>
-                        <button onClick={() => navigate(`/book-appointment?providerId=${provider._id}`)} className="btn-primary" style={{ padding: '0.85rem 1.9rem', borderRadius: '999px', fontSize: '0.95rem', fontWeight: 700, flexShrink: 0 }}>Book now</button>
+                        <button onClick={() => navigate(`/book-appointment?providerId=${provider._id}`)} className="btn-primary" style={{ padding: '0.85rem 1.9rem', borderRadius: '999px', fontSize: '0.95rem', fontWeight: 600, flexShrink: 0 }}>Book now</button>
                     </div>
                 </div>
             )}

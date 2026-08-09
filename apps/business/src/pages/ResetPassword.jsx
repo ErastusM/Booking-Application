@@ -80,7 +80,7 @@ const ResetPassword = () => {
                     <Link to="/" style={{
                         fontFamily: 'var(--font-display)',
                         fontSize: '1.8rem',
-                        fontWeight: '700',
+                        fontWeight: '600',
                         color: 'white',
                         textDecoration: 'none',
                         display: 'block',
@@ -91,7 +91,7 @@ const ResetPassword = () => {
                     <h2 style={{
                         fontFamily: 'var(--font-display)',
                         fontSize: 'clamp(2rem, 3vw, 2.8rem)',
-                        fontWeight: '700',
+                        fontWeight: '600',
                         color: 'white',
                         lineHeight: 1.2,
                         marginBottom: '1.5rem',
@@ -126,7 +126,7 @@ const ResetPassword = () => {
                             <h1 style={{
                                 fontFamily: 'var(--font-display)',
                                 fontSize: '1.8rem',
-                                fontWeight: '700',
+                                fontWeight: '600',
                                 color: 'var(--charcoal)',
                                 marginBottom: '1rem',
                             }}>
@@ -149,7 +149,7 @@ const ResetPassword = () => {
                             <h1 style={{
                                 fontFamily: 'var(--font-display)',
                                 fontSize: '2rem',
-                                fontWeight: '700',
+                                fontWeight: '600',
                                 color: 'var(--charcoal)',
                                 marginBottom: '0.5rem',
                             }}>

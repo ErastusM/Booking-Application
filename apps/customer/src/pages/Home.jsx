@@ -26,9 +26,9 @@ const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
             <div className="home-provider-card__media" style={{ position: 'relative', aspectRatio: '4 / 3', borderRadius: '16px', overflow: 'hidden', background: cover ? 'var(--warm-gray)' : 'linear-gradient(135deg, #1c1c1e 0%, #040505 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', boxShadow: 'var(--shadow-sm)' }}>
                 {cover
                     ? <img key={`${p._id}-cover`} src={cloudinaryThumb(cover, 800)} alt={p.businessName || p.name} loading="lazy" decoding="async" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                    : <span style={{ fontFamily: 'var(--font-display)', fontSize: '2.6rem', fontWeight: '700', color: 'var(--gold)' }}>{initial}</span>}
+                    : <span style={{ fontFamily: 'var(--font-display)', fontSize: '2.6rem', fontWeight: '600', color: 'var(--gold)' }}>{initial}</span>}
                 {badge && (
-                    <span style={{ position: 'absolute', top: '10px', left: '10px', background: badge === 'New' ? 'var(--ink)' : 'rgba(255,255,255,0.95)', color: badge === 'New' ? '#fff' : 'var(--charcoal)', fontSize: '0.7rem', fontWeight: '700', padding: '3px 10px', borderRadius: '999px' }}>{badge}</span>
+                    <span style={{ position: 'absolute', top: '10px', left: '10px', background: badge === 'New' ? 'var(--ink)' : 'rgba(255,255,255,0.95)', color: badge === 'New' ? '#fff' : 'var(--charcoal)', fontSize: '0.7rem', fontWeight: '600', padding: '3px 10px', borderRadius: '999px' }}>{badge}</span>
                 )}
                 <button
                     type="button"
@@ -44,14 +44,14 @@ const ProviderCard = ({ p, badge, isFav, onToggleFav }) => {
                 </button>
             </div>
             <div style={{ padding: '0.6rem 0.15rem 0' }}>
-                <p style={{ fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.95rem', margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.businessName || p.name}</p>
+                <p style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem', margin: '0 0 2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{p.businessName || p.name}</p>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 4px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{loc || ' '}</p>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '8px' }}>
                     <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {p.providerCategory ? `${p.providerCategory} · ` : ''}{reviews}
                     </span>
                     {p.avgRating && (
-                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.8rem', fontWeight: '700', color: 'var(--charcoal)', flexShrink: 0 }}>
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '3px', fontSize: '0.8rem', fontWeight: '600', color: 'var(--charcoal)', flexShrink: 0 }}>
                             <Star size={13} fill="#f03e16" strokeWidth={0} /> {p.avgRating}
                         </span>
                     )}
@@ -113,10 +113,10 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
                 <div style={{ width: '38px', height: '38px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                     {p.avatar
                         ? <img src={cloudinaryThumb(p.avatar, 80)} alt="" loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        : <span style={{ fontFamily: 'var(--font-display)', fontWeight: '700', color: 'var(--gold)', fontSize: '1rem' }}>{initial}</span>}
+                        : <span style={{ fontFamily: 'var(--font-display)', fontWeight: '600', color: 'var(--gold)', fontSize: '1rem' }}>{initial}</span>}
                 </div>
                 <div style={{ minWidth: 0, flex: 1 }}>
-                    <p style={{ fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.95rem', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.businessName || p.name}</p>
+                    <p style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p.businessName || p.name}</p>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.78rem', margin: '1px 0 0', display: 'flex', alignItems: 'center', gap: '3px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         <MapPin size={11} style={{ flexShrink: 0 }} /> {loc}
                     </p>
@@ -144,7 +144,7 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
                     // Same aspect ratio as a photo so every card in the feed is the SAME
                     // height, even for a business that hasn't added photos yet.
                     <div className="feed-media-img" style={{ aspectRatio: '1 / 1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.7rem', padding: '1rem', background: 'linear-gradient(135deg, var(--surface-sunken), var(--warm-gray))', cursor: 'pointer' }}>
-                        <div style={{ width: '68px', height: '68px', borderRadius: '18px', flexShrink: 0, background: 'var(--ink)', color: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '1.9rem', fontWeight: '700' }}>{initial}</div>
+                        <div style={{ width: '68px', height: '68px', borderRadius: '18px', flexShrink: 0, background: 'var(--ink)', color: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '1.9rem', fontWeight: '600' }}>{initial}</div>
                         <div style={{ textAlign: 'center' }}>
                             <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.92rem' }}>Photos coming soon</p>
                             <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>Tap to view {p.businessName || p.name}</p>
@@ -172,9 +172,9 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
                     style={{ display: 'inline-flex', alignItems: 'center', gap: '6px', border: 'none', background: 'none', cursor: 'pointer', padding: '2px', color: 'var(--charcoal)' }}
                 >
                     <Heart size={22} strokeWidth={2} fill={isFav ? '#e0245e' : 'none'} color={isFav ? '#e0245e' : 'var(--text-secondary)'} />
-                    <span style={{ fontSize: '0.85rem', fontWeight: '700' }}>{likeCount > 0 ? `${likeCount}` : ''}</span>
+                    <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>{likeCount > 0 ? `${likeCount}` : ''}</span>
                 </button>
-                <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', fontWeight: '700', color: 'var(--charcoal)' }}>
+                <span style={{ marginLeft: 'auto', display: 'inline-flex', alignItems: 'center', gap: '4px', fontSize: '0.85rem', fontWeight: '600', color: 'var(--charcoal)' }}>
                     {p.avgRating
                         ? <><Star size={15} fill="#f03e16" strokeWidth={0} /> {p.avgRating}<span style={{ color: 'var(--text-muted)', fontWeight: '500' }}>({p.reviewCount || 0})</span></>
                         : <span style={{ display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--gold-dark)', fontWeight: '600' }}><Star size={14} fill="#f03e16" strokeWidth={0} /> New on Bookplus</span>}
@@ -183,7 +183,7 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
 
             {/* Caption — tap to open profile */}
             <div onClick={go} style={{ padding: '0.1rem 0.95rem 0.6rem', cursor: 'pointer' }}>
-                <span style={{ fontWeight: '700', color: 'var(--charcoal)', fontSize: '0.9rem' }}>{p.businessName || p.name}</span>
+                <span style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>{p.businessName || p.name}</span>
                 {p.minPrice != null && <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}> · Starting at {currencySymbol(p.currency)} {p.minPrice}</span>}
                 {p.serviceCount > 0 && (
                     <p style={{ margin: '0.3rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
@@ -201,7 +201,7 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
                     to={`/book-appointment?providerId=${id}`}
                     onClick={(e) => e.stopPropagation()}
                     className="btn-primary"
-                    style={{ display: 'block', width: '100%', textAlign: 'center', padding: '0.65rem', fontSize: '0.88rem', fontWeight: '700', textDecoration: 'none' }}
+                    style={{ display: 'block', width: '100%', textAlign: 'center', padding: '0.65rem', fontSize: '0.88rem', fontWeight: '600', textDecoration: 'none' }}
                 >
                     Book Appointment
                 </Link>
@@ -532,8 +532,8 @@ const Home = () => {
                     {/* Honest live stat, Fresha-style placement */}
                     {!loading && providers.length > 0 && (
                         <p className="home-hero-stat" style={{ textAlign: 'center', margin: '0.9rem 0 0', fontSize: '0.95rem', color: 'var(--text-secondary)' }}>
-                            <strong style={{ color: 'var(--charcoal)', fontWeight: 700 }}>{totalServices}</strong> service{totalServices !== 1 ? 's' : ''} from{' '}
-                            <strong style={{ color: 'var(--charcoal)', fontWeight: 700 }}>{providers.length}</strong> local business{providers.length !== 1 ? 'es' : ''} — booked in seconds
+                            <strong style={{ color: 'var(--charcoal)', fontWeight: 600 }}>{totalServices}</strong> service{totalServices !== 1 ? 's' : ''} from{' '}
+                            <strong style={{ color: 'var(--charcoal)', fontWeight: 600 }}>{providers.length}</strong> local business{providers.length !== 1 ? 'es' : ''} — booked in seconds
                         </p>
                     )}
                 </div>
@@ -580,13 +580,13 @@ const Home = () => {
                 <div className="container">
                     {hasActiveFilter ? (
                         <>
-                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.55rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 1.1rem' }}>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.55rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 1.1rem' }}>
                                 {filteredProviders.length} {filteredProviders.length === 1 ? 'business' : 'businesses'}{activeCategory ? ` · ${activeCategory}` : ''}
                             </h2>
                             {filteredProviders.length === 0 ? (
                                 <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '3rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                                     <p style={{ margin: '0 0 0.85rem', fontSize: '0.95rem' }}>No businesses match your filters.</p>
-                                    <button onClick={clearFilters} className="btn-outline" style={{ padding: '0.5rem 1.25rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: 700 }}>Clear filters</button>
+                                    <button onClick={clearFilters} className="btn-outline" style={{ padding: '0.5rem 1.25rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: 600 }}>Clear filters</button>
                                 </div>
                             ) : (
                                 <div className="home-section-grid">
@@ -601,7 +601,7 @@ const Home = () => {
                     {/* Book again — one-tap rebooks from the user's own history */}
                     {!loading && bookAgainItems.length > 0 && (
                         <div style={{ marginBottom: '2.75rem' }}>
-                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.55rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 1.1rem' }}>Book again</h2>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.55rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 1.1rem' }}>Book again</h2>
                             <div className="home-section-grid">
                                 {bookAgainItems.map(item => (
                                     <div key={item.serviceId} style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '16px', overflow: 'hidden', boxShadow: 'var(--shadow-sm)' }}>
@@ -609,16 +609,16 @@ const Home = () => {
                                             <div style={{ aspectRatio: '16 / 9', background: item.image ? 'var(--warm-gray)' : 'linear-gradient(135deg, #1c1c1e 0%, #040505 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                                                 {item.image
                                                     ? <img src={cloudinaryThumb(item.image, 700)} alt={item.providerName} loading="lazy" style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }} />
-                                                    : <span style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: 700, color: 'var(--gold)' }}>{item.providerName.charAt(0).toUpperCase()}</span>}
+                                                    : <span style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: 600, color: 'var(--gold)' }}>{item.providerName.charAt(0).toUpperCase()}</span>}
                                             </div>
                                         </Link>
                                         <div style={{ padding: '0.75rem 0.9rem 0.9rem' }}>
-                                            <p style={{ margin: 0, fontWeight: 700, color: 'var(--charcoal)', fontSize: '0.95rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.providerName}</p>
+                                            <p style={{ margin: 0, fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.95rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{item.providerName}</p>
                                             <p style={{ margin: '2px 0 0.7rem', fontSize: '0.82rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{currencySymbol(item.currency)} {item.price} · {item.serviceName}</p>
                                             <button
                                                 onClick={() => navigate(`/book-appointment?providerId=${item.providerId}&serviceId=${item.serviceId}`)}
                                                 className="btn-outline"
-                                                style={{ width: '100%', padding: '0.5rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: 700, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
+                                                style={{ width: '100%', padding: '0.5rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem' }}
                                             >
                                                 <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M1 4v6h6M23 20v-6h-6"/><path d="M20.49 9A9 9 0 005.64 5.64L1 10m22 4l-4.64 4.36A9 9 0 013.51 15"/></svg>
                                                 Rebook
@@ -633,7 +633,7 @@ const Home = () => {
                     {/* Recently viewed — client-side history of profile visits */}
                     {!loading && recentlyViewed.length > 0 && (
                         <div style={{ marginBottom: '2.75rem' }}>
-                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.55rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 1.1rem' }}>Recently viewed</h2>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.55rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 1.1rem' }}>Recently viewed</h2>
                             <div className="home-section-grid">
                                 {recentlyViewed.map(x => (
                                     <ProviderCard key={`recent-${x._id}`} p={x} isFav={favSet.has(String(x._id))} onToggleFav={toggleFav} />
@@ -650,7 +650,7 @@ const Home = () => {
                     {/* Recommended — every remaining business, exactly once */}
                     {!loading && recommendedProviders.length > 0 && (
                         <div style={{ marginBottom: '2.75rem' }}>
-                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.55rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.25rem' }}>Recommended</h2>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.55rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.25rem' }}>Recommended</h2>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: '0 0 1.1rem' }}>Businesses picked for you</p>
                             <div className="home-section-grid">
                                 {recommendedProviders.map(x => (
@@ -667,7 +667,7 @@ const Home = () => {
             {/* ── Discover feed (vertical, photo-rich) — the primary MOBILE home feed ── */}
             <section className="home-feed-mobile" style={{ paddingTop: '0.5rem', paddingBottom: '3.5rem' }}>
                 <div className="container">
-                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', fontWeight: '700', color: 'var(--charcoal)', margin: '0 0 0.4rem' }}>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.4rem, 3vw, 1.9rem)', fontWeight: '600', color: 'var(--charcoal)', margin: '0 0 0.4rem' }}>
                         {hasActiveFilter ? `${filteredProviders.length} ${filteredProviders.length === 1 ? 'result' : 'results'}` : 'Discover'}
                     </h2>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 1.5rem' }}>
@@ -691,7 +691,7 @@ const Home = () => {
                                 <p style={{ margin: hasActiveFilter ? '0 0 0.85rem' : 0, fontSize: '0.95rem' }}>
                                     {hasActiveFilter ? 'No businesses match your filters.' : 'New businesses are joining soon. Check back shortly.'}
                                 </p>
-                                {hasActiveFilter && <button onClick={clearFilters} className="btn-outline" style={{ padding: '0.5rem 1.25rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: 700 }}>Clear filters</button>}
+                                {hasActiveFilter && <button onClick={clearFilters} className="btn-outline" style={{ padding: '0.5rem 1.25rem', borderRadius: '999px', fontSize: '0.85rem', fontWeight: 600 }}>Clear filters</button>}
                             </div>
                         ) : (
                             <>
@@ -723,7 +723,7 @@ const Home = () => {
             <section style={{ background: 'var(--ink)', padding: '1rem 0' }}>
                 <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem 1.25rem', flexWrap: 'wrap', textAlign: 'center' }}>
                     <p style={{ color: 'rgba(255,255,255,0.72)', fontSize: '0.95rem', margin: 0 }}>
-                        <span style={{ color: 'white', fontWeight: '700' }}>{user?.role === 'provider' ? 'Grow your business with Bookplus.' : 'Ready when you are.'}</span>{' '}
+                        <span style={{ color: 'white', fontWeight: '600' }}>{user?.role === 'provider' ? 'Grow your business with Bookplus.' : 'Ready when you are.'}</span>{' '}
                         {user?.role === 'provider' ? 'Run everything from one workspace.' : 'Find a business, pick a time, and you’re booked.'}
                     </p>
                     {user?.role === 'provider' ? (

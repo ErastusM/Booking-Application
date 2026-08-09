@@ -4,7 +4,7 @@ import Seo from '../components/Seo';
 
 const LAST_UPDATED = '18 June 2026';
 
-const sectionTitle = { fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '700', color: 'var(--charcoal)', margin: '2rem 0 0.6rem' };
+const sectionTitle = { fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '600', color: 'var(--charcoal)', margin: '2rem 0 0.6rem' };
 const para = { color: 'var(--text-secondary)', lineHeight: 1.75, fontSize: '0.95rem', margin: '0 0 0.85rem' };
 const li = { color: 'var(--text-secondary)', lineHeight: 1.7, fontSize: '0.95rem', marginBottom: '0.35rem' };
 
@@ -16,7 +16,7 @@ const PrivacyPolicy = () => {
                 description="How Bookplus collects, uses and protects your personal information."
                 url={(typeof window !== 'undefined' ? window.location.origin : 'https://www.bookplus.pro') + '/privacy-policy'}
             />
-            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', fontWeight: '700', color: 'var(--charcoal)', marginBottom: '0.4rem' }}>Privacy Policy</h1>
+            <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2.2rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.4rem' }}>Privacy Policy</h1>
             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1.5rem' }}>Last updated: {LAST_UPDATED}</p>
 
             <p style={para}>
