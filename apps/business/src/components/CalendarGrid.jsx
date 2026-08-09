@@ -13,7 +13,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 // `.fc-event-appt-client`, and `.fc-event-appt-staff` so staff-lanes.spec.cjs
 // keeps asserting against real content.
 
-const HOUR_MIN_PX = 46;           // floor for a slot when a long day has to scroll
+const HOUR_PX = 76;               // matches the approved prototype (roomy slots)
 const GUTTER_W = 44;
 const pad = (n) => String(n).padStart(2, '0');
 const dateKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -109,10 +109,6 @@ const CalendarGrid = ({
     const days = useMemo(() => Array.from({ length: cols }, (_, i) => addDays(firstDay, i)), [dateKey(firstDay), cols]);
     const today = new Date();
 
-    // Measured height of the scroll body — used to fit the day's window to the
-    // screen (dynamic slot height) so a normal day shows without scrolling.
-    const [bodyPx, setBodyPx] = useState(0);
-
     // Re-render each minute so the now-line advances.
     const [, tick] = useState(0);
     const showsToday = days.some((d) => sameDay(d, today));
@@ -181,34 +177,21 @@ const CalendarGrid = ({
     // include anything booked off-grid, padded an hour each side, snapped to
     // whole hours. Defaults to 08:00–20:00.
     const { winStart, winEnd } = useMemo(() => {
-        // A sensible default workday, expanded ONLY by real bookings — NOT by
-        // business hours. Business hours can be set very wide (or left open),
-        // which would reserve a tall empty region you'd scroll through. (Business
-        // hours still drive the off-hours hatch below, just not the window size.)
         let start = 8 * 60; let end = 20 * 60;
+        days.forEach((d) => {
+            const cfg = availability?.[DAY_NAMES[d.getDay()]];
+            const slots = (cfg?.enabled && Array.isArray(cfg.slots) ? cfg.slots : []).filter((s) => s?.start && s?.end);
+            slots.forEach((s) => { start = Math.min(start, minutesOf(s.start)); end = Math.max(end, minutesOf(s.end)); });
+        });
         dayKeys.forEach((k) => {
             (perDay[k]?.appts || []).forEach((e) => { start = Math.min(start, e.startMin); end = Math.max(end, e.endMin); });
             (perDay[k]?.blocks || []).forEach((e) => { start = Math.min(start, e.startMin); end = Math.max(end, e.endMin); });
         });
-        // Snap to whole hours, no extra padding — dead space above/below is what
-        // made the grid scroll through emptiness.
-        start = Math.max(0, Math.floor(start / 60) * 60);
-        end = Math.min(24 * 60, Math.ceil(end / 60) * 60);
+        start = Math.max(0, Math.floor(start / 60) * 60 - 60);
+        end = Math.min(24 * 60, Math.ceil(end / 60) * 60 + 60);
         return { winStart: start, winEnd: Math.max(end, start + 60) };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dayKeys.join(','), perDay, availability]);
-
-    // Fit the window to the measured body height (so a normal day fills the screen
-    // without scrolling), clamped so slots stay legible and don't get huge. Falls
-    // back to a roomy default before the first measurement.
-    const spanHours = Math.max(1, (winEnd - winStart) / 60);
-    // Fill the body height so the grid is never shorter than the viewport (no
-    // blank below), and only exceed it — i.e. scroll — when the day is genuinely
-    // taller than the screen at the minimum slot height. Guarantees no empty
-    // space above or below the schedule, at rest or when scrolling.
-    const HOUR_PX = bodyPx > 0
-        ? Math.max(HOUR_MIN_PX, bodyPx / spanHours)
-        : 64;
 
     const bodyH = ((winEnd - winStart) / 60) * HOUR_PX;
     const pxOf = (mins) => ((mins - winStart) / 60) * HOUR_PX;
@@ -240,23 +223,9 @@ const CalendarGrid = ({
 
     const bodyRef = useRef(null);
     const isTodayInView = showsToday;
-
-    // Track the scroll body's height so the window can be fit to it.
+    // Open the scroll near the start of the working day.
     useEffect(() => {
-        const el = bodyRef.current;
-        if (!el) return undefined;
-        const measure = () => setBodyPx(el.clientHeight);
-        measure();
-        let ro;
-        if (typeof ResizeObserver !== 'undefined') { ro = new ResizeObserver(measure); ro.observe(el); }
-        window.addEventListener('resize', measure);
-        return () => { if (ro) ro.disconnect(); window.removeEventListener('resize', measure); };
-    }, []);
-
-    // Open at the top of the window (business start / earliest booking). When the
-    // day fits, there's nothing to scroll; when it overflows, this shows the start.
-    useEffect(() => {
-        if (bodyRef.current) bodyRef.current.scrollTop = 0;
+        if (bodyRef.current) bodyRef.current.scrollTop = Math.max(0, ((9 * 60) - winStart) / 60 * HOUR_PX - 12);
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [view, dateKey(firstDay), winStart]);
 
@@ -314,7 +283,7 @@ const CalendarGrid = ({
             </div>
 
             {/* Scrollable grid body */}
-            <div ref={bodyRef} style={{ flex: 1, minHeight: 0, overflow: 'auto', overscrollBehavior: 'contain', WebkitOverflowScrolling: 'touch', background: 'var(--card-bg)' }}>
+            <div ref={bodyRef} style={{ flex: 1, minHeight: 0, overflow: 'auto', WebkitOverflowScrolling: 'touch' }}>
                 <div style={{ display: 'grid', gridTemplateColumns: colTemplate, position: 'relative' }}>
                     {/* Time gutter */}
                     <div style={{ position: 'relative', height: `${bodyH}px`, borderRight: '1px solid var(--border)' }}>
