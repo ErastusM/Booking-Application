@@ -473,12 +473,12 @@ const Navbar = () => {
             </>
         )}
 
-        {/* Mobile bottom navigation — provider: floating rounded card (matches design mock) */}
+        {/* Mobile bottom navigation — provider: flat full-width bar flush to the
+            bottom edge with a top border (matches the calendar design mock). */}
         {user?.role === 'provider' && createPortal(
             <div className="nav-mobile" style={{
                 position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
                 display: 'flex', justifyContent: 'center',
-                padding: '0 12px calc(3px + env(safe-area-inset-bottom, 0))',
                 pointerEvents: 'none',
                 // Portalled to <body> so no ancestor can ever become its containing
                 // block and strand it mid-page.
@@ -494,15 +494,14 @@ const Navbar = () => {
                 // (non-backdrop-filter) background below is the other half of the fix.
             }}>
                 <div style={{
-                    pointerEvents: 'auto', width: '100%', maxWidth: '440px',
+                    pointerEvents: 'auto', width: '100%',
                     display: 'flex', justifyContent: 'space-around', alignItems: 'center',
                     // Solid (NOT backdrop-filter): a backdrop-filtered fixed bar is exactly
                     // what makes iOS Safari fail to repaint it during momentum scroll and
                     // "stick" mid-page. Matches the customer app's bottom nav.
                     background: darkMode ? '#17181c' : '#ffffff',
-                    border: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid var(--border)',
-                    borderRadius: '20px', boxShadow: '0 8px 22px rgba(4,5,5,0.13)',
-                    padding: '6px 8px',
+                    borderTop: darkMode ? '1px solid rgba(255,255,255,0.08)' : '1px solid var(--border)',
+                    padding: '6px 6px calc(6px + env(safe-area-inset-bottom, 0px))',
                 }}>
                     {bottomTab({ to: '/dashboard', label: 'Calendar', icon: (
                         <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>
@@ -516,13 +515,18 @@ const Navbar = () => {
                         which ProviderDashboard turns into openBlankApptModal(). The lift
                         is a transform on THIS span only (a grandchild), never on the
                         fixed bar itself — so the iOS repaint fix above is untouched. */}
-                    <Link to="/dashboard?new=1" aria-label="New booking" style={{ flexShrink: 0, alignSelf: 'center', margin: '0 4px', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', WebkitTapHighlightColor: 'transparent' }}>
+                    <Link to="/dashboard?new=1" aria-label="New booking" style={{ flexShrink: 0, alignSelf: 'center', margin: '0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', WebkitTapHighlightColor: 'transparent' }}>
                         <span style={{
-                            width: '48px', height: '48px', borderRadius: '50%',
+                            width: '50px', height: '50px', borderRadius: '50%',
                             background: 'var(--gold)', color: '#fff',
                             display: 'flex', alignItems: 'center', justifyContent: 'center',
                             boxShadow: '0 8px 18px rgba(240,62,22,0.45)',
-                            transform: 'translateY(-14px)',
+                            // Raise the button above the bar WITHOUT inflating the bar's
+                            // height: the negative margin cancels the extra height from
+                            // layout so the flat bar stays tab-height. Transform is on this
+                            // grandchild span only, never the fixed bar (iOS repaint fix).
+                            transform: 'translateY(-16px)',
+                            marginBottom: '-16px',
                             border: `3px solid ${darkMode ? '#17181c' : '#ffffff'}`,
                         }}>
                             <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14"/></svg>

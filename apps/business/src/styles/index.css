@@ -888,91 +888,6 @@ body.dark-mode .fc-bookplus-wrapper .fc-timegrid-slot-minor {
   box-shadow: 0 1px 4px rgba(0,0,0,0.08);
 }
 
-/* Custom event content — appointment */
-.fc-event-appt {
-  position: relative;
-  padding: 4px 8px;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-  line-height: 1.2;
-  overflow: hidden;
-}
-
-/* Recurring ⟳ badge — top-right corner of an appointment or blocked-time card. */
-.fc-event-recur {
-  position: absolute;
-  top: 2px;
-  right: 4px;
-  font-size: 0.72rem;
-  line-height: 1;
-  opacity: 0.7;
-  pointer-events: none;
-}
-
-/* Short appointments (≈15–30 min) are too short to hold three stacked lines,
-   so the content was clipping. Drop the exact time (already shown on the grid's
-   time axis) and tighten padding so the client name + service stay legible. */
-.fc-bookplus-wrapper .fc-timegrid-event-short .fc-event-appt {
-  padding: 2px 8px;
-  justify-content: center;
-}
-.fc-bookplus-wrapper .fc-timegrid-event-short .fc-event-appt-time {
-  display: none;
-}
-
-.fc-event-appt-time {
-  font-size: 0.68rem;
-  font-weight: 600;
-  opacity: 0.75;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.fc-event-appt-client {
-  font-size: 0.8rem;
-  font-weight: 600;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  line-height: 1.2;
-}
-
-.fc-event-appt-service {
-  font-size: 0.72rem;
-  opacity: 0.8;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-/* Which staff member the booking is assigned to — shown only when the
-   calendar is unfiltered ("All staff"), dot in the member's roster colour. */
-.fc-event-appt-staff {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  font-size: 0.66rem;
-  font-weight: 600;
-  opacity: 0.85;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.fc-event-appt-staff-dot {
-  width: 7px;
-  height: 7px;
-  border-radius: 50%;
-  flex-shrink: 0;
-}
-
-/* Too short to hold a fourth line */
-.fc-bookplus-wrapper .fc-timegrid-event-short .fc-event-appt-staff {
-  display: none;
-}
 
 /* Staff-lanes view: non-working hours use the same "pattern + colour, not
    colour alone" rule as .fc-non-business above, including the dark-mode swap
@@ -1074,16 +989,6 @@ body.dark-mode .staff-lane-offhours {
     padding: 0.3rem 0.6rem !important;
   }
 
-  .fc-event-appt-client {
-    font-size: 0.75rem;
-  }
-
-  /* Hide the service only on events too short to hold three lines. A full-hour
-     booking has plenty of room, and blanking the service there left the owner
-     looking at a time and a name with no idea what was booked. */
-  .fc-bookplus-wrapper .fc-timegrid-event-short .fc-event-appt-service {
-    display: none;
-  }
 }
 
 /* ============================================================================
