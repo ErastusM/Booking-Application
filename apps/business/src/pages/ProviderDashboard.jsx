@@ -69,6 +69,7 @@ const ProviderDashboard = () => {
     const [catalogueSearch, setCatalogueSearch] = useState('');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [calendarView, setCalendarView] = useState('3day');
+    const [viewMenuOpen, setViewMenuOpen] = useState(false); // compact view-switcher dropdown in the calendar header
     const [calendarToast, setCalendarToast] = useState(null); // { msg, type }
 
     // Size the day/week calendar to fill from its top down to just above the fixed
@@ -996,6 +997,43 @@ const ProviderDashboard = () => {
 
     const labelStyle = { display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', letterSpacing: '0.05em', textTransform: 'uppercase' };
 
+    // Compact view switcher for the calendar header — a dropdown (not a pill row)
+    // so the whole control strip fits one line, matching the prototype.
+    const calendarViewOptions = [['day', 'Day'], ['3day', '3 Day'], ['week', 'Week'], ...(activeTeamMembers.length > 0 ? [['staff', 'Staff']] : [])];
+    const calendarViewLabel = (calendarViewOptions.find(([v]) => v === calendarView) || ['', calendarView])[1];
+    const viewMenu = (
+        <div style={{ position: 'relative', flexShrink: 0 }}>
+            <button
+                type="button"
+                onClick={() => setViewMenuOpen(o => !o)}
+                aria-haspopup="menu"
+                aria-expanded={viewMenuOpen}
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.35rem 0.6rem', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface-sunken)', color: 'var(--charcoal)', fontSize: '0.8rem', fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer', whiteSpace: 'nowrap' }}
+            >
+                {calendarViewLabel}
+                <ChevronDown size={14} style={{ transform: viewMenuOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s' }} />
+            </button>
+            {viewMenuOpen && (
+                <>
+                    <div onClick={() => setViewMenuOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 1 }} />
+                    <div role="menu" style={{ position: 'absolute', top: 'calc(100% + 6px)', right: 0, zIndex: 2, minWidth: '128px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '10px', boxShadow: 'var(--shadow-md)', padding: '0.25rem' }}>
+                        {calendarViewOptions.map(([v, label]) => (
+                            <button
+                                key={v}
+                                role="menuitem"
+                                type="button"
+                                onClick={() => { setCalendarView(v); setViewMenuOpen(false); }}
+                                style={{ display: 'flex', width: '100%', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0.6rem', border: 'none', background: calendarView === v ? 'var(--surface-sunken)' : 'none', borderRadius: '7px', cursor: 'pointer', fontSize: '0.85rem', fontWeight: calendarView === v ? 700 : 500, color: 'var(--charcoal)', fontFamily: 'var(--font-body)', textAlign: 'left' }}
+                            >
+                                {label}{calendarView === v && <span style={{ marginLeft: 'auto', color: 'var(--gold-dark)' }}>✓</span>}
+                            </button>
+                        ))}
+                    </div>
+                </>
+            )}
+        </div>
+    );
+
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
             {showWizard && (
@@ -1832,66 +1870,16 @@ const ProviderDashboard = () => {
 
                 {/* Calendar tab */}
                 {activeTab === 'calendar' && (
-                    <div>
-                        {/* Floating scroll-to-top — FullCalendar captures touch gestures, so once
-                            you reach the bottom it's hard to swipe the page back up. */}
-                        <button
-                            type="button"
-                            aria-label="Scroll to top"
-                            onClick={() => { try { window.scrollTo({ top: 0, behavior: 'smooth' }); } catch (_) { window.scrollTo(0, 0); } }}
-                            style={{ position: 'fixed', right: '16px', bottom: 'calc(104px + env(safe-area-inset-bottom, 0px))', zIndex: 1001, width: '44px', height: '44px', borderRadius: '50%', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--charcoal)', boxShadow: 'var(--shadow-md)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                        >
-                            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 15l-6-6-6 6" /></svg>
-                        </button>
-                        <div className="fc-toolbar-shell" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem', marginBottom: '1rem' }}>
-                            <div style={{ display: 'inline-flex', background: 'var(--surface-sunken)', border: '1px solid var(--border)', borderRadius: '10px', padding: '3px', gap: '2px' }}>
-                                {[['day', 'Day'], ['3day', '3 Day'], ['week', 'Week'], ...(activeTeamMembers.length > 0 ? [['staff', 'Staff']] : [])].map(([view, label]) => {
-                                    const isActive = calendarView === view;
-                                    return (
-                                        <button
-                                            key={view}
-                                            onClick={() => setCalendarView(view)}
-                                            aria-pressed={isActive}
-                                            style={{
-                                                padding: '0.4rem 1rem',
-                                                borderRadius: '8px',
-                                                border: 'none',
-                                                cursor: 'pointer',
-                                                fontSize: '0.82rem',
-                                                fontWeight: isActive ? '600' : '500',
-                                                fontFamily: 'var(--font-body)',
-                                                background: isActive ? 'var(--card-bg)' : 'transparent',
-                                                color: isActive ? 'var(--charcoal)' : 'var(--text-secondary)',
-                                                boxShadow: isActive ? 'var(--shadow-sm)' : 'none',
-                                                transition: 'background 0.18s var(--ease-out, ease), color 0.18s ease',
-                                            }}
-                                        >
-                                            {label}
-                                        </button>
-                                    );
-                                })}
-                            </div>
-                            <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                <button
-                                    onClick={() => openBlankApptModal()}
-                                    className="btn-primary"
-                                    style={{ padding: '0.5rem 0.9rem', fontSize: '0.82rem' }}
-                                >
-                                    + Appointment
-                                </button>
-                                <button
-                                    onClick={() => openBlockedTimeForm(null)}
-                                    className="btn-outline"
-                                    style={{ padding: '0.5rem 0.9rem', fontSize: '0.82rem' }}
-                                >
-                                    + Block Time
-                                </button>
-                            </div>
-                        </div>
+                    <div style={{ position: 'fixed', top: 'calc(56px + env(safe-area-inset-top, 0px))', left: 0, right: 0, bottom: 'calc(52px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', background: 'var(--card-bg)', zIndex: 20 }}>
+                        {/* Full-screen, pinned calendar: fixed between the top navbar and the
+                            bottom nav so the page itself never scrolls (only the grid body does).
+                            The view switcher lives in the calendar header (one control strip);
+                            new bookings come from the nav "+" or tapping a slot; tapping a slot
+                            also offers "block time". */}
 
                         {/* Staff filter — who's on the calendar. Chips mirror the view switcher. */}
                         {teamMembers.length > 0 && (
-                            <div role="group" aria-label="Filter calendar by staff member" style={{ display: 'flex', gap: '0.45rem', overflowX: 'auto', marginBottom: '0.9rem', paddingBottom: '2px', WebkitOverflowScrolling: 'touch' }}>
+                            <div role="group" aria-label="Filter calendar by staff member" style={{ display: 'flex', gap: '0.45rem', overflowX: 'auto', padding: '0 0.9rem 0.5rem', flexShrink: 0, WebkitOverflowScrolling: 'touch' }}>
                                 {[
                                     { id: 'all', label: 'All staff' },
                                     { id: 'unassigned', label: `${(user?.name || 'Me').split(' ')[0]} (me)` },
@@ -1922,7 +1910,7 @@ const ProviderDashboard = () => {
                             </div>
                         )}
 
-                        <div ref={fcWrapRef} className="fc-bookplus-wrapper fc-fullbleed" style={{ background: 'var(--card-bg)', overflow: 'hidden', width: '100vw', marginLeft: 'calc(50% - 50vw)' }}>
+                        <div ref={fcWrapRef} className="fc-bookplus-wrapper fc-fullbleed" style={{ background: 'var(--card-bg)', overflow: 'hidden', flex: 1, minHeight: 0 }}>
                             {calendarView === 'staff' && activeTeamMembers.length > 0 ? (
                                 <StaffLanesDay
                                     date={currentDate}
@@ -1934,7 +1922,8 @@ const ProviderDashboard = () => {
                                     blockedTimes={blockedTimes}
                                     availability={availability}
                                     statusColors={statusCalendarColors}
-                                    height={calHeight}
+                                    height="100%"
+                                    headerControl={viewMenu}
                                     onApptClick={openApptDetail}
                                     onBlockClick={(block) => openBlockedTimeForm(block)}
                                     onSlotClick={(sel) => { setApptError(''); setTimeSelectionPreview(sel); }}
@@ -1950,7 +1939,8 @@ const ProviderDashboard = () => {
                                     ownerName={user?.name}
                                     staffFilter={calendarStaffFilter}
                                     availability={availability}
-                                    height={calHeight}
+                                    height="100%"
+                                    headerControl={viewMenu}
                                     onEventClick={openApptDetail}
                                     onBlockClick={(block) => openBlockedTimeForm(block)}
                                     onSlotClick={(sel) => { setApptError(''); setTimeSelectionPreview(sel); }}

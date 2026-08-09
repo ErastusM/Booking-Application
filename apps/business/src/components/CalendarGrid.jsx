@@ -98,6 +98,7 @@ const CalendarGrid = ({
     staffFilter = 'all',     // 'all' | 'unassigned' | teamMember _id
     availability,            // business hours { monday: {enabled, slots:[{start,end}]}, … }
     height,                  // px — measured fill height from the dashboard
+    headerControl,           // optional node rendered in the header row (e.g. the view switcher)
     onEventClick,            // (rawAppointment) => void
     onBlockClick,            // (rawBlockedTime) => void
     onSlotClick,             // ({date, startTime, endTime}) => void
@@ -243,18 +244,19 @@ const CalendarGrid = ({
 
     return (
         <div style={{ height: height || 640, display: 'flex', flexDirection: 'column', background: 'var(--card-bg)', minHeight: 0 }}>
-            {/* Date range header (prev / label / next / today) */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+            {/* Single control strip: prev / next / range · view switcher · today */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.7rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
                 <button type="button" aria-label="Previous" onClick={() => shift(-1)} style={navBtn}><ChevronLeft size={17} /></button>
                 <button type="button" aria-label="Next" onClick={() => shift(1)} style={navBtn}><ChevronRight size={17} /></button>
-                <span style={{ marginLeft: '0.15rem', fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: 600, color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                <span style={{ flex: 1, minWidth: 0, marginLeft: '0.15rem', fontFamily: 'var(--font-display)', fontSize: '0.95rem', fontWeight: 600, color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                     {rangeLabel}
                 </span>
+                {headerControl}
                 <button
                     type="button"
                     onClick={() => onDateChange && onDateChange(new Date())}
                     disabled={isTodayInView && cols === 1}
-                    style={{ ...navBtn, marginLeft: 'auto', width: 'auto', padding: '0 0.75rem', fontSize: '0.8rem', fontWeight: 600 }}
+                    style={{ ...navBtn, width: 'auto', padding: '0 0.7rem', fontSize: '0.78rem', fontWeight: 600 }}
                 >
                     Today
                 </button>
@@ -348,7 +350,7 @@ const CalendarGrid = ({
                                                 left: `calc(${(ev.col / ev.cols) * 100}% + 2px)`, width: `calc(${100 / ev.cols}% - 4px)`,
                                                 zIndex: 2, textAlign: 'left', overflow: 'hidden', cursor: 'pointer',
                                                 display: 'flex', flexDirection: 'column', lineHeight: 1.15,
-                                                background: pal.bg, borderLeft: `3px ${dim ? 'dashed' : 'solid'} ${pal.rail}`, borderRadius: '8px',
+                                                background: pal.bg, border: 'none', borderLeft: `3px ${dim ? 'dashed' : 'solid'} ${pal.rail}`, borderRadius: '8px',
                                                 padding: '0.28rem 0.42rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)',
                                                 boxShadow: 'var(--shadow-sm)', opacity: dim ? 0.78 : 1,
                                             }}
