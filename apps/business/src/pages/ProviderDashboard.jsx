@@ -247,6 +247,23 @@ const ProviderDashboard = () => {
         if (activeTab === 'wallet') fetchWalletData();
     }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // The Calendar tab is a fixed, full-screen frame pinned between the top and
+    // bottom nav. Freeze the document scroll while it's open so the page behind
+    // that frame can't scroll — on iOS a page scroll collapses/expands Safari's
+    // address bar, which resizes the visual viewport and drags the "fixed" frame
+    // up and down (what reads as the calendar "moving"). With the document locked
+    // only the grid body scrolls, so the frame stays glued to top and bottom.
+    useEffect(() => {
+        if (activeTab !== 'calendar') return undefined;
+        const html = document.documentElement;
+        const body = document.body;
+        const prevHtml = html.style.overflow;
+        const prevBody = body.style.overflow;
+        html.style.overflow = 'hidden';
+        body.style.overflow = 'hidden';
+        return () => { html.style.overflow = prevHtml; body.style.overflow = prevBody; };
+    }, [activeTab]);
+
     // When the New Appointment modal opens, load the client list (for the "existing
     // client" picker) and the availability schedule (so the time picker matches the
     // app's availability-aware slots).
