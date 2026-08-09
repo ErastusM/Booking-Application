@@ -1160,13 +1160,16 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
    APP SHELL — navigation + route transitions (Stage B)
    ============================================================================ */
 
-/* Route transition — fade + subtle rise on every navigation.
-   fill-mode is `backwards` (NOT `both`/`forwards`): we want the pre-animation offset,
-   but we must NOT retain a transform after it finishes. A lingering `transform: translateY(0)`
-   turns .route-view into a containing block + stacking context, which (a) re-anchors any
-   in-page `position: fixed` modal/bar to this wrapper instead of the viewport and (b) traps
-   those modals beneath the fixed bottom nav. backwards reverts to `transform: none` on end. */
-@keyframes routeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+/* Route transition — fade only, NO transform.
+   The old keyframes animated translateY, and `backwards` fill only prevented a
+   transform from LINGERING after the animation. During the 320ms it ran (and it
+   re-runs on every navigation — the wrapper is keyed on pathname) .route-view
+   still had a transform, which makes it a containing block for `position: fixed`
+   descendants: the full-screen calendar frame anchored to this wrapper instead of
+   the viewport, then snapped back when the animation ended. That is a visible
+   drift. Animating opacity alone never creates a containing block, so fixed
+   children stay glued to the viewport at all times. */
+@keyframes routeIn { from { opacity: 0; } to { opacity: 1; } }
 .route-view { animation: routeIn var(--dur-slow) var(--ease-out) backwards; }
 @media (prefers-reduced-motion: reduce) { .route-view { animation: none; } }
 

@@ -55,6 +55,8 @@ const ProviderDashboard = () => {
     const navigate = useNavigate();
     const toast = useToast();
     const fcWrapRef = useRef(null);
+    // The full-screen Calendar frame — pinned to the visual viewport (see effect below).
+    const calFrameRef = useRef(null);
     // Day/week calendar fills the space from its top down to just above the bottom
     // nav, instead of a fixed 680px that left dead grey space on tall phones.
     // Measured (scroll-corrected) so it's accurate across screen sizes; falls back
@@ -311,6 +313,42 @@ const ProviderDashboard = () => {
             window.scrollTo(0, scrollY);
         };
     }, [activeTab]);
+
+    // Pin the calendar frame to the VISUAL viewport.
+    //
+    // `position: fixed` resolves against the LAYOUT viewport, but iOS Safari
+    // shrinks/grows the VISUAL viewport as its address bar collapses and expands.
+    // A frame anchored with top+bottom therefore slides relative to what the user
+    // actually sees — the drift that survived locking the page scroll. The
+    // VisualViewport API reports the real thing, so we translate the frame by its
+    // offsetTop and size it from its height, keeping the same insets the CSS
+    // declares (read once, before we override them, so the env() safe-area maths
+    // stays authoritative). Browsers without the API keep the CSS behaviour.
+    useEffect(() => {
+        const vv = typeof window !== 'undefined' ? window.visualViewport : null;
+        const el = calFrameRef.current;
+        if (activeTab !== 'calendar' || !vv || !el) return undefined;
+
+        const cs = getComputedStyle(el);
+        const topInset = parseFloat(cs.top) || 0;      // 56px + safe-area-top, resolved
+        const bottomInset = parseFloat(cs.bottom) || 0; // 52px + safe-area-bottom, resolved
+
+        const apply = () => {
+            el.style.top = `${vv.offsetTop + topInset}px`;
+            el.style.bottom = 'auto';
+            el.style.height = `${Math.max(vv.height - topInset - bottomInset, 120)}px`;
+        };
+        apply();
+        vv.addEventListener('resize', apply);
+        vv.addEventListener('scroll', apply);
+        return () => {
+            vv.removeEventListener('resize', apply);
+            vv.removeEventListener('scroll', apply);
+            el.style.top = '';
+            el.style.bottom = '';
+            el.style.height = '';
+        };
+    }, [activeTab, calendarView]);
 
     // When the New Appointment modal opens, load the client list (for the "existing
     // client" picker) and the availability schedule (so the time picker matches the
@@ -1957,7 +1995,7 @@ const ProviderDashboard = () => {
 
                 {/* Calendar tab */}
                 {activeTab === 'calendar' && (
-                    <div style={{ position: 'fixed', top: 'calc(56px + env(safe-area-inset-top, 0px))', left: 0, right: 0, bottom: 'calc(52px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', background: 'var(--card-bg)', zIndex: 20 }}>
+                    <div ref={calFrameRef} style={{ position: 'fixed', top: 'calc(56px + env(safe-area-inset-top, 0px))', left: 0, right: 0, bottom: 'calc(52px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', background: 'var(--card-bg)', zIndex: 20 }}>
                         {/* Full-screen, pinned calendar: fixed between the top navbar and the
                             bottom nav so the page itself never scrolls (only the grid body does).
                             The view switcher lives in the calendar header (one control strip);
@@ -2226,13 +2264,21 @@ const ProviderDashboard = () => {
                         </div>
                         {loadingClients ? <RowsSkeleton /> : (() => {
                             const q = clientSearchQuery.trim().toLowerCase();
-                            const filteredClients = q
+                            const matched = q
                                 ? clients.filter(c => {
                                     const name = (c.customer?.name || '').toLowerCase();
                                     const phone = (c.customer?.phone || '').toLowerCase();
                                     return name.includes(q) || phone.includes(q);
                                 })
                                 : clients;
+                            // Alphabetical by client name. localeCompare with sensitivity
+                            // 'base' makes it case- and accent-insensitive, so "moses" sorts
+                            // next to "Moses" rather than after every capitalised name (a
+                            // plain > comparison puts all lowercase names at the end).
+                            // Copy first — never sort the `clients` state array in place.
+                            const filteredClients = [...matched].sort((a, b) =>
+                                (a.customer?.name || '').localeCompare(b.customer?.name || '', undefined, { sensitivity: 'base', numeric: true })
+                            );
                             return (
                             <div className="clients-table-wrap" style={{ overflowX: 'auto' }}>
                                 <table className="clients-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
