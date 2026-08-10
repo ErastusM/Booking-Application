@@ -28,9 +28,12 @@ test.describe('Availability filtering on the home feed', () => {
         // Still listed: the seeded provider works 08:00–18:00, so tomorrow has openings.
         await expect(page.getByText(SEED.providerName, { exact: false }).first()).toBeVisible({ timeout: 15_000 });
 
-        // And the filter can be cleared again.
-        await page.getByRole('button', { name: /clear filters/i }).first().click();
+        // And removing the date returns to the unfiltered feed. Cleared via the field
+        // itself, deliberately: the "Clear filters" button only renders inside the
+        // zero-results empty state, so it does not exist while results are showing.
+        await page.getByLabel('Date').fill('');
         await expect(page.getByLabel('Date')).toHaveValue('');
+        await expect(page.getByText(SEED.providerName, { exact: false }).first()).toBeVisible({ timeout: 15_000 });
     });
 
     test('a time floor past closing removes that provider', async ({ page }) => {
