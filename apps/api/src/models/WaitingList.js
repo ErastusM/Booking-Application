@@ -17,6 +17,18 @@ const waitingListSchema = new mongoose.Schema(
             ref: 'User',
             required: true,
         },
+        // Which staff member the customer is waiting on, or null for "anyone".
+        // waitingListHelper has always READ `next.teamMember` — to check the freed
+        // slot against the right column and to book the promotion onto it — but the
+        // field never existed here and join never stored one, so it was permanently
+        // undefined. Promotion therefore ran against the OWNER's column: Alice's
+        // cancelled slot could be resold while the waiting customer was booked
+        // somewhere else, or promotion was skipped as "taken" while Alice was free.
+        teamMember: {
+            type: mongoose.Schema.Types.ObjectId,
+            ref: 'TeamMember',
+            default: null,
+        },
         appointmentDate: {
             type: Date,
             required: true,

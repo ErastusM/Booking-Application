@@ -333,7 +333,24 @@ const BookAppointment = () => {
         }));
     };
 
+    // Synchronous double-submit guard. `loading` state alone cannot stop the second
+    // of two fast taps: React batches the state update, so both handlers run before
+    // the button is re-rendered as disabled. That posted two bookings — and because
+    // the server's slot check is not atomic, both could be created, along with two
+    // wallet holds. A ref flips immediately, in the same tick.
+    const confirmInFlight = useRef(false);
+
     const handleConfirm = async () => {
+        if (confirmInFlight.current) return;
+        confirmInFlight.current = true;
+        try {
+            await doConfirm();
+        } finally {
+            confirmInFlight.current = false;
+        }
+    };
+
+    const doConfirm = async () => {
         // Guests must leave contact details so we can send the confirmation + a
         // manage link. Guard here too (buttons are also disabled) and stay put.
         if (!rescheduleId && !user && !guestReady) {
