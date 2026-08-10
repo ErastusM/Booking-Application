@@ -69,6 +69,7 @@ const navBtnStyle = {
 const StaffLanesDay = ({
     date,                    // Date — the day being shown
     onDateChange,            // (Date) => void
+    onViewChange,            // (view) => void — Today also snaps back to the Day view
     ownerName,               // business owner's display name (labels the unassigned lane)
     teamMembers,             // full roster (active + inactive)
     staffFilter,             // 'all' | 'unassigned' | teamMember _id — narrows the lanes shown
@@ -243,9 +244,15 @@ const StaffLanesDay = ({
                 {headerControl}
                 <button
                     type="button"
-                    onClick={() => onDateChange(new Date())}
-                    disabled={isToday}
-                    style={{ ...navBtnStyle, width: 'auto', padding: '0 0.8rem', fontSize: '0.8rem', fontWeight: 600, opacity: isToday ? 0.45 : 1, cursor: isToday ? 'default' : 'pointer' }}
+                    onClick={() => {
+                        // Same contract as the day grid: Today returns you to today AND
+                        // to the single-day view, so it is never a no-op.
+                        onDateChange(new Date());
+                        onViewChange && onViewChange('day');
+                    }}
+                    // Never disabled here: even on today, this still has work to do —
+                    // it takes you out of the Staff lanes back to the Day view.
+                    style={{ ...navBtnStyle, width: 'auto', padding: '0 0.8rem', fontSize: '0.8rem', fontWeight: 600 }}
                 >
                     Today
                 </button>

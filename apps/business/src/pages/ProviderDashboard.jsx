@@ -2107,6 +2107,7 @@ const ProviderDashboard = () => {
                                 <StaffLanesDay
                                     date={currentDate}
                                     onDateChange={setCurrentDate}
+                                    onViewChange={setCalendarView}
                                     ownerName={user?.name}
                                     teamMembers={teamMembers}
                                     staffFilter={calendarStaffFilter}
@@ -2125,6 +2126,7 @@ const ProviderDashboard = () => {
                                     view={calendarView}
                                     date={currentDate}
                                     onDateChange={setCurrentDate}
+                                    onViewChange={setCalendarView}
                                     appointments={appointments}
                                     blockedTimes={blockedTimes}
                                     teamMembers={teamMembers}
