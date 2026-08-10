@@ -27,7 +27,26 @@ exports.formatResponse = (success, message, data = null, statusCode = 200) => {
     };
 };
 
+// Linear-time only — see the note on User.email. The old pattern here was the
+// same catastrophically-backtracking regex; it had no runtime caller, but it is
+// exactly the sort of helper that gets picked up later, so it is fixed too.
 exports.validateEmail = (email) => {
-    const re = /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/;
+    const re = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     return re.test(email);
+};
+
+// Accept a URL only if it is plainly http(s), else store nothing. Payment-proof
+// links are submitted by customers and then shown as a clickable link to a
+// PROVIDER and to ADMINS, so an unvalidated value hands a lower-privileged user
+// a way to put `javascript:`/`data:` or a phishing target in front of a
+// higher-privileged one inside our own trusted UI.
+exports.safeHttpUrl = (value) => {
+    const raw = (value == null ? '' : String(value)).trim().slice(0, 500);
+    if (!raw) return '';
+    try {
+        const u = new URL(raw);
+        return (u.protocol === 'http:' || u.protocol === 'https:') ? u.toString() : '';
+    } catch {
+        return ''; // not an absolute URL at all
+    }
 };

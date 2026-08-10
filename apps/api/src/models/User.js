@@ -23,8 +23,16 @@ const userSchema = new mongoose.Schema(
             type: String,
             required: [true, 'Please add an email'],
             lowercase: true,
+            // Linear-time shape check ONLY. The previous pattern
+            // (/^\w+([\.-]?\w+)*@.../) nested a quantified group inside a
+            // quantifier over the same character class, which backtracks
+            // catastrophically: a 30-char address took ~24s of CPU, and because
+            // Node is single-threaded one public /register call stalled the whole
+            // API. express-validator's isEmail() does the real validation on the
+            // routes; this stays as defence-in-depth for paths that bypass them
+            // (OAuth sign-up, seeds) and must never contain nested quantifiers.
             match: [
-                /^\w+([\.-]?\w+)*@\w+([\.-]?\w+)*(\.\w{2,3})+$/,
+                /^[^\s@]+@[^\s@]+\.[^\s@]+$/,
                 'Please provide a valid email'
             ]
         },

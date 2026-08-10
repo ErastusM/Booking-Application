@@ -127,17 +127,28 @@ exports.redeemSession = async (req, res) => {
         // save let two concurrent redeems both pass the check and each decrement, so a
         // package could be consumed more times than sessions held (finding #21). Now the
         // filter itself is the gate: only one racer matches when one session is left.
+        // expiryDate is in the filter deliberately: packages are only flipped to
+        // 'expired' lazily, when the CLIENT opens their own packages list, and no job
+        // does it. Without this a client who simply never opens that screen keeps
+        // redeeming sessions months past the expiry date. expiryDate is required on
+        // the model, so a plain $gt is safe — there is no null case.
+        const now = new Date();
         const clientPkg = await ClientPackage.findOneAndUpdate(
-            { _id: req.params.id, customer: req.user._id, status: 'active', sessionsRemaining: { $gt: 0 } },
+            { _id: req.params.id, customer: req.user._id, status: 'active', sessionsRemaining: { $gt: 0 }, expiryDate: { $gt: now } },
             { $inc: { sessionsUsed: 1, sessionsRemaining: -1 } },
             { new: true }
         );
         if (!clientPkg) {
-            // No match: either no active package, or it is exhausted — distinguish.
-            const exists = await ClientPackage.exists({ _id: req.params.id, customer: req.user._id, status: 'active' });
-            return res.status(exists ? 400 : 404).json({
+            // No match: no active package, exhausted, or past its expiry — say which,
+            // so an expired package doesn't report as "not found".
+            const active = await ClientPackage.findOne({ _id: req.params.id, customer: req.user._id, status: 'active' }).select('expiryDate sessionsRemaining');
+            if (!active) {
+                return res.status(404).json({ success: false, message: 'Active package not found' });
+            }
+            const expired = active.expiryDate && active.expiryDate <= now;
+            return res.status(400).json({
                 success: false,
-                message: exists ? 'No sessions remaining' : 'Active package not found',
+                message: expired ? 'This package has expired' : 'No sessions remaining',
             });
         }
         // Mark used once the last session is consumed (idempotent follow-up).
