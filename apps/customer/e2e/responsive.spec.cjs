@@ -30,8 +30,13 @@ test.describe('Responsiveness — no horizontal overflow', () => {
     test('customer booking page fits 375px', async ({ page }) => {
         await page.setViewportSize({ width: 375, height: 667 });
         await login(page, SEED.customer);
-        await page.goto('/services');
-        await page.getByText(SEED.providerName, { exact: false }).first().click();
+        // Was '/services', which now redirects to the home feed — the provider is
+        // reached from the feed itself.
+        await page.goto('/');
+        // visible=true matters at this width: the desktop sections are still in the DOM
+        // but display:none, so a plain getByText resolves to a hidden node and the
+        // click waits forever.
+        await page.getByText(SEED.providerName, { exact: false }).locator('visible=true').first().click();
         await page.getByRole('button', { name: /book now/i }).first().click();
         await page.waitForLoadState('networkidle');
         await expectNoHorizontalScroll(page);

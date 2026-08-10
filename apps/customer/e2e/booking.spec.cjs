@@ -5,8 +5,9 @@ test.describe('Customer booking', () => {
     test('customer books the seeded service end to end (no payment)', async ({ page }) => {
         await login(page, SEED.customer);
 
-        // Discovery → provider profile
-        await page.goto('/services');
+        // Discovery → provider profile. '/' is the discovery feed now; this used to
+        // say '/services' and only still worked because that path redirects here.
+        await page.goto('/');
         await page.getByText(SEED.providerName, { exact: false }).first().click();
         await expect(page).toHaveURL(/\/providers\//);
 
