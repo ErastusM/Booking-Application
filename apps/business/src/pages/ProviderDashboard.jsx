@@ -271,47 +271,22 @@ const ProviderDashboard = () => {
     }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // The Calendar tab is a fixed, full-screen frame pinned between the top and
-    // bottom nav. Freeze the page while it's open so the frame can't drift — on
-    // iOS, `overflow: hidden` alone doesn't stop the rubber-band/address-bar
-    // collapse that resizes the visual viewport and drags a "fixed" element up
-    // and down (what reads as the calendar "moving"). The robust fix is to pin
-    // the body with `position: fixed`, holding the current scroll offset, so the
-    // document genuinely cannot scroll; only the inner grid body moves. The
-    // scroll position is captured and restored when the tab closes.
+    // bottom nav. Keep the page behind it from scrolling, but WITHOUT pinning the
+    // body with `position: fixed` — that takes <body> out of flow so it no longer
+    // spans the viewport, and in an installed PWA (viewport-fit=cover) the
+    // collapsed body leaves a band of bare document background below the content.
+    // overflow:hidden on html/body stops the page scrolling on its own; the grid's
+    // own `overscroll-behavior: none` is what actually prevents the drag chaining
+    // out of the calendar.
     useEffect(() => {
         if (activeTab !== 'calendar') return undefined;
         const html = document.documentElement;
         const body = document.body;
-        const scrollY = window.scrollY || window.pageYOffset || 0;
-        const prev = {
-            htmlOverflow: html.style.overflow,
-            overflow: body.style.overflow,
-            position: body.style.position,
-            top: body.style.top,
-            left: body.style.left,
-            right: body.style.right,
-            width: body.style.width,
-            overscroll: body.style.overscrollBehavior,
-        };
+        const prevHtml = html.style.overflow;
+        const prevBody = body.style.overflow;
         html.style.overflow = 'hidden';
         body.style.overflow = 'hidden';
-        body.style.overscrollBehavior = 'none';
-        body.style.position = 'fixed';
-        body.style.top = `-${scrollY}px`;
-        body.style.left = '0';
-        body.style.right = '0';
-        body.style.width = '100%';
-        return () => {
-            html.style.overflow = prev.htmlOverflow;
-            body.style.overflow = prev.overflow;
-            body.style.overscrollBehavior = prev.overscroll;
-            body.style.position = prev.position;
-            body.style.top = prev.top;
-            body.style.left = prev.left;
-            body.style.right = prev.right;
-            body.style.width = prev.width;
-            window.scrollTo(0, scrollY);
-        };
+        return () => { html.style.overflow = prevHtml; body.style.overflow = prevBody; };
     }, [activeTab]);
 
     // When the New Appointment modal opens, load the client list (for the "existing
