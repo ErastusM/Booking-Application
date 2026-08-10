@@ -4,6 +4,7 @@ const { randomUUID } = require('crypto');
 const Appointment = require('../models/Appointment');
 const Availability = require('../models/Availability');
 const Service = require('../models/Service');
+const TeamMember = require('../models/TeamMember');
 const User = require('../models/User');
 const { createNotification, notifyAdmins } = require('../utils/notificationhelper');
 const { apptPhrase, ApptPhrase, theirApptPhrase, servicePhrase } = require('../utils/apptCopy');
@@ -378,13 +379,30 @@ exports.getMyAppointments = async (req, res) => {
     }
 };
 
-/* Helper: advance a date by `interval` recurrence units (every N days/weeks/months) */
-const advanceDate = (date, type, interval = 1) => {
-    const d = new Date(date);
-    const n = Math.max(1, parseInt(interval, 10) || 1);
-    if (type === 'daily')   d.setDate(d.getDate() + n);
-    if (type === 'weekly')  d.setDate(d.getDate() + 7 * n);
-    if (type === 'monthly') d.setMonth(d.getMonth() + n);
+/**
+ * The `step`-th occurrence of a recurrence, measured from the ANCHOR date.
+ *
+ * Deliberately computed from the anchor rather than by walking forward from the
+ * previous occurrence, because monthly recurrence cannot be done incrementally.
+ * setMonth OVERFLOWS: from 31 Jan, +1 month asks for 31 Feb and JS rolls it to
+ * 3 Mar. Stepping from that result, the series permanently migrates to early in
+ * the month. Clamping each step to the month's last day is not enough either —
+ * once 31 Jan becomes 28 Feb, stepping from the 28th keeps it there forever.
+ * Counting months off the anchor and clamping only for display gives the calendar
+ * behaviour people expect: 31 Jan → 28 Feb → 31 Mar → 30 Apr → 31 May.
+ */
+const occurrenceFromAnchor = (anchor, type, interval, step) => {
+    const n = Math.max(1, parseInt(interval, 10) || 1) * step;
+    const d = new Date(anchor);
+    if (type === 'daily')  d.setDate(d.getDate() + n);
+    if (type === 'weekly') d.setDate(d.getDate() + 7 * n);
+    if (type === 'monthly') {
+        const anchorDay = new Date(anchor).getDate();
+        d.setDate(1); // park on a day every month has, so setMonth can't overflow
+        d.setMonth(d.getMonth() + n);
+        const lastDayOfTarget = new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate();
+        d.setDate(Math.min(anchorDay, lastDayOfTarget));
+    }
     return d;
 };
 
@@ -673,11 +691,14 @@ exports.createAppointment = async (req, res) => {
                 return d;
             })();
             const candidates = [];
-            let cur = new Date(appointmentDate);
+            const anchor = new Date(appointmentDate);
             const MAX = 60;
+            let step = 0;
+            let cur = new Date(anchor);
             while (cur <= seriesEnd && candidates.length < MAX) {
                 candidates.push(new Date(cur));
-                cur = advanceDate(cur, recurrenceType, interval);
+                step += 1;
+                cur = occurrenceFromAnchor(anchor, recurrenceType, interval, step);
             }
 
             // Drop occurrences that land on blocked time, a closed day, or an
@@ -901,6 +922,17 @@ exports.createMultiServiceAppointment = async (req, res) => {
             cursor += duration;
         }
 
+        // Per-segment staff must be on THIS provider's active roster. item.teamMember
+        // was previously stored verbatim, so any ObjectId — including another
+        // business's member — could be written onto the booking.
+        const segMembers = [...new Set(built.map(b => b.teamMember).filter(Boolean).map(String))];
+        if (segMembers.length) {
+            const onRoster = await TeamMember.find({ _id: { $in: segMembers }, provider: providerId, isActive: true }).select('_id');
+            if (onRoster.length !== segMembers.length) {
+                return res.status(400).json({ success: false, message: 'One of the selected staff members is not on your team.' });
+            }
+        }
+
         const spanStart = startTime;
         const spanEnd = minutesToTime(cursor);
         // minutesToTime wraps into a 24h day, so a stack of services running past
@@ -927,18 +959,33 @@ exports.createMultiServiceAppointment = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Choose a client or enter a walk-in name.' });
         }
 
-        // Same-staff overlap across the whole span (different staff can be concurrent).
+        // Overlap check, PER staff member and per segment.
+        //
+        // This used to test the whole span against `primaryTeamMember` only — the
+        // first service's member. A stack like A(10:00–11:00, Alice) + B(11:00–12:00,
+        // Bob) was therefore only ever checked against Alice, so Bob could be booked
+        // straight over an existing 11:00 appointment of his. Each segment now checks
+        // its own member over its own minutes; different staff may still run
+        // concurrently, which is the point of the multi-service flow.
         const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
         const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
-        const existing = await Appointment.find({
+        const sameDay = await Appointment.find({
             provider: providerId,
             appointmentDate: { $gte: dayStart, $lte: dayEnd },
             status: { $nin: ['cancelled'] },
-            teamMember: primaryTeamMember,
-        }).select('startTime endTime');
-        const clash = existing.some(a => startMin < parseTimeToMinutes(a.endTime) && cursor > parseTimeToMinutes(a.startTime));
-        if (clash) {
-            return res.status(400).json({ success: false, message: 'That time overlaps an existing booking for this staff member.' });
+        }).select('startTime endTime teamMember');
+        for (const seg of built) {
+            const segMember = seg.teamMember || teamMember || null;
+            const segStart = parseTimeToMinutes(seg.startTime);
+            const segEnd = parseTimeToMinutes(seg.endTime);
+            const clash = sameDay.some(a => (
+                String(a.teamMember || '') === String(segMember || '')
+                && segStart < parseTimeToMinutes(a.endTime)
+                && segEnd > parseTimeToMinutes(a.startTime)
+            ));
+            if (clash) {
+                return res.status(400).json({ success: false, message: 'That time overlaps an existing booking for one of the selected staff members.' });
+            }
         }
 
         // Payment: reuse the provider's wallet config. Provider bookings are never
@@ -1168,8 +1215,16 @@ exports.cancelAppointmentSeries = async (req, res) => {
         }
         // 'all' uses the base filter (entire group)
 
-        await Appointment.updateMany(filter, { $set: { status: 'cancelled', cancellationReason: 'Recurring series cancelled' } });
-        res.status(200).json({ success: true, message: 'Series cancelled' });
+        // Only ever cancel occurrences that are still live. Without this,
+        // deleteMode:'all' rewrote finished history: past occurrences already marked
+        // completed were flipped to cancelled, which silently removed them from
+        // earnings (those sum completed bookings) and from the client's visit record.
+        // Cancelling a series should end what is still to come, not un-happen what
+        // already did.
+        filter.status = { $in: ['pending', 'confirmed'] };
+
+        const result = await Appointment.updateMany(filter, { $set: { status: 'cancelled', cancellationReason: 'Recurring series cancelled' } });
+        res.status(200).json({ success: true, message: 'Series cancelled', data: { cancelled: result.modifiedCount ?? 0 } });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

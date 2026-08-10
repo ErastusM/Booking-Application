@@ -52,6 +52,7 @@ const Wallet = () => {
     const [txns, setTxns] = useState({}); // providerId -> transactions
     const [topUpFor, setTopUpFor] = useState(null); // wallet object for the top-up modal
     const [busyId, setBusyId] = useState('');
+    const [loadError, setLoadError] = useState('');
 
     const load = useCallback(async () => {
         try {
@@ -61,7 +62,13 @@ const Wallet = () => {
             ]);
             setWallets(w.data.data || []);
             setPendingAdjustments(a.data.data || []);
-        } catch { /* ignore */ } finally { setLoading(false); }
+            setLoadError('');
+        } catch (err) {
+            // Swallowing this showed "No wallets yet" to someone who may hold a real
+            // prepaid balance — telling a customer their money isn't there when the
+            // request simply failed.
+            setLoadError(err.response?.data?.message || 'Could not load your wallets. Check your connection and try again.');
+        } finally { setLoading(false); }
     }, []);
 
     useEffect(() => { load(); }, [load]);
@@ -153,6 +160,14 @@ const Wallet = () => {
                             <div className="skeleton" style={{ height: '36px', width: '55%', borderRadius: 'var(--radius-sm)' }} />
                         </div>
                     ))}
+                </div>
+            ) : wallets.length === 0 && loadError ? (
+                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '2.5rem 1.5rem', textAlign: 'center' }}>
+                    <WalletIcon size={40} color="var(--text-muted)" style={{ marginBottom: '0.75rem' }} />
+                    <h3 style={{ fontFamily: 'var(--font-display)', color: 'var(--charcoal)', margin: '0 0 0.4rem' }}>Couldn’t load your wallets</h3>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', margin: '0 0 0.4rem' }}>{loadError}</p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 1.25rem' }}>Any balance you hold is safe — this is only a display problem.</p>
+                    <button onClick={load} className="btn-primary" style={{ padding: '0.6rem 1.4rem' }}>Try again</button>
                 </div>
             ) : wallets.length === 0 ? (
                 <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '2.5rem 1.5rem', textAlign: 'center' }}>

@@ -188,10 +188,16 @@ const detailsCard = (rows, totalRow) => `
       </td></tr>
     </table>`;
 
+// `preheader` is escaped HERE rather than at each call site. Callers build it from
+// provider-controlled text — service and business names — and every one of them
+// passed it raw, so a service named `</div><a href="...">Verify your payment</a>`
+// rendered as live markup inside a Bookplus-branded confirmation mail sent to that
+// provider's own customers: a phishing vector laundered through our sending domain.
+// Escaping at the single choke point means a new template cannot reintroduce it.
 const shell = ({ heading, headingAccent, inner, preheader }) => `
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"></head>
 <body style="margin:0;padding:0;background:${C.canvas};">
-  ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${preheader}</div>` : ''}
+  ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(preheader)}</div>` : ''}
   <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background:${C.canvas};padding:32px 12px;">
     <tr><td align="center">
       <table role="presentation" width="600" cellpadding="0" cellspacing="0" style="max-width:600px;width:100%;">
