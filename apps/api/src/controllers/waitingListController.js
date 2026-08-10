@@ -3,6 +3,7 @@ const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const WaitingList = require('../models/WaitingList');
 const Appointment = require('../models/Appointment');
 const Service = require('../models/Service');
+const TeamMember = require('../models/TeamMember');
 const { createNotification } = require('../utils/notificationhelper');
 const pushService = require('../utils/pushService');
 
@@ -14,7 +15,7 @@ const toMinutes = (t) => {
 // Join the waiting list for a slot
 exports.joinWaitingList = async (req, res) => {
     try {
-        const { service, appointmentDate, startTime, endTime } = req.body;
+        const { service, appointmentDate, startTime, endTime, teamMember } = req.body;
         const svc = await Service.findById(service).select('name provider');
         if (!svc) {
             return res.status(404).json({ success: false, message: 'Service not found' });
@@ -31,6 +32,17 @@ exports.joinWaitingList = async (req, res) => {
         // `const providerId = svc.provider`).
         const provider = svc.provider || null;
 
+        // Which staff member the customer is waiting on. Validated against THIS
+        // provider's roster — same rule as booking — so a caller can't waitlist
+        // against another business's member, and anything unrecognised degrades to
+        // null ("anyone"), which is the pre-existing behaviour. Promotion reads this
+        // to check the freed slot against the right column and to book onto it.
+        let waitingFor = null;
+        if (teamMember && provider) {
+            const onRoster = await TeamMember.exists({ _id: teamMember, provider, isActive: true });
+            if (onRoster) waitingFor = teamMember;
+        }
+
         const dateObj = new Date(appointmentDate);
         const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
         const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
@@ -41,10 +53,15 @@ exports.joinWaitingList = async (req, res) => {
         if (provider) {
             const nStart = toMinutes(startTime);
             const nEnd = toMinutes(endTime || startTime);
+            // Scope to the requested staff member when there is one: otherwise a
+            // customer waiting on Alice is told "this slot is still available" merely
+            // because some OTHER column is free, and a slot that is genuinely full for
+            // Alice can't be waited on at all.
             const existing = await Appointment.find({
                 provider,
                 appointmentDate: { $gte: dayStart, $lte: dayEnd },
                 status: { $nin: ['cancelled'] },
+                ...(waitingFor ? { teamMember: waitingFor } : {}),
             }).select('startTime endTime');
             slotTaken = existing.some(a => nStart < toMinutes(a.endTime) && nEnd > toMinutes(a.startTime));
         } else {
@@ -95,6 +112,7 @@ exports.joinWaitingList = async (req, res) => {
             appointmentDate: dateObj,
             startTime,
             endTime,
+            teamMember: waitingFor,
             position: waitingCount + 1,
         });
 

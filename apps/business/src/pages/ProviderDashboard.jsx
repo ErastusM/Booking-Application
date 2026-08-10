@@ -183,6 +183,7 @@ const ProviderDashboard = () => {
     const [loadingClients, setLoadingClients] = useState(false);
     const [selectedClient, setSelectedClient] = useState(null);
     const [clientDetail, setClientDetail] = useState(null);
+    const [clientDetailError, setClientDetailError] = useState('');
     const [clientNoteForm, setClientNoteForm] = useState({ notes: '', allergies: '', conditions: '', internalNotes: '', tags: '', birthday: '' });
     const [savingClientNote, setSavingClientNote] = useState(false);
     const [clientSearchQuery, setClientSearchQuery] = useState('');
@@ -640,14 +641,29 @@ const ProviderDashboard = () => {
         URL.revokeObjectURL(url);
     };
 
+    // Which client detail request is current. Tapping client A then quickly client B
+    // used to let A's slower response land last and populate the note form — notes,
+    // allergies, conditions — under B's name; pressing Save then wrote A's medical
+    // details onto B's record. Only the newest request may touch state.
+    const clientDetailReq = useRef(0);
     const fetchClientDetail = async (customerId) => {
+        const seq = ++clientDetailReq.current;
+        setClientDetailError('');
         try {
             const res = await clientCRMService.getClientDetail(customerId);
+            if (seq !== clientDetailReq.current) return; // a newer client was selected
             setClientDetail(res.data.data);
             const note = res.data.data.note;
             if (note) setClientNoteForm({ notes: note.notes || '', allergies: note.allergies || '', conditions: note.conditions || '', internalNotes: note.internalNotes || '', tags: (note.tags || []).join(', '), birthday: note.birthday || '' });
             else setClientNoteForm({ notes: '', allergies: '', conditions: '', internalNotes: '', tags: '', birthday: '' });
-        } catch { /* ignore */ }
+        } catch (err) {
+            if (seq !== clientDetailReq.current) return;
+            // Failing silently here left the previous client's notes on screen, which
+            // is the same wrong-record hazard by another route.
+            setClientDetail(null);
+            setClientNoteForm({ notes: '', allergies: '', conditions: '', internalNotes: '', tags: '', birthday: '' });
+            setClientDetailError(err.response?.data?.message || 'Could not load this client. Please try again.');
+        }
     };
 
     const saveClientNote = async () => {
@@ -656,6 +672,7 @@ const ProviderDashboard = () => {
         try {
             const payload = { ...clientNoteForm, tags: clientNoteForm.tags.split(',').map(t => t.trim()).filter(Boolean) };
             await clientCRMService.upsertClientNote(selectedClient.customer._id, payload);
+            toast('Client notes saved.', 'success');
         } catch (err) { toast(err.response?.data?.message || 'Could not save client note', 'error'); } finally { setSavingClientNote(false); }
     };
 
@@ -2351,6 +2368,16 @@ const ProviderDashboard = () => {
                             );
                         })()}
                     </div>
+                    {selectedClient && !clientDetail && clientDetailError && (
+                        <div className="client-detail-panel" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <p style={{ margin: 0, color: 'var(--charcoal)', fontWeight: 600 }}>{selectedClient.customer?.name}</p>
+                            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{clientDetailError}</p>
+                            <div style={{ display: 'flex', gap: '0.5rem' }}>
+                                <button onClick={() => fetchClientDetail(selectedClient.customer._id)} className="btn-primary" style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}>Try again</button>
+                                <button onClick={() => { setSelectedClient(null); setClientDetailError(''); }} className="btn-outline" style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}>Close</button>
+                            </div>
+                        </div>
+                    )}
                     {selectedClient && clientDetail && (
                         <div className="client-detail-panel" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', position: 'sticky', top: 'calc(100px + env(safe-area-inset-top, 0px))' }}>
                             <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>

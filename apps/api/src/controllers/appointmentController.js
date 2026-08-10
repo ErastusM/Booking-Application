@@ -56,6 +56,27 @@ const minutesToTime = (mins) => {
 
 const timesOverlap = (startA, endA, startB, endB) => startA < endB && endA > startB;
 
+// Every booking window must end after it starts, on the same day.
+//
+// Two real defects close here. (a) A window crossing midnight (23:00–01:00) used
+// to be accepted for customers by adding 24h to the duration, but nothing
+// downstream knows that: the schedule check re-derives the duration WITHOUT the
+// +24h (so 23:00–01:00 reads as 60 minutes and passes a 09:00–17:00 day), and
+// every overlap predicate is `newStart < aEnd && newEnd > aStart`, which is
+// trivially false when newEnd (60) is below newStart (1380) — so the booking is
+// invisible to every conflict check and auto-completes before it began.
+// (b) Provider-created bookings skipped the duration check entirely, so an
+// inverted window (09:00–08:00) could be saved, and it too is invisible to all
+// future conflict checks, letting later bookings silently stack on top of it.
+// Handling cross-midnight properly means fixing the schedule check, all three
+// overlap predicates and realEndMs; rejecting it is the correct, safe answer
+// until a booking legitimately needs to span midnight.
+const validBookingWindow = (startTime, endTime) => {
+    const s = parseTimeToMinutes(startTime);
+    const e = parseTimeToMinutes(endTime);
+    return Number.isFinite(s) && Number.isFinite(e) && e > s;
+};
+
 // True if the given date + start time is in the past (1-minute grace).
 // Used to stop customers booking/rescheduling into a time that has already passed.
 // Uses the shared Africa/Windhoek-aware instant so this agrees with the reminder
@@ -122,6 +143,40 @@ const conflictScope = (appointment) => ({
     bufferBefore: appointment.service?.bufferBefore || 0,
     bufferAfter: appointment.service?.bufferAfter || 0,
 });
+
+/**
+ * Post-write conflict re-check for a reschedule, and roll back if it lost.
+ *
+ * createAppointment closes its check-then-insert race with a backstop after the
+ * write; the reschedule paths had a conflict check followed by save() and nothing
+ * after, so two moves onto the same slot — or a move racing a fresh booking —
+ * could both commit and double-book. This re-checks once the new time is durable
+ * and restores the previous slot if a clash is now visible.
+ *
+ * The mover is always treated as the loser: it has an old _id, so the create
+ * backstop's "larger _id rolls back" tie-break would wrongly let it win against a
+ * booking that was already there. If two reschedules race, both see each other and
+ * both revert — nobody is double-booked, and both users are told to pick again,
+ * which is the safe direction to fail.
+ */
+const revertRescheduleIfRaced = async (appointment, previousSlot) => {
+    const providerId = appointment.provider || appointment.service?.provider;
+    if (!providerId) return false;
+    const clash = await hasConflictingAppointment(
+        providerId,
+        appointment.appointmentDate,
+        appointment.startTime,
+        appointment.endTime,
+        appointment._id,
+        conflictScope(appointment),
+    );
+    if (!clash) return false;
+    appointment.appointmentDate = previousSlot.appointmentDate;
+    appointment.startTime = previousSlot.startTime;
+    appointment.endTime = previousSlot.endTime;
+    await appointment.save();
+    return true;
+};
 
 /**
  * Which dates of a recurring series can actually be booked?
@@ -341,6 +396,9 @@ exports.createAppointment = async (req, res) => {
         if (!service || !appointmentDate || !startTime || !endTime) {
             return res.status(400).json({ success: false, message: 'Please provide all required fields' });
         }
+        if (!validBookingWindow(startTime, endTime)) {
+            return res.status(400).json({ success: false, message: 'A booking must end after it starts, on the same day.' });
+        }
         const svc = await Service.findById(service);
         if (!svc) {
             return res.status(404).json({ success: false, message: 'Service not found' });
@@ -450,8 +508,10 @@ exports.createAppointment = async (req, res) => {
         // server-resolved add-on minutes. Providers keep their override — post-
         // ownership-check they can only affect their own calendar.
         if (isCustomerLike) {
-            let bookingDuration = parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime);
-            if (bookingDuration < 0) bookingDuration += 24 * 60; // booking crosses midnight
+            // validBookingWindow() above guarantees end > start, so this is always
+            // positive — the old `if (< 0) += 24*60` cross-midnight fudge is gone
+            // along with the windows it used to wave through.
+            const bookingDuration = parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime);
             const baseDurations = (chosenOption
                 ? [chosenOption.duration]
                 : [svc.duration, ...(svc.options || []).map(o => o.duration)]
@@ -843,6 +903,12 @@ exports.createMultiServiceAppointment = async (req, res) => {
 
         const spanStart = startTime;
         const spanEnd = minutesToTime(cursor);
+        // minutesToTime wraps into a 24h day, so a stack of services running past
+        // midnight silently formats as an earlier time — the same invisible-booking
+        // shape guarded against on the single-service path.
+        if (!validBookingWindow(spanStart, spanEnd)) {
+            return res.status(400).json({ success: false, message: 'These services would run past midnight. Pick an earlier start.' });
+        }
         const totalPrice = built.reduce((s, x) => s + x.price, 0);
         const primaryTeamMember = built[0].teamMember || teamMember || null;
 
@@ -1320,6 +1386,10 @@ exports.providerRescheduleAppointment = async (req, res) => {
             endTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
         }
 
+        if (!validBookingWindow(startTime, endTime)) {
+            return res.status(400).json({ success: false, message: 'That time would run past midnight. Pick an earlier start.' });
+        }
+
         const providerId = appointment.provider;
         const schedule = await getProviderSchedule(providerId);
         if (!isTimeWithinSchedule(schedule, appointmentDate, startTime, duration)) {
@@ -1331,10 +1401,15 @@ exports.providerRescheduleAppointment = async (req, res) => {
             return res.status(400).json({ success: false, message: 'This time slot is already booked' });
         }
 
+        // Keep the old slot so the write can be undone if it lost a race.
+        const previousSlot = { appointmentDate: appointment.appointmentDate, startTime: appointment.startTime, endTime: appointment.endTime };
         appointment.appointmentDate = new Date(appointmentDate);
         appointment.startTime = startTime;
         appointment.endTime = endTime;
         await appointment.save();
+        if (await revertRescheduleIfRaced(appointment, previousSlot)) {
+            return res.status(409).json({ success: false, message: 'That time was just taken. Please pick another.' });
+        }
         res.status(200).json({ success: true, data: appointment });
 
         // Tell the client their provider moved the appointment (previously silent).
@@ -1401,6 +1476,10 @@ exports.rescheduleAppointment = async (req, res) => {
         const endMins = totalMinutes % 60;
         const endTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
 
+        if (!validBookingWindow(startTime, endTime)) {
+            return res.status(400).json({ success: false, message: 'That time would run past midnight. Pick an earlier start.' });
+        }
+
         const providerId = appointment.provider || appointment.service?.provider;
         if (providerId) {
             const schedule = await getProviderSchedule(providerId);
@@ -1420,6 +1499,8 @@ exports.rescheduleAppointment = async (req, res) => {
             }
         }
 
+        // Keep the old slot so the write can be undone if it lost a race.
+        const previousSlot = { appointmentDate: appointment.appointmentDate, startTime: appointment.startTime, endTime: appointment.endTime };
         appointment.appointmentDate = new Date(appointmentDate);
         appointment.startTime = startTime;
         appointment.endTime = endTime;
@@ -1427,6 +1508,9 @@ exports.rescheduleAppointment = async (req, res) => {
         // auto-confirm instead of dropping back to pending (no provider action needed).
         appointment.status = 'confirmed';
         await appointment.save();
+        if (await revertRescheduleIfRaced(appointment, previousSlot)) {
+            return res.status(409).json({ success: false, message: 'That time was just taken. Please pick another.' });
+        }
 
         try {
             if (appointment.provider) {
@@ -1477,6 +1561,9 @@ exports.createGroupBooking = async (req, res) => {
         const { service, appointmentDate, startTime, endTime, clients, groupSize, notes, teamMember } = req.body;
         if (!clients || !Array.isArray(clients) || clients.length === 0) {
             return res.status(400).json({ success: false, message: 'At least one client is required' });
+        }
+        if (!validBookingWindow(startTime, endTime)) {
+            return res.status(400).json({ success: false, message: 'A booking must end after it starts, on the same day.' });
         }
         const svc = await Service.findById(service);
         if (!svc) return res.status(404).json({ success: false, message: 'Service not found' });
@@ -1755,6 +1842,10 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
         const tm = parseTimeToMinutes(startTime) + duration;
         const endTime = `${String(Math.floor(tm / 60) % 24).padStart(2, '0')}:${String(tm % 60).padStart(2, '0')}`;
 
+        if (!validBookingWindow(startTime, endTime)) {
+            return res.status(400).json({ success: false, message: 'That time would run past midnight. Pick an earlier start.' });
+        }
+
         const providerId = appt.provider;
         if (providerId) {
             const availabilityDoc = await Availability.findOne({ provider: providerId });
@@ -1772,6 +1863,8 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
             }
         }
 
+        // Keep the old slot so the write can be undone if it lost a race.
+        const previousSlot = { appointmentDate: appt.appointmentDate, startTime: appt.startTime, endTime: appt.endTime };
         appt.appointmentDate = new Date(appointmentDate);
         appt.startTime = startTime;
         appt.endTime = endTime;
@@ -1779,6 +1872,9 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
         appt.status = 'confirmed';
         appt.statusHistory.push({ status: 'confirmed', changedBy: appt.customer?._id || null });
         await appt.save();
+        if (await revertRescheduleIfRaced(appt, previousSlot)) {
+            return res.status(409).json({ success: false, message: 'That time was just taken. Please pick another.' });
+        }
 
         setImmediate(async () => {
             try {
