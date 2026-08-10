@@ -24,6 +24,18 @@ import { statusConfig, ContactActions, ChromeModal, CloseButton, StatsSkeleton, 
 import { ProviderAccountTopUpModal, WalletAdjustmentModal } from './dashboard/WalletModals';
 import StaffLanesDay from './dashboard/StaffLanesDay';
 
+// CSV cell encoding. Two problems with the previous `"${String(c)}"`:
+// a quote inside a value ended the field and corrupted the rest of the row, and a
+// value starting with = + - @ is executed as a FORMULA by Excel and Sheets. Client
+// and walk-in names are attacker-supplied, so an export could run a formula on the
+// provider's machine. Quotes are doubled per RFC 4180 and risky leading characters
+// are prefixed with an apostrophe, which spreadsheets treat as "this is text".
+const csvCell = (c) => {
+    let v = String(c ?? '');
+    if (/^[=+\-@\t\r]/.test(v)) v = `'${v}`;
+    return `"${v.replace(/"/g, '""')}"`;
+};
+
 // A payment-proof URL comes from the customer's own submission. The API now
 // stores http(s) only, but rows written before that still hold whatever was sent,
 // so the link is re-checked here before it is rendered for a provider or an admin.
@@ -184,6 +196,8 @@ const ProviderDashboard = () => {
     const [selectedClient, setSelectedClient] = useState(null);
     const [clientDetail, setClientDetail] = useState(null);
     const [clientDetailError, setClientDetailError] = useState('');
+    const [clientsError, setClientsError] = useState('');
+    const [walletError, setWalletError] = useState('');
     const [clientNoteForm, setClientNoteForm] = useState({ notes: '', allergies: '', conditions: '', internalNotes: '', tags: '', birthday: '' });
     const [savingClientNote, setSavingClientNote] = useState(false);
     const [clientSearchQuery, setClientSearchQuery] = useState('');
@@ -500,7 +514,12 @@ const ProviderDashboard = () => {
         try {
             const res = await clientCRMService.getMyClients();
             setClients(res.data.data);
-        } catch { /* ignore */ } finally { setLoadingClients(false); }
+            setClientsError('');
+        } catch (err) {
+            // "No clients yet. Clients will appear here once they book with you." is
+            // what a provider used to see when this request merely failed.
+            setClientsError(err.response?.data?.message || 'Could not load your clients. Check your connection and try again.');
+        } finally { setLoadingClients(false); }
     };
 
     const fetchWalletData = async () => {
@@ -521,7 +540,13 @@ const ProviderDashboard = () => {
             setWalletAdjustments(adj.data.data || []);
             setProviderBalance(mine.data.data?.wallet || null);
             setProviderWalletTxns(mine.data.data?.transactions || []);
-        } catch { /* ignore */ } finally { setWalletLoading(false); }
+            setWalletError('');
+        } catch (err) {
+            // Swallowing this rendered a confident "N$ 0.00" balance and "no top-up
+            // requests" for what was really a failed load — on a money screen that
+            // reads as "my funds are gone", which is the worst possible lie to tell.
+            setWalletError(err.response?.data?.message || 'Could not load your wallet. Check your connection and try again.');
+        } finally { setWalletLoading(false); }
     };
 
     const saveWalletSettings = async (patch) => {
@@ -595,7 +620,7 @@ const ProviderDashboard = () => {
             rows.push(['Staff member', `Earned (${curCode})`, 'Completed']);
             earnings.byTeamMember.forEach(m => rows.push([m.name, m.earned, m.count]));
         }
-        const csv = rows.map(r => r.map(c => `"${String(c ?? '')}"`).join(',')).join('\n');
+        const csv = rows.map(r => r.map(csvCell).join(',')).join('\n');
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -631,7 +656,7 @@ const ProviderDashboard = () => {
         rows.push([]);
         rows.push(['Date', 'Bookings']);
         insights.overTime.forEach(d => rows.push([d.date, d.count]));
-        const csv = rows.map(r => r.map(c => `"${String(c ?? '')}"`).join(',')).join('\n');
+        const csv = rows.map(r => r.map(csvCell).join(',')).join('\n');
         const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -2362,7 +2387,14 @@ const ProviderDashboard = () => {
                                         ))}
                                     </tbody>
                                 </table>
-                                {clients.length === 0 && <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No clients yet. Clients will appear here once they book with you.</div>}
+                                {clients.length === 0 && clientsError && (
+                                    <div style={{ padding: '2.5rem 1.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                                        <p style={{ margin: 0, color: 'var(--charcoal)', fontWeight: 600 }}>Couldn’t load your clients</p>
+                                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{clientsError}</p>
+                                        <button onClick={fetchClients} className="btn-primary" style={{ padding: '0.45rem 1.1rem', fontSize: '0.85rem' }}>Try again</button>
+                                    </div>
+                                )}
+                                {clients.length === 0 && !clientsError && <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No clients yet. Clients will appear here once they book with you.</div>}
                                 {clients.length > 0 && filteredClients.length === 0 && <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No clients match “{clientSearchQuery}”.</div>}
                             </div>
                             );
@@ -2664,7 +2696,14 @@ const ProviderDashboard = () => {
             {/* ── WALLET TAB ── */}
             {activeTab === 'wallet' && (
                 <div>
-                    {walletLoading && !walletSummary ? (
+                    {walletError && !walletSummary ? (
+                        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '2rem 1.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                            <p style={{ margin: 0, color: 'var(--charcoal)', fontWeight: 600 }}>Couldn’t load your wallet</p>
+                            <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem', maxWidth: '36ch' }}>{walletError}</p>
+                            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.8rem' }}>Your balance hasn’t changed — this is only a display problem.</p>
+                            <button onClick={fetchWalletData} className="btn-primary" style={{ padding: '0.5rem 1.2rem', fontSize: '0.85rem' }}>Try again</button>
+                        </div>
+                    ) : walletLoading && !walletSummary ? (
                         <RowsSkeleton />
                     ) : (
                         <>

@@ -66,7 +66,10 @@ export const bootstrapSession = async (apiBase: string, accountType?: AccountTyp
         const { data } = await axios.post(
             `${apiBase}/api/auth/refresh`,
             accountType ? { accountType } : {},
-            { withCredentials: true }
+            // Explicit timeout: this is a BARE axios call, so it does not inherit the
+            // instance timeout. Without it a hung (not failed) connection leaves
+            // useAuth awaiting forever and ProtectedRoute on a permanent spinner.
+            { withCredentials: true, timeout: 20000 }
         );
         const token = data?.data?.token;
         if (!token) return false;
@@ -168,7 +171,10 @@ export const createHttp = (apiBase: string): AxiosInstance => {
                 const { data } = await axios.post(
                     `${apiBase}/api/auth/refresh`,
                     refreshToken ? { refreshToken } : {},
-                    { withCredentials: true }
+                    // Same reason as bootstrapSession: a bare axios call ignores the
+                    // instance timeout, so a hung refresh would pin isRefreshing=true
+                    // and leave every queued request waiting on a dead socket.
+                    { withCredentials: true, timeout: 20000 }
                 );
                 const newToken = data?.data?.token;
                 const newRefreshToken = data?.data?.refreshToken;

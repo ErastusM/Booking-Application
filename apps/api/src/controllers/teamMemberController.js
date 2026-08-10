@@ -52,6 +52,22 @@ exports.deleteTeamMember = async (req, res) => {
     try {
         const member = await TeamMember.findOneAndDelete({ _id: req.params.id, provider: req.user._id });
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
+
+        // Removing someone from the roster must also end their access. Deleting the
+        // roster row alone left the linked User{role:'staff'} account fully alive with
+        // valid access AND refresh tokens: a dismissed employee kept a working login
+        // to the business app. Bumping tokenVersion invalidates every issued token at
+        // the next request (middleware/auth checks it), clearing the jti list kills
+        // refresh, and dropping staffOf severs the link to this business so nothing
+        // can re-derive staff powers. The account itself is left intact rather than
+        // deleted — it may hold message history, and destroying it is not what
+        // "remove from team" asked for.
+        if (member.user) {
+            await User.updateOne(
+                { _id: member.user },
+                { $inc: { tokenVersion: 1 }, $set: { refreshTokenJtis: [], staffOf: null } },
+            );
+        }
         res.status(200).json({ success: true, message: 'Team member removed' });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
