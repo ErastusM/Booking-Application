@@ -134,6 +134,7 @@ const CalendarGrid = ({
     view = '3day',           // 'day' | '3day' | 'week'
     date,                    // anchor Date
     onDateChange,            // (Date) => void — prev/next/today
+    onViewChange,            // (view) => void — Today also snaps back to the Day view
     appointments = [],       // raw appointments (any day)
     blockedTimes = [],       // raw blocked times (any day)
     teamMembers = [],        // roster (for staff colour + name resolution)
@@ -305,7 +306,16 @@ const CalendarGrid = ({
                 {headerControl}
                 <button
                     type="button"
-                    onClick={() => onDateChange && onDateChange(new Date())}
+                    // "Today" means "put me back where I start the day": today's date
+                    // AND the single-day view. Setting only the date made the button
+                    // look broken in the 3-Day and Week views — today is already on
+                    // screen there, so nothing moved when you pressed it.
+                    onClick={() => {
+                        onDateChange && onDateChange(new Date());
+                        onViewChange && onViewChange('day');
+                    }}
+                    // Only inert when it genuinely has nothing left to do: already the
+                    // Day view, already today.
                     disabled={isTodayInView && cols === 1}
                     style={{ ...navBtn, width: 'auto', padding: '0 0.7rem', fontSize: '0.78rem', fontWeight: 600 }}
                 >
