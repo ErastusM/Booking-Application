@@ -1508,6 +1508,30 @@ exports.createGroupBooking = async (req, res) => {
             resolvedTeamMember = resolution.teamMember;
         }
 
+        // Every named client must be an EXISTING client of this provider — the same
+        // gate createAppointment applies to book-on-behalf. Without it a provider
+        // could attach a confirmed booking to (and then read the name + email of)
+        // any account on the platform just by supplying its id, and that fabricated
+        // relationship also satisfies the isMyClient check on later single bookings.
+        // Name-only entries are walk-ins and need no pre-existing relationship.
+        const namedClientIds = [...new Set(
+            clients.filter(c => c && c.customerId).map(c => String(c.customerId))
+        )];
+        if (namedClientIds.length) {
+            const known = await User.find({ _id: { $in: namedClientIds }, role: 'customer' }).select('_id');
+            const knownIds = new Set(known.map(u => String(u._id)));
+            for (const id of namedClientIds) {
+                const isMyClient = knownIds.has(id)
+                    && await Appointment.exists({ customer: id, provider: req.user._id });
+                if (!isMyClient) {
+                    return res.status(403).json({
+                        success: false,
+                        message: 'You can only book on behalf of an existing client. Use a name-only entry for a first-time client.',
+                    });
+                }
+            }
+        }
+
         // Double-booking guard, mirroring createAppointment. A group legitimately
         // puts N clients in ONE slot, so we compare only against appointments that
         // ALREADY exist — the group's own rows are inserted together below and

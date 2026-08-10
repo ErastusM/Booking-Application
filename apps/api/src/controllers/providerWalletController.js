@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { safeHttpUrl } = require('../utils/helpers');
 const ProviderWallet = require('../models/ProviderWallet');
 const ProviderWalletTransaction = require('../models/ProviderWalletTransaction');
 const User = require('../models/User');
@@ -42,7 +43,8 @@ exports.submitTopUp = async (req, res) => {
             provider: req.user._id, type: 'topup', status: 'pending', amount,
             method: ['manual', 'cash'].includes(method) ? method : 'manual',
             reference: (reference || '').toString().slice(0, 60),
-            proofUrl: (proofUrl || '').toString().slice(0, 500),
+            // http(s) only — this link is later shown to the provider and to admins.
+            proofUrl: safeHttpUrl(proofUrl),
             proofType: ['image', 'pdf'].includes(proofType) ? proofType : '',
             initiatedBy: req.user._id,
         });

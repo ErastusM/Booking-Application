@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { safeHttpUrl } = require('../utils/helpers');
 const Wallet = require('../models/Wallet');
 const WalletTransaction = require('../models/WalletTransaction');
 const User = require('../models/User');
@@ -92,7 +93,8 @@ exports.createTopUp = async (req, res) => {
         const txn = await walletService.createTopUp({
             customer: req.user._id, provider: providerId, amount,
             reference: (reference || '').toString().slice(0, 60),
-            proofUrl: (proofUrl || '').toString().slice(0, 500),
+            // http(s) only — this link is later shown to the provider and to admins.
+            proofUrl: safeHttpUrl(proofUrl),
             method: ['manual', 'cash'].includes(method) ? method : 'manual',
         });
 

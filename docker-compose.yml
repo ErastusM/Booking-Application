@@ -20,8 +20,14 @@ services:
     image: erastusm/bookplus-server:latest
     container_name: bookplus-server
     restart: always
-    ports:
-      - "5000:5000"
+    # NOT published to the host. nginx reaches the API as http://server:5000 over
+    # the compose network, so nothing needs the port on 0.0.0.0. Publishing it
+    # exposed the API in cleartext beside nginx's TLS, and — because the app runs
+    # `trust proxy: 1` — let a direct caller spoof X-Forwarded-For to mint a new
+    # identity per request and walk straight through every per-IP rate limit,
+    # including the auth ones.
+    expose:
+      - "5000"
     depends_on:
       - mongodb
     env_file:
