@@ -1,5 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { cardState } from '../../components/CalendarGrid';
 
 // Epic 2.4 — per-staff calendar lanes. One column per staff member (plus the
 // owner's "Me / unassigned" lane), a shared time axis, and the same visual
@@ -324,6 +325,9 @@ const StaffLanesDay = ({
                                     const colors = statusColors[ev.raw.status] || statusColors.pending;
                                     const clientName = ev.raw.walkInName || ev.raw.guestName || ev.raw.customer?.name || 'Client';
                                     const h = pxOf(ev.endMin - ev.startMin);
+                                    // Same finished/pending treatment the day grid uses, so the two
+                                    // calendar views never disagree about what a card means.
+                                    const st = cardState({ status: ev.raw.status, endMin: ev.endMin, day: date, today: new Date() });
                                     return (
                                         <div
                                             key={ev.raw._id}
@@ -339,9 +343,19 @@ const StaffLanesDay = ({
                                                 background: colors.bg, color: colors.text,
                                                 borderLeft: `3px solid ${colors.borderColor || colors.bg}`,
                                                 borderRadius: '6px', padding: h >= 40 ? '4px 8px' : '2px 8px',
-                                                lineHeight: 1.2, boxShadow: 'var(--shadow-sm)',
+                                                lineHeight: 1.2,
+                                                boxShadow: st.recede ? 'none' : 'var(--shadow-sm)',
+                                                opacity: st.recede ? 0.55 : st.pending ? 0.78 : 1,
+                                                filter: st.recede ? 'saturate(0.75)' : 'none',
                                             }}
                                         >
+                                            {st.mark && (
+                                                <span
+                                                    title={st.markTitle}
+                                                    aria-label={st.markTitle}
+                                                    style={{ position: 'absolute', bottom: '2px', right: '5px', fontSize: '0.66rem', fontWeight: 700, opacity: 0.75, lineHeight: 1 }}
+                                                >{st.mark}</span>
+                                            )}
                                             {h >= 40 && (
                                                 <div className="tnum" style={{ fontSize: '0.66rem', fontWeight: 600, opacity: 0.75, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                     {ev.raw.startTime}{ev.raw.endTime ? ` – ${ev.raw.endTime}` : ''}

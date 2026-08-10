@@ -50,6 +50,41 @@ const hexToRgb = (hex) => {
     if (h.length === 3) return { r: parseInt(h[0] + h[0], 16), g: parseInt(h[1] + h[1], 16), b: parseInt(h[2] + h[2], 16) };
     return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
 };
+/**
+ * How an appointment card should read at a glance, given the clock.
+ *
+ * The FullCalendar-era calendar coloured cards by STATUS, so an appointment went
+ * blue → green on its own once the auto-complete job flipped it to `completed`
+ * after its end time. Colouring by staff member (which is what tells you whose
+ * column a booking is in) lost that signal entirely. This restores it without
+ * giving up the staff colours: a finished appointment keeps its owner's hue but
+ * recedes, and carries a small mark saying what it is.
+ *
+ * "Elapsed" is time-based rather than status-based on purpose — the auto-complete
+ * job runs on an interval, so a just-finished booking should look finished
+ * immediately rather than whenever the cron next fires.
+ */
+export const cardState = ({ status, endMin, day, today }) => {
+    const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate());
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const nowMin = today.getHours() * 60 + today.getMinutes();
+    const elapsed = dayStart < todayStart || (dayStart.getTime() === todayStart.getTime() && endMin <= nowMin);
+
+    const done = status === 'completed';
+    const pending = status === 'pending';
+    const noShow = status === 'no-show';
+
+    return {
+        // Faded once it is behind you, or explicitly finished.
+        recede: done || noShow || elapsed,
+        pending,
+        // ✓ finished · ✗ no-show · ◦ awaiting confirmation. Deliberately quiet:
+        // the mark is a supplement to the fade, not a second loud signal.
+        mark: done ? '✓' : noShow ? '✕' : pending ? '◦' : '',
+        markTitle: done ? 'Completed' : noShow ? 'No-show' : pending ? 'Awaiting confirmation' : '',
+    };
+};
+
 const staffPalette = (hex) => {
     const rgb = hexToRgb(hex);
     const { r, g, b } = rgb || { r: 240, g: 62, b: 22 };
@@ -362,7 +397,8 @@ const CalendarGrid = ({
                                 {bucket.appts.map((ev) => {
                                     const pal = staffPalette(ev.staffColor);
                                     const h = ((ev.endMin - ev.startMin) / 60) * HOUR_PX;
-                                    const dim = ev.status === 'pending';
+                                    const st = cardState({ status: ev.status, endMin: ev.endMin, day: d, today });
+                                    const dim = st.pending;
                                     return (
                                         <button
                                             type="button"
@@ -375,10 +411,22 @@ const CalendarGrid = ({
                                                 display: 'flex', flexDirection: 'column', lineHeight: 1.15,
                                                 background: pal.bg, border: '1px solid var(--border)', borderLeft: `3px ${dim ? 'dashed' : 'solid'} ${pal.rail}`, borderRadius: '8px',
                                                 padding: '0.28rem 0.42rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)',
-                                                boxShadow: 'var(--shadow-sm)', opacity: dim ? 0.78 : 1,
+                                                // Finished work recedes; the staff hue stays so you can still read
+                                                // whose booking it was. saturate() keeps the fade from turning the
+                                                // rail muddy — it reads as "settled", not "broken".
+                                                boxShadow: st.recede ? 'none' : 'var(--shadow-sm)',
+                                                opacity: st.recede ? 0.55 : dim ? 0.78 : 1,
+                                                filter: st.recede ? 'saturate(0.75)' : 'none',
                                             }}
                                         >
                                             {ev.isRecurring && <span aria-hidden="true" title="Repeats" style={{ position: 'absolute', top: '2px', right: '4px', fontSize: '0.66rem', opacity: 0.6 }}>⟳</span>}
+                                            {st.mark && (
+                                                <span
+                                                    title={st.markTitle}
+                                                    aria-label={st.markTitle}
+                                                    style={{ position: 'absolute', bottom: '2px', right: '5px', fontSize: '0.66rem', fontWeight: 700, opacity: 0.75, lineHeight: 1 }}
+                                                >{st.mark}</span>
+                                            )}
                                             {h >= 60 && (
                                                 <div style={{ fontSize: '0.58rem', fontWeight: 600, opacity: 0.8, fontVariantNumeric: 'tabular-nums' }}>
                                                     {f12(ev.startMin)} – {f12(ev.endMin)}
