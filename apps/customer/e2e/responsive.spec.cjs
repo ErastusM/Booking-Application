@@ -30,7 +30,9 @@ test.describe('Responsiveness — no horizontal overflow', () => {
     test('customer booking page fits 375px', async ({ page }) => {
         await page.setViewportSize({ width: 375, height: 667 });
         await login(page, SEED.customer);
-        await page.goto('/services');
+        // Was '/services', which now redirects to the home feed — the provider is
+        // reached from the feed itself.
+        await page.goto('/');
         await page.getByText(SEED.providerName, { exact: false }).first().click();
         await page.getByRole('button', { name: /book now/i }).first().click();
         await page.waitForLoadState('networkidle');

@@ -1,7 +1,8 @@
 const { test, expect } = require('@playwright/test');
+const { SEED } = require('./helpers.cjs');
 
 // Local YYYY-MM-DD for tomorrow — the seeded provider works 08:00–18:00 every
-// day, so tomorrow always has openings from 08:00 (today would flake after 18:00).
+// day, so tomorrow always has openings (today would flake after 18:00).
 const tomorrow = () => {
     const d = new Date();
     d.setDate(d.getDate() + 1);
@@ -9,30 +10,38 @@ const tomorrow = () => {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 
-test.describe('Availability-first search (desktop)', () => {
-    test('searching a date shows real openings and the filter clears', async ({ page }) => {
+// These specs used to drive a separate /services results page with opening-time
+// chips. That page was folded into the home feed: search now filters in place
+// (Home.jsx — "the results ARE the home now"), and availability is used to narrow
+// the feed rather than to print chips on cards. Rewritten against that UI.
+//
+// The pair below is deliberate: a date alone must KEEP a provider who has
+// openings, and a late time floor must REMOVE the same provider. Asserting only
+// the first would pass even if the availability filter did nothing at all.
+test.describe('Availability filtering on the home feed', () => {
+    test('a date keeps a provider who has openings that day', async ({ page }) => {
         await page.goto('/');
+        await expect(page.getByText(SEED.providerName, { exact: false }).first()).toBeVisible({ timeout: 15_000 });
 
         await page.getByLabel('Date').fill(tomorrow());
-        await page.getByRole('button', { name: 'Search', exact: true }).click();
-        await page.waitForURL(/\/services\?.*date=/);
 
-        // Availability-first results: count says "available" and the provider
-        // card carries opening chips. Earlier specs in this run may have booked
-        // the morning slots (shared in-memory DB), so assert the chip SHAPE,
-        // not a specific clock time.
-        await expect(page.getByText(/business(es)? available/)).toBeVisible();
-        await expect(page.getByText(/^\d{2}:\d{2}$/).first()).toBeVisible();
+        // Still listed: the seeded provider works 08:00–18:00, so tomorrow has openings.
+        await expect(page.getByText(SEED.providerName, { exact: false }).first()).toBeVisible({ timeout: 15_000 });
 
-        // The dismissible date chip clears back to the plain directory.
-        await page.locator('button[title="Clear the availability filter"]').click();
-        await expect(page.getByText(/business(es)? found/)).toBeVisible();
+        // And the filter can be cleared again.
+        await page.getByRole('button', { name: /clear filters/i }).first().click();
+        await expect(page.getByLabel('Date')).toHaveValue('');
     });
 
-    test('a time floor trims earlier openings', async ({ page }) => {
-        await page.goto(`/services?date=${tomorrow()}&time=15:00`);
-        await expect(page.getByText(/business(es)? available/)).toBeVisible();
-        await expect(page.getByText('15:00', { exact: true }).first()).toBeVisible();
-        await expect(page.getByText('08:00', { exact: true })).toHaveCount(0);
+    test('a time floor past closing removes that provider', async ({ page }) => {
+        await page.goto('/');
+        await expect(page.getByText(SEED.providerName, { exact: false }).first()).toBeVisible({ timeout: 15_000 });
+
+        await page.getByLabel('Date').fill(tomorrow());
+        // 19:00 is past the seeded provider's 18:00 close, so there is nothing left
+        // to book and they must drop out of the feed.
+        await page.getByLabel('Time').selectOption('19:00');
+
+        await expect(page.getByText(SEED.providerName, { exact: false })).toHaveCount(0, { timeout: 15_000 });
     });
 });
