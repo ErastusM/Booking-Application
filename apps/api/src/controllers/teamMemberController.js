@@ -48,13 +48,30 @@ exports.updateTeamMember = async (req, res) => {
     }
 };
 
+/**
+ * DELETE /api/team/:id — archive a team member.
+ *
+ * Deliberately NOT a delete. Appointments, earnings and reviews all reference
+ * this _id, so removing the row stripped the staff member's name off every
+ * booking they had ever done and broke per-staff history and reporting — the
+ * business loses its own records the moment someone leaves.
+ *
+ * Archiving keeps all of that resolvable and still ends their working life
+ * here: `isActive:false` is what stops new bookings reaching them (the roster
+ * query in utils/staffBooking filters on it), and the login revocation below
+ * is unchanged. Reversible via POST /:id/restore.
+ */
 exports.deleteTeamMember = async (req, res) => {
     try {
-        const member = await TeamMember.findOneAndDelete({ _id: req.params.id, provider: req.user._id });
+        const member = await TeamMember.findOneAndUpdate(
+            { _id: req.params.id, provider: req.user._id },
+            { $set: { isActive: false, archivedAt: new Date() } },
+            { new: true },
+        );
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
 
-        // Removing someone from the roster must also end their access. Deleting the
-        // roster row alone left the linked User{role:'staff'} account fully alive with
+        // Archiving someone must also end their access. Removing them from the
+        // roster alone left the linked User{role:'staff'} account fully alive with
         // valid access AND refresh tokens: a dismissed employee kept a working login
         // to the business app. Bumping tokenVersion invalidates every issued token at
         // the next request (middleware/auth checks it), clearing the jti list kills
@@ -68,7 +85,32 @@ exports.deleteTeamMember = async (req, res) => {
                 { $inc: { tokenVersion: 1 }, $set: { refreshTokenJtis: [], staffOf: null } },
             );
         }
-        res.status(200).json({ success: true, message: 'Team member removed' });
+        res.status(200).json({ success: true, message: 'Team member archived', data: member });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * POST /api/team/:id/restore  (provider/admin)
+ *
+ * Bring an archived member back onto the roster. Their bookings, earnings and
+ * reviews were never detached, so nothing has to be rebuilt — this only puts
+ * them back in front of new bookings.
+ *
+ * Their LOGIN is deliberately not restored: archiving revoked the tokens and
+ * severed `staffOf`, and silently handing that access back would make "archive"
+ * a weaker action than it looked. Re-inviting is the explicit way to do it.
+ */
+exports.restoreTeamMember = async (req, res) => {
+    try {
+        const member = await TeamMember.findOneAndUpdate(
+            { _id: req.params.id, provider: req.user._id },
+            { $set: { isActive: true, archivedAt: null } },
+            { new: true },
+        );
+        if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
+        res.status(200).json({ success: true, data: member });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
