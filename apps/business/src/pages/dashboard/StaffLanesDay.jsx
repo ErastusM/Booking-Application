@@ -1,14 +1,18 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cardState } from '../../components/CalendarGrid';
+import useApptDrag from '../../components/calendar/useApptDrag';
+import ConflictSheet from '../../components/calendar/ConflictSheet';
 
 // Epic 2.4 — per-staff calendar lanes. One column per staff member (plus the
 // owner's "Me / unassigned" lane), a shared time axis, and the same visual
 // language as the FullCalendar views: status-coloured appointment cards,
 // hatched non-working hours, grey blocked time. FullCalendar's resource
 // (per-column) views are a premium plugin, so this view is rendered by hand;
-// it deliberately supports tap-to-open and tap-empty-space-to-book, while
-// drag-to-move stays in the Day/3 Day/Week views.
+// it supports tap-to-open, tap-empty-space-to-book, and press-and-hold to drag
+// a booking to a new time. Dragging SIDEWAYS is deliberately not supported here:
+// a different lane is a different staff member, which is a reassignment rather
+// than a reschedule.
 
 const pad = (n) => String(n).padStart(2, '0');
 const dateKeyOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -82,6 +86,7 @@ const StaffLanesDay = ({
     onBlockClick,            // (rawBlockedTime) => void
     onSlotClick,             // ({date, startTime, endTime, teamMember}) => void — teamMember '' = unassigned
     headerControl,           // optional node rendered in the header row (e.g. the view switcher)
+    onReschedule,            // ({moves, mode}) => Promise — drag/resize commit
 }) => {
     const dayKey = dateKeyOf(date);
     const isToday = dayKey === dateKeyOf(new Date());
@@ -208,6 +213,57 @@ const StaffLanesDay = ({
     const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
     const showNowLine = isToday && nowMin >= windowStart && nowMin <= windowEnd;
 
+    // ── Drag to reschedule ──────────────────────────────────────────────────
+    // Vertical only here. Sideways in this view means a DIFFERENT staff member,
+    // which is a reassignment rather than a reschedule — it changes who does the
+    // work, needs the service/skill check, and belongs to its own change.
+    const scrollerRef = useRef(null);
+    const dragItems = useMemo(() => {
+        const out = [];
+        lanes.forEach((l) => {
+            (perLane[l.id]?.appts || []).forEach((ev) => {
+                const st = cardState({ status: ev.raw.status, endMin: ev.endMin, day: date, today: new Date() });
+                out.push({
+                    id: String(ev.raw._id),
+                    dateKey: dayKey,
+                    startMin: ev.startMin,
+                    endMin: ev.endMin,
+                    staffKey: l.id,
+                    locked: st.recede,
+                    label: ev.raw.walkInName || ev.raw.guestName || ev.raw.customer?.name || 'Client',
+                    raw: ev.raw,
+                });
+            });
+        });
+        return out;
+    }, [lanes, perLane, dayKey, date]);
+
+    const dnd = useApptDrag({
+        scrollerRef,
+        hourPx: HOUR_PX,
+        items: dragItems,
+        columns: [dayKey],
+        fmt: (m) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`,
+        enabled: !!onReschedule,
+        onCommit: useCallback(async ({ moves, mode }) => {
+            if (!onReschedule) return;
+            await onReschedule({
+                mode,
+                moves: moves.map((m) => ({
+                    id: m.id,
+                    appointmentDate: m.dateKey,
+                    startTime: `${String(Math.floor(m.startMin / 60) % 24).padStart(2, '0')}:${String(m.startMin % 60).padStart(2, '0')}`,
+                    endTime: `${String(Math.floor(m.endMin / 60) % 24).padStart(2, '0')}:${String(m.endMin % 60).padStart(2, '0')}`,
+                })),
+            });
+        }, [onReschedule]),
+        onTap: (id, why) => {
+            if (why === 'locked') return;
+            const it = dragItems.find((x) => x.id === id);
+            if (it && onApptClick) onApptClick(it.raw);
+        },
+    });
+
     const laneRefs = useRef({});
     const handleLaneClick = (lane) => (e) => {
         const el = laneRefs.current[lane.id];
@@ -231,7 +287,8 @@ const StaffLanesDay = ({
     };
 
     return (
-        <div style={{ height: height || 680, display: 'flex', flexDirection: 'column', background: 'var(--card-bg)' }}>
+        // position:relative anchors the conflict sheet to the calendar itself.
+        <div style={{ height: height || 680, display: 'flex', flexDirection: 'column', background: 'var(--card-bg)', position: 'relative' }}>
             {/* Header: day navigation (mirrors the FullCalendar toolbar) */}
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', padding: '1rem 1.25rem 0.75rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
                 <div style={{ display: 'inline-flex', gap: '0.35rem' }}>
@@ -261,7 +318,13 @@ const StaffLanesDay = ({
             {/* One scroll container for both axes; lane headers stick to its top, the time gutter to its left. */}
             {/* overscrollBehavior:'none' — same as CalendarGrid: suppress iOS's elastic
                 bounce so dragging past the last hour can't open a gap at the frame edge. */}
-            <div style={{ flex: 1, minHeight: 0, overflow: 'auto', overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
+            <div
+                ref={scrollerRef}
+                onPointerMove={dnd.onPointerMove}
+                onPointerUp={dnd.onPointerUp}
+                onPointerCancel={dnd.onPointerUp}
+                style={{ flex: 1, minHeight: 0, overflow: dnd.drag ? 'hidden' : 'auto', overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}
+            >
                 <div style={{ display: 'grid', gridTemplateColumns: `${GUTTER_W}px repeat(${lanes.length}, minmax(${LANE_MIN_W}px, 1fr))`, minWidth: `${GUTTER_W + lanes.length * LANE_MIN_W}px` }}>
                     {/* Sticky header row */}
                     <div style={{ position: 'sticky', top: 0, left: 0, zIndex: 6, background: 'var(--card-bg)', borderBottom: '2px solid var(--border)' }} />
@@ -335,27 +398,58 @@ const StaffLanesDay = ({
                                     // Same finished/pending treatment the day grid uses, so the two
                                     // calendar views never disagree about what a card means.
                                     const st = cardState({ status: ev.raw.status, endMin: ev.endMin, day: date, today: new Date() });
+                                    const item = dragItems.find((x) => x.id === String(ev.raw._id));
+                                    const dstate = item ? dnd.stateFor(item) : {};
+                                    const place = item ? dnd.placeFor(item) : { startMin: ev.startMin, endMin: ev.endMin };
+                                    const dh = pxOf(place.endMin - place.startMin);
+                                    const canDrag = !!onReschedule && !!item && !item.locked;
                                     return (
                                         <div
                                             key={ev.raw._id}
-                                            onClick={(e) => { e.stopPropagation(); onApptClick && onApptClick(ev.raw); }}
+                                            role="button"
+                                            tabIndex={0}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (dnd.shouldIgnoreClick()) return;
+                                                onApptClick && onApptClick(ev.raw);
+                                            }}
+                                            onPointerDown={canDrag
+                                                ? (e) => dnd.onPointerDown(item, e.target?.dataset?.grip != null ? 'resize' : 'move')(e)
+                                                : undefined}
+                                            onKeyDown={canDrag ? dnd.onKeyDown(item) : undefined}
                                             data-testid="staff-lane-appt"
                                             style={{
                                                 position: 'absolute',
-                                                top: `${pxOf(ev.startMin - windowStart)}px`,
-                                                height: `${Math.max(h, 20)}px`,
+                                                top: `${pxOf(place.startMin - windowStart)}px`,
+                                                height: `${Math.max(dh, 20)}px`,
+                                                touchAction: canDrag ? 'none' : undefined,
                                                 left: `calc(${(ev.col / ev.cols) * 100}% + 3px)`,
                                                 width: `calc(${100 / ev.cols}% - 6px)`,
-                                                zIndex: 2, overflow: 'hidden', cursor: 'pointer',
+                                                zIndex: dstate.dragging ? 30 : 2, overflow: 'hidden',
+                                                cursor: canDrag ? (dstate.dragging ? 'grabbing' : 'grab') : 'pointer',
                                                 background: colors.bg, color: colors.text,
                                                 borderLeft: `3px solid ${colors.borderColor || colors.bg}`,
-                                                borderRadius: '6px', padding: h >= 40 ? '4px 8px' : '2px 8px',
+                                                border: dstate.blocked || dstate.displacing ? '1px dashed var(--charcoal)' : undefined,
+                                                borderRadius: '6px', padding: dh >= 40 ? '4px 8px' : '2px 8px',
                                                 lineHeight: 1.2,
-                                                boxShadow: st.recede ? 'none' : 'var(--shadow-sm)',
-                                                opacity: st.recede ? 0.55 : st.pending ? 0.78 : 1,
+                                                boxShadow: dstate.dragging && !dstate.blocked
+                                                    ? '0 10px 24px -6px rgba(4,5,5,0.28)'
+                                                    : st.recede ? 'none' : 'var(--shadow-sm)',
+                                                // Translucent while it would displace someone, so the cards
+                                                // underneath — the ones about to be shoved — stay visible.
+                                                opacity: dstate.displacing ? 0.74 : st.recede ? 0.55 : st.pending ? 0.78 : 1,
                                                 filter: st.recede ? 'saturate(0.75)' : 'none',
+                                                outline: dstate.bumped ? '2px dashed var(--charcoal)' : 'none',
+                                                outlineOffset: '-3px',
                                             }}
                                         >
+                                            {canDrag && dh >= 44 && (
+                                                <span
+                                                    data-grip=""
+                                                    aria-hidden="true"
+                                                    style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '12px', cursor: 'ns-resize' }}
+                                                />
+                                            )}
                                             {st.mark && (
                                                 <span
                                                     title={st.markTitle}
@@ -387,6 +481,32 @@ const StaffLanesDay = ({
                     })}
                 </div>
             </div>
+
+            {/* The only channel a screen-reader user has for a drag in progress. */}
+            {dnd.status && (
+                <div
+                    role="status"
+                    aria-live="polite"
+                    style={{
+                        position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 40,
+                        padding: '0.4rem 0.7rem', borderTop: '1px solid var(--border)',
+                        background: 'var(--card-bg)', color: 'var(--text-muted)',
+                        fontSize: '0.72rem', pointerEvents: 'none',
+                    }}
+                >
+                    {dnd.status.text || (dnd.status.place
+                        ? `${timeOf(dnd.status.place.startMin)} – ${timeOf(dnd.status.place.endMin)}`
+                        : '')}
+                </div>
+            )}
+
+            <ConflictSheet
+                sheet={dnd.sheet}
+                fmt={timeOf}
+                busy={dnd.busy}
+                onChoose={dnd.chooseRoute}
+                onCancel={dnd.cancelSheet}
+            />
         </div>
     );
 };

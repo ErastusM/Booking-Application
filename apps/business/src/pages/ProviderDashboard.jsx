@@ -114,6 +114,9 @@ const ProviderDashboard = () => {
     const [calendarView, setCalendarView] = useState('3day');
     const [viewMenuOpen, setViewMenuOpen] = useState(false); // compact view-switcher dropdown in the calendar header
     const [calendarToast, setCalendarToast] = useState(null); // { msg, type }
+    // Slots to restore if the last drag was a mistake. Undo re-sends the reverse
+    // batch, so the customer is told their final time either way.
+    const [calendarUndo, setCalendarUndo] = useState(null);
 
     // Size the day/week calendar to fill from its top down to just above the fixed
     // bottom nav, instead of a hard 680px that left dead grey space on tall phones.
@@ -1047,6 +1050,61 @@ const ProviderDashboard = () => {
         const dateStr = toDateString(dateValue);
         if (!dateStr || !timeValue) return null;
         return new Date(`${dateStr}T${timeValue}:00`);
+    };
+
+    /**
+     * Commit a drag on the calendar — one booking, or a whole push cascade.
+     *
+     * Sent as ONE batch: three separate calls could half-succeed and leave the
+     * day genuinely double-booked, which is worse than the clash being resolved.
+     * The cards move first so it feels instant on a phone, and go back if the
+     * server disagrees.
+     *
+     * `allowOutsideHours` is on because this is the provider dragging on their
+     * own grid: a late client is a normal thing to book, and the calendar has
+     * already shown them the off-hours hatch. The public booking page still
+     * can't sell those slots.
+     */
+    const snapshotSlots = (ids) => ids
+        .map((id) => appointments.find((a) => a._id === id))
+        .filter(Boolean)
+        .map((a) => ({
+            id: a._id,
+            appointmentDate: toDateString(a.appointmentDate),
+            startTime: a.startTime,
+            endTime: a.endTime,
+        }));
+
+    const applySlotsLocally = (moves) => setAppointments((prev) => prev.map((a) => {
+        const m = moves.find((x) => x.id === a._id);
+        return m ? { ...a, appointmentDate: m.appointmentDate, startTime: m.startTime, endTime: m.endTime } : a;
+    }));
+
+    const handleCalendarReschedule = async ({ moves }) => {
+        const before = snapshotSlots(moves.map((m) => m.id));
+        applySlotsLocally(moves);
+        try {
+            await appointmentService.batchReschedule(moves, { allowOutsideHours: true });
+            setCalendarUndo(before);
+        } catch (err) {
+            applySlotsLocally(before);   // put them back exactly where they were
+            setCalendarUndo(null);
+            toast(err?.response?.data?.message || 'Could not move that booking. Please try again.', 'error');
+            fetchAppointments();          // resync: the server may know something we don't
+        }
+    };
+
+    const undoCalendarReschedule = async () => {
+        const restore = calendarUndo;
+        if (!restore) return;
+        setCalendarUndo(null);
+        applySlotsLocally(restore);
+        try {
+            await appointmentService.batchReschedule(restore, { allowOutsideHours: true });
+        } catch (err) {
+            toast(err?.response?.data?.message || 'Could not undo that move.', 'error');
+            fetchAppointments();
+        }
     };
 
     // Shared by the FullCalendar views and the staff-lanes view.
@@ -2120,6 +2178,7 @@ const ProviderDashboard = () => {
                                     onApptClick={openApptDetail}
                                     onBlockClick={(block) => openBlockedTimeForm(block)}
                                     onSlotClick={(sel) => { setApptError(''); setTimeSelectionPreview(sel); }}
+                                    onReschedule={handleCalendarReschedule}
                                 />
                             ) : (
                                 <CalendarGrid
@@ -2138,9 +2197,50 @@ const ProviderDashboard = () => {
                                     onEventClick={openApptDetail}
                                     onBlockClick={(block) => openBlockedTimeForm(block)}
                                     onSlotClick={(sel) => { setApptError(''); setTimeSelectionPreview(sel); }}
+                                    onReschedule={handleCalendarReschedule}
                                 />
                             )}
                         </div>
+
+                        {/* A stray drag tells a customer the wrong time, so no move is
+                            silent — every one offers a way straight back. */}
+                        {calendarUndo && (
+                            <div
+                                role="status"
+                                style={{
+                                    position: 'fixed', left: '50%', bottom: '28px', transform: 'translateX(-50%)', zIndex: 1300,
+                                    display: 'flex', alignItems: 'center', gap: '0.75rem',
+                                    padding: '0.55rem 0.6rem 0.55rem 0.9rem', borderRadius: '10px',
+                                    background: 'var(--ink)', color: 'var(--paper, #fff)', fontSize: '0.8rem',
+                                    boxShadow: '0 10px 24px -6px rgba(4,5,5,0.4)',
+                                }}
+                            >
+                                <span>
+                                    {calendarUndo.length > 1
+                                        ? `Rescheduled ${calendarUndo.length} bookings.`
+                                        : 'Booking moved.'}
+                                </span>
+                                <button
+                                    type="button"
+                                    onClick={undoCalendarReschedule}
+                                    style={{
+                                        font: 'inherit', fontWeight: 700, fontSize: '0.76rem', border: 0, cursor: 'pointer',
+                                        borderRadius: '7px', padding: '0.3rem 0.7rem',
+                                        background: 'var(--gold)', color: '#fff',
+                                    }}
+                                >
+                                    Undo
+                                </button>
+                                <button
+                                    type="button"
+                                    aria-label="Dismiss"
+                                    onClick={() => setCalendarUndo(null)}
+                                    style={{ font: 'inherit', background: 'none', border: 0, color: 'inherit', opacity: 0.6, cursor: 'pointer', padding: '0 0.2rem' }}
+                                >
+                                    ✕
+                                </button>
+                            </div>
+                        )}
 
                         {/* Drag/drop/resize feedback toast */}
                         {calendarToast && (

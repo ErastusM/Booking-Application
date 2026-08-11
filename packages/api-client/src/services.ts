@@ -47,6 +47,11 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         updateAppointmentStatus: (id: string, status: string) => API.put(`/appointments/${id}/status`, { status }),
         rescheduleAppointment: (id: string, data: any) => API.put(`/appointments/${id}/reschedule`, data),
         providerRescheduleAppointment: (id: string, data: any) => API.put(`/appointments/${id}/provider-reschedule`, data),
+        // Drag-to-reschedule. One decision that may move several bookings (a push
+        // that ripples through an afternoon) — sent as one batch so it can't
+        // half-apply and leave the day double-booked.
+        batchReschedule: (moves: any[], opts?: { allowOutsideHours?: boolean }) =>
+            API.post('/appointments/batch-reschedule', { moves, ...(opts || {}) }),
         cancelAppointmentSeries: (id: string, deleteMode?: string) => API.delete(`/appointments/${id}/series`, { data: { deleteMode } }),
         getAppointmentHistory: (params?: any) => API.get('/appointments/history', { params }),
         createGroupBooking: (data: any) => API.post('/appointments/group', data),

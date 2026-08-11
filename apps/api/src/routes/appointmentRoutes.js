@@ -25,6 +25,7 @@ const {
     updateAppointmentStatus,
     rescheduleAppointment,
     providerRescheduleAppointment,
+    providerBatchReschedule,
     getBookedSlots,
     getAppointmentHistory,
     createGroupBooking,
@@ -65,6 +66,10 @@ router.put('/:id/status', auth, authorize('admin', 'provider'), updateAppointmen
 router.delete('/:id', auth, authorize('customer', 'provider', 'admin'), cancelAppointmentRules, cancelAppointment);
 router.put('/:id/reschedule', auth, authorize('customer', 'provider'), rescheduleAppointmentRules, rescheduleAppointment);
 router.put('/:id/provider-reschedule', auth, authorize('provider'), providerRescheduleAppointment);
+// Drag-to-reschedule: one decision that may move several bookings (a push that
+// ripples through an afternoon). Deliberately NOT :id-scoped — the batch is the
+// unit, and splitting it into per-id calls is what this endpoint exists to avoid.
+router.post('/batch-reschedule', auth, authorize('provider'), providerBatchReschedule);
 router.delete('/:id/series', auth, authorize('provider', 'admin'), cancelAppointmentSeries);
 
 module.exports = router;
