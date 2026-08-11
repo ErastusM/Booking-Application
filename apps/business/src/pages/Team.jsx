@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { teamService, providerServiceService } from '../services';
-import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check } from 'lucide-react';
+import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye } from 'lucide-react';
 
 /**
  * Epic 2.4 — staff management: roster CRUD, invite-to-login, per-staff
@@ -21,6 +21,45 @@ const Chip = ({ active, children, ...rest }) => (
     }}>{children}</button>
 );
 
+const Switch = ({ checked, onChange, disabled, label, 'data-testid': testId }) => (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem' }}>
+        <span style={{
+            fontSize: '0.78rem', fontWeight: 650, whiteSpace: 'nowrap',
+            color: checked ? 'var(--gold-dark)' : 'var(--text-muted)',
+        }}>{label}</span>
+        <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
+            <input
+                type="checkbox"
+                role="switch"
+                checked={checked}
+                disabled={disabled}
+                onChange={(e) => onChange(e.target.checked)}
+                data-testid={testId}
+                style={{
+                    position: 'absolute', inset: 0, width: '100%', height: '100%',
+                    opacity: 0, margin: 0, cursor: disabled ? 'not-allowed' : 'pointer',
+                }}
+            />
+            <span aria-hidden="true" style={{
+                width: '42px', height: '24px', borderRadius: '999px', position: 'relative',
+                background: checked ? 'var(--gold)' : 'var(--border)',
+                transition: 'background 0.16s ease', opacity: disabled ? 0.5 : 1,
+                // The real checkbox sits invisibly underneath this track. Without
+                // this the track swallows every click and the switch is inert —
+                // it looks fine and simply cannot be operated by mouse or touch.
+                pointerEvents: 'none',
+            }}>
+                <span style={{
+                    position: 'absolute', top: '3px', left: '3px', width: '18px', height: '18px',
+                    borderRadius: '50%', background: '#fff', transition: 'transform 0.16s ease',
+                    transform: checked ? 'translateX(18px)' : 'none',
+                    boxShadow: '0 1px 2px rgba(4,5,5,0.3)',
+                }} />
+            </span>
+        </span>
+    </span>
+);
+
 const MemberCard = ({ member, services, onChanged }) => {
     const [open, setOpen] = useState(false);
     const [busy, setBusy] = useState('');
@@ -28,6 +67,8 @@ const MemberCard = ({ member, services, onChanged }) => {
     const [assigned, setAssigned] = useState((member.services || []).map(String));
     const [schedule, setSchedule] = useState(null); // null = inherits business hours
     const [inviteEmail, setInviteEmail] = useState(member.email || '');
+    const perms = member.user?.staffPermissions || [];
+    const [seesAll, setSeesAll] = useState(perms.includes('calendar:all'));
 
     useEffect(() => {
         if (!open || schedule !== null) return;
@@ -37,6 +78,26 @@ const MemberCard = ({ member, services, onChanged }) => {
     }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const flash = (t) => { setMsg(t); setTimeout(() => setMsg(''), 3500); };
+
+    const setCalendarAccess = async (next) => {
+        const previous = seesAll;
+        setSeesAll(next);            // optimistic — the switch should feel instant
+        setBusy('perms');
+        try {
+            // calendar:self is the ABSENCE of calendar:all; it is sent so the
+            // stored flags read sensibly rather than being an empty array.
+            await teamService.setMemberPermissions(member._id, [next ? 'calendar:all' : 'calendar:self']);
+            flash(next
+                ? `${member.name} can now see everyone's calendar.`
+                : `${member.name} now sees only their own bookings.`);
+            onChanged();
+        } catch (err) {
+            setSeesAll(previous);
+            flash(err?.response?.data?.message || 'Could not change calendar access.');
+        } finally {
+            setBusy('');
+        }
+    };
 
     const invite = async () => {
         setBusy('invite');
@@ -105,6 +166,34 @@ const MemberCard = ({ member, services, onChanged }) => {
                                 <button type="button" className="btn-primary" onClick={invite} disabled={busy === 'invite'} data-testid="invite-send" style={{ padding: '0.6rem 1.3rem' }}>
                                     {busy === 'invite' ? 'Sending…' : 'Send invite'}
                                 </button>
+                            </div>
+                        </div>
+                    )}
+
+                    {/* Calendar access — only meaningful once they have a login */}
+                    {member.user && (
+                        <div style={{ marginTop: '1.25rem' }}>
+                            <p style={{ margin: '0 0 0.5rem', fontWeight: 600, fontSize: '0.85rem', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+                                <Eye size={14} /> Calendar access
+                            </p>
+                            <div style={{
+                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                                gap: '1rem', flexWrap: 'wrap',
+                                padding: '0.7rem 0.85rem', border: '1px solid var(--border)',
+                                borderRadius: 'var(--radius)', background: 'var(--card-bg)',
+                            }}>
+                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: '38ch' }}>
+                                    {seesAll
+                                        ? `${member.name} can open every colleague's calendar and the Staff view.`
+                                        : `${member.name} sees only their own bookings. Colleagues' appointments are hidden entirely.`}
+                                </span>
+                                <Switch
+                                    checked={seesAll}
+                                    disabled={busy === 'perms'}
+                                    onChange={setCalendarAccess}
+                                    label={seesAll ? 'Everyone' : 'Own only'}
+                                    data-testid="calendar-access-switch"
+                                />
                             </div>
                         </div>
                     )}

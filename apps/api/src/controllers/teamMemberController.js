@@ -7,7 +7,13 @@ const { validate: validatePermissions } = require('../utils/permissions');
 
 exports.getMyTeam = async (req, res) => {
     try {
-        const members = await TeamMember.find({ provider: req.user._id }).sort({ createdAt: 1 });
+        // `user` is populated with its permission flags so the Team screen can
+        // show each member's calendar access without a request per member.
+        // Callers that only test `member.user` for truthiness ("has a login")
+        // are unaffected — a populated document is just as truthy as an id.
+        const members = await TeamMember.find({ provider: req.user._id })
+            .populate('user', 'staffPermissions')
+            .sort({ createdAt: 1 });
         res.status(200).json({ success: true, data: members });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
