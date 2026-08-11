@@ -3,6 +3,7 @@ const TeamMember = require('../models/TeamMember');
 const User = require('../models/User');
 const Service = require('../models/Service');
 const StaffAvailability = require('../models/StaffAvailability');
+const { validate: validatePermissions } = require('../utils/permissions');
 
 exports.getMyTeam = async (req, res) => {
     try {
@@ -86,6 +87,52 @@ exports.deleteTeamMember = async (req, res) => {
             );
         }
         res.status(200).json({ success: true, message: 'Team member archived', data: member });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * PUT /api/team/:id/permissions  (provider/admin)
+ * Body: { permissions: ['calendar:all', …] }
+ *
+ * What a staff member is allowed to do, set by the owner. Only flags the API
+ * actually enforces (or the descriptive ones the invite flow writes) are
+ * accepted — an unknown flag is rejected rather than stored, so a typo can't
+ * sit in the database looking like a granted permission.
+ *
+ * A staff member can never reach this: the router gates the whole file to
+ * provider/admin, which is the difference between a permission and a
+ * preference.
+ */
+exports.setTeamMemberPermissions = async (req, res) => {
+    try {
+        const { accepted, rejected } = validatePermissions(req.body.permissions);
+        if (rejected.length) {
+            return res.status(400).json({ success: false, message: `Unknown permission: ${rejected.join(', ')}` });
+        }
+
+        const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
+        if (!member.user) {
+            return res.status(400).json({
+                success: false,
+                message: 'This team member has no login yet — invite them first.',
+            });
+        }
+
+        const staffUser = await User.findOneAndUpdate(
+            // Re-assert the link rather than trusting member.user alone: the
+            // account must still be a staff account belonging to this business.
+            { _id: member.user, role: 'staff', staffOf: req.user._id },
+            { $set: { staffPermissions: accepted } },
+            { new: true },
+        ).select('staffPermissions');
+        if (!staffUser) {
+            return res.status(404).json({ success: false, message: 'That login no longer belongs to your team' });
+        }
+
+        res.status(200).json({ success: true, data: { permissions: staffUser.staffPermissions } });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

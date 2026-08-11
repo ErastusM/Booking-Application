@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { auth, authorize } = require('../middleware/auth');
 const {
-    getMyTeam, addTeamMember, updateTeamMember, deleteTeamMember, restoreTeamMember,
+    getMyTeam, addTeamMember, updateTeamMember, deleteTeamMember, restoreTeamMember, setTeamMemberPermissions,
     inviteTeamMember, setTeamMemberServices,
     getTeamMemberAvailability, updateTeamMemberAvailability,
 } = require('../controllers/teamMemberController');
@@ -21,6 +21,9 @@ router.put('/:id', updateTeamMember);
 // reference the member, so the row has to outlive their employment.
 router.delete('/:id', deleteTeamMember);
 router.post('/:id/restore', restoreTeamMember);
+// Owner-only by virtue of the blanket authorize above — a staff member setting
+// their own permissions is the one thing this must never allow.
+router.put('/:id/permissions', setTeamMemberPermissions);
 router.post('/:id/invite', inviteTeamMember);
 router.put('/:id/services', setTeamMemberServices);
 
