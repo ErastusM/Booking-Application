@@ -1,5 +1,7 @@
-import React, { useEffect, useMemo, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
+import useApptDrag from './calendar/useApptDrag';
+import ConflictSheet from './calendar/ConflictSheet';
 
 // Bookplus bespoke calendar grid — a hand-built Fresha-style time grid that
 // replaces FullCalendar for the Day / 3-Day / Week views. One column per day,
@@ -146,6 +148,7 @@ const CalendarGrid = ({
     onEventClick,            // (rawAppointment) => void
     onBlockClick,            // (rawBlockedTime) => void
     onSlotClick,             // ({date, startTime, endTime}) => void
+    onReschedule,            // ({moves, mode}) => Promise — drag/resize commit
 }) => {
     const anchor = date instanceof Date ? date : new Date();
     const cols = view === 'day' ? 1 : view === 'week' ? 7 : 3;
@@ -294,8 +297,65 @@ const CalendarGrid = ({
     };
     const colRefs = useRef({});
 
+    // ── Drag to reschedule ──────────────────────────────────────────────────
+    // The grid's bookings, flattened into the shape the shared gesture speaks:
+    // minutes rather than clock strings, and a staffKey so only the same team
+    // member's bookings can collide.
+    const dragItems = useMemo(() => {
+        const out = [];
+        days.forEach((d) => {
+            const k = dateKey(d);
+            (perDay[k]?.appts || []).forEach((ev) => {
+                const st = cardState({ status: ev.status, endMin: ev.endMin, day: d, today });
+                out.push({
+                    id: String(ev.raw._id),
+                    dateKey: k,
+                    startMin: ev.startMin,
+                    endMin: ev.endMin,
+                    staffKey: String(ev.raw.teamMember?._id || ev.raw.teamMember || ''),
+                    // Finished work can neither be picked up nor shoved aside.
+                    locked: st.recede,
+                    label: ev.client,
+                    raw: ev.raw,
+                });
+            });
+        });
+        return out;
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dayKeys.join(','), perDay]);
+
+    const commitMoves = useCallback(async ({ moves, mode }) => {
+        if (!onReschedule) return;
+        await onReschedule({
+            mode,
+            moves: moves.map((m) => ({
+                id: m.id,
+                appointmentDate: m.dateKey,
+                startTime: timeOf(m.startMin),
+                endTime: timeOf(m.endMin),
+            })),
+        });
+    }, [onReschedule]);
+
+    const dnd = useApptDrag({
+        scrollerRef: bodyRef,
+        hourPx: HOUR_PX,
+        items: dragItems,
+        columns: dayKeys,
+        fmt: f12,
+        enabled: !!onReschedule,
+        onCommit: commitMoves,
+        onTap: (id, why) => {
+            if (why === 'locked') return;
+            const it = dragItems.find((x) => x.id === id);
+            if (it && onEventClick) onEventClick(it.raw);
+        },
+    });
+
     return (
-        <div style={{ height: height || 640, display: 'flex', flexDirection: 'column', background: 'var(--card-bg)', minHeight: 0 }}>
+        // position:relative so the conflict sheet can anchor to the calendar
+        // rather than the page — it reads as a sheet over the grid it concerns.
+        <div style={{ height: height || 640, display: 'flex', flexDirection: 'column', background: 'var(--card-bg)', minHeight: 0, position: 'relative' }}>
             {/* Single control strip: prev / next / range · view switcher · today */}
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.7rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
                 <button type="button" aria-label="Previous" onClick={() => shift(-1)} style={navBtn}><ChevronLeft size={17} /></button>
@@ -348,7 +408,16 @@ const CalendarGrid = ({
                 iOS applies its elastic bounce when you drag past the first or last hour,
                 pulling the grid away from the frame edge and exposing a gap above or
                 below it. `none` also prevents the drag chaining to the page behind. */}
-            <div ref={bodyRef} style={{ flex: 1, minHeight: 0, overflow: 'auto', overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch' }}>
+            <div
+                ref={bodyRef}
+                onPointerMove={dnd.onPointerMove}
+                onPointerUp={dnd.onPointerUp}
+                onPointerCancel={dnd.onPointerUp}
+                style={{
+                    flex: 1, minHeight: 0, overflow: dnd.drag ? 'hidden' : 'auto',
+                    overscrollBehavior: 'none', WebkitOverflowScrolling: 'touch',
+                }}
+            >
                 <div style={{ display: 'grid', gridTemplateColumns: colTemplate, position: 'relative' }}>
                     {/* Time gutter */}
                     <div style={{ position: 'relative', height: `${bodyH}px`, borderRight: '1px solid var(--border)' }}>
@@ -360,7 +429,7 @@ const CalendarGrid = ({
                     </div>
 
                     {/* Day columns */}
-                    {days.map((d) => {
+                    {days.map((d, colIdx) => {
                         const k = dateKey(d);
                         const bucket = perDay[k] || { appts: [], blocks: [] };
                         const sel = sameDay(d, today);
@@ -368,7 +437,11 @@ const CalendarGrid = ({
                             <div
                                 key={k}
                                 ref={(el) => { colRefs.current[k] = el; }}
-                                onClick={handleColClick(d, colRefs.current[k])}
+                                // One column carries the marker the drag uses to measure a
+                                // column's width; the grid itself can't, because it also
+                                // contains the time gutter.
+                                {...(colIdx === 0 ? { 'data-col-track': '' } : {})}
+                                onClick={(e) => { if (dnd.shouldIgnoreClick()) return; handleColClick(d, colRefs.current[k])(e); }}
                                 style={{
                                     position: 'relative', height: `${bodyH}px`, borderLeft: '1px solid var(--border)',
                                     cursor: onSlotClick ? 'pointer' : 'default',
@@ -406,27 +479,62 @@ const CalendarGrid = ({
                                 {/* Appointments */}
                                 {bucket.appts.map((ev) => {
                                     const pal = staffPalette(ev.staffColor);
-                                    const h = ((ev.endMin - ev.startMin) / 60) * HOUR_PX;
                                     const st = cardState({ status: ev.status, endMin: ev.endMin, day: d, today });
                                     const dim = st.pending;
+
+                                    const item = dragItems.find((x) => x.id === String(ev.raw._id));
+                                    const dstate = item ? dnd.stateFor(item) : {};
+                                    const place = item ? dnd.placeFor(item) : { dateKey: k, startMin: ev.startMin, endMin: ev.endMin };
+                                    const h = ((place.endMin - place.startMin) / 60) * HOUR_PX;
+                                    // A booking dragged to another day is offset a whole column
+                                    // rather than re-parented: removing the element from the DOM
+                                    // would release the pointer capture and drop the gesture.
+                                    const colShift = dstate.dragging ? dayKeys.indexOf(place.dateKey) - colIdx : 0;
+                                    const canDrag = !!onReschedule && !!item && !item.locked;
+
                                     return (
                                         <button
                                             type="button"
                                             key={ev.raw._id}
-                                            onClick={(e) => { e.stopPropagation(); onEventClick && onEventClick(ev.raw); }}
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                if (dnd.shouldIgnoreClick()) return;
+                                                onEventClick && onEventClick(ev.raw);
+                                            }}
+                                            onPointerDown={canDrag
+                                                ? (e) => dnd.onPointerDown(item, e.target?.dataset?.grip != null ? 'resize' : 'move')(e)
+                                                : undefined}
+                                            onKeyDown={canDrag ? dnd.onKeyDown(item) : undefined}
                                             style={{
-                                                position: 'absolute', top: `${pxOf(ev.startMin)}px`, height: `${Math.max(h - 2, 22)}px`,
-                                                left: `calc(${(ev.col / ev.cols) * 100}% + 2px)`, width: `calc(${100 / ev.cols}% - 4px)`,
-                                                zIndex: 2, textAlign: 'left', overflow: 'hidden', cursor: 'pointer',
+                                                position: 'absolute', top: `${pxOf(place.startMin)}px`, height: `${Math.max(h - 2, 22)}px`,
+                                                left: dstate.dragging
+                                                    ? `calc(${colShift * 100}% + 2px)`
+                                                    : `calc(${(ev.col / ev.cols) * 100}% + 2px)`,
+                                                width: dstate.dragging ? 'calc(100% - 4px)' : `calc(${100 / ev.cols}% - 4px)`,
+                                                zIndex: dstate.dragging ? 30 : 2, textAlign: 'left', overflow: 'hidden',
+                                                cursor: canDrag ? (dstate.dragging ? 'grabbing' : 'grab') : 'pointer',
+                                                // Permanently none, not set at press time: iOS decides scroll-vs-drag
+                                                // at touchstart and won't reconsider. The hook scrolls by hand instead.
+                                                touchAction: canDrag ? 'none' : undefined,
                                                 display: 'flex', flexDirection: 'column', lineHeight: 1.15,
-                                                background: pal.bg, border: '1px solid var(--border)', borderLeft: `3px ${dim ? 'dashed' : 'solid'} ${pal.rail}`, borderRadius: '8px',
+                                                background: pal.bg, border: '1px solid var(--border)',
+                                                borderLeft: `3px ${dim ? 'dashed' : 'solid'} ${pal.rail}`,
+                                                borderStyle: dstate.blocked || dstate.displacing ? 'dashed' : 'solid',
+                                                borderLeftStyle: dstate.blocked ? 'dashed' : dim ? 'dashed' : 'solid',
+                                                borderRadius: '8px',
                                                 padding: '0.28rem 0.42rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)',
                                                 // Finished work recedes; the staff hue stays so you can still read
                                                 // whose booking it was. saturate() keeps the fade from turning the
                                                 // rail muddy — it reads as "settled", not "broken".
-                                                boxShadow: st.recede ? 'none' : 'var(--shadow-sm)',
-                                                opacity: st.recede ? 0.55 : dim ? 0.78 : 1,
+                                                boxShadow: dstate.dragging && !dstate.blocked ? 'var(--shadow-lg, 0 10px 24px -6px rgba(4,5,5,0.28))'
+                                                    : st.recede ? 'none' : 'var(--shadow-sm)',
+                                                // Translucent while it would displace someone, so the bookings
+                                                // underneath — the ones about to be shoved — stay visible.
+                                                opacity: dstate.displacing ? 0.74 : st.recede ? 0.55 : dim ? 0.78 : 1,
                                                 filter: st.recede ? 'saturate(0.75)' : 'none',
+                                                outline: dstate.bumped ? '2px dashed var(--charcoal)' : 'none',
+                                                outlineOffset: '-3px',
+                                                transform: dstate.dragging && !dstate.blocked && !dstate.displacing ? 'scale(1.02)' : 'none',
                                             }}
                                         >
                                             {ev.isRecurring && <span aria-hidden="true" title="Repeats" style={{ position: 'absolute', top: '2px', right: '4px', fontSize: '0.66rem', opacity: 0.6 }}>⟳</span>}
@@ -453,6 +561,15 @@ const CalendarGrid = ({
                                                 {ev.service}
                                                 {ev.staffName && staffFilter === 'all' && <> · <span className="fc-event-appt-staff">{ev.staffName}</span></>}
                                             </div>
+                                            {/* Bottom edge grabs to change the length. Same press-and-hold
+                                                as a move — the handler reads data-grip to pick the mode. */}
+                                            {canDrag && h >= 44 && (
+                                                <span
+                                                    data-grip=""
+                                                    aria-hidden="true"
+                                                    style={{ position: 'absolute', left: 0, right: 0, bottom: 0, height: '12px', cursor: 'ns-resize' }}
+                                                />
+                                            )}
                                         </button>
                                     );
                                 })}
@@ -468,6 +585,33 @@ const CalendarGrid = ({
                     })}
                 </div>
             </div>
+
+            {/* Running commentary on the gesture. Visually quiet, but it is the
+                only channel a screen-reader user has for a drag in progress. */}
+            {dnd.status && (
+                <div
+                    role="status"
+                    aria-live="polite"
+                    style={{
+                        position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 40,
+                        padding: '0.4rem 0.7rem', borderTop: '1px solid var(--border)',
+                        background: 'var(--card-bg)', color: 'var(--text-muted)',
+                        fontSize: '0.72rem', pointerEvents: 'none',
+                    }}
+                >
+                    {dnd.status.text || (dnd.status.place
+                        ? `${f12(dnd.status.place.startMin)} – ${f12(dnd.status.place.endMin)}`
+                        : '')}
+                </div>
+            )}
+
+            <ConflictSheet
+                sheet={dnd.sheet}
+                fmt={f12}
+                busy={dnd.busy}
+                onChoose={dnd.chooseRoute}
+                onCancel={dnd.cancelSheet}
+            />
         </div>
     );
 };

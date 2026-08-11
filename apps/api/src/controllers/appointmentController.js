@@ -128,7 +128,10 @@ const hasConflictingAppointment = async (providerId, appointmentDate, startTime,
         // that time unreschedulable for every other staff member (a slot the public
         // booking page happily sells fresh). Callers pass the appointment's own member.
         teamMember: teamMember || null,
-        _id: { $ne: excludeId },
+        // Accepts one id or many: a batch reschedule has to ignore every booking
+        // it is itself moving, or each move would "conflict" with its siblings'
+        // stale positions. $nin with a single element behaves exactly like $ne.
+        _id: { $nin: Array.isArray(excludeId) ? excludeId : [excludeId] },
     }).select('startTime endTime');
     // Expand the incoming booking by its service buffers so a reschedule can't land
     // flush against a booking whose service reserves cleanup time.
@@ -1484,6 +1487,246 @@ exports.providerRescheduleAppointment = async (req, res) => {
             } catch (err) { logger.error({ err }, 'Provider reschedule notification failed'); }
         });
     } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * Move several of the provider's own bookings in one decision.
+ *
+ * Dragging a booking onto an occupied slot offers to reschedule the occupant
+ * too, and a push can ripple through a whole afternoon. That is ONE decision by
+ * the provider, so it has to land as one unit: three separate calls to
+ * /provider-reschedule can half-succeed and leave the day genuinely
+ * double-booked — worse than the clash being resolved.
+ *
+ * There is no `session.startTransaction()` to lean on: the deployment runs a
+ * standalone mongod (see docker-compose.yml), and Mongo only offers multi-document
+ * transactions on a replica set. So atomicity is built rather than borrowed:
+ *
+ *   1. VALIDATE the whole finished arrangement in memory, before a single write.
+ *      Nothing is touched until every move is known to be legal, which is what
+ *      keeps the failure window small.
+ *   2. WRITE each move conditionally, matching on the slot we believe it still
+ *      occupies. A booking someone else moved underneath us fails to match, and
+ *      that is the race guard `revertRescheduleIfRaced` gives the single-move path.
+ *   3. RE-CHECK against the database once the writes are durable, to catch a
+ *      booking created concurrently by someone else.
+ *   4. COMPENSATE on any failure — put every already-written booking back where
+ *      it was, and report the whole batch as failed.
+ *
+ * Step 4 is the honest limit: a crash between writes could strand the day
+ * half-moved. Converting mongod to a single-node replica set would let steps
+ * 2–4 collapse into a real transaction, and is the right follow-up if this
+ * proves load-bearing.
+ */
+const MAX_BATCH_MOVES = 25;
+
+exports.providerBatchReschedule = async (req, res) => {
+    try {
+        const { moves, allowOutsideHours = false } = req.body || {};
+
+        if (!Array.isArray(moves) || moves.length === 0) {
+            return res.status(400).json({ success: false, message: 'moves must be a non-empty array' });
+        }
+        if (moves.length > MAX_BATCH_MOVES) {
+            return res.status(400).json({ success: false, message: `Cannot move more than ${MAX_BATCH_MOVES} bookings at once` });
+        }
+        for (const m of moves) {
+            if (!m || !m.id || !m.appointmentDate || !m.startTime) {
+                return res.status(400).json({ success: false, message: 'Each move needs id, appointmentDate and startTime' });
+            }
+        }
+        const ids = moves.map((m) => String(m.id));
+        if (new Set(ids).size !== ids.length) {
+            return res.status(400).json({ success: false, message: 'The same booking appears twice in one batch' });
+        }
+
+        const appointments = await Appointment.find({ _id: { $in: ids } }).populate('service');
+        if (appointments.length !== ids.length) {
+            return res.status(404).json({ success: false, message: 'One of those bookings no longer exists' });
+        }
+
+        const byId = new Map(appointments.map((a) => [a._id.toString(), a]));
+        const me = req.user._id.toString();
+
+        // Every booking in the batch must be this provider's, and still movable.
+        for (const a of appointments) {
+            const ownerId = a.provider?.toString() || a.service?.provider?.toString();
+            if (ownerId !== me) {
+                return res.status(403).json({ success: false, message: 'Not authorized' });
+            }
+            if (!['pending', 'confirmed'].includes(a.status)) {
+                return res.status(400).json({ success: false, message: 'Cannot reschedule a cancelled or completed appointment' });
+            }
+        }
+
+        const providerId = appointments[0].provider || appointments[0].service?.provider;
+        // One batch, one provider — mixing providers would make the conflict scope
+        // meaningless, and there is no UI that can produce it.
+        if (appointments.some((a) => String(a.provider || a.service?.provider) !== String(providerId))) {
+            return res.status(400).json({ success: false, message: 'All bookings in a batch must belong to one provider' });
+        }
+
+        // ── 1. Work out, and check, the whole finished arrangement ──────────
+        const schedule = await getProviderSchedule(providerId);
+        const planned = [];
+
+        for (const m of moves) {
+            const appt = byId.get(String(m.id));
+            const startMinutes = parseTimeToMinutes(m.startTime);
+            if (!Number.isFinite(startMinutes)) {
+                return res.status(400).json({ success: false, message: 'Invalid start time' });
+            }
+
+            // A move keeps the booking's length; a resize sends an explicit endTime.
+            let endTime, duration;
+            if (m.endTime && /^\d{2}:\d{2}$/.test(m.endTime)) {
+                const endMinutes = parseTimeToMinutes(m.endTime);
+                if (!(endMinutes > startMinutes)) {
+                    return res.status(400).json({ success: false, message: 'End time must be after the start time' });
+                }
+                duration = endMinutes - startMinutes;
+                endTime = m.endTime;
+            } else {
+                duration = Math.max(15, parseTimeToMinutes(appt.endTime) - parseTimeToMinutes(appt.startTime))
+                    || appt.service?.duration || 30;
+                endTime = minutesToTime(startMinutes + duration);
+            }
+
+            if (!validBookingWindow(m.startTime, endTime)) {
+                return res.status(400).json({ success: false, message: 'That time would run past midnight. Pick an earlier start.' });
+            }
+            // Providers may deliberately place work outside their published hours,
+            // but only by saying so — the flag is set by the drag UI once it has
+            // shown the "outside opening hours" warning, never by default.
+            if (!allowOutsideHours && !isTimeWithinSchedule(schedule, m.appointmentDate, m.startTime, duration)) {
+                return res.status(400).json({ success: false, message: 'Selected time is outside your availability schedule' });
+            }
+
+            planned.push({
+                appt,
+                id: appt._id.toString(),
+                appointmentDate: new Date(m.appointmentDate),
+                dateKey: toDateKey(m.appointmentDate),
+                startTime: m.startTime,
+                endTime,
+                scope: conflictScope(appt),
+                previous: {
+                    appointmentDate: appt.appointmentDate,
+                    startTime: appt.startTime,
+                    endTime: appt.endTime,
+                },
+            });
+        }
+
+        // Batch against itself: two moves in one decision must not collide either.
+        for (let i = 0; i < planned.length; i += 1) {
+            for (let j = i + 1; j < planned.length; j += 1) {
+                const a = planned[i], b = planned[j];
+                if (a.dateKey !== b.dateKey) continue;
+                if (String(a.scope.teamMember || '') !== String(b.scope.teamMember || '')) continue;
+                const aStart = parseTimeToMinutes(a.startTime) - (a.scope.bufferBefore || 0);
+                const aEnd = parseTimeToMinutes(a.endTime) + (a.scope.bufferAfter || 0);
+                if (timesOverlap(aStart, aEnd, parseTimeToMinutes(b.startTime), parseTimeToMinutes(b.endTime))) {
+                    return res.status(400).json({ success: false, message: 'Those moves overlap each other' });
+                }
+            }
+        }
+
+        // Batch against everything it is NOT moving.
+        for (const p of planned) {
+            const clash = await hasConflictingAppointment(
+                providerId, p.appointmentDate, p.startTime, p.endTime, ids, p.scope,
+            );
+            if (clash) {
+                return res.status(409).json({
+                    success: false,
+                    message: `${p.appt.service?.name || 'That booking'} still clashes with something at ${p.startTime}. Refresh and try again.`,
+                });
+            }
+        }
+
+        // ── 2. Apply, each write guarded on the slot we think it still holds ─
+        const written = [];
+        const undoAll = async () => {
+            for (const p of written) {
+                try {
+                    await Appointment.updateOne({ _id: p.id }, { $set: p.previous });
+                } catch (err) {
+                    logger.error({ err, appointmentId: p.id }, 'Batch reschedule rollback failed — day may be inconsistent');
+                }
+            }
+        };
+
+        for (const p of planned) {
+            const updated = await Appointment.findOneAndUpdate(
+                {
+                    _id: p.id,
+                    appointmentDate: p.previous.appointmentDate,
+                    startTime: p.previous.startTime,
+                    endTime: p.previous.endTime,
+                    status: { $in: ['pending', 'confirmed'] },
+                },
+                { $set: { appointmentDate: p.appointmentDate, startTime: p.startTime, endTime: p.endTime } },
+                { new: true },
+            );
+            if (!updated) {
+                await undoAll();
+                return res.status(409).json({
+                    success: false,
+                    message: 'One of those bookings changed while you were moving it. Refresh and try again.',
+                });
+            }
+            written.push(p);
+            p.saved = updated;
+        }
+
+        // ── 3. Re-check now the writes are durable, in case someone booked into
+        //       one of these slots while we were writing.
+        for (const p of planned) {
+            const raced = await hasConflictingAppointment(
+                providerId, p.appointmentDate, p.startTime, p.endTime, [p.id], p.scope,
+            );
+            if (raced) {
+                await undoAll();
+                return res.status(409).json({
+                    success: false,
+                    message: 'That time was just taken. Please pick another.',
+                });
+            }
+        }
+
+        res.status(200).json({ success: true, data: planned.map((p) => p.saved) });
+
+        // ── 4. Tell each client once, with their FINAL time ─────────────────
+        // One message per booking, sent after the response so a slow mailer never
+        // holds up the drag. A customer shunted twice in one batch is impossible
+        // here by construction: each booking appears in `moves` at most once.
+        setImmediate(async () => {
+            for (const p of planned) {
+                try {
+                    const appt = await Appointment.findById(p.id).populate('service').populate('customer', 'name email');
+                    if (!appt) continue;
+                    const to = clientContact(appt);
+                    const dateStr = new Date(appt.appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+                    if (to.userId) {
+                        await createNotification(to.userId, `${ApptPhrase(appt.service?.name)} has been moved to ${dateStr} at ${p.startTime}.`, 'appointment', '/appointments');
+                    }
+                    if (to.email) {
+                        const providerDoc = await User.findById(providerId).select('name businessProfile');
+                        const location = providerDoc?.businessProfile?.address || undefined;
+                        const { gcalUrl, ics } = calendarHelper.appointmentCalendar(appt, { description: 'Booked via Bookplus', location, status: 'CONFIRMED', sequence: 1 });
+                        const manageUrl = appt.manageToken && primaryOrigin() ? `${primaryOrigin()}/manage/${appt.manageToken}` : undefined;
+                        await sendAppointmentRescheduledClient(to.email, to.name, appt.service?.name, dateStr, `${p.startTime} – ${p.endTime}`, { gcalUrl, ics, manageUrl });
+                    }
+                } catch (err) {
+                    logger.error({ err, appointmentId: p.id }, 'Batch reschedule notification failed');
+                }
+            }
+        });
+    } catch (error) {
+        logger.error({ err: error }, 'Batch reschedule failed');
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
