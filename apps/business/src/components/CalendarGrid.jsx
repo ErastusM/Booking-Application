@@ -516,6 +516,10 @@ const CalendarGrid = ({
                                                 // Permanently none, not set at press time: iOS decides scroll-vs-drag
                                                 // at touchstart and won't reconsider. The hook scrolls by hand instead.
                                                 touchAction: canDrag ? 'none' : undefined,
+                                                // A press-and-hold on text is a TEXT SELECTION to the browser, and on
+                                                // iOS it also raises the copy/look-up callout. Both steal the gesture,
+                                                // so the card ends up highlighting words instead of being picked up.
+                                                userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
                                                 display: 'flex', flexDirection: 'column', lineHeight: 1.15,
                                                 background: pal.bg, border: '1px solid var(--border)',
                                                 borderLeft: `3px ${dim ? 'dashed' : 'solid'} ${pal.rail}`,

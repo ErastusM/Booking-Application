@@ -423,6 +423,9 @@ const StaffLanesDay = ({
                                                 top: `${pxOf(place.startMin - windowStart)}px`,
                                                 height: `${Math.max(dh, 20)}px`,
                                                 touchAction: canDrag ? 'none' : undefined,
+                                                // Same reason as the day grid: without this a long press selects the
+                                                // client's name (and pops iOS's callout) instead of grabbing the card.
+                                                userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
                                                 left: `calc(${(ev.col / ev.cols) * 100}% + 3px)`,
                                                 width: `calc(${100 / ev.cols}% - 6px)`,
                                                 zIndex: dstate.dragging ? 30 : 2, overflow: 'hidden',
