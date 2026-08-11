@@ -138,6 +138,7 @@ export const useApptDrag = ({
             g.current.armed = true;
             if (navigator.vibrate) navigator.vibrate(12);
             const o = g.current.origin;
+            g.current.place = { ...o };
             setDrag({ id: item.id, mode, place: { ...o }, origin: o, ...assess(item.id, o, item.staffKey) });
         }, HOLD_MS);
     }, [enabled, busy, drag, sheet, scrollerRef, assess, onTap]);
@@ -166,7 +167,19 @@ export const useApptDrag = ({
             }
             place = { dateKey, startMin: start, endMin: start + dur };
         }
-        setDrag((d) => (d ? { ...d, place, ...assess(s.id, place, s.item.staffKey) } : d));
+        // Bail out when nothing actually changed. Pointer events fire 60–120×/s
+        // but the placement only moves every 15 minutes of snap, so without this
+        // every single move re-rendered the whole calendar — which is what made
+        // a busy day feel frozen mid-drag. Returning the SAME state object lets
+        // React skip the render entirely.
+        s.place = place;
+        setDrag((d) => {
+            if (!d) return d;
+            if (d.place.dateKey === place.dateKey
+                && d.place.startMin === place.startMin
+                && d.place.endMin === place.endMin) return d;
+            return { ...d, place, ...assess(s.id, place, s.item.staffKey) };
+        });
     }, [scrollerRef, hourPx, assess]);
 
     const onPointerMove = useCallback((e) => {
@@ -222,18 +235,44 @@ export const useApptDrag = ({
         const wasArmed = s.armed;
         const item = s.item;
         const origin = s.origin;
+        const mode = s.mode;
+        // The last placement is kept on the gesture record as well as in state,
+        // precisely so the commit below doesn't have to reach into a state
+        // updater to find it (see the note on setDrag).
+        const place = s.place;
         g.current = {};
 
         // The browser still fires a click after this pointerup. Without the
         // guard, every completed drag would also open the booking's sheet.
         if (wasArmed) clickGuard.current = Date.now() + 400;
 
-        setDrag((d) => {
-            if (wasArmed && d) finish(item, d.place, origin, s.mode);
-            return null;
-        });
-        if (!wasArmed && !s.moved) onTap && onTap(item.id);
+        // Committing MUST NOT happen inside a setState updater. React treats
+        // updaters as pure and calls them twice under StrictMode, so doing the
+        // commit there fired two batch requests per drop — the second one lost
+        // its race guard, 409'd, and rolled the first straight back.
+        setDrag(null);
+        if (wasArmed && place) finish(item, place, origin, mode);
+        else if (!wasArmed && !s.moved) onTap && onTap(item.id);
     }, [finish, onTap]);
+
+    // Safety net. The gesture normally ends via the scroller's own pointerup,
+    // which works because pointer capture retargets events to the card. But
+    // capture can fail (or be lost when the element re-renders), and then the
+    // pointerup lands somewhere else entirely — leaving the gesture armed and
+    // the auto-scroll interval running forever, which reads as a frozen
+    // calendar. These listeners end it wherever the finger actually lifts.
+    // Double-firing is harmless: onPointerUp clears the record and then returns
+    // early on any second call.
+    useEffect(() => {
+        if (!enabled) return undefined;
+        const end = (e) => onPointerUp(e);
+        window.addEventListener('pointerup', end);
+        window.addEventListener('pointercancel', end);
+        return () => {
+            window.removeEventListener('pointerup', end);
+            window.removeEventListener('pointercancel', end);
+        };
+    }, [enabled, onPointerUp]);
 
     // ── Keyboard equivalent ─────────────────────────────────────────────────
     // Drag-only would lock out anyone not using a pointer, so the same move
