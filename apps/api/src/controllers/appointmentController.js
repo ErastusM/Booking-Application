@@ -23,6 +23,7 @@ const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, toDateKey, B
 const { checkCancellationWindow } = require('../utils/cancellationPolicy');
 const { realStartMs } = require('../utils/appointmentTime');
 const { primaryOrigin } = require('../utils/origins');
+const { can, CALENDAR_ALL } = require('../utils/permissions');
 
 // Who a client-facing email/notification for this appointment should go to: the
 // registered customer, or the guest who booked (customer is null for guests).
@@ -303,12 +304,22 @@ exports.getAllAppointments = async (req, res) => {
         if (req.user.role === 'customer') {
             query = { customer: req.user._id };
         } else if (req.user.role === 'staff') {
-            // A staff principal sees ONLY their own column at their business —
-            // never the whole platform (the bare fall-through is admin-only).
-            const TeamMember = require('../models/TeamMember');
-            const member = await TeamMember.findOne({ user: req.user._id, provider: req.user.staffOf });
-            if (!member) return res.status(200).json({ success: true, data: [] });
-            query = { provider: req.user.staffOf, teamMember: member._id };
+            // Never the whole platform — a staff principal is always confined to
+            // the business they work for (the bare fall-through is admin-only).
+            //
+            // Within that business, how much they see is now a PERMISSION rather
+            // than a hardcoded rule: `calendar:all` shows every colleague's
+            // bookings, its absence narrows to their own column. Until this, a
+            // staff member was pinned to self-only whatever the owner granted,
+            // so the calendar-access setting had nothing to act on.
+            if (!req.user.staffOf) return res.status(200).json({ success: true, data: [] });
+            if (can(req.user, CALENDAR_ALL)) {
+                query = { provider: req.user.staffOf };
+            } else {
+                const member = await TeamMember.findOne({ user: req.user._id, provider: req.user.staffOf });
+                if (!member) return res.status(200).json({ success: true, data: [] });
+                query = { provider: req.user.staffOf, teamMember: member._id };
+            }
         } else if (req.user.role === 'provider') {
             query = { provider: req.user._id };
         }
