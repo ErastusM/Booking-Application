@@ -149,26 +149,43 @@ describe('batch reschedule — it is one unit or nothing', () => {
     });
 
     // The race guard: each write matches on the slot we believe it still holds.
-    it('aborts and restores when a booking moved underneath the batch', async () => {
+    //
+    // The change has to land in the narrow window BETWEEN the handler reading the
+    // batch and writing the second move — that is the only window the guard
+    // exists for. Mutating before the request instead just means the handler
+    // reads fresh data and rightly succeeds, so this interleaves on the first
+    // write to be a real test of the mechanism rather than of nothing.
+    it('aborts and restores when a booking moves underneath the batch mid-write', async () => {
         const { provider, date, at } = await setup();
         const a = await at('10:00', '11:00');
         const b = await at('11:00', '12:00');
 
-        // Somebody else moves `b` between the client reading the calendar and
-        // this request landing, so the guard on b's slot can no longer match.
-        await Appointment.updateOne({ _id: b._id }, { $set: { startTime: '11:30', endTime: '12:30' } });
-
-        const res = await post(provider, {
-            moves: [
-                { id: a._id.toString(), appointmentDate: date, startTime: '14:00', endTime: '15:00' },
-                { id: b._id.toString(), appointmentDate: date, startTime: '15:00', endTime: '16:00' },
-            ],
+        const realFindOneAndUpdate = Appointment.findOneAndUpdate.bind(Appointment);
+        const spy = jest.spyOn(Appointment, 'findOneAndUpdate').mockImplementation(async (...args) => {
+            // First call is the write for `a`. Somebody else moves `b` right then,
+            // so the guard built from b's pre-read slot can no longer match.
+            if (spy.mock.calls.length === 1) {
+                await Appointment.updateOne({ _id: b._id }, { $set: { startTime: '11:30', endTime: '12:30' } });
+            }
+            return realFindOneAndUpdate(...args);
         });
 
-        expect(res.status).toBe(409);
-        // a was written first, then compensated back when b's guard failed.
-        expect((await Appointment.findById(a._id)).startTime).toBe('10:00');
-        expect((await Appointment.findById(b._id)).startTime).toBe('11:30');
+        try {
+            const res = await post(provider, {
+                moves: [
+                    { id: a._id.toString(), appointmentDate: date, startTime: '14:00', endTime: '15:00' },
+                    { id: b._id.toString(), appointmentDate: date, startTime: '15:00', endTime: '16:00' },
+                ],
+            });
+
+            expect(res.status).toBe(409);
+            // `a` was already written, then compensated back when b's guard failed.
+            expect((await Appointment.findById(a._id)).startTime).toBe('10:00');
+            // `b` keeps the concurrent change — we never got to touch it.
+            expect((await Appointment.findById(b._id)).startTime).toBe('11:30');
+        } finally {
+            spy.mockRestore();
+        }
     });
 });
 
