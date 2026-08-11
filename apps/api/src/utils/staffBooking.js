@@ -93,7 +93,10 @@ async function isMemberFree({ providerId, member, date, startTime, endTime, svc,
  */
 async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime, endTime, requestedTeamMember, requester }) {
     const isCustomer = requester.role === 'customer';
-    const roster = await TeamMember.find({ provider: providerId, isActive: true }).sort({ createdAt: 1 });
+    // `bookable` gates who clients can be sent to; isActive gates who still works
+    // here. A receptionist is active but not bookable, and must never be resolved
+    // as "any available". Both default true, so an existing roster is unchanged.
+    const roster = await TeamMember.find({ provider: providerId, isActive: true, bookable: true }).sort({ createdAt: 1 });
 
     // Zero-staff business — legacy provider-level behavior, untouched.
     if (!roster.length) {

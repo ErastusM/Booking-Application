@@ -42,10 +42,15 @@ exports.addTeamMember = async (req, res) => {
 
 exports.updateTeamMember = async (req, res) => {
     try {
-        const { name, role, email, phone, color, isActive } = req.body;
+        const {
+            name, role, email, phone, color, isActive, bookable,
+            photoUrl, country, address, emergencyContact,
+        } = req.body;
         const member = await TeamMember.findOneAndUpdate(
             { _id: req.params.id, provider: req.user._id },
-            { name, role, email, phone, color, isActive },
+            // Undefined keys are dropped by Mongoose, so a partial body only
+            // touches the fields it actually sends.
+            { name, role, email, phone, color, isActive, bookable, photoUrl, country, address, emergencyContact },
             { new: true, runValidators: true }
         );
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
@@ -93,6 +98,128 @@ exports.deleteTeamMember = async (req, res) => {
             );
         }
         res.status(200).json({ success: true, message: 'Team member archived', data: member });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * GET /api/team/:id/stats?days=30  (provider/admin)
+ *
+ * The Overview tab: how this member's last N days actually went, computed from
+ * bookings rather than entered by hand.
+ *
+ * Two definitions are worth stating plainly, because "occupancy" and
+ * "retention" mean different things at different businesses and a number
+ * nobody can define is worse than no number:
+ *
+ *   occupancy = minutes booked ÷ minutes scheduled, over the window. Scheduled
+ *               comes from the member's own weekly hours, falling back to the
+ *               business hours when they have none of their own. It is NOT
+ *               shift-aware yet — there are no date-specific shifts in the
+ *               model — so a day off taken as time-off still counts as
+ *               scheduled and drags the figure down. Reported as null rather
+ *               than a wrong number when nothing is scheduled at all.
+ *
+ *   retention = clients who booked this member more than once ÷ clients who
+ *               booked them at all, within the window. Guests are excluded:
+ *               they have no account, so two guest bookings cannot be known to
+ *               be the same person.
+ */
+exports.getTeamMemberStats = async (req, res) => {
+    try {
+        const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
+
+        const days = Math.min(365, Math.max(1, parseInt(req.body?.days || req.query.days, 10) || 30));
+        const to = new Date(); to.setHours(23, 59, 59, 999);
+        const from = new Date(to); from.setDate(from.getDate() - (days - 1)); from.setHours(0, 0, 0, 0);
+
+        const Appointment = require('../models/Appointment');
+        const Review = require('../models/Review');
+        const Availability = require('../models/Availability');
+
+        const inWindow = {
+            provider: req.user._id,
+            teamMember: member._id,
+            appointmentDate: { $gte: from, $lte: to },
+        };
+
+        const [done, upcoming, ratingAgg, staffHours, businessHours] = await Promise.all([
+            Appointment.find({ ...inWindow, status: 'completed' })
+                .select('totalPrice customer startTime endTime'),
+            Appointment.countDocuments({
+                provider: req.user._id,
+                teamMember: member._id,
+                status: { $in: ['pending', 'confirmed'] },
+                appointmentDate: { $gte: new Date() },
+            }),
+            // Reviews carry no teamMember, so the link runs through the booking.
+            Review.aggregate([
+                { $lookup: { from: 'appointments', localField: 'appointment', foreignField: '_id', as: 'appt' } },
+                { $unwind: '$appt' },
+                { $match: { 'appt.teamMember': member._id } },
+                { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
+            ]),
+            StaffAvailability.findOne({ teamMember: member._id }),
+            Availability.findOne({ provider: req.user._id }),
+        ]);
+
+        const revenue = done.reduce((sum, a) => sum + (a.totalPrice || 0), 0);
+
+        // Clients: registered accounts only, so "the same person twice" is knowable.
+        const counts = new Map();
+        done.forEach((a) => {
+            if (!a.customer) return;
+            const k = a.customer.toString();
+            counts.set(k, (counts.get(k) || 0) + 1);
+        });
+        const clients = counts.size;
+        const returning = [...counts.values()].filter((n) => n > 1).length;
+
+        // Occupancy.
+        const toMin = (t) => {
+            const [h = 0, m = 0] = String(t || '').split(':').map(Number);
+            return (h || 0) * 60 + (m || 0);
+        };
+        const bookedMinutes = done.reduce((sum, a) => {
+            const mins = toMin(a.endTime) - toMin(a.startTime);
+            return sum + (mins > 0 ? mins : 0);
+        }, 0);
+
+        const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const schedule = staffHours?.schedule || businessHours?.schedule || null;
+        let scheduledMinutes = 0;
+        if (schedule) {
+            for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
+                const cfg = schedule[DAY_NAMES[d.getDay()]];
+                if (!cfg?.enabled || !Array.isArray(cfg.slots)) continue;
+                cfg.slots.forEach((s) => {
+                    const mins = toMin(s.end) - toMin(s.start);
+                    if (mins > 0) scheduledMinutes += mins;
+                });
+            }
+        }
+
+        res.status(200).json({
+            success: true,
+            data: {
+                windowDays: days,
+                appointments: done.length,
+                revenue,
+                clients,
+                upcoming,
+                rating: ratingAgg[0] ? Math.round(ratingAgg[0].avg * 10) / 10 : null,
+                reviews: ratingAgg[0]?.count || 0,
+                // null, not 0 — "we cannot say" is different from "they were idle".
+                occupancy: scheduledMinutes > 0
+                    ? Math.min(100, Math.round((bookedMinutes / scheduledMinutes) * 100))
+                    : null,
+                retention: clients > 0 ? Math.round((returning / clients) * 100) : null,
+                bookedMinutes,
+                scheduledMinutes,
+            },
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

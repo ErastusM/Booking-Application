@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { teamService, providerServiceService } from '../services';
-import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye } from 'lucide-react';
+import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck } from 'lucide-react';
 
 /**
  * Epic 2.4 — staff management: roster CRUD, invite-to-login, per-staff
@@ -60,6 +60,42 @@ const Switch = ({ checked, onChange, disabled, label, 'data-testid': testId }) =
     </span>
 );
 
+const TABS = [
+    { key: 'overview',  label: 'Overview',  Icon: BarChart3 },
+    { key: 'personal',  label: 'Personal',  Icon: User },
+    { key: 'workspace', label: 'Workspace', Icon: CalendarCheck },
+    { key: 'pay',       label: 'Pay',       Icon: Wallet },
+];
+
+const Section = ({ icon: Icon, title, hint, children }) => (
+    <div style={{ marginTop: '1.25rem' }}>
+        <p style={{ margin: '0 0 0.5rem', fontWeight: 600, fontSize: '0.85rem', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+            <Icon size={14} /> {title}
+            {hint && <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>{hint}</span>}
+        </p>
+        {children}
+    </div>
+);
+
+// A metric with no answer prints an em dash, never a zero: "we cannot say" and
+// "they did none" are different facts and must not look the same.
+const Stat = ({ label, value, suffix, note }) => (
+    <div style={{ padding: '0.75rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--card-bg)' }}>
+        <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{label}</div>
+        <div className="tnum" style={{ fontFamily: 'var(--font-display)', fontSize: '1.35rem', fontWeight: 700, color: 'var(--charcoal)', lineHeight: 1.2 }}>
+            {value === null || value === undefined ? '—' : value}{value === null || value === undefined ? '' : (suffix || '')}
+        </div>
+        {note && <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>{note}</div>}
+    </div>
+);
+
+const Field = ({ label, ...rest }) => (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+        {label}
+        <input className="input" style={{ padding: '0.5rem 0.6rem', fontWeight: 400 }} {...rest} />
+    </label>
+);
+
 const MemberCard = ({ member, services, onChanged }) => {
     const [open, setOpen] = useState(false);
     const [busy, setBusy] = useState('');
@@ -69,13 +105,32 @@ const MemberCard = ({ member, services, onChanged }) => {
     const [inviteEmail, setInviteEmail] = useState(member.email || '');
     const perms = member.user?.staffPermissions || [];
     const [seesAll, setSeesAll] = useState(perms.includes('calendar:all'));
+    const [tab, setTab] = useState('overview');
+    const [stats, setStats] = useState(null);      // null = not fetched, false = failed
+    const [bookable, setBookable] = useState(member.bookable !== false);
+    const [personal, setPersonal] = useState({
+        name: member.name || '', role: member.role || '', email: member.email || '',
+        phone: member.phone || '', country: member.country || '', address: member.address || '',
+        emergencyName: member.emergencyContact?.name || '',
+        emergencyPhone: member.emergencyContact?.phone || '',
+    });
 
     useEffect(() => {
-        if (!open || schedule !== null) return;
+        // Pay reads the same figures as Overview, so it must trigger the fetch
+        // too — otherwise opening the card and going straight to Pay shows em
+        // dashes for numbers we actually have.
+        if (!open || (tab !== 'overview' && tab !== 'pay') || stats !== null) return;
+        teamService.getMemberStats(member._id)
+            .then(res => setStats(res.data.data))
+            .catch(() => setStats(false));
+    }, [open, tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        if (!open || tab !== 'workspace' || schedule !== null) return;
         teamService.getMemberAvailability(member._id)
             .then(res => setSchedule(res.data.data?.schedule || 'inherit'))
             .catch(() => setSchedule('inherit'));
-    }, [open]); // eslint-disable-line react-hooks/exhaustive-deps
+    }, [open, tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const flash = (t) => { setMsg(t); setTimeout(() => setMsg(''), 3500); };
 
@@ -97,6 +152,36 @@ const MemberCard = ({ member, services, onChanged }) => {
         } finally {
             setBusy('');
         }
+    };
+
+    const savePersonal = async () => {
+        if (!personal.name.trim()) { flash('A name is required.'); return; }
+        setBusy('personal');
+        try {
+            await teamService.updateMember(member._id, {
+                name: personal.name.trim(), role: personal.role.trim(), email: personal.email.trim(),
+                phone: personal.phone.trim(), country: personal.country.trim(), address: personal.address.trim(),
+                emergencyContact: { name: personal.emergencyName.trim(), phone: personal.emergencyPhone.trim() },
+            });
+            flash('Details saved');
+            onChanged();
+        } catch (err) {
+            flash(err?.response?.data?.message || 'Could not save details');
+        } finally { setBusy(''); }
+    };
+
+    const toggleBookable = async (next) => {
+        const previous = bookable;
+        setBookable(next);
+        setBusy('bookable');
+        try {
+            await teamService.updateMember(member._id, { bookable: next });
+            flash(next ? `${member.name} can be booked by clients.` : `${member.name} is on the team but not bookable.`);
+            onChanged();
+        } catch {
+            setBookable(previous);
+            flash('Could not change bookability');
+        } finally { setBusy(''); }
     };
 
     const invite = async () => {
@@ -155,95 +240,186 @@ const MemberCard = ({ member, services, onChanged }) => {
 
             {open && (
                 <div style={{ padding: '0 1.25rem 1.25rem', borderTop: '1px solid var(--border)' }}>
+                    {/* Tab bar */}
+                    <div role="tablist" aria-label={`${member.name} profile`} style={{
+                        display: 'flex', gap: '0.15rem', flexWrap: 'wrap',
+                        borderBottom: '1px solid var(--border)', margin: '0 -1.25rem 0', padding: '0 1.25rem',
+                    }}>
+                        {TABS.map(({ key, label, Icon }) => {
+                            const active = tab === key;
+                            return (
+                                <button
+                                    key={key}
+                                    type="button"
+                                    role="tab"
+                                    aria-selected={active}
+                                    onClick={() => setTab(key)}
+                                    data-testid={`tab-${key}`}
+                                    style={{
+                                        display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
+                                        padding: '0.6rem 0.8rem', border: 'none', background: 'transparent',
+                                        cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.82rem',
+                                        fontWeight: 600, color: active ? 'var(--gold-dark)' : 'var(--text-muted)',
+                                        borderBottom: `2px solid ${active ? 'var(--gold)' : 'transparent'}`,
+                                        marginBottom: '-1px',
+                                    }}
+                                >
+                                    <Icon size={14} /> {label}
+                                </button>
+                            );
+                        })}
+                    </div>
+
                     {msg && <p style={{ margin: '0.85rem 0 0', fontSize: '0.83rem', color: 'var(--gold-dark)', fontWeight: 600 }} data-testid="team-flash">{msg}</p>}
 
-                    {/* Invite to log in */}
-                    {!member.user && (
-                        <div style={{ marginTop: '1rem' }}>
-                            <p style={{ margin: '0 0 0.5rem', fontWeight: 600, fontSize: '0.85rem', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Mail size={14} /> Invite to log in</p>
-                            <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="their@email.com" className="input" style={{ maxWidth: '260px' }} data-testid="invite-email" />
-                                <button type="button" className="btn-primary" onClick={invite} disabled={busy === 'invite'} data-testid="invite-send" style={{ padding: '0.6rem 1.3rem' }}>
-                                    {busy === 'invite' ? 'Sending…' : 'Send invite'}
-                                </button>
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Calendar access — only meaningful once they have a login */}
-                    {member.user && (
-                        <div style={{ marginTop: '1.25rem' }}>
-                            <p style={{ margin: '0 0 0.5rem', fontWeight: 600, fontSize: '0.85rem', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                                <Eye size={14} /> Calendar access
-                            </p>
-                            <div style={{
-                                display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                                gap: '1rem', flexWrap: 'wrap',
-                                padding: '0.7rem 0.85rem', border: '1px solid var(--border)',
-                                borderRadius: 'var(--radius)', background: 'var(--card-bg)',
-                            }}>
-                                <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: '38ch' }}>
-                                    {seesAll
-                                        ? `${member.name} can open every colleague's calendar and the Staff view.`
-                                        : `${member.name} sees only their own bookings. Colleagues' appointments are hidden entirely.`}
-                                </span>
-                                <Switch
-                                    checked={seesAll}
-                                    disabled={busy === 'perms'}
-                                    onChange={setCalendarAccess}
-                                    label={seesAll ? 'Everyone' : 'Own only'}
-                                    data-testid="calendar-access-switch"
-                                />
-                            </div>
-                        </div>
-                    )}
-
-                    {/* Services this member performs */}
-                    <div style={{ marginTop: '1.25rem' }}>
-                        <p style={{ margin: '0 0 0.5rem', fontWeight: 600, fontSize: '0.85rem', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Scissors size={14} /> Services <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>(none selected = performs all)</span></p>
-                        <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
-                            {services.map(svc => (
-                                <Chip key={svc._id} active={assigned.includes(String(svc._id))} onClick={() => toggleService(String(svc._id))} data-testid="member-service-chip">
-                                    {svc.name}
-                                </Chip>
-                            ))}
-                            {services.length === 0 && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>No services yet — add services first.</p>}
-                        </div>
-                    </div>
-
-                    {/* Working hours */}
-                    <div style={{ marginTop: '1.25rem' }}>
-                        <p style={{ margin: '0 0 0.5rem', fontWeight: 600, fontSize: '0.85rem', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', gap: '0.4rem' }}><Clock size={14} /> Working hours</p>
-                        {schedule === null && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading…</p>}
-                        {schedule === 'inherit' && (
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                                <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.88rem' }}>Inherits the business hours.</p>
-                                <button type="button" className="btn-outline" style={{ padding: '0.45rem 1rem', fontSize: '0.82rem' }} onClick={startCustomHours} data-testid="custom-hours">Set custom hours</button>
-                            </div>
-                        )}
-                        {schedule && schedule !== 'inherit' && (
-                            <div>
-                                {DAYS.map(day => (
-                                    <div key={day} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.7rem', padding: '0.3rem 0', fontSize: '0.87rem' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', width: '104px', color: 'var(--charcoal)', textTransform: 'capitalize', cursor: 'pointer' }}>
-                                            <input type="checkbox" checked={!!schedule[day]?.enabled} onChange={e => setDay(day, { enabled: e.target.checked })} />
-                                            {day}
-                                        </label>
-                                        {schedule[day]?.enabled && (
-                                            <>
-                                                <input type="time" value={schedule[day].slots?.[0]?.start || '09:00'} onChange={e => setSlot(day, 'start', e.target.value)} className="input" style={{ width: '110px', padding: '0.35rem 0.5rem' }} />
-                                                <span style={{ color: 'var(--text-muted)' }}>–</span>
-                                                <input type="time" value={schedule[day].slots?.[0]?.end || '17:00'} onChange={e => setSlot(day, 'end', e.target.value)} className="input" style={{ width: '110px', padding: '0.35rem 0.5rem' }} />
-                                            </>
-                                        )}
+                    {/* ── Overview ───────────────────────────────────────── */}
+                    {tab === 'overview' && (
+                        <div style={{ marginTop: '1.1rem' }} data-testid="panel-overview">
+                            {stats === null && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading…</p>}
+                            {stats === false && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Could not load performance right now.</p>}
+                            {stats && (
+                                <>
+                                    <div style={{ display: 'grid', gap: '0.6rem', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
+                                        <Stat label="Appointments" value={stats.appointments} note={`last ${stats.windowDays} days`} />
+                                        <Stat label="Revenue" value={stats.revenue != null ? `N$${stats.revenue.toLocaleString()}` : null} note="completed only" />
+                                        <Stat label="Clients" value={stats.clients} note="registered accounts" />
+                                        <Stat label="Occupancy" value={stats.occupancy} suffix="%" note="booked ÷ scheduled" />
+                                        <Stat label="Retention" value={stats.retention} suffix="%" note="booked more than once" />
+                                        <Stat label="Rating" value={stats.rating} note={stats.reviews ? `${stats.reviews} review${stats.reviews > 1 ? 's' : ''}` : 'no reviews yet'} />
+                                        <Stat label="Upcoming" value={stats.upcoming} note="still to come" />
                                     </div>
-                                ))}
-                                <button type="button" className="btn-primary" onClick={saveHours} disabled={busy === 'hours'} data-testid="save-hours" style={{ marginTop: '0.6rem', padding: '0.55rem 1.4rem' }}>
-                                    {busy === 'hours' ? 'Saving…' : 'Save hours'}
-                                </button>
+                                    <p style={{ margin: '0.8rem 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                        Occupancy counts scheduled hours from their working hours, not from shifts —
+                                        a day taken as time off still counts as scheduled until shifts land.
+                                    </p>
+                                </>
+                            )}
+                        </div>
+                    )}
+
+                    {/* ── Personal ───────────────────────────────────────── */}
+                    {tab === 'personal' && (
+                        <div style={{ marginTop: '1.1rem' }} data-testid="panel-personal">
+                            <div style={{ display: 'grid', gap: '0.7rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+                                <Field label="Name" value={personal.name} onChange={e => setPersonal(p => ({ ...p, name: e.target.value }))} data-testid="personal-name" />
+                                <Field label="Job title" value={personal.role} onChange={e => setPersonal(p => ({ ...p, role: e.target.value }))} placeholder="Barber" />
+                                <Field label="Email" type="email" value={personal.email} onChange={e => setPersonal(p => ({ ...p, email: e.target.value }))} />
+                                <Field label="Phone" value={personal.phone} onChange={e => setPersonal(p => ({ ...p, phone: e.target.value }))} />
+                                <Field label="Country" value={personal.country} onChange={e => setPersonal(p => ({ ...p, country: e.target.value }))} placeholder="Namibia" />
+                                <Field label="Address" value={personal.address} onChange={e => setPersonal(p => ({ ...p, address: e.target.value }))} />
+                                <Field label="Emergency contact" value={personal.emergencyName} onChange={e => setPersonal(p => ({ ...p, emergencyName: e.target.value }))} />
+                                <Field label="Emergency phone" value={personal.emergencyPhone} onChange={e => setPersonal(p => ({ ...p, emergencyPhone: e.target.value }))} />
                             </div>
-                        )}
-                    </div>
+                            <p style={{ margin: '0.7rem 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                Only a name is required. Everything else is optional.
+                            </p>
+                            <button type="button" className="btn-primary" onClick={savePersonal} disabled={busy === 'personal'} data-testid="save-personal" style={{ marginTop: '0.7rem', padding: '0.55rem 1.4rem' }}>
+                                {busy === 'personal' ? 'Saving…' : 'Save details'}
+                            </button>
+                        </div>
+                    )}
+
+                    {/* ── Workspace ──────────────────────────────────────── */}
+                    {tab === 'workspace' && (
+                        <div data-testid="panel-workspace">
+                            {!member.user && (
+                                <Section icon={Mail} title="Invite to log in">
+                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                        <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="their@email.com" className="input" style={{ maxWidth: '260px' }} data-testid="invite-email" />
+                                        <button type="button" className="btn-primary" onClick={invite} disabled={busy === 'invite'} data-testid="invite-send" style={{ padding: '0.6rem 1.3rem' }}>
+                                            {busy === 'invite' ? 'Sending…' : 'Send invite'}
+                                        </button>
+                                    </div>
+                                </Section>
+                            )}
+
+                            <Section icon={CalendarCheck} title="Bookable">
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', padding: '0.7rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: '40ch' }}>
+                                        {bookable
+                                            ? 'Clients can pick them when booking.'
+                                            : 'On the team, but never offered to clients — for managers and front desk.'}
+                                    </span>
+                                    <Switch checked={bookable} disabled={busy === 'bookable'} onChange={toggleBookable} label={bookable ? 'Bookable' : 'Not bookable'} data-testid="bookable-switch" />
+                                </div>
+                            </Section>
+
+                            {member.user && (
+                                <Section icon={Eye} title="Calendar access">
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', padding: '0.7rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: '40ch' }}>
+                                            {seesAll
+                                                ? `${member.name} can open every colleague's calendar and the Staff view.`
+                                                : `${member.name} sees only their own bookings. Colleagues' appointments are hidden entirely.`}
+                                        </span>
+                                        <Switch checked={seesAll} disabled={busy === 'perms'} onChange={setCalendarAccess} label={seesAll ? 'Everyone' : 'Own only'} data-testid="calendar-access-switch" />
+                                    </div>
+                                </Section>
+                            )}
+
+                            <Section icon={Scissors} title="Services" hint="(none selected = performs all)">
+                                <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+                                    {services.map(svc => (
+                                        <Chip key={svc._id} active={assigned.includes(String(svc._id))} onClick={() => toggleService(String(svc._id))} data-testid="member-service-chip">
+                                            {svc.name}
+                                        </Chip>
+                                    ))}
+                                    {services.length === 0 && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>No services yet — add services first.</p>}
+                                </div>
+                            </Section>
+
+                            <Section icon={Clock} title="Working hours">
+                                {schedule === null && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading…</p>}
+                                {schedule === 'inherit' && (
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.88rem' }}>Inherits the business hours.</p>
+                                        <button type="button" className="btn-outline" style={{ padding: '0.45rem 1rem', fontSize: '0.82rem' }} onClick={startCustomHours} data-testid="custom-hours">Set custom hours</button>
+                                    </div>
+                                )}
+                                {schedule && schedule !== 'inherit' && (
+                                    <div>
+                                        {DAYS.map(day => (
+                                            <div key={day} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.7rem', padding: '0.3rem 0', fontSize: '0.87rem' }}>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', width: '104px', color: 'var(--charcoal)', textTransform: 'capitalize', cursor: 'pointer' }}>
+                                                    <input type="checkbox" checked={!!schedule[day]?.enabled} onChange={e => setDay(day, { enabled: e.target.checked })} />
+                                                    {day}
+                                                </label>
+                                                {schedule[day]?.enabled && (
+                                                    <>
+                                                        <input type="time" value={schedule[day].slots?.[0]?.start || '09:00'} onChange={e => setSlot(day, 'start', e.target.value)} className="input" style={{ width: '110px', padding: '0.35rem 0.5rem' }} />
+                                                        <span style={{ color: 'var(--text-muted)' }}>–</span>
+                                                        <input type="time" value={schedule[day].slots?.[0]?.end || '17:00'} onChange={e => setSlot(day, 'end', e.target.value)} className="input" style={{ width: '110px', padding: '0.35rem 0.5rem' }} />
+                                                    </>
+                                                )}
+                                            </div>
+                                        ))}
+                                        <button type="button" className="btn-primary" onClick={saveHours} disabled={busy === 'hours'} data-testid="save-hours" style={{ marginTop: '0.6rem', padding: '0.55rem 1.4rem' }}>
+                                            {busy === 'hours' ? 'Saving…' : 'Save hours'}
+                                        </button>
+                                    </div>
+                                )}
+                            </Section>
+                        </div>
+                    )}
+
+                    {/* ── Pay ────────────────────────────────────────────── */}
+                    {tab === 'pay' && (
+                        <div style={{ marginTop: '1.1rem' }} data-testid="panel-pay">
+                            <div style={{ display: 'grid', gap: '0.6rem', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))' }}>
+                                <Stat label="Completed" value={stats ? stats.appointments : null} note={stats ? `last ${stats.windowDays} days` : ''} />
+                                <Stat label="Revenue generated" value={stats && stats.revenue != null ? `N$${stats.revenue.toLocaleString()}` : null} note="what commission would apply to" />
+                            </div>
+                            <div style={{ marginTop: '1rem', padding: '0.85rem 1rem', border: '1px solid var(--border)', borderLeft: '3px solid var(--gold)', borderRadius: '0 var(--radius) var(--radius) 0' }}>
+                                <p style={{ margin: '0 0 0.3rem', fontWeight: 600, fontSize: '0.85rem', color: 'var(--charcoal)' }}>Compensation isn’t set up yet</p>
+                                <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                                    Salary, commission and tips aren’t modelled, so nothing here is a payslip.
+                                    The revenue figure above is real and is the number a commission rate would
+                                    apply to — deliberately left as a fact rather than a calculation, because
+                                    guessing at the base would mean paying people the wrong amount.
+                                </p>
+                            </div>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

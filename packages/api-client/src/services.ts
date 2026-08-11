@@ -198,6 +198,7 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         restoreMember: (id: string) => API.post(`/team/${id}/restore`),
         setMemberPermissions: (id: string, permissions: string[]) =>
             API.put(`/team/${id}/permissions`, { permissions }),
+        getMemberStats: (id: string, days = 30) => API.get(`/team/${id}/stats`, { params: { days } }),
         // Epic 2 staff management
         inviteMember: (id: string, data?: any) => API.post(`/team/${id}/invite`, data || {}),
         setMemberServices: (id: string, services: string[]) => API.put(`/team/${id}/services`, { services }),
