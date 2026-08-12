@@ -139,6 +139,44 @@ describe('restoring an archived member', () => {
         expect(after.staffOf ?? null).toBeNull();
     });
 
+    // The recovery path the restore doc comment promises. It used to be a dead
+    // end: archive left member.user set, so invite refused "already has a login"
+    // while permissions 404'd on the severed staffOf — the email was permanently
+    // unusable as a staff login without DB surgery.
+    it('can be re-invited after archive and restore', async () => {
+        const { provider, member } = await setup();
+        const staff = await makeUser({ role: 'staff', staffOf: provider._id, email: 'moses-reinvite@test.com' });
+        await TeamMember.updateOne({ _id: member._id }, { $set: { user: staff._id } });
+
+        await request(app).delete(`/api/team/${member._id}`).set(authHeader(provider));
+        await request(app).post(`/api/team/${member._id}/restore`).set(authHeader(provider));
+
+        const res = await request(app)
+            .post(`/api/team/${member._id}/invite`)
+            .set(authHeader(provider))
+            .send({ email: 'moses-reinvite@test.com' });
+
+        expect(res.status).toBe(200);
+        // Relinked and working for this business again.
+        const relinked = await User.findById(staff._id);
+        expect(relinked.staffOf.toString()).toBe(provider._id.toString());
+        expect((await TeamMember.findById(member._id)).user.toString()).toBe(staff._id.toString());
+    });
+
+    // Re-attaching a severed link must not become a way to claim any account
+    // that happens to share the email.
+    it('still refuses an email belonging to somebody else', async () => {
+        const { provider, member } = await setup();
+        await makeUser({ role: 'customer', email: 'stranger@test.com' });
+
+        const res = await request(app)
+            .post(`/api/team/${member._id}/invite`)
+            .set(authHeader(provider))
+            .send({ email: 'stranger@test.com' });
+
+        expect(res.status).toBe(409);
+    });
+
     it('refuses another provider\'s member', async () => {
         const { provider, member } = await setup();
         await request(app).delete(`/api/team/${member._id}`).set(authHeader(provider));

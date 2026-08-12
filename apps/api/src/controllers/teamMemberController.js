@@ -96,6 +96,11 @@ exports.deleteTeamMember = async (req, res) => {
                 { _id: member.user },
                 { $inc: { tokenVersion: 1 }, $set: { refreshTokenJtis: [], staffOf: null } },
             );
+            // `member.user` is deliberately KEPT: severing staffOf is what
+            // actually ends their access (bumping tokenVersion only kills issued
+            // tokens — they could otherwise just sign in again), and the link is
+            // the only record of which account was theirs, which re-inviting
+            // needs. See inviteTeamMember for the recovery path.
         }
         res.status(200).json({ success: true, message: 'Team member archived', data: member });
     } catch (error) {
@@ -428,7 +433,16 @@ exports.inviteTeamMember = async (req, res) => {
     try {
         const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
-        if (member.user) return res.status(400).json({ success: false, message: 'This team member already has a login' });
+
+        // Archiving severs staffOf but keeps member.user, so a previously
+        // archived member arrives here with a link that points at an account no
+        // longer attached to this business. That is the documented recovery
+        // path — re-inviting re-establishes it — so only refuse when the login
+        // is still LIVE for us.
+        const linked = member.user ? await User.findById(member.user) : null;
+        const linkIntact = linked && linked.role === 'staff'
+            && linked.staffOf && linked.staffOf.toString() === req.user._id.toString();
+        if (linkIntact) return res.status(400).json({ success: false, message: 'This team member already has a login' });
 
         const email = ((req.body.email || member.email) || '').trim().toLowerCase();
         if (!email) return res.status(400).json({ success: false, message: 'An email address is required to invite' });
@@ -437,9 +451,14 @@ exports.inviteTeamMember = async (req, res) => {
         if (staffUser) {
             const isOwnStaff = staffUser.role === 'staff'
                 && staffUser.staffOf && staffUser.staffOf.toString() === req.user._id.toString();
-            if (!isOwnStaff) {
+            // The account this member was previously linked to. It looks like a
+            // stranger's now — staffOf is null — but we know it was ours because
+            // the roster row still points at it.
+            const isOurFormerStaff = linked && staffUser._id.equals(linked._id) && staffUser.role === 'staff';
+            if (!isOwnStaff && !isOurFormerStaff) {
                 return res.status(409).json({ success: false, message: 'That email already belongs to another account' });
             }
+            if (isOurFormerStaff) staffUser.staffOf = req.user._id;   // re-attach
         } else {
             staffUser = new User({
                 name: member.name,

@@ -148,6 +148,29 @@ describe('batch reschedule — it is one unit or nothing', () => {
         expect((await Appointment.findById(a._id)).startTime).toBe('10:00');
     });
 
+    // A plan built before someone else moved a booking must not still apply.
+    // Without the `expect` token the server guarded on whatever it read at
+    // request time, so the other person's newly agreed slot was silently
+    // overwritten — the client's premise was never checked.
+    it('refuses a move whose expected slot no longer matches', async () => {
+        const { provider, date, at } = await setup();
+        const a = await at('10:00', '11:00');
+
+        // Somebody else moves it after the client built its plan.
+        await Appointment.updateOne({ _id: a._id }, { $set: { startTime: '15:00', endTime: '16:00' } });
+
+        const res = await post(provider, {
+            moves: [{
+                id: a._id.toString(), appointmentDate: date, startTime: '12:00', endTime: '13:00',
+                expect: { appointmentDate: date, startTime: '10:00', endTime: '11:00' },
+            }],
+        });
+
+        expect(res.status).toBe(409);
+        // Their 15:00 stands.
+        expect((await Appointment.findById(a._id)).startTime).toBe('15:00');
+    });
+
     // The race guard: each write matches on the slot we believe it still holds.
     //
     // The change has to land in the narrow window BETWEEN the handler reading the

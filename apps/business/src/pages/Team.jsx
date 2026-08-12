@@ -143,13 +143,17 @@ const MemberCard = ({ member, services, onChanged }) => {
         const to = new Date(); to.setDate(to.getDate() + 60);
         teamService.getMemberShifts(member._id, todayKey, to.toISOString().slice(0, 10))
             .then(res => setShifts(res.data.data || []))
-            .catch(() => setShifts([]));
+            // `false`, not `[]`: a failed fetch must not read as "this member has
+            // no shifts". Saving on top of that assumption replaces a day off the
+            // owner never saw with a default 9-to-5.
+            .catch(() => setShifts(false));
     }, [open, tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Editing a date that already has a shift should show that shift, not a
     // blank 9-to-5 that would silently overwrite it on save.
     useEffect(() => {
-        const existing = (shifts || []).find(sh => sh.date === shiftDate);
+        if (!Array.isArray(shifts)) return;      // not loaded, or failed — don't seed from nothing
+        const existing = shifts.find(sh => sh.date === shiftDate);
         setSlots(existing ? existing.slots.map(x => ({ start: x.start, end: x.end })) : [{ start: '09:00', end: '17:00' }]);
         setBreaks(existing ? existing.breaks.map(b => ({ start: b.start, end: b.end, label: b.label || 'Break' })) : []);
         setShiftErr('');
@@ -213,11 +217,23 @@ const MemberCard = ({ member, services, onChanged }) => {
         if (!personal.name.trim()) { flash('A name is required.'); return; }
         setBusy('personal');
         try {
-            await teamService.updateMember(member._id, {
+            // Send only what the owner actually changed. The form is seeded once at
+            // mount, so sending every field re-asserts stale values — saving a phone
+            // number would push back the email this card was mounted with and wipe
+            // the address the invite flow stored afterwards.
+            const draft = {
                 name: personal.name.trim(), role: personal.role.trim(), email: personal.email.trim(),
                 phone: personal.phone.trim(), country: personal.country.trim(), address: personal.address.trim(),
-                emergencyContact: { name: personal.emergencyName.trim(), phone: personal.emergencyPhone.trim() },
-            });
+            };
+            const patch = {};
+            Object.entries(draft).forEach(([k, v]) => { if (v !== (member[k] || '')) patch[k] = v; });
+            const eName = personal.emergencyName.trim();
+            const ePhone = personal.emergencyPhone.trim();
+            if (eName !== (member.emergencyContact?.name || '') || ePhone !== (member.emergencyContact?.phone || '')) {
+                patch.emergencyContact = { name: eName, phone: ePhone };
+            }
+            if (Object.keys(patch).length === 0) { flash('Nothing to save.'); setBusy(''); return; }
+            await teamService.updateMember(member._id, patch);
             flash('Details saved');
             onChanged();
         } catch (err) {
@@ -430,9 +446,13 @@ const MemberCard = ({ member, services, onChanged }) => {
                                         <input type="date" className="input" value={shiftDate} min={todayKey}
                                             onChange={e => setShiftDate(e.target.value)}
                                             data-testid="shift-date" style={{ width: '170px', padding: '0.4rem 0.5rem', fontWeight: 400 }} />
-                                        {(shifts || []).some(sh => sh.date === shiftDate)
-                                            ? <span style={{ fontSize: '0.72rem', color: 'var(--gold-dark)', fontWeight: 600 }}>Shift set</span>
-                                            : <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>Using their usual hours</span>}
+                                        {!Array.isArray(shifts)
+                                            ? <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>
+                                                {shifts === false ? 'Couldn’t load existing shifts' : 'Loading shifts…'}
+                                              </span>
+                                            : shifts.some(sh => sh.date === shiftDate)
+                                                ? <span style={{ fontSize: '0.72rem', color: 'var(--gold-dark)', fontWeight: 600 }}>Shift set</span>
+                                                : <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>Using their usual hours</span>}
                                     </label>
 
                                     <div style={{ marginTop: '0.7rem' }}>
@@ -498,17 +518,17 @@ const MemberCard = ({ member, services, onChanged }) => {
                                     {shiftErr && <p style={{ margin: '0.6rem 0 0', fontSize: '0.8rem', color: 'var(--danger, #c2321a)', fontWeight: 600 }} data-testid="shift-error">{shiftErr}</p>}
 
                                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
-                                        <button type="button" className="btn-primary" onClick={saveShift} disabled={busy === 'shift'} data-testid="save-shift" style={{ padding: '0.5rem 1.2rem' }}>
+                                        <button type="button" className="btn-primary" onClick={saveShift} disabled={busy === 'shift' || !Array.isArray(shifts)} data-testid="save-shift" style={{ padding: '0.5rem 1.2rem' }}>
                                             {busy === 'shift' ? 'Saving…' : 'Save shift'}
                                         </button>
-                                        {(shifts || []).some(sh => sh.date === shiftDate) && (
+                                        {Array.isArray(shifts) && shifts.some(sh => sh.date === shiftDate) && (
                                             <button type="button" className="btn-outline" onClick={clearShift} disabled={busy === 'shift'} data-testid="clear-shift" style={{ padding: '0.5rem 1.2rem' }}>
                                                 Back to usual hours
                                             </button>
                                         )}
                                     </div>
 
-                                    {(shifts || []).length > 0 && (
+                                    {Array.isArray(shifts) && shifts.length > 0 && (
                                         <p style={{ margin: '0.7rem 0 0', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
                                             Set for: {shifts.map(sh => sh.date + (sh.slots.length ? '' : ' (off)')).join(' · ')}
                                         </p>
