@@ -67,6 +67,11 @@ export const planSwap = (items, movingId, place, staffKey, origin, hit) => {
     const target = { dateKey: origin.dateKey, startMin: origin.startMin, endMin: origin.startMin + dur };
     if (target.endMin > DAY_MIN) return null;
     if (clashesAt(items, hit.id, target, staffKey, [movingId]).length) return null;
+    // `items` still holds the mover at its OLD slot, so clashesAt cannot see the
+    // slot it is moving TO. Without this the swap lands the occupant on top of
+    // the mover whenever the drag is shorter than the occupant's duration:
+    // A 09:00-09:30 dragged 15 min with B 09:30-10:30 puts A entirely inside B.
+    if (target.startMin < place.endMin && target.endMin > place.startMin) return null;
 
     return [{ id: hit.id, ...target }];
 };

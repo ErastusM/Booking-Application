@@ -39,7 +39,14 @@ const everyDay = (start, end) => {
 };
 // A fixed future date avoids "today is a Sunday" flakiness.
 const DATE = '2026-09-16';
-const asDate = () => new Date(`${DATE}T00:00:00`);
+// Pass the DATE STRING, exactly as production does (createAppointment forwards
+// req.body.appointmentDate untouched). Building `new Date('...T00:00:00')` here
+// made these tests pass only under UTC: in UTC+2 — the app's own production
+// timezone — local midnight is 22:00 the PREVIOUS day, so the shift lookup key
+// came out a day early and five of these tests silently exercised the weekly
+// pattern instead of the shift they had just created.
+const asDate = () => DATE;
+const OTHER_DATE = '2026-09-17';
 
 const setup = async () => {
     const provider = await makeProvider();
@@ -81,7 +88,7 @@ describe('shift precedence', () => {
         const ctx = await setup();
         await Shift.create({ provider: ctx.provider._id, teamMember: ctx.member._id, date: DATE, slots: [] });
 
-        const otherDay = new Date('2026-09-17T00:00:00');
+        const otherDay = OTHER_DATE;
         const res = await resolveBookingStaff({
             svc: ctx.svc, providerId: ctx.provider._id, appointmentDate: otherDay,
             startTime: '10:00', endTime: '10:30',
@@ -150,6 +157,58 @@ describe('what the customer is shown', () => {
 
         // A shift is one person's day and says nothing about the business.
         expect(res.body.data.map((b) => b.kind)).not.toContain('off_shift');
+    });
+});
+
+// Shifts were enforced when a booking was CREATED and nowhere else, so a
+// customer could book a legal slot and then reschedule straight onto the
+// member's rostered day off — auto-confirmed, no override needed.
+describe('rescheduling respects the roster', () => {
+    const Appointment = require('../../models/Appointment');
+
+    it('refuses a customer moving a booking onto a rostered day off', async () => {
+        const { provider, customer, svc, member } = await setup();
+        await Shift.create({ provider: provider._id, teamMember: member._id, date: OTHER_DATE, slots: [] });
+
+        const appt = await Appointment.create({
+            customer: customer._id, service: svc._id, provider: provider._id, teamMember: member._id,
+            appointmentDate: new Date(`${DATE}T00:00:00Z`), startTime: '10:00', endTime: '10:30',
+            totalPrice: 50, status: 'confirmed',
+        });
+
+        const res = await request(app)
+            .put(`/api/appointments/${appt._id}/reschedule`)
+            .set(authHeader(customer))
+            .send({ appointmentDate: OTHER_DATE, startTime: '10:00' });
+
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/rostered/i);
+        // And it really did not move.
+        expect((await Appointment.findById(appt._id)).startTime).toBe('10:00');
+        expect((await Appointment.findById(appt._id)).appointmentDate.toISOString().slice(0, 10)).toBe(DATE);
+    });
+
+    it('refuses a customer moving a booking onto a break', async () => {
+        const { provider, customer, svc, member } = await setup();
+        await Shift.create({
+            provider: provider._id, teamMember: member._id, date: OTHER_DATE,
+            slots: [{ start: '09:00', end: '17:00' }],
+            breaks: [{ start: '13:00', end: '14:00', label: 'Lunch' }],
+        });
+
+        const appt = await Appointment.create({
+            customer: customer._id, service: svc._id, provider: provider._id, teamMember: member._id,
+            appointmentDate: new Date(`${DATE}T00:00:00Z`), startTime: '10:00', endTime: '10:30',
+            totalPrice: 50, status: 'confirmed',
+        });
+
+        const res = await request(app)
+            .put(`/api/appointments/${appt._id}/reschedule`)
+            .set(authHeader(customer))
+            .send({ appointmentDate: OTHER_DATE, startTime: '13:15' });
+
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/break/i);
     });
 });
 

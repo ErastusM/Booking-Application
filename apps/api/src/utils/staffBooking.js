@@ -54,31 +54,50 @@ const UNAVAILABLE_MESSAGES = {
  * published hours) — then, matching the existing business-hours behavior,
  * no hours check applies unless the member has their own schedule.
  */
+/**
+ * Is this member ROSTERED to work that window? Shift, else weekly pattern,
+ * else business hours — see the contract on models/Shift.
+ *
+ * Split out of isMemberFree deliberately. isMemberFree also checks existing
+ * appointments, which makes it unusable for a RESCHEDULE: it would find the
+ * very booking being moved and call it a conflict. The reschedule paths need
+ * exactly this half, and before they had it a customer could move a booking
+ * straight onto a rostered day off — shifts were enforced when a booking was
+ * created and nowhere else.
+ *
+ * Returns null when the window is fine, or a reason string.
+ */
+async function staffHoursReason({ member, date, startTime, endTime, businessSchedule }) {
+    if (!member) return null;                 // owner's own column — no staff hours apply
+    const startMin = toMin(startTime);
+    const endMin = toMin(endTime);
+
+    const shift = await Shift.findOne({ teamMember: member._id, date: dateStr(date) })
+        .select('slots breaks').lean();
+
+    if (shift) {
+        // A shift REPLACES the weekly pattern for that date.
+        const onShift = (shift.slots || []).some(sl => startMin >= toMin(sl.start) && endMin <= toMin(sl.end));
+        if (!onShift) return 'off_shift';
+        if ((shift.breaks || []).some(b => overlaps(startMin, endMin, toMin(b.start), toMin(b.end)))) {
+            return 'on_break';
+        }
+        return null;
+    }
+
+    const staffAv = await StaffAvailability.findOne({ teamMember: member._id });
+    const schedule = staffAv?.schedule || businessSchedule;
+    if (schedule && !withinSchedule(schedule, date, startMin, endMin)) return 'outside_hours';
+    return null;
+}
+
 async function isMemberFree({ providerId, member, date, startTime, endTime, svc, businessSchedule, enforceHours }) {
     const startMin = toMin(startTime);
     const endMin = toMin(endTime);
 
     if (enforceHours) {
-        // A shift for this exact date REPLACES the weekly pattern — see the
-        // contract on models/Shift. Without the replacement there would be no
-        // way to say "not in on Thursday" for one Thursday only.
-        const shift = await Shift.findOne({ teamMember: member._id, date: dateStr(date) })
-            .select('slots breaks').lean();
-
-        if (shift) {
-            const onShift = (shift.slots || []).some(sl => startMin >= toMin(sl.start) && endMin <= toMin(sl.end));
-            if (!onShift) return { free: false, reason: 'off_shift' };
-            // Breaks carve out of the shift's own slots.
-            if ((shift.breaks || []).some(b => overlaps(startMin, endMin, toMin(b.start), toMin(b.end)))) {
-                return { free: false, reason: 'on_break' };
-            }
-        } else {
-            const staffAv = await StaffAvailability.findOne({ teamMember: member._id });
-            const schedule = staffAv?.schedule || businessSchedule;
-            if (schedule && !withinSchedule(schedule, date, startMin, endMin)) {
-                return { free: false, reason: 'outside_hours' };
-            }
-        }
+        const hoursReason = await staffHoursReason({ member, date, startTime, endTime, businessSchedule });
+        if (hoursReason) return { free: false, reason: hoursReason };
         const blocks = await BlockedTime.find({
             provider: providerId,
             date: dateStr(date),
@@ -114,7 +133,13 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
     // `bookable` gates who clients can be sent to; isActive gates who still works
     // here. A receptionist is active but not bookable, and must never be resolved
     // as "any available". Both default true, so an existing roster is unchanged.
-    const roster = await TeamMember.find({ provider: providerId, isActive: true, bookable: true }).sort({ createdAt: 1 });
+    // isActive gates who still works here; `bookable` gates who CLIENTS may be
+    // sent to. The roster keeps everyone active, because a provider logging a
+    // walk-in under their receptionist must still resolve — filtering here broke
+    // that override and returned "Unknown team member" for a member the business
+    // dashboard was still offering.
+    const roster = await TeamMember.find({ provider: providerId, isActive: true }).sort({ createdAt: 1 });
+    const bookableRoster = roster.filter(m => m.bookable !== false);
 
     // Zero-staff business — legacy provider-level behavior, untouched.
     if (!roster.length) {
@@ -129,6 +154,9 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
         const member = roster.find(m => m._id.toString() === String(requestedTeamMember));
         if (!member) return { status: 400, error: 'Unknown team member' };
         if (isCustomer) {
+            if (member.bookable === false) {
+                return { status: 400, error: 'That staff member is not available for online booking' };
+            }
             if (!performsService(member, svc._id)) {
                 return { status: 400, error: 'That staff member does not offer this service' };
             }
@@ -146,7 +174,7 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
     if (!isCustomer) return { teamMember: null };
 
     // Customer, no pick, staff exist → "any available".
-    const performers = roster.filter(m => performsService(m, svc._id));
+    const performers = bookableRoster.filter(m => performsService(m, svc._id));
     if (!performers.length) return { teamMember: null }; // nobody performs it => the owner does
 
     for (const member of performers) {
@@ -159,4 +187,4 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
     return { status: 400, error: 'No staff member is available at that time. You can join the waiting list instead.' };
 }
 
-module.exports = { resolveBookingStaff, isMemberFree, performsService };
+module.exports = { resolveBookingStaff, isMemberFree, performsService, staffHoursReason, UNAVAILABLE_MESSAGES };

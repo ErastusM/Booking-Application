@@ -18,7 +18,7 @@ const {
     sendRebookingPrompt,
 } = require('../utils/emailService');
 const calendarHelper = require('../utils/calendarHelper');
-const { resolveBookingStaff } = require('../utils/staffBooking');
+const { resolveBookingStaff, staffHoursReason, UNAVAILABLE_MESSAGES } = require('../utils/staffBooking');
 const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, toDateKey, BLOCKED_MESSAGE } = require('../utils/blockedTime');
 const { checkCancellationWindow } = require('../utils/cancellationPolicy');
 const { realStartMs } = require('../utils/appointmentTime');
@@ -1643,9 +1643,11 @@ exports.providerBatchReschedule = async (req, res) => {
             if (!validBookingWindow(m.startTime, endTime)) {
                 return res.status(400).json({ success: false, message: 'That time would run past midnight. Pick an earlier start.' });
             }
-            // Providers may deliberately place work outside their published hours,
-            // but only by saying so — the flag is set by the drag UI once it has
-            // shown the "outside opening hours" warning, never by default.
+            // Providers may place work outside their published hours; the drag
+            // surface sets this on every move, because dragging a booking on your
+            // own calendar IS the deliberate act — matching what the existing
+            // single-booking provider path already allows. The flag stays because
+            // the default is strict and any future caller must opt in explicitly.
             if (!allowOutsideHours && !isTimeWithinSchedule(schedule, m.appointmentDate, m.startTime, duration)) {
                 return res.status(400).json({ success: false, message: 'Selected time is outside your availability schedule' });
             }
@@ -1695,16 +1697,47 @@ exports.providerBatchReschedule = async (req, res) => {
 
         // ── 2. Apply, each write guarded on the slot we think it still holds ─
         const written = [];
+        // Compensation. Guarded on the slot we wrote, so a booking someone else
+        // has since moved is left alone rather than yanked back. The old slot is
+        // re-checked too: while this batch held it open the public booking page
+        // may have SOLD it, and restoring blindly would create the double-booking
+        // the endpoint exists to prevent.
+        let rollbackClean = true;
         const undoAll = async () => {
             for (const p of written) {
                 try {
-                    await Appointment.updateOne({ _id: p.id }, { $set: p.previous });
+                    const clash = await hasConflictingAppointment(
+                        providerId, p.previous.appointmentDate, p.previous.startTime, p.previous.endTime,
+                        [p.id], p.scope,
+                    );
+                    if (clash) {
+                        rollbackClean = false;
+                        logger.error({ appointmentId: p.id }, 'Batch rollback: old slot was resold, leaving booking at its new time');
+                        continue;
+                    }
+                    const restored = await Appointment.updateOne(
+                        { _id: p.id, appointmentDate: p.appointmentDate, startTime: p.startTime, endTime: p.endTime },
+                        { $set: p.previous },
+                    );
+                    if (!restored.matchedCount) rollbackClean = false;
                 } catch (err) {
+                    rollbackClean = false;
                     logger.error({ err, appointmentId: p.id }, 'Batch reschedule rollback failed — day may be inconsistent');
                 }
             }
         };
+        // A thrown error mid-write used to skip compensation entirely and return
+        // 500, stranding the day half-moved while the process was perfectly able
+        // to put it back.
+        const failed = async (status, message) => {
+            await undoAll();
+            return res.status(status).json({
+                success: false,
+                message: rollbackClean ? message : `${message} Some bookings could not be put back — please refresh and check the day.`,
+            });
+        };
 
+        try {
         for (const p of planned) {
             const updated = await Appointment.findOneAndUpdate(
                 {
@@ -1714,15 +1747,18 @@ exports.providerBatchReschedule = async (req, res) => {
                     endTime: p.previous.endTime,
                     status: { $in: ['pending', 'confirmed'] },
                 },
-                { $set: { appointmentDate: p.appointmentDate, startTime: p.startTime, endTime: p.endTime } },
+                // findOneAndUpdate skips document middleware, so the model's
+                // pre('save') hook that clears these on a time change never runs.
+                // Without this a booking dragged three weeks out keeps
+                // reminderSent24h=true and the customer is never reminded.
+                { $set: {
+                    appointmentDate: p.appointmentDate, startTime: p.startTime, endTime: p.endTime,
+                    reminderSent24h: false, reminderSent5h: false, reminderSent1h: false,
+                } },
                 { new: true },
             );
             if (!updated) {
-                await undoAll();
-                return res.status(409).json({
-                    success: false,
-                    message: 'One of those bookings changed while you were moving it. Refresh and try again.',
-                });
+                return failed(409, 'One of those bookings changed while you were moving it. Refresh and try again.');
             }
             written.push(p);
             p.saved = updated;
@@ -1735,12 +1771,15 @@ exports.providerBatchReschedule = async (req, res) => {
                 providerId, p.appointmentDate, p.startTime, p.endTime, [p.id], p.scope,
             );
             if (raced) {
-                await undoAll();
-                return res.status(409).json({
-                    success: false,
-                    message: 'That time was just taken. Please pick another.',
-                });
+                return failed(409, 'That time was just taken. Please pick another.');
             }
+        }
+
+        } catch (err) {
+            // A transient query failure part-way through must not leave the day
+            // half-moved when we are still able to put it back.
+            logger.error({ err }, 'Batch reschedule failed mid-write — compensating');
+            return failed(500, 'That move could not be completed.');
         }
 
         res.status(200).json({ success: true, data: planned.map((p) => p.saved) });
@@ -1775,6 +1814,28 @@ exports.providerBatchReschedule = async (req, res) => {
         logger.error({ err: error }, 'Batch reschedule failed');
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
+};
+
+/**
+ * A customer moving a booking must land inside the assigned staff member's
+ * ROSTERED hours — their shift for that date, else their weekly pattern.
+ *
+ * Both customer-facing reschedule paths checked business hours, appointment
+ * conflicts and blocked time, but never the staff member's own availability.
+ * So shifts and breaks were enforced when a booking was CREATED and nowhere
+ * else: a customer could book a legal slot and then reschedule straight onto
+ * the member's rostered day off, auto-confirmed. Providers keep their override
+ * — this is only applied to customer-like callers, exactly as at booking time.
+ */
+const staffUnavailableMessage = async (appointment, appointmentDate, startTime, endTime) => {
+    const tmId = appointment.teamMember?._id || appointment.teamMember;
+    if (!tmId) return null;                      // owner's own column
+    const member = await TeamMember.findById(tmId).select('_id');
+    if (!member) return null;
+    const providerId = appointment.provider || appointment.service?.provider;
+    const businessSchedule = providerId ? await getProviderSchedule(providerId) : null;
+    const reason = await staffHoursReason({ member, date: appointmentDate, startTime, endTime, businessSchedule });
+    return reason ? (UNAVAILABLE_MESSAGES[reason] || 'That staff member is not available then.') : null;
 };
 
 exports.rescheduleAppointment = async (req, res) => {
@@ -1841,6 +1902,8 @@ exports.rescheduleAppointment = async (req, res) => {
             })) {
                 return res.status(400).json({ success: false, message: BLOCKED_MESSAGE });
             }
+            const unavailable = await staffUnavailableMessage(appointment, appointmentDate, startTime, endTime);
+            if (unavailable) return res.status(400).json({ success: false, message: unavailable });
         }
 
         // Keep the old slot so the write can be undone if it lost a race.
@@ -2200,6 +2263,8 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
                 return res.status(400).json({ success: false, message: 'That time slot is already booked.' });
             }
             // Guest "manage my booking" reschedule — same blocked-time hard stop.
+            const unavailableGuest = await staffUnavailableMessage(appt, appointmentDate, startTime, endTime);
+            if (unavailableGuest) return res.status(400).json({ success: false, message: unavailableGuest });
             if (await overlapsBlockedTime({
                 providerId, appointmentDate, startTime, endTime, teamMember: appt.teamMember || null,
             })) {

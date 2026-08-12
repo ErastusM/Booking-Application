@@ -143,6 +143,23 @@ describe('team member stats', () => {
         expect(res.body.data.occupancy).toBeNull();
     });
 
+    // appointmentDate is a date-only value stored at midnight. Counting
+    // "upcoming" from `now` therefore dropped everything still to come today —
+    // at 09:00, a 15:00 booking read as already past.
+    it('counts a booking later today as upcoming', async () => {
+        const { provider, service, member } = await setup();
+        const customer = await makeUser();
+        const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
+        await makeAppointment(customer._id, service._id, provider._id, {
+            teamMember: member._id, status: 'confirmed',
+            appointmentDate: todayMidnight, startTime: '23:30', endTime: '23:59',
+        });
+
+        const res = await statsFor(provider, member);
+
+        expect(res.body.data.upcoming).toBe(1);
+    });
+
     it('refuses another provider\'s team member', async () => {
         const { member } = await setup();
         const intruder = await makeProvider();
