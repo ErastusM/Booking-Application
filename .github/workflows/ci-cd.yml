@@ -36,6 +36,14 @@ jobs:
           pnpm --filter "@bookplus/api-client" build
           pnpm --filter "@bookplus/ui" build
 
+      # A build proves the frontend parses, and nothing more. Every frontend
+      # defect worth catching lately compiled cleanly: a switch whose track
+      # swallowed every click, a commit run inside a setState updater, a swap
+      # planner that proposed overlapping bookings. This is where those get
+      # caught — gating, and fast enough to stay that way.
+      - name: Business app — unit tests
+        run: pnpm --filter "@bookplus/business" test
+
       # Epic 1 apps (Vite) — build-only until they deploy in Epic 1.4
       - name: Customer + Business apps — build
         env:

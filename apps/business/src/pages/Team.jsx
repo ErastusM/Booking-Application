@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { teamService, providerServiceService } from '../services';
+import Switch from '../components/Switch';
 import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus } from 'lucide-react';
 
 /**
@@ -19,45 +20,6 @@ const Chip = ({ active, children, ...rest }) => (
         background: active ? 'rgba(240,62,22,0.10)' : 'var(--card-bg)',
         color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
     }}>{children}</button>
-);
-
-const Switch = ({ checked, onChange, disabled, label, 'data-testid': testId }) => (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem' }}>
-        <span style={{
-            fontSize: '0.78rem', fontWeight: 650, whiteSpace: 'nowrap',
-            color: checked ? 'var(--gold-dark)' : 'var(--text-muted)',
-        }}>{label}</span>
-        <span style={{ position: 'relative', display: 'inline-flex', alignItems: 'center' }}>
-            <input
-                type="checkbox"
-                role="switch"
-                checked={checked}
-                disabled={disabled}
-                onChange={(e) => onChange(e.target.checked)}
-                data-testid={testId}
-                style={{
-                    position: 'absolute', inset: 0, width: '100%', height: '100%',
-                    opacity: 0, margin: 0, cursor: disabled ? 'not-allowed' : 'pointer',
-                }}
-            />
-            <span aria-hidden="true" style={{
-                width: '42px', height: '24px', borderRadius: '999px', position: 'relative',
-                background: checked ? 'var(--gold)' : 'var(--border)',
-                transition: 'background 0.16s ease', opacity: disabled ? 0.5 : 1,
-                // The real checkbox sits invisibly underneath this track. Without
-                // this the track swallows every click and the switch is inert —
-                // it looks fine and simply cannot be operated by mouse or touch.
-                pointerEvents: 'none',
-            }}>
-                <span style={{
-                    position: 'absolute', top: '3px', left: '3px', width: '18px', height: '18px',
-                    borderRadius: '50%', background: '#fff', transition: 'transform 0.16s ease',
-                    transform: checked ? 'translateX(18px)' : 'none',
-                    boxShadow: '0 1px 2px rgba(4,5,5,0.3)',
-                }} />
-            </span>
-        </span>
-    </span>
 );
 
 const TABS = [
