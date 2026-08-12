@@ -163,6 +163,20 @@ describe('restoring an archived member', () => {
         expect((await TeamMember.findById(member._id)).user.toString()).toBe(staff._id.toString());
     });
 
+    // Re-attaching a severed link must not become a way to claim any account
+    // that happens to share the email.
+    it('still refuses an email belonging to somebody else', async () => {
+        const { provider, member } = await setup();
+        await makeUser({ role: 'customer', email: 'stranger@test.com' });
+
+        const res = await request(app)
+            .post(`/api/team/${member._id}/invite`)
+            .set(authHeader(provider))
+            .send({ email: 'stranger@test.com' });
+
+        expect(res.status).toBe(409);
+    });
+
     it('refuses another provider\'s member', async () => {
         const { provider, member } = await setup();
         await request(app).delete(`/api/team/${member._id}`).set(authHeader(provider));
