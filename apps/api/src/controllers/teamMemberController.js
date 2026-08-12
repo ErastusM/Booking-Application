@@ -284,15 +284,20 @@ exports.getTeamMemberStats = async (req, res) => {
         const Review = require('../models/Review');
         const Availability = require('../models/Availability');
 
+        // A member counts for a booking if they are its top-level member OR they
+        // perform one of its services. A multi-service booking is split across
+        // several staff (services[].teamMember), and each must see — and be paid
+        // for — only their own part, never the whole ticket.
+        const memberMatch = { $or: [{ teamMember: member._id }, { 'services.teamMember': member._id }] };
         const inWindow = {
             provider: req.user._id,
-            teamMember: member._id,
             appointmentDate: { $gte: from, $lte: to },
+            ...memberMatch,
         };
 
         const [done, upcoming, ratingAgg, staffHours, businessHours, shifts] = await Promise.all([
             Appointment.find({ ...inWindow, status: 'completed' })
-                .select('totalPrice customer startTime endTime'),
+                .select('totalPrice customer startTime endTime services'),
             // From the START OF TODAY, not from this instant. appointmentDate is
             // a date-only value stored at midnight, so comparing it against `now`
             // silently dropped every remaining booking today — at 09:00 a 15:00
@@ -302,9 +307,9 @@ exports.getTeamMemberStats = async (req, res) => {
             // finished bookings out of pending/confirmed, so this converges anyway.
             Appointment.countDocuments({
                 provider: req.user._id,
-                teamMember: member._id,
                 status: { $in: ['pending', 'confirmed'] },
                 appointmentDate: { $gte: startOfToday },
+                ...memberMatch,
             }),
             // Reviews carry no teamMember, so the link runs through the booking.
             Review.aggregate([
@@ -325,7 +330,26 @@ exports.getTeamMemberStats = async (req, res) => {
             }).select('date slots breaks').lean(),
         ]);
 
-        const revenue = done.reduce((sum, a) => sum + (a.totalPrice || 0), 0);
+        const toMin = (t) => {
+            const [h = 0, m = 0] = String(t || '').split(':').map(Number);
+            return (h || 0) * 60 + (m || 0);
+        };
+        // This member's slice of a booking: the services assigned to them, or —
+        // for a single-service booking with no per-service breakdown — the whole
+        // thing. Crediting the top-level member with the full multi-service total
+        // and its full span is exactly the misattribution this fixes: it inflated
+        // the primary's revenue and occupancy and paid the other performers zero.
+        const mySegments = (a) => (Array.isArray(a.services) && a.services.length
+            ? a.services.filter((s) => String(s.teamMember) === String(member._id))
+            : [{ price: a.totalPrice || 0, startTime: a.startTime, endTime: a.endTime }]);
+
+        const revenue = done.reduce((sum, a) =>
+            sum + mySegments(a).reduce((s, seg) => s + (seg.price || 0), 0), 0);
+        const bookedMinutes = done.reduce((sum, a) =>
+            sum + mySegments(a).reduce((s, seg) => {
+                const mins = toMin(seg.endTime) - toMin(seg.startTime);
+                return s + (mins > 0 ? mins : 0);
+            }, 0), 0);
 
         // Clients: registered accounts only, so "the same person twice" is knowable.
         const counts = new Map();
@@ -337,16 +361,9 @@ exports.getTeamMemberStats = async (req, res) => {
         const clients = counts.size;
         const returning = [...counts.values()].filter((n) => n > 1).length;
 
-        // Occupancy.
-        const toMin = (t) => {
-            const [h = 0, m = 0] = String(t || '').split(':').map(Number);
-            return (h || 0) * 60 + (m || 0);
-        };
-        const bookedMinutes = done.reduce((sum, a) => {
-            const mins = toMin(a.endTime) - toMin(a.startTime);
-            return sum + (mins > 0 ? mins : 0);
-        }, 0);
-
+        // Occupancy. bookedMinutes is the member's own service minutes (computed
+        // above, per-segment), so a shared multi-service booking no longer counts
+        // its whole span against every performer.
         const sumPeriods = (list) => (list || []).reduce((acc, s) => {
             const mins = toMin(s.end) - toMin(s.start);
             return acc + (mins > 0 ? mins : 0);
