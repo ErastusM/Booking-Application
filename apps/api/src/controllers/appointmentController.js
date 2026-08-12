@@ -352,7 +352,19 @@ exports.getBookedSlots = async (req, res) => {
             if (cursor < 24 * 60) busy.push({ startTime: hhmm(cursor), endTime: '23:59', kind: 'off_shift' });
         }
 
-        res.status(200).json({ success: true, data: busy });
+        res.status(200).json({
+            success: true,
+            data: busy,
+            // A date-specific shift REPLACES business hours for that member on that
+            // date (models/Shift), and may run beyond them. The customer slot
+            // picker's base window is the provider's published hours, so without
+            // this a shift extending past closing — a member rostered to cover a
+            // late evening — could never be offered even though the server would
+            // accept the booking. Returned only for a named member with a shift;
+            // null means "no shift, use business hours as before". An empty array
+            // is a rostered day off (no slots), distinct from null.
+            shiftWindow: shift ? (shift.slots || []).map((s) => ({ start: s.start, end: s.end })) : null,
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
