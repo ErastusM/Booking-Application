@@ -323,12 +323,25 @@ const ProviderDashboard = () => {
         if (showApptModal && !availability) fetchAvailability();
     }, [showApptModal]); // eslint-disable-line react-hooks/exhaustive-deps
 
-    const fetchAppointments = async () => {
+    // Guards against the 25s live refresh clobbering a move the user just made.
+    // A poll serialised BEFORE a local write can land AFTER it, snapping the card
+    // back while the Undo bar says it moved — and the provider then either drags
+    // it again (a second real reschedule, a second customer email) or presses
+    // Undo believing it failed. `writesInFlight` suppresses polls during a write;
+    // `apptEpoch` discards any response that was already in flight when one began.
+    const writesInFlight = useRef(0);
+    const apptEpoch = useRef(0);
+
+    const fetchAppointments = async ({ force = false } = {}) => {
+        if (writesInFlight.current > 0 && !force) return;
+        const epoch = apptEpoch.current;
         // Don't block the whole page — only set loading on first load
         if (appointments.length === 0) setLoading(true);
         try {
             // `all` so the calendar always has every booking (no pagination gaps)
             const res = await appointmentService.getAllAppointments({ all: true });
+            // Superseded while we were in flight: local state is the newer truth.
+            if (!force && (apptEpoch.current !== epoch || writesInFlight.current > 0)) return;
             setAppointments(res.data.data);
         } catch {
             setError('Failed to load appointments');
@@ -1075,23 +1088,38 @@ const ProviderDashboard = () => {
             endTime: a.endTime,
         }));
 
-    const applySlotsLocally = (moves) => setAppointments((prev) => prev.map((a) => {
-        const m = moves.find((x) => x.id === a._id);
-        return m ? { ...a, appointmentDate: m.appointmentDate, startTime: m.startTime, endTime: m.endTime } : a;
-    }));
+    const applySlotsLocally = (moves) => {
+        apptEpoch.current += 1;
+        return setAppointments((prev) => prev.map((a) => {
+            const m = moves.find((x) => x.id === a._id);
+            return m ? { ...a, appointmentDate: m.appointmentDate, startTime: m.startTime, endTime: m.endTime } : a;
+        }));
+    };
 
     const handleCalendarReschedule = async ({ moves }) => {
         const before = snapshotSlots(moves.map((m) => m.id));
+        // Each move carries the slot we BELIEVE it currently holds. Without it the
+        // server guards against whatever it reads at request time, so a plan built
+        // before a colleague moved a booking still applies — silently yanking that
+        // booking out of the time they had just agreed with the client. With it,
+        // a changed booking fails the guard and the whole batch is refused.
+        const byId = new Map(before.map((b) => [b.id, b]));
+        const guarded = moves.map((m) => ({ ...m, expect: byId.get(m.id) || undefined }));
+
+        writesInFlight.current += 1;
         applySlotsLocally(moves);
         try {
-            await appointmentService.batchReschedule(moves, { allowOutsideHours: true });
+            await appointmentService.batchReschedule(guarded, { allowOutsideHours: true });
             setCalendarUndo(before);
         } catch (err) {
             applySlotsLocally(before);   // put them back exactly where they were
             setCalendarUndo(null);
             toast(err?.response?.data?.message || 'Could not move that booking. Please try again.', 'error');
-            fetchAppointments();          // resync: the server may know something we don't
+            writesInFlight.current -= 1;
+            fetchAppointments({ force: true });   // resync: the server knows something we don't
+            throw err;                            // let the caller abort any follow-on step
         }
+        writesInFlight.current -= 1;
     };
 
     const undoCalendarReschedule = async () => {

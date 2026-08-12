@@ -96,6 +96,14 @@ exports.deleteTeamMember = async (req, res) => {
                 { _id: member.user },
                 { $inc: { tokenVersion: 1 }, $set: { refreshTokenJtis: [], staffOf: null } },
             );
+            // Drop the link too. Leaving it set made the documented recovery path
+            // a dead end: `restore` says "re-inviting is the explicit way" to give
+            // access back, but invite refuses outright when member.user is set, and
+            // permissions 404 because staffOf was just severed. The account itself
+            // survives (it may hold message history) — only the roster link goes,
+            // and the same email can be invited again.
+            await TeamMember.updateOne({ _id: member._id }, { $set: { user: null } });
+            member.user = null;
         }
         res.status(200).json({ success: true, message: 'Team member archived', data: member });
     } catch (error) {

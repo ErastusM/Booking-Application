@@ -1652,6 +1652,19 @@ exports.providerBatchReschedule = async (req, res) => {
                 return res.status(400).json({ success: false, message: 'Selected time is outside your availability schedule' });
             }
 
+            // The client may send the slot it BELIEVED this booking held. Guard on
+            // that rather than on what we read just now: otherwise a plan built
+            // before someone else moved the booking still applies cleanly, and
+            // that person's newly agreed time is silently overwritten. Absent, we
+            // fall back to the current slot (the drag UI always sends it).
+            const expected = m.expect && /^\d{2}:\d{2}$/.test(m.expect.startTime || '')
+                ? {
+                    appointmentDate: new Date(m.expect.appointmentDate),
+                    startTime: m.expect.startTime,
+                    endTime: m.expect.endTime,
+                }
+                : null;
+
             planned.push({
                 appt,
                 id: appt._id.toString(),
@@ -1661,6 +1674,12 @@ exports.providerBatchReschedule = async (req, res) => {
                 endTime,
                 scope: conflictScope(appt),
                 previous: {
+                    appointmentDate: appt.appointmentDate,
+                    startTime: appt.startTime,
+                    endTime: appt.endTime,
+                },
+                // What the write is allowed to match on.
+                guard: expected || {
                     appointmentDate: appt.appointmentDate,
                     startTime: appt.startTime,
                     endTime: appt.endTime,
@@ -1742,9 +1761,9 @@ exports.providerBatchReschedule = async (req, res) => {
             const updated = await Appointment.findOneAndUpdate(
                 {
                     _id: p.id,
-                    appointmentDate: p.previous.appointmentDate,
-                    startTime: p.previous.startTime,
-                    endTime: p.previous.endTime,
+                    appointmentDate: p.guard.appointmentDate,
+                    startTime: p.guard.startTime,
+                    endTime: p.guard.endTime,
                     status: { $in: ['pending', 'confirmed'] },
                 },
                 // findOneAndUpdate skips document middleware, so the model's
