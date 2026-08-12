@@ -14,6 +14,7 @@ const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = req
 const TeamMember = require('../../models/TeamMember');
 const Appointment = require('../../models/Appointment');
 const User = require('../../models/User');
+const { resolveBookingStaff } = require('../../utils/staffBooking');
 
 jest.mock('../../utils/emailService', () => new Proxy({}, { get: () => jest.fn().mockResolvedValue(true) }));
 
@@ -52,14 +53,34 @@ describe('archiving a team member', () => {
         expect(booking.teamMember.name).toBe('Moses Hamalwa');
     });
 
+    // Drives the real resolver rather than re-running its query here: asserting
+    // `TeamMember.find({isActive:true})` from the test only proves Mongo can
+    // filter, and would still pass with the isActive filter deleted from
+    // utils/staffBooking — the very line it claims to cover.
     it('stops them taking new bookings', async () => {
-        const { provider, member } = await setup();
+        const { provider, customer, service, member } = await setup();
         await request(app).delete(`/api/team/${member._id}`).set(authHeader(provider));
 
-        // utils/staffBooking builds its roster from isActive:true, so an archived
-        // member is invisible to booking without any extra check.
-        const bookable = await TeamMember.find({ provider: provider._id, isActive: true });
-        expect(bookable.map((m) => m._id.toString())).not.toContain(member._id.toString());
+        const res = await resolveBookingStaff({
+            svc: service, providerId: provider._id, appointmentDate: '2026-09-16',
+            startTime: '10:00', endTime: '10:30',
+            requestedTeamMember: member._id, requester: { role: 'customer', _id: customer._id },
+        });
+
+        expect(res.teamMember).toBeUndefined();
+        expect(res.error).toMatch(/unknown team member/i);
+    });
+
+    it('clears the refresh-token list as well as the access tokens', async () => {
+        const { provider, member } = await setup();
+        const staff = await makeUser({ role: 'staff', staffOf: provider._id, email: 'moses-jti@test.com' });
+        await User.updateOne({ _id: staff._id }, { $set: { refreshTokenJtis: ['a', 'b'] } });
+        await TeamMember.updateOne({ _id: member._id }, { $set: { user: staff._id } });
+
+        await request(app).delete(`/api/team/${member._id}`).set(authHeader(provider));
+
+        // Bumping tokenVersion alone would leave refresh working.
+        expect((await User.findById(staff._id)).refreshTokenJtis).toEqual([]);
     });
 
     it('still revokes their login', async () => {
