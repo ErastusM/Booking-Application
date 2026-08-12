@@ -199,6 +199,12 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         setMemberPermissions: (id: string, permissions: string[]) =>
             API.put(`/team/${id}/permissions`, { permissions }),
         getMemberStats: (id: string, days = 30) => API.get(`/team/${id}/stats`, { params: { days } }),
+        // Date-specific shifts. A shift replaces the member's weekly pattern for
+        // that date; clearing it hands the date back to the pattern.
+        getMemberShifts: (id: string, from?: string, to?: string) =>
+            API.get(`/team/${id}/shifts`, { params: from && to ? { from, to } : {} }),
+        setMemberShift: (id: string, shift: any) => API.put(`/team/${id}/shifts`, shift),
+        clearMemberShift: (id: string, date: string) => API.delete(`/team/${id}/shifts/${date}`),
         // Epic 2 staff management
         inviteMember: (id: string, data?: any) => API.post(`/team/${id}/invite`, data || {}),
         setMemberServices: (id: string, services: string[]) => API.put(`/team/${id}/services`, { services }),
