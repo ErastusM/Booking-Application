@@ -23,13 +23,24 @@ afterAll(() => testDb.closeDatabase());
 afterEach(() => testDb.clearDatabase());
 
 // A weekday N days out, so every slot sits inside the default 09:00–17:00
-// availability and nothing is rejected for being a closed Saturday.
+// availability and nothing is rejected for being a closed weekend.
+//
+// The date is picked by the SAME weekday the controller reads — it does
+// new Date(appointmentDate).getDay() on a UTC-midnight value — so the choice
+// holds in any runner's timezone. Building a locally-dated string and then
+// storing it at UTC-midnight disagreed west of UTC: the two getDay() calls
+// landed a day apart, so on some days a "weekday" the test picked read as a
+// closed weekend to the controller and the happy-path moves were rejected.
 const weekdayAhead = (n) => {
     const d = new Date();
+    d.setUTCHours(0, 0, 0, 0);
     let added = 0;
-    while (added < n) { d.setDate(d.getDate() + 1); if (d.getDay() !== 0 && d.getDay() !== 6) added++; }
-    const p = (x) => String(x).padStart(2, '0');
-    return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+    while (added < n) {
+        d.setUTCDate(d.getUTCDate() + 1);
+        const wd = d.getDay();   // local weekday of the UTC-midnight instant — exactly what the controller sees
+        if (wd !== 0 && wd !== 6) added += 1;
+    }
+    return d.toISOString().slice(0, 10);
 };
 
 const setup = async () => {

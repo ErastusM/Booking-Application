@@ -107,3 +107,64 @@ describe('Waiting list', () => {
         expect(still.body.data.length).toBe(1);
     });
 });
+
+// A booking assigned to a staff member queues waiters against THAT member. If
+// the member's shift changes to a day off after they queue, cancelling the
+// booking must not auto-promote the next person straight onto a slot the member
+// no longer works — promotion honours the same roster gate a booking does.
+describe('promotion respects the roster', () => {
+    const TeamMember = require('../../models/TeamMember');
+    const StaffAvailability = require('../../models/StaffAvailability');
+    const Shift = require('../../models/Shift');
+    const Appointment = require('../../models/Appointment');
+    const { promoteFromWaitingList } = require('../../utils/waitingListHelper');
+
+    const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const everyDay = (start, end) => {
+        const s = {};
+        DAYS.forEach((d) => { s[d] = { enabled: true, slots: [{ start, end }] }; });
+        return s;
+    };
+    const DATE = '2026-09-16';
+
+    it('does not promote a waiter onto the member\'s rostered day off', async () => {
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id);
+        const waiter = await makeUser();
+        const member = await TeamMember.create({ provider: provider._id, name: 'Moses Hamalwa' });
+        await StaffAvailability.create({ provider: provider._id, teamMember: member._id, schedule: everyDay('09:00', '17:00') });
+        // The member is rostered off that day (empty-slots shift = day off).
+        await Shift.create({ provider: provider._id, teamMember: member._id, date: DATE, slots: [] });
+
+        await WaitingList.create({
+            service: svc._id, provider: provider._id, customer: waiter._id, teamMember: member._id,
+            appointmentDate: new Date(`${DATE}T00:00:00.000Z`), startTime: '10:00', endTime: '10:30',
+            position: 1, status: 'waiting',
+        });
+
+        await promoteFromWaitingList(svc._id, new Date(`${DATE}T00:00:00.000Z`), '10:00', '10:30');
+
+        // Nobody booked, and the waiter keeps their place in line.
+        expect(await Appointment.countDocuments({ teamMember: member._id })).toBe(0);
+        expect((await WaitingList.findOne({ customer: waiter._id })).status).toBe('waiting');
+    });
+
+    it('still promotes when the member is rostered on', async () => {
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id);
+        const waiter = await makeUser();
+        const member = await TeamMember.create({ provider: provider._id, name: 'Moses Hamalwa' });
+        await StaffAvailability.create({ provider: provider._id, teamMember: member._id, schedule: everyDay('09:00', '17:00') });
+
+        await WaitingList.create({
+            service: svc._id, provider: provider._id, customer: waiter._id, teamMember: member._id,
+            appointmentDate: new Date(`${DATE}T00:00:00.000Z`), startTime: '10:00', endTime: '10:30',
+            position: 1, status: 'waiting',
+        });
+
+        await promoteFromWaitingList(svc._id, new Date(`${DATE}T00:00:00.000Z`), '10:00', '10:30');
+
+        expect(await Appointment.countDocuments({ teamMember: member._id, customer: waiter._id })).toBe(1);
+        expect((await WaitingList.findOne({ customer: waiter._id })).status).toBe('promoted');
+    });
+});

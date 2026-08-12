@@ -96,6 +96,25 @@ const getProviderSchedule = async (providerId) => {
     return availability?.schedule || defaultSchedule;
 };
 
+/**
+ * Does a specific member have a date-specific shift for this day?
+ *
+ * A Shift REPLACES business hours for that member on that date (models/Shift
+ * precedence: shift → weekly pattern → business hours). So when a booking
+ * targets a specific member who has a shift for the date, the business-wide
+ * hours gate must stand down and let the per-staff check (staffHoursReason) be
+ * the authority — otherwise a member rostered to cover a Sunday or work a late
+ * evening can never be booked, which is the entire reason a shift exists. The
+ * per-staff check still enforces the shift's own slots and breaks, so standing
+ * the gate down never opens a slot the shift itself doesn't cover. "Any
+ * available" (no member picked) keeps the business-hours gate as its funnel.
+ */
+const shiftGovernsHours = async (teamMemberId, appointmentDate) => {
+    if (!teamMemberId) return false;
+    const Shift = require('../models/Shift');
+    return !!(await Shift.exists({ teamMember: teamMemberId, date: toDateKey(appointmentDate) }));
+};
+
 const isTimeWithinSchedule = (schedule, appointmentDate, startTime, durationMinutes) => {
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const dayIndex = new Date(appointmentDate).getDay();
@@ -232,20 +251,30 @@ const filterBookableOccurrences = async ({
 
     const kept = [];
     const skipped = [];
-    dates.forEach((d, i) => {
+    for (let i = 0; i < dates.length; i += 1) {
+        const d = dates[i];
         const key = keys[i];
         // The first occurrence already passed the full booking checks above; never
         // drop it here, or a series could come back empty.
         if (i > 0) {
             const closedThatDay = enforceHoursAndBlocks && schedule
                 && !isTimeWithinSchedule(schedule, d, startTime, duration);
-            if (closedThatDay || clashes(blocksByDate[key]) || clashes(apptsByDate[key])) {
+            // Off-shift, on a rostered day off, or on a break for the assigned
+            // member. A single booking is gated by staffHoursReason; a series
+            // used to insert straight past it. Reuses the exact same gate (one
+            // authority, a couple of queries per date on a rare write path) so
+            // the two can't drift. Only for a specific member — null is the
+            // owner's own column, which staff hours don't govern.
+            const offForStaff = enforceHoursAndBlocks && teamMember
+                ? await staffHoursReason({ member: { _id: teamMember }, date: d, startTime, endTime, businessSchedule: schedule })
+                : null;
+            if (closedThatDay || offForStaff || clashes(blocksByDate[key]) || clashes(apptsByDate[key])) {
                 skipped.push(key);
-                return;
+                continue;
             }
         }
         kept.push(d);
-    });
+    }
 
     return { kept, skipped };
 };
@@ -597,7 +626,11 @@ exports.createAppointment = async (req, res) => {
         if (isCustomerLike && providerId) {
             const availabilityDoc = await Availability.findOne({ provider: providerId });
             providerSchedule = availabilityDoc?.schedule || null;
-            if (providerSchedule) {
+            // A shift for a specifically-requested member overrides business hours
+            // for that date (see shiftGovernsHours); the per-staff check inside
+            // resolveBookingStaff then enforces the shift's own slots and breaks.
+            const shiftGoverns = teamMember && await shiftGovernsHours(teamMember, appointmentDate);
+            if (providerSchedule && !shiftGoverns) {
                 const bookingDuration = parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime);
                 if (!isTimeWithinSchedule(providerSchedule, appointmentDate, startTime, bookingDuration)) {
                     return res.status(400).json({ success: false, message: 'Selected time is outside the provider availability schedule' });
@@ -1907,7 +1940,11 @@ exports.rescheduleAppointment = async (req, res) => {
         const providerId = appointment.provider || appointment.service?.provider;
         if (providerId) {
             const schedule = await getProviderSchedule(providerId);
-            if (!isTimeWithinSchedule(schedule, appointmentDate, startTime, duration)) {
+            // A shift for the assigned member overrides business hours for that
+            // date; staffUnavailableMessage below (staffHoursReason) then enforces
+            // the shift's own slots/breaks, so this can't open an uncovered slot.
+            const shiftGoverns = await shiftGovernsHours(appointment.teamMember, appointmentDate);
+            if (!shiftGoverns && !isTimeWithinSchedule(schedule, appointmentDate, startTime, duration)) {
                 return res.status(400).json({ success: false, message: 'Selected time is outside the provider availability schedule' });
             }
             const conflict = await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appointment._id, conflictScope(appointment));
@@ -2275,7 +2312,11 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
         const providerId = appt.provider;
         if (providerId) {
             const availabilityDoc = await Availability.findOne({ provider: providerId });
-            if (availabilityDoc?.schedule && !isTimeWithinSchedule(availabilityDoc.schedule, appointmentDate, startTime, duration)) {
+            // A shift for the assigned member overrides business hours for that
+            // date; staffUnavailableMessage below still enforces the shift itself.
+            const shiftGoverns = await shiftGovernsHours(appt.teamMember, appointmentDate);
+            if (availabilityDoc?.schedule && !shiftGoverns
+                && !isTimeWithinSchedule(availabilityDoc.schedule, appointmentDate, startTime, duration)) {
                 return res.status(400).json({ success: false, message: 'That time is outside the provider availability schedule.' });
             }
             if (await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appt._id, conflictScope(appt))) {
