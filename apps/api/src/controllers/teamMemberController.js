@@ -125,6 +125,15 @@ const Shift = require('../models/Shift');
 
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
+// The regex alone accepts impossible days — 2026-02-31, 2026-13-01. Round-trip
+// through a UTC Date so a shift can only ever be stored against a real calendar
+// date; a bogus key would otherwise sit in the collection matching nothing the
+// booking path ever asks about.
+const isRealDateKey = (s) => {
+    if (!DATE_KEY.test(s || '')) return false;
+    const d = new Date(`${s}T00:00:00.000Z`);
+    return !Number.isNaN(d.getTime()) && d.toISOString().slice(0, 10) === s;
+};
 const toMinutes = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
 
 /** Validate and normalise the periods on a shift, or explain the refusal. */
@@ -159,7 +168,7 @@ exports.getTeamMemberShifts = async (req, res) => {
 
         const { from, to } = req.query;
         const q = { teamMember: member._id };
-        if (DATE_KEY.test(from || '') && DATE_KEY.test(to || '')) q.date = { $gte: from, $lte: to };
+        if (isRealDateKey(from) && isRealDateKey(to)) q.date = { $gte: from, $lte: to };
 
         const shifts = await Shift.find(q).sort({ date: 1 }).lean();
         res.status(200).json({ success: true, data: shifts });
@@ -171,8 +180,8 @@ exports.getTeamMemberShifts = async (req, res) => {
 exports.setTeamMemberShift = async (req, res) => {
     try {
         const { date, note } = req.body;
-        if (!DATE_KEY.test(date || '')) {
-            return res.status(400).json({ success: false, message: 'date must be YYYY-MM-DD' });
+        if (!isRealDateKey(date)) {
+            return res.status(400).json({ success: false, message: 'date must be a real calendar date as YYYY-MM-DD' });
         }
 
         const slots = cleanPeriods(req.body.slots, 'working period');
@@ -198,10 +207,19 @@ exports.setTeamMemberShift = async (req, res) => {
         const shift = await Shift.findOneAndUpdate(
             { teamMember: member._id, date },
             { $set: { provider: req.user._id, slots: slots.periods, breaks: breaks.periods, note: note || '' } },
-            { new: true, upsert: true, setDefaultsOnInsert: true },
+            // runValidators, or the schema is enforced on create() and nowhere on
+            // the upsert path this endpoint actually uses — an over-long note or a
+            // period missing start/end would be written unchecked.
+            { new: true, upsert: true, setDefaultsOnInsert: true, runValidators: true },
         );
         res.status(200).json({ success: true, data: shift });
     } catch (error) {
+        // runValidators surfaces a bad shift (e.g. an over-long note) as a
+        // ValidationError — that is the caller's mistake, not a server fault, so
+        // answer 400 rather than a misleading 500.
+        if (error.name === 'ValidationError') {
+            return res.status(400).json({ success: false, message: error.message });
+        }
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
@@ -232,12 +250,12 @@ exports.clearTeamMemberShift = async (req, res) => {
  * nobody can define is worse than no number:
  *
  *   occupancy = minutes booked ÷ minutes scheduled, over the window. Scheduled
- *               comes from the member's own weekly hours, falling back to the
- *               business hours when they have none of their own. It is NOT
- *               shift-aware yet — there are no date-specific shifts in the
- *               model — so a day off taken as time-off still counts as
- *               scheduled and drags the figure down. Reported as null rather
- *               than a wrong number when nothing is scheduled at all.
+ *               is shift-aware: a date-specific Shift replaces the pattern for
+ *               its day (slots minus breaks; an empty shift is a rostered day
+ *               off worth zero), and days without a shift fall back to the
+ *               member's own weekly hours, then to the business hours. Reported
+ *               as null rather than a wrong number when nothing is scheduled at
+ *               all — "we cannot say" is not the same as "they were idle".
  *
  *   retention = clients who booked this member more than once ÷ clients who
  *               booked them at all, within the window. Guests are excluded:
@@ -250,8 +268,17 @@ exports.getTeamMemberStats = async (req, res) => {
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
 
         const days = Math.min(365, Math.max(1, parseInt(req.query.days, 10) || 30));
-        const to = new Date(); to.setHours(23, 59, 59, 999);
-        const from = new Date(to); from.setDate(from.getDate() - (days - 1)); from.setHours(0, 0, 0, 0);
+
+        // Anchor the window to the business day in Africa/Windhoek, then express
+        // its boundaries at UTC-midnight — the exact instant appointmentDate is
+        // stored at. Computed in raw UTC (to.setHours) the window rolled over on
+        // the server's clock, so for the two hours after local midnight "today"
+        // hadn't started yet and that day's bookings fell outside the window.
+        const { NAMIBIA_OFFSET_MIN } = require('../utils/appointmentTime');
+        const nowNam = new Date(Date.now() + NAMIBIA_OFFSET_MIN * 60 * 1000);
+        const startOfToday = new Date(Date.UTC(nowNam.getUTCFullYear(), nowNam.getUTCMonth(), nowNam.getUTCDate()));
+        const to = new Date(startOfToday); to.setUTCHours(23, 59, 59, 999);
+        const from = new Date(startOfToday); from.setUTCDate(from.getUTCDate() - (days - 1));
 
         const Appointment = require('../models/Appointment');
         const Review = require('../models/Review');
@@ -263,24 +290,22 @@ exports.getTeamMemberStats = async (req, res) => {
             appointmentDate: { $gte: from, $lte: to },
         };
 
-        const [done, upcoming, ratingAgg, staffHours, businessHours] = await Promise.all([
+        const [done, upcoming, ratingAgg, staffHours, businessHours, shifts] = await Promise.all([
             Appointment.find({ ...inWindow, status: 'completed' })
                 .select('totalPrice customer startTime endTime'),
             // From the START OF TODAY, not from this instant. appointmentDate is
             // a date-only value stored at midnight, so comparing it against `now`
             // silently dropped every remaining booking today — at 09:00 a 15:00
-            // appointment counted as already past. Within-day precision would need
-            // startTime; the auto-complete job flips finished bookings out of
-            // pending/confirmed, so this converges without it.
-            (() => {
-                const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
-                return Appointment.countDocuments({
-                    provider: req.user._id,
-                    teamMember: member._id,
-                    status: { $in: ['pending', 'confirmed'] },
-                    appointmentDate: { $gte: startOfToday },
-                });
-            })(),
+            // appointment counted as already past. `startOfToday` is the Windhoek
+            // day at UTC-midnight, matching how appointmentDate is stored. Within-
+            // day precision would need startTime; the auto-complete job flips
+            // finished bookings out of pending/confirmed, so this converges anyway.
+            Appointment.countDocuments({
+                provider: req.user._id,
+                teamMember: member._id,
+                status: { $in: ['pending', 'confirmed'] },
+                appointmentDate: { $gte: startOfToday },
+            }),
             // Reviews carry no teamMember, so the link runs through the booking.
             Review.aggregate([
                 { $lookup: { from: 'appointments', localField: 'appointment', foreignField: '_id', as: 'appt' } },
@@ -290,6 +315,14 @@ exports.getTeamMemberStats = async (req, res) => {
             ]),
             StaffAvailability.findOne({ teamMember: member._id }),
             Availability.findOne({ provider: req.user._id }),
+            // Date-specific shifts across the window. A shift REPLACES the weekly
+            // pattern for its date (models/Shift), so occupancy has to honour it —
+            // otherwise a rostered day off still counts as scheduled and drags the
+            // figure down, and an extra covered day is never counted at all.
+            Shift.find({
+                teamMember: member._id,
+                date: { $gte: from.toISOString().slice(0, 10), $lte: to.toISOString().slice(0, 10) },
+            }).select('date slots breaks').lean(),
         ]);
 
         const revenue = done.reduce((sum, a) => sum + (a.totalPrice || 0), 0);
@@ -314,18 +347,27 @@ exports.getTeamMemberStats = async (req, res) => {
             return sum + (mins > 0 ? mins : 0);
         }, 0);
 
+        const sumPeriods = (list) => (list || []).reduce((acc, s) => {
+            const mins = toMin(s.end) - toMin(s.start);
+            return acc + (mins > 0 ? mins : 0);
+        }, 0);
+
         const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
         const schedule = staffHours?.schedule || businessHours?.schedule || null;
+        const shiftByDate = new Map((shifts || []).map((s) => [s.date, s]));
+        // Iterate in UTC because appointmentDate — and therefore the shift keys and
+        // the day-of-week the weekly pattern is indexed by — are all UTC-midnight.
         let scheduledMinutes = 0;
-        if (schedule) {
-            for (let d = new Date(from); d <= to; d.setDate(d.getDate() + 1)) {
-                const cfg = schedule[DAY_NAMES[d.getDay()]];
-                if (!cfg?.enabled || !Array.isArray(cfg.slots)) continue;
-                cfg.slots.forEach((s) => {
-                    const mins = toMin(s.end) - toMin(s.start);
-                    if (mins > 0) scheduledMinutes += mins;
-                });
+        for (let d = new Date(from); d <= to; d.setUTCDate(d.getUTCDate() + 1)) {
+            const shift = shiftByDate.get(d.toISOString().slice(0, 10));
+            if (shift) {
+                // A shift is authoritative for its date: slots minus breaks. Empty
+                // slots is a rostered day off — zero scheduled, correctly.
+                scheduledMinutes += Math.max(0, sumPeriods(shift.slots) - sumPeriods(shift.breaks));
+                continue;
             }
+            const cfg = schedule?.[DAY_NAMES[d.getUTCDay()]];
+            if (cfg?.enabled && Array.isArray(cfg.slots)) scheduledMinutes += sumPeriods(cfg.slots);
         }
 
         res.status(200).json({

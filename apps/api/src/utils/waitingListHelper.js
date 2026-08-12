@@ -45,6 +45,25 @@ const slotIsFree = async (providerId, appointmentDate, startTime, endTime, teamM
     const nStart = toMinutes(startTime);
     const nEnd = toMinutes(endTime || startTime);
     if (existing.some(a => nStart < toMinutes(a.endTime) && nEnd > toMinutes(a.startTime))) return false;
+
+    // Honour the assigned member's roster: shift → weekly pattern → business
+    // hours. The create path refuses a booking onto a rostered day off, an
+    // off-shift hour, or a break, and promotion must refuse it too — otherwise
+    // cancelling a booking auto-promotes the next person in line straight onto a
+    // slot that member no longer works (their shift changed after they queued).
+    // Only for a specific member; null is the owner's own column, ungoverned by
+    // staff hours. Required lazily to keep the module load order simple.
+    if (teamMember) {
+        const { staffHoursReason } = require('./staffBooking');
+        const Availability = require('../models/Availability');
+        const av = await Availability.findOne({ provider: providerId }).select('schedule').lean();
+        const reason = await staffHoursReason({
+            member: { _id: teamMember }, date: appointmentDate,
+            startTime, endTime: endTime || startTime, businessSchedule: av?.schedule || null,
+        });
+        if (reason) return false;
+    }
+
     // Pass teamMember so a block owned by ONE staff member doesn't suppress promotion
     // business-wide (the same staff-blindness applied to blocked time).
     return !(await overlapsBlockedTime({

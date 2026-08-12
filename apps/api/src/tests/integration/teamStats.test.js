@@ -18,6 +18,8 @@ const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = require('../helpers/factories');
 const TeamMember = require('../../models/TeamMember');
 const StaffAvailability = require('../../models/StaffAvailability');
+const Shift = require('../../models/Shift');
+const { NAMIBIA_OFFSET_MIN } = require('../../utils/appointmentTime');
 
 jest.mock('../../utils/emailService', () => new Proxy({}, { get: () => jest.fn().mockResolvedValue(true) }));
 
@@ -25,6 +27,16 @@ beforeAll(() => testDb.connect());
 afterAll(() => testDb.closeDatabase());
 afterEach(() => testDb.clearDatabase());
 
+// The stats window is anchored to the business day in Africa/Windhoek, expressed
+// at UTC-midnight (how appointmentDate is stored). Build fixture dates the same
+// way, or a booking made "today" is dropped for the two hours after local
+// midnight when UTC hasn't rolled over yet.
+const DAYS7 = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const namTodayUtcMidnight = () => {
+    const n = new Date(Date.now() + NAMIBIA_OFFSET_MIN * 60 * 1000);
+    return new Date(Date.UTC(n.getUTCFullYear(), n.getUTCMonth(), n.getUTCDate()));
+};
+const namDaysAgoKey = (k) => { const d = namTodayUtcMidnight(); d.setUTCDate(d.getUTCDate() - k); return d.toISOString().slice(0, 10); };
 // Yesterday, so bookings are inside the window and safely in the past.
 const yesterday = () => { const d = new Date(); d.setDate(d.getDate() - 1); d.setHours(0, 0, 0, 0); return d; };
 
@@ -145,19 +157,59 @@ describe('team member stats', () => {
 
     // appointmentDate is a date-only value stored at midnight. Counting
     // "upcoming" from `now` therefore dropped everything still to come today —
-    // at 09:00, a 15:00 booking read as already past.
+    // at 09:00, a 15:00 booking read as already past. Today is the Windhoek day
+    // at UTC-midnight, matching how the window and appointmentDate are built.
     it('counts a booking later today as upcoming', async () => {
         const { provider, service, member } = await setup();
         const customer = await makeUser();
-        const todayMidnight = new Date(); todayMidnight.setHours(0, 0, 0, 0);
         await makeAppointment(customer._id, service._id, provider._id, {
             teamMember: member._id, status: 'confirmed',
-            appointmentDate: todayMidnight, startTime: '23:30', endTime: '23:59',
+            appointmentDate: namTodayUtcMidnight(), startTime: '23:30', endTime: '23:59',
         });
 
         const res = await statsFor(provider, member);
 
         expect(res.body.data.upcoming).toBe(1);
+    });
+
+    // Occupancy is shift-aware: a date-specific shift REPLACES the weekly pattern
+    // for its day (models/Shift), so a rostered day off is zero scheduled time,
+    // not a full day that drags the figure down.
+    it('treats a rostered day off as zero scheduled minutes, not a full day', async () => {
+        const { provider, member } = await setup();
+        const everyDay = {};
+        DAYS7.forEach((d) => { everyDay[d] = { enabled: true, slots: [{ start: '09:00', end: '17:00' }] }; }); // 480/day
+        await StaffAvailability.create({ provider: provider._id, teamMember: member._id, schedule: everyDay });
+        // One in-window date rostered off.
+        await Shift.create({ provider: provider._id, teamMember: member._id, date: namDaysAgoKey(1), slots: [] });
+
+        const res = await request(app)
+            .get(`/api/team/${member._id}/stats?days=3`)
+            .set(authHeader(provider));
+
+        // Three days at 480, minus the single day off.
+        expect(res.body.data.scheduledMinutes).toBe(3 * 480 - 480);
+    });
+
+    // A working shift counts its OWN hours minus its breaks, not the pattern's.
+    it('counts a shift\'s own hours, less its breaks', async () => {
+        const { provider, member } = await setup();
+        const everyDay = {};
+        DAYS7.forEach((d) => { everyDay[d] = { enabled: true, slots: [{ start: '09:00', end: '17:00' }] }; }); // 480/day
+        await StaffAvailability.create({ provider: provider._id, teamMember: member._id, schedule: everyDay });
+        // That day: a 10:00–14:00 shift (240) with a 30-minute break = 210.
+        await Shift.create({
+            provider: provider._id, teamMember: member._id, date: namDaysAgoKey(1),
+            slots: [{ start: '10:00', end: '14:00' }],
+            breaks: [{ start: '12:00', end: '12:30', label: 'Lunch' }],
+        });
+
+        const res = await request(app)
+            .get(`/api/team/${member._id}/stats?days=3`)
+            .set(authHeader(provider));
+
+        // Two pattern days at 480, plus the shift day at 240 − 30.
+        expect(res.body.data.scheduledMinutes).toBe(2 * 480 + 210);
     });
 
     it('refuses another provider\'s team member', async () => {

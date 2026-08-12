@@ -160,9 +160,13 @@ const MemberCard = ({ member, services, onChanged }) => {
         setSeesAll(next);            // optimistic — the switch should feel instant
         setBusy('perms');
         try {
-            // calendar:self is the ABSENCE of calendar:all; it is sent so the
-            // stored flags read sensibly rather than being an empty array.
-            await teamService.setMemberPermissions(member._id, [next ? 'calendar:all' : 'calendar:self']);
+            // The permissions endpoint replaces the whole set, so send every flag
+            // this member already holds with only the calendar one flipped —
+            // sending a bare ['calendar:all'] wiped their other flags (clients:
+            // assigned and anything added later) on every toggle. calendar:self is
+            // the ABSENCE of calendar:all, sent so the stored flags read sensibly.
+            const others = perms.filter((p) => p !== 'calendar:all' && p !== 'calendar:self');
+            await teamService.setMemberPermissions(member._id, [...others, next ? 'calendar:all' : 'calendar:self']);
             flash(next
                 ? `${member.name} can now see everyone's calendar.`
                 : `${member.name} now sees only their own bookings.`);

@@ -212,6 +212,102 @@ describe('rescheduling respects the roster', () => {
     });
 });
 
+// A shift REPLACES business hours for that member on that date, so a member
+// rostered to cover a slot the business is normally closed for must actually be
+// bookable there. Business hours here are 08:00–18:00; the shift runs to 20:00.
+describe('a shift can be sold outside business hours', () => {
+    const Appointment = require('../../models/Appointment');
+    // 19:00 is outside the 08:00–18:00 business day but inside a 12:00–20:00 shift.
+    const OUT_OF_HOURS = '19:00';
+    const book = (customer, svc, member, startTime, endTime, date = DATE) => request(app)
+        .post('/api/appointments')
+        .set(authHeader(customer))
+        .send({ service: svc._id.toString(), appointmentDate: date, startTime, endTime, teamMember: member._id.toString() });
+
+    it('refuses the out-of-hours slot when there is no shift', async () => {
+        const { customer, svc, member } = await setup();
+        // The member's own weekly hours (09:00–17:00) don't reach 19:00 either,
+        // and there is no shift — so the business-hours gate rightly stands.
+        const res = await book(customer, svc, member, OUT_OF_HOURS, '19:30');
+        expect(res.status).toBe(400);
+        expect(await Appointment.countDocuments({ teamMember: member._id })).toBe(0);
+    });
+
+    it('allows it for a member whose shift covers that time', async () => {
+        const { provider, customer, svc, member } = await setup();
+        await Shift.create({ provider: provider._id, teamMember: member._id, date: DATE, slots: [{ start: '12:00', end: '20:00' }] });
+
+        const res = await book(customer, svc, member, OUT_OF_HOURS, '19:30');
+
+        expect(res.status).toBe(201);
+        expect(res.body.data.teamMember).toBe(member._id.toString());
+    });
+
+    // The gate stands down, but the per-staff check does not: a slot the shift
+    // itself doesn't cover is still refused, with the roster's own message.
+    it('still refuses a time the shift does not cover', async () => {
+        const { provider, customer, svc, member } = await setup();
+        await Shift.create({ provider: provider._id, teamMember: member._id, date: DATE, slots: [{ start: '12:00', end: '20:00' }] });
+
+        // 21:00 is outside business hours AND outside the shift.
+        const res = await book(customer, svc, member, '21:00', '21:30');
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/rostered/i);
+    });
+
+    it('lets a customer reschedule onto a shift-covered out-of-hours slot', async () => {
+        const { provider, customer, svc, member } = await setup();
+        await Shift.create({ provider: provider._id, teamMember: member._id, date: OTHER_DATE, slots: [{ start: '12:00', end: '20:00' }] });
+
+        const appt = await Appointment.create({
+            customer: customer._id, service: svc._id, provider: provider._id, teamMember: member._id,
+            appointmentDate: new Date(`${DATE}T00:00:00Z`), startTime: '10:00', endTime: '10:30',
+            totalPrice: 50, status: 'confirmed',
+        });
+
+        const res = await request(app)
+            .put(`/api/appointments/${appt._id}/reschedule`)
+            .set(authHeader(customer))
+            .send({ appointmentDate: OTHER_DATE, startTime: OUT_OF_HOURS });
+
+        expect(res.status).toBe(200);
+        expect((await Appointment.findById(appt._id)).startTime).toBe(OUT_OF_HOURS);
+    });
+});
+
+// A single booking is gated by the roster; a recurring series used to insert
+// every occurrence blind, booking straight through a member's rostered day off.
+describe('a recurring series respects the roster', () => {
+    const Appointment = require('../../models/Appointment');
+    // DATE is a Wednesday; a weekly series lands on the next two Wednesdays too.
+    const WEEK_1 = '2026-09-23';
+    const WEEK_2 = '2026-09-30';
+
+    it('skips the occurrences the member is rostered off, keeps the rest', async () => {
+        const { provider, customer, svc, member } = await setup();
+        // Rostered off on the middle occurrence only.
+        await Shift.create({ provider: provider._id, teamMember: member._id, date: WEEK_1, slots: [] });
+
+        const res = await request(app)
+            .post('/api/appointments')
+            .set(authHeader(customer))
+            .send({
+                service: svc._id.toString(), appointmentDate: DATE,
+                startTime: '10:00', endTime: '10:30', teamMember: member._id.toString(),
+                isRecurring: true, recurrenceType: 'weekly', recurrenceEndDate: WEEK_2,
+            });
+
+        expect(res.status).toBe(201);
+        expect(res.body.skippedDates).toContain(WEEK_1);
+
+        const days = (await Appointment.find({ teamMember: member._id }).select('appointmentDate').lean())
+            .map((a) => a.appointmentDate.toISOString().slice(0, 10));
+        expect(days).toContain(DATE);       // first occurrence
+        expect(days).toContain(WEEK_2);     // last occurrence
+        expect(days).not.toContain(WEEK_1); // the rostered day off
+    });
+});
+
 describe('managing shifts', () => {
     const put = (provider, member, body) =>
         request(app).put(`/api/team/${member._id}/shifts`).set(authHeader(provider)).send(body);
@@ -299,6 +395,33 @@ describe('managing shifts', () => {
             .send({ date: DATE, slots: [{ start: '09:00', end: '17:00' }] });
 
         expect(res.status).toBe(404);
+        expect(await Shift.countDocuments({ teamMember: member._id })).toBe(0);
+    });
+
+    // The date regex alone accepts days that do not exist; a shift stored against
+    // 2026-02-31 would sit in the collection matching nothing the booking path
+    // ever asks about — an invisible, un-clearable ghost.
+    it('refuses a well-formed but impossible calendar date', async () => {
+        const { provider, member } = await setup();
+
+        const res = await put(provider, member, { date: '2026-02-31', slots: [{ start: '09:00', end: '17:00' }] });
+
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/real calendar date/i);
+        expect(await Shift.countDocuments({ teamMember: member._id })).toBe(0);
+    });
+
+    // The schema constrains the note length, but findOneAndUpdate only enforces
+    // the schema with runValidators — without it an over-long note is written
+    // unchecked. A schema violation is the caller's mistake, so it answers 400.
+    it('enforces the schema on the upsert path, not just on create', async () => {
+        const { provider, member } = await setup();
+
+        const res = await put(provider, member, {
+            date: DATE, slots: [{ start: '09:00', end: '17:00' }], note: 'x'.repeat(200),
+        });
+
+        expect(res.status).toBe(400);
         expect(await Shift.countDocuments({ teamMember: member._id })).toBe(0);
     });
 });
