@@ -210,11 +210,28 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
             API.get(`/team/${id}/shifts`, { params: from && to ? { from, to } : {} }),
         setMemberShift: (id: string, shift: any) => API.put(`/team/${id}/shifts`, shift),
         clearMemberShift: (id: string, date: string) => API.delete(`/team/${id}/shifts/${date}`),
+        // Time off — a multi-day leave range. Owner creates (approved at once),
+        // decides pending staff requests, and removes. Staff self-service is a
+        // separate surface (not used by the provider app).
+        getMemberTimeOff: (id: string, from?: string, to?: string) =>
+            API.get(`/team/${id}/timeoff`, { params: from && to ? { from, to } : {} }),
+        addMemberTimeOff: (id: string, leave: any) => API.post(`/team/${id}/timeoff`, leave),
+        decideMemberTimeOff: (id: string, toId: string, status: 'approved' | 'declined') =>
+            API.patch(`/team/${id}/timeoff/${toId}/decision`, { status }),
+        removeMemberTimeOff: (id: string, toId: string) => API.delete(`/team/${id}/timeoff/${toId}`),
         // Epic 2 staff management
         inviteMember: (id: string, data?: any) => API.post(`/team/${id}/invite`, data || {}),
         setMemberServices: (id: string, services: string[]) => API.put(`/team/${id}/services`, { services }),
         getMemberAvailability: (id: string) => API.get(`/team/${id}/availability`),
         updateMemberAvailability: (id: string, schedule: any) => API.put(`/team/${id}/availability`, { schedule }),
+    },
+
+    // Staff self-service time off — the signed-in staff member's own requests.
+    // The owner sets and approves via teamService; this is the other side.
+    myTimeOffService: {
+        list: () => API.get('/timeoff/mine'),
+        request: (leave: any) => API.post('/timeoff/mine', leave),
+        withdraw: (id: string) => API.delete(`/timeoff/mine/${id}`),
     },
 
     suggestionService: {

@@ -312,18 +312,34 @@ exports.getBookedSlots = async (req, res) => {
         if (teamMember) query.teamMember = teamMember;
 
         const Shift = require('../models/Shift');
-        const [appointments, blocks, shift] = await Promise.all([
+        const TimeOff = require('../models/TimeOff');
+        const dayKey = toDateKey(date);
+        const [appointments, blocks, shift, leaves] = await Promise.all([
             Appointment.find(query).select('startTime endTime teamMember -_id').lean(),
             findBlocksForDate(providerId, date, teamMember || null),
             // Only meaningful for a named staff member: a shift is one person's
             // working day, so it says nothing about the business as a whole.
-            teamMember ? Shift.findOne({ teamMember, date: toDateKey(date) }).select('slots breaks').lean() : null,
+            teamMember ? Shift.findOne({ teamMember, date: dayKey }).select('slots breaks').lean() : null,
+            // Approved leave for this member covering the day — also one person's,
+            // so only when a member is named.
+            teamMember ? TimeOff.find({
+                teamMember, status: 'approved', startDate: { $lte: dayKey }, endDate: { $gte: dayKey },
+            }).select('allDay startTime endTime').lean() : [],
         ]);
 
         const busy = [
             ...appointments.map(a => ({ ...a, kind: 'appointment' })),
             ...blocks.map(b => ({ startTime: b.startTime, endTime: b.endTime, kind: 'blocked' })),
         ];
+
+        // Leave has to show as busy for the same reason breaks do: the client
+        // subtracts this list from opening hours, so leave it never hears about is
+        // a slot the customer picks and is then refused. All-day leave blocks the
+        // whole day; a windowed leave blocks only its hours.
+        (leaves || []).forEach((lv) => {
+            if (lv.allDay) busy.push({ startTime: '00:00', endTime: '23:59', kind: 'time_off' });
+            else busy.push({ startTime: lv.startTime, endTime: lv.endTime, kind: 'time_off' });
+        });
 
         // Breaks and off-shift hours have to come back as BUSY, not just be
         // enforced when the booking is submitted. Slots are computed on the

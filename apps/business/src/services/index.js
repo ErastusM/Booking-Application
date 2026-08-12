@@ -31,6 +31,7 @@ export const {
     packageService,
     retentionService,
     teamService,
+    myTimeOffService,
     suggestionService,
     pushService,
     walletService,

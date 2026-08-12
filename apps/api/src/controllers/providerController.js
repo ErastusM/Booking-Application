@@ -5,6 +5,7 @@ const Category = require('../models/Category');
 const TeamMember = require('../models/TeamMember');
 const Availability = require('../models/Availability');
 const Shift = require('../models/Shift');
+const TimeOff = require('../models/TimeOff');
 const { searchAvailability } = require('../utils/availabilitySearch');
 
 const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
@@ -58,12 +59,31 @@ exports.getProviderStaffShiftDays = async (req, res) => {
         }).select('_id');
         if (!member) return res.status(200).json({ success: true, data: { working: [], off: [] } });
 
-        const shifts = await Shift.find({ teamMember: member._id, date: { $gte: from, $lte: to } })
-            .select('date slots').lean();
-        const working = [];
-        const off = [];
+        const [shifts, leaves] = await Promise.all([
+            Shift.find({ teamMember: member._id, date: { $gte: from, $lte: to } }).select('date slots').lean(),
+            // All-day approved leave overlapping the window closes those days.
+            TimeOff.find({
+                teamMember: member._id, status: 'approved', allDay: true,
+                startDate: { $lte: to }, endDate: { $gte: from },
+            }).select('startDate endDate').lean(),
+        ]);
+
+        const workingSet = new Set();
+        const offSet = new Set();
         // An empty-slots shift is a rostered day off; anything else is a working day.
-        shifts.forEach((s) => ((s.slots && s.slots.length) ? working : off).push(s.date));
+        shifts.forEach((s) => ((s.slots && s.slots.length) ? workingSet : offSet).add(s.date));
+        // Expand each all-day leave into the days it covers within [from, to].
+        leaves.forEach((lv) => {
+            const s = lv.startDate < from ? from : lv.startDate;
+            const e = lv.endDate > to ? to : lv.endDate;
+            for (let d = new Date(`${s}T00:00:00.000Z`); d.toISOString().slice(0, 10) <= e; d.setUTCDate(d.getUTCDate() + 1)) {
+                offSet.add(d.toISOString().slice(0, 10));
+            }
+        });
+        // Leave wins over a working shift: a member rostered on but on approved
+        // leave is still away, so never report that day as workable.
+        const working = [...workingSet].filter((d) => !offSet.has(d));
+        const off = [...offSet];
         res.status(200).json({ success: true, data: { working, off } });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
