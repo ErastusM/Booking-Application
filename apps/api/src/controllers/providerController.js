@@ -51,6 +51,14 @@ exports.getProviderStaffShiftDays = async (req, res) => {
         if (!DATE_KEY.test(from || '') || !DATE_KEY.test(to || '')) {
             return res.status(400).json({ success: false, message: 'from and to must be YYYY-MM-DD' });
         }
+        // Bound the work on this public, unauthenticated endpoint: the per-day
+        // leave-expansion loop below runs across [from, to], so an unbounded
+        // window (from=0001, to=9999) against a long leave is a cheap DoS. A
+        // calendar never needs more than a year at a time.
+        const spanDays = Math.round((new Date(`${to}T00:00:00.000Z`) - new Date(`${from}T00:00:00.000Z`)) / 86400000);
+        if (spanDays < 0 || spanDays > 400) {
+            return res.status(400).json({ success: false, message: 'from and to must be a range of at most 400 days' });
+        }
         // The member must belong to THIS provider and still be active. A miss
         // returns empty (not 404), so the picker simply falls back to business
         // hours rather than leaking whether an id exists.

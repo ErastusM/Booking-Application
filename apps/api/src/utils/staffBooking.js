@@ -33,6 +33,28 @@ const toMin = (t) => {
 const overlaps = (aS, aE, bS, bE) => aS < bE && aE > bS;
 const dateStr = (d) => (typeof d === 'string' ? d.slice(0, 10) : new Date(d).toISOString().slice(0, 10));
 
+/**
+ * The [startMin, endMin] windows an appointment occupies FOR one member.
+ *
+ * A multi-service booking splits across staff — each services[] entry has its
+ * own teamMember and its own start/end — so only that member's OWN segments
+ * count against them. Blocking a colleague for the whole ticket's span (or, the
+ * bug this fixes, failing to block a segment performer at all because they're
+ * not the top-level teamMember) both come from ignoring the segment breakdown.
+ * A single-service booking (no services[]) counts wholly for its one member.
+ */
+const memberBusyIntervals = (appt, memberId) => {
+    const id = String(memberId);
+    if (Array.isArray(appt.services) && appt.services.length) {
+        return appt.services
+            .filter(s => String(s.teamMember) === id)
+            .map(s => [toMin(s.startTime), toMin(s.endTime)]);
+    }
+    return String(appt.teamMember) === id ? [[toMin(appt.startTime), toMin(appt.endTime)]] : [];
+};
+// A member is involved in a booking as its top-level performer OR a segment one.
+const memberInvolvedFilter = (memberId) => ({ $or: [{ teamMember: memberId }, { 'services.teamMember': memberId }] });
+
 const withinSchedule = (schedule, date, startMin, endMin) => {
     const day = schedule?.[DAY_NAMES[new Date(date).getDay()]];
     if (!day?.enabled || !Array.isArray(day.slots) || day.slots.length === 0) return false;
@@ -84,7 +106,10 @@ async function staffHoursReason({ member, date, startTime, endTime, businessSche
         startDate: { $lte: key }, endDate: { $gte: key },
     }).select('allDay startTime endTime').lean();
     for (const lv of leaves) {
-        if (lv.allDay) return 'time_off';
+        // Missing window times mean the leave can't be interpreted as a window;
+        // treat it as all-day rather than fail open (toMin(null) is NaN, and every
+        // overlap test against NaN is false — silently ignoring the leave).
+        if (lv.allDay || lv.startTime == null || lv.endTime == null) return 'time_off';
         if (overlaps(startMin, endMin, toMin(lv.startTime), toMin(lv.endTime))) return 'time_off';
     }
 
@@ -128,15 +153,17 @@ async function isMemberFree({ providerId, member, date, startTime, endTime, svc,
     const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999);
     const existing = await Appointment.find({
         provider: providerId,
-        teamMember: member._id,
+        ...memberInvolvedFilter(member._id),
         appointmentDate: { $gte: dayStart, $lte: dayEnd },
         status: { $nin: ['cancelled'] },
-    }).select('startTime endTime');
+    }).select('startTime endTime services teamMember');
     const nStart = startMin - (svc?.bufferBefore || 0);
     const nEnd = endMin + (svc?.bufferAfter || 0);
-    if (existing.some(a => overlaps(nStart, nEnd, toMin(a.startTime), toMin(a.endTime)))) {
-        return { free: false, reason: 'booked' };
-    }
+    // Per-segment: a member is busy only over their own segment windows, so a
+    // colleague sharing a multi-service ticket doesn't falsely block them — and,
+    // the double-booking this closes, a segment-only performer IS now seen.
+    const clash = existing.some(a => memberBusyIntervals(a, member._id).some(([s, e]) => overlaps(nStart, nEnd, s, e)));
+    if (clash) return { free: false, reason: 'booked' };
     return { free: true };
 }
 
@@ -203,4 +230,7 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
     return { status: 400, error: 'No staff member is available at that time. You can join the waiting list instead.' };
 }
 
-module.exports = { resolveBookingStaff, isMemberFree, performsService, staffHoursReason, UNAVAILABLE_MESSAGES };
+module.exports = {
+    resolveBookingStaff, isMemberFree, performsService, staffHoursReason,
+    memberBusyIntervals, memberInvolvedFilter, UNAVAILABLE_MESSAGES,
+};
