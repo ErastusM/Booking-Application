@@ -318,12 +318,14 @@ exports.getBookedSlots = async (req, res) => {
             Appointment.find(query).select('startTime endTime teamMember -_id').lean(),
             findBlocksForDate(providerId, date, teamMember || null),
             // Only meaningful for a named staff member: a shift is one person's
-            // working day, so it says nothing about the business as a whole.
-            teamMember ? Shift.findOne({ teamMember, date: dayKey }).select('slots breaks').lean() : null,
+            // working day, so it says nothing about the business as a whole. Scoped
+            // to THIS provider so a member id can't be used to read another
+            // business's roster metadata across the public endpoint.
+            teamMember ? Shift.findOne({ provider: providerId, teamMember, date: dayKey }).select('slots breaks').lean() : null,
             // Approved leave for this member covering the day — also one person's,
-            // so only when a member is named.
+            // so only when a member is named. Provider-scoped for the same reason.
             teamMember ? TimeOff.find({
-                teamMember, status: 'approved', startDate: { $lte: dayKey }, endDate: { $gte: dayKey },
+                provider: providerId, teamMember, status: 'approved', startDate: { $lte: dayKey }, endDate: { $gte: dayKey },
             }).select('allDay startTime endTime').lean() : [],
         ]);
 
@@ -337,7 +339,9 @@ exports.getBookedSlots = async (req, res) => {
         // a slot the customer picks and is then refused. All-day leave blocks the
         // whole day; a windowed leave blocks only its hours.
         (leaves || []).forEach((lv) => {
-            if (lv.allDay) busy.push({ startTime: '00:00', endTime: '23:59', kind: 'time_off' });
+            // A windowed leave missing its times is treated as all-day, matching
+            // staffHoursReason — never emit a null-timed busy entry.
+            if (lv.allDay || lv.startTime == null || lv.endTime == null) busy.push({ startTime: '00:00', endTime: '23:59', kind: 'time_off' });
             else busy.push({ startTime: lv.startTime, endTime: lv.endTime, kind: 'time_off' });
         });
 

@@ -130,8 +130,10 @@ const MemberCard = ({ member, services, onChanged }) => {
 
     useEffect(() => {
         if (!open || tab !== 'workspace' || timeOff !== null) return;
-        const to = new Date(); to.setDate(to.getDate() + 180);
-        teamService.getMemberTimeOff(member._id, todayKey, to.toISOString().slice(0, 10))
+        // No date window — fetch all of this member's leave. Windowing it hid leave
+        // the owner had just added (past dates, or further out than the window),
+        // which read as a failed save and produced invisible duplicates on retry.
+        teamService.getMemberTimeOff(member._id)
             .then(res => setTimeOff(res.data.data || []))
             .catch(() => setTimeOff(false));
     }, [open, tab]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -180,10 +182,19 @@ const MemberCard = ({ member, services, onChanged }) => {
         } finally { setBusy(''); }
     };
 
-    const refreshTimeOff = async () => {
-        const to = new Date(); to.setDate(to.getDate() + 180);
-        const res = await teamService.getMemberTimeOff(member._id, todayKey, to.toISOString().slice(0, 10));
-        setTimeOff(res.data.data || []);
+    // A failed refetch must NOT be reported as a failed mutation — the write
+    // already succeeded, and telling the owner it failed makes them retry and
+    // create a duplicate. Refresh failures are swallowed (the list just stays as
+    // it was) rather than surfaced as the operation's error.
+    const refreshTimeOff = () => teamService.getMemberTimeOff(member._id)
+        .then(res => setTimeOff(res.data.data || []))
+        .catch(() => {});
+
+    // Approving/adding leave doesn't move existing bookings; the API returns how
+    // many now overlap so the owner knows to reschedule them.
+    const flashOverlap = (res, base) => {
+        const n = res?.data?.overlappingBookings || 0;
+        flash(n > 0 ? `${base} ${n} existing booking${n > 1 ? 's' : ''} overlap — reschedule or cancel ${n > 1 ? 'them' : 'it'}.` : base);
     };
 
     const addTimeOff = async () => {
@@ -192,34 +203,41 @@ const MemberCard = ({ member, services, onChanged }) => {
         try {
             const body = { startDate: toForm.startDate, endDate: toForm.endDate, allDay: toForm.allDay, type: toForm.type, note: toForm.note.trim() };
             if (!toForm.allDay) { body.startTime = toForm.startTime; body.endTime = toForm.endTime; }
-            await teamService.addMemberTimeOff(member._id, body);
-            await refreshTimeOff();
+            const res = await teamService.addMemberTimeOff(member._id, body);
             setToForm(f => ({ ...f, note: '' }));
-            flash('Time off added.');
+            flashOverlap(res, 'Time off added.');
         } catch (err) {
             setToErr(err?.response?.data?.message || 'Could not add that time off.');
-        } finally { setToBusy(''); }
+            setToBusy(''); return;
+        }
+        await refreshTimeOff();
+        setToBusy('');
     };
 
     const decideTimeOff = async (id, status) => {
         setToBusy(id); setToErr('');
         try {
-            await teamService.decideMemberTimeOff(member._id, id, status);
-            await refreshTimeOff();
-            flash(status === 'approved' ? 'Leave approved.' : 'Request declined.');
+            const res = await teamService.decideMemberTimeOff(member._id, id, status);
+            if (status === 'approved') flashOverlap(res, 'Leave approved.');
+            else flash('Request declined.');
         } catch (err) {
             setToErr(err?.response?.data?.message || 'Could not update that request.');
-        } finally { setToBusy(''); }
+            setToBusy(''); return;
+        }
+        await refreshTimeOff();
+        setToBusy('');
     };
 
     const removeTimeOff = async (id) => {
         setToBusy(id); setToErr('');
         try {
             await teamService.removeMemberTimeOff(member._id, id);
-            await refreshTimeOff();
         } catch (err) {
             setToErr(err?.response?.data?.message || 'Could not remove that time off.');
-        } finally { setToBusy(''); }
+            setToBusy(''); return;
+        }
+        await refreshTimeOff();
+        setToBusy('');
     };
 
     const setCalendarAccess = async (next) => {
@@ -598,7 +616,7 @@ const MemberCard = ({ member, services, onChanged }) => {
                                         </>
                                     )}
                                 </div>
-                                <input className="input" placeholder="Note (optional) — e.g. Family visit" value={toForm.note}
+                                <input className="input" placeholder="Note (optional) — e.g. Family visit" value={toForm.note} maxLength={200}
                                     onChange={e => setToForm(f => ({ ...f, note: e.target.value }))}
                                     style={{ marginTop: '0.6rem', padding: '0.45rem 0.6rem', width: '100%', maxWidth: '340px' }} />
                                 <div>
@@ -624,9 +642,9 @@ const MemberCard = ({ member, services, onChanged }) => {
                                                     <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.2rem', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
                                                         <span style={{ padding: '0.1rem 0.45rem', borderRadius: '999px', background: 'rgba(240,62,22,0.1)', color: 'var(--gold-dark)', fontWeight: 650 }}>{cap(t.type)}</span>
                                                         <span>{t.allDay ? 'All day' : `${t.startTime}–${t.endTime}`}</span>
-                                                        {pending
-                                                            ? <span style={{ color: '#a86a12', fontWeight: 650 }}>Requested — needs your OK</span>
-                                                            : <span style={{ color: '#1f8a4c', fontWeight: 650 }}>Approved</span>}
+                                                        {t.status === 'pending' && <span style={{ color: '#a86a12', fontWeight: 650 }}>Requested — needs your OK</span>}
+                                                        {t.status === 'approved' && <span style={{ color: '#1f8a4c', fontWeight: 650 }}>Approved</span>}
+                                                        {t.status === 'declined' && <span style={{ color: 'var(--text-muted)', fontWeight: 650 }}>Declined</span>}
                                                         {t.note && <span>· {t.note}</span>}
                                                     </div>
                                                 </div>

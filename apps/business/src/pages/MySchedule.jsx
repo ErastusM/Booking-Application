@@ -44,26 +44,36 @@ const MySchedule = () => {
 
     const flash = (t) => { setMsg(t); setTimeout(() => setMsg(''), 3500); };
 
-    const reloadTimeOff = () => myTimeOffService.list().then(res => setTimeOff(res.data.data || []));
+    // Swallow refetch failures: the request/withdraw already succeeded, so
+    // surfacing a reload error as the operation's error would make staff retry
+    // and file a duplicate.
+    const reloadTimeOff = () => myTimeOffService.list().then(res => setTimeOff(res.data.data || [])).catch(() => {});
 
     const requestTimeOff = async () => {
         if (form.endDate < form.startDate) { setErr('The end date can’t be before the start date.'); return; }
         setBusy('add'); setErr('');
         try {
             await myTimeOffService.request({ startDate: form.startDate, endDate: form.endDate, allDay: true, type: form.type, note: form.note.trim() });
-            await reloadTimeOff();
             setForm(f => ({ ...f, note: '' }));
             flash('Request sent — your manager will review it.');
         } catch (e) {
             setErr(e?.response?.data?.message || 'Could not send that request.');
-        } finally { setBusy(''); }
+            setBusy(''); return;
+        }
+        await reloadTimeOff();
+        setBusy('');
     };
 
     const withdraw = async (id) => {
         setBusy(id); setErr('');
-        try { await myTimeOffService.withdraw(id); await reloadTimeOff(); }
-        catch (e) { setErr(e?.response?.data?.message || 'Could not withdraw that request.'); }
-        finally { setBusy(''); }
+        try {
+            await myTimeOffService.withdraw(id);
+        } catch (e) {
+            setErr(e?.response?.data?.message || 'Could not withdraw that request.');
+            setBusy(''); return;
+        }
+        await reloadTimeOff();
+        setBusy('');
     };
 
     const upcoming = (appointments || [])
@@ -135,7 +145,7 @@ const MySchedule = () => {
                         </select>
                     </label>
                 </div>
-                <input className="input" placeholder="Note (optional)" value={form.note}
+                <input className="input" placeholder="Note (optional)" value={form.note} maxLength={200}
                     onChange={e => setForm(f => ({ ...f, note: e.target.value }))}
                     style={{ marginTop: '0.6rem', padding: '0.45rem 0.6rem', width: '100%', maxWidth: '340px' }} />
                 <div>

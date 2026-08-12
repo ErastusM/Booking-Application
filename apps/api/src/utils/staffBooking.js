@@ -84,7 +84,10 @@ async function staffHoursReason({ member, date, startTime, endTime, businessSche
         startDate: { $lte: key }, endDate: { $gte: key },
     }).select('allDay startTime endTime').lean();
     for (const lv of leaves) {
-        if (lv.allDay) return 'time_off';
+        // Missing window times mean the leave can't be interpreted as a window;
+        // treat it as all-day rather than fail open (toMin(null) is NaN, and every
+        // overlap test against NaN is false — silently ignoring the leave).
+        if (lv.allDay || lv.startTime == null || lv.endTime == null) return 'time_off';
         if (overlaps(startMin, endMin, toMin(lv.startTime), toMin(lv.endTime))) return 'time_off';
     }
 

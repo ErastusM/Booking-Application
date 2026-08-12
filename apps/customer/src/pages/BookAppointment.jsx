@@ -203,11 +203,23 @@ const BookAppointment = () => {
         return () => { stale = true; };
     }, [effectiveProviderId, formData.appointmentDate, selectedStaff]);
 
+    // Which (date, staff) the slot state currently belongs to. The live refresh
+    // below is async and unkeyed; without this a response for a day/member the
+    // user has since navigated away from would land and overwrite the day they're
+    // actually looking at (a rostered day off blanking a working day, etc.).
+    const slotKeyRef = useRef('');
+    slotKeyRef.current = `${formData.appointmentDate}|${selectedStaff?._id || ''}`;
+
     // Live updates — while a date is open, keep its taken/free slots current so a
     // slot freed or grabbed by someone else reflects without a manual refresh.
     useLiveRefresh(() => {
+        const key = `${formData.appointmentDate}|${selectedStaff?._id || ''}`;
         appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate, selectedStaff?._id || undefined)
-            .then(res => { setBookedSlots(res.data.data || []); setShiftWindow(res.data.shiftWindow ?? null); })
+            .then(res => {
+                if (slotKeyRef.current !== key) return; // a newer day/member is selected — drop this
+                setBookedSlots(res.data.data || []);
+                setShiftWindow(res.data.shiftWindow ?? null);
+            })
             .catch(() => {});
     }, { intervalMs: 20000, enabled: !!(effectiveProviderId && formData.appointmentDate) });
 
@@ -964,7 +976,7 @@ const BookAppointment = () => {
                                     <label style={labelStyle}>Choose your professional</label>
                                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                                         <button type="button" data-testid="booking-staff-any"
-                                            onClick={() => setSelectedStaff(null)}
+                                            onClick={() => { setSelectedStaff(null); setShiftWindow(null); setFormData(prev => ({ ...prev, startTime: '', endTime: '' })); }}
                                             style={{ padding: '0.5rem 1rem', borderRadius: '999px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: '0.85rem', border: `1.5px solid ${!selectedStaff ? 'var(--gold)' : 'var(--border)'}`, background: !selectedStaff ? 'rgba(240,62,22,0.10)' : 'var(--card-bg)', color: !selectedStaff ? 'var(--gold-dark)' : 'var(--text-secondary)' }}>
                                             Any professional
                                         </button>
@@ -972,7 +984,7 @@ const BookAppointment = () => {
                                             const sel = selectedStaff?._id === st._id;
                                             return (
                                                 <button key={st._id} type="button" data-testid="booking-staff"
-                                                    onClick={() => setSelectedStaff(st)}
+                                                    onClick={() => { setSelectedStaff(st); setShiftWindow(null); setFormData(prev => ({ ...prev, startTime: '', endTime: '' })); }}
                                                     style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.5rem 1rem', borderRadius: '999px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: '0.85rem', border: `1.5px solid ${sel ? 'var(--gold)' : 'var(--border)'}`, background: sel ? 'rgba(240,62,22,0.10)' : 'var(--card-bg)', color: sel ? 'var(--gold-dark)' : 'var(--text-secondary)' }}>
                                                     <span aria-hidden="true" style={{ width: '10px', height: '10px', borderRadius: '50%', background: st.color || 'var(--gold)', flexShrink: 0 }} />
                                                     {st.name}

@@ -13,6 +13,11 @@
 export const overlapsRange = (ranges, start, end) =>
     ranges.some((b) => start < b.end && end > b.start);
 
+// Busy kinds that are NOT a bookable-but-taken slot: the customer can never take
+// them, so they read "Unavailable" and offer no waitlist. Anything else (a real
+// appointment, or a legacy range with no kind) is a booking.
+const NON_BOOKING_KINDS = new Set(['blocked', 'break', 'off_shift', 'time_off']);
+
 export const fmtMinutes = (mins) =>
     `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
 
@@ -20,10 +25,12 @@ export const fmtMinutes = (mins) =>
  * @param {Object}   args
  * @param {{start:number,end:number}[]} args.blocks       working blocks for the day
  * @param {{start:number,end:number,kind?:string}[]} args.bookedRanges  busy ranges.
- *        `kind:'blocked'` marks provider-blocked time (lunch, day off) as opposed
- *        to a real booking — an hour busy ONLY because of those is "Unavailable",
- *        not "Taken", and offering its waitlist would be meaningless. A range with
- *        no `kind` is treated as a booking, so older callers behave exactly as before.
+ *        Kinds other than a real appointment — `blocked` (lunch, day off), `break`,
+ *        `off_shift`, `time_off` (leave) — mark time the customer simply CAN'T book:
+ *        an hour busy only because of those is "Unavailable", not "Taken", and
+ *        offering its waitlist is meaningless (nobody cancels a lunch break or a
+ *        leave the way they cancel a booking). A range with no `kind`, or an
+ *        `appointment`, is a real booking whose waitlist is worth offering.
  * @param {number}   args.duration  service length in minutes (also the slot grid)
  * @param {number}   [args.minStart] earliest allowed start (e.g. "now" for today); -1 = none
  * @returns {{time:string, isBooked:boolean, isBlocked:boolean}[]}
@@ -52,7 +59,7 @@ export const buildTimeSlots = ({ blocks, bookedRanges = [], duration, minStart =
                 const hits = bookedRanges.filter((b) => start < b.end && end > b.start);
                 if (hits.length) {
                     occupied = true;
-                    if (hits.some((h) => h.kind !== 'blocked')) hitRealBooking = true;
+                    if (hits.some((h) => !NON_BOOKING_KINDS.has(h.kind))) hitRealBooking = true;
                     continue;
                 }
                 slots.push({ time: fmtMinutes(start), isBooked: false, isBlocked: false });

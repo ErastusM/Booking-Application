@@ -1,9 +1,16 @@
+const mongoose = require('mongoose');
 const TimeOff = require('../models/TimeOff');
 const TeamMember = require('../models/TeamMember');
+const Appointment = require('../models/Appointment');
 
 const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
 const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
 const TYPES = ['vacation', 'sick', 'unpaid', 'training', 'other'];
+// A year of leave in one row is already extreme; the cap mostly exists to stop a
+// typo'd year ("9999") silently closing a calendar for decades — and to bound
+// the per-day expansion loop in the public shift-days feed.
+const MAX_RANGE_DAYS = 366;
+const daysBetween = (a, b) => Math.round((new Date(`${b}T00:00:00.000Z`) - new Date(`${a}T00:00:00.000Z`)) / 86400000) + 1;
 
 // A regex accepts 2026-02-31; round-trip through a UTC Date so only real days pass.
 const realDate = (s) => {
@@ -15,12 +22,20 @@ const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h
 
 /** Validate and normalise a leave body, or return { error }. */
 const parseLeave = (body) => {
-    const { startDate, endDate, note } = body;
+    const { startDate, endDate } = body;
     if (!realDate(startDate) || !realDate(endDate)) {
         return { error: 'startDate and endDate must be real calendar dates as YYYY-MM-DD' };
     }
     if (endDate < startDate) return { error: 'endDate cannot be before startDate' };
+    if (daysBetween(startDate, endDate) > MAX_RANGE_DAYS) {
+        return { error: `A single time-off entry can span at most ${MAX_RANGE_DAYS} days` };
+    }
 
+    // Only a real boolean turns off all-day; a string 'false' used to slip through
+    // and silently close the whole day while discarding the caller's times.
+    if (body.allDay !== undefined && typeof body.allDay !== 'boolean') {
+        return { error: 'allDay must be true or false' };
+    }
     const allDay = body.allDay !== false; // default true
     let startTime = null;
     let endTime = null;
@@ -31,12 +46,20 @@ const parseLeave = (body) => {
             return { error: 'A timed leave needs a start and end as HH:MM' };
         }
         if (toMin(endTime) <= toMin(startTime)) return { error: 'Leave must end after it starts' };
+    } else if (body.startTime != null || body.endTime != null) {
+        // Times sent with an all-day leave are a caller mistake, not something to
+        // silently drop — say so rather than store a contradiction.
+        return { error: 'Remove the start/end times for an all-day leave, or set allDay to false' };
     }
 
-    const type = TYPES.includes(body.type) ? body.type : 'vacation';
-    return {
-        value: { startDate, endDate, allDay, startTime, endTime, type, note: (note || '').slice(0, 200) },
-    };
+    // An unknown type used to be coerced to 'vacation' — a sick day silently
+    // filed as a holiday. Reject it so the record means what was chosen.
+    if (body.type !== undefined && !TYPES.includes(body.type)) {
+        return { error: `type must be one of: ${TYPES.join(', ')}` };
+    }
+    const type = body.type || 'vacation';
+    const note = String(body.note == null ? '' : body.note).slice(0, 200);
+    return { value: { startDate, endDate, allDay, startTime, endTime, type, note } };
 };
 
 const shape = (t) => ({
@@ -46,9 +69,32 @@ const shape = (t) => ({
     createdAt: t.createdAt,
 });
 
+/**
+ * How many of the member's own bookings a leave would sit on top of. Approving
+ * leave does NOT touch existing bookings — the owner still has to reschedule or
+ * cancel them — so this count is surfaced as a warning rather than acted on.
+ * Counts a booking whether the member is its top-level performer or a segment
+ * performer; a windowed leave only counts bookings whose time overlaps it.
+ */
+const overlappingBookingCount = async (member, leave) => {
+    const dayStart = new Date(`${leave.startDate}T00:00:00.000Z`);
+    const dayEnd = new Date(`${leave.endDate}T23:59:59.999Z`);
+    const appts = await Appointment.find({
+        $or: [{ teamMember: member._id }, { 'services.teamMember': member._id }],
+        appointmentDate: { $gte: dayStart, $lte: dayEnd },
+        status: { $in: ['pending', 'confirmed'] },
+    }).select('startTime endTime').lean();
+    if (leave.allDay) return appts.length;
+    const ls = toMin(leave.startTime);
+    const le = toMin(leave.endTime);
+    return appts.filter((a) => toMin(a.startTime) < le && toMin(a.endTime) > ls).length;
+};
+
 // ───────────────────────── owner (provider/admin) ─────────────────────────
 
-const ownerMember = (req) => TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+const ownerMember = (req) => (mongoose.isValidObjectId(req.params.id)
+    ? TeamMember.findOne({ _id: req.params.id, provider: req.user._id })
+    : null);
 
 exports.listTimeOff = async (req, res) => {
     try {
@@ -80,7 +126,8 @@ exports.createTimeOff = async (req, res) => {
             ...parsed.value, provider: req.user._id, teamMember: member._id,
             status: 'approved', requestedBy: 'owner', decidedBy: req.user._id, decidedAt: new Date(),
         });
-        res.status(201).json({ success: true, data: shape(doc) });
+        const overlaps = await overlappingBookingCount(member, parsed.value);
+        res.status(201).json({ success: true, data: shape(doc), overlappingBookings: overlaps });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -95,6 +142,9 @@ exports.decideTimeOff = async (req, res) => {
         if (status !== 'approved' && status !== 'declined') {
             return res.status(400).json({ success: false, message: 'status must be approved or declined' });
         }
+        if (!mongoose.isValidObjectId(req.params.toId)) {
+            return res.status(404).json({ success: false, message: 'No pending request to decide' });
+        }
         // Only a pending request can be decided — approving an approved leave, or
         // re-deciding a declined one, is a no-op the UI should never send.
         const updated = await TimeOff.findOneAndUpdate(
@@ -103,7 +153,9 @@ exports.decideTimeOff = async (req, res) => {
             { new: true },
         );
         if (!updated) return res.status(404).json({ success: false, message: 'No pending request to decide' });
-        res.status(200).json({ success: true, data: shape(updated) });
+        // Approving leave doesn't move existing bookings; warn how many now clash.
+        const overlaps = status === 'approved' ? await overlappingBookingCount(member, updated) : 0;
+        res.status(200).json({ success: true, data: shape(updated), overlappingBookings: overlaps });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -114,6 +166,9 @@ exports.deleteTimeOff = async (req, res) => {
         const member = await ownerMember(req);
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
 
+        if (!mongoose.isValidObjectId(req.params.toId)) {
+            return res.status(404).json({ success: false, message: 'Time off not found' });
+        }
         const del = await TimeOff.deleteOne({ _id: req.params.toId, teamMember: member._id });
         if (!del.deletedCount) return res.status(404).json({ success: false, message: 'Time off not found' });
         res.status(200).json({ success: true, message: 'Time off removed' });
@@ -166,6 +221,9 @@ exports.cancelMyTimeOff = async (req, res) => {
         const member = await myMember(req);
         if (!member) return res.status(403).json({ success: false, message: 'Only staff can withdraw time off' });
 
+        if (!mongoose.isValidObjectId(req.params.toId)) {
+            return res.status(404).json({ success: false, message: 'No pending request to withdraw' });
+        }
         // Staff may withdraw their OWN request while it is still pending. Removing
         // leave the owner has already approved is the owner's call, not theirs.
         const del = await TimeOff.deleteOne({ _id: req.params.toId, teamMember: member._id, status: 'pending' });

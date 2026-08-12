@@ -11,7 +11,7 @@
 const request = require('supertest');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
-const { makeUser, makeProvider, makeService, authHeader } = require('../helpers/factories');
+const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = require('../helpers/factories');
 const TeamMember = require('../../models/TeamMember');
 const StaffAvailability = require('../../models/StaffAvailability');
 const Availability = require('../../models/Availability');
@@ -228,5 +228,99 @@ describe('what the customer is shown', () => {
             .get(`/api/appointments/booked-slots?providerId=${provider._id}&date=${DATE}&teamMember=${member._id}`);
 
         expect(res.body.data.some((b) => b.kind === 'time_off')).toBe(false);
+    });
+
+    // Security: the shift/leave lookups must be provider-scoped, or a member id
+    // becomes an oracle into another business's roster metadata.
+    it('does not leak leave to a mismatched provider id', async () => {
+        const { provider, member } = await setup();
+        await TimeOff.create({ provider: provider._id, teamMember: member._id, startDate: DATE, endDate: DATE, allDay: true, status: 'approved' });
+        const other = await makeProvider();
+
+        const res = await request(app)
+            .get(`/api/appointments/booked-slots?providerId=${other._id}&date=${DATE}&teamMember=${member._id}`);
+
+        expect(res.body.data.some((b) => b.kind === 'time_off')).toBe(false);
+    });
+});
+
+// Hardening surfaced by the Fable audit.
+describe('validation and hardening', () => {
+    it('rejects an all-day leave that also carries times', async () => {
+        const { provider, member } = await setup();
+        const res = await request(app).post(ownerTimeOff(provider, member)).set(authHeader(provider))
+            .send({ startDate: DATE, endDate: DATE, allDay: true, startTime: '09:00', endTime: '12:00' });
+        expect(res.status).toBe(400);
+    });
+
+    it('rejects a non-boolean allDay (the string "false" trap)', async () => {
+        const { provider, member } = await setup();
+        const res = await request(app).post(ownerTimeOff(provider, member)).set(authHeader(provider))
+            .send({ startDate: DATE, endDate: DATE, allDay: 'false', startTime: '09:00', endTime: '12:00' });
+        expect(res.status).toBe(400);
+    });
+
+    it('rejects an unknown leave type instead of coercing it', async () => {
+        const { provider, member } = await setup();
+        const res = await request(app).post(ownerTimeOff(provider, member)).set(authHeader(provider))
+            .send({ startDate: DATE, endDate: DATE, allDay: true, type: 'Sick' });
+        expect(res.status).toBe(400);
+    });
+
+    it('rejects an absurdly long range (a typo\'d year closing a calendar for decades)', async () => {
+        const { provider, member } = await setup();
+        const res = await request(app).post(ownerTimeOff(provider, member)).set(authHeader(provider))
+            .send({ startDate: '2026-01-01', endDate: '9999-12-31', allDay: true });
+        expect(res.status).toBe(400);
+    });
+
+    it('answers a malformed id with 404, not a CastError 500', async () => {
+        const { provider, member } = await setup();
+        const badMember = await request(app).get('/api/team/not-an-id/timeoff').set(authHeader(provider));
+        expect(badMember.status).toBe(404);
+        const badToId = await request(app)
+            .delete(`${ownerTimeOff(provider, member)}/not-an-id`).set(authHeader(provider));
+        expect(badToId.status).toBe(404);
+    });
+
+    it('caps the public shift-days window span', async () => {
+        const { provider, member } = await setup();
+        const res = await request(app)
+            .get(`/api/providers/${provider._id}/staff/${member._id}/shift-days?from=2026-01-01&to=9999-12-31`);
+        expect(res.status).toBe(400);
+    });
+
+    // A malformed windowed leave (null times) must fail CLOSED — block, not ignore.
+    it('treats a windowed leave with missing times as all-day, not free', async () => {
+        const ctx = await setup();
+        await TimeOff.create({
+            provider: ctx.provider._id, teamMember: ctx.member._id, startDate: DATE, endDate: DATE,
+            allDay: false, startTime: null, endTime: null, status: 'approved',
+        });
+        expect((await tryBook(ctx, DATE, '10:00', '10:30')).error).toMatch(/leave/i);
+    });
+});
+
+describe('overlapping-booking warning', () => {
+    it('reports how many existing bookings a new leave sits on top of', async () => {
+        const { provider, customer, member } = await setup();
+        const svc = await makeService(provider._id);
+        await makeAppointment(customer._id, svc._id, provider._id, {
+            teamMember: member._id, status: 'confirmed',
+            appointmentDate: new Date(`${DATE}T00:00:00.000Z`), startTime: '10:00', endTime: '11:00',
+        });
+
+        const res = await request(app).post(ownerTimeOff(provider, member)).set(authHeader(provider))
+            .send({ startDate: DATE, endDate: DATE, allDay: true });
+
+        expect(res.status).toBe(201);
+        expect(res.body.overlappingBookings).toBe(1);
+    });
+
+    it('reports zero when nothing overlaps', async () => {
+        const { provider, member } = await setup();
+        const res = await request(app).post(ownerTimeOff(provider, member)).set(authHeader(provider))
+            .send({ startDate: DATE, endDate: DATE, allDay: true });
+        expect(res.body.overlappingBookings).toBe(0);
     });
 });
