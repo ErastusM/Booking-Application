@@ -1191,6 +1191,9 @@ const ProviderDashboard = () => {
                 onClick={() => setViewMenuOpen(o => !o)}
                 aria-haspopup="menu"
                 aria-expanded={viewMenuOpen}
+                // Its label is the CURRENT view, so it cannot be located by name
+                // from a test that is about to change the view (staff-lanes.spec).
+                data-testid="calendar-view-menu"
                 style={{ display: 'inline-flex', alignItems: 'center', gap: '0.25rem', padding: '0.35rem 0.6rem', borderRadius: '8px', border: '1px solid var(--border)', background: 'var(--surface-sunken)', color: 'var(--charcoal)', fontSize: '0.8rem', fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer', whiteSpace: 'nowrap' }}
             >
                 {calendarViewLabel}

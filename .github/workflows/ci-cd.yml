@@ -60,28 +60,23 @@ jobs:
   e2e:
     needs: test
     runs-on: ubuntu-latest
-    # NON-GATING FOR NOW, deliberately.
+    # GATING. Both suites are green, so a red browser run now stops the deploy.
     #
-    # Wiring this up immediately proved the point of wiring it up. The CUSTOMER suite
-    # is now green: its four failures were all one cause — /services was folded into
-    # the home feed and the specs still drove the old results page.
+    # This ran non-gating for a while, which was the right order: wiring it up
+    # immediately proved the point of wiring it up. The customer suite had four
+    # failures from one cause (/services folded into the home feed while the specs
+    # still drove the old results page), and the business suite — which had never
+    # executed at all, because the customer failure short-circuited the step — had
+    # six. All six were stale rather than regressions: specs written against a
+    # greeting that never existed, a cancellation default that was never 24, a
+    # view switcher that had since become a dropdown, and one strict-mode
+    # violation where a member's name matched both their filter chip and their
+    # own booking. Gating before fixing those would have blocked every deploy on
+    # failures that predated the gate.
     #
-    # The BUSINESS suite had never executed at all (the customer failure short-
-    # circuited the step) and has 6 pre-existing failures:
-    #   auth.spec           provider lands on the dashboard
-    #   account-policy.spec notice window persists
-    #   sso.spec            re-auth from the refresh cookie
-    #   staff-lanes.spec    x3 (chips, lanes, lane filter)
-    # These are stale, not regressions. auth.spec waits for a heading
-    # /^Good (morning|afternoon|evening), E2E/ — that greeting does not exist anywhere
-    # in apps/business/src, and `git show` confirms it did not exist before the audit
-    # fixes either. The suite simply rotted while nothing ran it.
-    #
-    # Gating on that today would block every deploy on failures that predate it, so
-    # this runs on every PR and uploads traces instead. Once the business specs are
-    # brought back in line, drop continue-on-error and add `e2e` to build-and-push's
-    # needs (one line each) to make it a real gate.
-    continue-on-error: true
+    # Keep it that way round if these go red for reasons that predate a change:
+    # fix the specs first, gate second. Do NOT reach for continue-on-error to get
+    # a deploy out — that is how this suite rotted unnoticed the first time.
     env:
       NODE_ENV: test
       JWT_SECRET: ci-jwt-secret-ci-jwt-secret-0123456789abcd
@@ -130,7 +125,7 @@ jobs:
 
   # 2) On push to main only: build & push both images to Docker Hub
   build-and-push:
-    needs: test   # add `e2e` here once the four known-failing specs are fixed
+    needs: [test, e2e]   # a red browser run must not reach Docker Hub
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
     steps:

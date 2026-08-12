@@ -1,5 +1,5 @@
-const { test, expect } = require('@playwright/test');
-const { SEED, login } = require('./helpers.cjs');
+const { test } = require('@playwright/test');
+const { SEED, login, expectProviderDashboard } = require('./helpers.cjs');
 
 /**
  * Sessions are now scoped per side (customer vs business). Cross-app SSO no
@@ -18,9 +18,8 @@ test.describe('Business-side session persistence', () => {
         await page.goto('/dashboard');
 
         // bootstrapSession must exchange the business-scoped cookie for a fresh
-        // token — landing back on /login would mean persistence is broken.
-        await expect(page).toHaveURL(/\/dashboard/, { timeout: 15_000 });
-        // Greeting uses the first name; the full name only lives in hidden menus.
-        await expect(page.getByRole('heading', { name: /^Good (morning|afternoon|evening), E2E/ })).toBeVisible({ timeout: 15_000 });
+        // token — landing back on /login would mean persistence is broken, and
+        // rendering the owner's own calendar proves it is the SAME provider.
+        await expectProviderDashboard(page);
     });
 });
