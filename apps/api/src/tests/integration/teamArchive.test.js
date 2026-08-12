@@ -79,8 +79,12 @@ describe('archiving a team member', () => {
 
         await request(app).delete(`/api/team/${member._id}`).set(authHeader(provider));
 
+        // `refreshTokenJtis` is `select: false`, so it has to be asked for
+        // explicitly — reading it off a plain findById returns undefined and the
+        // assertion passes or fails for the wrong reason.
+        const after = await User.findById(staff._id).select('+refreshTokenJtis');
         // Bumping tokenVersion alone would leave refresh working.
-        expect((await User.findById(staff._id)).refreshTokenJtis).toEqual([]);
+        expect(after.refreshTokenJtis).toEqual([]);
     });
 
     it('still revokes their login', async () => {
