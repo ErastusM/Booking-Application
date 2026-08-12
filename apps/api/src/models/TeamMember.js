@@ -8,6 +8,24 @@ const teamMemberSchema = new mongoose.Schema({
     phone:    { type: String, trim: true, default: '' },
     color:    { type: String, default: '#f03e16' }, // for calendar colour coding
     isActive: { type: Boolean, default: true },
+    // Separate from isActive on purpose: a receptionist or a manager is very
+    // much on the team but must never be offered as a bookable professional.
+    // isActive answers "do they work here", bookable answers "can clients book
+    // them". Defaults true so every existing roster keeps its behaviour.
+    bookable: { type: Boolean, default: true },
+
+    // ── Personal details (all optional) ──────────────────────────────────
+    // `name` stays a single field rather than splitting into first/last: it is
+    // referenced by the calendar, appointment records, emails and the e2e
+    // suite, and splitting it would be a migration across all of them for a
+    // display nicety.
+    photoUrl: { type: String, default: '' },
+    country:  { type: String, default: '', trim: true, maxlength: 60 },
+    address:  { type: String, default: '', trim: true, maxlength: 200 },
+    emergencyContact: {
+        name:  { type: String, default: '', trim: true, maxlength: 80 },
+        phone: { type: String, default: '', trim: true, maxlength: 40 },
+    },
     // When this member left. Set instead of deleting the row: appointments,
     // earnings and reviews all point at this _id, so removing it would strip the
     // staff member's name off every booking they ever did and break per-staff

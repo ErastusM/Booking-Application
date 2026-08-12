@@ -100,18 +100,41 @@ export const useApptDrag = ({
         const { hits, blocked } = assess(item.id, place, item.staffKey);
         if (blocked) return;
 
-        const primary = { id: item.id, ...place };
-        if (!hits.length) { await applyMoves([primary], mode); return; }
+        // NOTHING is rescheduled by the drop itself. Letting go used to commit
+        // straight away on a clear slot, which meant a slip of the finger
+        // silently told a customer their appointment had moved — an Undo bar
+        // afterwards is a way to take that back, not permission to have done
+        // it. Every drop now asks first; a clear slot asks a one-line question,
+        // an occupied one asks which way out to take.
+        if (!hits.length) {
+            const movedDay = place.dateKey !== origin.dateKey;
+            setSheet({
+                kind: 'confirm',
+                item, place, origin, mode, hits: [],
+                routes: [{
+                    key: 'move',
+                    tag: mode === 'resize' ? 'Resize' : 'Move',
+                    primary: true,
+                    plan: [],                    // nobody else has to move
+                    label: mode === 'resize'
+                        ? `Change to ${fmt(place.startMin)} – ${fmt(place.endMin)}`
+                        : `Move to ${fmt(place.startMin)}${movedDay ? ', a different day' : ''}`,
+                    detail: [`Was ${fmt(origin.startMin)} – ${fmt(origin.endMin)}`],
+                }],
+            });
+            return;
+        }
 
         // Landed on somebody: don't decide for them, offer the ways out.
         setSheet({
+            kind: 'clash',
             item, place, origin, mode, hits,
             routes: resolutionRoutes({
                 items: itemsRef.current, movingId: item.id, place,
                 staffKey: item.staffKey, origin, mode, hits, fmt,
             }),
         });
-    }, [assess, applyMoves, fmt]);
+    }, [assess, fmt]);
 
     // ── Pointer gesture ─────────────────────────────────────────────────────
     const onPointerDown = useCallback((item, mode) => (e) => {

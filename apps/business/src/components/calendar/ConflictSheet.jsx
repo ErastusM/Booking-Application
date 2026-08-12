@@ -1,12 +1,18 @@
 import React, { useEffect, useRef } from 'react';
 
 /**
- * "That time is already booked" — the chooser shown when a drag lands on top of
- * an existing booking.
+ * The sheet a drag has to pass through before anything is rescheduled.
  *
- * It never decides for the provider. Each route spells out exactly who ends up
- * where before it is picked, and a route that can't work stays on screen but
- * disabled with the reason, so a missing option is never unexplained.
+ * Two shapes, one component, because they are the same question asked at
+ * different widths:
+ *
+ *   confirm — the slot was clear. "Move this booking?" with one action.
+ *   clash   — the slot was taken. The ways out, each spelling out exactly who
+ *             ends up where, with impossible routes shown disabled and the
+ *             reason given, so a missing option is never unexplained.
+ *
+ * Nothing here decides for the provider, and nothing is written until an option
+ * is chosen. Releasing the card is a proposal, not an instruction.
  */
 const ConflictSheet = ({ sheet, fmt, onChoose, onCancel, busy }) => {
     const panelRef = useRef(null);
@@ -25,11 +31,14 @@ const ConflictSheet = ({ sheet, fmt, onChoose, onCancel, busy }) => {
 
     if (!sheet) return null;
 
-    const { item, place, hits, routes } = sheet;
+    const { item, place, hits, routes, kind } = sheet;
+    const confirming = kind === 'confirm';
     const names = hits.map((h) => h.label);
     const nameList = names.length === 1
         ? names[0]
         : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
+
+    const title = confirming ? 'Move this booking?' : 'That time is already booked';
 
     let assigned = false;
     const takeFirst = (enabled) => {
@@ -52,7 +61,7 @@ const ConflictSheet = ({ sheet, fmt, onChoose, onCancel, busy }) => {
                 ref={panelRef}
                 role="dialog"
                 aria-modal="true"
-                aria-label="That time is already booked"
+                aria-label={title}
                 style={{
                     position: 'absolute', left: 0, right: 0, bottom: 0, zIndex: 61,
                     background: 'var(--card-bg)', borderTop: '1px solid var(--border)',
@@ -63,12 +72,22 @@ const ConflictSheet = ({ sheet, fmt, onChoose, onCancel, busy }) => {
                 }}
             >
                 <h3 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '0.95rem', fontWeight: 700, color: 'var(--charcoal)' }}>
-                    That time is already booked
+                    {title}
                 </h3>
                 <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--text-muted)' }}>
                     <strong style={{ color: 'var(--charcoal)' }}>{item.label}</strong>{' '}
-                    at <span className="tnum" style={{ color: 'var(--charcoal)' }}>{fmt(place.startMin)} – {fmt(place.endMin)}</span>{' '}
-                    runs over {nameList}. Choose what happens to {names.length === 1 ? 'them' : 'each of them'}.
+                    {confirming ? (
+                        <>
+                            would move to{' '}
+                            <span className="tnum" style={{ color: 'var(--charcoal)' }}>{fmt(place.startMin)} – {fmt(place.endMin)}</span>.
+                            Nothing changes until you confirm, and the client is only told once it does.
+                        </>
+                    ) : (
+                        <>
+                            at <span className="tnum" style={{ color: 'var(--charcoal)' }}>{fmt(place.startMin)} – {fmt(place.endMin)}</span>{' '}
+                            runs over {nameList}. Choose what happens to {names.length === 1 ? 'them' : 'each of them'}.
+                        </>
+                    )}
                 </p>
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
@@ -118,7 +137,7 @@ const ConflictSheet = ({ sheet, fmt, onChoose, onCancel, busy }) => {
                         fontWeight: 600, color: 'var(--text-muted)', cursor: 'pointer',
                     }}
                 >
-                    Put it back where it was
+                    {confirming ? 'Cancel' : 'Put it back where it was'}
                 </button>
             </div>
         </>
