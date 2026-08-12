@@ -95,7 +95,8 @@ describe('the booking endpoints agree', () => {
         const res = await request(app)
             .get(`/api/appointments/booked-slots?providerId=${ctx.provider._id}&date=${DATE}&teamMember=${ctx.bob._id}`);
         const appts = res.body.data.filter((b) => b.kind === 'appointment');
-        expect(appts).toEqual([{ startTime: '11:00', endTime: '12:00', kind: 'appointment' }]);
+        expect(appts).toHaveLength(1);
+        expect(appts[0]).toMatchObject({ startTime: '11:00', endTime: '12:00', kind: 'appointment' });
     });
 
     it('refuses a customer booking the segment-only member during their segment', async () => {

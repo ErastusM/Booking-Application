@@ -344,9 +344,9 @@ exports.getBookedSlots = async (req, res) => {
             if (teamMember && Array.isArray(a.services) && a.services.length) {
                 a.services
                     .filter((s) => String(s.teamMember) === String(teamMember))
-                    .forEach((s) => apptBusy.push({ startTime: s.startTime, endTime: s.endTime, kind: 'appointment' }));
+                    .forEach((s) => apptBusy.push({ startTime: s.startTime, endTime: s.endTime, teamMember: s.teamMember, kind: 'appointment' }));
             } else {
-                apptBusy.push({ startTime: a.startTime, endTime: a.endTime, kind: 'appointment' });
+                apptBusy.push({ startTime: a.startTime, endTime: a.endTime, teamMember: a.teamMember, kind: 'appointment' });
             }
         });
 
