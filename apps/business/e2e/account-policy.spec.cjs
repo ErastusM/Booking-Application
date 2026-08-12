@@ -10,7 +10,12 @@ test.describe('Cancellation policy setting', () => {
             has: page.locator('option', { hasText: 'Clients can cancel anytime' }),
         });
         await expect(policySelect).toBeVisible();
-        await expect(policySelect).toHaveValue('24'); // model default
+        // The model default is 0 — "Clients can cancel anytime". This spec used
+        // to assert 24 and call it "the model default"; nothing in User.js has
+        // ever set that, so it could only fail. A new provider starts with no
+        // notice window and opts into one, which is what the rest of this test
+        // exercises.
+        await expect(policySelect).toHaveValue('0');
 
         await policySelect.selectOption('48');
         await page.getByRole('button', { name: /save changes/i }).click();

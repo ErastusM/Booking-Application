@@ -1,13 +1,11 @@
 const { test, expect } = require('@playwright/test');
-const { SEED, login, CUSTOMER_URL } = require('./helpers.cjs');
+const { SEED, login, expectProviderDashboard } = require('./helpers.cjs');
 
 test.describe('Business app roles', () => {
     test('a provider lands on the dashboard', async ({ page }) => {
         await login(page, SEED.provider);
         await page.waitForURL(/\/dashboard/);
-        // The dashboard greets the signed-in provider by first name — the full
-        // name only lives in hidden menus, so assert on the visible greeting.
-        await expect(page.getByRole('heading', { name: /^Good (morning|afternoon|evening), E2E/ })).toBeVisible();
+        await expectProviderDashboard(page);
     });
 
     test('a customer-account email cannot sign in on the business app', async ({ page }) => {
