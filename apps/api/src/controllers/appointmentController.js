@@ -18,7 +18,7 @@ const {
     sendRebookingPrompt,
 } = require('../utils/emailService');
 const calendarHelper = require('../utils/calendarHelper');
-const { resolveBookingStaff, staffHoursReason, UNAVAILABLE_MESSAGES } = require('../utils/staffBooking');
+const { resolveBookingStaff, staffHoursReason, memberBusyIntervals, memberInvolvedFilter, UNAVAILABLE_MESSAGES } = require('../utils/staffBooking');
 const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, toDateKey, BLOCKED_MESSAGE } = require('../utils/blockedTime');
 const { checkCancellationWindow } = require('../utils/cancellationPolicy');
 const { realStartMs } = require('../utils/appointmentTime');
@@ -138,26 +138,31 @@ const hasConflictingAppointment = async (providerId, appointmentDate, startTime,
     start.setHours(0, 0, 0, 0);
     const end = new Date(appointmentDate);
     end.setHours(23, 59, 59, 999);
+    // Per-staff: only the SAME member's bookings collide — different staff can
+    // hold the same clock time, and teamMember null is the owner's own column.
+    // For a named member this matches bookings where they are the top-level OR a
+    // segment performer, so a colleague's multi-service segment is no longer
+    // invisible to the conflict check (the double-booking this closes).
+    const memberScope = teamMember ? memberInvolvedFilter(teamMember) : { teamMember: null };
     const existing = await Appointment.find({
         provider: providerId,
         appointmentDate: { $gte: start, $lte: end },
         status: { $nin: ['cancelled'] },
-        // Per-staff: only the SAME member's bookings collide — different staff can
-        // hold the same clock time, and teamMember null is the owner's own column.
-        // Without this the check was provider-wide, so one colleague's booking made
-        // that time unreschedulable for every other staff member (a slot the public
-        // booking page happily sells fresh). Callers pass the appointment's own member.
-        teamMember: teamMember || null,
+        ...memberScope,
         // Accepts one id or many: a batch reschedule has to ignore every booking
         // it is itself moving, or each move would "conflict" with its siblings'
         // stale positions. $nin with a single element behaves exactly like $ne.
         _id: { $nin: Array.isArray(excludeId) ? excludeId : [excludeId] },
-    }).select('startTime endTime');
+    }).select('startTime endTime services teamMember');
     // Expand the incoming booking by its service buffers so a reschedule can't land
     // flush against a booking whose service reserves cleanup time.
     const newStart = parseTimeToMinutes(startTime) - (bufferBefore || 0);
     const newEnd = parseTimeToMinutes(endTime) + (bufferAfter || 0);
-    return existing.some(a => timesOverlap(newStart, newEnd, parseTimeToMinutes(a.startTime), parseTimeToMinutes(a.endTime)));
+    // A named member is busy only over their own segment windows; the owner
+    // column (teamMember null) keeps the whole-span check.
+    return existing.some(a => (teamMember
+        ? memberBusyIntervals(a, teamMember).some(([s, e]) => timesOverlap(newStart, newEnd, s, e))
+        : timesOverlap(newStart, newEnd, parseTimeToMinutes(a.startTime), parseTimeToMinutes(a.endTime))));
 };
 
 // The teamMember + buffers a reschedule/revival must check against — the moved
@@ -308,14 +313,16 @@ exports.getBookedSlots = async (req, res) => {
             status: { $nin: ['cancelled'] },
         };
         // Additive: scope busy times to one staff member. Without it the query
-        // stays provider-wide, exactly as before.
-        if (teamMember) query.teamMember = teamMember;
+        // stays provider-wide, exactly as before. A named member matches bookings
+        // where they are the top-level OR a segment performer, so a multi-service
+        // segment assigned to them is no longer missed by the picker.
+        if (teamMember) Object.assign(query, memberInvolvedFilter(teamMember));
 
         const Shift = require('../models/Shift');
         const TimeOff = require('../models/TimeOff');
         const dayKey = toDateKey(date);
         const [appointments, blocks, shift, leaves] = await Promise.all([
-            Appointment.find(query).select('startTime endTime teamMember -_id').lean(),
+            Appointment.find(query).select('startTime endTime teamMember services -_id').lean(),
             findBlocksForDate(providerId, date, teamMember || null),
             // Only meaningful for a named staff member: a shift is one person's
             // working day, so it says nothing about the business as a whole. Scoped
@@ -329,8 +336,22 @@ exports.getBookedSlots = async (req, res) => {
             }).select('allDay startTime endTime').lean() : [],
         ]);
 
+        // For a named member, a multi-service booking occupies only THEIR segment
+        // windows — emit those, not the whole ticket span (which would grey out a
+        // colleague's free time). Provider-wide (no member) keeps the whole span.
+        const apptBusy = [];
+        appointments.forEach((a) => {
+            if (teamMember && Array.isArray(a.services) && a.services.length) {
+                a.services
+                    .filter((s) => String(s.teamMember) === String(teamMember))
+                    .forEach((s) => apptBusy.push({ startTime: s.startTime, endTime: s.endTime, kind: 'appointment' }));
+            } else {
+                apptBusy.push({ startTime: a.startTime, endTime: a.endTime, kind: 'appointment' });
+            }
+        });
+
         const busy = [
-            ...appointments.map(a => ({ ...a, kind: 'appointment' })),
+            ...apptBusy,
             ...blocks.map(b => ({ startTime: b.startTime, endTime: b.endTime, kind: 'blocked' })),
         ];
 
@@ -711,23 +732,21 @@ exports.createAppointment = async (req, res) => {
             const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
             const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
             // Per-staff conflicts: different team members can be booked concurrently.
-            // When a staff member is set, only their bookings count; otherwise the
-            // provider's own (unassigned) bookings count. Runs AFTER resolution so
-            // it re-checks the resolved member — the race backstop.
+            // When a staff member is set, count bookings where they are the
+            // top-level OR a segment performer (over that member's own segment
+            // windows); otherwise the provider's own (unassigned) bookings count.
+            // Runs AFTER resolution so it re-checks the resolved member — the race
+            // backstop.
             const overlapQuery = {
                 provider: providerId,
                 appointmentDate: { $gte: dayStart, $lte: dayEnd },
                 status: { $nin: ['cancelled'] },
+                ...(resolvedTeamMember ? memberInvolvedFilter(resolvedTeamMember) : { teamMember: null }),
             };
-            overlapQuery.teamMember = resolvedTeamMember;
-            const existing = await Appointment.find(overlapQuery).select('startTime endTime');
-            const hasOverlap = existing.some(a => {
-                const [aSH, aSM] = a.startTime.split(':').map(Number);
-                const [aEH, aEM] = a.endTime.split(':').map(Number);
-                const aStart = aSH * 60 + aSM;
-                const aEnd = aEH * 60 + aEM;
-                return newStart < aEnd && newEnd > aStart;
-            });
+            const existing = await Appointment.find(overlapQuery).select('startTime endTime teamMember services');
+            const hasOverlap = existing.some(a => (resolvedTeamMember
+                ? memberBusyIntervals(a, resolvedTeamMember).some(([s, e]) => newStart < e && newEnd > s)
+                : newStart < parseTimeToMinutes(a.endTime) && newEnd > parseTimeToMinutes(a.startTime)));
             if (hasOverlap) {
                 return res.status(400).json({ success: false, message: 'This time slot is already booked. You can join the waiting list instead.' });
             }
@@ -845,17 +864,18 @@ exports.createAppointment = async (req, res) => {
                 provider: providerId,
                 appointmentDate: { $gte: dayStart, $lte: dayEnd },
                 status: { $nin: ['cancelled'] },
-                teamMember: resolvedTeamMember,
+                ...(resolvedTeamMember ? memberInvolvedFilter(resolvedTeamMember) : { teamMember: null }),
                 _id: { $ne: appointment._id },
-            }).select('startTime endTime _id');
+            }).select('startTime endTime services teamMember _id');
             const [nSH, nSM] = startTime.split(':').map(Number);
             const [nEH, nEM] = endTime.split(':').map(Number);
             const nStart = nSH * 60 + nSM - (svc.bufferBefore || 0);
             const nEnd = nEH * 60 + nEM + (svc.bufferAfter || 0);
             const lostRace = sameDay.some(a => {
-                const [aSH, aSM] = a.startTime.split(':').map(Number);
-                const [aEH, aEM] = a.endTime.split(':').map(Number);
-                const overlaps = nStart < (aEH * 60 + aEM) && nEnd > (aSH * 60 + aSM);
+                const intervals = resolvedTeamMember
+                    ? memberBusyIntervals(a, resolvedTeamMember)
+                    : [[parseTimeToMinutes(a.startTime), parseTimeToMinutes(a.endTime)]];
+                const overlaps = intervals.some(([s, e]) => nStart < e && nEnd > s);
                 return overlaps && a._id.toString() < appointment._id.toString();
             });
             if (lostRace) {
@@ -1075,11 +1095,12 @@ exports.createMultiServiceAppointment = async (req, res) => {
 
         // Overlap check, PER staff member and per segment.
         //
-        // This used to test the whole span against `primaryTeamMember` only — the
-        // first service's member. A stack like A(10:00–11:00, Alice) + B(11:00–12:00,
-        // Bob) was therefore only ever checked against Alice, so Bob could be booked
-        // straight over an existing 11:00 appointment of his. Each segment now checks
-        // its own member over its own minutes; different staff may still run
+        // This used to test each segment against existing bookings' TOP-LEVEL
+        // member and whole span, so a segment assigned to Bob on an existing
+        // multi-service ticket (where Bob wasn't the primary) was invisible — Bob
+        // could be double-booked. memberBusyIntervals resolves each existing
+        // booking to the segment windows for the member in question, so a segment
+        // performer is seen wherever they appear; different staff may still run
         // concurrently, which is the point of the multi-service flow.
         const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
         const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
@@ -1087,16 +1108,12 @@ exports.createMultiServiceAppointment = async (req, res) => {
             provider: providerId,
             appointmentDate: { $gte: dayStart, $lte: dayEnd },
             status: { $nin: ['cancelled'] },
-        }).select('startTime endTime teamMember');
+        }).select('startTime endTime teamMember services');
         for (const seg of built) {
             const segMember = seg.teamMember || teamMember || null;
             const segStart = parseTimeToMinutes(seg.startTime);
             const segEnd = parseTimeToMinutes(seg.endTime);
-            const clash = sameDay.some(a => (
-                String(a.teamMember || '') === String(segMember || '')
-                && segStart < parseTimeToMinutes(a.endTime)
-                && segEnd > parseTimeToMinutes(a.startTime)
-            ));
+            const clash = sameDay.some(a => memberBusyIntervals(a, segMember).some(([s, e]) => segStart < e && segEnd > s));
             if (clash) {
                 return res.status(400).json({ success: false, message: 'That time overlaps an existing booking for one of the selected staff members.' });
             }
