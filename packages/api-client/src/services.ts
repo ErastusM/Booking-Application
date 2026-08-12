@@ -137,6 +137,11 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         // Bookable staff for the customer staff-selection step (public).
         getProviderStaff: (id: string, serviceId?: string) =>
             API.get(`/providers/${id}/staff`, { params: serviceId ? { serviceId } : {} }),
+        // A member's shift days in a range: { working, off } date-key lists, so the
+        // customer date picker can open a day the member covers (business closed)
+        // and close a day they're rostered off (business open). Public.
+        getProviderStaffShiftDays: (id: string, teamMemberId: string, from: string, to: string) =>
+            API.get(`/providers/${id}/staff/${teamMemberId}/shift-days`, { params: { from, to } }),
         // Availability-first search: providers with a real opening on `date`
         // (optionally at/after `time`, narrowed by `q`).
         searchProviders: (params: { date: string; time?: string; q?: string }) =>

@@ -197,6 +197,64 @@ describe('what the customer is shown', () => {
     });
 });
 
+// The customer date picker keys off provider-wide hours, so it needs to know
+// which days a chosen member's roster diverges from them: days they cover that
+// the business is closed for, and days they are off that it is open.
+describe('a member\'s shift days for the customer calendar', () => {
+    const shiftDays = (provider, member, from, to) =>
+        request(app).get(`/api/providers/${provider._id}/staff/${member._id}/shift-days?from=${from}&to=${to}`);
+
+    it('splits the range into working days and days off', async () => {
+        const { provider, member } = await setup();
+        await Shift.create({ provider: provider._id, teamMember: member._id, date: DATE, slots: [{ start: '09:00', end: '13:00' }] });
+        await Shift.create({ provider: provider._id, teamMember: member._id, date: OTHER_DATE, slots: [] });
+
+        const res = await shiftDays(provider, member, DATE, OTHER_DATE);
+
+        expect(res.status).toBe(200);
+        expect(res.body.data.working).toEqual([DATE]);
+        expect(res.body.data.off).toEqual([OTHER_DATE]);
+    });
+
+    it('never returns slot times or notes — only which days', async () => {
+        const { provider, member } = await setup();
+        await Shift.create({ provider: provider._id, teamMember: member._id, date: DATE, slots: [{ start: '09:00', end: '13:00' }], note: 'secret' });
+
+        const res = await shiftDays(provider, member, DATE, OTHER_DATE);
+
+        expect(JSON.stringify(res.body)).not.toContain('secret');
+        expect(JSON.stringify(res.body)).not.toContain('09:00');
+    });
+
+    it('leaves out shifts beyond the range', async () => {
+        const { provider, member } = await setup();
+        await Shift.create({ provider: provider._id, teamMember: member._id, date: '2026-10-05', slots: [{ start: '09:00', end: '13:00' }] });
+
+        const res = await shiftDays(provider, member, DATE, OTHER_DATE);
+
+        expect(res.body.data.working).toEqual([]);
+        expect(res.body.data.off).toEqual([]);
+    });
+
+    it('rejects bad date params', async () => {
+        const { provider, member } = await setup();
+        const res = await shiftDays(provider, member, 'nope', OTHER_DATE);
+        expect(res.status).toBe(400);
+    });
+
+    // Another business's member must never be reachable through this provider's id.
+    it('hands back empty for a member that is not this provider\'s', async () => {
+        const { provider } = await setup();
+        const other = await makeProvider();
+        const theirMember = await TeamMember.create({ provider: other._id, name: 'Not Yours' });
+
+        const res = await shiftDays(provider, theirMember, DATE, OTHER_DATE);
+
+        expect(res.status).toBe(200);
+        expect(res.body.data).toEqual({ working: [], off: [] });
+    });
+});
+
 // Shifts were enforced when a booking was CREATED and nowhere else, so a
 // customer could book a legal slot and then reschedule straight onto the
 // member's rostered day off — auto-confirmed, no override needed.

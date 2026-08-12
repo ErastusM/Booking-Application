@@ -19,6 +19,11 @@ import { track } from '../services/client';
 const friendlyError = (err, fallback) =>
     (err?.response?.status === 401 ? 'Please sign in to continue.' : (err?.response?.data?.message || fallback));
 
+// Local calendar-day key "YYYY-MM-DD" — matches how shift dates are stored
+// (wall-clock day) and how the picker builds appointmentDate, so a cell and a
+// shift line up regardless of the browser's timezone.
+const toYMD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+
 const BookAppointment = () => {
     const { user } = useAuthContext();
     const navigate = useNavigate();
@@ -56,6 +61,10 @@ const BookAppointment = () => {
     // date (models/Shift), so when present it becomes the slot picker's base
     // window and can extend past published closing. Empty array = rostered day off.
     const [shiftWindow, setShiftWindow] = useState(null);
+    // For a chosen member, the days in the visible month they WORK (open even if
+    // the business is closed — covering a Sunday) and are rostered OFF (closed
+    // even if the business is open), so the date picker reflects their roster.
+    const [staffShiftDays, setStaffShiftDays] = useState({ working: new Set(), off: new Set() });
     const [calendarMonth, setCalendarMonth] = useState(() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; });
     const [wallet, setWallet] = useState(null); // this provider's wallet + settings (when wallet is enabled)
     const [recurrence, setRecurrence] = useState({ isRecurring: false, recurrenceType: 'weekly', recurrenceInterval: 1, recurrenceEndDate: '' });
@@ -201,6 +210,25 @@ const BookAppointment = () => {
             .then(res => { setBookedSlots(res.data.data || []); setShiftWindow(res.data.shiftWindow ?? null); })
             .catch(() => {});
     }, { intervalMs: 20000, enabled: !!(effectiveProviderId && formData.appointmentDate) });
+
+    // A chosen member's shift days for the visible month, so the date picker can
+    // open a day they cover that the business is closed for, and close a day they
+    // are rostered off. Refetched as the month is navigated. Cleared to empty
+    // when no specific member is chosen — then the picker uses business hours.
+    useEffect(() => {
+        if (!effectiveProviderId || !selectedStaff) { setStaffShiftDays({ working: new Set(), off: new Set() }); return; }
+        const from = toYMD(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth(), 1));
+        const to = toYMD(new Date(calendarMonth.getFullYear(), calendarMonth.getMonth() + 1, 0));
+        let stale = false;
+        providerMarketService.getProviderStaffShiftDays(effectiveProviderId, selectedStaff._id, from, to)
+            .then(res => {
+                if (stale) return;
+                const d = res.data.data || {};
+                setStaffShiftDays({ working: new Set(d.working || []), off: new Set(d.off || []) });
+            })
+            .catch(() => { if (!stale) setStaffShiftDays({ working: new Set(), off: new Set() }); });
+        return () => { stale = true; };
+    }, [effectiveProviderId, selectedStaff, calendarMonth]);
 
     // Toggle the floating "back to top" button based on how far the page is scrolled.
     useEffect(() => {
@@ -513,6 +541,14 @@ const BookAppointment = () => {
     // A day is bookable only on weekdays the provider actually works (when known).
     const dayKeys = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const providerWorksOn = (d) => {
+        // A chosen member's shift is authoritative for its date: it can open a day
+        // the business is closed for (covering a Sunday) or close a day it is open
+        // (rostered off). Days with no shift fall through to the business hours.
+        if (selectedStaff) {
+            const key = toYMD(d);
+            if (staffShiftDays.working.has(key)) return true;
+            if (staffShiftDays.off.has(key)) return false;
+        }
         if (!providerAvailability) return true; // schedule unknown (generic booking) → leave enabled
         const sched = providerAvailability[dayKeys[d.getDay()]];
         return !!(sched?.enabled && (sched.slots || []).some(s => s?.start && s?.end));
