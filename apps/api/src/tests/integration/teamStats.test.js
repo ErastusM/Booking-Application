@@ -222,6 +222,56 @@ describe('team member stats', () => {
     });
 });
 
+// A multi-service booking splits across staff — each services[] entry has its
+// own member, price and minutes. The stats used to credit the whole ticket to
+// the top-level member, so the primary's revenue and occupancy were inflated
+// and every other performer saw nothing.
+describe('multi-service attribution', () => {
+    const seg = (service, price, startTime, endTime, teamMember) =>
+        ({ service, name: 'Seg', price, duration: 60, startTime, endTime, teamMember });
+
+    it('credits each performer only their own service, not the whole ticket', async () => {
+        const { provider, service, member } = await setup();
+        const other = await TeamMember.create({ provider: provider._id, name: 'Sarah Nangolo' });
+        const customer = await makeUser();
+        // One booking, two services: member 10:00–11:00 (N$100), other 11:00–12:00
+        // (N$200). Top-level = member, whole-ticket totalPrice = 300.
+        await makeAppointment(customer._id, service._id, provider._id, {
+            teamMember: member._id, status: 'completed', totalPrice: 300,
+            appointmentDate: yesterday(), startTime: '10:00', endTime: '12:00',
+            services: [
+                seg(service._id, 100, '10:00', '11:00', member._id),
+                seg(service._id, 200, '11:00', '12:00', other._id),
+            ],
+        });
+
+        const mine = await statsFor(provider, member);
+        expect(mine.body.data.revenue).toBe(100);       // not the 300 whole ticket
+        expect(mine.body.data.bookedMinutes).toBe(60);  // not the full 120 span
+        expect(mine.body.data.appointments).toBe(1);
+
+        // The second performer is credited even though they are not the top-level
+        // member — previously they were invisible to their own stats.
+        const theirs = await statsFor(provider, other);
+        expect(theirs.body.data.revenue).toBe(200);
+        expect(theirs.body.data.bookedMinutes).toBe(60);
+        expect(theirs.body.data.appointments).toBe(1);
+    });
+
+    it('still credits the whole price for an ordinary single-service booking', async () => {
+        const { provider, service, member } = await setup();
+        const customer = await makeUser();
+        await makeAppointment(customer._id, service._id, provider._id, {
+            teamMember: member._id, status: 'completed', totalPrice: 150,
+            appointmentDate: yesterday(), startTime: '09:00', endTime: '10:00',
+        });
+
+        const res = await statsFor(provider, member);
+        expect(res.body.data.revenue).toBe(150);
+        expect(res.body.data.bookedMinutes).toBe(60);
+    });
+});
+
 describe('bookable', () => {
     it('keeps a non-bookable member off the bookable roster', async () => {
         const { provider, member } = await setup();
