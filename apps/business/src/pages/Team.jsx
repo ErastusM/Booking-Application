@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { teamService, providerServiceService } from '../services';
 import Switch from '../components/Switch';
-import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus } from 'lucide-react';
+import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree } from 'lucide-react';
 
 /**
  * Epic 2.4 — staff management: roster CRUD, invite-to-login, per-staff
@@ -10,6 +10,19 @@ import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye, User, BarChar
  */
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DEFAULT_DAY = { enabled: false, slots: [{ start: '09:00', end: '17:00' }] };
+
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// A 'YYYY-MM-DD' range read the way people say it: "16 Aug", "16–20 Aug",
+// "28 Aug – 2 Sep".
+const fmtRange = (a, b) => {
+    const pa = a.split('-').map(Number);
+    const pb = b.split('-').map(Number);
+    if (a === b) return `${pa[2]} ${MONTHS[pa[1] - 1]}`;
+    if (pa[0] === pb[0] && pa[1] === pb[1]) return `${pa[2]}–${pb[2]} ${MONTHS[pb[1] - 1]}`;
+    return `${pa[2]} ${MONTHS[pa[1] - 1]} – ${pb[2]} ${MONTHS[pb[1] - 1]}`;
+};
+const rangeDays = (a, b) => Math.round((new Date(`${b}T00:00:00Z`) - new Date(`${a}T00:00:00Z`)) / 86400000) + 1;
+const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 const Chip = ({ active, children, ...rest }) => (
     <button type="button" {...rest} style={{
@@ -76,6 +89,10 @@ const MemberCard = ({ member, services, onChanged }) => {
     const [slots, setSlots] = useState([{ start: '09:00', end: '17:00' }]);
     const [breaks, setBreaks] = useState([]);
     const [shiftErr, setShiftErr] = useState('');
+    const [timeOff, setTimeOff] = useState(null);        // null = unfetched, false = failed
+    const [toForm, setToForm] = useState({ startDate: todayKey, endDate: todayKey, allDay: true, startTime: '09:00', endTime: '13:00', type: 'vacation', note: '' });
+    const [toBusy, setToBusy] = useState('');
+    const [toErr, setToErr] = useState('');
     const [personal, setPersonal] = useState({
         name: member.name || '', role: member.role || '', email: member.email || '',
         phone: member.phone || '', country: member.country || '', address: member.address || '',
@@ -109,6 +126,14 @@ const MemberCard = ({ member, services, onChanged }) => {
             // no shifts". Saving on top of that assumption replaces a day off the
             // owner never saw with a default 9-to-5.
             .catch(() => setShifts(false));
+    }, [open, tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
+        if (!open || tab !== 'workspace' || timeOff !== null) return;
+        const to = new Date(); to.setDate(to.getDate() + 180);
+        teamService.getMemberTimeOff(member._id, todayKey, to.toISOString().slice(0, 10))
+            .then(res => setTimeOff(res.data.data || []))
+            .catch(() => setTimeOff(false));
     }, [open, tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Editing a date that already has a shift should show that shift, not a
@@ -153,6 +178,48 @@ const MemberCard = ({ member, services, onChanged }) => {
         } catch {
             setShiftErr('Could not clear that shift.');
         } finally { setBusy(''); }
+    };
+
+    const refreshTimeOff = async () => {
+        const to = new Date(); to.setDate(to.getDate() + 180);
+        const res = await teamService.getMemberTimeOff(member._id, todayKey, to.toISOString().slice(0, 10));
+        setTimeOff(res.data.data || []);
+    };
+
+    const addTimeOff = async () => {
+        if (toForm.endDate < toForm.startDate) { setToErr('The end date can’t be before the start date.'); return; }
+        setToBusy('add'); setToErr('');
+        try {
+            const body = { startDate: toForm.startDate, endDate: toForm.endDate, allDay: toForm.allDay, type: toForm.type, note: toForm.note.trim() };
+            if (!toForm.allDay) { body.startTime = toForm.startTime; body.endTime = toForm.endTime; }
+            await teamService.addMemberTimeOff(member._id, body);
+            await refreshTimeOff();
+            setToForm(f => ({ ...f, note: '' }));
+            flash('Time off added.');
+        } catch (err) {
+            setToErr(err?.response?.data?.message || 'Could not add that time off.');
+        } finally { setToBusy(''); }
+    };
+
+    const decideTimeOff = async (id, status) => {
+        setToBusy(id); setToErr('');
+        try {
+            await teamService.decideMemberTimeOff(member._id, id, status);
+            await refreshTimeOff();
+            flash(status === 'approved' ? 'Leave approved.' : 'Request declined.');
+        } catch (err) {
+            setToErr(err?.response?.data?.message || 'Could not update that request.');
+        } finally { setToBusy(''); }
+    };
+
+    const removeTimeOff = async (id) => {
+        setToBusy(id); setToErr('');
+        try {
+            await teamService.removeMemberTimeOff(member._id, id);
+            await refreshTimeOff();
+        } catch (err) {
+            setToErr(err?.response?.data?.message || 'Could not remove that time off.');
+        } finally { setToBusy(''); }
     };
 
     const setCalendarAccess = async (next) => {
@@ -499,6 +566,80 @@ const MemberCard = ({ member, services, onChanged }) => {
                                             Set for: {shifts.map(sh => sh.date + (sh.slots.length ? '' : ' (off)')).join(' · ')}
                                         </p>
                                     )}
+                                </div>
+                            </Section>
+
+                            <Section icon={Palmtree} title="Time off" hint="(a leave range — closes their calendar)">
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', alignItems: 'flex-end' }}>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>From
+                                        <input type="date" className="input" value={toForm.startDate}
+                                            onChange={e => setToForm(f => ({ ...f, startDate: e.target.value, endDate: f.endDate < e.target.value ? e.target.value : f.endDate }))}
+                                            style={{ display: 'block', padding: '0.4rem 0.5rem', marginTop: '0.2rem' }} data-testid="timeoff-from" />
+                                    </label>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>To
+                                        <input type="date" className="input" value={toForm.endDate} min={toForm.startDate}
+                                            onChange={e => setToForm(f => ({ ...f, endDate: e.target.value }))}
+                                            style={{ display: 'block', padding: '0.4rem 0.5rem', marginTop: '0.2rem' }} data-testid="timeoff-to" />
+                                    </label>
+                                    <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Type
+                                        <select className="input" value={toForm.type} onChange={e => setToForm(f => ({ ...f, type: e.target.value }))}
+                                            style={{ display: 'block', padding: '0.42rem 0.5rem', marginTop: '0.2rem' }}>
+                                            {['vacation', 'sick', 'unpaid', 'training', 'other'].map(t => <option key={t} value={t}>{cap(t)}</option>)}
+                                        </select>
+                                    </label>
+                                </div>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap', marginTop: '0.65rem' }}>
+                                    <Switch checked={toForm.allDay} onChange={v => setToForm(f => ({ ...f, allDay: v }))} label={toForm.allDay ? 'All day' : 'Set hours'} data-testid="timeoff-allday" />
+                                    {!toForm.allDay && (
+                                        <>
+                                            <input type="time" className="input" value={toForm.startTime} onChange={e => setToForm(f => ({ ...f, startTime: e.target.value }))} style={{ width: '116px', padding: '0.35rem 0.5rem' }} />
+                                            <span style={{ color: 'var(--text-muted)' }}>–</span>
+                                            <input type="time" className="input" value={toForm.endTime} onChange={e => setToForm(f => ({ ...f, endTime: e.target.value }))} style={{ width: '116px', padding: '0.35rem 0.5rem' }} />
+                                        </>
+                                    )}
+                                </div>
+                                <input className="input" placeholder="Note (optional) — e.g. Family visit" value={toForm.note}
+                                    onChange={e => setToForm(f => ({ ...f, note: e.target.value }))}
+                                    style={{ marginTop: '0.6rem', padding: '0.45rem 0.6rem', width: '100%', maxWidth: '340px' }} />
+                                <div>
+                                    <button type="button" className="btn-primary" onClick={addTimeOff} disabled={toBusy === 'add'} data-testid="add-timeoff" style={{ marginTop: '0.65rem', padding: '0.5rem 1.2rem' }}>
+                                        {toBusy === 'add' ? 'Adding…' : 'Add time off'}
+                                    </button>
+                                </div>
+                                {toErr && <p style={{ margin: '0.5rem 0 0', color: 'var(--gold-dark)', fontSize: '0.82rem' }}>{toErr}</p>}
+
+                                <div style={{ marginTop: '0.9rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }} data-testid="timeoff-list">
+                                    {timeOff === null && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading…</p>}
+                                    {timeOff === false && <p style={{ margin: 0, color: 'var(--gold-dark)', fontSize: '0.85rem' }}>Couldn’t load time off.</p>}
+                                    {Array.isArray(timeOff) && timeOff.length === 0 && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>No time off scheduled.</p>}
+                                    {Array.isArray(timeOff) && timeOff.map(t => {
+                                        const pending = t.status === 'pending';
+                                        const nd = rangeDays(t.startDate, t.endDate);
+                                        return (
+                                            <div key={t._id} style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', padding: '0.6rem 0.7rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--card-bg)', flexWrap: 'wrap' }}>
+                                                <div style={{ minWidth: 0, flex: 1 }}>
+                                                    <div style={{ fontWeight: 650, fontSize: '0.9rem', color: 'var(--charcoal)' }}>
+                                                        {fmtRange(t.startDate, t.endDate)} <span style={{ color: 'var(--text-muted)', fontWeight: 500 }}>· {nd} day{nd > 1 ? 's' : ''}</span>
+                                                    </div>
+                                                    <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', alignItems: 'center', marginTop: '0.2rem', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>
+                                                        <span style={{ padding: '0.1rem 0.45rem', borderRadius: '999px', background: 'rgba(240,62,22,0.1)', color: 'var(--gold-dark)', fontWeight: 650 }}>{cap(t.type)}</span>
+                                                        <span>{t.allDay ? 'All day' : `${t.startTime}–${t.endTime}`}</span>
+                                                        {pending
+                                                            ? <span style={{ color: '#a86a12', fontWeight: 650 }}>Requested — needs your OK</span>
+                                                            : <span style={{ color: '#1f8a4c', fontWeight: 650 }}>Approved</span>}
+                                                        {t.note && <span>· {t.note}</span>}
+                                                    </div>
+                                                </div>
+                                                {pending && (
+                                                    <div style={{ display: 'flex', gap: '0.35rem' }}>
+                                                        <button type="button" className="btn-primary" disabled={toBusy === t._id} onClick={() => decideTimeOff(t._id, 'approved')} style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem' }} data-testid="approve-timeoff">Approve</button>
+                                                        <button type="button" className="btn-outline" disabled={toBusy === t._id} onClick={() => decideTimeOff(t._id, 'declined')} style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem' }}>Decline</button>
+                                                    </div>
+                                                )}
+                                                <button type="button" aria-label="Remove time off" onClick={() => removeTimeOff(t._id)} disabled={toBusy === t._id} style={{ border: 'none', background: 'transparent', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '1.15rem', lineHeight: 1, padding: '0 0.25rem' }}>×</button>
+                                            </div>
+                                        );
+                                    })}
                                 </div>
                             </Section>
 

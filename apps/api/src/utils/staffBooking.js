@@ -21,6 +21,7 @@ const TeamMember = require('../models/TeamMember');
 const StaffAvailability = require('../models/StaffAvailability');
 const BlockedTime = require('../models/BlockedTime');
 const Shift = require('../models/Shift');
+const TimeOff = require('../models/TimeOff');
 const Appointment = require('../models/Appointment');
 const Availability = require('../models/Availability');
 
@@ -45,6 +46,7 @@ const UNAVAILABLE_MESSAGES = {
     outside_hours: "That time is outside this staff member's working hours.",
     off_shift: "That staff member isn't rostered on at that time.",
     on_break: 'That staff member is on a break at that time.',
+    time_off: 'That staff member is on leave then.',
     blocked: 'That staff member is not available at that time.',
     booked: 'That staff member is already booked at that time. You can join the waiting list instead.',
 };
@@ -71,8 +73,22 @@ async function staffHoursReason({ member, date, startTime, endTime, businessSche
     if (!member) return null;                 // owner's own column — no staff hours apply
     const startMin = toMin(startTime);
     const endMin = toMin(endTime);
+    const key = dateStr(date);
 
-    const shift = await Shift.findOne({ teamMember: member._id, date: dateStr(date) })
+    // Approved leave overrides the roster entirely: a member on leave is away even
+    // if a shift or the weekly pattern says otherwise, so this is checked first.
+    // Pending/declined requests never close the calendar. An all-day leave blocks
+    // the whole day; a windowed one blocks only its hours.
+    const leaves = await TimeOff.find({
+        teamMember: member._id, status: 'approved',
+        startDate: { $lte: key }, endDate: { $gte: key },
+    }).select('allDay startTime endTime').lean();
+    for (const lv of leaves) {
+        if (lv.allDay) return 'time_off';
+        if (overlaps(startMin, endMin, toMin(lv.startTime), toMin(lv.endTime))) return 'time_off';
+    }
+
+    const shift = await Shift.findOne({ teamMember: member._id, date: key })
         .select('slots breaks').lean();
 
     if (shift) {
