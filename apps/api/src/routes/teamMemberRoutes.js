@@ -3,6 +3,7 @@ const router = express.Router();
 const { auth, authorize } = require('../middleware/auth');
 const {
     getMyTeam, addTeamMember, updateTeamMember, deleteTeamMember, restoreTeamMember, setTeamMemberPermissions, getTeamMemberStats,
+    getTeamMemberShifts, setTeamMemberShift, clearTeamMemberShift,
     inviteTeamMember, setTeamMemberServices,
     getTeamMemberAvailability, updateTeamMemberAvailability,
 } = require('../controllers/teamMemberController');
@@ -25,6 +26,11 @@ router.post('/:id/restore', restoreTeamMember);
 // their own permissions is the one thing this must never allow.
 router.put('/:id/permissions', setTeamMemberPermissions);
 router.get('/:id/stats', getTeamMemberStats);
+// Date-specific working days. A shift replaces the weekly pattern for that
+// date; DELETE hands the date back to the pattern.
+router.get('/:id/shifts', getTeamMemberShifts);
+router.put('/:id/shifts', setTeamMemberShift);
+router.delete('/:id/shifts/:date', clearTeamMemberShift);
 router.post('/:id/invite', inviteTeamMember);
 router.put('/:id/services', setTeamMemberServices);
 

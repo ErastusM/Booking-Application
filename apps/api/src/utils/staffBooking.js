@@ -20,6 +20,7 @@
 const TeamMember = require('../models/TeamMember');
 const StaffAvailability = require('../models/StaffAvailability');
 const BlockedTime = require('../models/BlockedTime');
+const Shift = require('../models/Shift');
 const Appointment = require('../models/Appointment');
 const Availability = require('../models/Availability');
 
@@ -42,6 +43,8 @@ const performsService = (member, serviceId) =>
 
 const UNAVAILABLE_MESSAGES = {
     outside_hours: "That time is outside this staff member's working hours.",
+    off_shift: "That staff member isn't rostered on at that time.",
+    on_break: 'That staff member is on a break at that time.',
     blocked: 'That staff member is not available at that time.',
     booked: 'That staff member is already booked at that time. You can join the waiting list instead.',
 };
@@ -56,10 +59,25 @@ async function isMemberFree({ providerId, member, date, startTime, endTime, svc,
     const endMin = toMin(endTime);
 
     if (enforceHours) {
-        const staffAv = await StaffAvailability.findOne({ teamMember: member._id });
-        const schedule = staffAv?.schedule || businessSchedule;
-        if (schedule && !withinSchedule(schedule, date, startMin, endMin)) {
-            return { free: false, reason: 'outside_hours' };
+        // A shift for this exact date REPLACES the weekly pattern — see the
+        // contract on models/Shift. Without the replacement there would be no
+        // way to say "not in on Thursday" for one Thursday only.
+        const shift = await Shift.findOne({ teamMember: member._id, date: dateStr(date) })
+            .select('slots breaks').lean();
+
+        if (shift) {
+            const onShift = (shift.slots || []).some(sl => startMin >= toMin(sl.start) && endMin <= toMin(sl.end));
+            if (!onShift) return { free: false, reason: 'off_shift' };
+            // Breaks carve out of the shift's own slots.
+            if ((shift.breaks || []).some(b => overlaps(startMin, endMin, toMin(b.start), toMin(b.end)))) {
+                return { free: false, reason: 'on_break' };
+            }
+        } else {
+            const staffAv = await StaffAvailability.findOne({ teamMember: member._id });
+            const schedule = staffAv?.schedule || businessSchedule;
+            if (schedule && !withinSchedule(schedule, date, startMin, endMin)) {
+                return { free: false, reason: 'outside_hours' };
+            }
         }
         const blocks = await BlockedTime.find({
             provider: providerId,

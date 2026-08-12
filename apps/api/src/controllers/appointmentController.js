@@ -282,15 +282,46 @@ exports.getBookedSlots = async (req, res) => {
         // stays provider-wide, exactly as before.
         if (teamMember) query.teamMember = teamMember;
 
-        const [appointments, blocks] = await Promise.all([
+        const Shift = require('../models/Shift');
+        const [appointments, blocks, shift] = await Promise.all([
             Appointment.find(query).select('startTime endTime teamMember -_id').lean(),
             findBlocksForDate(providerId, date, teamMember || null),
+            // Only meaningful for a named staff member: a shift is one person's
+            // working day, so it says nothing about the business as a whole.
+            teamMember ? Shift.findOne({ teamMember, date: toDateKey(date) }).select('slots breaks').lean() : null,
         ]);
 
         const busy = [
             ...appointments.map(a => ({ ...a, kind: 'appointment' })),
             ...blocks.map(b => ({ startTime: b.startTime, endTime: b.endTime, kind: 'blocked' })),
         ];
+
+        // Breaks and off-shift hours have to come back as BUSY, not just be
+        // enforced when the booking is submitted. Slots are computed on the
+        // client from opening hours minus this list, so a break the client
+        // never hears about is a slot the customer picks and is then refused —
+        // the rejection is correct and the experience is terrible. Entries
+        // carry a `kind`, and clients that ignore it still treat them as busy.
+        if (shift) {
+            (shift.breaks || []).forEach((b) => {
+                busy.push({ startTime: b.start, endTime: b.end, kind: 'break' });
+            });
+            // The complement of the shift's slots across the day. A shift with
+            // no slots is a rostered day off, and correctly blocks the lot.
+            const mins = (t) => { const [h = 0, m = 0] = String(t).split(':').map(Number); return h * 60 + m; };
+            const pad = (n) => String(n).padStart(2, '0');
+            const hhmm = (m) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
+            const ordered = (shift.slots || [])
+                .map((sl) => [mins(sl.start), mins(sl.end)])
+                .filter(([a, b]) => b > a)
+                .sort((a, b) => a[0] - b[0]);
+            let cursor = 0;
+            ordered.forEach(([a, b]) => {
+                if (a > cursor) busy.push({ startTime: hhmm(cursor), endTime: hhmm(a), kind: 'off_shift' });
+                cursor = Math.max(cursor, b);
+            });
+            if (cursor < 24 * 60) busy.push({ startTime: hhmm(cursor), endTime: '23:59', kind: 'off_shift' });
+        }
 
         res.status(200).json({ success: true, data: busy });
     } catch (error) {
@@ -332,7 +363,11 @@ exports.getAllAppointments = async (req, res) => {
         // The provider calendar needs every booking, not a page — `all=true` bypasses
         // pagination so the calendar can never silently drop appointments.
         const fetchAll = req.query.all === 'true';
-        const base = () => Appointment.find(query)
+        // .lean() throughout: these are serialised straight to JSON and no
+        // document method is ever called on them, so hydrating hundreds of
+        // Mongoose documents (each with four populated relations) is pure cost
+        // on the request the calendar waits for.
+        const base = () => Appointment.find(query).lean()
             .populate('customer', 'name email phone')
             .populate('service', 'name price duration')
             .populate('teamMember', 'name color')

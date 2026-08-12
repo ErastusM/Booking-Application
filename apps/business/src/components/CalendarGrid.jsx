@@ -249,7 +249,14 @@ const CalendarGrid = ({
 
     // Off-hours (non-working) intervals per day, for hatching.
     const offIntervalsOf = (d) => {
-        const cfg = availability?.[DAY_NAMES[d.getDay()]];
+        // Availability arrives a moment after the grid first paints. Until it
+        // does we know NOTHING about the opening hours — and "nothing known"
+        // must not render as "closed all day". It used to: the whole three-day
+        // grid came up solid hatching and sat there looking shut until the
+        // request landed, which is why the calendar felt slow to open even
+        // though it had already drawn.
+        if (!availability) return [];
+        const cfg = availability[DAY_NAMES[d.getDay()]];
         const slots = (cfg?.enabled && Array.isArray(cfg.slots) ? cfg.slots : []).filter((s) => s?.start && s?.end);
         if (!slots.length) return [[winStart, winEnd]];
         const sorted = slots.map((s) => [minutesOf(s.start), minutesOf(s.end)]).sort((a, b) => a[0] - b[0]);

@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { teamService, providerServiceService } from '../services';
-import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck } from 'lucide-react';
+import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus } from 'lucide-react';
 
 /**
  * Epic 2.4 — staff management: roster CRUD, invite-to-login, per-staff
@@ -108,6 +108,12 @@ const MemberCard = ({ member, services, onChanged }) => {
     const [tab, setTab] = useState('overview');
     const [stats, setStats] = useState(null);      // null = not fetched, false = failed
     const [bookable, setBookable] = useState(member.bookable !== false);
+    const todayKey = new Date().toISOString().slice(0, 10);
+    const [shiftDate, setShiftDate] = useState(todayKey);
+    const [shifts, setShifts] = useState(null);          // upcoming shifts already set
+    const [slots, setSlots] = useState([{ start: '09:00', end: '17:00' }]);
+    const [breaks, setBreaks] = useState([]);
+    const [shiftErr, setShiftErr] = useState('');
     const [personal, setPersonal] = useState({
         name: member.name || '', role: member.role || '', email: member.email || '',
         phone: member.phone || '', country: member.country || '', address: member.address || '',
@@ -132,7 +138,56 @@ const MemberCard = ({ member, services, onChanged }) => {
             .catch(() => setSchedule('inherit'));
     }, [open, tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    useEffect(() => {
+        if (!open || tab !== 'workspace' || shifts !== null) return;
+        const to = new Date(); to.setDate(to.getDate() + 60);
+        teamService.getMemberShifts(member._id, todayKey, to.toISOString().slice(0, 10))
+            .then(res => setShifts(res.data.data || []))
+            .catch(() => setShifts([]));
+    }, [open, tab]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Editing a date that already has a shift should show that shift, not a
+    // blank 9-to-5 that would silently overwrite it on save.
+    useEffect(() => {
+        const existing = (shifts || []).find(sh => sh.date === shiftDate);
+        setSlots(existing ? existing.slots.map(x => ({ start: x.start, end: x.end })) : [{ start: '09:00', end: '17:00' }]);
+        setBreaks(existing ? existing.breaks.map(b => ({ start: b.start, end: b.end, label: b.label || 'Break' })) : []);
+        setShiftErr('');
+    }, [shiftDate, shifts]);
+
     const flash = (t) => { setMsg(t); setTimeout(() => setMsg(''), 3500); };
+
+    const refreshShifts = async () => {
+        const to = new Date(); to.setDate(to.getDate() + 60);
+        const res = await teamService.getMemberShifts(member._id, todayKey, to.toISOString().slice(0, 10));
+        setShifts(res.data.data || []);
+    };
+
+    const saveShift = async () => {
+        setBusy('shift'); setShiftErr('');
+        try {
+            // A day off has no breaks. Sending the leftovers would be refused
+            // ("that break falls outside the working hours") for what the owner
+            // experiences as simply marking someone off — the state is invalid,
+            // so don't let the UI produce it.
+            await teamService.setMemberShift(member._id, { date: shiftDate, slots, breaks: slots.length ? breaks : [] });
+            await refreshShifts();
+            flash(slots.length ? `Shift saved for ${shiftDate}.` : `${member.name} is off on ${shiftDate}.`);
+        } catch (err) {
+            setShiftErr(err?.response?.data?.message || 'Could not save that shift.');
+        } finally { setBusy(''); }
+    };
+
+    const clearShift = async () => {
+        setBusy('shift'); setShiftErr('');
+        try {
+            await teamService.clearMemberShift(member._id, shiftDate);
+            await refreshShifts();
+            flash('Back to their usual hours for that day.');
+        } catch {
+            setShiftErr('Could not clear that shift.');
+        } finally { setBusy(''); }
+    };
 
     const setCalendarAccess = async (next) => {
         const previous = seesAll;
@@ -365,6 +420,99 @@ const MemberCard = ({ member, services, onChanged }) => {
                                         </Chip>
                                     ))}
                                     {services.length === 0 && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>No services yet — add services first.</p>}
+                                </div>
+                            </Section>
+
+                            <Section icon={CalendarDays} title="Shifts" hint="(one date at a time — overrides their usual hours)">
+                                <div style={{ padding: '0.75rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                        Date
+                                        <input type="date" className="input" value={shiftDate} min={todayKey}
+                                            onChange={e => setShiftDate(e.target.value)}
+                                            data-testid="shift-date" style={{ width: '170px', padding: '0.4rem 0.5rem', fontWeight: 400 }} />
+                                        {(shifts || []).some(sh => sh.date === shiftDate)
+                                            ? <span style={{ fontSize: '0.72rem', color: 'var(--gold-dark)', fontWeight: 600 }}>Shift set</span>
+                                            : <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>Using their usual hours</span>}
+                                    </label>
+
+                                    <div style={{ marginTop: '0.7rem' }}>
+                                        <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Working</p>
+                                        {slots.length === 0 && (
+                                            <p style={{ margin: '0 0 0.4rem', fontSize: '0.82rem', color: 'var(--gold-dark)', fontWeight: 600 }} data-testid="shift-day-off">
+                                                Rostered off — no bookings that day.
+                                            </p>
+                                        )}
+                                        {slots.map((sl, i) => (
+                                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
+                                                <input type="time" className="input" value={sl.start} data-testid="shift-start"
+                                                    onChange={e => setSlots(v => v.map((x, j) => j === i ? { ...x, start: e.target.value } : x))}
+                                                    style={{ width: '108px', padding: '0.35rem 0.5rem' }} />
+                                                <span style={{ color: 'var(--text-muted)' }}>–</span>
+                                                <input type="time" className="input" value={sl.end} data-testid="shift-end"
+                                                    onChange={e => setSlots(v => v.map((x, j) => j === i ? { ...x, end: e.target.value } : x))}
+                                                    style={{ width: '108px', padding: '0.35rem 0.5rem' }} />
+                                                <button type="button" aria-label="Remove working period" onClick={() => setSlots(v => v.filter((_, j) => j !== i))}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.2rem' }}>
+                                                    <X size={15} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <button type="button" className="btn-outline" data-testid="add-slot"
+                                            onClick={() => setSlots(v => [...v, { start: '09:00', end: '17:00' }])}
+                                            style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                                            <Plus size={13} /> {slots.length ? 'Add another' : 'Add hours'}
+                                        </button>
+                                    </div>
+
+                                    {slots.length > 0 && (
+                                    <div style={{ marginTop: '0.8rem' }}>
+                                        <p style={{ margin: '0 0 0.35rem', fontSize: '0.75rem', fontWeight: 700, letterSpacing: '0.04em', textTransform: 'uppercase', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.3rem' }}>
+                                            <Coffee size={12} /> Breaks
+                                        </p>
+                                        {breaks.map((b, i) => (
+                                            <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
+                                                <input type="time" className="input" value={b.start} data-testid="break-start"
+                                                    onChange={e => setBreaks(v => v.map((x, j) => j === i ? { ...x, start: e.target.value } : x))}
+                                                    style={{ width: '108px', padding: '0.35rem 0.5rem' }} />
+                                                <span style={{ color: 'var(--text-muted)' }}>–</span>
+                                                <input type="time" className="input" value={b.end}
+                                                    onChange={e => setBreaks(v => v.map((x, j) => j === i ? { ...x, end: e.target.value } : x))}
+                                                    style={{ width: '108px', padding: '0.35rem 0.5rem' }} />
+                                                <input className="input" value={b.label} placeholder="Lunch"
+                                                    onChange={e => setBreaks(v => v.map((x, j) => j === i ? { ...x, label: e.target.value } : x))}
+                                                    style={{ width: '110px', padding: '0.35rem 0.5rem' }} />
+                                                <button type="button" aria-label="Remove break" onClick={() => setBreaks(v => v.filter((_, j) => j !== i))}
+                                                    style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.2rem' }}>
+                                                    <X size={15} />
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <button type="button" className="btn-outline" data-testid="add-break"
+                                            onClick={() => setBreaks(v => [...v, { start: '13:00', end: '14:00', label: 'Lunch' }])}
+                                            style={{ padding: '0.3rem 0.7rem', fontSize: '0.78rem', display: 'inline-flex', alignItems: 'center', gap: '0.3rem' }}>
+                                            <Plus size={13} /> Add a break
+                                        </button>
+                                    </div>
+                                    )}
+
+                                    {shiftErr && <p style={{ margin: '0.6rem 0 0', fontSize: '0.8rem', color: 'var(--danger, #c2321a)', fontWeight: 600 }} data-testid="shift-error">{shiftErr}</p>}
+
+                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+                                        <button type="button" className="btn-primary" onClick={saveShift} disabled={busy === 'shift'} data-testid="save-shift" style={{ padding: '0.5rem 1.2rem' }}>
+                                            {busy === 'shift' ? 'Saving…' : 'Save shift'}
+                                        </button>
+                                        {(shifts || []).some(sh => sh.date === shiftDate) && (
+                                            <button type="button" className="btn-outline" onClick={clearShift} disabled={busy === 'shift'} data-testid="clear-shift" style={{ padding: '0.5rem 1.2rem' }}>
+                                                Back to usual hours
+                                            </button>
+                                        )}
+                                    </div>
+
+                                    {(shifts || []).length > 0 && (
+                                        <p style={{ margin: '0.7rem 0 0', fontSize: '0.74rem', color: 'var(--text-muted)' }}>
+                                            Set for: {shifts.map(sh => sh.date + (sh.slots.length ? '' : ' (off)')).join(' · ')}
+                                        </p>
+                                    )}
                                 </div>
                             </Section>
 

@@ -104,6 +104,119 @@ exports.deleteTeamMember = async (req, res) => {
 };
 
 /**
+ * GET  /api/team/:id/shifts?from=YYYY-MM-DD&to=YYYY-MM-DD  (provider/admin)
+ * PUT  /api/team/:id/shifts   body: { date, slots: [{start,end}], breaks: [{start,end,label}], note }
+ * DELETE /api/team/:id/shifts/:date
+ *
+ * Date-specific working days. See models/Shift for the precedence contract —
+ * in short, a shift REPLACES the weekly pattern for that one date, and
+ * deleting it hands the date back to the pattern.
+ *
+ * A shift with no slots is meaningful, not empty: it is a rostered day off,
+ * and it is the only way to say "not in this Thursday" without editing every
+ * Thursday.
+ */
+const Shift = require('../models/Shift');
+
+const HHMM = /^([01]\d|2[0-3]):[0-5]\d$/;
+const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
+const toMinutes = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+
+/** Validate and normalise the periods on a shift, or explain the refusal. */
+const cleanPeriods = (list, label) => {
+    if (list === undefined) return { periods: [] };
+    if (!Array.isArray(list)) return { error: `${label} must be an array` };
+    const periods = [];
+    for (const p of list) {
+        if (!p || !HHMM.test(p.start || '') || !HHMM.test(p.end || '')) {
+            return { error: `Every ${label} entry needs a start and end as HH:MM` };
+        }
+        if (toMinutes(p.end) <= toMinutes(p.start)) {
+            return { error: `A ${label} must end after it starts` };
+        }
+        periods.push(p);
+    }
+    // Overlapping working periods would double-count the day and make
+    // occupancy nonsense, so they are refused rather than silently merged.
+    const sorted = [...periods].sort((a, b) => toMinutes(a.start) - toMinutes(b.start));
+    for (let i = 1; i < sorted.length; i += 1) {
+        if (toMinutes(sorted[i].start) < toMinutes(sorted[i - 1].end)) {
+            return { error: `Two ${label} entries overlap` };
+        }
+    }
+    return { periods: sorted };
+};
+
+exports.getTeamMemberShifts = async (req, res) => {
+    try {
+        const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
+
+        const { from, to } = req.query;
+        const q = { teamMember: member._id };
+        if (DATE_KEY.test(from || '') && DATE_KEY.test(to || '')) q.date = { $gte: from, $lte: to };
+
+        const shifts = await Shift.find(q).sort({ date: 1 }).lean();
+        res.status(200).json({ success: true, data: shifts });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+exports.setTeamMemberShift = async (req, res) => {
+    try {
+        const { date, note } = req.body;
+        if (!DATE_KEY.test(date || '')) {
+            return res.status(400).json({ success: false, message: 'date must be YYYY-MM-DD' });
+        }
+
+        const slots = cleanPeriods(req.body.slots, 'working period');
+        if (slots.error) return res.status(400).json({ success: false, message: slots.error });
+        const breaks = cleanPeriods(req.body.breaks, 'break');
+        if (breaks.error) return res.status(400).json({ success: false, message: breaks.error });
+
+        // A break outside every working period is almost always a mistake — and
+        // silently keeping it would make the shift claim hours it doesn't have.
+        const outside = breaks.periods.find((b) => !slots.periods.some(
+            (sl) => toMinutes(b.start) >= toMinutes(sl.start) && toMinutes(b.end) <= toMinutes(sl.end),
+        ));
+        if (outside) {
+            return res.status(400).json({
+                success: false,
+                message: `The ${outside.start}–${outside.end} break falls outside the working hours for that day.`,
+            });
+        }
+
+        const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
+
+        const shift = await Shift.findOneAndUpdate(
+            { teamMember: member._id, date },
+            { $set: { provider: req.user._id, slots: slots.periods, breaks: breaks.periods, note: note || '' } },
+            { new: true, upsert: true, setDefaultsOnInsert: true },
+        );
+        res.status(200).json({ success: true, data: shift });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+exports.clearTeamMemberShift = async (req, res) => {
+    try {
+        const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
+
+        // Removing the row is the point: the date falls back to the weekly
+        // pattern, which is different from storing a shift with no slots (a
+        // rostered day off).
+        await Shift.deleteOne({ teamMember: member._id, date: req.params.date });
+        res.status(200).json({ success: true, message: 'Back to their usual hours for that day' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
  * GET /api/team/:id/stats?days=30  (provider/admin)
  *
  * The Overview tab: how this member's last N days actually went, computed from
