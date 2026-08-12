@@ -1643,9 +1643,11 @@ exports.providerBatchReschedule = async (req, res) => {
             if (!validBookingWindow(m.startTime, endTime)) {
                 return res.status(400).json({ success: false, message: 'That time would run past midnight. Pick an earlier start.' });
             }
-            // Providers may deliberately place work outside their published hours,
-            // but only by saying so — the flag is set by the drag UI once it has
-            // shown the "outside opening hours" warning, never by default.
+            // Providers may place work outside their published hours; the drag
+            // surface sets this on every move, because dragging a booking on your
+            // own calendar IS the deliberate act — matching what the existing
+            // single-booking provider path already allows. The flag stays because
+            // the default is strict and any future caller must opt in explicitly.
             if (!allowOutsideHours && !isTimeWithinSchedule(schedule, m.appointmentDate, m.startTime, duration)) {
                 return res.status(400).json({ success: false, message: 'Selected time is outside your availability schedule' });
             }

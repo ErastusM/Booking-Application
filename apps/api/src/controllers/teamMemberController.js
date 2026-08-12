@@ -244,7 +244,7 @@ exports.getTeamMemberStats = async (req, res) => {
         const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
 
-        const days = Math.min(365, Math.max(1, parseInt(req.body?.days || req.query.days, 10) || 30));
+        const days = Math.min(365, Math.max(1, parseInt(req.query.days, 10) || 30));
         const to = new Date(); to.setHours(23, 59, 59, 999);
         const from = new Date(to); from.setDate(from.getDate() - (days - 1)); from.setHours(0, 0, 0, 0);
 
@@ -261,12 +261,21 @@ exports.getTeamMemberStats = async (req, res) => {
         const [done, upcoming, ratingAgg, staffHours, businessHours] = await Promise.all([
             Appointment.find({ ...inWindow, status: 'completed' })
                 .select('totalPrice customer startTime endTime'),
-            Appointment.countDocuments({
-                provider: req.user._id,
-                teamMember: member._id,
-                status: { $in: ['pending', 'confirmed'] },
-                appointmentDate: { $gte: new Date() },
-            }),
+            // From the START OF TODAY, not from this instant. appointmentDate is
+            // a date-only value stored at midnight, so comparing it against `now`
+            // silently dropped every remaining booking today — at 09:00 a 15:00
+            // appointment counted as already past. Within-day precision would need
+            // startTime; the auto-complete job flips finished bookings out of
+            // pending/confirmed, so this converges without it.
+            (() => {
+                const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
+                return Appointment.countDocuments({
+                    provider: req.user._id,
+                    teamMember: member._id,
+                    status: { $in: ['pending', 'confirmed'] },
+                    appointmentDate: { $gte: startOfToday },
+                });
+            })(),
             // Reviews carry no teamMember, so the link runs through the booking.
             Review.aggregate([
                 { $lookup: { from: 'appointments', localField: 'appointment', foreignField: '_id', as: 'appt' } },
