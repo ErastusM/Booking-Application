@@ -4,7 +4,10 @@ const Review = require('../models/Review');
 const Category = require('../models/Category');
 const TeamMember = require('../models/TeamMember');
 const Availability = require('../models/Availability');
+const Shift = require('../models/Shift');
 const { searchAvailability } = require('../utils/availabilitySearch');
+
+const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
 
 // Fields needed to render the public provider profile (by id or by slug).
 const PROFILE_SELECT = 'name avatar providerCategory businessProfile portfolio phone email bookingPolicy';
@@ -25,6 +28,43 @@ exports.getProviderStaff = async (req, res) => {
             .select('name role color services') // public: no email/phone/user
             .sort({ createdAt: 1 });
         res.status(200).json({ success: true, data: staff });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * GET /api/providers/:id/staff/:teamMemberId/shift-days?from=YYYY-MM-DD&to=YYYY-MM-DD
+ * Public — the date-specific shifts a member has in a range, reduced to what the
+ * customer date picker needs: which days they WORK (open the day even if the
+ * business is normally closed — a member covering a Sunday) and which they are
+ * rostered OFF (close the day even if the business is open). The slot times
+ * themselves still come from getBookedSlots once a date is chosen.
+ *
+ * Only date keys are returned — never slot times or notes — so the public
+ * calendar learns which days to enable and nothing else about the roster.
+ */
+exports.getProviderStaffShiftDays = async (req, res) => {
+    try {
+        const { from, to } = req.query;
+        if (!DATE_KEY.test(from || '') || !DATE_KEY.test(to || '')) {
+            return res.status(400).json({ success: false, message: 'from and to must be YYYY-MM-DD' });
+        }
+        // The member must belong to THIS provider and still be active. A miss
+        // returns empty (not 404), so the picker simply falls back to business
+        // hours rather than leaking whether an id exists.
+        const member = await TeamMember.findOne({
+            _id: req.params.teamMemberId, provider: req.params.id, isActive: true,
+        }).select('_id');
+        if (!member) return res.status(200).json({ success: true, data: { working: [], off: [] } });
+
+        const shifts = await Shift.find({ teamMember: member._id, date: { $gte: from, $lte: to } })
+            .select('date slots').lean();
+        const working = [];
+        const off = [];
+        // An empty-slots shift is a rostered day off; anything else is a working day.
+        shifts.forEach((s) => ((s.slots && s.slots.length) ? working : off).push(s.date));
+        res.status(200).json({ success: true, data: { working, off } });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
