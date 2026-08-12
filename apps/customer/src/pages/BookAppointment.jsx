@@ -51,6 +51,11 @@ const BookAppointment = () => {
     const [providerAvailability, setProviderAvailability] = useState(null);
     const [availabilityError, setAvailabilityError] = useState('');
     const [bookedSlots, setBookedSlots] = useState([]); // [{startTime, endTime}]
+    // The selected member's shift working window for the chosen date, or null for
+    // "no shift — use business hours". A shift REPLACES business hours for that
+    // date (models/Shift), so when present it becomes the slot picker's base
+    // window and can extend past published closing. Empty array = rostered day off.
+    const [shiftWindow, setShiftWindow] = useState(null);
     const [calendarMonth, setCalendarMonth] = useState(() => { const d = new Date(); d.setDate(1); d.setHours(0, 0, 0, 0); return d; });
     const [wallet, setWallet] = useState(null); // this provider's wallet + settings (when wallet is enabled)
     const [recurrence, setRecurrence] = useState({ isRecurring: false, recurrenceType: 'weekly', recurrenceInterval: 1, recurrenceEndDate: '' });
@@ -181,11 +186,11 @@ const BookAppointment = () => {
     // `stale` guards against an out-of-order response (e.g. a fast date-to-date flip)
     // painting an earlier request's slots over the day the user is actually looking at.
     useEffect(() => {
-        if (!effectiveProviderId || !formData.appointmentDate) { setBookedSlots([]); return; }
+        if (!effectiveProviderId || !formData.appointmentDate) { setBookedSlots([]); setShiftWindow(null); return; }
         let stale = false;
         appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate, selectedStaff?._id || undefined)
-            .then(res => { if (!stale) setBookedSlots(res.data.data || []); })
-            .catch(() => { if (!stale) setBookedSlots([]); });
+            .then(res => { if (!stale) { setBookedSlots(res.data.data || []); setShiftWindow(res.data.shiftWindow ?? null); } })
+            .catch(() => { if (!stale) { setBookedSlots([]); setShiftWindow(null); } });
         return () => { stale = true; };
     }, [effectiveProviderId, formData.appointmentDate, selectedStaff]);
 
@@ -193,7 +198,7 @@ const BookAppointment = () => {
     // slot freed or grabbed by someone else reflects without a manual refresh.
     useLiveRefresh(() => {
         appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate, selectedStaff?._id || undefined)
-            .then(res => setBookedSlots(res.data.data || []))
+            .then(res => { setBookedSlots(res.data.data || []); setShiftWindow(res.data.shiftWindow ?? null); })
             .catch(() => {});
     }, { intervalMs: 20000, enabled: !!(effectiveProviderId && formData.appointmentDate) });
 
@@ -211,6 +216,18 @@ const BookAppointment = () => {
     };
 
     useEffect(() => {
+        // A chosen member's shift is authoritative for its date and can run past
+        // business hours, so validate the picked time against the shift window
+        // rather than the published hours — otherwise a legitimately bookable
+        // late-shift slot would be flagged as "outside working hours" and, via
+        // canReview, block the booking the server would accept. Empty window is a
+        // rostered day off: nothing that day is valid.
+        if (selectedStaff && shiftWindow !== null) {
+            if (!formData.appointmentDate || !formData.startTime) { setAvailabilityError(''); return; }
+            const within = shiftWindow.some(s => formData.startTime >= s.start && formData.startTime < s.end);
+            setAvailabilityError(within ? '' : 'That staff member is not rostered on at this time. Please pick another slot.');
+            return;
+        }
         if (!providerAvailability || !formData.appointmentDate || !formData.startTime) {
             setAvailabilityError('');
             return;
@@ -238,7 +255,7 @@ const BookAppointment = () => {
             return;
         }
         setAvailabilityError('');
-    }, [providerAvailability, formData.appointmentDate, formData.startTime]);
+    }, [providerAvailability, formData.appointmentDate, formData.startTime, selectedStaff, shiftWindow]);
 
     // Re-runs whenever the ?providerId query param itself changes (not just on mount) —
     // e.g. navigating from one business's booking link to another's, or to the generic
@@ -510,25 +527,35 @@ const BookAppointment = () => {
     // time is broken into slots the size of the selected service (anchored at the hour
     // start) so the day fills efficiently — see buildTimeSlots for the exact rules.
     // Spans EVERY working block of the day (split shifts) and never appears in the past.
+    // "HH:MM" period list → sorted minute blocks.
+    const toBlocks = (periods) => (periods || [])
+        .filter(s => s?.start && s?.end)
+        .map(s => {
+            const [sH, sM] = s.start.split(':').map(Number);
+            const [eH, eM] = s.end.split(':').map(Number);
+            return { start: sH * 60 + sM, end: eH * 60 + eM };
+        })
+        .filter(b => b.end > b.start)
+        .sort((a, b) => a.start - b.start);
+
     const generateTimeSlots = (dateStr) => {
         const duration = totalDuration || 30;
 
         // Working blocks for the day — supports multiple slots (e.g. 09:00–12:00, 13:00–17:00)
         let blocks = [{ start: 8 * 60, end: 20 * 60 }];
-        if (providerAvailability && dateStr) {
+        // A chosen member with a shift for this date: their shift REPLACES business
+        // hours (models/Shift), and may run past closing. An empty window is a
+        // rostered day off. This is what lets a customer self-book a late/early
+        // shift the published hours don't cover — the server already accepts it.
+        if (selectedStaff && shiftWindow !== null) {
+            blocks = toBlocks(shiftWindow);
+            if (blocks.length === 0) return [];
+        } else if (providerAvailability && dateStr) {
             const [y, m, d] = dateStr.split('-').map(Number);
             const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
             const daySchedule = providerAvailability[dayNames[new Date(y, m - 1, d).getDay()]];
             if (!daySchedule?.enabled || !Array.isArray(daySchedule.slots) || daySchedule.slots.length === 0) return [];
-            blocks = daySchedule.slots
-                .filter(s => s?.start && s?.end)
-                .map(s => {
-                    const [sH, sM] = s.start.split(':').map(Number);
-                    const [eH, eM] = s.end.split(':').map(Number);
-                    return { start: sH * 60 + sM, end: eH * 60 + eM };
-                })
-                .filter(b => b.end > b.start)
-                .sort((a, b) => a.start - b.start);
+            blocks = toBlocks(daySchedule.slots);
             if (blocks.length === 0) return [];
         }
 

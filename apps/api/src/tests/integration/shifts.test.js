@@ -157,6 +157,43 @@ describe('what the customer is shown', () => {
 
         // A shift is one person's day and says nothing about the business.
         expect(res.body.data.map((b) => b.kind)).not.toContain('off_shift');
+        // And with no member named there is no per-member window to hand back.
+        expect(res.body.shiftWindow).toBeNull();
+    });
+
+    // The positive half of the picture: the member's working window, so the
+    // customer slot picker can offer a shift that runs past published closing.
+    it('returns the member\'s shift window so the picker can extend its hours', async () => {
+        const { provider, member } = await setup();
+        // Business hours are 08:00–18:00 (setup); this shift runs to 20:00.
+        await Shift.create({ provider: provider._id, teamMember: member._id, date: DATE, slots: [{ start: '12:00', end: '20:00' }] });
+
+        const res = await request(app)
+            .get(`/api/appointments/booked-slots?providerId=${provider._id}&date=${DATE}&teamMember=${member._id}`);
+
+        expect(res.body.shiftWindow).toEqual([{ start: '12:00', end: '20:00' }]);
+    });
+
+    // An empty window is a rostered day off — distinct from null (no shift), so
+    // the picker shows nothing rather than falling back to business hours.
+    it('returns an empty window, not null, for a rostered day off', async () => {
+        const { provider, member } = await setup();
+        await Shift.create({ provider: provider._id, teamMember: member._id, date: DATE, slots: [] });
+
+        const res = await request(app)
+            .get(`/api/appointments/booked-slots?providerId=${provider._id}&date=${DATE}&teamMember=${member._id}`);
+
+        expect(res.body.shiftWindow).toEqual([]);
+    });
+
+    // No shift for the date → null, and the picker keeps using business hours.
+    it('hands back null when the member has no shift that day', async () => {
+        const { provider, member } = await setup();
+
+        const res = await request(app)
+            .get(`/api/appointments/booked-slots?providerId=${provider._id}&date=${DATE}&teamMember=${member._id}`);
+
+        expect(res.body.shiftWindow).toBeNull();
     });
 });
 
