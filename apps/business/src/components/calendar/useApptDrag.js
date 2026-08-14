@@ -297,6 +297,31 @@ export const useApptDrag = ({
         };
     }, [enabled, onPointerUp]);
 
+    // A lifted card sweeps across the grid, and the browser paints a text
+    // selection over everything the pointer crosses — labels, times, the other
+    // cards. The cards set user-select:none on themselves, but that only stops a
+    // selection from STARTING on a card, not the sweep across everything around
+    // it. Kill selection document-wide for the life of the gesture and restore it
+    // on drop, so ordinary text stays selectable the rest of the time (staff copy
+    // a client's number, an address). Keyed on the boolean, not the drag object,
+    // which changes identity on every snap and would thrash the listener.
+    const dragging = !!drag;
+    useEffect(() => {
+        if (!dragging) return undefined;
+        const { body } = document;
+        const prevUserSelect = body.style.userSelect;
+        const prevWebkit = body.style.webkitUserSelect;
+        body.style.userSelect = 'none';
+        body.style.webkitUserSelect = 'none';
+        const blockSelect = (e) => e.preventDefault();
+        document.addEventListener('selectstart', blockSelect);
+        return () => {
+            body.style.userSelect = prevUserSelect;
+            body.style.webkitUserSelect = prevWebkit;
+            document.removeEventListener('selectstart', blockSelect);
+        };
+    }, [dragging]);
+
     // ── Keyboard equivalent ─────────────────────────────────────────────────
     // Drag-only would lock out anyone not using a pointer, so the same move
     // exists on the keys.
