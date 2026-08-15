@@ -101,6 +101,10 @@ const userSchema = new mongoose.Schema(
         googleId: { type: String, default: null },
         avatar: { type: String, default: null },
         tokenVersion: { type: Number, default: 0 },
+        // Stamp of the last successful sign-in. null = never signed in — which, for an
+        // invited staff account, is what separates "Invited · awaiting login" from an
+        // active member on the Team screen.
+        lastLoginAt: { type: Date, default: null },
         // Hashes of recently-issued refresh-token ids (jti). A refresh token whose jti
         // isn't here is rejected (rotated-away / forged). undefined = legacy, untracked.
         refreshTokenJtis: { type: [String], default: undefined, select: false },

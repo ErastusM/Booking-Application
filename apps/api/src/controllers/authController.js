@@ -306,6 +306,12 @@ exports.login = async (req, res) => {
         const { token, refreshToken } = await issueAuthTokens(user);
         setRefreshCookie(res, refreshToken);
 
+        // Record the sign-in. Atomic $set (not user.save) so it never trips
+        // validation on a partially-selected doc and never races the jti update.
+        // First login for an invited staff member flips their Team status from
+        // "Invited · awaiting login" to active.
+        User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } }).catch(() => {});
+
         res.status(200).json({
             success: true,
             message: 'Login successful',

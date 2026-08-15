@@ -78,6 +78,12 @@ const MemberCard = ({ member, services, onChanged }) => {
     const [assigned, setAssigned] = useState((member.services || []).map(String));
     const [schedule, setSchedule] = useState(null); // null = inherits business hours
     const [inviteEmail, setInviteEmail] = useState(member.email || '');
+    const [inviteResult, setInviteResult] = useState(null); // sticky {ok, email, error} after a send
+    // Login lifecycle for the status line: no account → roster only; account but
+    // never signed in → invited/awaiting; signed in at least once → active.
+    const hasLogin = !!member.user;
+    const loggedIn = !!(member.user && member.user.lastLoginAt);
+    const invitedPending = hasLogin && !loggedIn;
     const perms = member.user?.staffPermissions || [];
     const [seesAll, setSeesAll] = useState(perms.includes('calendar:all'));
     const [tab, setTab] = useState('overview');
@@ -308,12 +314,15 @@ const MemberCard = ({ member, services, onChanged }) => {
 
     const invite = async () => {
         setBusy('invite');
+        setInviteResult(null);
         try {
-            await teamService.inviteMember(member._id, inviteEmail ? { email: inviteEmail } : {});
-            flash('Invite sent — they set a password from the email link.');
+            const res = await teamService.inviteMember(member._id, inviteEmail ? { email: inviteEmail } : {});
+            const data = res?.data?.data || {};
+            const to = data.email || inviteEmail;
+            setInviteResult({ ok: !!data.emailSent, email: to });
             onChanged();
         } catch (err) {
-            flash(err.response?.data?.message || 'Invite failed');
+            setInviteResult({ ok: false, error: err.response?.data?.message || 'Invite failed' });
         } finally { setBusy(''); }
     };
 
@@ -352,11 +361,16 @@ const MemberCard = ({ member, services, onChanged }) => {
                 <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: 'block', fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.98rem' }}>{member.name}</span>
                     <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                        {member.role || 'Staff'}{member.user ? ' · has login' : ' · roster only'}
+                        {member.role || 'Staff'}
+                        {!hasLogin ? ' · roster only' : loggedIn ? ' · active' : ' · invited, awaiting login'}
                         {(member.services || []).length ? ` · ${member.services.length} service${member.services.length > 1 ? 's' : ''}` : ' · all services'}
                     </span>
                 </span>
-                {member.user && <Check size={16} style={{ color: 'var(--success)', flexShrink: 0 }} />}
+                {loggedIn
+                    ? <Check size={16} style={{ color: 'var(--success)', flexShrink: 0 }} aria-label="Active" />
+                    : invitedPending
+                        ? <Mail size={15} style={{ color: 'var(--gold-dark)', flexShrink: 0 }} aria-label="Invited, awaiting login" />
+                        : null}
                 <ChevronDown size={18} style={{ color: 'var(--text-muted)', transform: open ? 'rotate(180deg)' : 'none', transition: 'transform 0.15s', flexShrink: 0 }} />
             </button>
 
@@ -444,12 +458,37 @@ const MemberCard = ({ member, services, onChanged }) => {
                     {/* ── Workspace ──────────────────────────────────────── */}
                     {tab === 'workspace' && (
                         <div data-testid="panel-workspace">
-                            {!member.user && (
+                            {/* Sticky result of the last invite — stays put after the roster
+                                reloads (which flips this member to "has login"), so the owner
+                                keeps the confirmation that the email actually went out. */}
+                            {inviteResult && (
+                                <div
+                                    data-testid="invite-result"
+                                    style={{
+                                        margin: '1rem 0 0', padding: '0.7rem 0.9rem', borderRadius: 'var(--radius)',
+                                        fontSize: '0.83rem', lineHeight: 1.5,
+                                        border: `1px solid ${inviteResult.ok ? '#6ee7b7' : '#fca5a5'}`,
+                                        background: inviteResult.ok ? '#d1fae5' : '#fef2f2',
+                                        color: inviteResult.ok ? '#065f46' : '#991b1b',
+                                    }}
+                                >
+                                    {inviteResult.ok
+                                        ? <><strong>Invite email sent</strong> to {inviteResult.email}. They set a password from the link and then appear as active here.</>
+                                        : <><strong>Saved, but the invite email didn’t send{inviteResult.email ? ` to ${inviteResult.email}` : ''}.</strong> {inviteResult.error ? inviteResult.error : 'Check the address and resend below.'}</>}
+                                </div>
+                            )}
+
+                            {!loggedIn && (
                                 <Section icon={Mail} title="Invite to log in">
+                                    {invitedPending && (
+                                        <p style={{ margin: '0 0 0.6rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                                            Invited — waiting for them to set a password and sign in. Resend the email if it didn’t arrive.
+                                        </p>
+                                    )}
                                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                                         <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="their@email.com" className="input" style={{ maxWidth: '260px' }} data-testid="invite-email" />
                                         <button type="button" className="btn-primary" onClick={invite} disabled={busy === 'invite'} data-testid="invite-send" style={{ padding: '0.6rem 1.3rem' }}>
-                                            {busy === 'invite' ? 'Sending…' : 'Send invite'}
+                                            {busy === 'invite' ? 'Sending…' : invitedPending ? 'Resend invite' : 'Send invite'}
                                         </button>
                                     </div>
                                 </Section>
@@ -671,6 +710,13 @@ const MemberCard = ({ member, services, onChanged }) => {
                                 )}
                                 {schedule && schedule !== 'inherit' && (
                                     <div>
+                                        {/* Column labels so it's clear which field is the start and which the end. */}
+                                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.7rem', padding: '0 0 0.4rem', marginBottom: '0.3rem', borderBottom: '1px solid var(--border)' }}>
+                                            <span style={{ width: '104px', flexShrink: 0 }} aria-hidden="true" />
+                                            <span style={{ width: '110px', flexShrink: 0, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Starting time</span>
+                                            <span style={{ width: '10px', flexShrink: 0 }} aria-hidden="true" />
+                                            <span style={{ width: '110px', flexShrink: 0, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Ending time</span>
+                                        </div>
                                         {DAYS.map(day => (
                                             <div key={day} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.7rem', padding: '0.3rem 0', fontSize: '0.87rem' }}>
                                                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', width: '104px', color: 'var(--charcoal)', textTransform: 'capitalize', cursor: 'pointer' }}>
