@@ -12,7 +12,7 @@ exports.getMyTeam = async (req, res) => {
         // Callers that only test `member.user` for truthiness ("has a login")
         // are unaffected — a populated document is just as truthy as an id.
         const members = await TeamMember.find({ provider: req.user._id })
-            .populate('user', 'staffPermissions')
+            .populate('user', 'staffPermissions lastLoginAt')
             .sort({ createdAt: 1 });
         res.status(200).json({ success: true, data: members });
     } catch (error) {
@@ -501,7 +501,13 @@ exports.inviteTeamMember = async (req, res) => {
         const linked = member.user ? await User.findById(member.user) : null;
         const linkIntact = linked && linked.role === 'staff'
             && linked.staffOf && linked.staffOf.toString() === req.user._id.toString();
-        if (linkIntact) return res.status(400).json({ success: false, message: 'This team member already has a login' });
+        // Only an account that has actually SIGNED IN is "already set up" and off-limits.
+        // A member invited but never logged in falls through to a resend below: it lands
+        // on the same account, mints a fresh token and re-sends — the recovery path when
+        // the first email never arrived (wrong address, SMTP hiccup).
+        if (linkIntact && linked.lastLoginAt) {
+            return res.status(400).json({ success: false, message: 'This team member already has a login' });
+        }
 
         const email = ((req.body.email || member.email) || '').trim().toLowerCase();
         if (!email) return res.status(400).json({ success: false, message: 'An email address is required to invite' });
@@ -544,12 +550,20 @@ exports.inviteTeamMember = async (req, res) => {
         if (!member.email) member.email = email;
         await member.save();
 
-        // Fire-and-forget (matches every other email in the app).
+        // Awaited (not fire-and-forget) so the owner is told the truth about whether
+        // the invite reached the person. The account and token are already saved above,
+        // so a failed/again send never loses the login — the owner can just resend.
+        // safeSend returns {skipped} when SMTP is off and {error} when a send throws;
+        // anything else is a real delivery.
         const { sendStaffInviteEmail } = require('../utils/emailService');
         const businessName = req.user.businessProfile?.businessName || req.user.name;
-        Promise.resolve(sendStaffInviteEmail(email, member.name, businessName, rawToken)).catch(() => {});
+        let emailSent = false;
+        try {
+            const result = await sendStaffInviteEmail(email, member.name, businessName, rawToken);
+            emailSent = !!result && !result.skipped && !result.error;
+        } catch { emailSent = false; }
 
-        res.status(200).json({ success: true, data: { member, staffUserId: staffUser._id } });
+        res.status(200).json({ success: true, data: { member, staffUserId: staffUser._id, email, emailSent } });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -571,6 +585,63 @@ exports.setTeamMemberServices = async (req, res) => {
 
         if (services.length) {
             const owned = await Service.countDocuments({ _id: { $in: services }, provider: req.user._id });
+            if (owned !== new Set(services.map(String)).size) {
+                return res.status(400).json({ success: false, message: 'All services must belong to your business' });
+            }
+        }
+
+        member.services = services;
+        await member.save();
+        res.status(200).json({ success: true, data: member });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+// The roster row for the logged-in staff principal, resolved from the token —
+// same shape as timeOffController's /mine helper, so the staff self-service
+// endpoints never take a member id in the URL (one they don't know and mustn't
+// be able to spoof).
+const myMemberDoc = (req) => (req.user.staffOf
+    ? TeamMember.findOne({ user: req.user._id, provider: req.user.staffOf })
+    : Promise.resolve(null));
+
+/**
+ * GET /api/team/mine/services  (staff-self)
+ * data: { selected: [serviceId], services: [{ _id, name }] } — the member's own
+ * assignment plus the business's full menu to choose from.
+ */
+exports.getMyServices = async (req, res) => {
+    try {
+        const member = await myMemberDoc(req);
+        if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
+        const services = await Service.find({ provider: req.user.staffOf, isActive: { $ne: false } })
+            .select('name').sort({ name: 1 });
+        res.status(200).json({
+            success: true,
+            data: { selected: (member.services || []).map(String), services },
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * PUT /api/team/mine/services  (staff-self)
+ * Body: { services: [serviceId] } — [] means "performs all business services".
+ * A member sets their OWN service list; every id must be one of the business's.
+ */
+exports.setMyServices = async (req, res) => {
+    try {
+        const { services } = req.body;
+        if (!Array.isArray(services)) {
+            return res.status(400).json({ success: false, message: 'services must be an array of service ids' });
+        }
+        const member = await myMemberDoc(req);
+        if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
+
+        if (services.length) {
+            const owned = await Service.countDocuments({ _id: { $in: services }, provider: req.user.staffOf });
             if (owned !== new Set(services.map(String)).size) {
                 return res.status(400).json({ success: false, message: 'All services must belong to your business' });
             }

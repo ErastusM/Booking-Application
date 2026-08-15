@@ -431,7 +431,10 @@ exports.sendPasswordResetEmail = async (email, name, token, role) => {
 // Staff are business-side accounts, so the link opens the business app.
 exports.sendStaffInviteEmail = async (email, name, businessName, token) => {
     const url = `${businessOrigin()}/reset-password?token=${token}`;
-    await safeSend({
+    // Return safeSend's result so the invite handler can tell the owner whether the
+    // email actually went out ({skipped} = SMTP off, {error} = send failed) rather
+    // than claiming "sent" unconditionally.
+    return safeSend({
         from: FROM, to: email, subject: `You’ve been invited to join ${businessName} on Bookplus`,
         html: shell({
             heading: `Hi ${escapeHtml(name)}, you’re invited`,
