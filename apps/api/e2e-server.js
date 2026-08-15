@@ -81,8 +81,9 @@ const PORT = process.env.PORT || 5050;
     // lastLoginAt is set so they read as an active member, not a pending invite.
     const samUser = await User.create({
         name: 'Sam Staff', email: 'e2e-staff@bookplus.dev', password: 'Password1!',
-        role: 'staff', staffOf: provider._id, isVerified: true, provider: 'local',
-        staffPermissions: ['calendar:self', 'clients:assigned'], lastLoginAt: new Date(),
+        phone: '+264810000002', role: 'staff', staffOf: provider._id, isVerified: true,
+        provider: 'local', staffPermissions: ['calendar:self', 'clients:assigned'],
+        lastLoginAt: new Date(),
     });
     await TeamMember.create({
         provider: provider._id, name: 'Sam Staff', role: 'Stylist', color: '#8B5CF6',
