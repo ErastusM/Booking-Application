@@ -75,6 +75,20 @@ const PORT = process.env.PORT || 5050;
         startTime: '10:00', endTime: '11:00', status: 'confirmed', totalPrice: 100,
     });
 
+    // A staff member WITH a login, for the self-service specs (staff manage
+    // their own services on My schedule). Not bookable, so they never enter
+    // customer "any available" resolution and can't perturb the booking specs;
+    // lastLoginAt is set so they read as an active member, not a pending invite.
+    const samUser = await User.create({
+        name: 'Sam Staff', email: 'e2e-staff@bookplus.dev', password: 'Password1!',
+        role: 'staff', staffOf: provider._id, isVerified: true, provider: 'local',
+        staffPermissions: ['calendar:self', 'clients:assigned'], lastLoginAt: new Date(),
+    });
+    await TeamMember.create({
+        provider: provider._id, name: 'Sam Staff', role: 'Stylist', color: '#8B5CF6',
+        user: samUser._id, bookable: false,
+    });
+
     const app = require('./server');
     app.locals.e2e = {
         providerId: provider._id.toString(),
