@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { appointmentService, myTimeOffService } from '../services';
+import { appointmentService, myTimeOffService, myServicesService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
-import { CalendarClock, Palmtree } from 'lucide-react';
+import { CalendarClock, Palmtree, Scissors } from 'lucide-react';
 
 /**
  * Epic 2.4 — the staff principal's landing view: ONLY their own column
@@ -32,6 +32,10 @@ const MySchedule = () => {
     const [busy, setBusy] = useState('');
     const [err, setErr] = useState('');
     const [msg, setMsg] = useState('');
+    const [services, setServices] = useState(null);     // null = loading, false = failed, [] = the menu
+    const [mySvc, setMySvc] = useState([]);             // ids I perform ([] = all)
+    const [svcBusy, setSvcBusy] = useState(false);
+    const [svcMsg, setSvcMsg] = useState('');
 
     useEffect(() => {
         appointmentService.getAllAppointments({ all: 'true' })
@@ -40,7 +44,28 @@ const MySchedule = () => {
         myTimeOffService.list()
             .then(res => setTimeOff(res.data.data || []))
             .catch(() => setTimeOff(false));
+        myServicesService.get()
+            .then(res => {
+                setServices(res.data.data?.services || []);
+                setMySvc((res.data.data?.selected || []).map(String));
+            })
+            .catch(() => setServices(false));
     }, []);
+
+    // Auto-save each toggle (same as the owner's Team screen), optimistic with a
+    // revert if the save fails.
+    const toggleService = async (id) => {
+        const next = mySvc.includes(id) ? mySvc.filter(x => x !== id) : [...mySvc, id];
+        const prev = mySvc;
+        setMySvc(next); setSvcBusy(true); setSvcMsg('');
+        try {
+            await myServicesService.set(next);
+            setSvcMsg('Saved'); setTimeout(() => setSvcMsg(''), 2500);
+        } catch (e) {
+            setMySvc(prev);
+            setSvcMsg(e?.response?.data?.message || 'Could not save');
+        } finally { setSvcBusy(false); }
+    };
 
     const flash = (t) => { setMsg(t); setTimeout(() => setMsg(''), 3500); };
 
@@ -117,6 +142,50 @@ const MySchedule = () => {
                     </div>
                 ))
             )}
+
+            {/* ── My services ──────────────────────────────────────── */}
+            <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.15rem 1.25rem', marginTop: '2rem' }} data-testid="my-services">
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.15rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <Scissors size={16} /> My services
+                </h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '0 0 1rem' }}>
+                    Pick the services you perform so clients are matched to you correctly. None selected = you perform all of them.
+                </p>
+
+                {services === null && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading…</p>}
+                {services === false && <p style={{ margin: 0, color: 'var(--gold-dark)', fontSize: '0.85rem' }}>Couldn’t load the service list.</p>}
+                {Array.isArray(services) && services.length === 0 && (
+                    <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Your business hasn’t added any services yet.</p>
+                )}
+                {Array.isArray(services) && services.length > 0 && (
+                    <>
+                        <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+                            {services.map(s => {
+                                const active = mySvc.includes(String(s._id));
+                                return (
+                                    <button key={s._id} type="button" onClick={() => toggleService(String(s._id))} disabled={svcBusy}
+                                        data-testid="my-service-chip"
+                                        style={{
+                                            padding: '0.4rem 0.85rem', borderRadius: '999px', fontSize: '0.82rem', fontWeight: 600,
+                                            cursor: svcBusy ? 'default' : 'pointer',
+                                            border: `1px solid ${active ? 'var(--gold)' : 'var(--border)'}`,
+                                            background: active ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)',
+                                            color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                                        }}>
+                                        {s.name}
+                                    </button>
+                                );
+                            })}
+                        </div>
+                        <p style={{ margin: '0.7rem 0 0', fontSize: '0.8rem', color: mySvc.length ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
+                            {mySvc.length
+                                ? `You perform ${mySvc.length} of ${services.length} service${services.length > 1 ? 's' : ''}.`
+                                : 'You perform every service.'}
+                            {svcMsg && <span style={{ marginLeft: '0.5rem', color: svcMsg === 'Saved' ? '#1f8a4c' : 'var(--gold-dark)', fontWeight: 650 }}>{svcMsg}</span>}
+                        </p>
+                    </>
+                )}
+            </div>
 
             {/* ── Time off ─────────────────────────────────────────── */}
             <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.15rem 1.25rem', marginTop: '2rem' }}>

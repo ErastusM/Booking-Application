@@ -598,6 +598,63 @@ exports.setTeamMemberServices = async (req, res) => {
     }
 };
 
+// The roster row for the logged-in staff principal, resolved from the token —
+// same shape as timeOffController's /mine helper, so the staff self-service
+// endpoints never take a member id in the URL (one they don't know and mustn't
+// be able to spoof).
+const myMemberDoc = (req) => (req.user.staffOf
+    ? TeamMember.findOne({ user: req.user._id, provider: req.user.staffOf })
+    : Promise.resolve(null));
+
+/**
+ * GET /api/team/mine/services  (staff-self)
+ * data: { selected: [serviceId], services: [{ _id, name }] } — the member's own
+ * assignment plus the business's full menu to choose from.
+ */
+exports.getMyServices = async (req, res) => {
+    try {
+        const member = await myMemberDoc(req);
+        if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
+        const services = await Service.find({ provider: req.user.staffOf, isActive: { $ne: false } })
+            .select('name').sort({ name: 1 });
+        res.status(200).json({
+            success: true,
+            data: { selected: (member.services || []).map(String), services },
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * PUT /api/team/mine/services  (staff-self)
+ * Body: { services: [serviceId] } — [] means "performs all business services".
+ * A member sets their OWN service list; every id must be one of the business's.
+ */
+exports.setMyServices = async (req, res) => {
+    try {
+        const { services } = req.body;
+        if (!Array.isArray(services)) {
+            return res.status(400).json({ success: false, message: 'services must be an array of service ids' });
+        }
+        const member = await myMemberDoc(req);
+        if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
+
+        if (services.length) {
+            const owned = await Service.countDocuments({ _id: { $in: services }, provider: req.user.staffOf });
+            if (owned !== new Set(services.map(String)).size) {
+                return res.status(400).json({ success: false, message: 'All services must belong to your business' });
+            }
+        }
+
+        member.services = services;
+        await member.save();
+        res.status(200).json({ success: true, data: member });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
 // Owner/admin, or the staff member themself (their User is linked to the roster row
 // and belongs to this business).
 const canTouchStaffAvailability = (reqUser, member) =>

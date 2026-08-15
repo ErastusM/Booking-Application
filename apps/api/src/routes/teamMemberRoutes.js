@@ -6,6 +6,7 @@ const {
     getTeamMemberShifts, setTeamMemberShift, clearTeamMemberShift,
     inviteTeamMember, setTeamMemberServices,
     getTeamMemberAvailability, updateTeamMemberAvailability,
+    getMyServices, setMyServices,
 } = require('../controllers/teamMemberController');
 const {
     listTimeOff, createTimeOff, decideTimeOff, deleteTimeOff,
@@ -15,6 +16,12 @@ const {
 // member themself (a role the blanket authorize below would reject).
 router.get('/:id/availability', auth, getTeamMemberAvailability);
 router.put('/:id/availability', auth, updateTeamMemberAvailability);
+
+// Staff self-service: a member manages their OWN service list. Registered before
+// the provider/admin blanket (and before /:id/services) so 'mine' resolves here
+// from the token rather than being read as a member id.
+router.get('/mine/services', auth, getMyServices);
+router.put('/mine/services', auth, setMyServices);
 
 router.use(auth, authorize('provider', 'admin'));
 

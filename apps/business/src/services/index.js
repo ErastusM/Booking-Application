@@ -32,6 +32,7 @@ export const {
     retentionService,
     teamService,
     myTimeOffService,
+    myServicesService,
     suggestionService,
     pushService,
     walletService,

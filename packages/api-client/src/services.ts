@@ -234,6 +234,13 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         withdraw: (id: string) => API.delete(`/timeoff/mine/${id}`),
     },
 
+    // Staff self-service services — the signed-in staff member choosing which of
+    // the business's services they perform. get() returns { selected, services }.
+    myServicesService: {
+        get: () => API.get('/team/mine/services'),
+        set: (services: string[]) => API.put('/team/mine/services', { services }),
+    },
+
     suggestionService: {
         submit: (data: any) => API.post('/suggestions', data),
     },

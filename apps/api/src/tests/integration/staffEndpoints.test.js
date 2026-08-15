@@ -105,6 +105,59 @@ describe('POST /api/team/:id/invite', () => {
     });
 });
 
+describe('staff self-service — /api/team/mine/services', () => {
+    const makeStaff = async (owner, member) => {
+        const staff = await makeUser({ role: 'staff', staffOf: owner._id });
+        await TeamMember.updateOne({ _id: member._id }, { $set: { user: staff._id } });
+        return staff;
+    };
+
+    it('lists the business menu plus the member’s own selection', async () => {
+        const owner = await makeProvider();
+        const trim = await makeService(owner._id, { name: 'Trim' });
+        await makeService(owner._id, { name: 'Beard' });
+        const member = await makeMember(owner, { services: [trim._id] });
+        const staff = await makeStaff(owner, member);
+
+        const res = await request(app).get('/api/team/mine/services').set(authHeader(staff));
+        expect(res.status).toBe(200);
+        expect(res.body.data.services).toHaveLength(2);
+        expect(res.body.data.selected).toEqual([trim._id.toString()]);
+    });
+
+    it('lets the member set their OWN services', async () => {
+        const owner = await makeProvider();
+        const s1 = await makeService(owner._id);
+        await makeService(owner._id);
+        const member = await makeMember(owner);
+        const staff = await makeStaff(owner, member);
+
+        const res = await request(app).put('/api/team/mine/services')
+            .set(authHeader(staff)).send({ services: [s1._id.toString()] });
+        expect(res.status).toBe(200);
+        expect((await TeamMember.findById(member._id)).services.map(String)).toEqual([s1._id.toString()]);
+    });
+
+    it('refuses a service that belongs to another business', async () => {
+        const owner = await makeProvider();
+        const rival = await makeProvider();
+        const foreign = await makeService(rival._id);
+        const member = await makeMember(owner);
+        const staff = await makeStaff(owner, member);
+
+        const res = await request(app).put('/api/team/mine/services')
+            .set(authHeader(staff)).send({ services: [foreign._id.toString()] });
+        expect(res.status).toBe(400);
+        expect((await TeamMember.findById(member._id)).services).toHaveLength(0);
+    });
+
+    it('404s for a user with no staff profile (e.g. the owner)', async () => {
+        const owner = await makeProvider();
+        const res = await request(app).get('/api/team/mine/services').set(authHeader(owner));
+        expect(res.status).toBe(404);
+    });
+});
+
 describe('PUT /api/team/:id/services', () => {
     it('assigns owned services and rejects foreign ones', async () => {
         const owner = await makeProvider();
