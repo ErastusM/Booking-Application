@@ -18,7 +18,7 @@ const {
     sendRebookingPrompt,
 } = require('../utils/emailService');
 const calendarHelper = require('../utils/calendarHelper');
-const { resolveBookingStaff, staffHoursReason, memberBusyIntervals, memberInvolvedFilter, UNAVAILABLE_MESSAGES } = require('../utils/staffBooking');
+const { resolveBookingStaff, staffHoursReason, memberBusyIntervals, memberInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy } = require('../utils/staffBooking');
 const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, toDateKey, BLOCKED_MESSAGE } = require('../utils/blockedTime');
 const { checkCancellationWindow } = require('../utils/cancellationPolicy');
 const { realStartMs } = require('../utils/appointmentTime');
@@ -298,7 +298,7 @@ const filterBookableOccurrences = async ({
  */
 exports.getBookedSlots = async (req, res) => {
     try {
-        const { providerId, date, teamMember } = req.query;
+        const { providerId, date, teamMember, service } = req.query;
         if (!providerId || !date) {
             return res.status(400).json({ success: false, message: 'providerId and date are required' });
         }
@@ -335,6 +335,38 @@ exports.getBookedSlots = async (req, res) => {
                 provider: providerId, teamMember, status: 'approved', startDate: { $lte: dayKey }, endDate: { $gte: dayKey },
             }).select('allDay startTime endTime').lean() : [],
         ]);
+
+        // "Any professional" + a service: compute what the booking validator will
+        // actually accept, instead of the naive business-hours-minus-all-bookings
+        // view. That view had both failure modes — it advertised hours no staff
+        // member works (the booking was then refused with "no staff available"),
+        // and it greyed out an hour where one member was booked but a colleague
+        // was free. anyAvailableBusy mirrors resolveBookingStaff interval-wise;
+        // it declines (applied:false) when no bookable member performs the
+        // service, because then the booking lands on the owner column and the
+        // legacy provider-wide view below is the correct one. The service must
+        // belong to this provider — otherwise the param is ignored, not an error,
+        // so a stale client link degrades to the legacy view instead of breaking.
+        if (!teamMember && service && require('mongoose').isValidObjectId(service)) {
+            const svcDoc = await Service.findById(service).select('provider').lean();
+            if (svcDoc && String(svcDoc.provider) === String(providerId)) {
+                const anyView = await anyAvailableBusy({ providerId, svc: { _id: service }, date, appointments });
+                if (anyView.applied) {
+                    return res.status(200).json({
+                        success: true,
+                        data: [
+                            ...anyView.busy,
+                            // Business-wide blocks are also inside the busy list as
+                            // 'off_shift' (they close every column); re-emitted with
+                            // their own kind so the client can label them "Unavailable"
+                            // for the same reason it does today.
+                            ...blocks.map(b => ({ startTime: b.startTime, endTime: b.endTime, kind: 'blocked' })),
+                        ],
+                        shiftWindow: null,
+                    });
+                }
+            }
+        }
 
         // For a named member, a multi-service booking occupies only THEIR segment
         // windows — emit those, not the whole ticket span (which would grey out a
