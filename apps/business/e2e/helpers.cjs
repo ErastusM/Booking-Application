@@ -5,6 +5,10 @@ const { expect } = require('@playwright/test');
 const SEED = {
     customer: { email: 'e2e-customer@bookplus.dev', password: 'Password1!' },
     provider: { email: 'e2e-provider@bookplus.dev', password: 'Password1!' },
+    // A seeded staff login (roster member 'Sam Staff') for the self-service specs.
+    staff: { email: 'e2e-staff@bookplus.dev', password: 'Password1!' },
+    staffName: 'Sam Staff',
+    serviceName: 'E2E Haircut',
     providerName: 'E2E Provider',
     // The dashboard addresses the owner by first name only.
     providerFirstName: 'E2E',
