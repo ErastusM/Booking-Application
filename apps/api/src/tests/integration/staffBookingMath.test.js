@@ -22,6 +22,7 @@ const { makeUser, makeProvider, makeService, authHeader } = require('../helpers/
 const TeamMember = require('../../models/TeamMember');
 const StaffAvailability = require('../../models/StaffAvailability');
 const BlockedTime = require('../../models/BlockedTime');
+const Availability = require('../../models/Availability');
 
 beforeAll(() => testDb.connect());
 afterAll(() => testDb.closeDatabase());
@@ -174,6 +175,72 @@ describe('Back-compat + overrides', () => {
             .send({ service: svc._id.toString(), appointmentDate: DATE, startTime: '10:00', endTime: '10:30', walkInName: 'Walk In' });
         expect(res.status).toBe(201);
         expect(res.body.data.teamMember).toBeNull();
+    });
+});
+
+describe('Solo owner — business hours govern (their own weekly hours are waived)', () => {
+    const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+    const everyDay = (start, end) => DAYS.reduce((s, d) => { s[d] = { enabled: true, slots: [{ start, end }] }; return s; }, {});
+
+    // A one-person business: the owner is their own only bookable member, with a
+    // leftover custom weekly schedule (09:00–17:00) narrower than the shop's real
+    // hours (08:00–19:00). Booking within business hours must still work.
+    const soloSetup = async () => {
+        const owner = await makeProvider();
+        const svc = await makeService(owner._id);
+        const customer = await makeUser();
+        const solo = await TeamMember.create({ provider: owner._id, name: 'Owner Themself' });
+        await Availability.create({ provider: owner._id, schedule: everyDay('08:00', '19:00') });
+        await StaffAvailability.create({ provider: owner._id, teamMember: solo._id, schedule: everyDay('09:00', '17:00') });
+        return { owner, svc, customer, solo };
+    };
+
+    it('books an 18:00 slot — inside business hours, outside the leftover staff hours (any available)', async () => {
+        const { svc, customer, solo } = await soloSetup();
+        const res = await book(customer, svc, { startTime: '18:00', endTime: '18:30' });
+        expect(res.status).toBe(201);
+        expect(res.body.data.teamMember.toString()).toBe(solo._id.toString());
+    });
+
+    it('books it when the customer requests the member by name too', async () => {
+        const { svc, customer, solo } = await soloSetup();
+        expect((await book(customer, svc, { teamMember: solo._id, startTime: '18:00', endTime: '18:30' })).status).toBe(201);
+    });
+
+    it('still refuses a genuine double-booking (the waiver is hours-only)', async () => {
+        const { svc, customer, solo } = await soloSetup();
+        expect((await book(customer, svc, { startTime: '18:00', endTime: '18:30' })).status).toBe(201);
+        // Second booking on the same member at the same time is a real clash, not hours.
+        const clash = await book(customer, svc, { teamMember: solo._id, startTime: '18:00', endTime: '18:30' });
+        expect(clash.status).toBe(400);
+        expect(clash.body.message).toMatch(/already booked|waiting list/i);
+    });
+
+    it('still refuses approved leave (the waiver is hours-only)', async () => {
+        const { owner, svc, customer, solo } = await soloSetup();
+        await request(app).post(`/api/team/${solo._id}/timeoff`).set(authHeader(owner))
+            .send({ startDate: DATE, endDate: DATE, allDay: true });
+        expect((await book(customer, svc, { startTime: '18:00', endTime: '18:30' })).status).toBe(400);
+    });
+
+    it('still refuses a slot outside the BUSINESS hours', async () => {
+        const { svc, customer, solo } = await soloSetup();
+        // 20:00 is past the shop's 19:00 close — business hours still gate it.
+        expect((await book(customer, svc, { teamMember: solo._id, startTime: '20:00', endTime: '20:30' })).status).toBe(400);
+    });
+
+    it('a two-person roster is NOT waived — a narrow-hours member still rejects', async () => {
+        const owner = await makeProvider();
+        const svc = await makeService(owner._id);
+        const customer = await makeUser();
+        const m1 = await TeamMember.create({ provider: owner._id, name: 'One' });
+        const m2 = await TeamMember.create({ provider: owner._id, name: 'Two' });
+        await Availability.create({ provider: owner._id, schedule: everyDay('08:00', '19:00') });
+        await StaffAvailability.create({ provider: owner._id, teamMember: m1._id, schedule: everyDay('09:00', '17:00') });
+        await StaffAvailability.create({ provider: owner._id, teamMember: m2._id, schedule: everyDay('09:00', '17:00') });
+        const res = await book(customer, svc, { startTime: '18:00', endTime: '18:30' });
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/waiting list/i);
     });
 });
 

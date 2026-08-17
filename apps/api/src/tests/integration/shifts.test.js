@@ -68,6 +68,10 @@ const tryBook = ({ provider, customer, svc, member }, startTime, endTime) =>
 describe('shift precedence', () => {
     it('falls back to the weekly pattern when there is no shift', async () => {
         const ctx = await setup();
+        // A second bookable member makes this a genuine roster. A lone bookable
+        // member is treated as a solo owner and inherits the business hours (their
+        // own weekly schedule is bypassed) — covered in staffBookingMath.
+        await TeamMember.create({ provider: ctx.provider._id, name: 'Second Chair' });
         expect((await tryBook(ctx, '10:00', '10:30')).teamMember).toBeTruthy();
         // 08:00 is inside business hours but outside their 09:00 pattern.
         expect((await tryBook(ctx, '08:00', '08:30')).error).toMatch(/working hours/i);

@@ -91,7 +91,7 @@ const UNAVAILABLE_MESSAGES = {
  *
  * Returns null when the window is fine, or a reason string.
  */
-async function staffHoursReason({ member, date, startTime, endTime, businessSchedule }) {
+async function staffHoursReason({ member, date, startTime, endTime, businessSchedule, ignoreWeeklyHours }) {
     if (!member) return null;                 // owner's own column — no staff hours apply
     const startMin = toMin(startTime);
     const endMin = toMin(endTime);
@@ -126,18 +126,23 @@ async function staffHoursReason({ member, date, startTime, endTime, businessSche
         return null;
     }
 
-    const staffAv = await StaffAvailability.findOne({ teamMember: member._id });
+    // A solo owner's own weekly schedule must not shrink the business day: fall
+    // back to the business hours for the hours check (a leftover custom schedule is
+    // ignored). Everything above — leave, shift, breaks — still applies, and the
+    // caller still checks real bookings and blocked time, so this only widens the
+    // hours window, never the conflict rules.
+    const staffAv = ignoreWeeklyHours ? null : await StaffAvailability.findOne({ teamMember: member._id });
     const schedule = staffAv?.schedule || businessSchedule;
     if (schedule && !withinSchedule(schedule, date, startMin, endMin)) return 'outside_hours';
     return null;
 }
 
-async function isMemberFree({ providerId, member, date, startTime, endTime, svc, businessSchedule, enforceHours }) {
+async function isMemberFree({ providerId, member, date, startTime, endTime, svc, businessSchedule, enforceHours, ignoreWeeklyHours }) {
     const startMin = toMin(startTime);
     const endMin = toMin(endTime);
 
     if (enforceHours) {
-        const hoursReason = await staffHoursReason({ member, date, startTime, endTime, businessSchedule });
+        const hoursReason = await staffHoursReason({ member, date, startTime, endTime, businessSchedule, ignoreWeeklyHours });
         if (hoursReason) return { free: false, reason: hoursReason };
         const blocks = await BlockedTime.find({
             provider: providerId,
@@ -193,6 +198,19 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
     const availabilityDoc = await Availability.findOne({ provider: providerId });
     const businessSchedule = availabilityDoc?.schedule || null;
 
+    // Exactly one bookable member = effectively a solo business (the owner is their
+    // own only bookable member). Such an owner must not be able to shrink their own
+    // day below the business hours with a leftover per-staff WEEKLY schedule: custom
+    // staff hours default to 09:00–17:00, so an owner who once opened "Set custom
+    // hours" silently loses their evenings for online booking even though the shop
+    // is open. So for a solo owner the working-hours check falls back to the
+    // business hours (ignoreWeeklyHours) — their own weekly schedule is bypassed,
+    // but this is done INSIDE the free check so a real clash, approved leave, a
+    // break, a rostered day off and blocked time all still block. Business hours
+    // themselves are still enforced (and upstream for customers). Two or more
+    // bookable members = a real roster, unchanged.
+    const soloOwner = bookableRoster.length === 1;
+
     if (requestedTeamMember) {
         const member = roster.find(m => m._id.toString() === String(requestedTeamMember));
         if (!member) return { status: 400, error: 'Unknown team member' };
@@ -205,7 +223,7 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
             }
             const check = await isMemberFree({
                 providerId, member, date: appointmentDate, startTime, endTime, svc,
-                businessSchedule, enforceHours: true,
+                businessSchedule, enforceHours: true, ignoreWeeklyHours: soloOwner,
             });
             if (!check.free) return { status: 400, error: UNAVAILABLE_MESSAGES[check.reason] };
         }
@@ -223,7 +241,7 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
     for (const member of performers) {
         const check = await isMemberFree({
             providerId, member, date: appointmentDate, startTime, endTime, svc,
-            businessSchedule, enforceHours: true,
+            businessSchedule, enforceHours: true, ignoreWeeklyHours: soloOwner,
         });
         if (check.free) return { teamMember: member._id };
     }
