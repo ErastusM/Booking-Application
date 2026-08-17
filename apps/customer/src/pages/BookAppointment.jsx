@@ -197,26 +197,30 @@ const BookAppointment = () => {
     useEffect(() => {
         if (!effectiveProviderId || !formData.appointmentDate) { setBookedSlots([]); setShiftWindow(null); return; }
         let stale = false;
-        appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate, selectedStaff?._id || undefined)
+        // The service id makes the "any professional" view staff-aware: the server
+        // unions the availability of everyone who performs it, so the picker only
+        // shows slots the booking will actually accept (and stops greying an hour
+        // where one member is booked but a colleague is free).
+        appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate, selectedStaff?._id || undefined, selectedService?._id || undefined)
             .then(res => { if (!stale) { setBookedSlots(res.data.data || []); setShiftWindow(res.data.shiftWindow ?? null); } })
             .catch(() => { if (!stale) { setBookedSlots([]); setShiftWindow(null); } });
         return () => { stale = true; };
-    }, [effectiveProviderId, formData.appointmentDate, selectedStaff]);
+    }, [effectiveProviderId, formData.appointmentDate, selectedStaff, selectedService?._id]);
 
-    // Which (date, staff) the slot state currently belongs to. The live refresh
-    // below is async and unkeyed; without this a response for a day/member the
-    // user has since navigated away from would land and overwrite the day they're
-    // actually looking at (a rostered day off blanking a working day, etc.).
+    // Which (date, staff, service) the slot state currently belongs to. The live
+    // refresh below is async and unkeyed; without this a response for a day/member
+    // the user has since navigated away from would land and overwrite the day
+    // they're actually looking at (a rostered day off blanking a working day, etc.).
     const slotKeyRef = useRef('');
-    slotKeyRef.current = `${formData.appointmentDate}|${selectedStaff?._id || ''}`;
+    slotKeyRef.current = `${formData.appointmentDate}|${selectedStaff?._id || ''}|${selectedService?._id || ''}`;
 
     // Live updates — while a date is open, keep its taken/free slots current so a
     // slot freed or grabbed by someone else reflects without a manual refresh.
     useLiveRefresh(() => {
-        const key = `${formData.appointmentDate}|${selectedStaff?._id || ''}`;
-        appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate, selectedStaff?._id || undefined)
+        const key = `${formData.appointmentDate}|${selectedStaff?._id || ''}|${selectedService?._id || ''}`;
+        appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate, selectedStaff?._id || undefined, selectedService?._id || undefined)
             .then(res => {
-                if (slotKeyRef.current !== key) return; // a newer day/member is selected — drop this
+                if (slotKeyRef.current !== key) return; // a newer day/member/service is selected — drop this
                 setBookedSlots(res.data.data || []);
                 setShiftWindow(res.data.shiftWindow ?? null);
             })

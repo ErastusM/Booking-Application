@@ -39,8 +39,18 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
     appointmentService: {
         getAllAppointments: (params?: any) => API.get('/appointments', { params }),
         getCustomerAppointments: () => API.get('/appointments/my-appointments'),
-        getBookedSlots: (providerId: string, date: string, teamMember?: string) =>
-            API.get('/appointments/booked-slots', { params: teamMember ? { providerId, date, teamMember } : { providerId, date } }),
+        // `service` makes the no-member ("any professional") view staff-aware:
+        // the server unions the availability of everyone who performs that
+        // service, so the picker only offers slots a booking will accept.
+        getBookedSlots: (providerId: string, date: string, teamMember?: string, service?: string) =>
+            API.get('/appointments/booked-slots', {
+                params: {
+                    providerId,
+                    date,
+                    ...(teamMember ? { teamMember } : {}),
+                    ...(service ? { service } : {}),
+                },
+            }),
         createAppointment: (data: any) => API.post('/appointments', data),
         updateAppointment: (id: string, data: any) => API.put(`/appointments/${id}`, data),
         cancelAppointment: (id: string, reason?: string) => API.delete(`/appointments/${id}`, { data: { cancellationReason: reason } }),

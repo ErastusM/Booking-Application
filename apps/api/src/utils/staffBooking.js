@@ -55,6 +55,50 @@ const memberBusyIntervals = (appt, memberId) => {
 // A member is involved in a booking as its top-level performer OR a segment one.
 const memberInvolvedFilter = (memberId) => ({ $or: [{ teamMember: memberId }, { 'services.teamMember': memberId }] });
 
+// ── Minute-interval arithmetic (half-open [start, end)) ─────────────────────
+// Used by the "any professional" slot view, which needs whole-day availability
+// as ranges rather than a yes/no for one window.
+const DAY_END = 24 * 60;
+const mergeIntervals = (list) => {
+    const sorted = list.filter(([s, e]) => e > s).sort((a, b) => a[0] - b[0]);
+    const out = [];
+    for (const [s, e] of sorted) {
+        const last = out[out.length - 1];
+        if (last && s <= last[1]) last[1] = Math.max(last[1], e);
+        else out.push([s, e]);
+    }
+    return out;
+};
+const subtractIntervals = (base, cuts) => {
+    let out = mergeIntervals(base);
+    for (const [cs, ce] of mergeIntervals(cuts)) {
+        const next = [];
+        for (const [s, e] of out) {
+            if (ce <= s || cs >= e) { next.push([s, e]); continue; }
+            if (cs > s) next.push([s, cs]);
+            if (ce < e) next.push([ce, e]);
+        }
+        out = next;
+    }
+    return out;
+};
+const intersectIntervals = (a, b) => subtractIntervals(a, subtractIntervals([[0, DAY_END]], b));
+const hhmmOf = (m) => {
+    const clamped = Math.min(m, DAY_END - 1); // 24:00 → the '23:59' end-of-day sentinel the API already uses
+    const pad = (n) => String(n).padStart(2, '0');
+    return `${pad(Math.floor(clamped / 60))}:${pad(clamped % 60)}`;
+};
+
+// A weekly schedule's working intervals for the date. No schedule at all means
+// no hours constraint (mirrors staffHoursReason, which only rejects when a
+// schedule exists); a schedule whose day is disabled means closed.
+const scheduleDayIntervals = (schedule, date) => {
+    if (!schedule) return [[0, DAY_END]];
+    const day = schedule[DAY_NAMES[new Date(date).getDay()]];
+    if (!day?.enabled || !Array.isArray(day.slots) || day.slots.length === 0) return [];
+    return day.slots.map((s) => [toMin(s.start), toMin(s.end)]).filter(([a, b]) => b > a);
+};
+
 const withinSchedule = (schedule, date, startMin, endMin) => {
     const day = schedule?.[DAY_NAMES[new Date(date).getDay()]];
     if (!day?.enabled || !Array.isArray(day.slots) || day.slots.length === 0) return false;
@@ -248,7 +292,114 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
     return { status: 400, error: 'No staff member is available at that time. You can join the waiting list instead.' };
 }
 
+/**
+ * The whole-day busy list for the "any professional" slot picker.
+ *
+ * The picker used to know only the business hours and the raw appointment list,
+ * while the booking validator resolves per-staff hours, shifts, leave and blocks
+ * — so it advertised slots nobody could take (hours the staff don't work) and
+ * greyed out slots somebody COULD take (one member booked, a colleague free).
+ * This computes what the validator will actually accept: a window is open iff at
+ * least one bookable performer of the service is rostered and free in it.
+ *
+ * Mirrors resolveBookingStaff exactly, interval-wise instead of per-window:
+ *   - performers = active, bookable, performs the service
+ *   - solo owner (one bookable member) inherits business hours (#121)
+ *   - shift replaces the weekly pattern; approved leave and breaks cut out
+ *   - business hours cap everything ("any" bookings are business-hours gated
+ *     upstream even when a shift runs later — only a NAMED member's shift may
+ *     extend past closing)
+ *   - business-wide blocks close every column; a member's own block only theirs
+ *
+ * Returns { applied: false } when no bookable member performs the service (the
+ * owner-fallback books on the owner column — legacy view applies) so the caller
+ * keeps today's behaviour. Otherwise { applied: true, busy: [...] } where busy
+ * windows carry kind 'off_shift' (nobody rostered → "Unavailable") or
+ * 'appointment' (rostered but everyone busy → "Taken", waitlist applies).
+ *
+ * `appointments` is the day's already-fetched non-cancelled list, passed in so
+ * the picker and this computation can never disagree about the day's bookings.
+ */
+async function anyAvailableBusy({ providerId, svc, date, appointments }) {
+    const key = dateStr(date);
+    const roster = await TeamMember.find({ provider: providerId, isActive: true }).sort({ createdAt: 1 });
+    const bookableRoster = roster.filter(m => m.bookable !== false);
+    const performers = bookableRoster.filter(m => performsService(m, svc._id));
+    if (!performers.length) return { applied: false };
+
+    const soloOwner = bookableRoster.length === 1;
+    const ids = performers.map(m => m._id);
+
+    const [availabilityDoc, shifts, staffAvs, leaves, blocks] = await Promise.all([
+        Availability.findOne({ provider: providerId }),
+        Shift.find({ provider: providerId, teamMember: { $in: ids }, date: key }).select('teamMember slots breaks').lean(),
+        soloOwner ? [] : StaffAvailability.find({ teamMember: { $in: ids } }).select('teamMember schedule').lean(),
+        TimeOff.find({
+            provider: providerId, teamMember: { $in: ids }, status: 'approved',
+            startDate: { $lte: key }, endDate: { $gte: key },
+        }).select('teamMember allDay startTime endTime').lean(),
+        BlockedTime.find({ provider: providerId, date: key }).select('teamMember startTime endTime').lean(),
+    ]);
+
+    const businessSchedule = availabilityDoc?.schedule || null;
+    const businessDay = scheduleDayIntervals(businessSchedule, date);
+    const byMember = (list) => {
+        const m = {};
+        list.forEach((x) => { const k = String(x.teamMember); (m[k] = m[k] || []).push(x); });
+        return m;
+    };
+    const shiftBy = {}; shifts.forEach((s) => { shiftBy[String(s.teamMember)] = s; });
+    const avBy = {}; staffAvs.forEach((a) => { avBy[String(a.teamMember)] = a; });
+    const leavesBy = byMember(leaves);
+    const businessBlocks = blocks.filter(b => !b.teamMember).map(b => [toMin(b.startTime), toMin(b.endTime)]);
+    const memberBlocksBy = byMember(blocks.filter(b => b.teamMember));
+
+    const rosteredAll = [];
+    const freeAll = [];
+    for (const m of performers) {
+        const k = String(m._id);
+        const shift = shiftBy[k];
+        let working;
+        if (shift) {
+            working = subtractIntervals(
+                (shift.slots || []).map(sl => [toMin(sl.start), toMin(sl.end)]),
+                (shift.breaks || []).map(b => [toMin(b.start), toMin(b.end)])
+            );
+        } else {
+            const schedule = soloOwner ? businessSchedule : (avBy[k]?.schedule || businessSchedule);
+            working = scheduleDayIntervals(schedule, date);
+        }
+        const leaveCuts = (leavesBy[k] || []).map(lv => (
+            // A windowed leave with missing times is all-day, matching staffHoursReason.
+            (lv.allDay || lv.startTime == null || lv.endTime == null) ? [0, DAY_END] : [toMin(lv.startTime), toMin(lv.endTime)]
+        ));
+        // Business hours cap; business-wide blocks close every column.
+        const rostered = subtractIntervals(
+            subtractIntervals(intersectIntervals(working, businessDay), leaveCuts),
+            businessBlocks
+        );
+        const cuts = (memberBlocksBy[k] || []).map(b => [toMin(b.startTime), toMin(b.endTime)]);
+        (appointments || []).forEach((a) => memberBusyIntervals(a, m._id).forEach((iv) => cuts.push(iv)));
+        rosteredAll.push(...rostered);
+        freeAll.push(...subtractIntervals(rostered, cuts));
+    }
+
+    const rostered = mergeIntervals(rosteredAll);
+    const free = mergeIntervals(freeAll);
+    const busy = [];
+    // Nobody rostered → "Unavailable" (no waitlist: there is no one to wait for).
+    subtractIntervals([[0, DAY_END]], rostered).forEach(([s, e]) => {
+        busy.push({ startTime: hhmmOf(s), endTime: hhmmOf(e), kind: 'off_shift' });
+    });
+    // Rostered but everyone occupied → "Taken", the waitlist makes sense.
+    subtractIntervals(rostered, free).forEach(([s, e]) => {
+        busy.push({ startTime: hhmmOf(s), endTime: hhmmOf(e), kind: 'appointment' });
+    });
+    return { applied: true, busy };
+}
+
 module.exports = {
     resolveBookingStaff, isMemberFree, performsService, staffHoursReason,
     memberBusyIntervals, memberInvolvedFilter, UNAVAILABLE_MESSAGES,
+    anyAvailableBusy,
 };
