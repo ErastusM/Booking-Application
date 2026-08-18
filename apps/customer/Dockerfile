@@ -27,6 +27,11 @@ WORKDIR /app
 RUN npm install -g serve
 
 COPY --from=build /repo/apps/customer/dist ./dist
+# Cache policy (serve reads serve.json from the served folder): index.html and
+# other root files revalidate on every load so a deploy shows up on the next
+# open; hashed assets/* are immutable. serve's default was max-age=3600 on
+# EVERYTHING — phones kept the previous app for up to an hour after a deploy.
+COPY --from=build /repo/apps/customer/serve.json ./dist/serve.json
 
 EXPOSE 3000
 
