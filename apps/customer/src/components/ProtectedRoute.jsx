@@ -23,9 +23,15 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
     if (!user) return <Navigate to="/login" replace />;
 
     if (allowedRoles && !allowedRoles.includes(user.role)) {
-        // The customer app treats every signed-in user as a customer; the
-        // business app is a separate site, so there is no in-app home to send
-        // business roles to — just back to the marketplace.
+        // Business-side roles belong on the business app — hand them to their
+        // rightful home there (the mirror of what the business app already does
+        // for customers), instead of a silent, unexplained bounce to the feed.
+        if (user.role === 'provider' || user.role === 'staff' || user.role === 'admin') {
+            const home = user.role === 'admin' ? '/bkplus-command'
+                : user.role === 'staff' ? '/my-schedule' : '/dashboard';
+            window.location.replace(`${import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003'}${home}`);
+            return null;
+        }
         return <Navigate to="/" replace />;
     }
 

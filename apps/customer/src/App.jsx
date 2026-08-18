@@ -91,19 +91,22 @@ function AppRoutes() {
                     {/* Public: guest checkout. BookAppointment handles signed-in vs.
                         guest (contact details captured at the confirm step) itself. */}
                     <Route path="/book-appointment" element={<BookAppointment />} />
-                    {/* Customer-context — providers can also act as customers */}
+                    {/* Customer-context routes. This app renders ONLY the customer
+                        experience — business-side roles are handed to the business app
+                        by ProtectedRoute (and ejected by useAuth), never rendered here
+                        as pseudo-customers. */}
                     <Route path="/appointments" element={
-                        <ProtectedRoute allowedRoles={['customer', 'provider']}>
+                        <ProtectedRoute allowedRoles={['customer']}>
                             <MyAppointments />
                         </ProtectedRoute>
                     } />
                     <Route path="/waiting-list" element={
-                        <ProtectedRoute allowedRoles={['customer', 'provider']}>
+                        <ProtectedRoute allowedRoles={['customer']}>
                             <MyWaitingList />
                         </ProtectedRoute>
                     } />
                     <Route path="/wallet" element={
-                        <ProtectedRoute allowedRoles={['customer', 'provider']}>
+                        <ProtectedRoute allowedRoles={['customer']}>
                             <Wallet />
                         </ProtectedRoute>
                     } />
@@ -112,14 +115,20 @@ function AppRoutes() {
                             <BecomeProvider />
                         </ProtectedRoute>
                     } />
-
-                    {/* All authenticated users */}
                     <Route path="/profile" element={
-                        <ProtectedRoute allowedRoles={['customer', 'admin', 'provider']}>
+                        <ProtectedRoute allowedRoles={['customer']}>
                             <Profile />
                         </ProtectedRoute>
                     } />
-                    <Route path="/complete-profile" element={<CompleteProfile />} />
+                    {/* Post-OAuth onboarding (phone number). Requires a session — it
+                        was fully public and rendered on a bare visit. No role list:
+                        the OAuth callback can land any new account here briefly
+                        before the role-based hand-off decides which app owns it. */}
+                    <Route path="/complete-profile" element={
+                        <ProtectedRoute>
+                            <CompleteProfile />
+                        </ProtectedRoute>
+                    } />
 
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>

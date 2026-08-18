@@ -27,14 +27,17 @@ describe('generateToken', () => {
         expect(expiresInDays).toBeCloseTo(7, 0);
     });
 
-    it('falls back to a 7-day expiry when JWT_EXPIRE is unset (never non-expiring)', () => {
+    it('falls back to a short 15-minute expiry when JWT_EXPIRE is unset (never non-expiring)', () => {
+        // Access tokens are role-blind, so the unconfigured default must be
+        // short: a stray wrong-side token dies in minutes, not days. The
+        // refresh interceptor keeps real sessions feeling week-long.
         const saved = process.env.JWT_EXPIRE;
         delete process.env.JWT_EXPIRE;
         try {
             const decoded = jwt.decode(generateToken('abc', 0));
             expect(decoded.exp).toBeDefined();
-            const days = (decoded.exp - decoded.iat) / 86400;
-            expect(days).toBeCloseTo(7, 0);
+            const minutes = (decoded.exp - decoded.iat) / 60;
+            expect(minutes).toBeCloseTo(15, 0);
         } finally {
             process.env.JWT_EXPIRE = saved;
         }

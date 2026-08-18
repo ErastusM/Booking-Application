@@ -1,12 +1,15 @@
 const jwt = require('jsonwebtoken');
 
 exports.generateToken = (id, tokenVersion = 0) => {
-    // 7 days by default (spec §4.3): normal reopens within a week skip the
-    // refresh round-trip — most of the "login every time" pain. Never issue a
-    // token with no expiry (jwt.sign treats expiresIn: undefined as forever);
-    // tokenVersion still revokes instantly on logout/password change.
+    // 15 minutes by default: access tokens are role-blind (the middleware never
+    // checks accountType), so a long-lived one held by the wrong app stays
+    // usable for its whole life. Sessions still feel week-long — the refresh
+    // interceptor renews silently — but a stray token now dies in minutes, not
+    // days. Never issue a token with no expiry (jwt.sign treats expiresIn:
+    // undefined as forever); tokenVersion still revokes instantly on
+    // logout/password change. Deployments can widen via JWT_EXPIRE.
     return jwt.sign({ id, tokenVersion }, process.env.JWT_SECRET, {
-        expiresIn: process.env.JWT_EXPIRE || '7d'
+        expiresIn: process.env.JWT_EXPIRE || '15m'
     });
 };
 

@@ -1,11 +1,8 @@
 import React from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 
 // App-wide footer — keeps the legal pages reachable from anywhere, signed in or not.
 const Footer = () => {
-    const { pathname } = useLocation();
-    // The provider dashboard is a full-height app surface; a footer there just adds noise.
-    if (pathname.startsWith('/dashboard') || pathname.startsWith('/bkplus-command')) return null;
 
     const linkStyle = { color: 'var(--text-secondary)', textDecoration: 'none', fontSize: '0.85rem', fontFamily: 'var(--font-body)' };
 

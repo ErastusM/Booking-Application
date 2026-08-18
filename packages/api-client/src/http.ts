@@ -81,10 +81,15 @@ export const bootstrapSession = async (apiBase: string, accountType?: AccountTyp
     }
 };
 
-// Note: accountType deliberately does NOT ride on the interceptor's silent
-// refresh below — it guards session ESTABLISHMENT (login, SSO bootstrap), not
-// sessions this app already holds, which keep refreshing like before.
-export const createHttp = (apiBase: string): AxiosInstance => {
+// accountType rides on the interceptor's silent refresh too (it used to guard
+// only session ESTABLISHMENT — login and SSO bootstrap). Leaving it off kept a
+// wrong-side session alive forever: a customer account upgraded to business
+// still refreshed on the customer origin indefinitely, so the site rendered a
+// business owner as a signed-in customer until they logged out — and in the
+// cookie-fallback case the refresh could even hand this app the OTHER side's
+// tokens. With accountType attached, a wrong-side refresh 403s, which the
+// handler below treats as an auth failure and clears the stale session.
+export const createHttp = (apiBase: string, accountType?: AccountType): AxiosInstance => {
     const API = axios.create({
         baseURL: `${apiBase}/api`,
         // Credentialed requests: without this the browser DISCARDS the SSO
@@ -170,7 +175,13 @@ export const createHttp = (apiBase: string): AxiosInstance => {
                 // withCredentials carries the SSO refresh cookie (and stores its rotation).
                 const { data } = await axios.post(
                     `${apiBase}/api/auth/refresh`,
-                    refreshToken ? { refreshToken } : {},
+                    {
+                        ...(refreshToken ? { refreshToken } : {}),
+                        // Scope the renewal to this app's side — a wrong-side
+                        // session (or a wrong-side SSO cookie in the fallback
+                        // case) is rejected instead of silently renewed.
+                        ...(accountType ? { accountType } : {}),
+                    },
                     // Same reason as bootstrapSession: a bare axios call ignores the
                     // instance timeout, so a hung refresh would pin isRefreshing=true
                     // and leave every queued request waiting on a dead socket.

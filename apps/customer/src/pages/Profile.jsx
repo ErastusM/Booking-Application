@@ -147,7 +147,7 @@ const Profile = () => {
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', background: 'var(--card-bg)', border: '1px solid var(--border)', borderLeft: '3px solid var(--gold)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', padding: '1.1rem 1.25rem', marginBottom: '1.5rem' }}>
                         <div>
                             <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', margin: '0 0 0.2rem' }}>Grow your business on Bookplus</h3>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>List your services and take bookings — you keep this customer account too.</p>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: 0 }}>List your services and take bookings — your account moves to the business app.</p>
                         </div>
                         <button onClick={() => navigate('/become-provider')} className="btn-primary" style={{ padding: '0.65rem 1.4rem', whiteSpace: 'nowrap' }}>Become a Business →</button>
                     </div>
