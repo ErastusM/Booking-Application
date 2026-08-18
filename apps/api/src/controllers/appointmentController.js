@@ -20,6 +20,7 @@ const {
 const calendarHelper = require('../utils/calendarHelper');
 const { resolveBookingStaff, staffHoursReason, memberBusyIntervals, memberInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy } = require('../utils/staffBooking');
 const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, toDateKey, BLOCKED_MESSAGE } = require('../utils/blockedTime');
+const { recordBookingRejection, rejectionsSummary } = require('../utils/bookingRejections');
 const { checkCancellationWindow } = require('../utils/cancellationPolicy');
 const { realStartMs } = require('../utils/appointmentTime');
 const { primaryOrigin } = require('../utils/origins');
@@ -517,6 +518,19 @@ exports.getAllAppointments = async (req, res) => {
     }
 };
 
+/**
+ * GET /api/appointments/rejections-summary  (provider)
+ * The Overview card's numbers: how many customer booking attempts this business
+ * turned away in the last 7 days, and the dominant reason.
+ */
+exports.getRejectionsSummary = async (req, res) => {
+    try {
+        res.status(200).json({ success: true, data: await rejectionsSummary(req.user._id) });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
 exports.getMyAppointments = async (req, res) => {
     try {
         const appointments = await Appointment.find({ customer: req.user._id })
@@ -718,6 +732,10 @@ exports.createAppointment = async (req, res) => {
             if (providerSchedule && !shiftGoverns) {
                 const bookingDuration = parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime);
                 if (!isTimeWithinSchedule(providerSchedule, appointmentDate, startTime, bookingDuration)) {
+                    // The owner-side smoke detector: refused customer attempts are
+                    // recorded (fire-and-forget) so a misconfigured schedule surfaces
+                    // as a bell alert instead of via a client's screenshot.
+                    recordBookingRejection({ providerId, reason: 'outside_hours', date: appointmentDate, startTime });
                     return res.status(400).json({ success: false, message: 'Selected time is outside the provider availability schedule' });
                 }
             }
@@ -736,6 +754,9 @@ exports.createAppointment = async (req, res) => {
                 requestedTeamMember: teamMember || null, requester: req.user || { role: 'customer' },
             });
             if (resolution.error) {
+                if (isCustomerLike) {
+                    recordBookingRejection({ providerId, reason: resolution.reason || 'no_staff_available', date: appointmentDate, startTime });
+                }
                 return res.status(resolution.status).json({ success: false, message: resolution.error });
             }
             resolvedTeamMember = resolution.teamMember;
@@ -751,6 +772,7 @@ exports.createAppointment = async (req, res) => {
                 providerId, appointmentDate, startTime, endTime, teamMember: resolvedTeamMember,
             });
             if (blocked) {
+                recordBookingRejection({ providerId, reason: 'blocked', date: appointmentDate, startTime });
                 return res.status(400).json({ success: false, message: BLOCKED_MESSAGE });
             }
         }
@@ -780,6 +802,7 @@ exports.createAppointment = async (req, res) => {
                 ? memberBusyIntervals(a, resolvedTeamMember).some(([s, e]) => newStart < e && newEnd > s)
                 : newStart < parseTimeToMinutes(a.endTime) && newEnd > parseTimeToMinutes(a.startTime)));
             if (hasOverlap) {
+                if (isCustomerLike) recordBookingRejection({ providerId, reason: 'slot_taken', date: appointmentDate, startTime });
                 return res.status(400).json({ success: false, message: 'This time slot is already booked. You can join the waiting list instead.' });
             }
         } else {
@@ -912,6 +935,7 @@ exports.createAppointment = async (req, res) => {
             });
             if (lostRace) {
                 await Appointment.deleteOne({ _id: appointment._id });
+                if (isCustomerLike) recordBookingRejection({ providerId, reason: 'slot_taken', date: appointmentDate, startTime });
                 return res.status(400).json({ success: false, message: 'This time slot was just booked. You can join the waiting list instead.' });
             }
         }
