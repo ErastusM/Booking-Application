@@ -764,6 +764,19 @@ exports.updateTeamMemberAvailability = async (req, res) => {
         if (!schedule || typeof schedule !== 'object') {
             return res.status(400).json({ success: false, message: 'schedule is required' });
         }
+        // An inverted range (start ≥ end) used to save silently and left the
+        // member bookable at no valid time — refuse it and name the day, so the
+        // mistake is caught while the owner is still looking at the form.
+        const toMins = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+        for (const [day, cfg] of Object.entries(schedule)) {
+            if (!cfg?.enabled) continue;
+            for (const slot of cfg.slots || []) {
+                if (toMins(slot.end) <= toMins(slot.start)) {
+                    const label = day.charAt(0).toUpperCase() + day.slice(1);
+                    return res.status(400).json({ success: false, message: `${label}: the ending time (${slot.end}) must be after the starting time (${slot.start}). Swap them if they're reversed.` });
+                }
+            }
+        }
         const member = await TeamMember.findById(req.params.id);
         if (!member || !canTouchStaffAvailability(req.user, member)) {
             return res.status(404).json({ success: false, message: 'Team member not found' });
