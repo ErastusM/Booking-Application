@@ -286,8 +286,27 @@ const CalendarGrid = ({
     // Open the scroll at the day's first content (business open / earliest
     // booking), a touch above it, so the schedule is visible immediately while
     // the full 24 h stays scrollable above and below.
+    //
+    // Retried until the scroller HAS LAYOUT. The dashboard sizes the calendar
+    // frame after mount and re-measures as late content above it lands (the
+    // staff filter chips, setup cards). A scrollTop assigned while
+    // clientHeight is 0 is silently ignored by the browser, so the one-shot
+    // version of this effect lost the race once that late reflow became the
+    // norm — the calendar then sat at 12 AM and every open needed a manual
+    // scroll down to working hours.
     useEffect(() => {
-        if (bodyRef.current) bodyRef.current.scrollTop = Math.max(0, (firstContentMin / 60) * HOUR_PX - 12);
+        let cancelled = false;
+        const apply = (attemptsLeft) => {
+            if (cancelled) return;
+            const el = bodyRef.current;
+            if (el && el.clientHeight > 0) {
+                el.scrollTop = Math.max(0, (firstContentMin / 60) * HOUR_PX - 12);
+                return;
+            }
+            if (attemptsLeft > 0) requestAnimationFrame(() => apply(attemptsLeft - 1));
+        };
+        apply(120); // ~2s of frames — outlasts the dashboard's staged re-measures
+        return () => { cancelled = true; };
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [view, dateKey(firstDay), firstContentMin]);
 
