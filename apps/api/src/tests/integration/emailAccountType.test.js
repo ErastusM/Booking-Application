@@ -244,3 +244,49 @@ describe('POST /api/auth/forgot-password with accountType', () => {
         expect(sendPasswordResetEmail).toHaveBeenCalledTimes(2);
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// DUAL-ACCOUNT DETECTION (drives the "Where would you like to go?" chooser)
+// ─────────────────────────────────────────────────────────────────────────────
+describe('login reports the other side the same credentials also unlock', () => {
+    it('same password on both sides → each login names the other side', async () => {
+        await makeUser({ email: EMAIL, password: CUSTOMER_PW, isVerified: true });
+        await makeProvider({ email: EMAIL, password: CUSTOMER_PW, isVerified: true });
+
+        const asCustomer = await request(app).post('/api/auth/login')
+            .send({ email: EMAIL, password: CUSTOMER_PW, accountType: 'customer' });
+        expect(asCustomer.status).toBe(200);
+        expect(asCustomer.body.data.alsoAccountType).toBe('business');
+
+        const asBusiness = await request(app).post('/api/auth/login')
+            .send({ email: EMAIL, password: CUSTOMER_PW, accountType: 'business' });
+        expect(asBusiness.status).toBe(200);
+        expect(asBusiness.body.data.alsoAccountType).toBe('customer');
+    });
+
+    it('different passwords per side → null (these credentials open one side only)', async () => {
+        await makeDualAccounts();
+        const res = await request(app).post('/api/auth/login')
+            .send({ email: EMAIL, password: CUSTOMER_PW, accountType: 'customer' });
+        expect(res.status).toBe(200);
+        expect(res.body.data.alsoAccountType).toBeNull();
+    });
+
+    it('single account → null', async () => {
+        await makeUser({ email: EMAIL, password: CUSTOMER_PW, isVerified: true });
+        const res = await request(app).post('/api/auth/login')
+            .send({ email: EMAIL, password: CUSTOMER_PW, accountType: 'customer' });
+        expect(res.status).toBe(200);
+        expect(res.body.data.alsoAccountType).toBeNull();
+    });
+
+    it('an admin-suspended other-side account does not count', async () => {
+        await makeUser({ email: EMAIL, password: CUSTOMER_PW, isVerified: true });
+        // Suspended by an admin: isActive false with no deactivatedAt.
+        await makeProvider({ email: EMAIL, password: CUSTOMER_PW, isVerified: true, isActive: false });
+        const res = await request(app).post('/api/auth/login')
+            .send({ email: EMAIL, password: CUSTOMER_PW, accountType: 'customer' });
+        expect(res.status).toBe(200);
+        expect(res.body.data.alsoAccountType).toBeNull();
+    });
+});

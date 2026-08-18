@@ -312,6 +312,25 @@ exports.login = async (req, res) => {
         // "Invited · awaiting login" to active.
         User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } }).catch(() => {});
 
+        // Does the SAME email + password also unlock an account on the OTHER
+        // side? One email may hold both a customer and a business account; the
+        // login pages use this to ask "Where would you like to go?" instead of
+        // silently picking a side. Computed only after the caller has proven the
+        // password, so it enumerates nothing they don't already own. Admin-
+        // suspended accounts don't count (they couldn't log in anyway).
+        let alsoAccountType = null;
+        const ownType = User.accountTypeForRole(user.role);
+        const otherType = ownType === 'business' ? 'customer' : 'business';
+        const others = await User.find({
+            email, _id: { $ne: user._id },
+            role: User.roleFilterForAccountType(otherType),
+        }).select('+password');
+        for (const other of others) {
+            if (!other.password) continue; // social-only login — this password can't open it
+            if (other.isActive === false && !other.deactivatedAt) continue; // suspended
+            if (await other.matchPassword(password)) { alsoAccountType = otherType; break; }
+        }
+
         res.status(200).json({
             success: true,
             message: 'Login successful',
@@ -328,7 +347,11 @@ exports.login = async (req, res) => {
                     providerSetupComplete: user.providerSetupComplete,
                 },
                 token,
-                refreshToken
+                refreshToken,
+                // 'customer' | 'business' | null — the other side these same
+                // credentials also unlock (drives the post-login destination
+                // chooser). null = this account is the only one.
+                alsoAccountType,
             }
         });
     } catch (error) {

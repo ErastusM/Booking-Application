@@ -19,6 +19,8 @@ const ERROR_MESSAGES = {
     google_failed: 'Google sign-in didn’t go through. Please try again or sign in with your email and password.',
 };
 
+const BUSINESS_URL = import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003';
+
 const Login = () => {
     const { login } = useAuthContext();
     const navigate = useNavigate();
@@ -27,33 +29,64 @@ const Login = () => {
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(() => ERROR_MESSAGES[searchParams.get('error')] || '');
-    // Shown when the email belongs to a business account (403): a business owner
-    // can hold a SEPARATE customer account with the same email — offer to make it.
-    const [offerCustomerSignup, setOfferCustomerSignup] = useState(false);
+    // One email can hold BOTH a customer and a business account. When these
+    // credentials unlock both, we hold the authenticated customer session here
+    // (uncommitted) and ask where they want to go instead of picking for them.
+    const [pendingSession, setPendingSession] = useState(null);
 
     const handleChange = (e) => {
         setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
+    };
+
+    // Authenticate the BUSINESS account with the same credentials. The login
+    // response sets the SSO refresh cookie (withCredentials), so a plain
+    // navigation lands them on the business app already signed in. Their
+    // business tokens are never stored on this origin.
+    const handOffToBusiness = async () => {
+        await authService.login({ ...formData, accountType: 'business' });
+        window.location.assign(BUSINESS_URL);
     };
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
         setError('');
-        setOfferCustomerSignup(false);
         try {
-            // The api-client stamps accountType:'customer' on this call, so only
-            // customer accounts authenticate here — a business-only email gets a
-            // clear error pointing at the business app instead of a wrong-side login.
+            // The api-client stamps accountType:'customer' here, so this
+            // authenticates the customer account if one exists.
             const response = await authService.login(formData);
-            login(response.data.data);
+            const session = response.data.data;
+            // Same credentials also open a business account → ask, don't guess.
+            if (session.alsoAccountType === 'business') {
+                setPendingSession(session);
+                setLoading(false);
+                return;
+            }
+            login(session);
             navigate(next || '/');
         } catch (err) {
+            // 403 = these credentials belong to a BUSINESS account only. The
+            // person authenticated fine — they're just on the wrong site. Sign
+            // their business account in and take them to it, rather than
+            // dead-ending them here (or worse, suggesting a duplicate account).
+            if (err.response?.status === 403) {
+                try { await handOffToBusiness(); return; } catch { /* fall through */ }
+            }
             setError(err.response?.data?.message || 'Login failed');
-            // 403 = this email is a business account with no customer account yet.
-            // A business owner can hold a SEPARATE customer account on the same
-            // email — offer to create it in one step instead of dead-ending.
-            if (err.response?.status === 403) setOfferCustomerSignup(true);
-        } finally {
+            setLoading(false);
+        }
+    };
+
+    const chooseCustomer = () => {
+        login(pendingSession);
+        navigate(next || '/');
+    };
+    const chooseBusiness = async () => {
+        setLoading(true);
+        setError('');
+        try { await handOffToBusiness(); }
+        catch (err) {
+            setError(err.response?.data?.message || 'Could not open the business app. Please try again.');
             setLoading(false);
         }
     };
@@ -163,17 +196,25 @@ const Login = () => {
                         </div>
                     )}
 
-                    {offerCustomerSignup && (
-                        <button
-                            type="button"
-                            onClick={() => navigate('/register', { state: { email: formData.email } })}
-                            className="btn-primary"
-                            style={{ width: '100%', padding: '0.8rem', marginBottom: '1.5rem' }}
-                        >
-                            Create a customer account with this email →
-                        </button>
-                    )}
-
+                    {pendingSession ? (
+                        /* This email holds BOTH accounts — signed in; ask where to go. */
+                        <div data-testid="destination-chooser" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                            <p style={{ color: 'var(--charcoal)', fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>
+                                Where would you like to go?
+                            </p>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 0.5rem' }}>
+                                This email has both a customer and a business account.
+                            </p>
+                            <button type="button" className="btn-primary" onClick={chooseBusiness} disabled={loading}
+                                data-testid="choose-business" style={{ width: '100%', padding: '0.875rem' }}>
+                                Business Dashboard →
+                            </button>
+                            <button type="button" className="btn-outline" onClick={chooseCustomer} disabled={loading}
+                                data-testid="choose-customer" style={{ width: '100%', padding: '0.875rem' }}>
+                                Customer Site
+                            </button>
+                        </div>
+                    ) : (
                     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                         <div>
                             <label style={{
@@ -270,6 +311,7 @@ const Login = () => {
                             Continue with Google
                         </a>
                     </form>
+                    )}
                 </div>
             </div>
         </div >

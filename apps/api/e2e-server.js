@@ -90,6 +90,18 @@ const PORT = process.env.PORT || 5050;
         user: samUser._id, bookable: false,
     });
 
+    // One email holding BOTH a customer and a business account (same password),
+    // for the login destination-chooser and cross-app hand-off specs.
+    await User.create({
+        name: 'E2E Dual', email: 'e2e-dual@bookplus.dev', password: 'Password1!',
+        phone: '+264810000003', role: 'customer', isVerified: true, provider: 'local',
+    });
+    await User.create({
+        name: 'E2E Dual', email: 'e2e-dual@bookplus.dev', password: 'Password1!',
+        phone: '+264810000003', role: 'provider', providerCategory: 'Beauty & Grooming',
+        isVerified: true, provider: 'local', providerSetupComplete: true,
+    });
+
     const app = require('./server');
     app.locals.e2e = {
         providerId: provider._id.toString(),
