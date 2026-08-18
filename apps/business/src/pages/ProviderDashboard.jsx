@@ -2186,36 +2186,32 @@ const ProviderDashboard = () => {
                             new bookings come from the nav "+" or tapping a slot; tapping a slot
                             also offers "block time". */}
 
-                        {/* Staff filter — who's on the calendar. Chips mirror the view switcher. */}
+                        {/* Staff filter — who's on the calendar. The house segmented control
+                            (styles/index.css) rather than loose pills: one sunken track, the
+                            active option raised white, which reads far calmer above the grid. */}
                         {teamMembers.length > 0 && (
-                            <div role="group" aria-label="Filter calendar by staff member" style={{ display: 'flex', gap: '0.45rem', overflowX: 'auto', padding: '0.6rem 0.9rem 0.55rem', borderBottom: '1px solid var(--border)', background: 'var(--card-bg)', flexShrink: 0, WebkitOverflowScrolling: 'touch' }}>
-                                {[
-                                    { id: 'all', label: 'All staff' },
-                                    { id: 'unassigned', label: `${(user?.name || 'Me').split(' ')[0]} (me)` },
-                                    ...teamMembers.filter(m => m.isActive !== false).map(m => ({ id: String(m._id), label: m.name, color: m.color })),
-                                ].map(({ id, label, color }) => {
-                                    const isActive = String(calendarStaffFilter) === id;
-                                    return (
-                                        <button
-                                            key={id}
-                                            type="button"
-                                            onClick={() => setCalendarStaffFilter(id)}
-                                            aria-pressed={isActive}
-                                            style={{
-                                                display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0,
-                                                padding: '0.38rem 0.85rem', borderRadius: 'var(--radius-pill, 99px)', cursor: 'pointer',
-                                                border: `1px solid ${isActive ? 'var(--gold)' : 'var(--border)'}`,
-                                                background: isActive ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)',
-                                                color: isActive ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                                                fontSize: '0.8rem', fontWeight: isActive ? 700 : 500, fontFamily: 'var(--font-body)',
-                                                whiteSpace: 'nowrap', transition: 'background 0.18s ease, color 0.18s ease, border-color 0.18s ease',
-                                            }}
-                                        >
-                                            {color && <span aria-hidden="true" style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />}
-                                            {label}
-                                        </button>
-                                    );
-                                })}
+                            <div role="group" aria-label="Filter calendar by staff member" style={{ overflowX: 'auto', padding: '0.55rem 0.9rem', borderBottom: '1px solid var(--border)', background: 'var(--card-bg)', flexShrink: 0, WebkitOverflowScrolling: 'touch' }}>
+                                <div className="segmented">
+                                    {[
+                                        { id: 'all', label: 'All staff' },
+                                        { id: 'unassigned', label: `${(user?.name || 'Me').split(' ')[0]} (me)` },
+                                        ...teamMembers.filter(m => m.isActive !== false).map(m => ({ id: String(m._id), label: m.name, color: m.color })),
+                                    ].map(({ id, label, color }) => {
+                                        const isActive = String(calendarStaffFilter) === id;
+                                        return (
+                                            <button
+                                                key={id}
+                                                type="button"
+                                                onClick={() => setCalendarStaffFilter(id)}
+                                                aria-pressed={isActive}
+                                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}
+                                            >
+                                                {color && <span aria-hidden="true" style={{ width: '8px', height: '8px', borderRadius: '50%', background: color, flexShrink: 0 }} />}
+                                                {label}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
                             </div>
                         )}
 
