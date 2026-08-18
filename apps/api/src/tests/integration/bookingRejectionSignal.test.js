@@ -52,13 +52,26 @@ const bookLate = (ctx, startTime = '20:00', endTime = '20:30') => request(app)
 
 const alertCount = (providerId) => Notification.countDocuments({ user: providerId, type: 'system', message: /turned away/ });
 
+// Book the given times SEQUENTIALLY, waiting for each rejection record to
+// persist before firing the next. Recording is fire-and-forget, so without the
+// wait a later attempt's burst-count can run before earlier records landed and
+// see fewer than THRESHOLD — in production the next rejection simply alerts a
+// beat later (self-healing), but a test needs the alert deterministically on
+// the third attempt.
+const bookAndSettle = async (ctx, times) => {
+    let landed = await BookingRejection.countDocuments({ provider: ctx.provider._id });
+    for (const [start, end] of times) {
+        expect((await bookLate(ctx, start, end)).status).toBe(400);
+        landed += 1;
+        const want = landed;
+        await waitFor(async () => (await BookingRejection.countDocuments({ provider: ctx.provider._id })) === want);
+    }
+};
+
 describe('recording and the burst alert', () => {
     it('three refusals in the window raise exactly one alert naming the reason', async () => {
         const ctx = await setup();
-        for (const t of [['20:00', '20:30'], ['19:00', '19:30'], ['18:30', '19:00']]) {
-            expect((await bookLate(ctx, t[0], t[1])).status).toBe(400);
-        }
-        await waitFor(async () => (await BookingRejection.countDocuments({ provider: ctx.provider._id })) === 3);
+        await bookAndSettle(ctx, [['20:00', '20:30'], ['19:00', '19:30'], ['18:30', '19:00']]);
         await waitFor(async () => (await alertCount(ctx.provider._id)) === 1);
 
         const alert = await Notification.findOne({ user: ctx.provider._id, type: 'system' });
@@ -69,21 +82,16 @@ describe('recording and the burst alert', () => {
 
     it('a fourth refusal does not raise a second alert (throttle)', async () => {
         const ctx = await setup();
-        for (const t of [['20:00', '20:30'], ['19:00', '19:30'], ['18:30', '19:00']]) {
-            await bookLate(ctx, t[0], t[1]);
-        }
+        await bookAndSettle(ctx, [['20:00', '20:30'], ['19:00', '19:30'], ['18:30', '19:00']]);
         await waitFor(async () => (await alertCount(ctx.provider._id)) === 1);
 
-        await bookLate(ctx, '21:00', '21:30');
-        await waitFor(async () => (await BookingRejection.countDocuments({ provider: ctx.provider._id })) === 4);
+        await bookAndSettle(ctx, [['21:00', '21:30']]);
         expect(await alertCount(ctx.provider._id)).toBe(1);
     });
 
     it('below the threshold there is no alert', async () => {
         const ctx = await setup();
-        await bookLate(ctx, '20:00', '20:30');
-        await bookLate(ctx, '19:00', '19:30');
-        await waitFor(async () => (await BookingRejection.countDocuments({ provider: ctx.provider._id })) === 2);
+        await bookAndSettle(ctx, [['20:00', '20:30'], ['19:00', '19:30']]);
         expect(await alertCount(ctx.provider._id)).toBe(0);
     });
 
@@ -102,10 +110,7 @@ describe('recording and the burst alert', () => {
 describe('GET /api/appointments/rejections-summary', () => {
     it('reports the 7-day count and dominant reason to the owner', async () => {
         const ctx = await setup();
-        for (const t of [['20:00', '20:30'], ['19:00', '19:30'], ['18:30', '19:00']]) {
-            await bookLate(ctx, t[0], t[1]);
-        }
-        await waitFor(async () => (await BookingRejection.countDocuments({ provider: ctx.provider._id })) === 3);
+        await bookAndSettle(ctx, [['20:00', '20:30'], ['19:00', '19:30'], ['18:30', '19:00']]);
 
         const res = await request(app).get('/api/appointments/rejections-summary').set(authHeader(ctx.provider));
         expect(res.status).toBe(200);
