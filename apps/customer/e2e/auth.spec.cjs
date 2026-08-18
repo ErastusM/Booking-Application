@@ -8,16 +8,21 @@ test.describe('Authentication', () => {
         await expect(page.getByRole('button', { name: /^sign in/i })).toHaveCount(0);
     });
 
-    test('a business-account email cannot sign in on the customer app', async ({ page }) => {
-        // Accounts are scoped per side: the customer app authenticates only
-        // customer accounts. A provider (business) email with the right password
-        // is rejected with a message pointing at the business app, and stays put.
+    test('business credentials on the customer app hand off to the business app', async ({ page }) => {
+        // Login authenticates first, then routes by account type: a business
+        // email with the right password is signed into its business account and
+        // the browser is sent to the business app — never dead-ended here. This
+        // suite doesn't boot the business app, so its origin is stubbed; the
+        // full cross-origin landing is covered by the business suite's
+        // auth-routing spec (which boots both apps).
+        await page.route('http://localhost:3003/**', (route) => route.fulfill({
+            contentType: 'text/html', body: '<title>business-app-stub</title>ok',
+        }));
         await page.goto('/login');
         await page.getByPlaceholder('you@example.com').fill(SEED.provider.email);
         await page.getByPlaceholder('••••••••').fill(SEED.provider.password);
         await page.getByRole('button', { name: /sign in/i }).click();
-        await expect(page.getByText(/registered as a business account/i)).toBeVisible();
-        await expect(page).toHaveURL(/\/login/);
+        await page.waitForURL((url) => url.port === '3003', { timeout: 15_000 });
     });
 
     test('wrong password shows an error and stays on login', async ({ page }) => {

@@ -1,5 +1,5 @@
 const { test, expect } = require('@playwright/test');
-const { SEED, login, expectProviderDashboard } = require('./helpers.cjs');
+const { SEED, login, CUSTOMER_URL, expectProviderDashboard } = require('./helpers.cjs');
 
 test.describe('Business app roles', () => {
     test('a provider lands on the dashboard', async ({ page }) => {
@@ -8,15 +8,16 @@ test.describe('Business app roles', () => {
         await expectProviderDashboard(page);
     });
 
-    test('a customer-account email cannot sign in on the business app', async ({ page }) => {
-        // Accounts are scoped per side: the business app authenticates only
-        // business accounts. A customer email with the right password is
-        // rejected with a message pointing at the customer app, and stays put.
+    test('customer credentials on the business app hand off to the customer site', async ({ page }) => {
+        // Login authenticates first, then routes by account type: a customer
+        // email with the right password is signed into its customer account and
+        // the browser lands on the customer site (both apps run in this suite),
+        // never dead-ended on the business login.
         await page.goto('/login');
         await page.getByPlaceholder('you@example.com').fill(SEED.customer.email);
         await page.getByPlaceholder('••••••••').fill(SEED.customer.password);
         await page.getByRole('button', { name: /sign in/i }).click();
-        await expect(page.getByText(/registered as a customer account/i)).toBeVisible();
-        await expect(page).toHaveURL(/\/login/);
+        await page.waitForURL((url) => url.origin === new URL(CUSTOMER_URL).origin, { timeout: 20_000 });
+        await expect(page).not.toHaveURL(/\/login/);
     });
 });
