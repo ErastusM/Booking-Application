@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { teamService, providerServiceService } from '../services';
 import Switch from '../components/Switch';
-import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree } from 'lucide-react';
+import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft } from 'lucide-react';
 
 /**
  * Epic 2.4 — staff management: roster CRUD, invite-to-login, per-staff
@@ -71,7 +71,7 @@ const Field = ({ label, ...rest }) => (
     </label>
 );
 
-const MemberCard = ({ member, services, onChanged }) => {
+const MemberCard = ({ member, services, colleagues, onChanged }) => {
     const [open, setOpen] = useState(false);
     const [busy, setBusy] = useState('');
     const [msg, setMsg] = useState('');
@@ -79,6 +79,8 @@ const MemberCard = ({ member, services, onChanged }) => {
     const [schedule, setSchedule] = useState(null); // null = inherits business hours
     const [inviteEmail, setInviteEmail] = useState(member.email || '');
     const [inviteResult, setInviteResult] = useState(null); // sticky {ok, email, error} after a send
+    const [handoverTo, setHandoverTo] = useState('');
+    const [handoverResult, setHandoverResult] = useState(null); // sticky {moved, skipped, toName, error} after a run
     // Login lifecycle for the status line: no account → roster only; account but
     // never signed in → invited/awaiting; signed in at least once → active.
     const hasLogin = !!member.user;
@@ -326,6 +328,22 @@ const MemberCard = ({ member, services, onChanged }) => {
         } finally { setBusy(''); }
     };
 
+    const handover = async () => {
+        const target = colleagues.find(c => String(c._id) === handoverTo);
+        if (!target) return;
+        if (!window.confirm(`Move ALL of ${member.name}'s upcoming bookings to ${target.name}? Anything that would double-book ${target.name} stays put and is listed after.`)) return;
+        setBusy('handover');
+        setHandoverResult(null);
+        try {
+            const res = await teamService.handoverBookings(member._id, handoverTo);
+            const data = res?.data?.data || {};
+            setHandoverResult({ moved: data.moved || 0, skipped: data.skipped || [], toName: target.name });
+            onChanged();
+        } catch (err) {
+            setHandoverResult({ error: err.response?.data?.message || 'Could not move the bookings.' });
+        } finally { setBusy(''); }
+    };
+
     const toggleService = async (id) => {
         const next = assigned.includes(id) ? assigned.filter(x => x !== id) : [...assigned, id];
         setAssigned(next);
@@ -504,6 +522,45 @@ const MemberCard = ({ member, services, onChanged }) => {
                                     <Switch checked={bookable} disabled={busy === 'bookable'} onChange={toggleBookable} label={bookable ? 'Bookable' : 'Not bookable'} data-testid="bookable-switch" />
                                 </div>
                             </Section>
+
+                            {colleagues.length > 0 && (
+                                <Section icon={ArrowRightLeft} title="Hand over bookings" hint="(moves their upcoming bookings to a colleague)">
+                                    <div style={{ padding: '0.7rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                            <select className="input" value={handoverTo} onChange={e => setHandoverTo(e.target.value)}
+                                                data-testid="handover-target" style={{ maxWidth: '240px', padding: '0.5rem 0.6rem' }}>
+                                                <option value="">Who takes them?</option>
+                                                {colleagues.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
+                                            </select>
+                                            <button type="button" className="btn-primary" onClick={handover} disabled={!handoverTo || busy === 'handover'}
+                                                data-testid="handover-send" style={{ padding: '0.5rem 1.2rem' }}>
+                                                {busy === 'handover' ? 'Moving…' : 'Move bookings'}
+                                            </button>
+                                        </div>
+                                        <p style={{ margin: '0.5rem 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                            For when clients booked the wrong person. Every upcoming booking moves; anything that would
+                                            double-book the colleague stays with {member.name} and is listed here.
+                                        </p>
+                                        {handoverResult && (
+                                            <div data-testid="handover-result" style={{
+                                                marginTop: '0.6rem', padding: '0.6rem 0.8rem', borderRadius: 'var(--radius)',
+                                                fontSize: '0.83rem', lineHeight: 1.5,
+                                                border: `1px solid ${handoverResult.error ? '#fca5a5' : '#6ee7b7'}`,
+                                                background: handoverResult.error ? '#fef2f2' : '#d1fae5',
+                                                color: handoverResult.error ? '#991b1b' : '#065f46',
+                                            }}>
+                                                {handoverResult.error ? handoverResult.error : <>
+                                                    <strong>Moved {handoverResult.moved} booking{handoverResult.moved === 1 ? '' : 's'}</strong> to {handoverResult.toName}.
+                                                    {handoverResult.skipped.length > 0 && <>
+                                                        {' '}{handoverResult.skipped.length} stayed with {member.name} ({handoverResult.toName} is already booked then):{' '}
+                                                        {handoverResult.skipped.map(s => `${fmtRange(s.date, s.date)} ${s.startTime}`).join(', ')}. Reschedule those by hand from the calendar.
+                                                    </>}
+                                                </>}
+                                            </div>
+                                        )}
+                                    </div>
+                                </Section>
+                            )}
 
                             {member.user && (
                                 <Section icon={Eye} title="Calendar access">
@@ -814,7 +871,10 @@ const Team = () => {
                     <p style={{ margin: 0 }}>No team members yet. Add your first above — solo businesses can skip this entirely.</p>
                 </div>
             ) : (
-                members.map(m => <MemberCard key={m._id} member={m} services={services} onChanged={load} />)
+                members.map(m => (
+                    <MemberCard key={m._id} member={m} services={services} onChanged={load}
+                        colleagues={members.filter(c => c._id !== m._id && c.isActive !== false)} />
+                ))
             )}
         </div>
     );

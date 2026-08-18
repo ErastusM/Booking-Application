@@ -3,7 +3,80 @@ const TeamMember = require('../models/TeamMember');
 const User = require('../models/User');
 const Service = require('../models/Service');
 const StaffAvailability = require('../models/StaffAvailability');
+const Appointment = require('../models/Appointment');
 const { validate: validatePermissions } = require('../utils/permissions');
+const { memberBusyIntervals, memberInvolvedFilter } = require('../utils/staffBooking');
+
+const dayKeyOf = (d) => new Date(d).toISOString().slice(0, 10);
+
+/**
+ * POST /api/team/:id/handover  (provider/admin)  Body: { to: memberId }
+ *
+ * Move every UPCOMING booking (pending/confirmed, today onward) from one
+ * roster member to another — the "clients booked the wrong person" and
+ * "member is leaving, hand over their book" operation. Multi-service tickets
+ * move only the segments the source member performs; the top-level performer
+ * follows the first segment, matching how bookings are created.
+ *
+ * Each booking is checked against the TARGET's calendar (their existing
+ * bookings plus the ones moved so far) and skipped on a clash rather than
+ * double-booking them — skips come back in the response so the owner can
+ * resolve those by hand. Hours/blocked-time are deliberately NOT checked:
+ * this is an owner action, and owners can already place work outside hours
+ * (the walk-in override precedent).
+ */
+exports.handoverUpcomingBookings = async (req, res) => {
+    try {
+        const from = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        if (!from) return res.status(404).json({ success: false, message: 'Team member not found' });
+        const to = await TeamMember.findOne({ _id: req.body.to, provider: req.user._id, isActive: true });
+        if (!to) return res.status(400).json({ success: false, message: 'Choose an active team member to hand the bookings to' });
+        if (String(from._id) === String(to._id)) {
+            return res.status(400).json({ success: false, message: 'Pick a different member to hand over to' });
+        }
+
+        const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
+        const scope = { provider: req.user._id, status: { $in: ['pending', 'confirmed'] }, appointmentDate: { $gte: dayStart } };
+        const [sources, targetsExisting] = await Promise.all([
+            Appointment.find({ ...scope, ...memberInvolvedFilter(from._id) }).sort({ appointmentDate: 1, startTime: 1 }),
+            Appointment.find({ ...scope, ...memberInvolvedFilter(to._id) }).select('appointmentDate startTime endTime teamMember services').lean(),
+        ]);
+
+        // The target's busy windows per day, extended as bookings move across.
+        const busyByDay = {};
+        targetsExisting.forEach((a) => {
+            const k = dayKeyOf(a.appointmentDate);
+            (busyByDay[k] = busyByDay[k] || []).push(...memberBusyIntervals(a, to._id));
+        });
+
+        const moved = [];
+        const skipped = [];
+        for (const appt of sources) {
+            const k = dayKeyOf(appt.appointmentDate);
+            const wanted = memberBusyIntervals(appt, from._id);
+            const clash = wanted.some(([s, e]) => (busyByDay[k] || []).some(([bs, be]) => s < be && e > bs));
+            if (clash) {
+                skipped.push({ id: appt._id, date: k, startTime: appt.startTime, reason: 'conflict' });
+                continue;
+            }
+            if (Array.isArray(appt.services) && appt.services.length) {
+                appt.services.forEach((seg) => {
+                    if (String(seg.teamMember) === String(from._id)) seg.teamMember = to._id;
+                });
+                appt.teamMember = appt.services[0].teamMember || appt.teamMember;
+            } else {
+                appt.teamMember = to._id;
+            }
+            await appt.save();
+            (busyByDay[k] = busyByDay[k] || []).push(...wanted);
+            moved.push(appt._id);
+        }
+
+        res.status(200).json({ success: true, data: { moved: moved.length, skipped, total: sources.length } });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
 
 exports.getMyTeam = async (req, res) => {
     try {

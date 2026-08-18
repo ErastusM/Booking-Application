@@ -234,6 +234,8 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         removeMemberTimeOff: (id: string, toId: string) => API.delete(`/team/${id}/timeoff/${toId}`),
         // Epic 2 staff management
         inviteMember: (id: string, data?: any) => API.post(`/team/${id}/invite`, data || {}),
+        // Move every upcoming booking from one member to another (owner action).
+        handoverBookings: (id: string, to: string) => API.post(`/team/${id}/handover`, { to }),
         setMemberServices: (id: string, services: string[]) => API.put(`/team/${id}/services`, { services }),
         getMemberAvailability: (id: string) => API.get(`/team/${id}/availability`),
         updateMemberAvailability: (id: string, schedule: any) => API.put(`/team/${id}/availability`, { schedule }),

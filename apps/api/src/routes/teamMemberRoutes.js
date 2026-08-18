@@ -5,6 +5,7 @@ const {
     getMyTeam, addTeamMember, updateTeamMember, deleteTeamMember, restoreTeamMember, setTeamMemberPermissions, getTeamMemberStats,
     getTeamMemberShifts, setTeamMemberShift, clearTeamMemberShift,
     inviteTeamMember, setTeamMemberServices,
+    handoverUpcomingBookings,
     getTeamMemberAvailability, updateTeamMemberAvailability,
     getMyServices, setMyServices,
 } = require('../controllers/teamMemberController');
@@ -42,6 +43,8 @@ router.get('/:id/shifts', getTeamMemberShifts);
 router.put('/:id/shifts', setTeamMemberShift);
 router.delete('/:id/shifts/:date', clearTeamMemberShift);
 router.post('/:id/invite', inviteTeamMember);
+// Move a member's upcoming bookings to a colleague (conflicts skipped + reported).
+router.post('/:id/handover', handoverUpcomingBookings);
 router.put('/:id/services', setTeamMemberServices);
 
 // Time off — a multi-day leave range for a member. Owner-managed here (create is
