@@ -200,6 +200,18 @@ describe('GET/PUT /api/team/:id/availability', () => {
         expect(put.body.data.schedule.monday.slots[0].start).toBe('09:00');
     });
 
+    it('refuses an inverted range (start after end), naming the day', async () => {
+        const owner = await makeProvider();
+        const member = await makeMember(owner);
+        const res = await request(app)
+            .put(`/api/team/${member._id}/availability`)
+            .set(authHeader(owner))
+            .send({ schedule: { monday: { enabled: true, slots: [{ start: '19:00', end: '07:00' }] } } });
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/Monday/);
+        expect(res.body.message).toMatch(/after the starting time/);
+    });
+
     it('staff-self can manage their own schedule; others cannot', async () => {
         const owner = await makeProvider();
         const member = await makeMember(owner);

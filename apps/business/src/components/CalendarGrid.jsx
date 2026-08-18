@@ -383,7 +383,7 @@ const CalendarGrid = ({
         // rather than the page — it reads as a sheet over the grid it concerns.
         <div style={{ height: height || 640, display: 'flex', flexDirection: 'column', background: 'var(--card-bg)', minHeight: 0, position: 'relative' }}>
             {/* Single control strip: prev / next / range · view switcher · today */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.45rem 0.7rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
                 <button type="button" aria-label="Previous" onClick={() => shift(-1)} style={navBtn}><ChevronLeft size={17} /></button>
                 <button type="button" aria-label="Next" onClick={() => shift(1)} style={navBtn}><ChevronRight size={17} /></button>
                 <span style={{ flex: 1, minWidth: 0, marginLeft: '0.15rem', fontFamily: 'var(--font-display)', fontSize: '0.95rem', fontWeight: 600, color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>

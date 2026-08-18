@@ -2188,7 +2188,7 @@ const ProviderDashboard = () => {
 
                         {/* Staff filter — who's on the calendar. Chips mirror the view switcher. */}
                         {teamMembers.length > 0 && (
-                            <div role="group" aria-label="Filter calendar by staff member" style={{ display: 'flex', gap: '0.45rem', overflowX: 'auto', padding: '0 0.9rem 0.5rem', flexShrink: 0, WebkitOverflowScrolling: 'touch' }}>
+                            <div role="group" aria-label="Filter calendar by staff member" style={{ display: 'flex', gap: '0.45rem', overflowX: 'auto', padding: '0.6rem 0.9rem 0.55rem', borderBottom: '1px solid var(--border)', background: 'var(--card-bg)', flexShrink: 0, WebkitOverflowScrolling: 'touch' }}>
                                 {[
                                     { id: 'all', label: 'All staff' },
                                     { id: 'unassigned', label: `${(user?.name || 'Me').split(' ')[0]} (me)` },

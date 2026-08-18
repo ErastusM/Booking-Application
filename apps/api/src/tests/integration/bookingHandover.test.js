@@ -119,6 +119,58 @@ describe('moving the book', () => {
     });
 });
 
+describe("handing over to the owner (to: 'owner')", () => {
+    // The owner has no roster row — their work is stored UNASSIGNED
+    // (teamMember null). This is the solo-shop case: one member on the roster,
+    // clients meant to book the boss.
+    it('moves the bookings to unassigned', async () => {
+        const ctx = await setup();
+        const a = await bookFor(ctx, ctx.erastus, '10:00', '10:30');
+
+        const res = await handover(ctx, ctx.erastus._id, 'owner');
+        expect(res.status).toBe(200);
+        expect(res.body.data).toMatchObject({ moved: 1, total: 1 });
+
+        expect((await Appointment.findById(a._id)).teamMember).toBeNull();
+    });
+
+    it("skips a booking that clashes with the owner's own (unassigned) work", async () => {
+        const ctx = await setup();
+        // The owner's existing booking — no teamMember at all.
+        await makeAppointment(ctx.customer._id, ctx.svc._id, ctx.provider._id, {
+            status: 'confirmed', appointmentDate: day, startTime: '10:00', endTime: '10:30',
+        });
+        await bookFor(ctx, ctx.erastus, '10:15', '10:45');
+        await bookFor(ctx, ctx.erastus, '12:00', '12:30');
+
+        const res = await handover(ctx, ctx.erastus._id, 'owner');
+        expect(res.body.data).toMatchObject({ moved: 1, total: 2 });
+        expect(res.body.data.skipped).toEqual([
+            expect.objectContaining({ startTime: '10:15', reason: 'conflict' }),
+        ]);
+    });
+
+    it('flips only the source segments; top-level goes unassigned when the first segment does', async () => {
+        const ctx = await setup();
+        const stack = await makeAppointment(ctx.customer._id, ctx.svc._id, ctx.provider._id, {
+            teamMember: ctx.erastus._id, status: 'confirmed', appointmentDate: day,
+            startTime: '10:00', endTime: '12:00', totalPrice: 100,
+            services: [
+                { service: ctx.svc._id, name: 'A', price: 50, duration: 60, startTime: '10:00', endTime: '11:00', teamMember: ctx.erastus._id },
+                { service: ctx.svc._id, name: 'B', price: 50, duration: 60, startTime: '11:00', endTime: '12:00', teamMember: ctx.stark._id },
+            ],
+        });
+
+        const res = await handover(ctx, ctx.erastus._id, 'owner');
+        expect(res.body.data.moved).toBe(1);
+
+        const after = await Appointment.findById(stack._id);
+        expect(after.services[0].teamMember).toBeNull();
+        expect(String(after.services[1].teamMember)).toBe(String(ctx.stark._id)); // untouched
+        expect(after.teamMember).toBeNull();
+    });
+});
+
 describe('authorization and validation', () => {
     it("404s on another provider's member", async () => {
         const ctx = await setup();

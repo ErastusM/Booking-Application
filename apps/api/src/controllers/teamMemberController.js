@@ -8,6 +8,18 @@ const { validate: validatePermissions } = require('../utils/permissions');
 const { memberBusyIntervals, memberInvolvedFilter } = require('../utils/staffBooking');
 
 const dayKeyOf = (d) => new Date(d).toISOString().slice(0, 10);
+const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+
+// The owner's own work is stored UNASSIGNED (teamMember null) — there is no
+// roster row for the boss. These mirror memberInvolvedFilter/memberBusyIntervals
+// for that null case so the owner can be a handover target like anyone else.
+const ownerInvolvedFilter = { $or: [{ teamMember: null }, { services: { $elemMatch: { teamMember: null } } }] };
+const ownerBusyIntervals = (appt) => {
+    if (Array.isArray(appt.services) && appt.services.length) {
+        return appt.services.filter((s) => !s.teamMember).map((s) => [toMin(s.startTime), toMin(s.endTime)]);
+    }
+    return !appt.teamMember ? [[toMin(appt.startTime), toMin(appt.endTime)]] : [];
+};
 
 /**
  * POST /api/team/:id/handover  (provider/admin)  Body: { to: memberId }
@@ -29,24 +41,33 @@ exports.handoverUpcomingBookings = async (req, res) => {
     try {
         const from = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
         if (!from) return res.status(404).json({ success: false, message: 'Team member not found' });
-        const to = await TeamMember.findOne({ _id: req.body.to, provider: req.user._id, isActive: true });
-        if (!to) return res.status(400).json({ success: false, message: 'Choose an active team member to hand the bookings to' });
-        if (String(from._id) === String(to._id)) {
-            return res.status(400).json({ success: false, message: 'Pick a different member to hand over to' });
+        // 'owner' hands the book to the boss — their work is stored unassigned
+        // (teamMember null), so there is no roster row to look up.
+        const toOwner = req.body.to === 'owner';
+        let to = null;
+        if (!toOwner) {
+            to = await TeamMember.findOne({ _id: req.body.to, provider: req.user._id, isActive: true });
+            if (!to) return res.status(400).json({ success: false, message: 'Choose an active team member to hand the bookings to' });
+            if (String(from._id) === String(to._id)) {
+                return res.status(400).json({ success: false, message: 'Pick a different member to hand over to' });
+            }
         }
+        const targetId = toOwner ? null : to._id;
+        const targetInvolved = toOwner ? ownerInvolvedFilter : memberInvolvedFilter(to._id);
+        const targetBusy = (a) => (toOwner ? ownerBusyIntervals(a) : memberBusyIntervals(a, to._id));
 
         const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
         const scope = { provider: req.user._id, status: { $in: ['pending', 'confirmed'] }, appointmentDate: { $gte: dayStart } };
         const [sources, targetsExisting] = await Promise.all([
             Appointment.find({ ...scope, ...memberInvolvedFilter(from._id) }).sort({ appointmentDate: 1, startTime: 1 }),
-            Appointment.find({ ...scope, ...memberInvolvedFilter(to._id) }).select('appointmentDate startTime endTime teamMember services').lean(),
+            Appointment.find({ ...scope, ...targetInvolved }).select('appointmentDate startTime endTime teamMember services').lean(),
         ]);
 
         // The target's busy windows per day, extended as bookings move across.
         const busyByDay = {};
         targetsExisting.forEach((a) => {
             const k = dayKeyOf(a.appointmentDate);
-            (busyByDay[k] = busyByDay[k] || []).push(...memberBusyIntervals(a, to._id));
+            (busyByDay[k] = busyByDay[k] || []).push(...targetBusy(a));
         });
 
         const moved = [];
@@ -61,11 +82,13 @@ exports.handoverUpcomingBookings = async (req, res) => {
             }
             if (Array.isArray(appt.services) && appt.services.length) {
                 appt.services.forEach((seg) => {
-                    if (String(seg.teamMember) === String(from._id)) seg.teamMember = to._id;
+                    if (String(seg.teamMember) === String(from._id)) seg.teamMember = targetId;
                 });
-                appt.teamMember = appt.services[0].teamMember || appt.teamMember;
+                // Top-level performer follows the first segment (matching how
+                // bookings are created); null when that segment is now the owner's.
+                appt.teamMember = appt.services[0].teamMember || null;
             } else {
-                appt.teamMember = to._id;
+                appt.teamMember = targetId;
             }
             await appt.save();
             (busyByDay[k] = busyByDay[k] || []).push(...wanted);
@@ -763,6 +786,19 @@ exports.updateTeamMemberAvailability = async (req, res) => {
         const { schedule } = req.body;
         if (!schedule || typeof schedule !== 'object') {
             return res.status(400).json({ success: false, message: 'schedule is required' });
+        }
+        // An inverted range (start ≥ end) used to save silently and left the
+        // member bookable at no valid time — refuse it and name the day, so the
+        // mistake is caught while the owner is still looking at the form.
+        const toMins = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+        for (const [day, cfg] of Object.entries(schedule)) {
+            if (!cfg?.enabled) continue;
+            for (const slot of cfg.slots || []) {
+                if (toMins(slot.end) <= toMins(slot.start)) {
+                    const label = day.charAt(0).toUpperCase() + day.slice(1);
+                    return res.status(400).json({ success: false, message: `${label}: the ending time (${slot.end}) must be after the starting time (${slot.start}). Swap them if they're reversed.` });
+                }
+            }
         }
         const member = await TeamMember.findById(req.params.id);
         if (!member || !canTouchStaffAvailability(req.user, member)) {

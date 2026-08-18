@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useAuthContext } from '../context/AuthContext';
 import { teamService, providerServiceService } from '../services';
 import Switch from '../components/Switch';
 import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft } from 'lucide-react';
@@ -357,7 +358,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
         if (schedule === 'inherit' || !schedule) return;
         setBusy('hours');
         try { await teamService.updateMemberAvailability(member._id, schedule); flash('Hours saved'); }
-        catch { flash('Could not save hours'); }
+        catch (err) { flash(err?.response?.data?.message || 'Could not save hours'); }
         finally { setBusy(''); }
     };
 
@@ -767,24 +768,27 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                 )}
                                 {schedule && schedule !== 'inherit' && (
                                     <div>
-                                        {/* Column labels so it's clear which field is the start and which the end. */}
-                                        <div style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.7rem', padding: '0 0 0.4rem', marginBottom: '0.3rem', borderBottom: '1px solid var(--border)' }}>
-                                            <span style={{ width: '104px', flexShrink: 0 }} aria-hidden="true" />
-                                            <span style={{ width: '110px', flexShrink: 0, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Starting time</span>
-                                            <span style={{ width: '10px', flexShrink: 0 }} aria-hidden="true" />
-                                            <span style={{ width: '110px', flexShrink: 0, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Ending time</span>
+                                        {/* One shared grid keeps the day, both time fields and the column
+                                            labels aligned in fixed columns — flex-wrap pushed the end field
+                                            onto its own line on phones, which is how hours got entered into
+                                            the wrong boxes. Sized to fit a 360px viewport without wrapping. */}
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(84px, 104px) minmax(0, 96px) 12px minmax(0, 96px)', alignItems: 'center', columnGap: '0.45rem', padding: '0 0 0.4rem', marginBottom: '0.3rem', borderBottom: '1px solid var(--border)' }}>
+                                            <span aria-hidden="true" />
+                                            <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Starting time</span>
+                                            <span aria-hidden="true" />
+                                            <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Ending time</span>
                                         </div>
                                         {DAYS.map(day => (
-                                            <div key={day} style={{ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '0.7rem', padding: '0.3rem 0', fontSize: '0.87rem' }}>
-                                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', width: '104px', color: 'var(--charcoal)', textTransform: 'capitalize', cursor: 'pointer' }}>
+                                            <div key={day} style={{ display: 'grid', gridTemplateColumns: 'minmax(84px, 104px) minmax(0, 96px) 12px minmax(0, 96px)', alignItems: 'center', columnGap: '0.45rem', padding: '0.3rem 0', fontSize: '0.87rem' }}>
+                                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: 'var(--charcoal)', textTransform: 'capitalize', cursor: 'pointer' }}>
                                                     <input type="checkbox" checked={!!schedule[day]?.enabled} onChange={e => setDay(day, { enabled: e.target.checked })} />
                                                     {day}
                                                 </label>
                                                 {schedule[day]?.enabled && (
                                                     <>
-                                                        <input type="time" value={schedule[day].slots?.[0]?.start || '09:00'} onChange={e => setSlot(day, 'start', e.target.value)} className="input" style={{ width: '110px', padding: '0.35rem 0.5rem' }} />
-                                                        <span style={{ color: 'var(--text-muted)' }}>–</span>
-                                                        <input type="time" value={schedule[day].slots?.[0]?.end || '17:00'} onChange={e => setSlot(day, 'end', e.target.value)} className="input" style={{ width: '110px', padding: '0.35rem 0.5rem' }} />
+                                                        <input type="time" aria-label={`${day} starting time`} value={schedule[day].slots?.[0]?.start || '09:00'} onChange={e => setSlot(day, 'start', e.target.value)} className="input" style={{ width: '100%', padding: '0.35rem 0.4rem', fontSize: '0.92rem' }} />
+                                                        <span style={{ color: 'var(--text-muted)', textAlign: 'center' }}>–</span>
+                                                        <input type="time" aria-label={`${day} ending time`} value={schedule[day].slots?.[0]?.end || '17:00'} onChange={e => setSlot(day, 'end', e.target.value)} className="input" style={{ width: '100%', padding: '0.35rem 0.4rem', fontSize: '0.92rem' }} />
                                                     </>
                                                 )}
                                             </div>
@@ -823,6 +827,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
 };
 
 const Team = () => {
+    const { user } = useAuthContext();
     const [members, setMembers] = useState([]);
     const [services, setServices] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -873,7 +878,12 @@ const Team = () => {
             ) : (
                 members.map(m => (
                     <MemberCard key={m._id} member={m} services={services} onChanged={load}
-                        colleagues={members.filter(c => c._id !== m._id && c.isActive !== false)} />
+                        // Handover targets: the owner first — their work is stored
+                        // unassigned, no roster row — then every other active member.
+                        colleagues={[
+                            { _id: 'owner', name: `${(user?.name || 'Me').split(' ')[0]} (me)` },
+                            ...members.filter(c => c._id !== m._id && c.isActive !== false),
+                        ]} />
                 ))
             )}
         </div>
