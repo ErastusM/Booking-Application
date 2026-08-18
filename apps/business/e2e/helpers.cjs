@@ -7,6 +7,9 @@ const SEED = {
     provider: { email: 'e2e-provider@bookplus.dev', password: 'Password1!' },
     // A seeded staff login (roster member 'Sam Staff') for the self-service specs.
     staff: { email: 'e2e-staff@bookplus.dev', password: 'Password1!' },
+    // One email holding BOTH a customer and a business account (same password),
+    // for the login destination chooser + cross-app hand-off specs.
+    dual: { email: 'e2e-dual@bookplus.dev', password: 'Password1!' },
     staffName: 'Sam Staff',
     serviceName: 'E2E Haircut',
     providerName: 'E2E Provider',

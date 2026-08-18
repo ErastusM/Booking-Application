@@ -21,9 +21,25 @@ passport.use(new GoogleStrategy({
         // authRoutes before we ever get here), so the role must be parsed out rather
         // than compared whole — a raw === 'provider' would now always miss.
         const requestedRole = roleFromState(req.query.state);
-        const roleFilter = User.roleFilterForAccountType(User.accountTypeForRole(requestedRole));
+        const requestedType = User.accountTypeForRole(requestedRole);
+        const otherType = requestedType === 'business' ? 'customer' : 'business';
+        // The requested side is looked up FIRST, but the other side is a
+        // fallback rather than invisible. It used to be invisible — every
+        // lookup was scoped to the requested side only — so a business owner
+        // tapping "Continue with Google" on the customer site sailed past
+        // their real account and a brand-new empty CUSTOMER account was minted
+        // for them, silently (and vice versa). Now, when the requested side
+        // holds nothing, the sign-in resolves to their other-side account and
+        // the success redirect (originForRole in authRoutes) lands them on the
+        // app that account belongs to. A fresh account is only created when
+        // NEITHER side knows this person.
+        const sideFilters = [requestedType, otherType].map(t => User.roleFilterForAccountType(t));
 
-        let user = await User.findOne({ googleId: profile.id, role: roleFilter });
+        let user = null;
+        for (const roleFilter of sideFilters) {
+            user = await User.findOne({ googleId: profile.id, role: roleFilter });
+            if (user) break;
+        }
 
         if (!user) {
             const email = profile.emails[0].value;
@@ -34,7 +50,11 @@ passport.use(new GoogleStrategy({
                 || profile.emails[0].verified === 'true'
                 || profile._json?.email_verified === true;
 
-            const existing = await User.findOne({ email, role: roleFilter });
+            let existing = null;
+            for (const roleFilter of sideFilters) {
+                existing = await User.findOne({ email, role: roleFilter });
+                if (existing) break;
+            }
             if (existing) {
                 // Can't prove this Google user owns the mailbox → refuse to link.
                 if (!googleVerified) return done(null, false);
