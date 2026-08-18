@@ -75,9 +75,17 @@ const About = () => {
                             ? 'Manage your bookings, clients and calendar from one elegant workspace.'
                             : 'Browse trusted local businesses and book in seconds.'}
                     </p>
-                    <Link to={user ? (isProvider ? '/dashboard' : '/') : '/register'} className="btn-primary" style={{ fontSize: '1rem', padding: '0.9rem 2.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
-                        {user ? (isProvider ? 'Go to dashboard' : 'Browse providers') : 'Get started'} <ArrowRight size={18} strokeWidth={2} />
-                    </Link>
+                    {/* The dashboard lives in the BUSINESS app — this app has no
+                        /dashboard route (linking it silently bounced home). */}
+                    {user && isProvider ? (
+                        <a href={`${import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003'}/dashboard`} className="btn-primary" style={{ fontSize: '1rem', padding: '0.9rem 2.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                            Go to dashboard <ArrowRight size={18} strokeWidth={2} />
+                        </a>
+                    ) : (
+                        <Link to={user ? '/' : '/register'} className="btn-primary" style={{ fontSize: '1rem', padding: '0.9rem 2.5rem', display: 'inline-flex', alignItems: 'center', gap: '0.5rem' }}>
+                            {user ? 'Browse providers' : 'Get started'} <ArrowRight size={18} strokeWidth={2} />
+                        </Link>
+                    )}
                 </div>
             </section>
         </div>

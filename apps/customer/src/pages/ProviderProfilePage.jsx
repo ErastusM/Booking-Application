@@ -401,6 +401,21 @@ const ProviderProfilePage = ({ providerId } = {}) => {
 
             {/* ── Header — name, category, rating, open line, location pill (Fresha stack) ── */}
             <div className="container" style={{ paddingTop: '1.25rem' }}>
+                {/* The owner viewing their own listing: booking controls are stripped
+                    (booking yourself makes no sense), which used to leave a dead page
+                    with no explanation. Say what this is and point at the app that
+                    edits it. */}
+                {isOwner && (
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', flexWrap: 'wrap', background: 'rgba(240,62,22,0.08)', border: '1px solid var(--gold)', borderRadius: 'var(--radius)', padding: '0.75rem 1rem', marginBottom: '1rem' }}>
+                        <span style={{ fontSize: '0.87rem', color: 'var(--charcoal)', fontWeight: 600 }}>
+                            This is your public listing — this is what clients see.
+                        </span>
+                        <a href={`${import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003'}/account`}
+                            style={{ fontSize: '0.85rem', fontWeight: 700, color: 'var(--gold-dark)', textDecoration: 'none', whiteSpace: 'nowrap' }}>
+                            Edit it in the Business app →
+                        </a>
+                    </div>
+                )}
                 {/* The ref is on the title: the compact bar appears exactly when the
                     business name scrolls out of view (Fresha's trigger). */}
                 <h1 ref={headerRef} style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.55rem, 5.5vw, 2.2rem)', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.15rem', lineHeight: 1.15 }}>{businessName}</h1>

@@ -7,7 +7,7 @@ export { inferApiBase, bootstrapSession, createTelemetry };
 
 export const createBookplusClient = (options: ApiClientOptions = {}) => {
     const apiBase = inferApiBase(options.apiUrl);
-    const api = createHttp(apiBase);
+    const api = createHttp(apiBase, options.accountType);
     const services = makeServices(api, options.accountType);
     const telemetry = createTelemetry(api, apiBase, options.accountType === 'business' ? 'business' : 'customer');
     return {

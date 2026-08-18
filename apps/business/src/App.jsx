@@ -96,6 +96,11 @@ function AppRoutes() {
                         </ProtectedRoute>
                     } />
 
+                    {/* Several notification links (booking confirmed/cancelled/…) use the
+                        customer app's '/appointments' path but can reach business-side
+                        users. Their bookings live on the dashboard's list tabs — land
+                        there explicitly rather than falling through the catch-all. */}
+                    <Route path="/appointments" element={<Navigate to="/dashboard?tab=confirmed" replace />} />
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>

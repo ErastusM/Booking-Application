@@ -2,6 +2,11 @@
 // import shape. The endpoint definitions live in packages/api-client.
 import client from './client';
 
+// CUSTOMER-side services only. The business surface (earnings, team, CRM,
+// analytics, blocked time, packages, retention, provider wallet…) is
+// deliberately NOT re-exported here: nothing in this app uses it, and keeping
+// it out of the marketplace bundle makes the customer/business separation a
+// build-time boundary instead of a convention the next feature can drift over.
 export const {
     authService,
     serviceService,
@@ -11,21 +16,11 @@ export const {
     waitingListService,
     reviewService,
     notificationService,
-    analyticsService,
-    earningsService,
     availabilityService,
-    providerServiceService,
     providerMarketService,
-    categoryService,
-    blockedTimeService,
     messageService,
-    clientCRMService,
-    packageService,
-    retentionService,
-    teamService,
     suggestionService,
     pushService,
     walletService,
-    providerWalletService,
     formService,
 } = client.services;

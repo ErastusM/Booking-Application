@@ -14,12 +14,24 @@ const primaryOrigin = () =>
  * BUSINESS_ORIGIN, else the `business.*` entry in CLIENT_URL, else falls back to
  * the primary (customer) origin so nothing breaks if it isn't configured.
  */
+let warnedNoBusinessOrigin = false;
 const businessOrigin = () => {
     if (process.env.BUSINESS_ORIGIN) return process.env.BUSINESS_ORIGIN;
     const origins = (process.env.CLIENT_URL || '').split(',').map((o) => o.trim()).filter(Boolean);
     const biz = origins.find((o) => {
         try { return new URL(o).hostname.startsWith('business.'); } catch { return false; }
     });
+    if (!biz && !warnedNoBusinessOrigin) {
+        // Fail open but LOUDLY: with no business origin configured, every staff
+        // invite, provider reset and business auth redirect silently points at
+        // the CUSTOMER site — where those accounts cannot sign in. One warning
+        // per boot, at the first use, so a misconfigured host is visible in the
+        // logs instead of surfacing as "my staff invite link doesn't work".
+        warnedNoBusinessOrigin = true;
+        // eslint-disable-next-line no-console
+        console.warn('[origins] No BUSINESS_ORIGIN set and no business.* entry in CLIENT_URL — '
+            + 'business-side links will point at the customer site.');
+    }
     return biz || primaryOrigin();
 };
 

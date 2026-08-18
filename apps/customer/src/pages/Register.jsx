@@ -1,9 +1,10 @@
 import React, { useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { authService } from '../services';
-import MAIN_CATEGORIES from '../constants/mainCategories';
 import { API_BASE } from '../services/api';
 import { CalendarCheck, Briefcase, MailCheck, Check } from 'lucide-react';
+
+const BUSINESS_URL = import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003';
 
 const roles = [
     {
@@ -29,8 +30,7 @@ const Register = () => {
     const prefillEmail = location.state?.email || '';
     const [step, setStep] = useState(prefillEmail ? 2 : 1);
     const [selectedRole, setSelectedRole] = useState(prefillEmail ? 'customer' : '');
-    const [formData, setFormData] = useState({ name: '', email: prefillEmail, phone: '', password: '', providerCategory: '' });
-    const [customCategory, setCustomCategory] = useState('');
+    const [formData, setFormData] = useState({ name: '', email: prefillEmail, phone: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [passwordFocused, setPasswordFocused] = useState(false);
@@ -50,11 +50,14 @@ const Register = () => {
     };
 
     const handleRoleSelect = (role) => {
+        // Business signup lives on the business app - one funnel, not two. The
+        // marketplace used to run its own full provider signup here, which then
+        // stranded the new business account on a login it could never pass.
+        if (role === 'provider') {
+            window.location.href = `${BUSINESS_URL}/register`;
+            return;
+        }
         setSelectedRole(role);
-        setFormData(prev => ({
-            ...prev,
-            providerCategory: role === 'provider' ? prev.providerCategory : '',
-        }));
         setStep(2);
     };
 
@@ -68,14 +71,6 @@ const Register = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
-        if (selectedRole === 'provider' && !formData.providerCategory) {
-            setError('Please select your main service category');
-            return;
-        }
-        if (formData.providerCategory === 'Other' && !customCategory.trim()) {
-            setError('Please describe the service you intend to offer');
-            return;
-        }
         if (!passwordValid) {
             setError('Please meet all password requirements');
             return;
@@ -87,13 +82,7 @@ const Register = () => {
         setLoading(true);
         setError('');
         try {
-            await authService.register({
-                ...formData,
-                role: selectedRole,
-                providerCategory: formData.providerCategory === 'Other'
-                    ? customCategory.trim()
-                    : formData.providerCategory,
-            });
+            await authService.register({ ...formData, role: 'customer' });
             setStep(3); // New step — check email
         } catch (err) {
             setError(err.response?.data?.message || 'Registration failed');
@@ -241,37 +230,6 @@ const Register = () => {
                                 </div>
                             ))}
 
-                            {selectedRole === 'provider' && (
-                                <div>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                                        Main Category
-                                    </label>
-                                    <select
-                                        name="providerCategory"
-                                        value={formData.providerCategory}
-                                        onChange={handleChange}
-                                        required
-                                        className="input"
-                                    >
-                                        <option value="">Select your primary category</option>
-                                        {MAIN_CATEGORIES.map(category => (
-                                            <option key={category} value={category}>{category}</option>
-                                        ))}
-                                    </select>
-                                    {formData.providerCategory === 'Other' && (
-                                        <input
-                                            type="text"
-                                            value={customCategory}
-                                            onChange={e => setCustomCategory(e.target.value)}
-                                            required
-                                            placeholder="e.g. Pet Grooming, Tattoo Studio..."
-                                            className="input"
-                                            style={{ marginTop: '0.75rem' }}
-                                        />
-                                    )}
-                                </div>
-                            )}
-
                             <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5, cursor: 'pointer', marginTop: '0.25rem' }}>
                                 <input
                                     type="checkbox"
@@ -299,7 +257,7 @@ const Register = () => {
                             </div>
 
                             <a
-                                href={`${API_BASE}/api/auth/google?role=${selectedRole || 'customer'}`}
+                                href={`${API_BASE}/api/auth/google`}
                                 onClick={(e) => { if (!consented) { e.preventDefault(); setError('Please agree to the Terms of Service and Privacy Policy to continue'); } }}
                                 aria-disabled={!consented}
                                 style={{

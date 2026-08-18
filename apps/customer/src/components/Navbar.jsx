@@ -14,6 +14,10 @@ const BUSINESS_URL = import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003
 // manage their business on the business app — switching is a hard navigation
 // (window.location) so the other app boots fresh with its own data.
 const goToBusinessApp = (path = '/dashboard') => { window.location.href = `${BUSINESS_URL}${path}`; };
+// Every business-side role has a home in the business app — staff included.
+const businessHomeFor = (role) => (role === 'admin' ? '/bkplus-command' : role === 'staff' ? '/my-schedule' : '/dashboard');
+const isBusinessRole = (role) => role === 'provider' || role === 'staff' || role === 'admin';
+const ROLE_LABELS = { customer: 'Customer', provider: 'Business owner', staff: 'Staff', admin: 'Admin' };
 
 const Navbar = () => {
     const { user, logout } = useAuthContext();
@@ -111,9 +115,9 @@ const Navbar = () => {
                 {/* Desktop right cluster — Fresha-simple: one pill + avatar menu.
                     Everything else (Appointments, Wallet, …) lives in the dropdown. */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }} className="hidden-mobile">
-                    {user?.role === 'provider' || user?.role === 'admin' ? (
+                    {isBusinessRole(user?.role) ? (
                         <button
-                            onClick={() => goToBusinessApp(user.role === 'admin' ? '/bkplus-command' : '/dashboard')}
+                            onClick={() => goToBusinessApp(businessHomeFor(user.role))}
                             title="Open the business app"
                             style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.55rem 1.1rem', borderRadius: '999px', border: '1.5px solid var(--gold)', cursor: 'pointer', background: 'rgba(240,62,22,0.10)', color: isTransparent ? 'white' : 'var(--gold-dark)', fontSize: '0.85rem', fontWeight: '600', fontFamily: 'var(--font-body)', transition: 'all 0.2s' }}
                         >
@@ -122,7 +126,9 @@ const Navbar = () => {
                         </button>
                     ) : (
                         <a
-                            href={user ? '/become-provider' : BUSINESS_URL}
+                            /* A prospect belongs on the business SIGNUP, not the business
+                               login wall the bare origin funnels to. */
+                            href={user ? '/become-provider' : `${BUSINESS_URL}/register`}
                             onClick={user ? (e => { e.preventDefault(); navigate('/become-provider'); }) : undefined}
                             style={{ display: 'inline-flex', alignItems: 'center', padding: '0.55rem 1.15rem', borderRadius: '999px', border: `1px solid ${isTransparent ? 'rgba(255,255,255,0.4)' : 'var(--border)'}`, background: isTransparent ? 'rgba(255,255,255,0.10)' : 'var(--card-bg)', color: isTransparent ? 'white' : 'var(--charcoal)', fontSize: '0.85rem', fontWeight: '600', textDecoration: 'none', boxShadow: isTransparent ? 'none' : 'var(--shadow-sm)', transition: 'all 0.2s' }}
                         >
@@ -260,7 +266,7 @@ const Navbar = () => {
                         <div style={{ padding: '1rem 1.2rem', borderBottom: '1px solid var(--border)', display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
                             <Link to="/login" onClick={() => setMenuOpen(false)} style={{ width: '100%', textAlign: 'center', textDecoration: 'none', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', color: 'var(--charcoal)', fontWeight: '600', fontSize: '0.92rem' }}>Log in</Link>
                             <Link to="/register" onClick={() => setMenuOpen(false)} className="btn-primary" style={{ width: '100%', padding: '0.8rem 1rem', textAlign: 'center', textDecoration: 'none' }}>Sign up</Link>
-                            <a href={BUSINESS_URL} style={{ width: '100%', textAlign: 'center', textDecoration: 'none', padding: '0.7rem 1rem', color: 'var(--gold-dark)', fontWeight: '600', fontSize: '0.9rem' }}>List your business →</a>
+                            <a href={`${BUSINESS_URL}/register`} style={{ width: '100%', textAlign: 'center', textDecoration: 'none', padding: '0.7rem 1rem', color: 'var(--gold-dark)', fontWeight: '600', fontSize: '0.9rem' }}>List your business →</a>
                         </div>
                     )}
 
@@ -275,15 +281,17 @@ const Navbar = () => {
                                 </div>
                                 <div style={{ minWidth: 0 }}>
                                     <p style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--charcoal)', margin: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</p>
-                                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>Customer</p>
+                                    {/* The real role, not a hardcoded "Customer" — the drawer used to
+                                        label business owners as customers right above their business-app link. */}
+                                    <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>{ROLE_LABELS[user.role] || 'Customer'}</p>
                                 </div>
                             </div>
                             {/* Business accounts hop to the business app — a hard navigation
                                 so the other app loads fresh with business data. */}
-                            {(user.role === 'provider' || user.role === 'admin') && (
+                            {isBusinessRole(user.role) && (
                                 <div style={{ padding: '0 1.2rem 0.85rem' }}>
                                     <button
-                                        onClick={() => goToBusinessApp(user.role === 'admin' ? '/bkplus-command' : '/dashboard')}
+                                        onClick={() => goToBusinessApp(businessHomeFor(user.role))}
                                         style={{ width: '100%', padding: '0.55rem', borderRadius: '99px', border: '1.5px solid var(--gold)', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark,#b32c0d)', fontSize: '0.78rem', fontWeight: '600', fontFamily: 'var(--font-body)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.45rem' }}
                                     >
                                         <svg width="14" height="14" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><path d="M3 21h18M5 21V7l7-4 7 4v14M9 9h.01M9 13h.01M9 17h.01M15 9h.01M15 13h.01M15 17h.01"/></svg>

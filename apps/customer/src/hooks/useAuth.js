@@ -2,6 +2,8 @@ import { useState, useCallback, useEffect } from 'react';
 import API from '../services/api';
 import client from '../services/client';
 
+const BUSINESS_URL = import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003';
+
 export const useAuth = () => {
     // Hydrate the user from cache so a returning client sees the app logged-in
     // instantly — no spinner, no flash of the login page — while we re-validate the
@@ -27,6 +29,24 @@ export const useAuth = () => {
             if (user) localStorage.setItem('user', JSON.stringify(user));
             else localStorage.removeItem('user');
         } catch { /* storage disabled/full — non-fatal */ }
+    }, [user]);
+
+    // This app is the CUSTOMER experience — a business-side session must never
+    // render here as a signed-in "customer". The main way one used to appear
+    // (become-provider flipping the account under a live customer session, then
+    // the silent refresh keeping it alive forever) is fixed at the source, but
+    // sessions stranded before that fix — or any future wrong-side leak — get
+    // ejected here: clear the local session and hand the person to their app.
+    useEffect(() => {
+        if (!user?.role || user.role === 'customer') return;
+        const home = user.role === 'admin' ? '/bkplus-command'
+            : user.role === 'staff' ? '/my-schedule' : '/dashboard';
+        try {
+            localStorage.removeItem('token');
+            localStorage.removeItem('refreshToken');
+            localStorage.removeItem('user');
+        } catch { /* non-fatal */ }
+        window.location.replace(`${BUSINESS_URL}${home}`);
     }, [user]);
 
     // On app load, validate/refresh the cached session in the BACKGROUND. We never

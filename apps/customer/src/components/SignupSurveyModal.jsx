@@ -22,6 +22,9 @@ const SignupSurveyModal = () => {
 
     useEffect(() => {
         if (!user) return;
+        // Marketplace survey is for CUSTOMER signups; provider Google signups
+        // also carry signupSurveyPending but their survey belongs to the business app.
+        if (user.role !== 'customer') return;
         let dismissed = false;
         try { dismissed = localStorage.getItem(DISMISSED_KEY) === 'true'; } catch { /* storage disabled */ }
         if (dismissed) return;

@@ -5,14 +5,18 @@ import { authService } from '../services';
 import MAIN_CATEGORIES from '../constants/mainCategories';
 import { Briefcase, Check } from 'lucide-react';
 
+// Honest about what upgrading does: it CONVERTS this account to the business
+// side (authController.becomeProvider flips role on the same document). The old
+// copy promised "keep your customer account", which was simply false — after
+// upgrading, this site's login no longer accepts the account.
 const PERKS = [
     'Manage your calendar, bookings and clients in one place',
     'Take online bookings 24/7 with automatic reminders',
-    'Keep your customer account — book other businesses too',
+    'Your bookings, wallet and history move with you',
 ];
 
 const BecomeProvider = () => {
-    const { user, setUser } = useAuthContext();
+    const { user } = useAuthContext();
     const navigate = useNavigate();
     const [category, setCategory] = useState('');
     const [customCategory, setCustomCategory] = useState('');
@@ -32,12 +36,19 @@ const BecomeProvider = () => {
         setLoading(true);
         setError('');
         try {
-            const res = await authService.becomeProvider({
+            await authService.becomeProvider({
                 providerCategory: category === 'Other' ? customCategory.trim() : category,
             });
-            setUser(res.data.data);
-            // The business experience lives in the business app — a hard
-            // navigation boots it fresh (SSO cookie signs them in there).
+            // The account is now a BUSINESS account, so this site's session must
+            // end here — leaving it in place kept rendering the owner as a
+            // signed-in "customer" forever (the silent refresh renewed it). The
+            // SSO cookie survives (it lives on the API host), so the business
+            // app signs them straight in on arrival.
+            try {
+                localStorage.removeItem('token');
+                localStorage.removeItem('refreshToken');
+                localStorage.removeItem('user');
+            } catch { /* non-fatal */ }
             window.location.href = `${import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003'}/dashboard`;
         } catch (err) {
             setError(err.response?.data?.message || 'Could not set up your business');
@@ -57,7 +68,7 @@ const BecomeProvider = () => {
                         </div>
                         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.9rem', fontWeight: '600', color: 'var(--charcoal)', margin: '0 0 0.4rem' }}>List your business</h1>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', lineHeight: 1.6, margin: '0 0 1.5rem' }}>
-                            Turn your Bookplus account into a business — no new sign-up. You'll still be able to book other businesses as a customer.
+                            Turn your Bookplus account into a business — no new sign-up. Your account moves to the business app, where you'll manage everything from now on.
                         </p>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.5rem' }}>
