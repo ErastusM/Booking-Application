@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { useAuthContext } from '../context/AuthContext';
 import { teamService, providerServiceService } from '../services';
 import Switch from '../components/Switch';
 import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft } from 'lucide-react';
@@ -826,6 +827,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
 };
 
 const Team = () => {
+    const { user } = useAuthContext();
     const [members, setMembers] = useState([]);
     const [services, setServices] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -876,7 +878,12 @@ const Team = () => {
             ) : (
                 members.map(m => (
                     <MemberCard key={m._id} member={m} services={services} onChanged={load}
-                        colleagues={members.filter(c => c._id !== m._id && c.isActive !== false)} />
+                        // Handover targets: the owner first — their work is stored
+                        // unassigned, no roster row — then every other active member.
+                        colleagues={[
+                            { _id: 'owner', name: `${(user?.name || 'Me').split(' ')[0]} (me)` },
+                            ...members.filter(c => c._id !== m._id && c.isActive !== false),
+                        ]} />
                 ))
             )}
         </div>
