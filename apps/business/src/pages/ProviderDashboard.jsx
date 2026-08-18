@@ -85,6 +85,9 @@ const ProviderDashboard = () => {
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState('calendar');
+    // Turned-away bookings (last 7 days) — the owner-side signal from the
+    // phantom-slot post-mortem. null = not fetched; {count:0,...} renders nothing.
+    const [turnedAway, setTurnedAway] = useState(null);
     const [availability, setAvailability] = useState(null);
     const [savingAvailability, setSavingAvailability] = useState(false);
     const [availabilitySuccess, setAvailabilitySuccess] = useState('');
@@ -293,6 +296,11 @@ const ProviderDashboard = () => {
         if (activeTab === 'history' && history.length === 0) fetchHistory(1);
         // Team needed for staff assignment + the calendar staff filter
         if (activeTab === 'calendar' && teamMembers.length === 0) fetchTeam();
+        if (activeTab === 'overview' && turnedAway === null) {
+            appointmentService.getRejectionsSummary()
+                .then((res) => setTurnedAway(res.data.data || { count: 0 }))
+                .catch(() => setTurnedAway({ count: 0 })); // signal is best-effort — never block the tab
+        }
         if (activeTab === 'wallet') fetchWalletData();
     }, [activeTab]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -1570,6 +1578,26 @@ const ProviderDashboard = () => {
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>Business Overview</h2>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>Your bookings at a glance</p>
                             </div>
+
+                            {/* Turned-away bookings — visible only when it's non-zero, so a healthy
+                                setup shows nothing. A burst also raises a bell alert (see
+                                utils/bookingRejections on the API); this is the ambient view. */}
+                            {turnedAway?.count > 0 && (
+                                <div data-testid="turned-away-card" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem', background: 'var(--warning-bg, #fff7ed)', border: '1px solid #fdba74', borderRadius: 'var(--radius)', padding: '1rem 1.25rem', marginBottom: '1.5rem' }}>
+                                    <div style={{ width: '38px', height: '38px', borderRadius: '9px', background: 'rgba(240,62,22,0.14)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', flexShrink: 0 }}>🚫</div>
+                                    <div style={{ minWidth: 0 }}>
+                                        <p style={{ margin: 0, fontWeight: 700, fontSize: '0.95rem', color: 'var(--warning-fg, #9a3412)' }}>
+                                            {turnedAway.count} booking{turnedAway.count > 1 ? 's' : ''} turned away this week
+                                        </p>
+                                        <p style={{ margin: '0.2rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
+                                            Customers tried to book but were refused{turnedAway.topLabel ? <> — most often <strong>“{turnedAway.topLabel}”</strong> ({turnedAway.topCount} of {turnedAway.count})</> : ''}.
+                                        </p>
+                                        <button type="button" onClick={() => setActiveTab('availability')} style={{ marginTop: '0.5rem', background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.85rem', fontWeight: 700, color: 'var(--gold-dark)', fontFamily: 'var(--font-body)' }}>
+                                            Review working hours →
+                                        </button>
+                                    </div>
+                                </div>
+                            )}
 
                             <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>
                                 {[

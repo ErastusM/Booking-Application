@@ -27,6 +27,7 @@ const {
     providerRescheduleAppointment,
     providerBatchReschedule,
     getBookedSlots,
+    getRejectionsSummary,
     getAppointmentHistory,
     createGroupBooking,
     getGroupBooking,
@@ -44,6 +45,8 @@ const {
 
 // Public — the booking page (incl. guest checkout) shows available slots before login
 router.get('/booked-slots', optionalAuth, getBookedSlots);
+// Owner-side signal: turned-away customer bookings over the last 7 days.
+router.get('/rejections-summary', auth, authorize('provider'), getRejectionsSummary);
 
 // Public — no-login "manage my booking" via opaque token
 router.get('/manage/:token', getAppointmentByToken);

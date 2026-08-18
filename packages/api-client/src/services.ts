@@ -42,6 +42,9 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         // `service` makes the no-member ("any professional") view staff-aware:
         // the server unions the availability of everyone who performs that
         // service, so the picker only offers slots a booking will accept.
+        // Owner-side signal: how many customer bookings this business turned
+        // away in the last 7 days, and the dominant reason (provider-only).
+        getRejectionsSummary: () => API.get('/appointments/rejections-summary'),
         getBookedSlots: (providerId: string, date: string, teamMember?: string, service?: string) =>
             API.get('/appointments/booked-slots', {
                 params: {

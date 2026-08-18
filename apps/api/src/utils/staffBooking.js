@@ -235,7 +235,7 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
 
     // Zero-staff business — legacy provider-level behavior, untouched.
     if (!roster.length) {
-        if (requestedTeamMember) return { status: 400, error: 'Unknown team member' };
+        if (requestedTeamMember) return { status: 400, error: 'Unknown team member', reason: 'unknown_member' };
         return { teamMember: null };
     }
 
@@ -257,19 +257,19 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
 
     if (requestedTeamMember) {
         const member = roster.find(m => m._id.toString() === String(requestedTeamMember));
-        if (!member) return { status: 400, error: 'Unknown team member' };
+        if (!member) return { status: 400, error: 'Unknown team member', reason: 'unknown_member' };
         if (isCustomer) {
             if (member.bookable === false) {
-                return { status: 400, error: 'That staff member is not available for online booking' };
+                return { status: 400, error: 'That staff member is not available for online booking', reason: 'not_bookable' };
             }
             if (!performsService(member, svc._id)) {
-                return { status: 400, error: 'That staff member does not offer this service' };
+                return { status: 400, error: 'That staff member does not offer this service', reason: 'staff_service_mismatch' };
             }
             const check = await isMemberFree({
                 providerId, member, date: appointmentDate, startTime, endTime, svc,
                 businessSchedule, enforceHours: true, ignoreWeeklyHours: soloOwner,
             });
-            if (!check.free) return { status: 400, error: UNAVAILABLE_MESSAGES[check.reason] };
+            if (!check.free) return { status: 400, error: UNAVAILABLE_MESSAGES[check.reason], reason: check.reason };
         }
         // provider/admin: ownership proven via the roster; hours/blocks are overridable
         return { teamMember: member._id };
@@ -289,7 +289,7 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
         });
         if (check.free) return { teamMember: member._id };
     }
-    return { status: 400, error: 'No staff member is available at that time. You can join the waiting list instead.' };
+    return { status: 400, error: 'No staff member is available at that time. You can join the waiting list instead.', reason: 'no_staff_available' };
 }
 
 /**
