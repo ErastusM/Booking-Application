@@ -142,6 +142,11 @@ exports.updateTeamMember = async (req, res) => {
             name, role, email, phone, color, isActive, bookable,
             photoUrl, country, address, emergencyContact,
         } = req.body;
+        // Read the prior state so a change to `isActive` can be mirrored onto the
+        // linked login below (findOneAndUpdate only returns the new value).
+        const existing = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        if (!existing) return res.status(404).json({ success: false, message: 'Team member not found' });
+
         const member = await TeamMember.findOneAndUpdate(
             { _id: req.params.id, provider: req.user._id },
             // Undefined keys are dropped by Mongoose, so a partial body only
@@ -150,6 +155,24 @@ exports.updateTeamMember = async (req, res) => {
             { new: true, runValidators: true }
         );
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
+
+        // Deactivating a member must also stop their login — not just new bookings.
+        // Otherwise a "paused" staffer keeps a fully working session (access +
+        // rotating refresh) to the business app. This is a REVERSIBLE suspension,
+        // distinct from archive: staffOf is kept, so flipping isActive back on
+        // restores access with no re-invite. Blocking the login without a
+        // deactivatedAt makes the auth path treat it as suspended (it won't
+        // auto-reactivate on next sign-in, the way a self-deactivation would).
+        if (typeof isActive === 'boolean' && member.user && isActive !== existing.isActive) {
+            if (isActive === false) {
+                await User.updateOne(
+                    { _id: member.user },
+                    { $inc: { tokenVersion: 1 }, $set: { refreshTokenJtis: [], isActive: false, deactivatedAt: null } },
+                );
+            } else {
+                await User.updateOne({ _id: member.user }, { $set: { isActive: true } });
+            }
+        }
         res.status(200).json({ success: true, data: member });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
@@ -187,7 +210,15 @@ exports.deleteTeamMember = async (req, res) => {
         // can re-derive staff powers. The account itself is left intact rather than
         // deleted — it may hold message history, and destroying it is not what
         // "remove from team" asked for.
-        if (member.user) {
+        // Only revoke the login if NO other still-active roster row for this
+        // business points at the same account. Two rows can share one User (a
+        // duplicate re-add), and revoking here would lock the staffer out even
+        // though the sibling row is still live and bookable. The new invite guard
+        // prevents fresh duplicates; this protects any that already exist.
+        const otherActive = member.user
+            ? await TeamMember.findOne({ provider: member.provider, user: member.user, _id: { $ne: member._id }, isActive: true })
+            : null;
+        if (member.user && !otherActive) {
             await User.updateOne(
                 { _id: member.user },
                 { $inc: { tokenVersion: 1 }, $set: { refreshTokenJtis: [], staffOf: null } },
@@ -608,7 +639,13 @@ exports.inviteTeamMember = async (req, res) => {
         const email = ((req.body.email || member.email) || '').trim().toLowerCase();
         if (!email) return res.status(400).json({ success: false, message: 'An email address is required to invite' });
 
-        let staffUser = await User.findOne({ email });
+        // Scope to the BUSINESS side. An email may hold one customer account AND
+        // one business account (the {email, accountType} unique index is built for
+        // exactly that), so a bare `findOne({ email })` would return the person's
+        // marketplace customer profile and wrongly 409 — blocking staff who are
+        // also platform customers, a very common case. The staff login we create or
+        // re-attach is always a business-side account.
+        let staffUser = await User.findOne({ email, role: { $in: ['provider', 'staff', 'admin'] } });
         if (staffUser) {
             const isOwnStaff = staffUser.role === 'staff'
                 && staffUser.staffOf && staffUser.staffOf.toString() === req.user._id.toString();
@@ -635,6 +672,23 @@ exports.inviteTeamMember = async (req, res) => {
                 isVerified: true, // owner-vouched; they prove the mailbox by using the invite link
             });
         }
+
+        // One login must not back two roster rows for the same business. If it did,
+        // staff self-service (myMemberDoc / timeOff /mine) would resolve an arbitrary
+        // row, and archiving either row would revoke the shared login while the other
+        // stayed active. Refuse before linking; the current row is excluded so a
+        // resend to this same member still works.
+        const dupRow = await TeamMember.findOne({
+            provider: req.user._id, user: staffUser._id, _id: { $ne: member._id }, isActive: true,
+        });
+        if (dupRow) {
+            return res.status(400).json({ success: false, message: 'That login is already assigned to another team member.' });
+        }
+
+        // An invite always grants (or restores) access — a member deactivated or
+        // archived earlier may have had their login blocked, and re-inviting is the
+        // explicit way to let them back in.
+        staffUser.isActive = true;
 
         // Set-password token — same mechanics as the reset flow, 7-day window.
         const rawToken = crypto.randomBytes(32).toString('hex');
@@ -793,10 +847,19 @@ exports.updateTeamMemberAvailability = async (req, res) => {
         const toMins = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
         for (const [day, cfg] of Object.entries(schedule)) {
             if (!cfg?.enabled) continue;
+            const label = day.charAt(0).toUpperCase() + day.slice(1);
             for (const slot of cfg.slots || []) {
                 if (toMins(slot.end) <= toMins(slot.start)) {
-                    const label = day.charAt(0).toUpperCase() + day.slice(1);
                     return res.status(400).json({ success: false, message: `${label}: the ending time (${slot.end}) must be after the starting time (${slot.start}). Swap them if they're reversed.` });
+                }
+            }
+            // Overlapping slots would double-count the day and make occupancy stats
+            // nonsense (scheduledMinutes sums each slot with no interval merge), the
+            // same reason shift periods reject overlap — so refuse them here too.
+            const sorted = [...(cfg.slots || [])].sort((a, b) => toMins(a.start) - toMins(b.start));
+            for (let i = 1; i < sorted.length; i += 1) {
+                if (toMins(sorted[i].start) < toMins(sorted[i - 1].end)) {
+                    return res.status(400).json({ success: false, message: `${label}: two working periods overlap. Please make them separate, non-overlapping times.` });
                 }
             }
         }

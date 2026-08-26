@@ -25,10 +25,11 @@ const fmtRange = (a, b) => {
 const rangeDays = (a, b) => Math.round((new Date(`${b}T00:00:00Z`) - new Date(`${a}T00:00:00Z`)) / 86400000) + 1;
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
-const Chip = ({ active, children, ...rest }) => (
-    <button type="button" {...rest} style={{
+const Chip = ({ active, disabled, children, ...rest }) => (
+    <button type="button" disabled={disabled} {...rest} style={{
         display: 'inline-flex', alignItems: 'center', gap: '0.35rem',
-        padding: '0.4rem 0.85rem', borderRadius: '999px', cursor: 'pointer',
+        padding: '0.4rem 0.85rem', borderRadius: '999px',
+        cursor: disabled ? 'not-allowed' : 'pointer', opacity: disabled ? 0.55 : 1,
         fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: '0.82rem',
         border: `1.5px solid ${active ? 'var(--gold)' : 'var(--border)'}`,
         background: active ? 'rgba(240,62,22,0.10)' : 'var(--card-bg)',
@@ -93,6 +94,11 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
     const [stats, setStats] = useState(null);      // null = not fetched, false = failed
     const [bookable, setBookable] = useState(member.bookable !== false);
     const todayKey = new Date().toISOString().slice(0, 10);
+    // The shift editor only fetches shifts for today..+60d, so a date beyond that
+    // window would show as "no shift" and silently overwrite an existing far-future
+    // one on save. Cap the picker to the same horizon so the UI and the data it
+    // loaded can never disagree about whether a date already has a shift.
+    const maxShiftKey = (() => { const d = new Date(); d.setDate(d.getDate() + 60); return d.toISOString().slice(0, 10); })();
     const [shiftDate, setShiftDate] = useState(todayKey);
     const [shifts, setShifts] = useState(null);          // upcoming shifts already set
     const [slots, setSlots] = useState([{ start: '09:00', end: '17:00' }]);
@@ -579,7 +585,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                             <Section icon={Scissors} title="Services" hint="(none selected = performs all)">
                                 <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
                                     {services.map(svc => (
-                                        <Chip key={svc._id} active={assigned.includes(String(svc._id))} onClick={() => toggleService(String(svc._id))} data-testid="member-service-chip">
+                                        <Chip key={svc._id} active={assigned.includes(String(svc._id))} disabled={busy === 'services'} onClick={() => toggleService(String(svc._id))} data-testid="member-service-chip">
                                             {svc.name}
                                         </Chip>
                                     ))}
@@ -591,7 +597,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                 <div style={{ padding: '0.75rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
                                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                                         Date
-                                        <input type="date" className="input" value={shiftDate} min={todayKey}
+                                        <input type="date" className="input" value={shiftDate} min={todayKey} max={maxShiftKey}
                                             onChange={e => setShiftDate(e.target.value)}
                                             data-testid="shift-date" style={{ width: '170px', padding: '0.4rem 0.5rem', fontWeight: 400 }} />
                                         {!Array.isArray(shifts)
