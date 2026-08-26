@@ -664,6 +664,12 @@ exports.inviteTeamMember = async (req, res) => {
                 // Staff can update their own phone after first login.
                 phone: member.phone || req.user.phone,
                 role: 'staff',
+                // Explicit because we save with validateBeforeSave:false below, which
+                // skips the pre-validate hook that normally derives accountType from
+                // role. Without it the staff account defaults to 'customer' and
+                // collides on the {email, accountType} unique index with a same-email
+                // marketplace customer — the business side is a distinct account.
+                accountType: 'business',
                 staffOf: req.user._id,
                 staffPermissions: Array.isArray(req.body.permissions) && req.body.permissions.length
                     ? req.body.permissions

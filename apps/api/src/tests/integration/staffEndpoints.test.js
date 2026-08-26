@@ -85,15 +85,27 @@ describe('POST /api/team/:id/invite', () => {
         expect(again.status).toBe(400);
     });
 
-    it('rejects an email owned by another account', async () => {
+    it('invites an email that already has a marketplace customer account', async () => {
+        // The dual-app model allows one customer + one business account per email
+        // ({email, accountType} unique index), and staff are frequently also
+        // platform customers — so this must mint a separate business login, not
+        // 409. A conflict with another BUSINESS account is still refused (see the
+        // "another provider's team member" case below).
         const owner = await makeProvider();
         const other = await makeMember(owner, { name: 'Other' });
-        const customer = await makeUser(); // takes an email
-        const clash = await request(app)
+        const customer = await makeUser(); // owns a customer account on this email
+        const res = await request(app)
             .post(`/api/team/${other._id}/invite`)
             .set(authHeader(owner))
             .send({ email: customer.email });
-        expect(clash.status).toBe(409);
+        expect(res.status).toBe(200);
+        // A distinct business-side staff account was created; the customer untouched.
+        const staff = await User.findOne({ email: customer.email, role: 'staff' });
+        expect(staff).toBeTruthy();
+        expect(String(staff._id)).not.toBe(String(customer._id));
+        const stillCustomer = await User.findById(customer._id);
+        expect(stillCustomer.role).toBe('customer');
+        expect(stillCustomer.staffOf).toBeFalsy();
     });
 
     it("cannot invite another provider's team member", async () => {
