@@ -29,9 +29,11 @@ const Login = () => {
     const [formData, setFormData] = useState({ email: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(() => ERROR_MESSAGES[searchParams.get('error')] || '');
-    // One email can hold BOTH a customer and a business account. When these
-    // credentials unlock both, we hold the authenticated customer session here
-    // (uncommitted) and ask where they want to go instead of picking for them.
+    // One email can hold BOTH a customer and a business account. When it does,
+    // we hold the authenticated customer session here (uncommitted) and ask
+    // where they want to go instead of picking for them. This is the ambiguous
+    // door — www is where someone arrives without having declared which side
+    // they are — so the choice belongs here and not on the business app.
     const [pendingSession, setPendingSession] = useState(null);
 
     const handleChange = (e) => {
@@ -47,6 +49,15 @@ const Login = () => {
         window.location.assign(BUSINESS_URL);
     };
 
+    // The business account exists but has its own password (the two sides drift
+    // apart routinely — each signup and each password reset is per-side). We
+    // never mint a session for an account whose password nobody proved, so send
+    // them to the business door with the email filled in and say why.
+    const sendToBusinessLogin = (email) => {
+        const q = new URLSearchParams({ email: email || '', from: 'website' });
+        window.location.assign(`${BUSINESS_URL}/login?${q}`);
+    };
+
     const handleSubmit = async (e) => {
         e.preventDefault();
         setLoading(true);
@@ -56,20 +67,29 @@ const Login = () => {
             // authenticates the customer account if one exists.
             const response = await authService.login(formData);
             const session = response.data.data;
-            // Same credentials also open a business account → ask, don't guess.
-            if (session.alsoAccountType === 'business') {
-                setPendingSession(session);
+            // A business account EXISTS on this email → ask, don't guess. Note
+            // this asks about the account's existence, not about whether this
+            // password happens to open it too: a business profile with its own
+            // password is still a business profile, and silently dropping such
+            // people on the customer site is exactly the bug being fixed here.
+            // (alsoAccountType is the fallback for a bundle cached before
+            // otherSide shipped.)
+            const other = session.otherSide
+                || (session.alsoAccountType ? { accountType: session.alsoAccountType, sameCredentials: true } : null);
+            if (other?.accountType === 'business') {
+                setPendingSession({ ...session, otherSide: other });
                 setLoading(false);
                 return;
             }
             login(session);
             navigate(next || '/');
         } catch (err) {
-            // 403 = these credentials belong to a BUSINESS account only. The
-            // person authenticated fine — they're just on the wrong site. Sign
-            // their business account in and take them to it, rather than
-            // dead-ending them here (or worse, suggesting a duplicate account).
-            if (err.response?.status === 403) {
+            // A wrong-side 403 carries the other side's accountType; an admin
+            // suspension is ALSO a 403 and carries none. Branching on the bare
+            // status treated a suspended customer as "wrong site" and tried to
+            // sign them into the business app instead of telling them they are
+            // suspended — so read the discriminator the server already sends.
+            if (err.response?.data?.accountType === 'business') {
                 try { await handOffToBusiness(); return; } catch { /* fall through */ }
             }
             setError(err.response?.data?.message || 'Login failed');
@@ -82,6 +102,13 @@ const Login = () => {
         navigate(next || '/');
     };
     const chooseBusiness = async () => {
+        // Same password on both sides → carry them across signed in. Different
+        // passwords → hand them to the business sign-in page instead; that
+        // account's password was never proven here.
+        if (!pendingSession?.otherSide?.sameCredentials) {
+            sendToBusinessLogin(formData.email);
+            return;
+        }
         setLoading(true);
         setError('');
         try { await handOffToBusiness(); }
@@ -204,6 +231,8 @@ const Login = () => {
                             </p>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 0.5rem' }}>
                                 This email has both a customer and a business account.
+                                {!pendingSession.otherSide?.sameCredentials
+                                    && ' Your business account has its own password, so you’ll sign in again over there.'}
                             </p>
                             <button type="button" className="btn-primary" onClick={chooseBusiness} disabled={loading}
                                 data-testid="choose-business" style={{ width: '100%', padding: '0.875rem' }}>

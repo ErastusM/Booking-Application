@@ -270,6 +270,10 @@ describe('login reports the other side the same credentials also unlock', () => 
             .send({ email: EMAIL, password: CUSTOMER_PW, accountType: 'customer' });
         expect(res.status).toBe(200);
         expect(res.body.data.alsoAccountType).toBeNull();
+        // ...but the account still EXISTS, and that is what the destination
+        // chooser asks about. Conflating the two questions is what silently
+        // dropped these people on the customer site.
+        expect(res.body.data.otherSide).toEqual({ accountType: 'business', sameCredentials: false });
     });
 
     it('single account → null', async () => {
@@ -288,5 +292,74 @@ describe('login reports the other side the same credentials also unlock', () => 
             .send({ email: EMAIL, password: CUSTOMER_PW, accountType: 'customer' });
         expect(res.status).toBe(200);
         expect(res.body.data.alsoAccountType).toBeNull();
+    });
+});
+
+// ─────────────────────────────────────────────────────────────────────────────
+// otherSide — "does this email have a profile on the other side at all?"
+// The website's destination chooser reads THIS, not alsoAccountType. The two
+// diverge whenever the sides drift to different passwords, which the product
+// itself produces: registration is per-side and so is password reset.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('login reports whether the other side EXISTS', () => {
+    it('same password on both sides → exists, and the credentials carry across', async () => {
+        await makeUser({ email: EMAIL, password: CUSTOMER_PW, isVerified: true });
+        await makeProvider({ email: EMAIL, password: CUSTOMER_PW, isVerified: true });
+        const res = await request(app).post('/api/auth/login')
+            .send({ email: EMAIL, password: CUSTOMER_PW, accountType: 'customer' });
+        expect(res.body.data.otherSide).toEqual({ accountType: 'business', sameCredentials: true });
+    });
+
+    it('the business side reports the customer side the same way', async () => {
+        await makeDualAccounts();
+        const res = await request(app).post('/api/auth/login')
+            .send({ email: EMAIL, password: BUSINESS_PW, accountType: 'business' });
+        expect(res.body.data.otherSide).toEqual({ accountType: 'customer', sameCredentials: false });
+    });
+
+    it('a social-only other side exists but cannot be carried into', async () => {
+        await makeUser({ email: EMAIL, password: CUSTOMER_PW, isVerified: true });
+        const social = await makeProvider({ email: EMAIL, password: BUSINESS_PW, isVerified: true });
+        // Google account: no local password to match.
+        await User.updateOne({ _id: social._id }, { $set: { provider: 'google', googleId: 'g-1' }, $unset: { password: '' } });
+        const res = await request(app).post('/api/auth/login')
+            .send({ email: EMAIL, password: CUSTOMER_PW, accountType: 'customer' });
+        expect(res.body.data.otherSide).toEqual({ accountType: 'business', sameCredentials: false });
+    });
+
+    it('single account → null', async () => {
+        await makeUser({ email: EMAIL, password: CUSTOMER_PW, isVerified: true });
+        const res = await request(app).post('/api/auth/login')
+            .send({ email: EMAIL, password: CUSTOMER_PW, accountType: 'customer' });
+        expect(res.body.data.otherSide).toBeNull();
+    });
+
+    it('an admin-suspended other side is a dead end, so it does not count', async () => {
+        await makeUser({ email: EMAIL, password: CUSTOMER_PW, isVerified: true });
+        await makeProvider({ email: EMAIL, password: CUSTOMER_PW, isVerified: true, isActive: false });
+        const res = await request(app).post('/api/auth/login')
+            .send({ email: EMAIL, password: CUSTOMER_PW, accountType: 'customer' });
+        expect(res.body.data.otherSide).toBeNull();
+        expect(res.body.data.alsoAccountType).toBeNull();
+    });
+
+    // Anti-enumeration: registration is per-side and needs no verification, so
+    // an unverified account proves only "I know this password", never "I own
+    // this inbox". Existence is revealed at the same bar as a password reset.
+    it('an UNVERIFIED caller is not told a different-password account exists', async () => {
+        await makeUser({ email: EMAIL, password: CUSTOMER_PW, isVerified: false });
+        await makeProvider({ email: EMAIL, password: BUSINESS_PW, isVerified: true });
+        const res = await request(app).post('/api/auth/login')
+            .send({ email: EMAIL, password: CUSTOMER_PW, accountType: 'customer' });
+        expect(res.status).toBe(200);
+        expect(res.body.data.otherSide).toBeNull();
+    });
+
+    it('an unverified caller who proves BOTH passwords still gets the choice', async () => {
+        await makeUser({ email: EMAIL, password: CUSTOMER_PW, isVerified: false });
+        await makeProvider({ email: EMAIL, password: CUSTOMER_PW, isVerified: true });
+        const res = await request(app).post('/api/auth/login')
+            .send({ email: EMAIL, password: CUSTOMER_PW, accountType: 'customer' });
+        expect(res.body.data.otherSide).toEqual({ accountType: 'business', sameCredentials: true });
     });
 });

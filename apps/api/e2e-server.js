@@ -108,6 +108,20 @@ const PORT = process.env.PORT || 5050;
         isVerified: true, provider: 'local', providerSetupComplete: true,
     });
 
+    // The same, but with a DIFFERENT password on each side — the shape the
+    // product itself produces (registration and password reset are both
+    // per-side) and the one that used to make the chooser vanish. The website
+    // must still offer the choice here; it just can't carry the session across.
+    await User.create({
+        name: 'E2E Split', email: 'e2e-split@bookplus.dev', password: 'Password1!',
+        phone: '+264810000004', role: 'customer', isVerified: true, provider: 'local',
+    });
+    await User.create({
+        name: 'E2E Split', email: 'e2e-split@bookplus.dev', password: 'Different1!',
+        phone: '+264810000004', role: 'provider', providerCategory: 'Beauty & Grooming',
+        isVerified: true, provider: 'local', providerSetupComplete: true,
+    });
+
     const app = require('./server');
     app.locals.e2e = {
         providerId: provider._id.toString(),

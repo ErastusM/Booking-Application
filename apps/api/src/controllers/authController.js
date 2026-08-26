@@ -312,23 +312,46 @@ exports.login = async (req, res) => {
         // "Invited · awaiting login" to active.
         User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } }).catch(() => {});
 
-        // Does the SAME email + password also unlock an account on the OTHER
-        // side? One email may hold both a customer and a business account; the
-        // login pages use this to ask "Where would you like to go?" instead of
-        // silently picking a side. Computed only after the caller has proven the
-        // password, so it enumerates nothing they don't already own. Admin-
-        // suspended accounts don't count (they couldn't log in anyway).
+        // Does this email hold an account on the OTHER side too? Two different
+        // questions, deliberately kept apart:
+        //
+        //   alsoAccountType — the SAME password also opens that account, so we
+        //                     can sign them in over there without asking again.
+        //   otherSide       — an account merely EXISTS over there. This is the
+        //                     question the website's "Where would you like to
+        //                     go?" actually asks, and it stays true when the two
+        //                     sides have drifted to different passwords. Drift
+        //                     is routine, not exotic: registration is per-side
+        //                     (each signup picks its own password) and so is
+        //                     password reset, so resetting on one app leaves the
+        //                     other untouched. Conflating the two questions is
+        //                     what made the chooser silently vanish for people
+        //                     who genuinely had both profiles.
+        //
+        // Existence is only revealed to someone who has proven control of the
+        // email address itself — a verified or social account, the same bar as
+        // password reset. Registration is per-side and does not require
+        // verification, so without that gate anyone could register a throwaway
+        // customer account on someone else's email purely to learn that they run
+        // a business here.
         let alsoAccountType = null;
+        let otherSide = null;
         const ownType = User.accountTypeForRole(user.role);
         const otherType = ownType === 'business' ? 'customer' : 'business';
         const others = await User.find({
             email, _id: { $ne: user._id },
             role: User.roleFilterForAccountType(otherType),
         }).select('+password');
-        for (const other of others) {
+        // An admin-suspended twin cannot be signed into at all, so offering it
+        // would be a dead end — it counts as absent on both questions.
+        const reachable = others.filter((o) => !(o.isActive === false && !o.deactivatedAt));
+        for (const other of reachable) {
             if (!other.password) continue; // social-only login — this password can't open it
-            if (other.isActive === false && !other.deactivatedAt) continue; // suspended
             if (await other.matchPassword(password)) { alsoAccountType = otherType; break; }
+        }
+        const ownsEmailAddress = user.isVerified === true || (user.provider && user.provider !== 'local');
+        if (reachable.length && (alsoAccountType || ownsEmailAddress)) {
+            otherSide = { accountType: otherType, sameCredentials: alsoAccountType === otherType };
         }
 
         res.status(200).json({
@@ -349,9 +372,16 @@ exports.login = async (req, res) => {
                 token,
                 refreshToken,
                 // 'customer' | 'business' | null — the other side these same
-                // credentials also unlock (drives the post-login destination
-                // chooser). null = this account is the only one.
+                // credentials also unlock. Kept for its original meaning (and
+                // for bundles cached before otherSide existed): a non-null value
+                // means we can hand them over silently.
                 alsoAccountType,
+                // { accountType, sameCredentials } | null — the other side an
+                // account EXISTS on. This is what the destination chooser reads;
+                // sameCredentials: false means that account has its own password,
+                // so choosing it means signing in there rather than being carried
+                // across.
+                otherSide,
             }
         });
     } catch (error) {
@@ -694,8 +724,8 @@ exports.becomeProvider = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Please choose your main service category' });
         }
 
-        // Upgrading flips this account to the business side; a separate business
-        // account already holding this email would collide with it.
+        // One email may hold one account per side, so a business account already
+        // on this email has nowhere to go.
         const existingBusiness = await User.findOne({
             email: user.email,
             _id: { $ne: user._id },
@@ -708,23 +738,77 @@ exports.becomeProvider = async (req, res) => {
             });
         }
 
-        user.role = 'provider';
-        user.providerCategory = providerCategory.trim().slice(0, 100);
-        await user.save();
+        // ADD a business account; never convert the customer account they are
+        // signed into. Flipping the role in place (what this used to do) left
+        // the person with no customer profile at all: their bookings, wallet and
+        // reviews stayed on a document the customer site would no longer sign
+        // in, and there was no way back. Two documents is what the rest of the
+        // system already assumes — the {email, accountType} index exists exactly
+        // so one person can be both.
+        const withPassword = await User.findById(user._id).select('+password');
+        const isSocial = user.provider && user.provider !== 'local';
+        const business = await User.create({
+            name: user.name,
+            email: user.email,
+            // Placeholder only — replaced below by the customer account's hash
+            // (create() would re-hash an already-hashed value). A social account
+            // has no password to copy and signs in with Google instead.
+            password: `${crypto.randomBytes(24).toString('hex')}Aa1!`,
+            phone: user.phone,
+            role: 'provider',
+            providerCategory: providerCategory.trim().slice(0, 100),
+            avatar: user.avatar,
+            // They already proved this address on the customer side; making them
+            // verify the same inbox twice would strand the new account.
+            isVerified: user.isVerified,
+            provider: user.provider || 'local',
+            googleId: isSocial ? user.googleId : null,
+        });
+        // Both sides share one password, so the website can carry them across
+        // silently instead of asking them to sign in again.
+        if (!isSocial && withPassword?.password) {
+            await User.updateOne({ _id: business._id }, { $set: { password: withPassword.password } });
+        }
 
         // Seed a default weekly schedule so the provider's calendar is usable immediately
         const Availability = require('../models/Availability');
-        const exists = await Availability.findOne({ provider: user._id });
+        const exists = await Availability.findOne({ provider: business._id });
         if (!exists) {
             const open = { enabled: true, slots: [{ start: '09:00', end: '17:00' }] };
             const closed = { enabled: false, slots: [{ start: '09:00', end: '17:00' }] };
             await Availability.create({
-                provider: user._id,
+                provider: business._id,
                 schedule: { monday: open, tuesday: open, wednesday: open, thursday: open, friday: open, saturday: closed, sunday: closed },
             });
         }
 
-        res.status(200).json({ success: true, message: 'Your business is set up — welcome aboard!', data: user });
+        // A one-time code so they land in the business app already signed in.
+        // Safe by construction: the server just created this account for this
+        // authenticated user on their own email — there is no pre-existing
+        // account here to hijack (the guard above refuses that case).
+        const handoffCode = crypto.randomBytes(32).toString('hex');
+        await User.updateOne({ _id: business._id }, {
+            $set: {
+                oauthCode: crypto.createHash('sha256').update(handoffCode).digest('hex'),
+                oauthCodeExpiry: new Date(Date.now() + 10 * 60 * 1000),
+            },
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Your business is set up — welcome aboard!',
+            data: {
+                id: business._id,
+                name: business.name,
+                email: business.email,
+                role: business.role,
+                accountType: 'business',
+                providerCategory: business.providerCategory,
+                // The customer account is untouched and still signed in on this
+                // origin; the client uses this code to open the business app.
+                handoffCode,
+            },
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

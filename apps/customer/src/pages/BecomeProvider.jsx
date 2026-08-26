@@ -5,14 +5,14 @@ import { authService } from '../services';
 import MAIN_CATEGORIES from '../constants/mainCategories';
 import { Briefcase, Check } from 'lucide-react';
 
-// Honest about what upgrading does: it CONVERTS this account to the business
-// side (authController.becomeProvider flips role on the same document). The old
-// copy promised "keep your customer account", which was simply false — after
-// upgrading, this site's login no longer accepts the account.
+// Listing a business ADDS a business account alongside the customer one
+// (authController.becomeProvider creates a second document on the same email,
+// sharing this account's password). The customer account keeps its bookings,
+// wallet and history, and the website's sign-in then offers a choice of the two.
 const PERKS = [
     'Manage your calendar, bookings and clients in one place',
     'Take online bookings 24/7 with automatic reminders',
-    'Your bookings, wallet and history move with you',
+    'Keep this customer account — your bookings and wallet stay put',
 ];
 
 const BecomeProvider = () => {
@@ -36,20 +36,18 @@ const BecomeProvider = () => {
         setLoading(true);
         setError('');
         try {
-            await authService.becomeProvider({
+            const res = await authService.becomeProvider({
                 providerCategory: category === 'Other' ? customCategory.trim() : category,
             });
-            // The account is now a BUSINESS account, so this site's session must
-            // end here — leaving it in place kept rendering the owner as a
-            // signed-in "customer" forever (the silent refresh renewed it). The
-            // SSO cookie survives (it lives on the API host), so the business
-            // app signs them straight in on arrival.
-            try {
-                localStorage.removeItem('token');
-                localStorage.removeItem('refreshToken');
-                localStorage.removeItem('user');
-            } catch { /* non-fatal */ }
-            window.location.href = `${import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003'}/dashboard`;
+            // The customer session stays exactly as it was — the business account
+            // is a SECOND account, not a conversion, so signing them out here
+            // would cost them the account they came in with. The one-time code
+            // opens the business app already signed in as the new business.
+            const code = res?.data?.data?.handoffCode;
+            const businessUrl = import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003';
+            window.location.href = code
+                ? `${businessUrl}/auth/callback?code=${encodeURIComponent(code)}`
+                : `${businessUrl}/login`;
         } catch (err) {
             setError(err.response?.data?.message || 'Could not set up your business');
         } finally {

@@ -34,8 +34,12 @@ const nextWeekday = () => {
     return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
 };
 
-describe('Become a provider (account upgrade)', () => {
-    it('flips a customer to provider and seeds default availability', async () => {
+describe('Become a provider (adds a business account)', () => {
+    // Listing a business must ADD an account, never convert the one they are
+    // signed into. Converting left people with no customer profile at all —
+    // their bookings, wallet and reviews sat on a document the customer site
+    // would no longer sign in, with no way back.
+    it('creates a SECOND account and leaves the customer account intact', async () => {
         const customer = await makeUser();
         const res = await request(app)
             .put('/api/auth/become-provider')
@@ -44,13 +48,62 @@ describe('Become a provider (account upgrade)', () => {
 
         expect(res.status).toBe(200);
         expect(res.body.data.role).toBe('provider');
+        expect(res.body.data.accountType).toBe('business');
 
-        const fresh = await User.findById(customer._id);
-        expect(fresh.role).toBe('provider');
-        expect(fresh.providerCategory).toBe('Barbering');
+        const stillACustomer = await User.findById(customer._id);
+        expect(stillACustomer.role).toBe('customer');
+        expect(stillACustomer.accountType).toBe('customer');
 
-        const av = await Availability.findOne({ provider: customer._id });
-        expect(av).toBeTruthy();
+        const business = await User.findOne({ email: customer.email, role: 'provider' });
+        expect(business).toBeTruthy();
+        expect(business.providerCategory).toBe('Barbering');
+        expect(String(business._id)).not.toBe(String(customer._id));
+
+        // Availability belongs to the new business, not the customer document.
+        expect(await Availability.findOne({ provider: business._id })).toBeTruthy();
+        expect(await Availability.findOne({ provider: customer._id })).toBeNull();
+    });
+
+    it('shares the password, so both sides sign in and the website can carry them across', async () => {
+        const customer = await makeUser({ password: 'Password1!' });
+        await request(app).put('/api/auth/become-provider')
+            .set(authHeader(customer)).send({ providerCategory: 'Barbering' });
+
+        const asBusiness = await request(app).post('/api/auth/login')
+            .send({ email: customer.email, password: 'Password1!', accountType: 'business' });
+        expect(asBusiness.status).toBe(200);
+        expect(asBusiness.body.data.user.role).toBe('provider');
+
+        const asCustomer = await request(app).post('/api/auth/login')
+            .send({ email: customer.email, password: 'Password1!', accountType: 'customer' });
+        expect(asCustomer.status).toBe(200);
+        expect(asCustomer.body.data.otherSide).toEqual({ accountType: 'business', sameCredentials: true });
+    });
+
+    it('returns a one-time code that signs them into the business app', async () => {
+        const customer = await makeUser();
+        const res = await request(app).put('/api/auth/become-provider')
+            .set(authHeader(customer)).send({ providerCategory: 'Barbering' });
+
+        const code = res.body.data.handoffCode;
+        expect(typeof code).toBe('string');
+
+        const exchanged = await request(app).post('/api/auth/exchange-code').send({ code });
+        expect(exchanged.status).toBe(200);
+        expect(exchanged.body.data.user.role).toBe('provider');
+
+        // Single use.
+        const replay = await request(app).post('/api/auth/exchange-code').send({ code });
+        expect(replay.status).toBe(400);
+    });
+
+    it('refuses when a business account already holds the email', async () => {
+        const customer = await makeUser();
+        await makeProvider({ email: customer.email });
+        const res = await request(app).put('/api/auth/become-provider')
+            .set(authHeader(customer)).send({ providerCategory: 'Barbering' });
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/already exists/i);
     });
 
     it('rejects without a category', async () => {
