@@ -264,7 +264,15 @@ exports.login = async (req, res) => {
             // Right password, wrong side of the app? Only ever revealed to
             // someone who proved they own the account — a plain wrong email or
             // password stays a generic 401 (no account enumeration).
-            if (accountType) {
+            //
+            // AND only when this email has NO account on the side being asked
+            // for (candidates is empty). If a business account DOES exist here,
+            // a password that doesn't open it is simply the wrong password —
+            // calling it "wrong side" is false, and the business login acts on
+            // that by handing the person to the customer site, bouncing them off
+            // the very door they chose. Split-password and Google-only twins
+            // both used to hit that unbreakable loop.
+            if (accountType && candidates.length === 0) {
                 const others = await User.find({ email }).select('+password');
                 for (const other of others) {
                     if (await other.matchPassword(password)) {
@@ -312,23 +320,46 @@ exports.login = async (req, res) => {
         // "Invited · awaiting login" to active.
         User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } }).catch(() => {});
 
-        // Does the SAME email + password also unlock an account on the OTHER
-        // side? One email may hold both a customer and a business account; the
-        // login pages use this to ask "Where would you like to go?" instead of
-        // silently picking a side. Computed only after the caller has proven the
-        // password, so it enumerates nothing they don't already own. Admin-
-        // suspended accounts don't count (they couldn't log in anyway).
+        // Does this email hold an account on the OTHER side too? Two different
+        // questions, deliberately kept apart:
+        //
+        //   alsoAccountType — the SAME password also opens that account, so we
+        //                     can sign them in over there without asking again.
+        //   otherSide       — an account merely EXISTS over there. This is the
+        //                     question the website's "Where would you like to
+        //                     go?" actually asks, and it stays true when the two
+        //                     sides have drifted to different passwords. Drift
+        //                     is routine, not exotic: registration is per-side
+        //                     (each signup picks its own password) and so is
+        //                     password reset, so resetting on one app leaves the
+        //                     other untouched. Conflating the two questions is
+        //                     what made the chooser silently vanish for people
+        //                     who genuinely had both profiles.
+        //
+        // Existence is only revealed to someone who has proven control of the
+        // email address itself — a verified or social account, the same bar as
+        // password reset. Registration is per-side and does not require
+        // verification, so without that gate anyone could register a throwaway
+        // customer account on someone else's email purely to learn that they run
+        // a business here.
         let alsoAccountType = null;
+        let otherSide = null;
         const ownType = User.accountTypeForRole(user.role);
         const otherType = ownType === 'business' ? 'customer' : 'business';
         const others = await User.find({
             email, _id: { $ne: user._id },
             role: User.roleFilterForAccountType(otherType),
         }).select('+password');
-        for (const other of others) {
+        // An admin-suspended twin cannot be signed into at all, so offering it
+        // would be a dead end — it counts as absent on both questions.
+        const reachable = others.filter((o) => !(o.isActive === false && !o.deactivatedAt));
+        for (const other of reachable) {
             if (!other.password) continue; // social-only login — this password can't open it
-            if (other.isActive === false && !other.deactivatedAt) continue; // suspended
             if (await other.matchPassword(password)) { alsoAccountType = otherType; break; }
+        }
+        const ownsEmailAddress = user.isVerified === true || (user.provider && user.provider !== 'local');
+        if (reachable.length && (alsoAccountType || ownsEmailAddress)) {
+            otherSide = { accountType: otherType, sameCredentials: alsoAccountType === otherType };
         }
 
         res.status(200).json({
@@ -349,9 +380,16 @@ exports.login = async (req, res) => {
                 token,
                 refreshToken,
                 // 'customer' | 'business' | null — the other side these same
-                // credentials also unlock (drives the post-login destination
-                // chooser). null = this account is the only one.
+                // credentials also unlock. Kept for its original meaning (and
+                // for bundles cached before otherSide existed): a non-null value
+                // means we can hand them over silently.
                 alsoAccountType,
+                // { accountType, sameCredentials } | null — the other side an
+                // account EXISTS on. This is what the destination chooser reads;
+                // sameCredentials: false means that account has its own password,
+                // so choosing it means signing in there rather than being carried
+                // across.
+                otherSide,
             }
         });
     } catch (error) {
@@ -387,6 +425,27 @@ exports.exchangeOAuthCode = async (req, res) => {
         const { token, refreshToken } = await issueAuthTokens(user);
         setRefreshCookie(res, refreshToken);
 
+        // The same question the password login answers: does this email hold an
+        // account on the OTHER side? Without this, every Google sign-in landed
+        // on whichever side the button happened to be on and never offered the
+        // choice. Google has verified the address, so existence may be
+        // disclosed on the same footing as a verified password login.
+        // sameCredentials here means "the same Google identity also owns that
+        // account", so re-running Google against that side signs them in
+        // without a password; otherwise that account has its own credentials.
+        let otherSide = null;
+        const ownType = User.accountTypeForRole(user.role);
+        const otherType = ownType === 'business' ? 'customer' : 'business';
+        const others = await User.find({
+            email: user.email, _id: { $ne: user._id },
+            role: User.roleFilterForAccountType(otherType),
+        });
+        const reachable = others.filter((o) => !(o.isActive === false && !o.deactivatedAt));
+        if (reachable.length) {
+            const sameIdentity = !!user.googleId && reachable.some((o) => o.googleId === user.googleId);
+            otherSide = { accountType: otherType, sameCredentials: sameIdentity };
+        }
+
         res.status(200).json({
             success: true,
             data: {
@@ -403,6 +462,7 @@ exports.exchangeOAuthCode = async (req, res) => {
                     providerCategory: user.providerCategory,
                     providerSetupComplete: user.providerSetupComplete,
                 },
+                otherSide,
             },
         });
     } catch (error) {
@@ -690,12 +750,23 @@ exports.becomeProvider = async (req, res) => {
         if (user.role === 'staff' || user.staffOf) {
             return res.status(403).json({ success: false, message: 'Staff accounts cannot upgrade to a provider. Ask your business owner.' });
         }
+        // This handler now CREATES a second document instead of flipping the
+        // caller's role, so a caller already on the business side would sail
+        // past the existingBusiness guard below (which excludes their own doc)
+        // and collide with the {email, accountType} unique index — a 500. Refuse
+        // it here with a clear message.
+        if (user.role !== 'customer') {
+            return res.status(400).json({
+                success: false,
+                message: 'This account is already a business account — sign in to it on the business app.',
+            });
+        }
         if (!providerCategory || !providerCategory.trim()) {
             return res.status(400).json({ success: false, message: 'Please choose your main service category' });
         }
 
-        // Upgrading flips this account to the business side; a separate business
-        // account already holding this email would collide with it.
+        // One email may hold one account per side, so a business account already
+        // on this email has nowhere to go.
         const existingBusiness = await User.findOne({
             email: user.email,
             _id: { $ne: user._id },
@@ -708,24 +779,100 @@ exports.becomeProvider = async (req, res) => {
             });
         }
 
-        user.role = 'provider';
-        user.providerCategory = providerCategory.trim().slice(0, 100);
-        await user.save();
+        // ADD a business account; never convert the customer account they are
+        // signed into. Flipping the role in place (what this used to do) left
+        // the person with no customer profile at all: their bookings, wallet and
+        // reviews stayed on a document the customer site would no longer sign
+        // in, and there was no way back. Two documents is what the rest of the
+        // system already assumes — the {email, accountType} index exists exactly
+        // so one person can be both.
+        const withPassword = await User.findById(user._id).select('+password');
+        // Social identity is carried by googleId, NOT the `provider` field:
+        // passport creates Google users with googleId set and provider left at
+        // its schema default 'local' (it never writes provider:'google'). Keying
+        // this off `provider` made it always false in production, so the new
+        // business account got no googleId and an unknown random password —
+        // unreachable by Google OR password. Detect via googleId.
+        const googleId = user.googleId || null;
+        const business = await User.create({
+            name: user.name,
+            email: user.email,
+            // When the source HAS a password we set a throwaway placeholder here
+            // and overwrite it below with the source's real hash (passing the
+            // already-hashed value into create() would double-hash it). A
+            // Google-only account has no password to copy, so it gets none and
+            // signs in with Google — leaving the placeholder would strand an
+            // unknown local password on the account.
+            password: withPassword?.password ? `${crypto.randomBytes(24).toString('hex')}Aa1!` : undefined,
+            phone: user.phone,
+            role: 'provider',
+            providerCategory: providerCategory.trim().slice(0, 100),
+            avatar: user.avatar,
+            // They already proved this address on the customer side; making them
+            // verify the same inbox twice would strand the new account.
+            isVerified: user.isVerified,
+            provider: user.provider || 'local',
+            // Copy the Google identity so passport's business-side googleId
+            // lookup hits this document and lands them in the business app.
+            googleId,
+        });
+        // Copy the password whenever the source has one (a Google account that
+        // also set a local password keeps both), so the website can carry them
+        // across silently. A Google-only account has no password here — it signs
+        // in with Google, which now resolves to this document via googleId.
+        if (withPassword?.password) {
+            await User.updateOne({ _id: business._id }, { $set: { password: withPassword.password } });
+        }
 
         // Seed a default weekly schedule so the provider's calendar is usable immediately
         const Availability = require('../models/Availability');
-        const exists = await Availability.findOne({ provider: user._id });
+        const exists = await Availability.findOne({ provider: business._id });
         if (!exists) {
             const open = { enabled: true, slots: [{ start: '09:00', end: '17:00' }] };
             const closed = { enabled: false, slots: [{ start: '09:00', end: '17:00' }] };
             await Availability.create({
-                provider: user._id,
+                provider: business._id,
                 schedule: { monday: open, tuesday: open, wednesday: open, thursday: open, friday: open, saturday: closed, sunday: closed },
             });
         }
 
-        res.status(200).json({ success: true, message: 'Your business is set up — welcome aboard!', data: user });
+        // A one-time code so they land in the business app already signed in.
+        // Safe by construction: the server just created this account for this
+        // authenticated user on their own email — there is no pre-existing
+        // account here to hijack (the guard above refuses that case).
+        const handoffCode = crypto.randomBytes(32).toString('hex');
+        await User.updateOne({ _id: business._id }, {
+            $set: {
+                oauthCode: crypto.createHash('sha256').update(handoffCode).digest('hex'),
+                oauthCodeExpiry: new Date(Date.now() + 10 * 60 * 1000),
+            },
+        });
+
+        res.status(200).json({
+            success: true,
+            message: 'Your business is set up — welcome aboard!',
+            data: {
+                id: business._id,
+                name: business.name,
+                email: business.email,
+                role: business.role,
+                accountType: 'business',
+                providerCategory: business.providerCategory,
+                // The customer account is untouched and still signed in on this
+                // origin; the client uses this code to open the business app.
+                handoffCode,
+            },
+        });
     } catch (error) {
+        // Two become-provider calls racing for the same email: the compound
+        // unique index catches what the findOne pre-check missed — report it as
+        // the same 400 rather than a bare 500.
+        if (error.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                message: 'A business account with this email already exists — sign in to it on the business app instead.',
+            });
+        }
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
@@ -747,12 +894,25 @@ exports.changePassword = async (req, res) => {
         if (newPassword.length < 8 || !passwordRegex) {
             return res.status(400).json({ success: false, message: 'New password must be at least 8 characters and include an uppercase letter, a number and a special character' });
         }
+        // becomeProvider copies this account's password HASH onto the business
+        // twin so the website can carry them across. Nothing on this side ever
+        // re-touched that copy, so the old password kept opening the twin after
+        // a change here. bcrypt salts per hash, so a byte-identical hash on
+        // another document can ONLY be that clone — never a user who happened to
+        // pick the same password twice — which makes the match exact and safe.
+        const oldHash = user.password;
         user.password = newPassword;
         // Invalidate all existing sessions (access + refresh tokens carry tokenVersion),
         // so changing the password signs out other devices — same as a reset.
         user.tokenVersion = (user.tokenVersion || 0) + 1;
         user.refreshTokenJtis = []; // drop tracked refresh tokens too
         await user.save();
+        // save() has re-hashed, so user.password is the NEW hash — mirror it onto
+        // the cloned twin and revoke its sessions too.
+        await User.updateOne(
+            { email: user.email, _id: { $ne: user._id }, password: oldHash },
+            { $set: { password: user.password, refreshTokenJtis: [] }, $inc: { tokenVersion: 1 } },
+        );
         res.status(200).json({ success: true, message: 'Password updated successfully' });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
@@ -1050,12 +1210,16 @@ exports.resetPassword = async (req, res) => {
         const user = await User.findOne({
             passwordResetToken: hashedToken,
             passwordResetExpiry: { $gt: new Date() },
-        }).select('+passwordResetToken +passwordResetExpiry');
+        }).select('+password +passwordResetToken +passwordResetExpiry');
 
         if (!user) {
             return res.status(400).json({ success: false, message: 'Reset link is invalid or has expired' });
         }
 
+        // See changePassword: becomeProvider clones this hash onto the business
+        // twin, and only matching on the exact old hash (bcrypt salts per hash)
+        // reaches that clone without touching genuinely independent accounts.
+        const oldHash = user.password;
         user.password = password;
         user.passwordResetToken = null;
         user.passwordResetExpiry = null;
@@ -1063,6 +1227,12 @@ exports.resetPassword = async (req, res) => {
         user.tokenVersion = (user.tokenVersion || 0) + 1;
         user.refreshTokenJtis = []; // drop tracked refresh tokens too
         await user.save();
+        if (oldHash) {
+            await User.updateOne(
+                { email: user.email, _id: { $ne: user._id }, password: oldHash },
+                { $set: { password: user.password, refreshTokenJtis: [] }, $inc: { tokenVersion: 1 } },
+            );
+        }
 
         return res.status(200).json({ success: true, message: 'Password reset successfully. You can now sign in.' });
     } catch (error) {

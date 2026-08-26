@@ -25,15 +25,18 @@ test.describe('Per-staff calendar lanes', () => {
         await expect(chip(page, 'Alex Stylist')).toBeVisible();
         await expect(chip(page, 'Billie Barber')).toBeVisible();
 
-        // Unfiltered day view shows the booking with its staff tag
-        await expect(page.locator('.fc-event-appt-client', { hasText: 'Walk-in Wanda' })).toBeVisible();
-        await expect(page.locator('.fc-event-appt-staff', { hasText: 'Alex Stylist' })).toBeVisible();
+        // Unfiltered, the booking shows with its staff tag. The default view is
+        // 3-Day and the walk-in is seeded on today AND tomorrow (so a run
+        // straddling midnight can't lose it), so BOTH render — assert the first,
+        // not a strict single match.
+        await expect(page.locator('.fc-event-appt-client', { hasText: 'Walk-in Wanda' }).first()).toBeVisible();
+        await expect(page.locator('.fc-event-appt-staff', { hasText: 'Alex Stylist' }).first()).toBeVisible();
 
-        // Filtering to Billie hides Alex's booking; back to All staff restores it
+        // Filtering to Billie hides Alex's booking (every copy); back to All staff restores it.
         await chip(page, 'Billie Barber').click();
         await expect(page.locator('.fc-event-appt-client', { hasText: 'Walk-in Wanda' })).toHaveCount(0);
         await chip(page, 'All staff').click();
-        await expect(page.locator('.fc-event-appt-client', { hasText: 'Walk-in Wanda' })).toBeVisible();
+        await expect(page.locator('.fc-event-appt-client', { hasText: 'Walk-in Wanda' }).first()).toBeVisible();
     });
 
     test('the Staff view shows one lane per member with bookings in the right lane', async ({ page }) => {

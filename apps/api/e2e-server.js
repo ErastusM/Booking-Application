@@ -66,14 +66,20 @@ const PORT = process.env.PORT || 5050;
         { provider: provider._id, name: 'Alex Stylist', role: 'Stylist', color: '#3B82F6' },
         { provider: provider._id, name: 'Billie Barber', role: 'Barber', color: '#10B981' },
     ]);
+    // Wanda exists on today AND tomorrow: the suite seeds at server boot but
+    // asserts against the browser's "today", and a run that starts at 23:59
+    // crosses midnight between the two — the calendar then shows the next day
+    // and a today-only seed vanishes (this failed a real deploy). Only one
+    // Wanda is ever on screen, so every per-day assertion is unaffected.
     const today = new Date(); today.setHours(0, 0, 0, 0);
-    await Appointment.create({
+    const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
+    await Appointment.create([today, tomorrow].map((appointmentDate) => ({
         service: service._id, provider: provider._id, teamMember: alex._id,
-        walkInName: 'Walk-in Wanda', appointmentDate: today,
+        walkInName: 'Walk-in Wanda', appointmentDate,
         // A full hour, so the calendar card is tall enough to show every line
         // (short events hide the staff tag by design).
         startTime: '10:00', endTime: '11:00', status: 'confirmed', totalPrice: 100,
-    });
+    })));
 
     // A staff member WITH a login, for the self-service specs (staff manage
     // their own services on My schedule). Not bookable, so they never enter
@@ -99,6 +105,20 @@ const PORT = process.env.PORT || 5050;
     await User.create({
         name: 'E2E Dual', email: 'e2e-dual@bookplus.dev', password: 'Password1!',
         phone: '+264810000003', role: 'provider', providerCategory: 'Beauty & Grooming',
+        isVerified: true, provider: 'local', providerSetupComplete: true,
+    });
+
+    // The same, but with a DIFFERENT password on each side — the shape the
+    // product itself produces (registration and password reset are both
+    // per-side) and the one that used to make the chooser vanish. The website
+    // must still offer the choice here; it just can't carry the session across.
+    await User.create({
+        name: 'E2E Split', email: 'e2e-split@bookplus.dev', password: 'Password1!',
+        phone: '+264810000004', role: 'customer', isVerified: true, provider: 'local',
+    });
+    await User.create({
+        name: 'E2E Split', email: 'e2e-split@bookplus.dev', password: 'Different1!',
+        phone: '+264810000004', role: 'provider', providerCategory: 'Beauty & Grooming',
         isVerified: true, provider: 'local', providerSetupComplete: true,
     });
 

@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { API_BASE } from '../services/api';
@@ -9,16 +9,21 @@ const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'http://localhost:3002
 const Login = () => {
     const { login } = useAuthContext();
     const navigate = useNavigate();
-    const [formData, setFormData] = useState({ email: '', password: '' });
+    const [searchParams] = useSearchParams();
+    // Sent here by the website's destination chooser when the business account
+    // keeps its own password: carry the email over so they only retype the one
+    // thing we actually need.
+    const [formData, setFormData] = useState({ email: searchParams.get('email') || '', password: '' });
+    const fromWebsite = searchParams.get('from') === 'website';
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     // Set when the email has no business account (Fresha model: this side only
     // signs in business accounts) — the error then carries a signup CTA.
     const [showSignupCta, setShowSignupCta] = useState(false);
-    // One email can hold BOTH a business and a customer account. When these
-    // credentials unlock both, hold the authenticated business session here
-    // (uncommitted) and ask where they want to go instead of picking for them.
-    const [pendingSession, setPendingSession] = useState(null);
+    // NO destination chooser on this door. Opening business.bookplus.pro is
+    // itself the choice — asking again would be asking twice. The chooser lives
+    // on the website (www), which is the only entry point that cannot know which
+    // side the visitor means.
 
     const handleChange = (e) => {
         setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -46,40 +51,25 @@ const Login = () => {
             // authenticates the business account (provider/staff/admin) if one exists.
             const response = await authService.login(formData);
             const session = response.data.data;
-            // Same credentials also open a customer account → ask, don't guess.
-            if (session.alsoAccountType === 'customer') {
-                setPendingSession(session);
-                setLoading(false);
-                return;
-            }
+            // Straight in. They came to the business door, so a customer account
+            // on the same email is not a question to put to them here.
             login(session);
             navigate(homeForRole(session?.user?.role));
         } catch (err) {
-            // 403 = these credentials belong to a CUSTOMER account only. They
-            // authenticated fine — just on the wrong site. Sign the customer
-            // account in and take them to the customer site.
-            if (err.response?.status === 403) {
+            // A wrong-side 403 carries the other side's accountType; an admin
+            // suspension is ALSO a 403 and carries none. Branching on the bare
+            // status treated a suspended business account as "wrong site" and
+            // tried to sign them into the customer site instead of telling them
+            // they are suspended — so read the discriminator the server sends.
+            const wrongSide = err.response?.data?.accountType === 'customer';
+            if (wrongSide) {
                 try { await handOffToCustomer(); return; } catch { /* fall through */ }
             }
             setError(err.response?.data?.message || 'Login failed');
-            // 403 that couldn't hand off: this email isn't listed as a business
-            // yet — offer the signup path. A plain wrong password (401) is NOT
-            // a reason to suggest creating a duplicate business.
-            setShowSignupCta(err.response?.status === 403);
-            setLoading(false);
-        }
-    };
-
-    const chooseBusiness = () => {
-        login(pendingSession);
-        navigate(homeForRole(pendingSession?.user?.role));
-    };
-    const chooseCustomer = async () => {
-        setLoading(true);
-        setError('');
-        try { await handOffToCustomer(); }
-        catch (err) {
-            setError(err.response?.data?.message || 'Could not open the customer site. Please try again.');
+            // Wrong-side 403 that couldn't hand off: this email isn't listed as a
+            // business yet — offer the signup path. A plain wrong password (401)
+            // or a suspension is NOT a reason to suggest a duplicate business.
+            setShowSignupCta(wrongSide);
             setLoading(false);
         }
     };
@@ -200,25 +190,16 @@ const Login = () => {
                         </div>
                     )}
 
-                    {pendingSession ? (
-                        /* This email holds BOTH accounts — signed in; ask where to go. */
-                        <div data-testid="destination-chooser" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                            <p style={{ color: 'var(--charcoal)', fontSize: '0.95rem', fontWeight: 600, margin: 0 }}>
-                                Where would you like to go?
-                            </p>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 0.5rem' }}>
-                                This email has both a business and a customer account.
-                            </p>
-                            <button type="button" className="btn-primary" onClick={chooseBusiness} disabled={loading}
-                                data-testid="choose-business" style={{ width: '100%', padding: '0.875rem' }}>
-                                Business Dashboard →
-                            </button>
-                            <button type="button" className="btn-outline" onClick={chooseCustomer} disabled={loading}
-                                data-testid="choose-customer" style={{ width: '100%', padding: '0.875rem' }}>
-                                Customer Site
-                            </button>
+                    {fromWebsite && !error && (
+                        <div data-testid="from-website-note" style={{
+                            background: 'rgba(240,62,22,0.08)', border: '1px solid var(--gold)',
+                            color: 'var(--gold-dark)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)',
+                            marginBottom: '1.5rem', fontSize: '0.85rem', lineHeight: 1.5,
+                        }}>
+                            Your business account has its own sign-in — sign in here to open the dashboard.
                         </div>
-                    ) : (
+                    )}
+
                     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                         <div>
                             <label style={{
@@ -315,7 +296,6 @@ const Login = () => {
                             Continue with Google
                         </a>
                     </form>
-                    )}
                 </div>
             </div>
         </div >

@@ -10,6 +10,14 @@ const SEED = {
     // One email holding BOTH a customer and a business account (same password),
     // for the login destination chooser + cross-app hand-off specs.
     dual: { email: 'e2e-dual@bookplus.dev', password: 'Password1!' },
+    // Both accounts again, but each side keeps its own password — the chooser
+    // must still appear on the website, and choosing the business side must send
+    // them to the business sign-in rather than pretending to carry them across.
+    split: {
+        email: 'e2e-split@bookplus.dev',
+        password: 'Password1!',          // opens the CUSTOMER side
+        businessPassword: 'Different1!', // opens the BUSINESS side
+    },
     staffName: 'Sam Staff',
     serviceName: 'E2E Haircut',
     providerName: 'E2E Provider',
