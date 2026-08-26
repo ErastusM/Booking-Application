@@ -797,10 +797,13 @@ exports.becomeProvider = async (req, res) => {
         const business = await User.create({
             name: user.name,
             email: user.email,
-            // Placeholder only — replaced below by the customer account's hash
-            // (create() would re-hash an already-hashed value). A Google-only
-            // account has no password to copy and signs in with Google instead.
-            password: `${crypto.randomBytes(24).toString('hex')}Aa1!`,
+            // When the source HAS a password we set a throwaway placeholder here
+            // and overwrite it below with the source's real hash (passing the
+            // already-hashed value into create() would double-hash it). A
+            // Google-only account has no password to copy, so it gets none and
+            // signs in with Google — leaving the placeholder would strand an
+            // unknown local password on the account.
+            password: withPassword?.password ? `${crypto.randomBytes(24).toString('hex')}Aa1!` : undefined,
             phone: user.phone,
             role: 'provider',
             providerCategory: providerCategory.trim().slice(0, 100),

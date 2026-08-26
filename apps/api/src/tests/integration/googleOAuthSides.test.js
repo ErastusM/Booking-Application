@@ -112,7 +112,7 @@ describe('exchange-code reports the other side', () => {
 
     // Mint the one-time code the Google callback would have issued.
     const exchangeFor = async (user) => {
-        const code = crypto.randomBytes(16).toString('hex');
+        const code = crypto.randomBytes(32).toString('hex'); // 64 hex chars — exchangeCodeRules requires exactly 64
         await User.updateOne({ _id: user._id }, {
             $set: {
                 oauthCode: crypto.createHash('sha256').update(code).digest('hex'),
