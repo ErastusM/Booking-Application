@@ -97,3 +97,62 @@ describe('Google sign-in resolves existing accounts across sides', () => {
         expect(await User.countDocuments({ email: EMAIL })).toBe(1);
     });
 });
+
+// ─────────────────────────────────────────────────────────────────────────────
+// The code exchange reports the other side too, so a Google sign-in on the
+// website can offer the same choice the password login does. Without it, every
+// Google sign-in silently landed on whichever side the button happened to be
+// on — the same defect the password login had, by a different door.
+// ─────────────────────────────────────────────────────────────────────────────
+describe('exchange-code reports the other side', () => {
+    const request = require('supertest');
+    const app = require('../../../server');
+    const crypto = require('crypto');
+    const EMAIL = 'both-sides@example.com';
+
+    // Mint the one-time code the Google callback would have issued.
+    const exchangeFor = async (user) => {
+        const code = crypto.randomBytes(16).toString('hex');
+        await User.updateOne({ _id: user._id }, {
+            $set: {
+                oauthCode: crypto.createHash('sha256').update(code).digest('hex'),
+                oauthCodeExpiry: new Date(Date.now() + 60_000),
+            },
+        });
+        return request(app).post('/api/auth/exchange-code').send({ code });
+    };
+
+    it('names the business account, and says the same Google identity opens it', async () => {
+        const customer = await makeUser({ email: EMAIL, isVerified: true });
+        await makeProvider({ email: EMAIL, isVerified: true });
+        await User.updateMany({ email: EMAIL }, { $set: { provider: 'google', googleId: 'g-same' } });
+
+        const res = await exchangeFor(customer);
+        expect(res.status).toBe(200);
+        expect(res.body.data.otherSide).toEqual({ accountType: 'business', sameCredentials: true });
+    });
+
+    it('a business side with its OWN sign-in is reported, but not as carryable', async () => {
+        const customer = await makeUser({ email: EMAIL, isVerified: true });
+        await makeProvider({ email: EMAIL, isVerified: true });
+        await User.updateOne({ _id: customer._id }, { $set: { provider: 'google', googleId: 'g-customer-only' } });
+
+        const res = await exchangeFor(customer);
+        expect(res.body.data.otherSide).toEqual({ accountType: 'business', sameCredentials: false });
+    });
+
+    it('a single account reports nothing', async () => {
+        const customer = await makeUser({ email: EMAIL, isVerified: true });
+        await User.updateOne({ _id: customer._id }, { $set: { provider: 'google', googleId: 'g-solo' } });
+        const res = await exchangeFor(customer);
+        expect(res.body.data.otherSide).toBeNull();
+    });
+
+    it('an admin-suspended business side is a dead end, so it is not offered', async () => {
+        const customer = await makeUser({ email: EMAIL, isVerified: true });
+        await makeProvider({ email: EMAIL, isVerified: true, isActive: false });
+        await User.updateOne({ _id: customer._id }, { $set: { provider: 'google', googleId: 'g-x' } });
+        const res = await exchangeFor(customer);
+        expect(res.body.data.otherSide).toBeNull();
+    });
+});

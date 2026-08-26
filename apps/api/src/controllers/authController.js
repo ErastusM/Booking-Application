@@ -417,6 +417,27 @@ exports.exchangeOAuthCode = async (req, res) => {
         const { token, refreshToken } = await issueAuthTokens(user);
         setRefreshCookie(res, refreshToken);
 
+        // The same question the password login answers: does this email hold an
+        // account on the OTHER side? Without this, every Google sign-in landed
+        // on whichever side the button happened to be on and never offered the
+        // choice. Google has verified the address, so existence may be
+        // disclosed on the same footing as a verified password login.
+        // sameCredentials here means "the same Google identity also owns that
+        // account", so re-running Google against that side signs them in
+        // without a password; otherwise that account has its own credentials.
+        let otherSide = null;
+        const ownType = User.accountTypeForRole(user.role);
+        const otherType = ownType === 'business' ? 'customer' : 'business';
+        const others = await User.find({
+            email: user.email, _id: { $ne: user._id },
+            role: User.roleFilterForAccountType(otherType),
+        });
+        const reachable = others.filter((o) => !(o.isActive === false && !o.deactivatedAt));
+        if (reachable.length) {
+            const sameIdentity = !!user.googleId && reachable.some((o) => o.googleId === user.googleId);
+            otherSide = { accountType: otherType, sameCredentials: sameIdentity };
+        }
+
         res.status(200).json({
             success: true,
             data: {
@@ -433,6 +454,7 @@ exports.exchangeOAuthCode = async (req, res) => {
                     providerCategory: user.providerCategory,
                     providerSetupComplete: user.providerSetupComplete,
                 },
+                otherSide,
             },
         });
     } catch (error) {

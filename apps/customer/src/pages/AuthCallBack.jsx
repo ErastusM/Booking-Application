@@ -1,12 +1,18 @@
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
-import API from '../services/api';
+import API, { API_BASE } from '../services/api';
+
+const BUSINESS_URL = import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003';
 
 const AuthCallback = () => {
     const { login } = useAuthContext();
     const navigate = useNavigate();
     const [error, setError] = useState('');
+    // A business account exists on this Google address too. Signing in with
+    // Google used to skip the question entirely and drop them on whichever side
+    // the button was on — the same defect the password login had.
+    const [choice, setChoice] = useState(null); // { otherSide, email }
 
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
@@ -20,7 +26,7 @@ const AuthCallback = () => {
         API.post('/auth/exchange-code', { code })
             .then(({ data }) => {
                 if (data.success) {
-                    const { token, refreshToken, user } = data.data;
+                    const { token, refreshToken, user, otherSide } = data.data;
                     localStorage.setItem('token', token);
                     if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
                     login({ token, user });
@@ -29,6 +35,9 @@ const AuthCallback = () => {
                         const needsPhone = !user.phone || user.phone === 'pending';
                         if (needsPhone) {
                             navigate('/complete-profile');
+                        } else if (user.role === 'customer' && otherSide?.accountType === 'business') {
+                            // Ask, exactly as the password login does.
+                            setChoice({ otherSide, email: user.email });
                         } else if (user.role !== 'customer') {
                             // Business accounts (provider/staff/admin) live in the
                             // business app — hard nav; the SSO cookie set by the code
@@ -51,6 +60,44 @@ const AuthCallback = () => {
                 setTimeout(() => navigate('/login?error=google_failed'), 2000);
             });
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    // Business Dashboard: if the SAME Google identity owns that account, just
+    // re-run Google against the business side and they are in. Otherwise it has
+    // its own credentials — hand them to the business door with the email
+    // filled in rather than pretending we can sign them in.
+    const goToBusiness = () => {
+        if (choice?.otherSide?.sameCredentials) {
+            window.location.href = `${API_BASE}/api/auth/google?role=provider`;
+            return;
+        }
+        const q = new URLSearchParams({ email: choice?.email || '', from: 'website' });
+        window.location.href = `${BUSINESS_URL}/login?${q}`;
+    };
+
+    if (choice) {
+        return (
+            <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--off-white)', padding: '1.5rem' }}>
+                <div data-testid="destination-chooser" style={{ width: '100%', maxWidth: '380px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                    <p style={{ color: 'var(--charcoal)', fontSize: '1.05rem', fontWeight: 600, margin: 0, fontFamily: 'var(--font-display)' }}>
+                        Where would you like to go?
+                    </p>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 0.5rem' }}>
+                        This email has both a customer and a business account.
+                        {!choice.otherSide?.sameCredentials
+                            && ' Your business account has its own sign-in, so you’ll sign in again over there.'}
+                    </p>
+                    <button type="button" className="btn-primary" onClick={goToBusiness}
+                        data-testid="choose-business" style={{ width: '100%', padding: '0.875rem' }}>
+                        Business Dashboard →
+                    </button>
+                    <button type="button" className="btn-outline" onClick={() => navigate('/')}
+                        data-testid="choose-customer" style={{ width: '100%', padding: '0.875rem' }}>
+                        Customer Site
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--off-white)' }}>
