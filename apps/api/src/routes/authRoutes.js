@@ -16,6 +16,9 @@ const {
     completeProviderSetup,
     generateBookingSlug,
     becomeProvider,
+    getSibling,
+    switchSide,
+    addCustomerAccount,
     changePassword,
     verifyEmail,
     resendVerification,
@@ -61,6 +64,10 @@ router.put('/portfolio', auth, updatePortfolio);
 router.post('/provider-setup', auth, completeProviderSetup);
 router.post('/booking-slug', auth, generateBookingSlug);
 router.put('/become-provider', auth, becomeProvider);
+// Account switcher (both navbars).
+router.get('/sibling', auth, getSibling);
+router.post('/switch-side', auth, switchSide);
+router.post('/add-customer-account', auth, addCustomerAccount);
 router.put('/change-password', auth, changePassword);
 router.post('/deactivate', auth, deactivateAccount);
 router.delete('/account', auth, deleteAccount);

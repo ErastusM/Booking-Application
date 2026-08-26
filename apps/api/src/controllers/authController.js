@@ -416,10 +416,23 @@ exports.exchangeOAuthCode = async (req, res) => {
 
         if (!user) return res.status(400).json({ success: false, message: 'Invalid or expired code' });
 
+        if (user.isActive === false) {
+            // Parity with password login: a self-deactivated account reactivates
+            // on a successful sign-in (the switcher can hand someone to their own
+            // dormant account); an admin suspension (no deactivatedAt) stays
+            // blocked, rather than minting a token that dies at the next refresh.
+            if (user.deactivatedAt) {
+                user.isActive = true;
+                user.deactivatedAt = null;
+            } else {
+                return res.status(403).json({ success: false, message: 'Your account has been suspended. Please contact support.' });
+            }
+        }
+
         user.oauthCode = null;
         user.oauthCodeExpiry = null;
         // issueAuthTokens no longer saves the doc (atomic jti update) — persist
-        // the consumed one-time code explicitly so it can't be replayed.
+        // the consumed one-time code (and any reactivation above) explicitly.
         await user.save();
 
         const { token, refreshToken } = await issueAuthTokens(user);
@@ -871,6 +884,166 @@ exports.becomeProvider = async (req, res) => {
             return res.status(400).json({
                 success: false,
                 message: 'A business account with this email already exists — sign in to it on the business app instead.',
+            });
+        }
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+// Two accounts on one email are the SAME person only when we can prove it:
+// the same Google identity, or a byte-identical password hash (bcrypt salts per
+// hash, so an identical hash can only be a become-provider/add-customer clone —
+// never two people who happened to choose the same password). Anything else is
+// two independent accounts that merely share an address, and switching between
+// them must go through that account's own sign-in.
+const sameIdentity = (a, b) =>
+    (!!a.googleId && a.googleId === b.googleId)
+    || (!!a.password && !!b.password && a.password === b.password);
+
+// Mint a one-time code the other origin exchanges for a session (same mechanism
+// as the Google callback). Caller must already own the target document.
+const mintHandoffCode = async (userId) => {
+    const code = crypto.randomBytes(32).toString('hex');
+    await User.updateOne({ _id: userId }, {
+        $set: {
+            oauthCode: crypto.createHash('sha256').update(code).digest('hex'),
+            oauthCodeExpiry: new Date(Date.now() + 10 * 60 * 1000),
+        },
+    });
+    return code;
+};
+
+// Proof the caller controls this email address, mirroring login()'s otherSide
+// gate. Registration is per-side and does not verify the inbox, so an attacker
+// can register a throwaway account on a victim's email; without this gate the
+// switcher would tell them (a non-owner) that the email also runs a business
+// here, and its name. A verified or social account has proven the inbox — and a
+// same-identity sibling was made BY this person (become-provider / add-customer
+// clone), so that is disclosed regardless.
+const ownsEmail = (u) => u.isVerified === true || (u.provider && u.provider !== 'local');
+
+/**
+ * GET /auth/sibling — does the signed-in user hold an account on the OTHER side,
+ * and can we carry them across without a fresh sign-in? Drives the account
+ * switcher in both navbars. Existence (and the sibling's name) is disclosed only
+ * to someone who owns the email or is the same identity — same bar as login().
+ */
+exports.getSibling = async (req, res) => {
+    try {
+        const me = await User.findById(req.user.id).select('+password');
+        if (!me) return res.status(404).json({ success: false, message: 'User not found' });
+        const otherType = User.accountTypeForRole(me.role) === 'business' ? 'customer' : 'business';
+        const siblings = await User.find({
+            email: me.email, _id: { $ne: me._id },
+            role: User.roleFilterForAccountType(otherType),
+        }).select('+password');
+        // A dead-end account (admin-suspended) is not offered.
+        const sibling = siblings.find((s) => !(s.isActive === false && !s.deactivatedAt));
+        const same = sibling ? sameIdentity(me, sibling) : false;
+        res.status(200).json({
+            success: true,
+            data: (sibling && (ownsEmail(me) || same))
+                ? { accountType: otherType, name: sibling.name, sameCredentials: same }
+                : null,
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * POST /auth/switch-side — hand the signed-in user to their EXISTING account on
+ * the other side, already signed in. Only mints a session when the two accounts
+ * are provably the same identity (see sameIdentity); otherwise the client must
+ * send them to that account's own sign-in, because being logged into one side is
+ * not proof of owning an independently-credentialed account on the same email
+ * (registration does not verify the address). The 409 that reveals the account
+ * exists is gated behind the same email-ownership proof, so it is not an
+ * enumeration oracle for a non-owner.
+ */
+exports.switchSide = async (req, res) => {
+    try {
+        const me = await User.findById(req.user.id).select('+password');
+        if (!me) return res.status(404).json({ success: false, message: 'User not found' });
+        const otherType = User.accountTypeForRole(me.role) === 'business' ? 'customer' : 'business';
+        const siblings = await User.find({
+            email: me.email, _id: { $ne: me._id },
+            role: User.roleFilterForAccountType(otherType),
+        }).select('+password');
+        const sibling = siblings.find((s) => !(s.isActive === false && !s.deactivatedAt));
+        if (!sibling) {
+            return res.status(404).json({ success: false, message: 'No account on the other side' });
+        }
+        if (sameIdentity(me, sibling)) {
+            const handoffCode = await mintHandoffCode(sibling._id);
+            return res.status(200).json({ success: true, data: { accountType: otherType, handoffCode } });
+        }
+        // Independent credentials: only tell a proven owner it's there (and to
+        // sign in). A non-owner gets the same 404 as "no sibling" — no oracle.
+        if (!ownsEmail(me)) {
+            return res.status(404).json({ success: false, message: 'No account on the other side' });
+        }
+        return res.status(409).json({ success: false, message: 'sign_in_required', accountType: otherType });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * POST /auth/add-customer-account — the business-side mirror of becomeProvider.
+ * A business owner adds a personal customer account on their own email so they
+ * can book as themselves, and lands on the customer site already signed in. Safe
+ * by construction: the server creates it for this authenticated user on their
+ * own address, so there is no pre-existing account to hijack (the guard refuses
+ * that case), and it copies the caller's own identity across.
+ */
+exports.addCustomerAccount = async (req, res) => {
+    try {
+        const user = await User.findById(req.user.id);
+        if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+        if (user.role === 'customer') {
+            return res.status(400).json({ success: false, message: 'This is already a customer account.' });
+        }
+        const existingCustomer = await User.findOne({
+            email: user.email, _id: { $ne: user._id },
+            role: User.roleFilterForAccountType('customer'),
+        });
+        if (existingCustomer) {
+            return res.status(400).json({
+                success: false,
+                message: 'A customer account with this email already exists — switch to it instead.',
+            });
+        }
+
+        const withPassword = await User.findById(user._id).select('+password');
+        const customer = await User.create({
+            name: user.name,
+            email: user.email,
+            // Placeholder only when there is a real hash to copy (see becomeProvider);
+            // a Google-only owner gets no password and signs in with Google.
+            password: withPassword?.password ? `${crypto.randomBytes(24).toString('hex')}Aa1!` : undefined,
+            phone: user.phone,
+            role: 'customer',
+            avatar: user.avatar,
+            isVerified: user.isVerified,
+            provider: user.provider || 'local',
+            googleId: user.googleId || null,
+        });
+        if (withPassword?.password) {
+            await User.updateOne({ _id: customer._id }, { $set: { password: withPassword.password } });
+        }
+
+        const handoffCode = await mintHandoffCode(customer._id);
+        res.status(200).json({
+            success: true,
+            message: 'Your customer account is ready.',
+            data: { id: customer._id, accountType: 'customer', handoffCode },
+        });
+    } catch (error) {
+        if (error.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                message: 'A customer account with this email already exists — switch to it instead.',
             });
         }
         res.status(500).json({ success: false, message: 'Internal server error' });

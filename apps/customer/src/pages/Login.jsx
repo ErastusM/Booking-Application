@@ -26,7 +26,9 @@ const Login = () => {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const next = safeNext(searchParams.get('next'));
-    const [formData, setFormData] = useState({ email: '', password: '' });
+    // The account switcher / business hand-off sends the email over so they only
+    // retype the password (the business app's login already does this).
+    const [formData, setFormData] = useState({ email: searchParams.get('email') || '', password: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState(() => ERROR_MESSAGES[searchParams.get('error')] || '');
     // One email can hold BOTH a customer and a business account. When it does,

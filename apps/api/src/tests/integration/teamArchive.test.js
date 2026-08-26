@@ -163,18 +163,28 @@ describe('restoring an archived member', () => {
         expect((await TeamMember.findById(member._id)).user.toString()).toBe(staff._id.toString());
     });
 
-    // Re-attaching a severed link must not become a way to claim any account
-    // that happens to share the email.
-    it('still refuses an email belonging to somebody else', async () => {
+    // Re-attaching a severed link must not CLAIM an account that happens to share
+    // the email. A same-email marketplace CUSTOMER is a distinct account under the
+    // dual-app model, so the owner may mint a separate business login on that
+    // address (it emails a set-password link only the address owner can use) — but
+    // the customer account itself is never touched or repurposed.
+    it('mints a fresh business login without claiming a same-email customer', async () => {
         const { provider, member } = await setup();
-        await makeUser({ role: 'customer', email: 'stranger@test.com' });
+        const stranger = await makeUser({ role: 'customer', email: 'stranger@test.com' });
 
         const res = await request(app)
             .post(`/api/team/${member._id}/invite`)
             .set(authHeader(provider))
             .send({ email: 'stranger@test.com' });
 
-        expect(res.status).toBe(409);
+        expect(res.status).toBe(200);
+        // The customer account is unchanged — not claimed, not converted.
+        const untouched = await User.findById(stranger._id);
+        expect(untouched.role).toBe('customer');
+        expect(untouched.staffOf).toBeFalsy();
+        // The member is linked to a NEW, distinct business account.
+        const linked = await TeamMember.findById(member._id);
+        expect(String(linked.user)).not.toBe(String(stranger._id));
     });
 
     it('refuses another provider\'s member', async () => {

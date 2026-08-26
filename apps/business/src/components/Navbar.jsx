@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { authService } from '../services';
 import NotificationBell from './NotificationBell';
 import SuggestionBox from './SuggestionBox';
 import { cloudinaryAvatar } from '../utils/cloudinary';
@@ -20,8 +21,57 @@ const Navbar = () => {
     const [showSuggestion, setShowSuggestion] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false); // desktop avatar dropdown
     const [moreOpen, setMoreOpen] = useState(false); // desktop "More" nav dropdown
+    // Account switcher: does this owner also have a customer account? null until
+    // fetched / none. busy while a switch or create is in flight.
+    const [sibling, setSibling] = useState(null);
+    const [switchBusy, setSwitchBusy] = useState(false);
+    const [switchError, setSwitchError] = useState('');
 
     useEffect(() => { setProfileOpen(false); setMoreOpen(false); }, [location]);
+
+    useEffect(() => {
+        if (!user) { setSibling(null); return; }
+        let alive = true;
+        authService.getSibling()
+            .then((res) => { if (alive) setSibling(res?.data?.data || null); })
+            .catch(() => { if (alive) setSibling(null); });
+        return () => { alive = false; };
+    }, [user]);
+
+    // Land on the customer site signed in via a one-time code (see AuthCallBack).
+    const openCustomerSignedIn = (code) => {
+        window.location.href = `${CUSTOMER_URL}/auth/callback?code=${encodeURIComponent(code)}&switch=1`;
+    };
+
+    // Switch to the EXISTING customer account. Same identity → carried across;
+    // different sign-in → the customer login, email prefilled.
+    const switchToCustomer = async () => {
+        setSwitchBusy(true); setSwitchError('');
+        try {
+            const res = await authService.switchSide();
+            openCustomerSignedIn(res?.data?.data?.handoffCode);
+        } catch (err) {
+            if (err.response?.status === 409) {
+                const q = new URLSearchParams({ email: user?.email || '', from: 'switch' });
+                window.location.href = `${CUSTOMER_URL}/login?${q}`;
+            } else {
+                setSwitchError(err.response?.data?.message || 'Could not switch accounts. Please try again.');
+                setSwitchBusy(false);
+            }
+        }
+    };
+
+    // Create a customer account for this owner, then land them on it signed in.
+    const createCustomerAccount = async () => {
+        setSwitchBusy(true); setSwitchError('');
+        try {
+            const res = await authService.addCustomerAccount();
+            openCustomerSignedIn(res?.data?.data?.handoffCode);
+        } catch (err) {
+            setSwitchError(err.response?.data?.message || 'Could not set up your customer account. Please try again.');
+            setSwitchBusy(false);
+        }
+    };
 
     // Provider feature areas that live behind the top-nav "More" menu + the mobile
     // drawer, reached via /dashboard?tab=… (the in-page tab strip was removed).
@@ -270,13 +320,47 @@ const Navbar = () => {
                                                     <div style={{ borderTop: '1px solid var(--border)', margin: '0.35rem 0' }} />
                                                 </>
                                             )}
-                                            <a href={CUSTOMER_URL} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.6rem 0.85rem', borderRadius: '10px', textDecoration: 'none', color: 'var(--charcoal)', fontSize: '0.88rem', fontWeight: '600' }}
-                                                onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
-                                                onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                            >
-                                                <svg width="16" height="16" fill="none" stroke="var(--text-muted)" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/></svg>
-                                                Go to customer site
-                                            </a>
+                                            {/* Account switcher — customer site as a second workspace,
+                                                or an invitation to set one up (Fresha-style). Replaces the
+                                                old dumb "Go to customer site" link, which opened www even
+                                                when the owner had no customer account. */}
+                                            <p style={{ margin: '0.35rem 0 0.15rem', padding: '0 0.85rem', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Your accounts</p>
+                                            <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.5rem 0.6rem', borderRadius: '10px', background: 'rgba(240,62,22,0.08)' }} data-testid="acct-current">
+                                                <span style={{ width: '30px', height: '30px', borderRadius: '9px', background: 'var(--gold)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0 }}>{user.name?.charAt(0).toUpperCase()}</span>
+                                                <span style={{ flex: 1, minWidth: 0 }}>
+                                                    <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--charcoal)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</span>
+                                                    <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)' }}>Business · you’re here</span>
+                                                </span>
+                                                <span style={{ color: 'var(--gold)', fontWeight: 800 }}>✓</span>
+                                            </div>
+                                            {sibling?.accountType === 'customer' ? (
+                                                <button type="button" onClick={switchToCustomer} disabled={switchBusy} data-testid="switch-to-customer"
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', width: '100%', textAlign: 'left', padding: '0.5rem 0.6rem', borderRadius: '10px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)' }}
+                                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
+                                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                    <span style={{ width: '30px', height: '30px', borderRadius: '9px', background: '#3b6fd4', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0 }}>{(sibling.name || 'C').charAt(0).toUpperCase()}</span>
+                                                    <span style={{ flex: 1, minWidth: 0 }}>
+                                                        <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--charcoal)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sibling.name || 'Your customer account'}</span>
+                                                        <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)' }}>{switchBusy ? 'Opening…' : (sibling.sameCredentials ? 'Go to customer site' : 'Sign in to your customer account')}</span>
+                                                    </span>
+                                                    <span style={{ color: 'var(--text-muted)' }}>→</span>
+                                                </button>
+                                            ) : (
+                                                <button type="button" onClick={createCustomerAccount} disabled={switchBusy} data-testid="setup-customer"
+                                                    style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', width: '100%', textAlign: 'left', padding: '0.5rem 0.6rem', borderRadius: '10px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)' }}
+                                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
+                                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                    <span style={{ width: '30px', height: '30px', borderRadius: '9px', background: 'var(--surface-sunken)', color: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 400, fontSize: '1.15rem', flexShrink: 0 }}>+</span>
+                                                    <span style={{ flex: 1, minWidth: 0 }}>
+                                                        <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--charcoal)' }}>{switchBusy ? 'Setting up…' : 'Set up a customer account'}</span>
+                                                        <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)' }}>Book appointments as yourself</span>
+                                                    </span>
+                                                    <span style={{ color: 'var(--text-muted)' }}>→</span>
+                                                </button>
+                                            )}
+                                            {switchError && (
+                                                <p data-testid="switch-error" style={{ margin: '0.15rem 0.6rem 0.3rem', fontSize: '0.75rem', color: 'var(--danger, #c2321a)' }}>{switchError}</p>
+                                            )}
                                             <div style={{ borderTop: '1px solid var(--border)', margin: '0.35rem 0' }} />
                                             <button onClick={() => { toggleDarkMode(); }} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', width: '100%', textAlign: 'left', padding: '0.6rem 0.85rem', borderRadius: '10px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--charcoal)', fontSize: '0.88rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}
                                                 onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
@@ -391,12 +475,19 @@ const Navbar = () => {
                                     <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>Business account</p>
                                 </div>
                             </div>
-                            {/* Booking as a customer happens on the customer site. */}
-                            {user.role === 'provider' && (
-                                <div style={{ padding: '0 1.2rem 0.85rem' }}>
-                                    <a href={CUSTOMER_URL} style={{ display: 'block', textAlign: 'center', padding: '0.5rem', borderRadius: '99px', border: '1.5px solid var(--border)', color: 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: '600', textDecoration: 'none' }}>Book as a customer →</a>
-                                </div>
-                            )}
+                            {/* Account switcher (mobile) — mirrors the desktop menu:
+                                switch to an existing customer account, or set one up. */}
+                            <div style={{ padding: '0 1.2rem 0.85rem' }}>
+                                <button type="button"
+                                    onClick={() => { setMenuOpen(false); sibling?.accountType === 'customer' ? switchToCustomer() : createCustomerAccount(); }}
+                                    disabled={switchBusy}
+                                    style={{ display: 'block', width: '100%', textAlign: 'center', padding: '0.55rem', borderRadius: '99px', border: '1.5px solid var(--border)', background: 'none', color: 'var(--text-secondary)', fontSize: '0.82rem', fontWeight: '600', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+                                    {sibling?.accountType === 'customer'
+                                        ? (sibling.sameCredentials ? 'Go to customer site →' : 'Sign in to your customer account →')
+                                        : 'Set up a customer account →'}
+                                </button>
+                                {switchError && <p style={{ margin: '0.4rem 0 0', fontSize: '0.75rem', color: 'var(--danger, #c2321a)', textAlign: 'center' }}>{switchError}</p>}
+                            </div>
                         </div>
                     )}
 

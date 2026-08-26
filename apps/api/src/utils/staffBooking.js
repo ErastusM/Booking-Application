@@ -24,6 +24,7 @@ const Shift = require('../models/Shift');
 const TimeOff = require('../models/TimeOff');
 const Appointment = require('../models/Appointment');
 const Availability = require('../models/Availability');
+const Service = require('../models/Service');
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const toMin = (t) => {
@@ -54,6 +55,57 @@ const memberBusyIntervals = (appt, memberId) => {
 };
 // A member is involved in a booking as its top-level performer OR a segment one.
 const memberInvolvedFilter = (memberId) => ({ $or: [{ teamMember: memberId }, { 'services.teamMember': memberId }] });
+
+/**
+ * The busy windows an existing appointment occupies FOR one member, each WIDENED
+ * by its own service's setup/cleanup buffers.
+ *
+ * Overlap checks expand the INCOMING booking by its buffers, but if the existing
+ * appointment's buffers are ignored, `bufferAfter` becomes order-dependent and a
+ * no-op: booking A (bufferAfter 15, 10:00–10:30) then B (bufferBefore 0, 10:30–…)
+ * lands flush because A's raw [600,630] doesn't reach B — yet booked the other
+ * way round it WOULD clash. Widening both sides makes the reservation symmetric,
+ * so an existing booking's cleanup time reliably blocks the next slot regardless
+ * of the order the two were booked.
+ *
+ * `memberId` null = the owner's own column (whole-ticket span). `bufferByService`
+ * maps serviceId → { bufferBefore, bufferAfter } (see bufferMapForAppointments).
+ */
+const memberBusyIntervalsBuffered = (appt, memberId, bufferByService = {}) => {
+    const widen = (s, e, svcId) => {
+        const b = bufferByService[String(svcId)] || {};
+        return [s - (b.bufferBefore || 0), e + (b.bufferAfter || 0)];
+    };
+    if (memberId == null) {
+        return [widen(toMin(appt.startTime), toMin(appt.endTime), appt.service)];
+    }
+    const id = String(memberId);
+    if (Array.isArray(appt.services) && appt.services.length) {
+        return appt.services
+            .filter(s => String(s.teamMember) === id)
+            .map(s => widen(toMin(s.startTime), toMin(s.endTime), s.service));
+    }
+    return String(appt.teamMember) === id ? [widen(toMin(appt.startTime), toMin(appt.endTime), appt.service)] : [];
+};
+
+/**
+ * Fetch the buffer settings for every service referenced by these appointments
+ * — top-level and per-segment — in ONE query, as a { serviceId: {bufferBefore,
+ * bufferAfter} } map for memberBusyIntervalsBuffered. Returns {} when nothing is
+ * referenced (a business with no buffered services pays only this empty check).
+ */
+const bufferMapForAppointments = async (appts) => {
+    const ids = new Set();
+    for (const a of appts) {
+        if (a.service) ids.add(String(a.service));
+        (a.services || []).forEach(s => { if (s.service) ids.add(String(s.service)); });
+    }
+    if (!ids.size) return {};
+    const svcs = await Service.find({ _id: { $in: [...ids] } }).select('bufferBefore bufferAfter').lean();
+    const map = {};
+    svcs.forEach(s => { map[String(s._id)] = { bufferBefore: s.bufferBefore || 0, bufferAfter: s.bufferAfter || 0 }; });
+    return map;
+};
 
 // ── Minute-interval arithmetic (half-open [start, end)) ─────────────────────
 // Used by the "any professional" slot view, which needs whole-day availability
@@ -205,13 +257,16 @@ async function isMemberFree({ providerId, member, date, startTime, endTime, svc,
         ...memberInvolvedFilter(member._id),
         appointmentDate: { $gte: dayStart, $lte: dayEnd },
         status: { $nin: ['cancelled'] },
-    }).select('startTime endTime services teamMember');
+    }).select('startTime endTime services teamMember service');
     const nStart = startMin - (svc?.bufferBefore || 0);
     const nEnd = endMin + (svc?.bufferAfter || 0);
     // Per-segment: a member is busy only over their own segment windows, so a
     // colleague sharing a multi-service ticket doesn't falsely block them — and,
-    // the double-booking this closes, a segment-only performer IS now seen.
-    const clash = existing.some(a => memberBusyIntervals(a, member._id).some(([s, e]) => overlaps(nStart, nEnd, s, e)));
+    // the double-booking this closes, a segment-only performer IS now seen. Each
+    // existing window is widened by ITS service's buffers too, so an earlier
+    // booking's cleanup time blocks this one regardless of which was booked first.
+    const bufferByService = await bufferMapForAppointments(existing);
+    const clash = existing.some(a => memberBusyIntervalsBuffered(a, member._id, bufferByService).some(([s, e]) => overlaps(nStart, nEnd, s, e)));
     if (clash) return { free: false, reason: 'booked' };
     return { free: true };
 }
@@ -348,6 +403,10 @@ async function anyAvailableBusy({ providerId, svc, date, appointments }) {
         list.forEach((x) => { const k = String(x.teamMember); (m[k] = m[k] || []).push(x); });
         return m;
     };
+    // Widen existing bookings by their service buffers so the picker greys out
+    // the same cleanup time the validator now reserves (isMemberFree) — otherwise
+    // it would advertise a flush slot the booking is then refused.
+    const bufferByService = await bufferMapForAppointments(appointments || []);
     const shiftBy = {}; shifts.forEach((s) => { shiftBy[String(s.teamMember)] = s; });
     const avBy = {}; staffAvs.forEach((a) => { avBy[String(a.teamMember)] = a; });
     const leavesBy = byMember(leaves);
@@ -379,7 +438,7 @@ async function anyAvailableBusy({ providerId, svc, date, appointments }) {
             businessBlocks
         );
         const cuts = (memberBlocksBy[k] || []).map(b => [toMin(b.startTime), toMin(b.endTime)]);
-        (appointments || []).forEach((a) => memberBusyIntervals(a, m._id).forEach((iv) => cuts.push(iv)));
+        (appointments || []).forEach((a) => memberBusyIntervalsBuffered(a, m._id, bufferByService).forEach((iv) => cuts.push(iv)));
         rosteredAll.push(...rostered);
         freeAll.push(...subtractIntervals(rostered, cuts));
     }
@@ -400,6 +459,6 @@ async function anyAvailableBusy({ providerId, svc, date, appointments }) {
 
 module.exports = {
     resolveBookingStaff, isMemberFree, performsService, staffHoursReason,
-    memberBusyIntervals, memberInvolvedFilter, UNAVAILABLE_MESSAGES,
-    anyAvailableBusy,
+    memberBusyIntervals, memberBusyIntervalsBuffered, bufferMapForAppointments,
+    memberInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy,
 };

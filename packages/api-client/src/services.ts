@@ -17,6 +17,12 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         // Returns the provider's public booking-link handle, minting one on first call.
         generateBookingSlug: () => API.post('/auth/booking-slug'),
         becomeProvider: (data: any) => API.put('/auth/become-provider', data),
+        // Account switcher: which side the signed-in user also has, and the
+        // hand-offs to reach it (see authController getSibling/switchSide/
+        // addCustomerAccount).
+        getSibling: () => API.get('/auth/sibling'),
+        switchSide: () => API.post('/auth/switch-side'),
+        addCustomerAccount: () => API.post('/auth/add-customer-account'),
         changePassword: (data: any) => API.put('/auth/change-password', data),
         resendVerification: (email: string) => API.post('/auth/resend-verification', { email }),
         forgotPassword: (email: string) => API.post('/auth/forgot-password', accountType ? { email, accountType } : { email }),
