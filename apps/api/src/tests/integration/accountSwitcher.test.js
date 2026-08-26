@@ -22,16 +22,28 @@ afterEach(() => testDb.clearDatabase());
 
 const EMAIL = 'dual@example.com';
 
+// bcrypt salts every hash, so two accounts that register the same plaintext get
+// DIFFERENT stored hashes and are NOT "same identity". A real same-identity pair
+// is a clone: become-provider / add-customer copy the source's stored hash onto
+// the new document. This helper reproduces that so sameIdentity's hash branch is
+// genuinely exercised (a plaintext-only setup would wrongly assert the guard).
+const cloneHash = async (fromId, toId) => {
+    const src = await User.findById(fromId).select('+password');
+    await User.updateOne({ _id: toId }, { $set: { password: src.password } });
+};
+
 describe('GET /auth/sibling', () => {
-    it('reports a business sibling with the SAME password as carryable', async () => {
+    it('reports a business sibling with the SAME identity (cloned hash) as carryable', async () => {
         const customer = await makeUser({ email: EMAIL, password: 'Password1!', isVerified: true });
-        await makeProvider({ email: EMAIL, password: 'Password1!', isVerified: true });
+        const business = await makeProvider({ email: EMAIL, password: 'Password1!', isVerified: true });
+        await cloneHash(customer._id, business._id);
         const res = await request(app).get('/api/auth/sibling').set(authHeader(customer));
         expect(res.status).toBe(200);
         expect(res.body.data).toMatchObject({ accountType: 'business', sameCredentials: true });
     });
 
-    it('reports a business sibling with a DIFFERENT password as not carryable', async () => {
+    it('reports a business sibling with independent credentials as not carryable', async () => {
+        // Different plaintext → different hashes anyway, but be explicit.
         const customer = await makeUser({ email: EMAIL, password: 'Password1!', isVerified: true });
         await makeProvider({ email: EMAIL, password: 'Different1!', isVerified: true });
         const res = await request(app).get('/api/auth/sibling').set(authHeader(customer));
@@ -64,7 +76,8 @@ describe('GET /auth/sibling', () => {
 describe('POST /auth/switch-side', () => {
     it('mints a working hand-off code for a same-identity sibling', async () => {
         const customer = await makeUser({ email: EMAIL, password: 'Password1!', isVerified: true });
-        await makeProvider({ email: EMAIL, password: 'Password1!', isVerified: true });
+        const business = await makeProvider({ email: EMAIL, password: 'Password1!', isVerified: true });
+        await cloneHash(customer._id, business._id);
 
         const res = await request(app).post('/api/auth/switch-side').set(authHeader(customer));
         expect(res.status).toBe(200);
@@ -135,5 +148,62 @@ describe('POST /auth/add-customer-account', () => {
         const customer = await makeUser({ email: EMAIL, isVerified: true });
         const res = await request(app).post('/api/auth/add-customer-account').set(authHeader(customer));
         expect(res.status).toBe(400);
+    });
+});
+
+// The switcher must not become an enumeration oracle. login() only reveals an
+// other-side account to someone who owns the email (verified or social);
+// registration does not verify the inbox, so an attacker could register an
+// unverified account on a victim's email. getSibling/switch-side apply the same
+// gate — except for a same-identity sibling, which the caller demonstrably made.
+describe('anti-enumeration gate', () => {
+    it('does not reveal an independent sibling to an UNVERIFIED caller', async () => {
+        const attacker = await makeUser({ email: EMAIL, password: 'Password1!', isVerified: false });
+        await makeProvider({ email: EMAIL, password: 'Different1!', isVerified: true });
+        const res = await request(app).get('/api/auth/sibling').set(authHeader(attacker));
+        expect(res.status).toBe(200);
+        expect(res.body.data).toBeNull();
+    });
+
+    it('switch-side gives an unverified non-owner the same 404 as "no sibling" (no oracle)', async () => {
+        const attacker = await makeUser({ email: EMAIL, password: 'Password1!', isVerified: false });
+        await makeProvider({ email: EMAIL, password: 'Different1!', isVerified: true });
+        const res = await request(app).post('/api/auth/switch-side').set(authHeader(attacker));
+        expect(res.status).toBe(404);
+    });
+
+    it('STILL reveals a same-identity sibling to an unverified caller (they made it)', async () => {
+        const customer = await makeUser({ email: EMAIL, password: 'Password1!', isVerified: false });
+        const business = await makeProvider({ email: EMAIL, password: 'Password1!', isVerified: true });
+        await cloneHash(customer._id, business._id);
+        const res = await request(app).get('/api/auth/sibling').set(authHeader(customer));
+        expect(res.body.data).toMatchObject({ accountType: 'business', sameCredentials: true });
+    });
+});
+
+describe('switching into a self-deactivated sibling reactivates it', () => {
+    it('the exchanged session is active, not a dead "suspended" one', async () => {
+        const customer = await makeUser({ email: EMAIL, password: 'Password1!', isVerified: true });
+        const business = await makeProvider({ email: EMAIL, password: 'Password1!', isVerified: true });
+        await cloneHash(customer._id, business._id);
+        // The business side is self-deactivated (isActive false WITH deactivatedAt).
+        await User.updateOne({ _id: business._id }, { $set: { isActive: false, deactivatedAt: new Date() } });
+
+        const sw = await request(app).post('/api/auth/switch-side').set(authHeader(customer));
+        expect(sw.status).toBe(200);
+        const exchanged = await request(app).post('/api/auth/exchange-code').send({ code: sw.body.data.handoffCode });
+        expect(exchanged.status).toBe(200);
+        const after = await User.findById(business._id);
+        expect(after.isActive).toBe(true);
+        expect(after.deactivatedAt).toBeFalsy();
+    });
+
+    it('an admin-suspended sibling is never offered (excluded upstream)', async () => {
+        const customer = await makeUser({ email: EMAIL, password: 'Password1!', isVerified: true });
+        const business = await makeProvider({ email: EMAIL, password: 'Password1!', isVerified: true });
+        await cloneHash(customer._id, business._id);
+        await User.updateOne({ _id: business._id }, { $set: { isActive: false }, $unset: { deactivatedAt: '' } });
+        const res = await request(app).post('/api/auth/switch-side').set(authHeader(customer));
+        expect(res.status).toBe(404);
     });
 });

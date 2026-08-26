@@ -25,6 +25,7 @@ const Navbar = () => {
     // fetched / none. busy while a switch or create is in flight.
     const [sibling, setSibling] = useState(null);
     const [switchBusy, setSwitchBusy] = useState(false);
+    const [switchError, setSwitchError] = useState('');
 
     useEffect(() => { setProfileOpen(false); setMoreOpen(false); }, [location]);
 
@@ -45,7 +46,7 @@ const Navbar = () => {
     // Switch to the EXISTING customer account. Same identity → carried across;
     // different sign-in → the customer login, email prefilled.
     const switchToCustomer = async () => {
-        setSwitchBusy(true);
+        setSwitchBusy(true); setSwitchError('');
         try {
             const res = await authService.switchSide();
             openCustomerSignedIn(res?.data?.data?.handoffCode);
@@ -53,17 +54,23 @@ const Navbar = () => {
             if (err.response?.status === 409) {
                 const q = new URLSearchParams({ email: user?.email || '', from: 'switch' });
                 window.location.href = `${CUSTOMER_URL}/login?${q}`;
-            } else { setSwitchBusy(false); }
+            } else {
+                setSwitchError(err.response?.data?.message || 'Could not switch accounts. Please try again.');
+                setSwitchBusy(false);
+            }
         }
     };
 
     // Create a customer account for this owner, then land them on it signed in.
     const createCustomerAccount = async () => {
-        setSwitchBusy(true);
+        setSwitchBusy(true); setSwitchError('');
         try {
             const res = await authService.addCustomerAccount();
             openCustomerSignedIn(res?.data?.data?.handoffCode);
-        } catch { setSwitchBusy(false); }
+        } catch (err) {
+            setSwitchError(err.response?.data?.message || 'Could not set up your customer account. Please try again.');
+            setSwitchBusy(false);
+        }
     };
 
     // Provider feature areas that live behind the top-nav "More" menu + the mobile
@@ -334,7 +341,7 @@ const Navbar = () => {
                                                     <span style={{ width: '30px', height: '30px', borderRadius: '9px', background: '#3b6fd4', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0 }}>{(sibling.name || 'C').charAt(0).toUpperCase()}</span>
                                                     <span style={{ flex: 1, minWidth: 0 }}>
                                                         <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--charcoal)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sibling.name || 'Your customer account'}</span>
-                                                        <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)' }}>{switchBusy ? 'Opening…' : 'Go to customer site'}</span>
+                                                        <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)' }}>{switchBusy ? 'Opening…' : (sibling.sameCredentials ? 'Go to customer site' : 'Sign in to your customer account')}</span>
                                                     </span>
                                                     <span style={{ color: 'var(--text-muted)' }}>→</span>
                                                 </button>
@@ -350,6 +357,9 @@ const Navbar = () => {
                                                     </span>
                                                     <span style={{ color: 'var(--text-muted)' }}>→</span>
                                                 </button>
+                                            )}
+                                            {switchError && (
+                                                <p data-testid="switch-error" style={{ margin: '0.15rem 0.6rem 0.3rem', fontSize: '0.75rem', color: 'var(--danger, #c2321a)' }}>{switchError}</p>
                                             )}
                                             <div style={{ borderTop: '1px solid var(--border)', margin: '0.35rem 0' }} />
                                             <button onClick={() => { toggleDarkMode(); }} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', width: '100%', textAlign: 'left', padding: '0.6rem 0.85rem', borderRadius: '10px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--charcoal)', fontSize: '0.88rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}
@@ -465,12 +475,19 @@ const Navbar = () => {
                                     <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: 0 }}>Business account</p>
                                 </div>
                             </div>
-                            {/* Booking as a customer happens on the customer site. */}
-                            {user.role === 'provider' && (
-                                <div style={{ padding: '0 1.2rem 0.85rem' }}>
-                                    <a href={CUSTOMER_URL} style={{ display: 'block', textAlign: 'center', padding: '0.5rem', borderRadius: '99px', border: '1.5px solid var(--border)', color: 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: '600', textDecoration: 'none' }}>Book as a customer →</a>
-                                </div>
-                            )}
+                            {/* Account switcher (mobile) — mirrors the desktop menu:
+                                switch to an existing customer account, or set one up. */}
+                            <div style={{ padding: '0 1.2rem 0.85rem' }}>
+                                <button type="button"
+                                    onClick={() => { setMenuOpen(false); sibling?.accountType === 'customer' ? switchToCustomer() : createCustomerAccount(); }}
+                                    disabled={switchBusy}
+                                    style={{ display: 'block', width: '100%', textAlign: 'center', padding: '0.55rem', borderRadius: '99px', border: '1.5px solid var(--border)', background: 'none', color: 'var(--text-secondary)', fontSize: '0.82rem', fontWeight: '600', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+                                    {sibling?.accountType === 'customer'
+                                        ? (sibling.sameCredentials ? 'Go to customer site →' : 'Sign in to your customer account →')
+                                        : 'Set up a customer account →'}
+                                </button>
+                                {switchError && <p style={{ margin: '0.4rem 0 0', fontSize: '0.75rem', color: 'var(--danger, #c2321a)', textAlign: 'center' }}>{switchError}</p>}
+                            </div>
                         </div>
                     )}
 

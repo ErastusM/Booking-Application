@@ -416,10 +416,23 @@ exports.exchangeOAuthCode = async (req, res) => {
 
         if (!user) return res.status(400).json({ success: false, message: 'Invalid or expired code' });
 
+        if (user.isActive === false) {
+            // Parity with password login: a self-deactivated account reactivates
+            // on a successful sign-in (the switcher can hand someone to their own
+            // dormant account); an admin suspension (no deactivatedAt) stays
+            // blocked, rather than minting a token that dies at the next refresh.
+            if (user.deactivatedAt) {
+                user.isActive = true;
+                user.deactivatedAt = null;
+            } else {
+                return res.status(403).json({ success: false, message: 'Your account has been suspended. Please contact support.' });
+            }
+        }
+
         user.oauthCode = null;
         user.oauthCodeExpiry = null;
         // issueAuthTokens no longer saves the doc (atomic jti update) — persist
-        // the consumed one-time code explicitly so it can't be replayed.
+        // the consumed one-time code (and any reactivation above) explicitly.
         await user.save();
 
         const { token, refreshToken } = await issueAuthTokens(user);
@@ -900,11 +913,20 @@ const mintHandoffCode = async (userId) => {
     return code;
 };
 
+// Proof the caller controls this email address, mirroring login()'s otherSide
+// gate. Registration is per-side and does not verify the inbox, so an attacker
+// can register a throwaway account on a victim's email; without this gate the
+// switcher would tell them (a non-owner) that the email also runs a business
+// here, and its name. A verified or social account has proven the inbox — and a
+// same-identity sibling was made BY this person (become-provider / add-customer
+// clone), so that is disclosed regardless.
+const ownsEmail = (u) => u.isVerified === true || (u.provider && u.provider !== 'local');
+
 /**
  * GET /auth/sibling — does the signed-in user hold an account on the OTHER side,
  * and can we carry them across without a fresh sign-in? Drives the account
- * switcher in both navbars. Only ever tells the authenticated caller about their
- * OWN email, so it reveals nothing they couldn't already learn by signing in.
+ * switcher in both navbars. Existence (and the sibling's name) is disclosed only
+ * to someone who owns the email or is the same identity — same bar as login().
  */
 exports.getSibling = async (req, res) => {
     try {
@@ -917,10 +939,11 @@ exports.getSibling = async (req, res) => {
         }).select('+password');
         // A dead-end account (admin-suspended) is not offered.
         const sibling = siblings.find((s) => !(s.isActive === false && !s.deactivatedAt));
+        const same = sibling ? sameIdentity(me, sibling) : false;
         res.status(200).json({
             success: true,
-            data: sibling
-                ? { accountType: otherType, name: sibling.name, sameCredentials: sameIdentity(me, sibling) }
+            data: (sibling && (ownsEmail(me) || same))
+                ? { accountType: otherType, name: sibling.name, sameCredentials: same }
                 : null,
         });
     } catch (error) {
@@ -934,7 +957,9 @@ exports.getSibling = async (req, res) => {
  * are provably the same identity (see sameIdentity); otherwise the client must
  * send them to that account's own sign-in, because being logged into one side is
  * not proof of owning an independently-credentialed account on the same email
- * (registration does not verify the address).
+ * (registration does not verify the address). The 409 that reveals the account
+ * exists is gated behind the same email-ownership proof, so it is not an
+ * enumeration oracle for a non-owner.
  */
 exports.switchSide = async (req, res) => {
     try {
@@ -949,12 +974,16 @@ exports.switchSide = async (req, res) => {
         if (!sibling) {
             return res.status(404).json({ success: false, message: 'No account on the other side' });
         }
-        if (!sameIdentity(me, sibling)) {
-            // Different sign-in — the client sends them to that account's login.
-            return res.status(409).json({ success: false, message: 'sign_in_required', accountType: otherType });
+        if (sameIdentity(me, sibling)) {
+            const handoffCode = await mintHandoffCode(sibling._id);
+            return res.status(200).json({ success: true, data: { accountType: otherType, handoffCode } });
         }
-        const handoffCode = await mintHandoffCode(sibling._id);
-        res.status(200).json({ success: true, data: { accountType: otherType, handoffCode } });
+        // Independent credentials: only tell a proven owner it's there (and to
+        // sign in). A non-owner gets the same 404 as "no sibling" — no oracle.
+        if (!ownsEmail(me)) {
+            return res.status(404).json({ success: false, message: 'No account on the other side' });
+        }
+        return res.status(409).json({ success: false, message: 'sign_in_required', accountType: otherType });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

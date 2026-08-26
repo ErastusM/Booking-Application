@@ -218,7 +218,7 @@ const Navbar = () => {
                                                         <span style={{ width: '30px', height: '30px', borderRadius: '9px', background: 'var(--gold)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0 }}>{(sibling.name || 'B').charAt(0).toUpperCase()}</span>
                                                         <span style={{ flex: 1, minWidth: 0 }}>
                                                             <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--charcoal)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sibling.name || 'Your business'}</span>
-                                                            <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)' }}>{switching ? 'Opening…' : 'Open business dashboard'}</span>
+                                                            <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)' }}>{switching ? 'Opening…' : (sibling.sameCredentials ? 'Open business dashboard' : 'Sign in to your business account')}</span>
                                                         </span>
                                                         <span style={{ color: 'var(--text-muted)' }}>→</span>
                                                     </button>
@@ -393,7 +393,16 @@ const Navbar = () => {
                         {user && mobileLink('/appointments', 'My Appointments')}
                         {user && mobileLink('/wallet', 'Wallet')}
                         {user && mobileLink('/waiting-list', 'Waiting List')}
-                        {user?.role === 'customer' && mobileLink('/become-provider', 'List your business')}
+                        {/* Account switcher (mobile): jump to the business if it exists,
+                            otherwise the invitation to create one. */}
+                        {user?.role === 'customer' && (
+                            sibling?.accountType === 'business' ? (
+                                <button type="button" onClick={() => { setMenuOpen(false); switchToBusiness(); }} disabled={switching}
+                                    style={{ color: 'var(--text-primary)', fontWeight: '500', fontSize: '0.95rem', padding: '0.85rem 1.2rem', borderBottom: '1px solid var(--border)', display: 'block', width: '100%', textAlign: 'left', background: 'none', border: 'none', borderBottomStyle: 'solid', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+                                    {switching ? 'Opening…' : (sibling.sameCredentials ? 'Business dashboard →' : 'Sign in to your business →')}
+                                </button>
+                            ) : mobileLink('/become-provider', 'List your business')
+                        )}
                         {user && mobileLink('/profile', 'My Profile')}
                     </div>
 
