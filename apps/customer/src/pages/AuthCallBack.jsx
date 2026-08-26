@@ -17,6 +17,10 @@ const AuthCallback = () => {
     useEffect(() => {
         const params = new URLSearchParams(window.location.search);
         const code = params.get('code');
+        // Arriving via the account switcher (or a just-created customer account):
+        // the destination is already decided, so skip the "which side?" chooser
+        // the Google login shows — asking again would undo the switch.
+        const switched = params.get('switch') === '1';
 
         if (!code) {
             navigate('/login?error=google_failed');
@@ -35,8 +39,9 @@ const AuthCallback = () => {
                         const needsPhone = !user.phone || user.phone === 'pending';
                         if (needsPhone) {
                             navigate('/complete-profile');
-                        } else if (user.role === 'customer' && otherSide?.accountType === 'business') {
-                            // Ask, exactly as the password login does.
+                        } else if (!switched && user.role === 'customer' && otherSide?.accountType === 'business') {
+                            // Ask, exactly as the password login does — unless the
+                            // switcher already decided this is where they want to be.
                             setChoice({ otherSide, email: user.email });
                         } else if (user.role !== 'customer') {
                             // Business accounts (provider/staff/admin) live in the

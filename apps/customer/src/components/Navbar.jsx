@@ -3,6 +3,7 @@ import { createPortal } from 'react-dom';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
+import { authService } from '../services';
 import NotificationBell from './NotificationBell';
 import SuggestionBox from './SuggestionBox';
 import { cloudinaryAvatar } from '../utils/cloudinary';
@@ -28,8 +29,41 @@ const Navbar = () => {
     const [menuOpen, setMenuOpen] = useState(false);
     const [showSuggestion, setShowSuggestion] = useState(false);
     const [profileOpen, setProfileOpen] = useState(false); // desktop avatar dropdown
+    // Account switcher: does this person also have a business account, and can we
+    // carry them across without a fresh sign-in? null until fetched / none.
+    const [sibling, setSibling] = useState(null);
+    const [switching, setSwitching] = useState(false);
 
     useEffect(() => { setProfileOpen(false); }, [location]);
+
+    // Only customers see a switcher — a business-role user in this app is being
+    // ejected to the business app anyway. Fetch once when a customer signs in.
+    useEffect(() => {
+        if (!user || user.role !== 'customer') { setSibling(null); return; }
+        let alive = true;
+        authService.getSibling()
+            .then((res) => { if (alive) setSibling(res?.data?.data || null); })
+            .catch(() => { if (alive) setSibling(null); });
+        return () => { alive = false; };
+    }, [user]);
+
+    // Switch to the EXISTING business account. Same identity → carried across
+    // signed in; different sign-in → sent to the business login, email prefilled.
+    const switchToBusiness = async () => {
+        setSwitching(true);
+        try {
+            const res = await authService.switchSide();
+            const code = res?.data?.data?.handoffCode;
+            window.location.href = `${BUSINESS_URL}/auth/callback?code=${encodeURIComponent(code)}&switch=1`;
+        } catch (err) {
+            if (err.response?.status === 409) {
+                const q = new URLSearchParams({ email: user?.email || '', from: 'switch' });
+                window.location.href = `${BUSINESS_URL}/login?${q}`;
+            } else {
+                setSwitching(false);
+            }
+        }
+    };
 
     const closeMenu = () => setMenuOpen(false);
 
@@ -162,6 +196,48 @@ const Navbar = () => {
                                             <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.92rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</p>
                                             <p style={{ margin: '1px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</p>
                                         </div>
+
+                                        {/* Account switcher — the business shows as a second workspace,
+                                            or an invitation to create one. */}
+                                        {user.role === 'customer' && (
+                                            <>
+                                                <p style={{ margin: '0.25rem 0 0.15rem', padding: '0 0.85rem', fontSize: '0.66rem', fontWeight: 700, letterSpacing: '0.07em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Your accounts</p>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.5rem 0.6rem', borderRadius: '10px', background: 'rgba(240,62,22,0.08)' }} data-testid="acct-current">
+                                                    <span style={{ width: '30px', height: '30px', borderRadius: '9px', background: '#3b6fd4', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0 }}>{user.name?.charAt(0).toUpperCase()}</span>
+                                                    <span style={{ flex: 1, minWidth: 0 }}>
+                                                        <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--charcoal)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</span>
+                                                        <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)' }}>Customer · you’re here</span>
+                                                    </span>
+                                                    <span style={{ color: 'var(--gold)', fontWeight: 800 }}>✓</span>
+                                                </div>
+                                                {sibling?.accountType === 'business' ? (
+                                                    <button type="button" onClick={switchToBusiness} disabled={switching} data-testid="switch-to-business"
+                                                        style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', width: '100%', textAlign: 'left', padding: '0.5rem 0.6rem', borderRadius: '10px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)' }}
+                                                        onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
+                                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                        <span style={{ width: '30px', height: '30px', borderRadius: '9px', background: 'var(--gold)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0 }}>{(sibling.name || 'B').charAt(0).toUpperCase()}</span>
+                                                        <span style={{ flex: 1, minWidth: 0 }}>
+                                                            <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--charcoal)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sibling.name || 'Your business'}</span>
+                                                            <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)' }}>{switching ? 'Opening…' : 'Open business dashboard'}</span>
+                                                        </span>
+                                                        <span style={{ color: 'var(--text-muted)' }}>→</span>
+                                                    </button>
+                                                ) : (
+                                                    <button type="button" onClick={() => { setProfileOpen(false); navigate('/become-provider'); }} data-testid="setup-business"
+                                                        style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', width: '100%', textAlign: 'left', padding: '0.5rem 0.6rem', borderRadius: '10px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)' }}
+                                                        onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
+                                                        onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
+                                                        <span style={{ width: '30px', height: '30px', borderRadius: '9px', background: 'var(--surface-sunken)', color: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 400, fontSize: '1.15rem', flexShrink: 0 }}>+</span>
+                                                        <span style={{ flex: 1, minWidth: 0 }}>
+                                                            <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--charcoal)' }}>Set up a business account</span>
+                                                            <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)' }}>Take bookings for your business</span>
+                                                        </span>
+                                                        <span style={{ color: 'var(--text-muted)' }}>→</span>
+                                                    </button>
+                                                )}
+                                                <div style={{ borderTop: '1px solid var(--border)', margin: '0.35rem 0' }} />
+                                            </>
+                                        )}
                                         {[
                                             { to: '/book-appointment', label: 'Book an appointment', icon: <path d="M8 2v4M16 2v4M3 10h18M5 4h14a2 2 0 012 2v14a2 2 0 01-2 2H5a2 2 0 01-2-2V6a2 2 0 012-2z"/> },
                                             { to: '/appointments', label: 'My appointments', icon: <><path d="M9 11l3 3L22 4"/><path d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/></> },
