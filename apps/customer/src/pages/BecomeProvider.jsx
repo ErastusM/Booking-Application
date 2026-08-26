@@ -66,7 +66,7 @@ const BecomeProvider = () => {
                         </div>
                         <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.9rem', fontWeight: '600', color: 'var(--charcoal)', margin: '0 0 0.4rem' }}>List your business</h1>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.92rem', lineHeight: 1.6, margin: '0 0 1.5rem' }}>
-                            Turn your Bookplus account into a business — no new sign-up. Your account moves to the business app, where you'll manage everything from now on.
+                            Add a business account to this email — no separate sign-up, same sign-in. You'll manage your business over in the business app, and this customer account stays yours for booking.
                         </p>
 
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem', marginBottom: '1.5rem' }}>

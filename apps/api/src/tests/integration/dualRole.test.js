@@ -111,6 +111,84 @@ describe('Become a provider (adds a business account)', () => {
         const res = await request(app).put('/api/auth/become-provider').set(authHeader(customer)).send({});
         expect(res.status).toBe(400);
     });
+
+    // A Google-signed-up customer is created the way production makes them:
+    // googleId set, NO password, and provider left at the schema default
+    // 'local' (passport never writes provider:'google'). The business account
+    // must carry the Google identity across, or Google sign-in on the business
+    // app can never reach it. A fixture that sets provider:'google' would pass
+    // vacuously against the old bug — so this one deliberately does not.
+    it('copies the Google identity for a Google-only customer', async () => {
+        const customer = await makeUser({ password: undefined, isVerified: true });
+        await User.updateOne({ _id: customer._id }, { $set: { googleId: 'g-bp-1' }, $unset: { password: '' } });
+
+        const res = await request(app).put('/api/auth/become-provider')
+            .set(authHeader(customer)).send({ providerCategory: 'Barbering' });
+        expect(res.status).toBe(200);
+
+        const business = await User.findOne({ email: customer.email, role: 'provider' }).select('+password');
+        expect(business.googleId).toBe('g-bp-1');
+        // No known password was invented for them: they sign in with Google.
+        expect(business.password).toBeFalsy();
+    });
+
+    it('refuses a caller who is already a business account (no 500 on the unique index)', async () => {
+        const provider = await makeProvider();
+        const res = await request(app).put('/api/auth/become-provider')
+            .set(authHeader(provider)).send({ providerCategory: 'Barbering' });
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/already a business account/i);
+    });
+
+    // SEC-1: the shared password is a CLONED hash. Changing it on the customer
+    // side must revoke the clone, or the old password opens the business twin
+    // forever.
+    it('a customer password change revokes the cloned business credential', async () => {
+        const customer = await makeUser({ password: 'Password1!' });
+        await request(app).put('/api/auth/become-provider')
+            .set(authHeader(customer)).send({ providerCategory: 'Barbering' });
+
+        // Old password opens the business side today.
+        expect((await request(app).post('/api/auth/login')
+            .send({ email: customer.email, password: 'Password1!', accountType: 'business' })).status).toBe(200);
+
+        // Change it on the customer side.
+        const changed = await request(app).put('/api/auth/change-password')
+            .set(authHeader(customer)).send({ currentPassword: 'Password1!', newPassword: 'Brand-New1!' });
+        expect(changed.status).toBe(200);
+
+        // The OLD password no longer opens the business twin; the NEW one does.
+        expect((await request(app).post('/api/auth/login')
+            .send({ email: customer.email, password: 'Password1!', accountType: 'business' })).status).not.toBe(200);
+        expect((await request(app).post('/api/auth/login')
+            .send({ email: customer.email, password: 'Brand-New1!', accountType: 'business' })).status).toBe(200);
+    });
+});
+
+// ux-1: a dual account typing the WRONG side's password on a door must get a
+// plain 401 — never a "wrong side" 403 that hands them off and bounces them
+// off the door they chose.
+describe('a wrong-side password on a dual account is just a wrong password', () => {
+    it('does not offer the other side when an account exists on the side asked for', async () => {
+        const customer = await makeUser({ email: 'both@x.com', password: 'CustPass1!', isVerified: true });
+        await makeProvider({ email: 'both@x.com', password: 'BizPass1!', isVerified: true });
+        void customer;
+
+        // Customer password on the BUSINESS door: a business account exists, so
+        // this is simply wrong — 401, no accountType hint, no hand-off.
+        const res = await request(app).post('/api/auth/login')
+            .send({ email: 'both@x.com', password: 'CustPass1!', accountType: 'business' });
+        expect(res.status).toBe(401);
+        expect(res.body.accountType).toBeUndefined();
+    });
+
+    it('still hands off when NO account exists on the side asked for', async () => {
+        await makeProvider({ email: 'bizonly@x.com', password: 'BizPass1!', isVerified: true });
+        const res = await request(app).post('/api/auth/login')
+            .send({ email: 'bizonly@x.com', password: 'BizPass1!', accountType: 'customer' });
+        expect(res.status).toBe(403);
+        expect(res.body.accountType).toBe('business');
+    });
 });
 
 describe('Provider acting as a customer', () => {

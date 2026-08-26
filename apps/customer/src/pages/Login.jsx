@@ -49,10 +49,10 @@ const Login = () => {
         window.location.assign(BUSINESS_URL);
     };
 
-    // The business account exists but has its own password (the two sides drift
-    // apart routinely — each signup and each password reset is per-side). We
-    // never mint a session for an account whose password nobody proved, so send
-    // them to the business door with the email filled in and say why.
+    // The business account exists but has its own sign-in (a different password,
+    // or Google — the two sides drift apart routinely, each signup and reset
+    // being per-side). We never mint a session for an account nobody proved, so
+    // send them to the business door with the email filled in and say why.
     const sendToBusinessLogin = (email) => {
         const q = new URLSearchParams({ email: email || '', from: 'website' });
         window.location.assign(`${BUSINESS_URL}/login?${q}`);
@@ -232,7 +232,7 @@ const Login = () => {
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 0.5rem' }}>
                                 This email has both a customer and a business account.
                                 {!pendingSession.otherSide?.sameCredentials
-                                    && ' Your business account has its own password, so you’ll sign in again over there.'}
+                                    && ' Your business account has its own sign-in, so you’ll sign in again over there.'}
                             </p>
                             <button type="button" className="btn-primary" onClick={chooseBusiness} disabled={loading}
                                 data-testid="choose-business" style={{ width: '100%', padding: '0.875rem' }}>

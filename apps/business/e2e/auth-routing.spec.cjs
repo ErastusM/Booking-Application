@@ -47,7 +47,11 @@ test.describe('The website (www) routes by account type', () => {
         await page.getByTestId('choose-business').click();
         // Same password on both sides, so they are carried across signed in.
         await page.waitForURL((url) => url.origin === new URL(baseURL).origin, { timeout: 20_000 });
-        await expect(page).not.toHaveURL(/\/login/);
+        // A real session must exist, not just the right URL: the avatar menu
+        // renders only when useAuth has a user, so it fails if the cross-origin
+        // hand-off did not establish the session.
+        await expect(page).toHaveURL(/\/dashboard/, { timeout: 20_000 });
+        await expect(page.getByRole('button', { name: 'Account menu' })).toBeVisible({ timeout: 20_000 });
     });
 
     test('a dual-account email can choose the Customer Site', async ({ page }) => {
@@ -58,6 +62,9 @@ test.describe('The website (www) routes by account type', () => {
         await page.getByTestId('choose-customer').click();
 
         await page.waitForURL((url) => url.origin === new URL(CUSTOMER_URL).origin && !url.pathname.includes('/login'), { timeout: 20_000 });
+        // ...and the customer session was COMMITTED, not merely routed to — the
+        // navbar avatar menu renders only when useAuth has a user.
+        await expect(page.getByRole('button', { name: 'Account menu' })).toBeVisible();
     });
 
     // The regression the tester reported: two profiles, two passwords, no choice.
@@ -67,8 +74,8 @@ test.describe('The website (www) routes by account type', () => {
 
         const chooser = page.getByTestId('destination-chooser');
         await expect(chooser).toBeVisible();
-        // ...and it is honest that the business side has its own password.
-        await expect(chooser).toContainText('own password');
+        // ...and it is honest that the business side has its own sign-in.
+        await expect(chooser).toContainText('own sign-in');
 
         await page.getByTestId('choose-business').click();
         // No session is minted for an account nobody proved: they land on the

@@ -196,7 +196,7 @@ const Login = () => {
                             color: 'var(--gold-dark)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)',
                             marginBottom: '1.5rem', fontSize: '0.85rem', lineHeight: 1.5,
                         }}>
-                            Your business account has its own password — sign in here to open the dashboard.
+                            Your business account has its own sign-in — sign in here to open the dashboard.
                         </div>
                     )}
 

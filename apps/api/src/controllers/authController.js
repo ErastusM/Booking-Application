@@ -264,7 +264,15 @@ exports.login = async (req, res) => {
             // Right password, wrong side of the app? Only ever revealed to
             // someone who proved they own the account — a plain wrong email or
             // password stays a generic 401 (no account enumeration).
-            if (accountType) {
+            //
+            // AND only when this email has NO account on the side being asked
+            // for (candidates is empty). If a business account DOES exist here,
+            // a password that doesn't open it is simply the wrong password —
+            // calling it "wrong side" is false, and the business login acts on
+            // that by handing the person to the customer site, bouncing them off
+            // the very door they chose. Split-password and Google-only twins
+            // both used to hit that unbreakable loop.
+            if (accountType && candidates.length === 0) {
                 const others = await User.find({ email }).select('+password');
                 for (const other of others) {
                     if (await other.matchPassword(password)) {
@@ -742,6 +750,17 @@ exports.becomeProvider = async (req, res) => {
         if (user.role === 'staff' || user.staffOf) {
             return res.status(403).json({ success: false, message: 'Staff accounts cannot upgrade to a provider. Ask your business owner.' });
         }
+        // This handler now CREATES a second document instead of flipping the
+        // caller's role, so a caller already on the business side would sail
+        // past the existingBusiness guard below (which excludes their own doc)
+        // and collide with the {email, accountType} unique index — a 500. Refuse
+        // it here with a clear message.
+        if (user.role !== 'customer') {
+            return res.status(400).json({
+                success: false,
+                message: 'This account is already a business account — sign in to it on the business app.',
+            });
+        }
         if (!providerCategory || !providerCategory.trim()) {
             return res.status(400).json({ success: false, message: 'Please choose your main service category' });
         }
@@ -768,13 +787,19 @@ exports.becomeProvider = async (req, res) => {
         // system already assumes — the {email, accountType} index exists exactly
         // so one person can be both.
         const withPassword = await User.findById(user._id).select('+password');
-        const isSocial = user.provider && user.provider !== 'local';
+        // Social identity is carried by googleId, NOT the `provider` field:
+        // passport creates Google users with googleId set and provider left at
+        // its schema default 'local' (it never writes provider:'google'). Keying
+        // this off `provider` made it always false in production, so the new
+        // business account got no googleId and an unknown random password —
+        // unreachable by Google OR password. Detect via googleId.
+        const googleId = user.googleId || null;
         const business = await User.create({
             name: user.name,
             email: user.email,
             // Placeholder only — replaced below by the customer account's hash
-            // (create() would re-hash an already-hashed value). A social account
-            // has no password to copy and signs in with Google instead.
+            // (create() would re-hash an already-hashed value). A Google-only
+            // account has no password to copy and signs in with Google instead.
             password: `${crypto.randomBytes(24).toString('hex')}Aa1!`,
             phone: user.phone,
             role: 'provider',
@@ -784,11 +809,15 @@ exports.becomeProvider = async (req, res) => {
             // verify the same inbox twice would strand the new account.
             isVerified: user.isVerified,
             provider: user.provider || 'local',
-            googleId: isSocial ? user.googleId : null,
+            // Copy the Google identity so passport's business-side googleId
+            // lookup hits this document and lands them in the business app.
+            googleId,
         });
-        // Both sides share one password, so the website can carry them across
-        // silently instead of asking them to sign in again.
-        if (!isSocial && withPassword?.password) {
+        // Copy the password whenever the source has one (a Google account that
+        // also set a local password keeps both), so the website can carry them
+        // across silently. A Google-only account has no password here — it signs
+        // in with Google, which now resolves to this document via googleId.
+        if (withPassword?.password) {
             await User.updateOne({ _id: business._id }, { $set: { password: withPassword.password } });
         }
 
@@ -832,6 +861,15 @@ exports.becomeProvider = async (req, res) => {
             },
         });
     } catch (error) {
+        // Two become-provider calls racing for the same email: the compound
+        // unique index catches what the findOne pre-check missed — report it as
+        // the same 400 rather than a bare 500.
+        if (error.code === 11000) {
+            return res.status(400).json({
+                success: false,
+                message: 'A business account with this email already exists — sign in to it on the business app instead.',
+            });
+        }
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
@@ -853,12 +891,25 @@ exports.changePassword = async (req, res) => {
         if (newPassword.length < 8 || !passwordRegex) {
             return res.status(400).json({ success: false, message: 'New password must be at least 8 characters and include an uppercase letter, a number and a special character' });
         }
+        // becomeProvider copies this account's password HASH onto the business
+        // twin so the website can carry them across. Nothing on this side ever
+        // re-touched that copy, so the old password kept opening the twin after
+        // a change here. bcrypt salts per hash, so a byte-identical hash on
+        // another document can ONLY be that clone — never a user who happened to
+        // pick the same password twice — which makes the match exact and safe.
+        const oldHash = user.password;
         user.password = newPassword;
         // Invalidate all existing sessions (access + refresh tokens carry tokenVersion),
         // so changing the password signs out other devices — same as a reset.
         user.tokenVersion = (user.tokenVersion || 0) + 1;
         user.refreshTokenJtis = []; // drop tracked refresh tokens too
         await user.save();
+        // save() has re-hashed, so user.password is the NEW hash — mirror it onto
+        // the cloned twin and revoke its sessions too.
+        await User.updateOne(
+            { email: user.email, _id: { $ne: user._id }, password: oldHash },
+            { $set: { password: user.password, refreshTokenJtis: [] }, $inc: { tokenVersion: 1 } },
+        );
         res.status(200).json({ success: true, message: 'Password updated successfully' });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
@@ -1156,12 +1207,16 @@ exports.resetPassword = async (req, res) => {
         const user = await User.findOne({
             passwordResetToken: hashedToken,
             passwordResetExpiry: { $gt: new Date() },
-        }).select('+passwordResetToken +passwordResetExpiry');
+        }).select('+password +passwordResetToken +passwordResetExpiry');
 
         if (!user) {
             return res.status(400).json({ success: false, message: 'Reset link is invalid or has expired' });
         }
 
+        // See changePassword: becomeProvider clones this hash onto the business
+        // twin, and only matching on the exact old hash (bcrypt salts per hash)
+        // reaches that clone without touching genuinely independent accounts.
+        const oldHash = user.password;
         user.password = password;
         user.passwordResetToken = null;
         user.passwordResetExpiry = null;
@@ -1169,6 +1224,12 @@ exports.resetPassword = async (req, res) => {
         user.tokenVersion = (user.tokenVersion || 0) + 1;
         user.refreshTokenJtis = []; // drop tracked refresh tokens too
         await user.save();
+        if (oldHash) {
+            await User.updateOne(
+                { email: user.email, _id: { $ne: user._id }, password: oldHash },
+                { $set: { password: user.password, refreshTokenJtis: [] }, $inc: { tokenVersion: 1 } },
+            );
+        }
 
         return res.status(200).json({ success: true, message: 'Password reset successfully. You can now sign in.' });
     } catch (error) {
