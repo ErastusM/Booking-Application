@@ -160,23 +160,27 @@ const Navbar = () => {
         color: '#fff',
     };
 
-    // Drawer rows share one left edge (1.2rem) so labels line up with the
-    // icon rows at the bottom of the drawer.
-    const mobileLink = (to, label) => (
-        <Link to={to} onClick={() => setMenuOpen(false)} style={{
-            color: isActive(to) ? 'var(--gold-dark)' : 'var(--text-primary)',
-            textDecoration: 'none', fontWeight: isActive(to) ? '600' : '500',
-            fontSize: '0.95rem', padding: '0.85rem 1.2rem',
-            borderBottom: '1px solid var(--border)', display: 'block',
-            background: isActive(to) ? 'rgba(240,62,22,0.07)' : 'transparent',
-            borderLeft: isActive(to) ? '3px solid var(--gold)' : '3px solid transparent',
-        }}>{label}</Link>
-    );
+    // Drawer rows: no per-row divider — sections are set apart by whitespace and
+    // the uppercase label below, so the list reads clean instead of a stack of
+    // hairlines. The active row carries a tinted fill + gold left accent.
+    const mobileLink = (to, label) => {
+        const active = isActive(to);
+        return (
+            <Link to={to} onClick={() => setMenuOpen(false)} style={{
+                color: active ? 'var(--gold-dark)' : 'var(--text-primary)',
+                textDecoration: 'none', fontWeight: active ? 700 : 500,
+                fontSize: '0.98rem', padding: '0.72rem 1.25rem', display: 'block',
+                background: active ? 'rgba(240,62,22,0.08)' : 'transparent',
+                borderLeft: `3px solid ${active ? 'var(--gold)' : 'transparent'}`,
+            }}>{label}</Link>
+        );
+    };
 
-    // Small uppercase divider so the drawer reads as grouped sections (Primary /
-    // More / Settings) instead of one long flat list.
+    // Section label — grouping comes from spacing + this muted caption, no rule
+    // line (a borderTop here plus each row's old borderBottom made the doubled
+    // dividers between groups).
     const drawerSection = (label) => (
-        <p style={{ margin: '0.9rem 0 0.1rem', padding: '0.4rem 1.2rem 0', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)', borderTop: '1px solid var(--border)' }}>{label}</p>
+        <p style={{ margin: '1.35rem 0 0.2rem', padding: '0 1.25rem', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.1em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{label}</p>
     );
 
     // Compact mobile bottom-nav tab. Active logic mirrors the desktop pills:
@@ -529,7 +533,7 @@ const Navbar = () => {
 
                         {/* Cross-app link lives at the foot of the list, not amongst product tabs */}
                         {user?.role === 'provider' && drawerSection('Other')}
-                        <a href={CUSTOMER_URL} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500', fontSize: '0.95rem', padding: '0.85rem 1.2rem', borderBottom: '1px solid var(--border)', borderLeft: '3px solid transparent', display: 'block' }}>Customer site</a>
+                        <a href={CUSTOMER_URL} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: 500, fontSize: '0.98rem', padding: '0.72rem 1.25rem', borderLeft: '3px solid transparent', display: 'block' }}>Customer site</a>
 
                         {/* Legal — reachable in-app for everyone, not only at signup */}
                         {drawerSection('Legal')}
@@ -540,7 +544,7 @@ const Navbar = () => {
                     {user && (
                         <button
                             onClick={() => { setMenuOpen(false); setShowSuggestion(true); }}
-                            style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', borderTop: '1px solid var(--border)', cursor: 'pointer', padding: '0.95rem 1.2rem', fontSize: '0.95rem', color: 'var(--text-primary)', fontFamily: 'var(--font-body)', fontWeight: '500', display: 'flex', alignItems: 'center', gap: '0.6rem' }}
+                            style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', borderTop: '1px solid var(--border)', marginTop: '0.6rem', cursor: 'pointer', padding: '0.85rem 1.25rem', fontSize: '0.95rem', color: 'var(--text-primary)', fontFamily: 'var(--font-body)', fontWeight: 500, display: 'flex', alignItems: 'center', gap: '0.6rem' }}
                         >
                             <svg width="16" height="16" fill="none" stroke="var(--text-muted)" strokeWidth="2" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M9 18h6M10 22h4M12 2a7 7 0 00-4 12.9c.6.5 1 1.3 1 2.1h6c0-.8.4-1.6 1-2.1A7 7 0 0012 2z"/></svg>
                             Suggest a feature
@@ -548,7 +552,7 @@ const Navbar = () => {
                     )}
 
                     {/* Dark mode toggle in drawer */}
-                    <div style={{ padding: '0.75rem 1.2rem', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ padding: '0.6rem 1.25rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                             <svg width="16" height="16" fill="none" stroke="var(--text-muted)" strokeWidth="2" viewBox="0 0 24 24">
                                 {darkMode
