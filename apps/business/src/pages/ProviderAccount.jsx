@@ -700,6 +700,22 @@ const ProviderAccount = () => {
                                         )}
                                     </div>
 
+                                    {/* Legal — the Terms & Privacy that govern your business account,
+                                        surfaced here so they're reachable in-app, not only at signup. */}
+                                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                                        <div style={{ padding: '1.5rem', display: 'flex', alignItems: 'center', gap: '1.25rem', flexWrap: 'wrap' }}>
+                                            <div style={{ fontSize: '1.6rem', flexShrink: 0 }}>📄</div>
+                                            <div style={{ flex: 1, minWidth: '160px' }}>
+                                                <h3 style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>Legal</h3>
+                                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>The Terms of Service and Privacy Policy for your business account.</p>
+                                            </div>
+                                            <div style={{ display: 'flex', gap: '1.25rem', flexShrink: 0 }}>
+                                                <Link to="/terms" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.85rem', textDecoration: 'none' }}>Terms of Service →</Link>
+                                                <Link to="/privacy-policy" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.85rem', textDecoration: 'none' }}>Privacy Policy →</Link>
+                                            </div>
+                                        </div>
+                                    </div>
+
                                     <AccountDangerZone />
                                 </div>
                             </div>
