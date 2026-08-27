@@ -27,6 +27,8 @@ const CompleteProfile = lazy(() => import('./pages/CompleteProfile'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const TermsOfService = lazy(() => import('./pages/TermsOfService'));
+const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 
 const RouteFallback = () => (
     <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -59,6 +61,10 @@ function AppRoutes() {
                     <Route path="/verify-email" element={<VerifyEmail />} />
                     <Route path="/forgot-password" element={<ForgotPassword />} />
                     <Route path="/reset-password" element={<ResetPassword />} />
+
+                    {/* Legal — provider-facing copies, hosted in the business app */}
+                    <Route path="/terms" element={<TermsOfService />} />
+                    <Route path="/privacy-policy" element={<PrivacyPolicy />} />
 
                     {/* Provider suite — staff joins in Epic 2.4 with a scoped view */}
                     <Route path="/dashboard" element={
