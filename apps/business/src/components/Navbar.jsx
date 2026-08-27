@@ -88,6 +88,12 @@ const Navbar = () => {
         { to: '/dashboard?tab=wallet', label: 'Wallet' },
         { to: '/dashboard?tab=forms', label: 'Forms' },
     ];
+    // The legal pages are otherwise only reachable at signup or by direct URL —
+    // surface them in the account menu so they're findable once signed in.
+    const LEGAL_LINKS = [
+        { to: '/terms', label: 'Terms of Service' },
+        { to: '/privacy-policy', label: 'Privacy Policy' },
+    ];
 
     const isHome = location.pathname === '/';
     // The transparent navbar uses white text/icons, which only reads on a DARK hero.
@@ -320,6 +326,16 @@ const Navbar = () => {
                                                     <div style={{ borderTop: '1px solid var(--border)', margin: '0.35rem 0' }} />
                                                 </>
                                             )}
+                                            {/* Legal — findable in-app, not only at signup. Shown for every
+                                                signed-in user, staff included. */}
+                                            <p style={{ margin: '0.35rem 0 0.15rem', padding: '0 0.85rem', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Legal</p>
+                                            {LEGAL_LINKS.map(l => (
+                                                <Link key={l.to} to={l.to} onClick={() => setProfileOpen(false)} style={{ display: 'block', padding: '0.55rem 0.85rem', borderRadius: '10px', textDecoration: 'none', color: 'var(--charcoal)', fontSize: '0.88rem', fontWeight: 600 }}
+                                                    onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
+                                                    onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
+                                                >{l.label}</Link>
+                                            ))}
+                                            <div style={{ borderTop: '1px solid var(--border)', margin: '0.35rem 0' }} />
                                             {/* Account switcher — customer site as a second workspace,
                                                 or an invitation to set one up (Fresha-style). Replaces the
                                                 old dumb "Go to customer site" link, which opened www even
@@ -514,6 +530,10 @@ const Navbar = () => {
                         {/* Cross-app link lives at the foot of the list, not amongst product tabs */}
                         {user?.role === 'provider' && drawerSection('Other')}
                         <a href={CUSTOMER_URL} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: '500', fontSize: '0.95rem', padding: '0.85rem 1.2rem', borderBottom: '1px solid var(--border)', borderLeft: '3px solid transparent', display: 'block' }}>Customer site</a>
+
+                        {/* Legal — reachable in-app for everyone, not only at signup */}
+                        {drawerSection('Legal')}
+                        {LEGAL_LINKS.map(l => <React.Fragment key={l.to}>{mobileLink(l.to, l.label)}</React.Fragment>)}
                     </div>
 
                     {/* Suggest a feature — pinned to the bottom, above the toggle */}
