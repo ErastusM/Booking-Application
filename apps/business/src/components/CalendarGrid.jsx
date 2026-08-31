@@ -546,13 +546,13 @@ const CalendarGrid = ({
                                                 // iOS it also raises the copy/look-up callout. Both steal the gesture,
                                                 // so the card ends up highlighting words instead of being picked up.
                                                 userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',
-                                                display: 'flex', flexDirection: 'column', lineHeight: 1.15,
+                                                display: 'flex', flexDirection: 'column', lineHeight: 1.12,
                                                 background: pal.bg, border: '1px solid var(--border)',
                                                 borderLeft: `3px ${dim ? 'dashed' : 'solid'} ${pal.rail}`,
                                                 borderStyle: dstate.blocked || dstate.displacing ? 'dashed' : 'solid',
                                                 borderLeftStyle: dstate.blocked ? 'dashed' : dim ? 'dashed' : 'solid',
                                                 borderRadius: '8px',
-                                                padding: '0.28rem 0.42rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)',
+                                                padding: h >= 44 ? '0.28rem 0.42rem' : '0.1rem 0.42rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)',
                                                 // Finished work recedes; the staff hue stays so you can still read
                                                 // whose booking it was. saturate() keeps the fade from turning the
                                                 // rail muddy — it reads as "settled", not "broken".
@@ -575,22 +575,30 @@ const CalendarGrid = ({
                                                     style={{ position: 'absolute', bottom: '2px', right: '5px', fontSize: '0.66rem', fontWeight: 700, opacity: 0.75, lineHeight: 1 }}
                                                 >{st.mark}</span>
                                             )}
-                                            {h >= 60 && (
+                                            {/* Rows are height-gated like the day view (StaffLanesDay), so a
+                                                short card shows just the client's name cleanly instead of
+                                                stacking name + service into ~22px and clipping both. The name
+                                                is the headline and always renders; the time and service fill
+                                                in as the card gets taller. Thresholds mirror the day view's
+                                                minute cut-offs at this grid's 76px/hour. */}
+                                            {h >= 48 && (
                                                 <div style={{ fontSize: '0.58rem', fontWeight: 600, opacity: 0.8, fontVariantNumeric: 'tabular-nums' }}>
                                                     {f12(ev.startMin)} – {f12(ev.endMin)}
                                                 </div>
                                             )}
-                                            {/* Client name is the headline; the staff-lanes e2e asserts
-                                                .fc-event-appt-client is visible on the day/3-day grid. */}
                                             <div style={{ fontSize: '0.74rem', fontWeight: 600, paddingRight: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                 <span className="fc-event-appt-client">{ev.client}</span>
                                             </div>
-                                            {/* Service · staff underneath — staff kept as a visible, real element
-                                                (the staff-lanes e2e asserts .fc-event-appt-staff is visible). */}
-                                            <div style={{ fontSize: '0.63rem', opacity: 0.85, marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                                {ev.service}
-                                                {ev.staffName && staffFilter === 'all' && <> · <span className="fc-event-appt-staff">{ev.staffName}</span></>}
-                                            </div>
+                                            {/* Service · staff — gated so it never crowds a short card. The
+                                                staff-lanes e2e asserts .fc-event-appt-staff is visible; its
+                                                seeded booking is 60 min (h≈76 ≥ 56), so the staff name still
+                                                shows there. */}
+                                            {h >= 56 && (
+                                                <div style={{ fontSize: '0.63rem', opacity: 0.85, marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                                    {ev.service}
+                                                    {ev.staffName && staffFilter === 'all' && <> · <span className="fc-event-appt-staff">{ev.staffName}</span></>}
+                                                </div>
+                                            )}
                                             {/* Bottom edge grabs to change the length. Same press-and-hold
                                                 as a move — the handler reads data-grip to pick the mode. */}
                                             {canDrag && h >= 44 && (

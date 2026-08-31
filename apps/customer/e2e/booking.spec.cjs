@@ -18,10 +18,14 @@ test.describe('Customer booking', () => {
         // 1) Service
         await page.getByTestId('booking-service').first().click();
 
-        // 2) Date — the SECOND selectable day (tomorrow). The first is today,
-        //    whose remaining slots may all be in the past when the suite runs
-        //    late in the day; tomorrow always has the full seeded 08:00–18:00.
-        await page.locator('[data-testid="booking-date"]:not([disabled])').nth(1).click();
+        // 2) Date — advance one month and take the first selectable day. The
+        //    provider works every day, so the next month's day 1 is always a full
+        //    seeded 08:00–18:00 (never today, whose slots may be in the past; never
+        //    in the past). Picking within the current month broke on a month
+        //    boundary — e.g. on the 31st, "tomorrow" lives in the next month view
+        //    and the current view has only today enabled, so nth(1) never appeared.
+        await page.getByRole('button', { name: 'Next month' }).click();
+        await page.locator('[data-testid="booking-date"]:not([disabled])').first().click();
 
         // 3) Time — first available (non-booked) slot
         await page.getByTestId('booking-time').first().click();

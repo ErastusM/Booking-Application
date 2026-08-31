@@ -1,13 +1,14 @@
 // Pure helpers for the booking time-slot list.
 //
-// Rule: appointments start ON THE HOUR — a fixed 1-hour grid (:00) — for EVERY
-// booking surface, including the provider's manual walk-in / book-a-client flow
-// and reschedule (matches the customer app). The service duration still sets how
-// long the booking BLOCKS the calendar; it just no longer sub-divides the start
-// grid. A start is offered only when the whole service fits inside the working
-// block, it isn't in the past, and it doesn't overlap an existing booking —
-// so the day fills up with no overlaps. A genuinely-bookable hour
-// that is fully taken keeps a single greyed pill so the waitlist still works.
+// Rule: start times are spaced by the SERVICE LENGTH, anchored at each hour —
+// a 15-min service is bookable at :00/:15/:30/:45, a 30-min at :00/:30, a 60-min
+// hourly — for EVERY booking surface, including the provider's manual walk-in /
+// book-a-client flow and reschedule (matches the customer app). A start is
+// offered only when the whole service fits inside the working block, it isn't in
+// the past, and it doesn't overlap an existing booking, so the day fills at the
+// service's own size (booking one 15-min slot no longer swallows the whole hour).
+// A genuinely-bookable hour that is fully taken keeps a single greyed pill so the
+// waitlist still works.
 //
 // All times are in minutes-from-midnight.
 
@@ -27,7 +28,12 @@ export const fmtMinutes = (mins) =>
  */
 export const buildTimeSlots = ({ blocks, bookedRanges = [], duration, minStart = -1 }) => {
     const slots = [];
-    const step = 60; // appointments start on the hour — a fixed 1-hour grid
+    // Start grid = the service length, anchored at each hour (:00, :00+d, :00+2d…).
+    // A 15-min service is bookable at :00/:15/:30/:45, a 30-min at :00/:30, a
+    // 60-min hourly — so short services fill the day at their own size instead of
+    // one booking swallowing the whole hour. Floored so a missing/zero duration
+    // can't spin the loop.
+    const step = Math.max(5, duration || 60);
 
     blocks.forEach((block) => {
         // A start is usable when it's inside the block, the whole service fits,
