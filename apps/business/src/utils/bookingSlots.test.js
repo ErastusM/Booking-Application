@@ -49,6 +49,39 @@ describe('buildTimeSlots — leftover after a booking', () => {
     });
 });
 
+describe('buildTimeSlots — a booking refines its own hour (any duration)', () => {
+    it('15-min service: a 09:00–09:15 booking exposes 09:15, then hourly', () => {
+        const slots = free(buildTimeSlots({
+            blocks: [{ start: H(9), end: H(17) }],
+            bookedRanges: [{ start: H(9), end: H(9, 15) }],
+            duration: 15,
+        }));
+        expect(slots.slice(0, 3)).toEqual(['09:15', '10:00', '11:00']);
+        expect(slots).not.toContain('09:30'); // no invented mid-hour offsets
+        expect(slots).not.toContain('09:45');
+    });
+
+    it('20-min booking, 15-min service: start comes from the real boundary (09:20)', () => {
+        const slots = free(buildTimeSlots({
+            blocks: [{ start: H(9), end: H(17) }],
+            bookedRanges: [{ start: H(9), end: H(9, 20) }],
+            duration: 15,
+        }));
+        expect(slots.slice(0, 2)).toEqual(['09:20', '10:00']);
+    });
+
+    it('a leftover too small for the service is not offered', () => {
+        // 09:00–09:45 booked leaves 15 min; a 30-min service cannot use it.
+        const slots = free(buildTimeSlots({
+            blocks: [{ start: H(9), end: H(17) }],
+            bookedRanges: [{ start: H(9), end: H(9, 45) }],
+            duration: 30,
+        }));
+        expect(slots).not.toContain('09:45');
+        expect(slots[0]).toBe('10:00');
+    });
+});
+
 describe('buildTimeSlots — waitlist pill', () => {
     it('a genuinely-bookable hour that is fully taken keeps one greyed pill', () => {
         const slots = buildTimeSlots({
