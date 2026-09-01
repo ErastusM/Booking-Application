@@ -243,6 +243,8 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         // Move every upcoming booking from one member to another (owner action).
         handoverBookings: (id: string, to: string) => API.post(`/team/${id}/handover`, { to }),
         setMemberServices: (id: string, services: string[]) => API.put(`/team/${id}/services`, { services }),
+        // Per-member price/duration overrides: [{ service, price?, duration? }].
+        setMemberPricing: (id: string, serviceOverrides: any[]) => API.put(`/team/${id}/pricing`, { serviceOverrides }),
         getMemberAvailability: (id: string) => API.get(`/team/${id}/availability`),
         updateMemberAvailability: (id: string, schedule: any) => API.put(`/team/${id}/availability`, { schedule }),
     },
@@ -260,6 +262,7 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
     myServicesService: {
         get: () => API.get('/team/mine/services'),
         set: (services: string[]) => API.put('/team/mine/services', { services }),
+        setPricing: (serviceOverrides: any[]) => API.put('/team/mine/pricing', { serviceOverrides }),
     },
 
     suggestionService: {

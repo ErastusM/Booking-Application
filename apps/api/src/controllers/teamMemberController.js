@@ -726,6 +726,57 @@ exports.inviteTeamMember = async (req, res) => {
 };
 
 /**
+ * Validate a serviceOverrides payload and normalise it into rows. A row that
+ * overrides neither price nor duration is dropped (= pure inherit). Every service
+ * must belong to `providerId`. Returns { rows } or { error }.
+ */
+const buildServiceOverrides = async (overrides, providerId) => {
+    if (!Array.isArray(overrides)) return { error: 'serviceOverrides must be an array' };
+    const rows = [];
+    for (const o of overrides) {
+        if (!o || !o.service) continue;
+        const price = (o.price === '' || o.price == null) ? null : Number(o.price);
+        const duration = (o.duration === '' || o.duration == null) ? null : Number(o.duration);
+        if (price != null && (!Number.isFinite(price) || price < 0)) {
+            return { error: 'price must be a non-negative number' };
+        }
+        if (duration != null && (!Number.isFinite(duration) || duration <= 0)) {
+            return { error: 'duration must be a positive number of minutes' };
+        }
+        if (price == null && duration == null) continue; // overrides nothing
+        rows.push({ service: o.service, price, duration });
+    }
+    if (rows.length) {
+        const ids = rows.map(r => r.service);
+        const owned = await Service.countDocuments({ _id: { $in: ids }, provider: providerId });
+        if (owned !== new Set(ids.map(String)).size) {
+            return { error: 'All services must belong to your business' };
+        }
+    }
+    return { rows };
+};
+
+/**
+ * PUT /api/team/:id/pricing  (provider/admin)
+ * Body: { serviceOverrides: [{ service, price?, duration? }] }
+ * Sets a member's own price/duration per service. A null/blank field inherits
+ * the business's Service value; a row overriding nothing is dropped.
+ */
+exports.setTeamMemberPricing = async (req, res) => {
+    try {
+        const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
+        const { rows, error } = await buildServiceOverrides(req.body.serviceOverrides, req.user._id);
+        if (error) return res.status(400).json({ success: false, message: error });
+        member.serviceOverrides = rows;
+        await member.save();
+        res.status(200).json({ success: true, data: member });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
  * PUT /api/team/:id/services  (provider/admin)
  * Body: { services: [serviceId] } — [] means "performs all business services".
  * Every id must be one of the owner's own services.
@@ -772,10 +823,14 @@ exports.getMyServices = async (req, res) => {
         const member = await myMemberDoc(req);
         if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
         const services = await Service.find({ provider: req.user.staffOf, isActive: { $ne: false } })
-            .select('name').sort({ name: 1 });
+            .select('name price duration').sort({ name: 1 });
         res.status(200).json({
             success: true,
-            data: { selected: (member.services || []).map(String), services },
+            data: {
+                selected: (member.services || []).map(String),
+                services,
+                overrides: member.serviceOverrides || [],
+            },
         });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
@@ -804,6 +859,25 @@ exports.setMyServices = async (req, res) => {
         }
 
         member.services = services;
+        await member.save();
+        res.status(200).json({ success: true, data: member });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * PUT /api/team/mine/pricing  (staff-self)
+ * Body: { serviceOverrides: [{ service, price?, duration? }] }
+ * A member sets their OWN price/duration per service (full autonomy).
+ */
+exports.setMyPricing = async (req, res) => {
+    try {
+        const member = await myMemberDoc(req);
+        if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
+        const { rows, error } = await buildServiceOverrides(req.body.serviceOverrides, req.user.staffOf);
+        if (error) return res.status(400).json({ success: false, message: error });
+        member.serviceOverrides = rows;
         await member.save();
         res.status(200).json({ success: true, data: member });
     } catch (error) {

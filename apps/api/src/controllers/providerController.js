@@ -26,7 +26,7 @@ exports.getProviderStaff = async (req, res) => {
             query.$or = [{ services: { $size: 0 } }, { services: req.query.serviceId }];
         }
         const staff = await TeamMember.find(query)
-            .select('name role color services') // public: no email/phone/user
+            .select('name role color services serviceOverrides photoUrl') // public: no email/phone/user
             .sort({ createdAt: 1 });
         res.status(200).json({ success: true, data: staff });
     } catch (error) {

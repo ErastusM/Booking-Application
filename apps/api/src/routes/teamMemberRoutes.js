@@ -4,10 +4,10 @@ const { auth, authorize } = require('../middleware/auth');
 const {
     getMyTeam, addTeamMember, updateTeamMember, deleteTeamMember, restoreTeamMember, setTeamMemberPermissions, getTeamMemberStats,
     getTeamMemberShifts, setTeamMemberShift, clearTeamMemberShift,
-    inviteTeamMember, setTeamMemberServices,
+    inviteTeamMember, setTeamMemberServices, setTeamMemberPricing,
     handoverUpcomingBookings,
     getTeamMemberAvailability, updateTeamMemberAvailability,
-    getMyServices, setMyServices,
+    getMyServices, setMyServices, setMyPricing,
 } = require('../controllers/teamMemberController');
 const {
     listTimeOff, createTimeOff, decideTimeOff, deleteTimeOff,
@@ -23,6 +23,7 @@ router.put('/:id/availability', auth, updateTeamMemberAvailability);
 // from the token rather than being read as a member id.
 router.get('/mine/services', auth, getMyServices);
 router.put('/mine/services', auth, setMyServices);
+router.put('/mine/pricing', auth, setMyPricing);
 
 router.use(auth, authorize('provider', 'admin'));
 
@@ -46,6 +47,7 @@ router.post('/:id/invite', inviteTeamMember);
 // Move a member's upcoming bookings to a colleague (conflicts skipped + reported).
 router.post('/:id/handover', handoverUpcomingBookings);
 router.put('/:id/services', setTeamMemberServices);
+router.put('/:id/pricing', setTeamMemberPricing);
 
 // Time off — a multi-day leave range for a member. Owner-managed here (create is
 // approved on the spot); the owner also approves/declines a staff request via
