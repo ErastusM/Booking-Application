@@ -43,7 +43,7 @@ exports.getMyBlockedTimes = async (req, res) => {
 
 exports.createBlockedTime = async (req, res) => {
     try {
-        const { date, startTime, endTime, reason, isRecurring, recurrenceType, recurrenceEndDate, teamMember } = req.body;
+        const { date, startTime, endTime, reason, isRecurring, recurrenceType, recurrenceEndDate, teamMember, ownerOnly } = req.body;
 
         if (!date || !startTime || !endTime) {
             return res.status(400).json({ success: false, message: 'date, startTime and endTime are required' });
@@ -52,7 +52,8 @@ exports.createBlockedTime = async (req, res) => {
             return res.status(400).json({ success: false, message: 'endTime must be after startTime' });
         }
 
-        // Optional staff scope (null/absent = business-wide, today's behavior).
+        // Scope: a specific staff member, the owner alone (ownerOnly), or — only
+        // when neither is set — business-wide. A member id wins over ownerOnly.
         // The member must belong to this provider.
         let teamMemberId = null;
         if (teamMember) {
@@ -63,6 +64,7 @@ exports.createBlockedTime = async (req, res) => {
             }
             teamMemberId = member._id;
         }
+        const ownerScoped = !teamMemberId && !!ownerOnly;
 
         if (isRecurring && recurrenceType) {
             const groupId = randomUUID();
@@ -70,6 +72,7 @@ exports.createBlockedTime = async (req, res) => {
             const docs = occurrences.map(d => ({
                 provider: req.user._id,
                 teamMember: teamMemberId,
+                ownerOnly: ownerScoped,
                 date: d,
                 startTime,
                 endTime,
@@ -86,6 +89,7 @@ exports.createBlockedTime = async (req, res) => {
         const blocked = await BlockedTime.create({
             provider: req.user._id,
             teamMember: teamMemberId,
+            ownerOnly: ownerScoped,
             date,
             startTime,
             endTime,

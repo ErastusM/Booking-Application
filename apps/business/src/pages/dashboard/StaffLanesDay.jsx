@@ -197,11 +197,14 @@ const StaffLanesDay = ({
         });
         dayBlocks.forEach((b) => {
             const tmId = String(b.teamMember?._id || b.teamMember || '');
+            const ownerOnly = !tmId && !!b.ownerOnly;
+            const wholeBusiness = !tmId && !b.ownerOnly;
             const startMin = minutesOf(b.startTime);
             const endMin = Math.max(minutesOf(b.endTime), startMin + 15);
-            const entry = { raw: b, startMin, endMin, wholeBusiness: !tmId };
-            if (!tmId) lanes.forEach((l) => buckets[l.id].blocks.push(entry));
-            else if (buckets[tmId]) buckets[tmId].blocks.push(entry);
+            const entry = { raw: b, startMin, endMin, wholeBusiness };
+            if (tmId) { if (buckets[tmId]) buckets[tmId].blocks.push(entry); }
+            else if (ownerOnly) { if (buckets['unassigned']) buckets['unassigned'].blocks.push(entry); } // owner's own lane
+            else lanes.forEach((l) => buckets[l.id].blocks.push(entry)); // business-wide → every lane
         });
         Object.values(buckets).forEach((bucket) => { bucket.appts = layoutLane(bucket.appts); });
         return buckets;

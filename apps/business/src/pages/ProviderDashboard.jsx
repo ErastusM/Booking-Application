@@ -149,7 +149,7 @@ const ProviderDashboard = () => {
     const [blockedTimes, setBlockedTimes] = useState([]);
     const [showBlockedTimeForm, setShowBlockedTimeForm] = useState(false);
     const [editingBlockedTime, setEditingBlockedTime] = useState(null);
-    const [blockedTimeForm, setBlockedTimeForm] = useState({ blockType: 'Custom', title: '', date: '', startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', customDays: [], teamMember: '' });
+    const [blockedTimeForm, setBlockedTimeForm] = useState({ blockType: 'Custom', title: '', date: '', startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', customDays: [], teamMember: 'owner' });
     const [savingBlockedTime, setSavingBlockedTime] = useState(false);
     const [recurringActionModal, setRecurringActionModal] = useState(null);
     const [timeSelectionPreview, setTimeSelectionPreview] = useState(null);
@@ -385,11 +385,13 @@ const ProviderDashboard = () => {
                 isRecurring: item.isRecurring,
                 recurrenceType: item.recurrenceType || 'weekly',
                 recurrenceEndDate: item.recurrenceEndDate || '',
-                teamMember: String(item.teamMember?._id || item.teamMember || ''),
+                teamMember: String(item.teamMember?._id || item.teamMember || (item.ownerOnly ? 'owner' : '')),
             });
         } else {
             setEditingBlockedTime(null);
-            setBlockedTimeForm({ blockType: 'Custom', title: '', date: new Date().toISOString().split('T')[0], startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', teamMember: '' });
+            // Default new blocks to the owner alone, so a personal block never
+            // fans out onto the whole team — business-wide is a deliberate choice.
+            setBlockedTimeForm({ blockType: 'Custom', title: '', date: new Date().toISOString().split('T')[0], startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', teamMember: 'owner' });
         }
         setShowBlockedTimeForm(true);
     };
@@ -411,6 +413,11 @@ const ProviderDashboard = () => {
 
     const saveBlockedTime = async (mode) => {
         setSavingBlockedTime(true);
+        // Scope: 'owner' → the owner alone (ownerOnly), '' → business-wide,
+        // an id → that member. Split into the two fields the API expects.
+        const scopeVal = blockedTimeForm.teamMember;
+        const scopeTeamMember = (scopeVal && scopeVal !== 'owner') ? scopeVal : undefined;
+        const scopeOwnerOnly = scopeVal === 'owner';
         // Optimistic update: close the panel and show the block immediately
         const optimisticEntry = {
             _id: 'tmp_' + Date.now(),
@@ -420,7 +427,8 @@ const ProviderDashboard = () => {
             endTime: blockedTimeForm.endTime,
             reason: blockedTimeForm.reason || blockedTimeForm.title || '',
             isRecurring: false,
-            teamMember: blockedTimeForm.teamMember || null,
+            teamMember: scopeTeamMember || null,
+            ownerOnly: scopeOwnerOnly,
         };
         if (!editingBlockedTime) {
             setBlockedTimes(prev => [...prev, optimisticEntry]);
@@ -464,7 +472,8 @@ const ProviderDashboard = () => {
                             endTime: blockedTimeForm.endTime,
                             reason: blockedTimeForm.reason || blockedTimeForm.title || '',
                             isRecurring: false,
-                            teamMember: blockedTimeForm.teamMember || undefined,
+                            teamMember: scopeTeamMember,
+                            ownerOnly: scopeOwnerOnly,
                         });
                         created += 1;
                     } catch (err) {
@@ -484,7 +493,8 @@ const ProviderDashboard = () => {
                     isRecurring: blockedTimeForm.isRecurring,
                     recurrenceType: blockedTimeForm.isRecurring ? blockedTimeForm.recurrenceType : undefined,
                     recurrenceEndDate: blockedTimeForm.recurrenceEndDate || undefined,
-                    teamMember: blockedTimeForm.teamMember || undefined,
+                    teamMember: scopeTeamMember,
+                    ownerOnly: scopeOwnerOnly,
                 };
                 await blockedTimeService.createBlockedTime(payload);
             }
@@ -3471,8 +3481,10 @@ const ProviderDashboard = () => {
                                             // Blocked time is a hard stop too — it was being ignored entirely before.
                                             ...(blockedTimes || []).filter(b => {
                                                 if (toDateString(b.date) !== apptForm.date) return false;
-                                                const tm = b.teamMember?._id || b.teamMember || '';
-                                                return !tm || String(tm) === selectedLane; // whole-business blocks hit every lane
+                                                const tm = String(b.teamMember?._id || b.teamMember || '');
+                                                if (tm) return tm === selectedLane;        // member block → that lane
+                                                if (b.ownerOnly) return selectedLane === ''; // owner-only → owner (unassigned) lane
+                                                return true;                                 // business-wide → every lane
                                             }).map(b => ({ start: toMinutes(b.startTime), end: toMinutes(b.endTime) })),
                                         ];
                                         let minStart = -1;
@@ -3621,28 +3633,34 @@ const ProviderDashboard = () => {
                                         onChange={e => setBlockedTimeForm(p => ({ ...p, teamMember: e.target.value }))}
                                         style={{ width: '100%', boxSizing: 'border-box' }}
                                     >
+                                        <option value="owner">Only me{user?.name ? ` (${user.name.split(' ')[0]})` : ' (owner)'}</option>
                                         <option value="">Whole business (everyone)</option>
                                         {activeTeamMembers.map(m => <option key={m._id} value={m._id}>{m.name}{m.role ? ` · ${m.role}` : ''} only</option>)}
-                                        {blockedTimeForm.teamMember && !activeTeamMembers.some(m => String(m._id) === String(blockedTimeForm.teamMember)) && (
+                                        {blockedTimeForm.teamMember && blockedTimeForm.teamMember !== 'owner' && !activeTeamMembers.some(m => String(m._id) === String(blockedTimeForm.teamMember)) && (
                                             <option value={blockedTimeForm.teamMember}>
                                                 {teamMembers.find(m => String(m._id) === String(blockedTimeForm.teamMember))?.name || 'Staff member'} · inactive
                                             </option>
                                         )}
                                     </select>
-                                ) : (
+                                ) : (() => {
+                                    const scope = blockedTimeForm.teamMember;
+                                    const isMemberScope = scope && scope !== 'owner';
+                                    const label = isMemberScope
+                                        ? `${teamMembers.find(m => String(m._id) === scope)?.name || 'Staff member'} only`
+                                        : scope === 'owner'
+                                            ? `Only me${user?.name ? ` (${user.name.split(' ')[0]})` : ''}`
+                                            : (activeTeamMembers.length > 0 ? 'Whole business (everyone)' : (user?.name || 'Only me'));
+                                    return (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem 0.875rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--warm-gray)' }}>
-                                        <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: user?.avatar && !blockedTimeForm.teamMember ? 'transparent' : 'var(--ink)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                            {user?.avatar && !blockedTimeForm.teamMember
+                                        <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: user?.avatar && !isMemberScope ? 'transparent' : 'var(--ink)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                            {user?.avatar && !isMemberScope
                                                 ? <img src={cloudinaryAvatar(user.avatar)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                : <span style={{ color: 'var(--gold)', fontWeight: '600', fontSize: '0.8rem' }}>{(blockedTimeForm.teamMember ? teamMembers.find(m => String(m._id) === blockedTimeForm.teamMember)?.name : user?.name)?.[0] || '?'}</span>}
+                                                : <span style={{ color: 'var(--gold)', fontWeight: '600', fontSize: '0.8rem' }}>{(isMemberScope ? teamMembers.find(m => String(m._id) === scope)?.name : user?.name)?.[0] || '?'}</span>}
                                         </div>
-                                        <span style={{ fontSize: '0.875rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)', fontWeight: '500' }}>
-                                            {blockedTimeForm.teamMember
-                                                ? `${teamMembers.find(m => String(m._id) === blockedTimeForm.teamMember)?.name || 'Staff member'} only`
-                                                : (activeTeamMembers.length > 0 ? 'Whole business (everyone)' : user?.name)}
-                                        </span>
+                                        <span style={{ fontSize: '0.875rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)', fontWeight: '500' }}>{label}</span>
                                     </div>
-                                )}
+                                    );
+                                })()}
                             </div>
 
                             {/* Frequency */}
