@@ -1,18 +1,18 @@
 // Pure helpers for the booking time-slot list.
 //
-// Rule: full 1-hour blocks are the anchor. By default only hourly starts are
-// offered (:00), regardless of the service length — a completely free 5:00–6:00
-// shows 5:00, not 5:30. A partial-hour start appears only when a booking (or the
-// shift start) leaves leftover minutes AND the chosen service ends exactly on the
-// next hour, so it consumes that leftover and re-aligns to the grid:
-//   4:00–4:30 booked, 4:30–5:00 free, 5:00–6:00 free
-//     30-min service → 4:30 (ends 5:00) and 5:00
-//     1-hour service → 5:00 only (4:30 would end 5:30, off the hour)
-//     1h30 service   → 4:30 (4:30–6:00) and 5:00
-// A partial start never shifts a whole-hour booking off the hour. Starts must fit
-// continuously inside the working block, not be in the past, and not overlap a
-// booking. A genuinely-bookable hour that is fully taken keeps a single greyed
-// pill so the waitlist still works.
+// Rule: full 1-hour blocks are the anchor — a completely free hour offers only its
+// :00 (a free 5:00–6:00 shows 5:00, not 5:30), whatever the service length. A
+// partial-hour start is created ONLY by a real boundary — the shift start or a
+// booking's END — never an arbitrary mid-hour offset just because a short service
+// could fit. A boundary is offered when the service fits there AND either it stays
+// inside the leftover up to the next hour, or it ends exactly on an hour — so
+// leftover minutes get used without a whole-hour booking sliding off the hour:
+//   booking 9:00–9:15, 15-min service → 9:15 (fills the 9:15–10:00 leftover)
+//   booking 4:00–4:30: 30-min → 4:30 (ends 5:00); 60-min → none (would end 5:30);
+//                      1h30 → 4:30 (4:30–6:00)
+// Starts must fit inside the working block, not be in the past, and not overlap a
+// booking. A genuinely-bookable hour that is fully taken keeps a single greyed pill
+// so the waitlist still works.
 //
 // All times are in minutes-from-midnight.
 
@@ -51,14 +51,17 @@ export const buildTimeSlots = ({ blocks, bookedRanges = [], duration, minStart =
         const usable = (start) =>
             start >= block.start && start + dur <= block.end && start >= minStart;
 
-        // Partial-hour starts: the shift start and every busy-range end, but only
-        // when the service starting there ends exactly on an hour. That is what
-        // keeps a partial from shifting a whole-hour booking off the hour: a 1-hour
-        // service ending mid-hour is rejected; a 30-min or 1h30 that lands on the
-        // hour is kept.
+        // Partial-hour starts come from real boundaries only — the shift start and
+        // every busy-range END. A boundary is kept when the service either fits
+        // inside the leftover up to the next hour (a 15-min service in a 9:15–10:00
+        // gap), or ends exactly on an hour (a 1h30 that runs 4:30–6:00). A whole-
+        // hour service that would end mid-hour (4:30 → 5:30) is dropped, so it stays
+        // on the hour. No arbitrary mid-hour offsets are invented.
         const partialStarts = new Set();
         const consider = (t) => {
-            if (t % 60 !== 0 && (t + dur) % 60 === 0) partialStarts.add(t);
+            if (t % 60 === 0) return;
+            const gapEnd = (Math.floor(t / 60) + 1) * 60; // next hour boundary after t
+            if (t + dur <= gapEnd || (t + dur) % 60 === 0) partialStarts.add(t);
         };
         consider(block.start);
         bookedRanges.forEach((b) => consider(b.end));
