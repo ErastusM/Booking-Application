@@ -72,7 +72,7 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
     const [availabilities, members, blocked, appts] = await Promise.all([
         Availability.find({ provider: { $in: candidateIds } }).select('provider schedule'),
         TeamMember.find({ provider: { $in: candidateIds }, isActive: true }).select('provider'),
-        BlockedTime.find({ provider: { $in: candidateIds }, date }).select('provider teamMember startTime endTime'),
+        BlockedTime.find({ provider: { $in: candidateIds }, date }).select('provider teamMember ownerOnly startTime endTime'),
         Appointment.find({
             provider: { $in: candidateIds },
             appointmentDate: { $gte: dayStart, $lte: dayEnd },
@@ -116,7 +116,12 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
             blocked.forEach(b => {
                 if (b.provider.toString() !== pid) return;
                 const scope = b.teamMember ? b.teamMember.toString() : null;
-                if (scope === null || scope === memberId) busy.push({ start: toMin(b.startTime), end: toMin(b.endTime) });
+                // Owner-only blocks (null scope + ownerOnly) apply only to the owner
+                // column (memberId === null); business-wide blocks apply to all.
+                const applies = scope === memberId
+                    || (scope === null && !b.ownerOnly)
+                    || (scope === null && b.ownerOnly && memberId === null);
+                if (applies) busy.push({ start: toMin(b.startTime), end: toMin(b.endTime) });
             });
             return {
                 blocks: ownSchedule ? blocksFor(ownSchedule, date) : businessBlocks,

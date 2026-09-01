@@ -158,3 +158,28 @@ describe('fallbacks stay exactly as before', () => {
         expect((await bookAny({ customer, svc }, '18:00', '18:30')).status).toBe(201);
     });
 });
+
+describe('owner-only blocked time never touches a team member', () => {
+    const memberSlots = (ctx, member) => request(app)
+        .get(`/api/appointments/booked-slots?providerId=${ctx.provider._id}&date=${DATE}&teamMember=${member._id}`)
+        .then((res) => res.body.data);
+    const bookMember = (ctx, member, startTime, endTime) => request(app)
+        .post('/api/appointments').set(authHeader(ctx.customer))
+        .send({ service: ctx.svc._id.toString(), appointmentDate: DATE, startTime, endTime, teamMember: member._id.toString() });
+
+    it("an owner-only block stays off a member's slots and the member remains bookable", async () => {
+        const ctx = await setup();
+        await BlockedTime.create({ provider: ctx.provider._id, teamMember: null, ownerOnly: true, date: DATE, startTime: '10:00', endTime: '11:00' });
+        const data = await memberSlots(ctx, ctx.alice);
+        expect(busyAt(data, ['blocked'], mins('10:00'), mins('11:00'))).toBe(false);
+        expect((await bookMember(ctx, ctx.alice, '10:00', '10:30')).status).toBe(201);
+    });
+
+    it('a business-wide block (no ownerOnly) still closes the window for a member', async () => {
+        const ctx = await setup();
+        await BlockedTime.create({ provider: ctx.provider._id, teamMember: null, date: DATE, startTime: '10:00', endTime: '11:00' });
+        const data = await memberSlots(ctx, ctx.alice);
+        expect(busyAt(data, ['blocked'], mins('10:00'), mins('11:00'))).toBe(true);
+        expect((await bookMember(ctx, ctx.alice, '10:00', '10:30')).status).toBe(400);
+    });
+});

@@ -243,7 +243,9 @@ async function isMemberFree({ providerId, member, date, startTime, endTime, svc,
         const blocks = await BlockedTime.find({
             provider: providerId,
             date: dateStr(date),
-            $or: [{ teamMember: null }, { teamMember: member._id }],
+            // Business-wide + this member's own blocks. Owner-only blocks
+            // (teamMember null, ownerOnly) must NOT close a team member's day.
+            $or: [{ teamMember: null, ownerOnly: { $ne: true } }, { teamMember: member._id }],
         }).select('startTime endTime');
         if (blocks.some(b => overlaps(startMin, endMin, toMin(b.startTime), toMin(b.endTime)))) {
             return { free: false, reason: 'blocked' };
@@ -393,7 +395,7 @@ async function anyAvailableBusy({ providerId, svc, date, appointments }) {
             provider: providerId, teamMember: { $in: ids }, status: 'approved',
             startDate: { $lte: key }, endDate: { $gte: key },
         }).select('teamMember allDay startTime endTime').lean(),
-        BlockedTime.find({ provider: providerId, date: key }).select('teamMember startTime endTime').lean(),
+        BlockedTime.find({ provider: providerId, date: key }).select('teamMember ownerOnly startTime endTime').lean(),
     ]);
 
     const businessSchedule = availabilityDoc?.schedule || null;
@@ -410,7 +412,9 @@ async function anyAvailableBusy({ providerId, svc, date, appointments }) {
     const shiftBy = {}; shifts.forEach((s) => { shiftBy[String(s.teamMember)] = s; });
     const avBy = {}; staffAvs.forEach((a) => { avBy[String(a.teamMember)] = a; });
     const leavesBy = byMember(leaves);
-    const businessBlocks = blocks.filter(b => !b.teamMember).map(b => [toMin(b.startTime), toMin(b.endTime)]);
+    // Owner-only blocks (teamMember null, ownerOnly) belong to the owner alone —
+    // they must not grey out any team member's availability here.
+    const businessBlocks = blocks.filter(b => !b.teamMember && !b.ownerOnly).map(b => [toMin(b.startTime), toMin(b.endTime)]);
     const memberBlocksBy = byMember(blocks.filter(b => b.teamMember));
 
     const rosteredAll = [];

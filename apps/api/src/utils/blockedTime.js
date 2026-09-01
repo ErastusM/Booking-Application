@@ -23,10 +23,16 @@ const toMinutes = (t) => {
 // code paths always agree on which calendar day a booking falls on.
 const toDateKey = (d) => (typeof d === 'string' ? d.slice(0, 10) : new Date(d).toISOString().slice(0, 10));
 
-// Business-wide blocks (teamMember: null) always apply. A block owned by one
-// staff member only applies to bookings that land on that member — otherwise a
-// single person's day off would close the whole business.
-const scopeFilter = (teamMember) => (teamMember ? [{ teamMember: null }, { teamMember }] : [{ teamMember: null }]);
+// Business-wide blocks (teamMember null, !ownerOnly) always apply. A member's
+// own block applies only to bookings on that member; an owner-only block
+// (teamMember null, ownerOnly) applies only to the owner's own bookings — the
+// ones with no teamMember. Otherwise a single person's block would close the
+// whole business.
+//   - booking on a member  → business-wide + that member (NOT owner-only)
+//   - booking on the owner → every teamMember:null block (business-wide + owner-only)
+const scopeFilter = (teamMember) => (teamMember
+    ? [{ teamMember: null, ownerOnly: { $ne: true } }, { teamMember }]
+    : [{ teamMember: null }]);
 
 /** Every block covering `appointmentDate` that applies to this booking's scope. */
 const findBlocksForDate = (providerId, appointmentDate, teamMember = null) =>
