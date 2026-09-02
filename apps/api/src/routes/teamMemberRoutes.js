@@ -4,7 +4,7 @@ const { auth, authorize } = require('../middleware/auth');
 const {
     getMyTeam, addTeamMember, updateTeamMember, deleteTeamMember, restoreTeamMember, setTeamMemberPermissions, getTeamMemberStats,
     getTeamMemberShifts, setTeamMemberShift, clearTeamMemberShift,
-    inviteTeamMember, setTeamMemberServices, setTeamMemberPricing,
+    inviteTeamMember, setTeamMemberServices, setTeamMemberPricing, setTeamMemberPrimary,
     handoverUpcomingBookings,
     getTeamMemberAvailability, updateTeamMemberAvailability,
     getMyServices, setMyServices, setMyPricing,
@@ -48,6 +48,8 @@ router.post('/:id/invite', inviteTeamMember);
 router.post('/:id/handover', handoverUpcomingBookings);
 router.put('/:id/services', setTeamMemberServices);
 router.put('/:id/pricing', setTeamMemberPricing);
+// Owner-only (blanket authorize above): choosing the face of the business.
+router.put('/:id/primary', setTeamMemberPrimary);
 
 // Time off — a multi-day leave range for a member. Owner-managed here (create is
 // approved on the spot); the owner also approves/declines a staff request via

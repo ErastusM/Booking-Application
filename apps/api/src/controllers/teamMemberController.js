@@ -109,7 +109,7 @@ exports.getMyTeam = async (req, res) => {
         // are unaffected — a populated document is just as truthy as an id.
         const members = await TeamMember.find({ provider: req.user._id })
             .populate('user', 'staffPermissions lastLoginAt')
-            .sort({ createdAt: 1 });
+            .sort({ isPrimary: -1, createdAt: 1 }); // the primary member leads the roster
         res.status(200).json({ success: true, data: members });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
@@ -720,6 +720,32 @@ exports.inviteTeamMember = async (req, res) => {
         } catch { emailSent = false; }
 
         res.status(200).json({ success: true, data: { member, staffUserId: staffUser._id, email, emailSent } });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * PUT /api/team/:id/primary  (provider/admin)
+ * Body: { isPrimary?: boolean } — default true. Marks this member the business's
+ * primary (shown first everywhere). At most one member is primary, so setting one
+ * clears the rest; passing isPrimary:false just clears this one.
+ */
+exports.setTeamMemberPrimary = async (req, res) => {
+    try {
+        const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
+        const makePrimary = req.body.isPrimary !== false;
+        if (makePrimary) {
+            // Clear any other primary first, so the flag stays single-valued.
+            await TeamMember.updateMany(
+                { provider: req.user._id, _id: { $ne: member._id }, isPrimary: true },
+                { $set: { isPrimary: false } },
+            );
+        }
+        member.isPrimary = makePrimary;
+        await member.save();
+        res.status(200).json({ success: true, data: member });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

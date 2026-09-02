@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthContext } from '../context/AuthContext';
 import { teamService, providerServiceService } from '../services';
 import Switch from '../components/Switch';
-import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft } from 'lucide-react';
+import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft, Star } from 'lucide-react';
 
 /**
  * Epic 2.4 — staff management: roster CRUD, invite-to-login, per-staff
@@ -100,6 +100,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
     const [tab, setTab] = useState('overview');
     const [stats, setStats] = useState(null);      // null = not fetched, false = failed
     const [bookable, setBookable] = useState(member.bookable !== false);
+    const [primary, setPrimary] = useState(member.isPrimary === true);
     const todayKey = new Date().toISOString().slice(0, 10);
     // The shift editor only fetches shifts for today..+60d, so a date beyond that
     // window would show as "no shift" and silently overwrite an existing far-future
@@ -328,6 +329,20 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
         } finally { setBusy(''); }
     };
 
+    const togglePrimary = async (next) => {
+        const previous = primary;
+        setPrimary(next);
+        setBusy('primary');
+        try {
+            await teamService.setMemberPrimary(member._id, next);
+            flash(next ? `${member.name} is now the primary member — shown first.` : `${member.name} is no longer the primary member.`);
+            onChanged(); // refresh so a previously-primary colleague reflects the change
+        } catch {
+            setPrimary(previous);
+            flash('Could not change the primary member');
+        } finally { setBusy(''); }
+    };
+
     const invite = async () => {
         setBusy('invite');
         setInviteResult(null);
@@ -409,7 +424,10 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
             <button type="button" onClick={() => setOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '1rem 1.25rem', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-body)' }}>
                 <span aria-hidden="true" style={{ width: '14px', height: '14px', borderRadius: '50%', background: member.color || 'var(--gold)', flexShrink: 0 }} />
                 <span style={{ flex: 1, minWidth: 0 }}>
-                    <span style={{ display: 'block', fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.98rem' }}>{member.name}</span>
+                    <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.98rem' }}>
+                        <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.name}</span>
+                        {primary && <span style={{ flexShrink: 0, fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--gold-dark)', background: 'rgba(240,62,22,0.10)', borderRadius: '5px', padding: '0.1rem 0.35rem' }}>Primary</span>}
+                    </span>
                     <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                         {member.role || 'Staff'}
                         {!hasLogin ? ' · roster only' : loggedIn ? ' · active' : ' · invited, awaiting login'}
@@ -552,6 +570,17 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                             : 'On the team, but never offered to clients — for managers and front desk.'}
                                     </span>
                                     <Switch checked={bookable} disabled={busy === 'bookable'} onChange={toggleBookable} label={bookable ? 'Bookable' : 'Not bookable'} data-testid="bookable-switch" />
+                                </div>
+                            </Section>
+
+                            <Section icon={Star} title="Primary member" hint="(the face of the business — shown first)">
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', padding: '0.7rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: '40ch' }}>
+                                        {primary
+                                            ? `${member.name} is listed first on your profile and in the booking flow.`
+                                            : 'Make them first in the roster everywhere clients choose a professional.'}
+                                    </span>
+                                    <Switch checked={primary} disabled={busy === 'primary'} onChange={togglePrimary} label={primary ? 'Primary' : 'Not primary'} data-testid="primary-switch" />
                                 </div>
                             </Section>
 
