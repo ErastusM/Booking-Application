@@ -62,22 +62,15 @@ const PORT = process.env.PORT || 5050;
     // Seed a two-person roster + one walk-in booked on Alex today, so the
     // dashboard's staff filter and Staff (per-staff lanes) view have real
     // content to assert against.
-    const [alex, billie] = await TeamMember.create([
+    const [alex] = await TeamMember.create([
         { provider: provider._id, name: 'Alex Stylist', role: 'Stylist', color: '#3B82F6' },
         { provider: provider._id, name: 'Billie Barber', role: 'Barber', color: '#10B981' },
     ]);
-    // Give both members explicit working hours (= business hours) so the
-    // person-first customer flow — pick a professional, then their times — has a
-    // bookable roster to exercise.
-    const StaffAvailability = require('./src/models/StaffAvailability');
-    await StaffAvailability.create([alex, billie].map((m) => ({
-        provider: provider._id,
-        teamMember: m._id,
-        schedule: {
-            monday: everyDay, tuesday: everyDay, wednesday: everyDay, thursday: everyDay,
-            friday: everyDay, saturday: everyDay, sunday: everyDay,
-        },
-    })));
+    // Both members are left WITHOUT an explicit StaffAvailability on purpose: a
+    // member with none inherits the business hours (staffHoursReason falls back to
+    // businessSchedule), so the person-first customer flow can still book them —
+    // while the business team-management spec relies on Alex inheriting to exercise
+    // its "Set custom hours" toggle.
     // Wanda exists on today AND tomorrow: the suite seeds at server boot but
     // asserts against the browser's "today", and a run that starts at 23:59
     // crosses midnight between the two — the calendar then shows the next day
