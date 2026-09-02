@@ -15,9 +15,11 @@ beforeAll(() => testDb.connect());
 afterAll(() => testDb.closeDatabase());
 afterEach(() => testDb.clearDatabase());
 
+// The public staff list now leads with a synthetic owner tile; this suite is
+// about STAFF ordering, so drop the owner and compare the real members.
 const staffNames = (provider) => request(app)
     .get(`/api/providers/${provider._id}/staff`)
-    .then((r) => r.body.data.map((m) => m.name));
+    .then((r) => r.body.data.filter((m) => !m.isOwner).map((m) => m.name));
 
 const setPrimary = (provider, member, body = {}) => request(app)
     .put(`/api/team/${member._id}/primary`).set(authHeader(provider)).send(body);
