@@ -15,10 +15,14 @@ test.describe('Customer booking', () => {
         await page.getByRole('button', { name: /book now/i }).first().click();
         await expect(page).toHaveURL(/\/book-appointment/);
 
-        // 1) Service
+        // 1) Professional first (person-first flow) — the seeded business has a
+        //    roster, so a named member must be chosen before their services show.
+        await page.getByTestId('booking-staff').first().click();
+
+        // 2) Service (now filtered to that professional, at their price)
         await page.getByTestId('booking-service').first().click();
 
-        // 2) Date — advance one month and take the first selectable day. The
+        // 3) Date — advance one month and take the first selectable day. The
         //    provider works every day, so the next month's day 1 is always a full
         //    seeded 08:00–18:00 (never today, whose slots may be in the past; never
         //    in the past). Picking within the current month broke on a month

@@ -66,6 +66,11 @@ const PORT = process.env.PORT || 5050;
         { provider: provider._id, name: 'Alex Stylist', role: 'Stylist', color: '#3B82F6' },
         { provider: provider._id, name: 'Billie Barber', role: 'Barber', color: '#10B981' },
     ]);
+    // Both members are left WITHOUT an explicit StaffAvailability on purpose: a
+    // member with none inherits the business hours (staffHoursReason falls back to
+    // businessSchedule), so the person-first customer flow can still book them —
+    // while the business team-management spec relies on Alex inheriting to exercise
+    // its "Set custom hours" toggle.
     // Wanda exists on today AND tomorrow: the suite seeds at server boot but
     // asserts against the browser's "today", and a run that starts at 23:59
     // crosses midnight between the two — the calendar then shows the next day
