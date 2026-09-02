@@ -26,8 +26,8 @@ exports.getProviderStaff = async (req, res) => {
             query.$or = [{ services: { $size: 0 } }, { services: req.query.serviceId }];
         }
         const staff = await TeamMember.find(query)
-            .select('name role color services serviceOverrides photoUrl') // public: no email/phone/user
-            .sort({ createdAt: 1 });
+            .select('name role color services serviceOverrides photoUrl isPrimary') // public: no email/phone/user
+            .sort({ isPrimary: -1, createdAt: 1 }); // the primary member is shown first
         res.status(200).json({ success: true, data: staff });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });

@@ -245,6 +245,9 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         setMemberServices: (id: string, services: string[]) => API.put(`/team/${id}/services`, { services }),
         // Per-member price/duration overrides: [{ service, price?, duration? }].
         setMemberPricing: (id: string, serviceOverrides: any[]) => API.put(`/team/${id}/pricing`, { serviceOverrides }),
+        // Mark this member the business's primary (shown first everywhere); pass
+        // isPrimary:false to clear it. Setting one clears any other primary.
+        setMemberPrimary: (id: string, isPrimary = true) => API.put(`/team/${id}/primary`, { isPrimary }),
         getMemberAvailability: (id: string) => API.get(`/team/${id}/availability`),
         updateMemberAvailability: (id: string, schedule: any) => API.put(`/team/${id}/availability`, { schedule }),
     },

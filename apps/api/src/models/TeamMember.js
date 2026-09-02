@@ -13,6 +13,10 @@ const teamMemberSchema = new mongoose.Schema({
     // isActive answers "do they work here", bookable answers "can clients book
     // them". Defaults true so every existing roster keeps its behaviour.
     bookable: { type: Boolean, default: true },
+    // The "face" of the business — shown first in the roster everywhere (the
+    // customer profile, the booking picker, the Team page). At most one member
+    // per provider is primary; setting one clears the others.
+    isPrimary: { type: Boolean, default: false },
 
     // ── Personal details (all optional) ──────────────────────────────────
     // `name` stays a single field rather than splitting into first/last: it is
