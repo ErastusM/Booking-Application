@@ -76,8 +76,41 @@ const BookAppointment = () => {
     // top" button once the user has scrolled down so they can always return.
     const [showScrollTop, setShowScrollTop] = useState(false);
 
-    const effectivePrice    = selectedOption ? selectedOption.price    : (selectedService?.price    ?? 0);
-    const effectiveDuration = selectedOption ? selectedOption.duration : (selectedService?.duration ?? 0);
+    // ── Per-member pricing ──────────────────────────────────────────────────
+    // A chosen member may charge their own price / take their own time for a
+    // service (TeamMember.serviceOverrides); otherwise they inherit the business
+    // value. These mirror the server's memberPricing helper so the price the
+    // customer sees is the price they're charged. Options keep their variant price.
+    const memberOverrideFor = (service) => {
+        if (!selectedStaff || !Array.isArray(selectedStaff.serviceOverrides) || !service) return null;
+        const sid = String(service._id);
+        return selectedStaff.serviceOverrides.find(o => String(o.service?._id || o.service) === sid) || null;
+    };
+    const priceFor = (service) => {
+        const ov = memberOverrideFor(service);
+        return (ov && ov.price != null) ? ov.price : (service?.price ?? 0);
+    };
+    const durationFor = (service) => {
+        const ov = memberOverrideFor(service);
+        return (ov && ov.duration != null) ? ov.duration : (service?.duration ?? 0);
+    };
+
+    const effectivePrice    = selectedOption ? selectedOption.price    : priceFor(selectedService);
+    const effectiveDuration = selectedOption ? selectedOption.duration : durationFor(selectedService);
+
+    // Person-first: when the business has a bookable roster, the customer picks a
+    // professional before anything else, and the rest of the flow uses that
+    // person's services, prices and availability.
+    const hasRoster = staffList.length > 0;
+    // Choosing a member wipes any downstream service/time picked for someone else.
+    const chooseStaff = (member) => {
+        setSelectedStaff(member);
+        setSelectedService(null);
+        setSelectedOption(null);
+        setSelectedAddOns([]);
+        setShiftWindow(null);
+        setFormData(prev => ({ ...prev, service: '', startTime: '', endTime: '' }));
+    };
 
     const totalPrice = selectedService
         ? effectivePrice + selectedAddOns.reduce((sum, a) => sum + a.price, 0)
@@ -105,8 +138,12 @@ const BookAppointment = () => {
     // populated `category` = {_id, name, order}; unassigned ones fall under
     // "Other services"). Headers only show when there's more than one group.
     const groupedServices = useMemo(() => {
+        // Person-first: once a member is chosen, show only the services THEY perform
+        // (an empty services list on the member means they perform all).
+        const memberIds = selectedStaff ? (selectedStaff.services || []).map(String) : null;
+        const performs = (s) => !memberIds || memberIds.length === 0 || memberIds.includes(String(s._id));
         const map = new Map();
-        services.forEach((s) => {
+        services.filter(performs).forEach((s) => {
             const cat = s.category;
             const key = cat?._id || '__other__';
             if (!map.has(key)) map.set(key, { key, name: cat?.name || 'Other services', order: cat?.order ?? 9999, isOther: !cat, services: [] });
@@ -114,7 +151,7 @@ const BookAppointment = () => {
         });
         // Real categories first (by their order), the "Other" bucket last.
         return [...map.values()].sort((a, b) => (a.isOther - b.isOther) || (a.order - b.order) || a.name.localeCompare(b.name));
-    }, [services]);
+    }, [services, selectedStaff]);
     const showCategoryHeaders = groupedServices.length > 1;
 
     const handleServiceSelect = (service) => {
@@ -178,17 +215,22 @@ const BookAppointment = () => {
     // exactly as before (owner-column, any-available on the server).
     useEffect(() => {
         if (!effectiveProviderId) { setStaffList([]); setSelectedStaff(null); return; }
-        providerMarketService.getProviderStaff(effectiveProviderId, selectedService?._id)
+        // Fetch the WHOLE bookable roster (no service filter): the customer picks a
+        // professional FIRST, then we show that person's own services and prices.
+        providerMarketService.getProviderStaff(effectiveProviderId)
             .then(res => {
                 const list = res.data.data || [];
                 setStaffList(list);
-                // Keep a still-valid selection — resetting unconditionally races
-                // a click made while the refetch was in flight and silently
-                // reverts the user's pick to "any professional".
-                setSelectedStaff(prev => (prev && list.some(m => m._id === prev._id)) ? prev : null);
+                // Honour a ?teamMemberId= deep-link (Book on a specific person from
+                // the profile); otherwise keep any still-valid current selection.
+                setSelectedStaff(prev => {
+                    if (prev && list.some(m => m._id === prev._id)) return prev;
+                    const wanted = searchParams.get('teamMemberId');
+                    return (wanted && list.find(m => String(m._id) === String(wanted))) || null;
+                });
             })
             .catch(() => { setStaffList([]); setSelectedStaff(null); });
-    }, [effectiveProviderId, selectedService?._id]);
+    }, [effectiveProviderId]);
 
     // Load booked slots for the chosen provider + date. Re-runs if the provider only
     // becomes known once a service is selected (generic flow), keeping "taken" slots accurate.
@@ -858,12 +900,20 @@ const BookAppointment = () => {
 
                 {/* Progress stepper */}
                 {(() => {
-                    const steps = [
+                    const hasRoster = staffList.length > 0;
+                    const steps = hasRoster ? [
+                        { n: 1, label: 'Professional', done: !!selectedStaff },
+                        { n: 2, label: 'Service', done: !!selectedService },
+                        { n: 3, label: 'Date & time', done: !!formData.startTime },
+                        { n: 4, label: 'Confirm', done: false },
+                    ] : [
                         { n: 1, label: 'Service', done: !!selectedService },
                         { n: 2, label: 'Date & time', done: !!formData.startTime },
                         { n: 3, label: 'Confirm', done: false },
                     ];
-                    const currentIdx = !selectedService ? 0 : !formData.startTime ? 1 : 2;
+                    const currentIdx = hasRoster
+                        ? (!selectedStaff ? 0 : !selectedService ? 1 : !formData.startTime ? 2 : 3)
+                        : (!selectedService ? 0 : !formData.startTime ? 1 : 2);
                     return (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.75rem', maxWidth: '560px' }}>
                             {steps.map((s, i) => {
@@ -894,11 +944,45 @@ const BookAppointment = () => {
                     {/* Left - steps */}
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
 
-                        {/* Step 1 - Service */}
+                        {/* Step 1 - Professional (person-first). The roster comes back
+                            main-member-first; picking one drives the services + prices below. */}
+                        {hasRoster && (
+                            <div style={cardStyle}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
+                                    {stepBadge(1)}
+                                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)' }}>Choose your Professional</h2>
+                                </div>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '0.75rem' }}>
+                                    {staffList.map(st => {
+                                        const sel = selectedStaff?._id === st._id;
+                                        const initial = (st.name || '?').trim()[0]?.toUpperCase() || '?';
+                                        return (
+                                            <button key={st._id} type="button" data-testid="booking-staff" onClick={() => chooseStaff(st)} style={{
+                                                display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.8rem', cursor: 'pointer', textAlign: 'left',
+                                                border: `2px solid ${sel ? 'var(--gold)' : 'var(--border)'}`, borderRadius: 'var(--radius)',
+                                                background: sel ? 'rgba(240,62,22,0.08)' : 'var(--card-bg)', fontFamily: 'var(--font-body)',
+                                                transition: 'border-color var(--dur) ease, background var(--dur) ease',
+                                            }}>
+                                                <span aria-hidden="true" style={{ width: '38px', height: '38px', borderRadius: '50%', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: st.color || 'var(--gold)', color: 'var(--on-ink)', fontWeight: 700, fontSize: '0.95rem' }}>
+                                                    {st.photoUrl ? <img src={st.photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : initial}
+                                                </span>
+                                                <span style={{ minWidth: 0 }}>
+                                                    <span style={{ display: 'block', fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{st.name}</span>
+                                                    {st.role && <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)' }}>{st.role}</span>}
+                                                </span>
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
+                        {/* Step - Service (filtered to the chosen professional, at their prices) */}
+                        {(!hasRoster || selectedStaff) ? (
                         <div style={cardStyle}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                                {stepBadge(1)}
-                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)' }}>Choose a Service</h2>
+                                {stepBadge(hasRoster ? 2 : 1)}
+                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)' }}>{hasRoster && selectedStaff ? `${selectedStaff.name.split(' ')[0]}’s Services` : 'Choose a Service'}</h2>
                             </div>
                             {services.length === 0 ? (
                                 <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
@@ -930,8 +1014,8 @@ const BookAppointment = () => {
                                                 {sel && <span aria-hidden="true" style={{ position: 'absolute', top: '0.65rem', right: '0.65rem', width: '20px', height: '20px', borderRadius: '50%', background: 'var(--gold)', color: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.7rem', fontWeight: '600' }}>✓</span>}
                                                 <div style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.92rem', marginBottom: '0.4rem', paddingRight: sel ? '1.5rem' : 0 }}>{service.name}</div>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                                                    <span className="price" style={{ color: 'var(--gold-dark)', fontWeight: '600' }}>{curSym} {service.price}</span>
-                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{service.duration} min</span>
+                                                    <span className="price" style={{ color: 'var(--gold-dark)', fontWeight: '600' }}>{curSym} {priceFor(service)}</span>
+                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{durationFor(service)} min</span>
                                                 </div>
                                             </button>
                                         );
@@ -942,12 +1026,20 @@ const BookAppointment = () => {
                                 </div>
                             )}
                         </div>
+                        ) : (
+                            <div style={cardStyle}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                    {stepBadge(2)}
+                                    <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.9rem' }}>Choose a professional above to see their services and prices.</p>
+                                </div>
+                            </div>
+                        )}
 
                         {/* Add-ons */}
                         {selectedService?.addOns?.length > 0 && (
                             <div style={cardStyle}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
-                                    {stepBadge(2)}
+                                    {stepBadge(hasRoster ? 3 : 2)}
                                     <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)' }}>Add-ons <span style={{ fontSize: '0.8rem', fontWeight: '400', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>(optional)</span></h2>
                                 </div>
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
@@ -968,36 +1060,13 @@ const BookAppointment = () => {
                             </div>
                         )}
 
-                        {/* Date & Time */}
+                        {/* Date & Time (the professional is chosen up in step 1, so this
+                            card only picks the day + slot for that person) */}
                         <div style={cardStyle}>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
-                                {stepBadge(selectedService?.addOns?.length > 0 ? 3 : 2)}
-                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)' }}>Pick a Date & Time</h2>
+                                {stepBadge((hasRoster ? 2 : 1) + (selectedService?.addOns?.length > 0 ? 2 : 1))}
+                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)' }}>Pick a Date & Time{hasRoster && selectedStaff ? ` with ${selectedStaff.name.split(' ')[0]}` : ''}</h2>
                             </div>
-
-                            {staffList.length > 0 && (
-                                <div style={{ marginBottom: '1.5rem' }}>
-                                    <label style={labelStyle}>Choose your professional</label>
-                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                        <button type="button" data-testid="booking-staff-any"
-                                            onClick={() => { setSelectedStaff(null); setShiftWindow(null); setFormData(prev => ({ ...prev, startTime: '', endTime: '' })); }}
-                                            style={{ padding: '0.5rem 1rem', borderRadius: '999px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: '0.85rem', border: `1.5px solid ${!selectedStaff ? 'var(--gold)' : 'var(--border)'}`, background: !selectedStaff ? 'rgba(240,62,22,0.10)' : 'var(--card-bg)', color: !selectedStaff ? 'var(--gold-dark)' : 'var(--text-secondary)' }}>
-                                            Any professional
-                                        </button>
-                                        {staffList.map(st => {
-                                            const sel = selectedStaff?._id === st._id;
-                                            return (
-                                                <button key={st._id} type="button" data-testid="booking-staff"
-                                                    onClick={() => { setSelectedStaff(st); setShiftWindow(null); setFormData(prev => ({ ...prev, startTime: '', endTime: '' })); }}
-                                                    style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', padding: '0.5rem 1rem', borderRadius: '999px', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: '0.85rem', border: `1.5px solid ${sel ? 'var(--gold)' : 'var(--border)'}`, background: sel ? 'rgba(240,62,22,0.10)' : 'var(--card-bg)', color: sel ? 'var(--gold-dark)' : 'var(--text-secondary)' }}>
-                                                    <span aria-hidden="true" style={{ width: '10px', height: '10px', borderRadius: '50%', background: st.color || 'var(--gold)', flexShrink: 0 }} />
-                                                    {st.name}
-                                                </button>
-                                            );
-                                        })}
-                                    </div>
-                                </div>
-                            )}
 
                             {/* Month calendar — navigate up to 4 months ahead */}
                             <div style={{ marginBottom: '1.5rem' }}>

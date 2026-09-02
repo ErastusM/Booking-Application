@@ -328,8 +328,10 @@ const ProviderProfilePage = ({ providerId } = {}) => {
     const sectionTabs = [
         photos.length > 0 && { id: 'section-photos', label: 'Photos' },
         description && { id: 'section-about', label: 'About' },
-        { id: 'section-services', label: 'Services' },
+        // Team comes before Services: each member can have their own prices and
+        // hours, so the customer picks a person first, then sees their menu.
         staff.length > 0 && { id: 'section-team', label: 'Team' },
+        { id: 'section-services', label: 'Services' },
         reviews.length > 0 && { id: 'section-reviews', label: 'Reviews' },
         // The Details card (hours / address / contact) sits last in the flow; give
         // it a tab so the compact bar reflects where the visitor is when they reach it.
@@ -487,6 +489,35 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                             </div>
                         )}
 
+                        {/* Team — comes first so the customer chooses WHO to book with;
+                            each person leads into their own services, prices and times. */}
+                        {staff.length > 0 && (
+                            <div id="section-team" style={{ scrollMarginTop: 'calc(var(--safe-top, 0px) + 104px)', marginBottom: '2.25rem' }}>
+                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.35rem' }}>Team</h2>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 1rem' }}>Choose who you’d like to book with.</p>
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '0.85rem' }}>
+                                    {staff.map(member => {
+                                        const hex = /^#[0-9a-f]{6}$/i.test(member.color || '') ? member.color : null;
+                                        const canBook = user?._id !== provider._id;
+                                        const go = () => { if (canBook) navigate(`/book-appointment?providerId=${provider._id}&teamMemberId=${member._id}`); };
+                                        return (
+                                            <button key={member._id} type="button" onClick={go} className="pressable" style={{
+                                                background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)',
+                                                padding: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', cursor: canBook ? 'pointer' : 'default', textAlign: 'center', fontFamily: 'var(--font-body)',
+                                            }}>
+                                                <span style={{ width: '64px', height: '64px', borderRadius: '50%', overflow: 'hidden', flexShrink: 0, background: hex ? `${hex}22` : 'rgba(240,62,22,0.13)', color: hex ? 'var(--charcoal)' : 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: 600 }}>
+                                                    {member.photoUrl ? <img src={member.photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (member.name || '?').charAt(0).toUpperCase()}
+                                                </span>
+                                                <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--charcoal)' }}>{member.name}</span>
+                                                {member.role && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{member.role}</span>}
+                                                {canBook && <span className="btn-primary" style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', marginTop: '0.15rem' }}>Book</span>}
+                                            </button>
+                                        );
+                                    })}
+                                </div>
+                            </div>
+                        )}
+
                         {/* Services — heading + category pills (Fresha-style) */}
                         <div id="section-services" style={{ scrollMarginTop: 'calc(var(--safe-top, 0px) + 104px)' }}>
                             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.85rem' }}>Services</h2>
@@ -549,31 +580,6 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                             </div>
                         )}
                         </div>
-
-                        {/* Team — colored initial circles from the public staff endpoint */}
-                        {staff.length > 0 && (
-                            <div id="section-team" style={{ scrollMarginTop: 'calc(var(--safe-top, 0px) + 104px)', marginTop: '2.25rem' }}>
-                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 1rem' }}>Team</h2>
-                                <div style={{ display: 'flex', gap: '1.4rem', overflowX: 'auto', paddingBottom: '0.5rem', scrollbarWidth: 'none', WebkitOverflowScrolling: 'touch' }}>
-                                    {staff.map(member => {
-                                        // The hex+alpha tint only parses for 6-digit hex; anything
-                                        // else (empty, named color) falls back to the brand tint.
-                                        // The initial itself uses --charcoal (flips with the theme):
-                                        // a dark staff hex would vanish on the dark-mode page.
-                                        const hex = /^#[0-9a-f]{6}$/i.test(member.color || '') ? member.color : null;
-                                        return (
-                                        <div key={member._id} style={{ flexShrink: 0, width: '86px', textAlign: 'center' }}>
-                                            <div style={{ width: '76px', height: '76px', borderRadius: '50%', margin: '0 auto 0.5rem', background: hex ? `${hex}22` : 'rgba(240,62,22,0.13)', color: hex ? 'var(--charcoal)' : 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '1.7rem', fontWeight: 600 }}>
-                                                {(member.name || '?').charAt(0).toUpperCase()}
-                                            </div>
-                                            <p style={{ margin: 0, fontWeight: 600, fontSize: '0.85rem', color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.name}</p>
-                                            {member.role && <p style={{ margin: '1px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{member.role}</p>}
-                                        </div>
-                                        );
-                                    })}
-                                </div>
-                            </div>
-                        )}
 
                         {/* Reviews — headline stars + the latest reviews (Fresha-style) */}
                         {reviews.length > 0 && (
