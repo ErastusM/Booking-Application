@@ -75,6 +75,15 @@ exports.getProviderStaffShiftDays = async (req, res) => {
         if (spanDays < 0 || spanDays > 400) {
             return res.status(400).json({ success: false, message: 'from and to must be a range of at most 400 days' });
         }
+        // The owner is offered as a professional under the 'owner' sentinel
+        // (getProviderStaff), which is not a TeamMember id — nor is any other
+        // non-ObjectId. The owner has no shifts or leave (they work business
+        // hours), so return the same empty payload a missing member gets, BEFORE
+        // the id reaches a Mongoose cast that would throw a 500 on this public
+        // endpoint. The client then falls back to business hours, which is correct.
+        if (req.params.teamMemberId === 'owner' || !require('mongoose').isValidObjectId(req.params.teamMemberId)) {
+            return res.status(200).json({ success: true, data: { working: [], off: [] } });
+        }
         // The member must belong to THIS provider and still be active. A miss
         // returns empty (not 404), so the picker simply falls back to business
         // hours rather than leaking whether an id exists.

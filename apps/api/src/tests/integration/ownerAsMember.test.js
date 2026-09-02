@@ -72,6 +72,14 @@ describe('owner as a bookable professional', () => {
         expect(booked.body.data.totalPrice).toBe(100);
     });
 
+    it('the shift-days endpoint returns empty for the owner sentinel (no 500 CastError)', async () => {
+        const ctx = await setup();
+        const res = await request(app)
+            .get(`/api/providers/${ctx.provider._id}/staff/owner/shift-days?from=${DATE}&to=${DATE}`);
+        expect(res.status).toBe(200);
+        expect(res.body.data).toEqual({ working: [], off: [] });
+    });
+
     it("the owner's slots reflect the owner's OWN bookings, not a staff member's", async () => {
         const ctx = await setup();
         // Book Alice 10:00–11:00.
