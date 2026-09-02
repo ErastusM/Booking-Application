@@ -28,7 +28,23 @@ exports.getProviderStaff = async (req, res) => {
         const staff = await TeamMember.find(query)
             .select('name role color services serviceOverrides photoUrl isPrimary') // public: no email/phone/user
             .sort({ isPrimary: -1, createdAt: 1 }); // the primary member is shown first
-        res.status(200).json({ success: true, data: staff });
+        const data = staff.map(m => (m.toObject ? m.toObject() : m));
+
+        // When a business has a roster, the OWNER is a bookable professional too
+        // ("you"), offered FIRST alongside staff. The owner has no TeamMember row —
+        // their column is the unassigned one — so synthesize an entry under the
+        // 'owner' sentinel id, which the booking flow maps to teamMember:null. Solo
+        // businesses (no staff) keep the owner-implicit flow and need no tile.
+        const staffCount = await TeamMember.countDocuments({ provider: req.params.id, isActive: true });
+        if (staffCount > 0) {
+            const owner = await User.findById(req.params.id).select('name');
+            data.unshift({
+                _id: 'owner', isOwner: true,
+                name: owner?.name || 'Owner', role: 'Owner',
+                color: '#f03e16', services: [], serviceOverrides: [], isPrimary: false,
+            });
+        }
+        res.status(200).json({ success: true, data });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
