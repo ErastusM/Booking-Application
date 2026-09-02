@@ -20,6 +20,7 @@ const {
 const calendarHelper = require('../utils/calendarHelper');
 const { resolveBookingStaff, staffHoursReason, memberBusyIntervalsBuffered, bufferMapForAppointments, memberInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy } = require('../utils/staffBooking');
 const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, toDateKey, BLOCKED_MESSAGE } = require('../utils/blockedTime');
+const { overrideFor } = require('../utils/memberPricing');
 const { recordBookingRejection, rejectionsSummary } = require('../utils/bookingRejections');
 const { checkCancellationWindow } = require('../utils/cancellationPolicy');
 const { realStartMs } = require('../utils/appointmentTime');
@@ -754,7 +755,25 @@ exports.createAppointment = async (req, res) => {
         // price — the client priced the booking off the option, but the server used to
         // silently fall back to svc.price, under-charging on every pricier variant.
         const chosenOption = (svc.options || []).find(o => o.name === selectedOptionName) || null;
-        const baseServicePrice = chosenOption ? (chosenOption.price || 0) : (svc.price || 0);
+
+        // Per-member pricing: a specifically-requested member may charge their own
+        // price and take their own time for this service. Read it from the member's
+        // stored overrides (never the request body) so the recorded price and the
+        // allowed window length are the member's, not just the business default.
+        // Options carry their own variant price, so a member override applies to
+        // the base service only (no option chosen). "Any available" bookings have
+        // no specific member here and keep the business default.
+        let memberPriceOverride = null;
+        let memberDurationOverride = null;
+        if (teamMember && providerId) {
+            const reqMember = await TeamMember.findOne({ _id: teamMember, provider: providerId }).select('serviceOverrides');
+            const ov = reqMember ? overrideFor(reqMember, svc._id) : null;
+            if (ov && ov.price != null) memberPriceOverride = ov.price;
+            if (ov && ov.duration != null) memberDurationOverride = ov.duration;
+        }
+        const baseServicePrice = chosenOption
+            ? (chosenOption.price || 0)
+            : (memberPriceOverride != null ? memberPriceOverride : (svc.price || 0));
 
         // The booking window must match the service's real length. The client sends
         // startTime/endTime, and every conflict guard below — schedule, blocked time,
@@ -772,7 +791,12 @@ exports.createAppointment = async (req, res) => {
             const bookingDuration = parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime);
             const baseDurations = (chosenOption
                 ? [chosenOption.duration]
-                : [svc.duration, ...(svc.options || []).map(o => o.duration)]
+                // A member's own duration for this service governs on its own — a
+                // slower member booked at the default length would under-reserve
+                // and could double-book their next slot.
+                : memberDurationOverride != null
+                    ? [memberDurationOverride]
+                    : [svc.duration, ...(svc.options || []).map(o => o.duration)]
             ).filter(dur => typeof dur === 'number' && dur > 0);
             if (!baseDurations.length) baseDurations.push(svc.duration || 30);
             const allowed = new Set(baseDurations.map(dur => dur + addOnDuration));

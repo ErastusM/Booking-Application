@@ -37,6 +37,17 @@ const teamMemberSchema = new mongoose.Schema({
     user:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
     // Which services this member performs. Empty = all of the business's services.
     services: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Service' }],
+
+    // Per-member price/duration for a service they perform. A member inherits the
+    // business's Service price/duration unless they override it here — this is
+    // what gives each member autonomy over their own pricing (Erastus N$170,
+    // John N$200 for the same service) without forking the shared catalogue.
+    // A null field means "inherit that value from the Service".
+    serviceOverrides: [{
+        service:  { type: mongoose.Schema.Types.ObjectId, ref: 'Service', required: true },
+        price:    { type: Number, default: null, min: 0 }, // null = inherit Service.price
+        duration: { type: Number, default: null, min: 1 }, // minutes; null = inherit Service.duration
+    }],
 }, { timestamps: true });
 
 module.exports = mongoose.model('TeamMember', teamMemberSchema);

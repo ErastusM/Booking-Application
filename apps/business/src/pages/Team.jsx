@@ -78,6 +78,13 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
     const [busy, setBusy] = useState('');
     const [msg, setMsg] = useState('');
     const [assigned, setAssigned] = useState((member.services || []).map(String));
+    // Per-member price/duration overrides, keyed by service id. '' = inherit the
+    // business default. Seeded from the member's saved serviceOverrides.
+    const [overrides, setOverrides] = useState(() => Object.fromEntries(
+        (member.serviceOverrides || []).map(o => [String(o.service?._id || o.service), {
+            price: o.price ?? '', duration: o.duration ?? '',
+        }])
+    ));
     const [schedule, setSchedule] = useState(null); // null = inherits business hours
     const [inviteEmail, setInviteEmail] = useState(member.email || '');
     const [inviteResult, setInviteResult] = useState(null); // sticky {ok, email, error} after a send
@@ -360,6 +367,24 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
         finally { setBusy(''); }
     };
 
+    const setOverride = (id, key, value) =>
+        setOverrides(o => ({ ...o, [id]: { ...(o[id] || { price: '', duration: '' }), [key]: value } }));
+
+    const savePricing = async () => {
+        // Send only rows that actually override something; '' means inherit.
+        const serviceOverrides = Object.entries(overrides)
+            .map(([service, v]) => ({
+                service,
+                price: v.price === '' ? null : Number(v.price),
+                duration: v.duration === '' ? null : Number(v.duration),
+            }))
+            .filter(r => r.price != null || r.duration != null);
+        setBusy('pricing');
+        try { await teamService.setMemberPricing(member._id, serviceOverrides); flash('Prices saved'); onChanged?.(); }
+        catch (err) { flash(err?.response?.data?.message || 'Could not save prices'); }
+        finally { setBusy(''); }
+    };
+
     const saveHours = async () => {
         if (schedule === 'inherit' || !schedule) return;
         setBusy('hours');
@@ -582,7 +607,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                 </Section>
                             )}
 
-                            <Section icon={Scissors} title="Services" hint="(none selected = performs all)">
+                            <Section icon={Scissors} title="Services & prices" hint="(none selected = performs all · blank price/time = business default)">
                                 <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
                                     {services.map(svc => (
                                         <Chip key={svc._id} active={assigned.includes(String(svc._id))} disabled={busy === 'services'} onClick={() => toggleService(String(svc._id))} data-testid="member-service-chip">
@@ -591,6 +616,40 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                     ))}
                                     {services.length === 0 && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>No services yet — add services first.</p>}
                                 </div>
+                                {(() => {
+                                    const performed = assigned.length ? services.filter(s => assigned.includes(String(s._id))) : services;
+                                    if (!performed.length) return null;
+                                    return (
+                                        <div style={{ marginTop: '0.9rem', display: 'grid', gap: '0.5rem' }}>
+                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 6.5rem 6.5rem', gap: '0.5rem', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                                                <span>{member.name.split(' ')[0]}’s service</span><span>Price</span><span>Minutes</span>
+                                            </div>
+                                            {performed.map(svc => {
+                                                const ov = overrides[String(svc._id)] || { price: '', duration: '' };
+                                                return (
+                                                    <div key={svc._id} style={{ display: 'grid', gridTemplateColumns: '1fr 6.5rem 6.5rem', gap: '0.5rem', alignItems: 'center' }}>
+                                                        <span style={{ fontSize: '0.85rem', color: 'var(--charcoal)' }}>{svc.name}</span>
+                                                        <input className="input" type="number" min="0" inputMode="decimal"
+                                                            placeholder={svc.price != null ? String(svc.price) : '—'}
+                                                            value={ov.price}
+                                                            onChange={e => setOverride(String(svc._id), 'price', e.target.value)}
+                                                            data-testid="member-price" style={{ padding: '0.4rem 0.5rem' }} />
+                                                        <input className="input" type="number" min="1" inputMode="numeric"
+                                                            placeholder={svc.duration != null ? String(svc.duration) : '—'}
+                                                            value={ov.duration}
+                                                            onChange={e => setOverride(String(svc._id), 'duration', e.target.value)}
+                                                            data-testid="member-duration" style={{ padding: '0.4rem 0.5rem' }} />
+                                                    </div>
+                                                );
+                                            })}
+                                            <div>
+                                                <button type="button" className="btn-primary" disabled={busy === 'pricing'} onClick={savePricing} style={{ marginTop: '0.15rem' }}>
+                                                    {busy === 'pricing' ? 'Saving…' : 'Save prices'}
+                                                </button>
+                                            </div>
+                                        </div>
+                                    );
+                                })()}
                             </Section>
 
                             <Section icon={CalendarDays} title="Shifts" hint="(one date at a time — overrides their usual hours)">
