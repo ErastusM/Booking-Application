@@ -928,10 +928,19 @@ const Team = () => {
     const [newName, setNewName] = useState('');
     const [error, setError] = useState('');
 
-    const load = () => Promise.all([
-        teamService.getMyTeam().then(r => setMembers(r.data.data || [])),
-        providerServiceService.getMyServices().then(r => setServices(r.data.data || [])).catch(() => {}),
-    ]).catch(() => {}).finally(() => setLoading(false));
+    const load = () => {
+        // Saving a member reloads the roster, which is now server-sorted
+        // (primary-first) — a reorder can jump the page under the fixed top/bottom
+        // nav bars. Pin the viewport so a save never scrolls the user away.
+        const y = typeof window !== 'undefined' ? window.scrollY : 0;
+        return Promise.all([
+            teamService.getMyTeam().then(r => setMembers(r.data.data || [])),
+            providerServiceService.getMyServices().then(r => setServices(r.data.data || [])).catch(() => {}),
+        ]).catch(() => {}).finally(() => {
+            setLoading(false);
+            if (typeof window !== 'undefined') requestAnimationFrame(() => window.scrollTo(0, y));
+        });
+    };
 
     useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 

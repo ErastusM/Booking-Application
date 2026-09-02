@@ -450,7 +450,12 @@ const ProviderProfilePage = ({ providerId } = {}) => {
 
             {/* ── Compact top bar (Fresha) — hidden until the header scrolls away, then
                  slides in with back + name + share/save and the section tabs. ── */}
-            <div className="profile-compact-bar" style={{ position: 'fixed', top: 0, left: 0, right: 0, zIndex: 1000, background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', boxShadow: '0 2px 10px rgba(4,5,5,0.07)', paddingTop: 'var(--safe-top, 0px)', transform: showCompact ? 'translateY(0)' : 'translateY(-110%)', transition: 'transform 0.25s ease, visibility 0.25s', visibility: showCompact ? 'visible' : 'hidden', pointerEvents: showCompact ? 'auto' : 'none' }}>
+            {/* Slide in via `top`, never a transform. A persistent transform on a
+                position:fixed bar GPU-composites it INTO the scroll layer on iOS, so
+                it rides with the page and "sticks" wherever you stopped scrolling
+                (the exact reason the nav bars here reject transforms). Off-screen is
+                a large negative top; visibility gates interaction. */}
+            <div className="profile-compact-bar" style={{ position: 'fixed', top: showCompact ? 0 : '-260px', left: 0, right: 0, zIndex: 1000, background: 'var(--card-bg)', borderBottom: '1px solid var(--border)', boxShadow: '0 2px 10px rgba(4,5,5,0.07)', paddingTop: 'var(--safe-top, 0px)', transition: 'top 0.25s ease, visibility 0.25s', visibility: showCompact ? 'visible' : 'hidden', pointerEvents: showCompact ? 'auto' : 'none' }}>
                 <div className="container" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', height: '52px' }}>
                     <button onClick={() => navigate('/')} aria-label="Back" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--charcoal)', display: 'flex', alignItems: 'center', padding: '0.4rem 0.4rem 0.4rem 0' }}><ChevronLeft size={24} strokeWidth={2.5} /></button>
                     <span style={{ flex: 1, minWidth: 0, fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '1.05rem', color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{businessName}</span>
