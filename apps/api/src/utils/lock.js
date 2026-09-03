@@ -35,6 +35,40 @@ async function acquireLock(name, ttlMs) {
     }
 }
 
+// Thrown when a booking can't acquire its slot lock in time — the caller turns
+// this into a "try again" response rather than risking a double-book.
+class BookingBusyError extends Error {
+    constructor(message) {
+        super(message || 'That time was just taken. Please choose another slot.');
+        this.name = 'BookingBusyError';
+        this.code = 'BOOKING_BUSY';
+    }
+}
+
+const sleep = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+// Booking serialization. The cron withLock SKIPS if the lock is held (only one
+// instance should run a tick); a booking must instead WAIT its turn, so two
+// requests for the same slot run one-after-another and the second sees the
+// first and is refused — closing the check-then-insert race that let two
+// bookings land on the same person. Acquires with bounded polling; if the slot
+// stays locked past `waitMs` it fails CLOSED (throws BookingBusyError) rather
+// than proceed unguarded. Returns whatever `fn` returns.
+async function withBookingLock(name, fn, { ttlMs = 15000, waitMs = 8000, pollMs = 75 } = {}) {
+    let token = await acquireLock(name, ttlMs);
+    const deadline = Date.now() + waitMs;
+    while (!token && Date.now() < deadline) {
+        await sleep(pollMs);
+        token = await acquireLock(name, ttlMs);
+    }
+    if (!token) throw new BookingBusyError();
+    try {
+        return await fn();
+    } finally {
+        await releaseLock(name, token);
+    }
+}
+
 async function releaseLock(name, token) {
     if (!token) return;
     try {
@@ -60,4 +94,4 @@ async function withLock(name, ttlMs, fn) {
     }
 }
 
-module.exports = { withLock, acquireLock, releaseLock };
+module.exports = { withLock, withBookingLock, acquireLock, releaseLock, BookingBusyError };
