@@ -131,6 +131,12 @@ const appointmentSchema = new mongoose.Schema(
         paymentMethod: { type: String, enum: ['cash', 'wallet'], default: 'cash' },
         /* Staff member performing the appointment (multi-chair scheduling) */
         teamMember: { type: mongoose.Schema.Types.ObjectId, ref: 'TeamMember', default: null },
+        /* Snapshot taken when the performing member is PERMANENTLY removed. The
+         * roster row is gone, but a completed/paid appointment keeps their name
+         * here and is flagged, so earnings and the client's record survive and the
+         * UI can label it "former staff" instead of silently reading as the owner. */
+        formerStaffName: { type: String, default: null },
+        staffRemoved: { type: Boolean, default: false },
         /* Opaque token for no-login "manage my booking" links */
         manageToken: { type: String, default: null, index: true },
         /* Group booking — shared slot for multiple clients */

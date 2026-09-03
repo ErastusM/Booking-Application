@@ -4,6 +4,7 @@ const { auth, authorize } = require('../middleware/auth');
 const {
     getMyTeam, addTeamMember, updateTeamMember, deleteTeamMember, restoreTeamMember, setTeamMemberPermissions, getTeamMemberStats,
     getTeamMemberShifts, setTeamMemberShift, clearTeamMemberShift,
+    removeTeamMember,
     inviteTeamMember, setTeamMemberServices, setTeamMemberPricing, setTeamMemberPrimary,
     handoverUpcomingBookings,
     getTeamMemberAvailability, updateTeamMemberAvailability,
@@ -33,6 +34,10 @@ router.put('/:id', updateTeamMember);
 // DELETE archives rather than removes — bookings, earnings and reviews all
 // reference the member, so the row has to outlive their employment.
 router.delete('/:id', deleteTeamMember);
+// Permanent, cascading removal (no restore) — purges the member's upcoming
+// bookings, schedule, shifts, time off, blocks and login, keeping only paid/
+// completed history (snapshotted as "former staff"). See removeTeamMember.
+router.delete('/:id/permanent', removeTeamMember);
 router.post('/:id/restore', restoreTeamMember);
 // Owner-only by virtue of the blanket authorize above — a staff member setting
 // their own permissions is the one thing this must never allow.
