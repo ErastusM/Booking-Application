@@ -219,6 +219,10 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         updateMember: (id: string, data: any) => API.put(`/team/${id}`, data),
         // Archives rather than deletes — bookings and earnings reference the member.
         deleteMember: (id: string) => API.delete(`/team/${id}`),
+        // Permanent, cascading removal (no restore): purges upcoming bookings,
+        // schedule, shifts, time off, blocks and login; keeps paid/completed
+        // history as "former staff". Use for a member leaving for good.
+        removeMember: (id: string) => API.delete(`/team/${id}/permanent`),
         restoreMember: (id: string) => API.post(`/team/${id}/restore`),
         setMemberPermissions: (id: string, permissions: string[]) =>
             API.put(`/team/${id}/permissions`, { permissions }),

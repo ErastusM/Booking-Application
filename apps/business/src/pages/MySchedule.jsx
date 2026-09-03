@@ -36,6 +36,11 @@ const MySchedule = () => {
     const [mySvc, setMySvc] = useState([]);             // ids I perform ([] = all)
     const [svcBusy, setSvcBusy] = useState(false);
     const [svcMsg, setSvcMsg] = useState('');
+    // My own price/duration per service. Keyed by serviceId → { price, duration }
+    // as strings ('' = inherit the business default). Seeded from serviceOverrides.
+    const [prices, setPrices] = useState({});
+    const [priceBusy, setPriceBusy] = useState(false);
+    const [priceMsg, setPriceMsg] = useState('');
 
     useEffect(() => {
         appointmentService.getAllAppointments({ all: 'true' })
@@ -48,6 +53,14 @@ const MySchedule = () => {
             .then(res => {
                 setServices(res.data.data?.services || []);
                 setMySvc((res.data.data?.selected || []).map(String));
+                const seed = {};
+                (res.data.data?.overrides || []).forEach(o => {
+                    seed[String(o.service)] = {
+                        price: o.price == null ? '' : String(o.price),
+                        duration: o.duration == null ? '' : String(o.duration),
+                    };
+                });
+                setPrices(seed);
             })
             .catch(() => setServices(false));
     }, []);
@@ -65,6 +78,31 @@ const MySchedule = () => {
             setMySvc(prev);
             setSvcMsg(e?.response?.data?.message || 'Could not save');
         } finally { setSvcBusy(false); }
+    };
+
+    const setPrice = (id, key, value) => setPrices(p => ({ ...p, [id]: { ...(p[id] || { price: '', duration: '' }), [key]: value } }));
+
+    // Save my own prices/durations. Only rows where I actually set a value are sent;
+    // a blank field means "inherit the business default", so it carries null.
+    const saveMyPrices = async () => {
+        const rows = Object.entries(prices)
+            .map(([service, v]) => ({
+                service,
+                price: v.price === '' ? null : Number(v.price),
+                duration: v.duration === '' ? null : Number(v.duration),
+            }))
+            .filter(r => r.price != null || r.duration != null);
+        if (rows.some(r => (r.price != null && (Number.isNaN(r.price) || r.price < 0))
+            || (r.duration != null && (Number.isNaN(r.duration) || r.duration <= 0)))) {
+            setPriceMsg('Enter a valid price and duration.'); return;
+        }
+        setPriceBusy(true); setPriceMsg('');
+        try {
+            await myServicesService.setPricing(rows);
+            setPriceMsg('Saved'); setTimeout(() => setPriceMsg(''), 2500);
+        } catch (e) {
+            setPriceMsg(e?.response?.data?.message || 'Could not save your prices.');
+        } finally { setPriceBusy(false); }
     };
 
     const flash = (t) => { setMsg(t); setTimeout(() => setMsg(''), 3500); };
@@ -186,6 +224,51 @@ const MySchedule = () => {
                     </>
                 )}
             </div>
+
+            {/* ── My prices ────────────────────────────────────────── */}
+            {Array.isArray(services) && services.length > 0 && (() => {
+                const mine = mySvc.length ? services.filter(s => mySvc.includes(String(s._id))) : services;
+                return (
+                    <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.15rem 1.25rem', marginTop: '2rem' }} data-testid="my-prices">
+                        <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.15rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                            <Scissors size={16} /> My prices
+                        </h2>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '0 0 1rem' }}>
+                            Set your own price and length for each service you perform. Leave a field blank to use the business default shown as the placeholder.
+                        </p>
+                        <div style={{ display: 'grid', gap: '0.6rem' }}>
+                            {mine.map(s => {
+                                const row = prices[String(s._id)] || { price: '', duration: '' };
+                                return (
+                                    <div key={s._id} data-testid="my-price-row" style={{ display: 'grid', gridTemplateColumns: '1fr auto auto', gap: '0.6rem', alignItems: 'center' }}>
+                                        <span style={{ fontSize: '0.88rem', fontWeight: 600, color: 'var(--charcoal)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{s.name}</span>
+                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                            N$
+                                            <input type="number" min="0" inputMode="decimal" className="input" data-testid="my-price-amount"
+                                                value={row.price} placeholder={String(s.price ?? 0)}
+                                                onChange={e => setPrice(String(s._id), 'price', e.target.value)}
+                                                style={{ width: '84px', padding: '0.4rem 0.5rem' }} />
+                                        </label>
+                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                            <input type="number" min="1" inputMode="numeric" className="input" data-testid="my-price-duration"
+                                                value={row.duration} placeholder={String(s.duration ?? 0)}
+                                                onChange={e => setPrice(String(s._id), 'duration', e.target.value)}
+                                                style={{ width: '68px', padding: '0.4rem 0.5rem' }} />
+                                            min
+                                        </label>
+                                    </div>
+                                );
+                            })}
+                        </div>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1rem' }}>
+                            <button type="button" className="btn-primary" onClick={saveMyPrices} disabled={priceBusy} data-testid="save-my-prices" style={{ padding: '0.5rem 1.3rem' }}>
+                                {priceBusy ? 'Saving…' : 'Save my prices'}
+                            </button>
+                            {priceMsg && <span style={{ fontSize: '0.82rem', fontWeight: 650, color: priceMsg === 'Saved' ? '#1f8a4c' : 'var(--gold-dark)' }}>{priceMsg}</span>}
+                        </div>
+                    </div>
+                );
+            })()}
 
             {/* ── Time off ─────────────────────────────────────────── */}
             <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.15rem 1.25rem', marginTop: '2rem' }}>

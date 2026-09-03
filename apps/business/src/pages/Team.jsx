@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthContext } from '../context/AuthContext';
 import { teamService, providerServiceService } from '../services';
 import Switch from '../components/Switch';
-import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft, Star } from 'lucide-react';
+import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft, Star, Trash2 } from 'lucide-react';
 
 /**
  * Epic 2.4 — staff management: roster CRUD, invite-to-login, per-staff
@@ -343,6 +343,40 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
         } finally { setBusy(''); }
     };
 
+    // Deactivate = reversible pause: keeps every record, just stops new bookings
+    // and cuts their login until reactivated. The safe alternative to removal.
+    const toggleActive = async () => {
+        const goingInactive = member.isActive !== false;
+        if (goingInactive && !window.confirm(`Deactivate ${member.name}? They stop taking bookings and can't log in, but nothing is deleted — you can reactivate them anytime.`)) return;
+        setBusy('active');
+        try {
+            if (goingInactive) await teamService.deleteMember(member._id);   // archive
+            else await teamService.restoreMember(member._id);                // un-archive
+            flash(goingInactive ? `${member.name} deactivated.` : `${member.name} reactivated.`);
+            onChanged();
+        } catch (err) {
+            flash(err.response?.data?.message || 'Could not update this member');
+        } finally { setBusy(''); }
+    };
+
+    // Permanent removal: a hard cascade (upcoming bookings, schedule, shifts, time
+    // off, blocks, login all deleted; only paid/completed history is kept, labelled
+    // "former staff"). Irreversible — gated behind a name-typing confirm.
+    const removeForever = async () => {
+        const typed = window.prompt(`This permanently removes ${member.name} and everything involving them — upcoming bookings, working hours, shifts, time off, blocks and their login. Only completed/paid appointments are kept (as "former staff") so your earnings stay intact.\n\nThis cannot be undone. Type ${member.name} to confirm:`);
+        if (typed == null) return;
+        if (typed.trim() !== (member.name || '').trim()) { flash('Name did not match — nothing was removed.'); return; }
+        setBusy('remove');
+        try {
+            await teamService.removeMember(member._id);
+            flash(`${member.name} was permanently removed.`);
+            onChanged();
+        } catch (err) {
+            flash(err.response?.data?.message || 'Could not remove this member');
+            setBusy('');
+        }
+    };
+
     const invite = async () => {
         setBusy('invite');
         setInviteResult(null);
@@ -520,6 +554,47 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                             <button type="button" className="btn-primary" onClick={savePersonal} disabled={busy === 'personal'} data-testid="save-personal" style={{ marginTop: '0.7rem', padding: '0.55rem 1.4rem' }}>
                                 {busy === 'personal' ? 'Saving…' : 'Save details'}
                             </button>
+
+                            {/* Danger zone — leaving the team. Deactivate is the reversible
+                                pause; Remove is the irreversible cascade. */}
+                            <div style={{ marginTop: '1.75rem', paddingTop: '1.1rem', borderTop: '1px solid var(--border)' }} data-testid="danger-zone">
+                                <p style={{ margin: '0 0 0.6rem', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                                    Leaving the team
+                                </p>
+                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', alignItems: 'center' }}>
+                                    <button
+                                        type="button"
+                                        className="btn-outline"
+                                        onClick={toggleActive}
+                                        disabled={busy === 'active'}
+                                        data-testid="toggle-active"
+                                        style={{ padding: '0.5rem 1.1rem' }}
+                                    >
+                                        {busy === 'active'
+                                            ? 'Saving…'
+                                            : member.isActive === false ? 'Reactivate' : 'Deactivate (pause)'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={removeForever}
+                                        disabled={busy === 'remove'}
+                                        data-testid="remove-member"
+                                        style={{
+                                            display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
+                                            padding: '0.5rem 1.1rem', borderRadius: 'var(--radius)',
+                                            border: '1px solid var(--danger)', background: 'transparent',
+                                            color: 'var(--danger)', fontWeight: 600, fontSize: '0.85rem',
+                                            fontFamily: 'var(--font-body)', cursor: busy === 'remove' ? 'default' : 'pointer',
+                                        }}
+                                    >
+                                        <Trash2 size={15} /> {busy === 'remove' ? 'Removing…' : 'Remove permanently'}
+                                    </button>
+                                </div>
+                                <p style={{ margin: '0.55rem 0 0', fontSize: '0.72rem', color: 'var(--text-muted)', lineHeight: 1.5 }}>
+                                    <strong>Deactivate</strong> keeps every record and can be undone.{' '}
+                                    <strong>Remove permanently</strong> deletes their upcoming bookings, schedule and login for good — only completed/paid appointments are kept, as “former staff”.
+                                </p>
+                            </div>
                         </div>
                     )}
 

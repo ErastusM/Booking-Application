@@ -236,6 +236,84 @@ exports.deleteTeamMember = async (req, res) => {
 };
 
 /**
+ * DELETE /api/team/:id/permanent  (provider/admin)
+ *
+ * Permanent removal — the terminal counterpart to archive (DELETE /:id). When a
+ * member leaves for good, "everything involving them must go": their upcoming
+ * bookings, working hours, shifts, time off, personal blocks and login are all
+ * deleted, and the roster row itself is destroyed (no restore).
+ *
+ * The ONE thing kept is money that already changed hands. Completed or paid
+ * appointments are the business's financial and the client's own record, so they
+ * survive — snapshotted with the member's name and flagged `staffRemoved` so the
+ * calendar/earnings label them "former staff" rather than misreading a dead
+ * reference as the owner's own column. Everything else for the member is purged.
+ */
+exports.removeTeamMember = async (req, res) => {
+    try {
+        // A non-ObjectId (e.g. the 'owner' sentinel, which has no roster row) would
+        // otherwise CastError into a 500; the owner isn't a removable member anyway.
+        if (!require('mongoose').isValidObjectId(req.params.id)) {
+            return res.status(404).json({ success: false, message: 'Team member not found' });
+        }
+        const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
+
+        const Shift = require('../models/Shift');
+        const TimeOff = require('../models/TimeOff');
+        const BlockedTime = require('../models/BlockedTime');
+
+        // Keep the paid/completed history: stamp the member's name onto it and flag
+        // it so the row's deletion doesn't erase earnings or the client's record.
+        const kept = { $or: [{ status: 'completed' }, { paymentStatus: 'paid' }] };
+        await Appointment.updateMany(
+            { provider: member.provider, teamMember: member._id, ...kept },
+            { $set: { formerStaffName: member.name, staffRemoved: true } },
+        );
+
+        // Purge the rest of the member's bookings (upcoming/unpaid) and everything
+        // operational tied to them. Completed/paid ones are excluded from the delete.
+        await Appointment.deleteMany({
+            provider: member.provider,
+            teamMember: member._id,
+            status: { $ne: 'completed' },
+            paymentStatus: { $ne: 'paid' },
+        });
+        // A surviving multi-service booking may list this member on a sub-service
+        // performed by someone else — sever that reference so it doesn't dangle.
+        await Appointment.updateMany(
+            { provider: member.provider, 'services.teamMember': member._id },
+            { $set: { 'services.$[e].teamMember': null } },
+            { arrayFilters: [{ 'e.teamMember': member._id }] },
+        );
+
+        await Promise.all([
+            StaffAvailability.deleteMany({ teamMember: member._id }),
+            Shift.deleteMany({ teamMember: member._id }),
+            TimeOff.deleteMany({ teamMember: member._id }),
+            BlockedTime.deleteMany({ provider: member.provider, teamMember: member._id }),
+        ]);
+
+        // End their login. Same guard as archive: only revoke when no other active
+        // roster row for this business shares the account (a duplicate re-add).
+        const otherActive = member.user
+            ? await TeamMember.findOne({ provider: member.provider, user: member.user, _id: { $ne: member._id }, isActive: true })
+            : null;
+        if (member.user && !otherActive) {
+            await User.updateOne(
+                { _id: member.user },
+                { $inc: { tokenVersion: 1 }, $set: { refreshTokenJtis: [], staffOf: null } },
+            );
+        }
+
+        await TeamMember.deleteOne({ _id: member._id });
+        res.status(200).json({ success: true, message: 'Team member removed' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
  * GET  /api/team/:id/shifts?from=YYYY-MM-DD&to=YYYY-MM-DD  (provider/admin)
  * PUT  /api/team/:id/shifts   body: { date, slots: [{start,end}], breaks: [{start,end,label}], note }
  * DELETE /api/team/:id/shifts/:date
