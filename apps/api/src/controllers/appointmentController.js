@@ -23,6 +23,19 @@ const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, toDateKey, B
 const { overrideFor } = require('../utils/memberPricing');
 const { recordBookingRejection, rejectionsSummary } = require('../utils/bookingRejections');
 const { checkCancellationWindow } = require('../utils/cancellationPolicy');
+const { withBookingLock, BookingBusyError } = require('../utils/lock');
+
+// Serialize the overlap-check + insert for one provider+member+day so two
+// concurrent bookings can't both pass the check and both write (the same-person
+// double-book). The owner column keys on 'owner'; a named member on their id.
+const bookingLockKey = (providerId, teamMember, appointmentDate) =>
+    `booking:${providerId}:${teamMember || 'owner'}:${toDateKey(appointmentDate)}`;
+
+// Thrown inside a booking lock when the authoritative re-check finds the slot
+// was taken by the request that won the lock first.
+class SlotTakenError extends Error {
+    constructor() { super('slot_taken'); this.code = 'SLOT_TAKEN'; }
+}
 const { realStartMs } = require('../utils/appointmentTime');
 const { primaryOrigin } = require('../utils/origins');
 const { can, CALENDAR_ALL } = require('../utils/permissions');
@@ -967,74 +980,75 @@ exports.createAppointment = async (req, res) => {
         // reported back so the client knows which weeks didn't book.
         let skippedDates = [];
 
-        if (isRecurring && recurrenceType && ['daily', 'weekly', 'monthly'].includes(recurrenceType)) {
-            const groupId = randomUUID();
-            // Repeat every N units (the "Custom" frequency); defaults to every 1.
-            const interval = Math.min(52, Math.max(1, parseInt(recurrenceInterval, 10) || 1));
-            const seriesEnd = recurrenceEndDate ? new Date(recurrenceEndDate) : (() => {
-                const d = new Date(appointmentDate);
-                d.setMonth(d.getMonth() + 3);
-                return d;
-            })();
-            const candidates = [];
-            const anchor = new Date(appointmentDate);
-            const MAX = 60;
-            let step = 0;
-            let cur = new Date(anchor);
-            while (cur <= seriesEnd && candidates.length < MAX) {
-                candidates.push(new Date(cur));
-                step += 1;
-                cur = occurrenceFromAnchor(anchor, recurrenceType, interval, step);
+        // The overlap check and the insert must be ATOMIC. Two concurrent requests
+        // for the same person previously both passed a plain find() before either
+        // wrote, then both inserted — the same-person double-book seen in
+        // production ("blocked, then went through after a refresh"). The booking
+        // lock serializes per provider+member+day: the loser waits, then the
+        // authoritative re-check below sees the winner and is refused. This
+        // replaces the old advisory _id-comparison backstop, which relied on a
+        // cross-connection read that isn't guaranteed.
+        const commitBooking = async () => {
+            if (isRecurring && recurrenceType && ['daily', 'weekly', 'monthly'].includes(recurrenceType)) {
+                const groupId = randomUUID();
+                // Repeat every N units (the "Custom" frequency); defaults to every 1.
+                const interval = Math.min(52, Math.max(1, parseInt(recurrenceInterval, 10) || 1));
+                const seriesEnd = recurrenceEndDate ? new Date(recurrenceEndDate) : (() => {
+                    const d = new Date(appointmentDate);
+                    d.setMonth(d.getMonth() + 3);
+                    return d;
+                })();
+                const candidates = [];
+                const anchor = new Date(appointmentDate);
+                const MAX = 60;
+                let step = 0;
+                let cur = new Date(anchor);
+                while (cur <= seriesEnd && candidates.length < MAX) {
+                    candidates.push(new Date(cur));
+                    step += 1;
+                    cur = occurrenceFromAnchor(anchor, recurrenceType, interval, step);
+                }
+
+                // Drop occurrences that land on blocked time, a closed day, or an
+                // existing booking — previously every date was inserted unchecked.
+                const { kept, skipped } = await filterBookableOccurrences({
+                    providerId, dates: candidates, startTime, endTime,
+                    teamMember: resolvedTeamMember, schedule: providerSchedule,
+                    duration: parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime),
+                    enforceHoursAndBlocks: isCustomerLike,
+                });
+                skippedDates = skipped;
+
+                const docs = kept.map(d => ({ ...baseDoc, appointmentDate: new Date(d), isRecurring: true, recurrenceType, recurrenceInterval: interval, recurrenceGroupId: groupId, recurrenceEndDate: seriesEnd, manageToken: randomUUID() }));
+                const created = await Appointment.insertMany(docs);
+                appointment = created[0];
+                await appointment.populate(['service', { path: 'customer', select: 'name email' }]);
+                return;
             }
-
-            // Drop occurrences that land on blocked time, a closed day, or an
-            // existing booking — previously every date was inserted unchecked.
-            const { kept, skipped } = await filterBookableOccurrences({
-                providerId, dates: candidates, startTime, endTime,
-                teamMember: resolvedTeamMember, schedule: providerSchedule,
-                duration: parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime),
-                enforceHoursAndBlocks: isCustomerLike,
-            });
-            skippedDates = skipped;
-
-            const docs = kept.map(d => ({ ...baseDoc, appointmentDate: new Date(d), isRecurring: true, recurrenceType, recurrenceInterval: interval, recurrenceGroupId: groupId, recurrenceEndDate: seriesEnd, manageToken: randomUUID() }));
-            const created = await Appointment.insertMany(docs);
-            appointment = created[0];
-            await appointment.populate(['service', { path: 'customer', select: 'name email' }]);
-        } else {
+            // Authoritative overlap re-check INSIDE the lock, then insert.
+            if (providerId && await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, null, {
+                teamMember: resolvedTeamMember || null,
+                bufferBefore: svc.bufferBefore || 0,
+                bufferAfter: svc.bufferAfter || 0,
+            })) {
+                throw new SlotTakenError();
+            }
             appointment = await Appointment.create({ ...baseDoc, appointmentDate: new Date(appointmentDate) });
             await appointment.populate(['service', { path: 'customer', select: 'name email' }]);
-        }
+        };
 
-        // Close the check-then-insert race: if a conflicting booking was created
-        // concurrently (single-node Mongo has no transactions), the later writer —
-        // identified by the larger _id, which is time-ordered — rolls itself back so
-        // only one booking survives the same slot.
-        if (!isRecurring && providerId) {
-            const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
-            const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
-            const sameDay = await Appointment.find({
-                provider: providerId,
-                appointmentDate: { $gte: dayStart, $lte: dayEnd },
-                status: { $nin: ['cancelled'] },
-                ...(resolvedTeamMember ? memberInvolvedFilter(resolvedTeamMember) : { teamMember: null }),
-                _id: { $ne: appointment._id },
-            }).select('startTime endTime services teamMember service _id');
-            const [nSH, nSM] = startTime.split(':').map(Number);
-            const [nEH, nEM] = endTime.split(':').map(Number);
-            const nStart = nSH * 60 + nSM - (svc.bufferBefore || 0);
-            const nEnd = nEH * 60 + nEM + (svc.bufferAfter || 0);
-            const bufferByService = await bufferMapForAppointments(sameDay);
-            const lostRace = sameDay.some(a => {
-                const intervals = memberBusyIntervalsBuffered(a, resolvedTeamMember || null, bufferByService);
-                const overlaps = intervals.some(([s, e]) => nStart < e && nEnd > s);
-                return overlaps && a._id.toString() < appointment._id.toString();
-            });
-            if (lostRace) {
-                await Appointment.deleteOne({ _id: appointment._id });
+        try {
+            if (providerId) {
+                await withBookingLock(bookingLockKey(providerId, resolvedTeamMember, appointmentDate), commitBooking);
+            } else {
+                await commitBooking();
+            }
+        } catch (err) {
+            if (err.code === 'BOOKING_BUSY' || err.code === 'SLOT_TAKEN') {
                 if (isCustomerLike) recordBookingRejection({ providerId, reason: 'slot_taken', date: appointmentDate, startTime });
                 return res.status(400).json({ success: false, message: 'This time slot was just booked. You can join the waiting list instead.' });
             }
+            throw err;
         }
 
         // Wallet reservation: when the booking is paid by wallet, hold the service
@@ -1255,22 +1269,28 @@ exports.createMultiServiceAppointment = async (req, res) => {
         // booking to the segment windows for the member in question, so a segment
         // performer is seen wherever they appear; different staff may still run
         // concurrently, which is the point of the multi-service flow.
-        const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
-        const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
-        const sameDay = await Appointment.find({
-            provider: providerId,
-            appointmentDate: { $gte: dayStart, $lte: dayEnd },
-            status: { $nin: ['cancelled'] },
-        }).select('startTime endTime teamMember services service');
-        const sameDayBuffers = await bufferMapForAppointments(sameDay);
-        for (const seg of built) {
-            const segMember = seg.teamMember || teamMember || null;
-            const segStart = parseTimeToMinutes(seg.startTime);
-            const segEnd = parseTimeToMinutes(seg.endTime);
-            const clash = sameDay.some(a => memberBusyIntervalsBuffered(a, segMember, sameDayBuffers).some(([s, e]) => segStart < e && segEnd > s));
-            if (clash) {
-                return res.status(400).json({ success: false, message: 'That time overlaps an existing booking for one of the selected staff members.' });
-            }
+        // Extracted so the authoritative re-check can run again INSIDE the booking
+        // lock — the overlap read + insert must be atomic or two concurrent
+        // requests both pass and both write (a same-person double-book).
+        const segmentsClash = async () => {
+            const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
+            const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
+            const sameDay = await Appointment.find({
+                provider: providerId,
+                appointmentDate: { $gte: dayStart, $lte: dayEnd },
+                status: { $nin: ['cancelled'] },
+            }).select('startTime endTime teamMember services service');
+            const sameDayBuffers = await bufferMapForAppointments(sameDay);
+            return built.some((seg) => {
+                const segMember = seg.teamMember || teamMember || null;
+                const segStart = parseTimeToMinutes(seg.startTime);
+                const segEnd = parseTimeToMinutes(seg.endTime);
+                return sameDay.some(a => memberBusyIntervalsBuffered(a, segMember, sameDayBuffers).some(([s, e]) => segStart < e && segEnd > s));
+            });
+        };
+        // Fast pre-check outside the lock (good UX); the lock re-checks authoritatively.
+        if (await segmentsClash()) {
+            return res.status(400).json({ success: false, message: 'That time overlaps an existing booking for one of the selected staff members.' });
         }
 
         // Payment: reuse the provider's wallet config. Provider bookings are never
@@ -1284,24 +1304,35 @@ exports.createMultiServiceAppointment = async (req, res) => {
                 : (walletCfg.bookingPaymentMode === 'wallet_required' ? 'wallet' : 'cash');
         }
 
-        const appointment = await Appointment.create({
-            customer: bookingClient._id,
-            service: built[0].service, // back-compat: top-level service = the first one
-            provider: providerId,
-            appointmentDate: new Date(appointmentDate),
-            startTime: spanStart,
-            endTime: spanEnd,
-            notes: notes || '',
-            services: built,
-            totalPrice,
-            status: 'confirmed',
-            statusHistory: [{ status: 'confirmed', changedBy: req.user._id }],
-            walkInName: customerId ? null : bookingClient.name,
-            teamMember: primaryTeamMember,
-            paymentMethod: chosenMethod,
-            manageToken: randomUUID(),
-        });
-        await appointment.populate(['service', { path: 'customer', select: 'name email' }, { path: 'services.service', select: 'name price duration' }]);
+        let appointment;
+        try {
+            await withBookingLock(bookingLockKey(providerId, primaryTeamMember, appointmentDate), async () => {
+                if (await segmentsClash()) throw new SlotTakenError();
+                appointment = await Appointment.create({
+                    customer: bookingClient._id,
+                    service: built[0].service, // back-compat: top-level service = the first one
+                    provider: providerId,
+                    appointmentDate: new Date(appointmentDate),
+                    startTime: spanStart,
+                    endTime: spanEnd,
+                    notes: notes || '',
+                    services: built,
+                    totalPrice,
+                    status: 'confirmed',
+                    statusHistory: [{ status: 'confirmed', changedBy: req.user._id }],
+                    walkInName: customerId ? null : bookingClient.name,
+                    teamMember: primaryTeamMember,
+                    paymentMethod: chosenMethod,
+                    manageToken: randomUUID(),
+                });
+                await appointment.populate(['service', { path: 'customer', select: 'name email' }, { path: 'services.service', select: 'name price duration' }]);
+            });
+        } catch (err) {
+            if (err.code === 'BOOKING_BUSY' || err.code === 'SLOT_TAKEN') {
+                return res.status(400).json({ success: false, message: 'That time overlaps an existing booking for one of the selected staff members.' });
+            }
+            throw err;
+        }
 
         if (customerId && walletCfg?.enabled && chosenMethod === 'wallet' && totalPrice > 0) {
             try {
@@ -2296,7 +2327,11 @@ exports.createGroupBooking = async (req, res) => {
         // puts N clients in ONE slot, so we compare only against appointments that
         // ALREADY exist — the group's own rows are inserted together below and
         // must not be treated as conflicting with each other.
-        if (providerId) {
+        // Extracted so the authoritative re-check can run again INSIDE the booking
+        // lock — the overlap read + insertMany must be atomic, or two concurrent
+        // group bookings for the same member both pass and both write.
+        const groupOverlaps = async () => {
+            if (!providerId) return false;
             const [newSH, newSM] = startTime.split(':').map(Number);
             const [newEH, newEM] = endTime.split(':').map(Number);
             const newStart = newSH * 60 + newSM - (svc.bufferBefore || 0);
@@ -2309,14 +2344,15 @@ exports.createGroupBooking = async (req, res) => {
                 status: { $nin: ['cancelled'] },
                 teamMember: resolvedTeamMember,
             }).select('startTime endTime');
-            const hasOverlap = existing.some(a => {
+            return existing.some(a => {
                 const [aSH, aSM] = a.startTime.split(':').map(Number);
                 const [aEH, aEM] = a.endTime.split(':').map(Number);
                 return newStart < (aEH * 60 + aEM) && newEnd > (aSH * 60 + aSM);
             });
-            if (hasOverlap) {
-                return res.status(400).json({ success: false, message: 'This time slot is already booked. You can join the waiting list instead.' });
-            }
+        };
+        // Fast pre-check outside the lock; the lock re-checks authoritatively.
+        if (await groupOverlaps()) {
+            return res.status(400).json({ success: false, message: 'This time slot is already booked. You can join the waiting list instead.' });
         }
 
         const gid = randomUUID();
@@ -2338,7 +2374,22 @@ exports.createGroupBooking = async (req, res) => {
             groupSize: groupSize || clients.length,
             teamMember: resolvedTeamMember,
         }));
-        const appointments = await Appointment.insertMany(docs);
+        let appointments;
+        try {
+            if (providerId) {
+                await withBookingLock(bookingLockKey(providerId, resolvedTeamMember, appointmentDate), async () => {
+                    if (await groupOverlaps()) throw new SlotTakenError();
+                    appointments = await Appointment.insertMany(docs);
+                });
+            } else {
+                appointments = await Appointment.insertMany(docs);
+            }
+        } catch (err) {
+            if (err.code === 'BOOKING_BUSY' || err.code === 'SLOT_TAKEN') {
+                return res.status(400).json({ success: false, message: 'This time slot is already booked. You can join the waiting list instead.' });
+            }
+            throw err;
+        }
         await createNotification(req.user._id, `Group booking created: ${clients.length} client(s) for ${servicePhrase(svc.name)}`, 'appointment', '/dashboard?tab=confirmed');
         res.status(201).json({ success: true, data: appointments });
     } catch (error) {
