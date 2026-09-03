@@ -88,10 +88,7 @@ describe('permanently removing a team member', () => {
 
     it('ends the linked login (staffOf severed, tokens bumped)', async () => {
         const { provider, member } = await setup();
-        const staffUser = await User.create({
-            name: 'Erastus M', email: `staff_${Date.now()}@ex.com`, password: 'secret12',
-            role: 'staff', staffOf: provider._id, tokenVersion: 0,
-        });
+        const staffUser = await makeUser({ role: 'staff', staffOf: provider._id, tokenVersion: 0 });
         member.user = staffUser._id;
         await member.save();
 
