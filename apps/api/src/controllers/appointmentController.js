@@ -324,6 +324,13 @@ exports.getBookedSlots = async (req, res) => {
         if (!providerId || !date) {
             return res.status(400).json({ success: false, message: 'providerId and date are required' });
         }
+        // 'owner' is the sentinel for the owner's own column (stored unassigned,
+        // teamMember:null). It's a real, single professional — NOT "any available"
+        // — so it scopes busy times to the owner's own bookings + business-wide /
+        // owner-only blocks, over business hours (the owner has no StaffAvailability
+        // or shift). memberId is the real staff id, or null for the owner column.
+        const ownerColumn = teamMember === 'owner';
+        const memberId = ownerColumn ? null : (teamMember || null);
         const start = new Date(date);
         start.setHours(0, 0, 0, 0);
         const end = new Date(date);
@@ -338,23 +345,24 @@ exports.getBookedSlots = async (req, res) => {
         // stays provider-wide, exactly as before. A named member matches bookings
         // where they are the top-level OR a segment performer, so a multi-service
         // segment assigned to them is no longer missed by the picker.
-        if (teamMember) Object.assign(query, memberInvolvedFilter(teamMember));
+        if (memberId) Object.assign(query, memberInvolvedFilter(memberId));
+        else if (ownerColumn) query.teamMember = null; // owner's own unassigned bookings only
 
         const Shift = require('../models/Shift');
         const TimeOff = require('../models/TimeOff');
         const dayKey = toDateKey(date);
         const [appointments, blocks, shift, leaves] = await Promise.all([
             Appointment.find(query).select('startTime endTime teamMember services service -_id').lean(),
-            findBlocksForDate(providerId, date, teamMember || null),
+            findBlocksForDate(providerId, date, memberId),
             // Only meaningful for a named staff member: a shift is one person's
-            // working day, so it says nothing about the business as a whole. Scoped
-            // to THIS provider so a member id can't be used to read another
-            // business's roster metadata across the public endpoint.
-            teamMember ? Shift.findOne({ provider: providerId, teamMember, date: dayKey }).select('slots breaks').lean() : null,
+            // working day, so it says nothing about the business as a whole (and the
+            // owner has none). Scoped to THIS provider so a member id can't be used
+            // to read another business's roster metadata across the public endpoint.
+            memberId ? Shift.findOne({ provider: providerId, teamMember: memberId, date: dayKey }).select('slots breaks').lean() : null,
             // Approved leave for this member covering the day — also one person's,
             // so only when a member is named. Provider-scoped for the same reason.
-            teamMember ? TimeOff.find({
-                provider: providerId, teamMember, status: 'approved', startDate: { $lte: dayKey }, endDate: { $gte: dayKey },
+            memberId ? TimeOff.find({
+                provider: providerId, teamMember: memberId, status: 'approved', startDate: { $lte: dayKey }, endDate: { $gte: dayKey },
             }).select('allDay startTime endTime').lean() : [],
         ]);
 
@@ -404,7 +412,7 @@ exports.getBookedSlots = async (req, res) => {
         };
         const apptBusy = [];
         appointments.forEach((a) => {
-            memberBusyIntervalsBuffered(a, teamMember || null, slotBuffers).forEach(([s, e]) =>
+            memberBusyIntervalsBuffered(a, memberId, slotBuffers).forEach(([s, e]) =>
                 apptBusy.push({ startTime: minToHHMM(s), endTime: minToHHMM(e), teamMember: a.teamMember, kind: 'appointment' }));
         });
 
@@ -449,7 +457,7 @@ exports.getBookedSlots = async (req, res) => {
                 cursor = Math.max(cursor, b);
             });
             if (cursor < 24 * 60) busy.push({ startTime: hhmm(cursor), endTime: '23:59', kind: 'off_shift' });
-        } else if (teamMember) {
+        } else if (memberId) {
             // No shift for this date → the member's WEEKLY schedule (StaffAvailability)
             // governs their hours, exactly as the booking validator enforces it. Emit
             // the complement of that day's weekly slots as off_shift, or the whole day
@@ -462,7 +470,7 @@ exports.getBookedSlots = async (req, res) => {
             const StaffAvailability = require('../models/StaffAvailability');
             const bookableCount = await TeamMember.countDocuments({ provider: providerId, isActive: true, bookable: { $ne: false } });
             if (bookableCount !== 1) {
-                const av = await StaffAvailability.findOne({ teamMember }).select('schedule').lean();
+                const av = await StaffAvailability.findOne({ teamMember: memberId }).select('schedule').lean();
                 if (av?.schedule) {
                     const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
                     const day = av.schedule[DAY_NAMES[new Date(date).getDay()]];
@@ -765,7 +773,9 @@ exports.createAppointment = async (req, res) => {
         // no specific member here and keep the business default.
         let memberPriceOverride = null;
         let memberDurationOverride = null;
-        if (teamMember && providerId) {
+        // 'owner' is the sentinel for the owner's own column, not a real member id
+        // — the owner books at the business's default price/duration.
+        if (teamMember && teamMember !== 'owner' && providerId) {
             const reqMember = await TeamMember.findOne({ _id: teamMember, provider: providerId }).select('serviceOverrides');
             const ov = reqMember ? overrideFor(reqMember, svc._id) : null;
             if (ov && ov.price != null) memberPriceOverride = ov.price;
@@ -815,7 +825,7 @@ exports.createAppointment = async (req, res) => {
             // A shift for a specifically-requested member overrides business hours
             // for that date (see shiftGovernsHours); the per-staff check inside
             // resolveBookingStaff then enforces the shift's own slots and breaks.
-            const shiftGoverns = teamMember && await shiftGovernsHours(teamMember, appointmentDate);
+            const shiftGoverns = teamMember && teamMember !== 'owner' && await shiftGovernsHours(teamMember, appointmentDate);
             if (providerSchedule && !shiftGoverns) {
                 const bookingDuration = parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime);
                 if (!isTimeWithinSchedule(providerSchedule, appointmentDate, startTime, bookingDuration)) {

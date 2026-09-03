@@ -312,6 +312,16 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
     // bookable members = a real roster, unchanged.
     const soloOwner = bookableRoster.length === 1;
 
+    // Explicit owner column: once a business has a roster, the owner is offered
+    // to customers as a professional ("you") alongside staff. Booking them stores
+    // the appointment unassigned (teamMember:null) — the create/reschedule paths
+    // enforce business hours, blocked time and the owner's own (unassigned)
+    // bookings against that null column, so resolve straight to it and skip the
+    // "any available" staff pick below.
+    if (requestedTeamMember && String(requestedTeamMember) === 'owner') {
+        return { teamMember: null };
+    }
+
     if (requestedTeamMember) {
         const member = roster.find(m => m._id.toString() === String(requestedTeamMember));
         if (!member) return { status: 400, error: 'Unknown team member', reason: 'unknown_member' };

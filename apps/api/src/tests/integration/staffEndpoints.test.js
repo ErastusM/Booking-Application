@@ -337,17 +337,23 @@ describe('GET /api/providers/:id/staff (public)', () => {
         const specialist = await makeMember(owner, { name: 'Cutter', services: [cut._id] });
         await makeMember(owner, { name: 'Gone', isActive: false });
 
+        // With a roster present, the list leads with a synthetic OWNER tile
+        // (isOwner) — assert on the real staff by filtering it out, and confirm the
+        // owner is present and first.
+        const staffOnly = (res) => res.body.data.filter(s => !s.isOwner);
+
         const all = await request(app).get(`/api/providers/${owner._id}/staff`);
         expect(all.status).toBe(200);
-        expect(all.body.data.map(s => s.name).sort()).toEqual(['Anyone', 'Cutter']);
-        expect(all.body.data[0].email).toBeUndefined();
+        expect(all.body.data[0].isOwner).toBe(true); // owner leads
+        expect(staffOnly(all).map(s => s.name).sort()).toEqual(['Anyone', 'Cutter']);
+        expect(staffOnly(all).find(s => s.name === 'Anyone').email).toBeUndefined(); // contact hidden
 
         const forCut = await request(app).get(`/api/providers/${owner._id}/staff?serviceId=${cut._id}`);
-        expect(forCut.body.data.map(s => s.name).sort()).toEqual(['Anyone', 'Cutter']);
+        expect(staffOnly(forCut).map(s => s.name).sort()).toEqual(['Anyone', 'Cutter']);
 
         const forShave = await request(app).get(`/api/providers/${owner._id}/staff?serviceId=${shave._id}`);
-        expect(forShave.body.data.map(s => s.name)).toEqual(['Anyone']);
-        expect(forShave.body.data.find(s => s.name === 'Cutter')).toBeUndefined();
+        expect(staffOnly(forShave).map(s => s.name)).toEqual(['Anyone']);
+        expect(staffOnly(forShave).find(s => s.name === 'Cutter')).toBeUndefined();
         void specialist;
     });
 });

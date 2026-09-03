@@ -28,7 +28,23 @@ exports.getProviderStaff = async (req, res) => {
         const staff = await TeamMember.find(query)
             .select('name role color services serviceOverrides photoUrl isPrimary') // public: no email/phone/user
             .sort({ isPrimary: -1, createdAt: 1 }); // the primary member is shown first
-        res.status(200).json({ success: true, data: staff });
+        const data = staff.map(m => (m.toObject ? m.toObject() : m));
+
+        // When a business has a roster, the OWNER is a bookable professional too
+        // ("you"), offered FIRST alongside staff. The owner has no TeamMember row —
+        // their column is the unassigned one — so synthesize an entry under the
+        // 'owner' sentinel id, which the booking flow maps to teamMember:null. Solo
+        // businesses (no staff) keep the owner-implicit flow and need no tile.
+        const staffCount = await TeamMember.countDocuments({ provider: req.params.id, isActive: true });
+        if (staffCount > 0) {
+            const owner = await User.findById(req.params.id).select('name');
+            data.unshift({
+                _id: 'owner', isOwner: true,
+                name: owner?.name || 'Owner', role: 'Owner',
+                color: '#f03e16', services: [], serviceOverrides: [], isPrimary: false,
+            });
+        }
+        res.status(200).json({ success: true, data });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -58,6 +74,15 @@ exports.getProviderStaffShiftDays = async (req, res) => {
         const spanDays = Math.round((new Date(`${to}T00:00:00.000Z`) - new Date(`${from}T00:00:00.000Z`)) / 86400000);
         if (spanDays < 0 || spanDays > 400) {
             return res.status(400).json({ success: false, message: 'from and to must be a range of at most 400 days' });
+        }
+        // The owner is offered as a professional under the 'owner' sentinel
+        // (getProviderStaff), which is not a TeamMember id — nor is any other
+        // non-ObjectId. The owner has no shifts or leave (they work business
+        // hours), so return the same empty payload a missing member gets, BEFORE
+        // the id reaches a Mongoose cast that would throw a 500 on this public
+        // endpoint. The client then falls back to business hours, which is correct.
+        if (req.params.teamMemberId === 'owner' || !require('mongoose').isValidObjectId(req.params.teamMemberId)) {
+            return res.status(200).json({ success: true, data: { working: [], off: [] } });
         }
         // The member must belong to THIS provider and still be active. A miss
         // returns empty (not 404), so the picker simply falls back to business
