@@ -90,13 +90,18 @@ const userSchema = new mongoose.Schema(
             type: Boolean,
             default: false,
         },
+        // select:false like every other secret — a plain findById must never
+        // surface the live 24h token. It leaked via updateProfile/provider-setup,
+        // letting an account self-verify without mailbox access (audit).
         verificationToken: {
             type: String,
             default: null,
+            select: false,
         },
         verificationTokenExpiry: {
             type: Date,
             default: null,
+            select: false,
         },
         googleId: { type: String, default: null },
         avatar: { type: String, default: null },
@@ -178,7 +183,24 @@ const userSchema = new mongoose.Schema(
         passwordResetExpiry: { type: Date, default: null, select: false },
     },
     {
-        timestamps: true
+        timestamps: true,
+        // Defence-in-depth: strip every secret from any serialized user, so an
+        // accidental `.select('+password')`-then-res.json (or a missed projection)
+        // can never leak credentials or tokens. select:false already keeps them off
+        // a plain read; this covers the explicit-select case too.
+        toJSON: {
+            transform(_doc, ret) {
+                delete ret.password;
+                delete ret.verificationToken;
+                delete ret.verificationTokenExpiry;
+                delete ret.passwordResetToken;
+                delete ret.passwordResetExpiry;
+                delete ret.refreshTokenJtis;
+                delete ret.oauthCode;
+                delete ret.oauthCodeExpiry;
+                return ret;
+            },
+        },
     }
 );
 

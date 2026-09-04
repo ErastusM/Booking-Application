@@ -174,7 +174,32 @@ app.use(express.json({ limit: '1mb' }));
 app.use(express.urlencoded({ extended: false, limit: '1mb' }));
 app.use(mongoSanitize());
 if (process.env.NODE_ENV !== 'test') {
-    app.use(pinoHttp({ logger }));
+    // Redact secrets from request logs. Without this, pino-http's default req
+    // serializer logs `authorization: Bearer <JWT>` and `cookie: bp_rt=<refresh>`
+    // verbatim on every authenticated call, plus tokenized URLs (verify-email,
+    // manage-booking, oauth callback) — anyone with log access could replay them
+    // for full session takeover (audit). Redact the auth header + cookie and drop
+    // the raw query string from the logged URL.
+    app.use(pinoHttp({
+        logger,
+        redact: {
+            paths: [
+                'req.headers.authorization',
+                'req.headers.cookie',
+                'res.headers["set-cookie"]',
+            ],
+            censor: '[redacted]',
+        },
+        // Keep pino's standard request fields but drop the query string from the
+        // logged URL (verify-email?token=…, manage/<token>, oauth ?code=…).
+        serializers: {
+            req(req) {
+                const s = pino.stdSerializers.req(req);
+                if (s && s.url) s.url = String(s.url).split('?')[0];
+                return s;
+            },
+        },
+    }));
 }
 
 // Routes
