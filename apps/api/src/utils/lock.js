@@ -69,6 +69,24 @@ async function withBookingLock(name, fn, { ttlMs = 15000, waitMs = 8000, pollMs 
     }
 }
 
+// Acquire SEVERAL booking locks at once (a multi-service ticket touches more than
+// one member). Locks are taken in a deterministic sorted order so two concurrent
+// multi-member tickets can never deadlock, and released in reverse as the nesting
+// unwinds. Runs `fn` holding all of them.
+async function withBookingLocks(names, fn, opts) {
+    const uniq = [...new Set((names || []).filter(Boolean))].sort();
+    if (uniq.length === 0) return fn();
+    const run = (i) => (i >= uniq.length ? fn() : withBookingLock(uniq[i], () => run(i + 1), opts));
+    return run(0);
+}
+
+// The lock name for one provider+member+day. Shared so the booking controller and
+// the waiting-list promoter serialize on the SAME key. `teamMember` null (or the
+// 'owner' sentinel) is the owner's own column.
+const { toDateKey } = require('./blockedTime');
+const bookingLockKey = (providerId, teamMember, appointmentDate) =>
+    `booking:${providerId}:${(teamMember && teamMember !== 'owner') ? teamMember : 'owner'}:${toDateKey(appointmentDate)}`;
+
 async function releaseLock(name, token) {
     if (!token) return;
     try {
@@ -94,4 +112,4 @@ async function withLock(name, ttlMs, fn) {
     }
 }
 
-module.exports = { withLock, withBookingLock, acquireLock, releaseLock, BookingBusyError };
+module.exports = { withLock, withBookingLock, withBookingLocks, bookingLockKey, acquireLock, releaseLock, BookingBusyError };
