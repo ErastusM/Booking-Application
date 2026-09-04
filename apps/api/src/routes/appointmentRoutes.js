@@ -14,6 +14,22 @@ const guestBookingLimiter = rateLimit({
     legacyHeaders: false,
     skip: (req) => process.env.NODE_ENV === 'test' || !!req.user,
 });
+
+// Per-ACCOUNT cap: the guest limiter skips signed-in users, so a single throwaway
+// account (or a compromised staff token) could otherwise flood a provider's
+// calendar with thousands of bookings (a recurring request alone inserts up to
+// 60). Bucket by user id, not IP. Providers/admins legitimately bulk-book their
+// own business (walk-ins), so they're exempt; customers and staff are capped.
+const accountBookingLimiter = rateLimit({
+    windowMs: 60 * 60 * 1000, // 1 hour
+    max: 30,
+    message: { success: false, message: 'Too many bookings on this account. Please try again later.' },
+    standardHeaders: true,
+    legacyHeaders: false,
+    keyGenerator: (req) => String(req.user?._id || req.ip),
+    skip: (req) => process.env.NODE_ENV === 'test' || !req.user
+        || req.user.role === 'provider' || req.user.role === 'admin',
+});
 const {
     createAppointment,
     createMultiServiceAppointment,
@@ -56,7 +72,7 @@ router.post('/manage/:token/reschedule', rescheduleAppointmentByToken);
 // Guest checkout: no-login bookings allowed. optionalAuth attaches req.user when
 // signed in; the controller enforces guest contact fields when it's absent, and
 // still gates provider-only powers (walk-ins, book-on-behalf) on req.user.role.
-router.post('/', optionalAuth, guestBookingLimiter, createAppointmentRules, createAppointment);
+router.post('/', optionalAuth, guestBookingLimiter, accountBookingLimiter, createAppointmentRules, createAppointment);
 // Provider-built multi-service booking ("Add service" flow) — provider-only.
 router.post('/multi', auth, authorize('provider'), createMultiServiceAppointment);
 router.get('/my-appointments', auth, getMyAppointments);

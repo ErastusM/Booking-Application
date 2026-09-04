@@ -278,7 +278,14 @@ async function isMemberFree({ providerId, member, date, startTime, endTime, svc,
  * Returns { teamMember: ObjectId|null } or { status, error } for rejection.
  */
 async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime, endTime, requestedTeamMember, requester }) {
-    const isCustomer = requester.role === 'customer';
+    // Customer-side resolution (validate a requested member / pick "any available")
+    // applies to EVERYONE except the provider who owns this business. Keying on
+    // role==='customer' alone let a 'staff' (or another business's provider, or an
+    // admin) resolve straight to the owner column with no validation — the resolver
+    // half of the staff-role booking bypass. Ownership, not role, unlocks the
+    // provider path.
+    const isCustomer = !(requester.role === 'provider' && requester._id
+        && String(requester._id) === String(providerId));
     // `bookable` gates who clients can be sent to; isActive gates who still works
     // here. A receptionist is active but not bookable, and must never be resolved
     // as "any available". Both default true, so an existing roster is unchanged.

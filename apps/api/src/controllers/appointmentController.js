@@ -709,8 +709,13 @@ exports.createAppointment = async (req, res) => {
         const ownsService = req.user?.role === 'provider' && svc.provider
             && String(svc.provider) === String(req.user._id);
         const isProviderBooking = ownsService;
-        const isCustomerLike = isGuest || req.user?.role === 'customer'
-            || (req.user?.role === 'provider' && !ownsService);
+        // ANYONE who doesn't own this service books as a customer and is held to
+        // every customer guard (published hours, blocked time, past-slot, per-staff
+        // availability). Previously only guests/customers/non-owning providers were
+        // customer-like, so a role:'staff' principal fell through BOTH branches and
+        // skipped every check — letting a staff token flood any provider's calendar
+        // with past/closed/blocked bookings (audit: staff-role bypass).
+        const isCustomerLike = isGuest || !isProviderBooking;
 
         // Customers, guests and providers book here; admins never did (the route
         // dropped authorize() for guest checkout, so re-assert that contract).
