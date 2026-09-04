@@ -78,4 +78,7 @@ const waitingListSchema = new mongoose.Schema(
 waitingListSchema.index({ service: 1, appointmentDate: 1, startTime: 1, status: 1 });
 waitingListSchema.index({ customer: 1, status: 1 });
 
+// The dashboard waitlist widget + Insights count scan by provider.
+waitingListSchema.index({ provider: 1, status: 1 });
+
 module.exports = mongoose.model('WaitingList', waitingListSchema);

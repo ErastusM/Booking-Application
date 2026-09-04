@@ -37,7 +37,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 const __splash = document.getElementById('app-splash');
 if (__splash) {
     const __repeatLaunch = document.documentElement.getAttribute('data-repeat-launch') === 'true';
-    const __holdMs = __repeatLaunch ? 700 : 2000;
+    // The app is already rendered behind the splash, so a fixed hold is pure dead
+    // time on every open. Hide it as soon as the app has painted on a repeat
+    // launch; keep only a brief first-install brand flash. (The 8s backstop above
+    // still covers a stalled boot.)
+    const __holdMs = __repeatLaunch ? 0 : 600;
     window.setTimeout(() => {
         __splash.classList.add('app-splash--hidden');
         window.setTimeout(() => __splash.remove(), 500);

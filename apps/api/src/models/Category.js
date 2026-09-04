@@ -17,4 +17,8 @@ const categorySchema = new mongoose.Schema({
     },
 }, { timestamps: true });
 
+// The public provider profile (the booking entry page) lists a provider's
+// categories on every load — index the lookup so it isn't a collection scan.
+categorySchema.index({ provider: 1 });
+
 module.exports = mongoose.model('Category', categorySchema);

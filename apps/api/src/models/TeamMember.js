@@ -54,4 +54,9 @@ const teamMemberSchema = new mongoose.Schema({
     }],
 }, { timestamps: true });
 
+// Every roster/slot query filters { provider, isActive } — including the public
+// booked-slots endpoint on the booking hot path. Without this it was a collection
+// scan whose cost grew with total staff rows platform-wide.
+teamMemberSchema.index({ provider: 1, isActive: 1 });
+
 module.exports = mongoose.model('TeamMember', teamMemberSchema);
