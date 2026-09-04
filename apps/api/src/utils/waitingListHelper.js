@@ -10,6 +10,7 @@ const { googleCalendarUrl } = require('./calendarHelper');
 const emailService = require('./emailService');
 const pushService = require('./pushService');
 const { primaryOrigin } = require('./origins');
+const { withBookingLock, bookingLockKey } = require('./lock');
 const pino = require('pino');
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
@@ -101,38 +102,47 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
         const svc = await Service.findById(service).select('name price duration provider');
         const providerId = next.provider || svc?.provider || null;
 
-        // Only promote into a genuinely free slot — guards against a race where the
-        // slot was re-taken between the cancellation and this promotion.
-        if (!(await slotIsFree(providerId, appointmentDate, startTime, endTime, next.teamMember))) {
-            // Release the claim so they keep their place in line.
-            await WaitingList.updateOne({ _id: next._id, status: 'promoting' }, { $set: { status: 'waiting' } });
-            logger.warn({ service: String(service), startTime }, 'Skipped waitlist promotion — slot no longer free');
-            return;
-        }
-
         const manageToken = randomUUID();
+        const buildDoc = () => ({
+            customer: next.customer._id,
+            service,
+            provider: providerId,
+            // Promote onto the SAME staff column the waitlist entry targeted, so the
+            // booking is visible to (and counted against) the right member instead of
+            // silently landing on the owner's unassigned column (finding #16).
+            teamMember: next.teamMember || null,
+            appointmentDate,
+            startTime,
+            endTime,
+            totalPrice: svc ? svc.price : 0,
+            status: 'confirmed',
+            statusHistory: [{ status: 'confirmed', changedBy: null }],
+            manageToken,
+        });
+
+        // The free-slot check and the insert must be ATOMIC, on the SAME lock the
+        // booking controller uses — otherwise a customer booking can slip into the
+        // freed slot between slotIsFree() and create(), double-booking the member.
         let promoted;
         try {
-            promoted = await Appointment.create({
-                customer: next.customer._id,
-                service,
-                provider: providerId,
-                // Promote onto the SAME staff column the waitlist entry targeted, so the
-                // booking is visible to (and counted against) the right member instead of
-                // silently landing on the owner's unassigned column (finding #16).
-                teamMember: next.teamMember || null,
-                appointmentDate,
-                startTime,
-                endTime,
-                totalPrice: svc ? svc.price : 0,
-                status: 'confirmed',
-                statusHistory: [{ status: 'confirmed', changedBy: null }],
-                manageToken,
-            });
-        } catch (createErr) {
-            // Booking failed — release the claim so the slot can be retried.
+            const commit = async () => {
+                if (!(await slotIsFree(providerId, appointmentDate, startTime, endTime, next.teamMember))) {
+                    const e = new Error('slot_not_free'); e.slotNotFree = true; throw e;
+                }
+                return Appointment.create(buildDoc());
+            };
+            promoted = providerId
+                ? await withBookingLock(bookingLockKey(providerId, next.teamMember, appointmentDate), commit)
+                : await commit();
+        } catch (err) {
+            // Release the claim so they keep their place in line (slot re-taken, the
+            // lock was busy, or the create failed).
             await WaitingList.updateOne({ _id: next._id, status: 'promoting' }, { $set: { status: 'waiting' } }).catch(() => {});
-            throw createErr;
+            if (err && (err.slotNotFree || err.code === 'BOOKING_BUSY')) {
+                logger.warn({ service: String(service), startTime }, 'Skipped waitlist promotion — slot no longer free');
+                return;
+            }
+            throw err;
         }
 
         // Settle the claim to its final state.

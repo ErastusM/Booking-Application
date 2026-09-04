@@ -23,13 +23,11 @@ const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, toDateKey, B
 const { overrideFor } = require('../utils/memberPricing');
 const { recordBookingRejection, rejectionsSummary } = require('../utils/bookingRejections');
 const { checkCancellationWindow } = require('../utils/cancellationPolicy');
-const { withBookingLock, BookingBusyError } = require('../utils/lock');
-
 // Serialize the overlap-check + insert for one provider+member+day so two
 // concurrent bookings can't both pass the check and both write (the same-person
-// double-book). The owner column keys on 'owner'; a named member on their id.
-const bookingLockKey = (providerId, teamMember, appointmentDate) =>
-    `booking:${providerId}:${teamMember || 'owner'}:${toDateKey(appointmentDate)}`;
+// double-book). bookingLockKey/withBookingLocks are shared with the waiting-list
+// promoter so both serialize on the same per-member-per-day key.
+const { withBookingLock, withBookingLocks, bookingLockKey, BookingBusyError } = require('../utils/lock');
 
 // Thrown inside a booking lock when the authoritative re-check finds the slot
 // was taken by the request that won the lock first.
@@ -1334,7 +1332,12 @@ exports.createMultiServiceAppointment = async (req, res) => {
 
         let appointment;
         try {
-            await withBookingLock(bookingLockKey(providerId, primaryTeamMember, appointmentDate), async () => {
+            // A multi-service ticket can touch several members; lock EVERY distinct
+            // one (owner column included) so no segment performer can be raced into
+            // a double-book. Keys are acquired in a deterministic order (deadlock-safe).
+            const memberLockKeys = [...new Set(built.map((b) => b.teamMember || 'owner'))]
+                .map((m) => bookingLockKey(providerId, m, appointmentDate));
+            await withBookingLocks(memberLockKeys, async () => {
                 if (await segmentsClash()) throw new SlotTakenError();
                 appointment = await Appointment.create({
                     customer: bookingClient._id,
