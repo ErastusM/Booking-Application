@@ -65,6 +65,20 @@ const SearchClear = ({ onClear, label = 'Clear search' }) => (
     </button>
 );
 
+// The calendar pulls bookings from this many days back by default. All FUTURE
+// bookings are always fetched; only history beyond this floor is left to the
+// server-paginated History tab (and paging the calendar further back widens the
+// floor on demand). Keeps a business with years of completed bookings from
+// shipping its whole archive to the browser on every dashboard load — the
+// all-time counters come from the /summary aggregate, not this windowed list.
+const PAST_WINDOW_DAYS = 120;
+const ymd = (d) => {
+    const dt = d instanceof Date ? d : new Date(d);
+    const p = (n) => String(n).padStart(2, '0');
+    return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`;
+};
+const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+
 const ProviderDashboard = () => {
     const { user, setUser } = useAuthContext();
     // The business prices in its chosen currency; every money display uses this symbol.
@@ -82,6 +96,17 @@ const ProviderDashboard = () => {
     const [calHeight, setCalHeight] = useState(680);
     const [showWizard, setShowWizard] = useState(false);
     const [appointments, setAppointments] = useState([]);
+    // All-time dashboard counters, from the /summary aggregate. Keeps Total /
+    // per-status / popular-services / clients-served correct even though the
+    // `appointments` list above is date-windowed. null until first loaded — the
+    // counters fall back to the windowed list so nothing renders blank meanwhile.
+    const [summary, setSummary] = useState(null);
+    // Lower bound (YYYY-MM-DD) of the calendar's fetch window. Starts PAST_WINDOW_DAYS
+    // back and only ever moves EARLIER (paging the calendar into older weeks widens
+    // it), so refetches never drop bookings the user already had on screen. A ref,
+    // not state, so fetchAppointments always reads the current floor without being
+    // rebuilt.
+    const apptFromRef = useRef(ymd(addDays(new Date(), -PAST_WINDOW_DAYS)));
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
     const [activeTab, setActiveTab] = useState('calendar');
@@ -263,6 +288,7 @@ const ProviderDashboard = () => {
         // Run all initial fetches in parallel — don't wait for one before starting the next
         Promise.allSettled([
             fetchAppointments(),
+            fetchSummary(),
             fetchAvailability(),
             fetchMyServices(),
             fetchCategories(),
@@ -270,9 +296,19 @@ const ProviderDashboard = () => {
         ]);
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Paging the calendar back past the current fetch floor widens it (30-day
+    // headroom so a day-by-day walk backwards doesn't refetch every step). The
+    // floor only moves earlier, so the list never re-narrows under the user.
+    useEffect(() => {
+        if (ymd(currentDate) < apptFromRef.current) {
+            apptFromRef.current = ymd(addDays(currentDate, -30));
+            fetchAppointments({ force: true });
+        }
+    }, [currentDate]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // Live updates — keep the calendar/bookings fresh while the tab is open, so a
     // reschedule, new booking or cancellation shows up without a manual refresh.
-    useLiveRefresh(() => { fetchAppointments(); fetchBlockedTimes(); }, { intervalMs: 25000 });
+    useLiveRefresh(() => { fetchAppointments(); fetchSummary(); fetchBlockedTimes(); }, { intervalMs: 25000 });
 
     // Live chat — refresh the open conversation so new messages appear without reload.
     useLiveRefresh(() => {
@@ -346,8 +382,11 @@ const ProviderDashboard = () => {
         // Don't block the whole page — only set loading on first load
         if (appointments.length === 0) setLoading(true);
         try {
-            // `all` so the calendar always has every booking (no pagination gaps)
-            const res = await appointmentService.getAllAppointments({ all: true });
+            // `all` = no pagination gaps within the window; `from` caps how far
+            // back we pull. All future bookings are always included (no upper
+            // bound). The all-time counters live in the /summary aggregate, so this
+            // window never affects the dashboard's totals.
+            const res = await appointmentService.getAllAppointments({ all: true, from: apptFromRef.current });
             // Superseded while we were in flight: local state is the newer truth.
             if (!force && (apptEpoch.current !== epoch || writesInFlight.current > 0)) return;
             setAppointments(res.data.data);
@@ -356,6 +395,16 @@ const ProviderDashboard = () => {
         } finally {
             setLoading(false);
         }
+    };
+
+    // All-time counters (Total, per-status, popular services, clients served) in
+    // one aggregate, independent of the windowed list above. Best-effort — a
+    // failure just leaves the counters falling back to the windowed list.
+    const fetchSummary = async () => {
+        try {
+            const res = await appointmentService.getAppointmentsSummary();
+            setSummary(res.data.data);
+        } catch { /* keep the last-known summary; counters degrade to windowed */ }
     };
 
     const fetchAvailability = async () => {
@@ -966,8 +1015,10 @@ const ProviderDashboard = () => {
         setAppointments(prev => prev.map(a => a._id === id ? { ...a, status } : a));
         try {
             await appointmentService.updateAppointmentStatus(id, status);
-            // Re-sync from the server so calendar, counts and history all reflect it
+            // Re-sync from the server so calendar, counts and history all reflect it.
+            // fetchSummary too — a status change moves the all-time badge totals.
             await fetchAppointments();
+            fetchSummary();
             setHistory([]); // invalidate so History refetches when next opened
         } catch {
             await fetchAppointments(); // roll back optimistic change
@@ -1179,13 +1230,18 @@ const ProviderDashboard = () => {
     const filtered = appointments
         .filter(a => a.status === activeTab)
         .sort((x, y) => apptTime(x) - apptTime(y));
+    // All-time counts come from the /summary aggregate so the tab badges and Total
+    // tile stay whole-history while the list itself is windowed. Until summary
+    // loads (or if it failed), fall back to counting the windowed list so nothing
+    // flashes blank.
     const counts = appointmentTabs.reduce((acc, t) => {
-        acc[t] = appointments.filter(a => a.status === t).length;
+        acc[t] = summary ? (summary.byStatus?.[t] || 0) : appointments.filter(a => a.status === t).length;
         return acc;
     }, {});
+    const totalCount = summary ? summary.total : appointments.length;
 
     const stats = [
-        { label: 'Total', value: appointments.length, Icon: ClipboardList },
+        { label: 'Total', value: totalCount, Icon: ClipboardList },
         { label: 'Pending', value: counts.pending, Icon: CalendarClock },
         { label: 'Confirmed', value: counts.confirmed, Icon: Calendar },
         { label: 'Completed', value: counts.completed, Icon: TrendingUp },
@@ -1285,8 +1341,21 @@ const ProviderDashboard = () => {
                         {filtered.length === 0 ? (
                             <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '4rem 2rem', textAlign: 'center' }}>
                                 <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>📭</div>
-                                <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No {activeTab} appointments</p>
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Check back later or switch tabs to see other bookings.</p>
+                                {/* Distinguish "none exist" from "all of them are older than the
+                                    calendar's window" — the badge count is all-time, so an empty
+                                    windowed list with a non-zero count means they're in History. */}
+                                {summary && (counts[activeTab] || 0) > 0 ? (
+                                    <>
+                                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No recent {activeTab} appointments</p>
+                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1rem' }}>All {counts[activeTab]} are older than the calendar window.</p>
+                                        <button type="button" onClick={() => setActiveTab('history')} className="btn-outline" style={{ fontSize: '0.85rem' }}>View in History →</button>
+                                    </>
+                                ) : (
+                                    <>
+                                        <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No {activeTab} appointments</p>
+                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>Check back later or switch tabs to see other bookings.</p>
+                                    </>
+                                )}
                             </div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -1335,6 +1404,19 @@ const ProviderDashboard = () => {
                                         </div>
                                     );
                                 })}
+                                {/* The list is date-windowed for speed; the tab badge is the
+                                    all-time count. When older bookings fall outside the window,
+                                    say so and point to the full, server-paginated History tab —
+                                    rather than letting the count and the list silently disagree. */}
+                                {summary && (counts[activeTab] || 0) > filtered.length && (
+                                    <button
+                                        type="button"
+                                        onClick={() => setActiveTab('history')}
+                                        style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: '0.85rem 1rem', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}
+                                    >
+                                        Showing recent {activeTab} bookings · {counts[activeTab] - filtered.length} older in <strong>History</strong> →
+                                    </button>
+                                )}
                             </div>
                         )}
                     </>
@@ -1570,18 +1652,26 @@ const ProviderDashboard = () => {
                 {activeTab === 'overview' && (() => {
                     const todayStr = new Date().toDateString();
                     const now = new Date();
+                    // today's / upcoming / recent are date-relative and always sit
+                    // inside the fetch window (all future + recent past), so they
+                    // stay correct off the windowed list. The all-time figures —
+                    // completed count, cancellations, popular services, clients
+                    // served — come from the /summary aggregate (with a windowed
+                    // fallback until it loads) so they don't shrink to the window.
                     const todays = appointments.filter(a => new Date(a.appointmentDate).toDateString() === todayStr && a.status !== 'cancelled');
                     const upcoming = appointments.filter(a => new Date(a.appointmentDate) >= now && a.status === 'confirmed');
-                    const completedAll = appointments.filter(a => a.status === 'completed');
-                    const cancelledAll = appointments.filter(a => a.status === 'cancelled');
-                    const byService = Object.values(appointments.reduce((acc, a) => {
-                        const name = a.service?.name || 'Other';
-                        acc[name] = acc[name] || { name, count: 0 };
-                        acc[name].count += 1;
-                        return acc;
-                    }, {})).sort((a, b) => b.count - a.count).slice(0, 6);
+                    const completedCount = summary ? (summary.byStatus?.completed || 0) : appointments.filter(a => a.status === 'completed').length;
+                    const cancelledCount = summary ? (summary.byStatus?.cancelled || 0) : appointments.filter(a => a.status === 'cancelled').length;
+                    const byService = summary
+                        ? summary.byService
+                        : Object.values(appointments.reduce((acc, a) => {
+                            const name = a.service?.name || 'Other';
+                            acc[name] = acc[name] || { name, count: 0 };
+                            acc[name].count += 1;
+                            return acc;
+                        }, {})).sort((a, b) => b.count - a.count).slice(0, 6);
                     const recent = [...appointments].sort((a, b) => new Date(b.appointmentDate) - new Date(a.appointmentDate)).slice(0, 8);
-                    const clientNames = new Set(appointments.map(a => a.customer?._id || a.walkInName).filter(Boolean));
+                    const clientsServed = summary ? summary.uniqueClients : new Set(appointments.map(a => a.customer?._id || a.walkInName).filter(Boolean)).size;
                     return (
                         <div>
                             <div style={{ marginBottom: '1.5rem' }}>
@@ -1613,8 +1703,8 @@ const ProviderDashboard = () => {
                                 {[
                                     { label: "Today's Bookings", value: todays.length, icon: '📅', sub: 'Scheduled today' },
                                     { label: 'Upcoming', value: upcoming.length, icon: '⏳', sub: 'Confirmed ahead' },
-                                    { label: 'Completed', value: completedAll.length, icon: '✅', sub: 'All time' },
-                                    { label: 'Clients Served', value: clientNames.size, icon: '👥', sub: `${cancelledAll.length} cancellations` },
+                                    { label: 'Completed', value: completedCount, icon: '✅', sub: 'All time' },
+                                    { label: 'Clients Served', value: clientsServed, icon: '👥', sub: `${cancelledCount} cancellations` },
                                 ].map((s, i) => (
                                     <div key={i} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                                         <div style={{ width: '44px', height: '44px', borderRadius: '10px', background: 'rgba(240,62,22,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1.2rem', flexShrink: 0 }}>{s.icon}</div>
@@ -1656,8 +1746,8 @@ const ProviderDashboard = () => {
                                     <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1.25rem', paddingBottom: '0.75rem', borderBottom: '1px solid var(--border)' }}>Booking Status</h3>
                                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                         {['pending', 'confirmed', 'completed', 'cancelled'].map(st => {
-                                            const cnt = appointments.filter(a => a.status === st).length;
-                                            const total = Math.max(appointments.length, 1);
+                                            const cnt = counts[st] || 0;
+                                            const total = Math.max(totalCount, 1);
                                             const cfg = statusConfig[st];
                                             return (
                                                 <div key={st}>

@@ -536,41 +536,58 @@ exports.getBookedSlots = async (req, res) => {
     }
 };
 
+// Role-scoping for the appointment list AND its summary aggregate, kept in one
+// place so the two can never drift on who-sees-what. Returns { empty: true } when
+// the principal can legitimately see nothing (a staff account not attached to a
+// business, or with no roster row), otherwise { query } with the base Mongo filter.
+const buildAppointmentScope = async (req) => {
+    if (req.user.role === 'customer') return { query: { customer: req.user._id } };
+    if (req.user.role === 'staff') {
+        // Never the whole platform — a staff principal is always confined to the
+        // business they work for (the bare fall-through is admin-only).
+        //
+        // Within that business, how much they see is a PERMISSION rather than a
+        // hardcoded rule: `calendar:all` shows every colleague's bookings, its
+        // absence narrows to their own column.
+        if (!req.user.staffOf) return { empty: true };
+        if (can(req.user, CALENDAR_ALL)) return { query: { provider: req.user.staffOf } };
+        const member = await TeamMember.findOne({ user: req.user._id, provider: req.user.staffOf });
+        if (!member) return { empty: true };
+        // Segment-aware: a staff member sees every booking they perform — top-level
+        // OR as a services[] segment on a multi-service ticket — matching how the
+        // booking/availability math attributes work to them. A bare
+        // `teamMember: member._id` dropped bookings where a colleague was primary
+        // but this member ran one segment.
+        return { query: { provider: req.user.staffOf, ...memberInvolvedFilter(member._id) } };
+    }
+    if (req.user.role === 'provider') return { query: { provider: req.user._id } };
+    // admin / other: bare fall-through — the whole platform (unchanged).
+    return { query: {} };
+};
+
 exports.getAllAppointments = async (req, res) => {
     try {
-        let query = {};
-        if (req.user.role === 'customer') {
-            query = { customer: req.user._id };
-        } else if (req.user.role === 'staff') {
-            // Never the whole platform — a staff principal is always confined to
-            // the business they work for (the bare fall-through is admin-only).
-            //
-            // Within that business, how much they see is now a PERMISSION rather
-            // than a hardcoded rule: `calendar:all` shows every colleague's
-            // bookings, its absence narrows to their own column. Until this, a
-            // staff member was pinned to self-only whatever the owner granted,
-            // so the calendar-access setting had nothing to act on.
-            if (!req.user.staffOf) return res.status(200).json({ success: true, data: [] });
-            if (can(req.user, CALENDAR_ALL)) {
-                query = { provider: req.user.staffOf };
-            } else {
-                const member = await TeamMember.findOne({ user: req.user._id, provider: req.user.staffOf });
-                if (!member) return res.status(200).json({ success: true, data: [] });
-                // Segment-aware: a staff member sees every booking they perform —
-                // top-level OR as a services[] segment on a multi-service ticket —
-                // matching how the booking/availability math attributes work to
-                // them. A bare `teamMember: member._id` dropped bookings where a
-                // colleague was primary but this member ran one segment.
-                query = { provider: req.user.staffOf, ...memberInvolvedFilter(member._id) };
-            }
-        } else if (req.user.role === 'provider') {
-            query = { provider: req.user._id };
-        }
+        const scope = await buildAppointmentScope(req);
+        if (scope.empty) return res.status(200).json({ success: true, data: [] });
+        const query = scope.query;
 
         const { status } = req.query;
         if (status && ['pending', 'confirmed', 'completed', 'cancelled'].includes(status)) {
             query.status = status;
         }
+
+        // Optional date window (ADDITIVE — absent params keep the old "everything"
+        // behaviour, so every other caller is untouched). The provider dashboard
+        // sends `from` to cap how far back the calendar pulls, keeping a business
+        // with years of history fast; its all-time counters come from the summary
+        // aggregate below instead of from this (now windowed) list. A coarse UTC
+        // day boundary is fine — a few hours of slop on a 4-month-old floor is
+        // irrelevant.
+        const YMD = /^\d{4}-\d{2}-\d{2}$/;
+        const dateWindow = {};
+        if (YMD.test(req.query.from || '')) dateWindow.$gte = new Date(`${req.query.from}T00:00:00.000Z`);
+        if (YMD.test(req.query.to || '')) dateWindow.$lte = new Date(`${req.query.to}T23:59:59.999Z`);
+        if (dateWindow.$gte || dateWindow.$lte) query.appointmentDate = dateWindow;
 
         // The provider calendar needs every booking, not a page — `all=true` bypasses
         // pagination so the calendar can never silently drop appointments.
@@ -609,6 +626,64 @@ exports.getAllAppointments = async (req, res) => {
             page,
             pages: Math.ceil(total / limit),
             data: appointments,
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * GET /api/appointments/summary  (provider / staff / customer)
+ * The dashboard's ALL-TIME counters in one aggregate round-trip, so the calendar
+ * list can be date-windowed for speed without the Total / Completed / per-status /
+ * popular-services / clients-served figures silently shrinking to that window.
+ * Same role scoping as getAllAppointments (via buildAppointmentScope), so the
+ * summary can never show more (or less) than the list would.
+ */
+exports.getAppointmentsSummary = async (req, res) => {
+    try {
+        const scope = await buildAppointmentScope(req);
+        const emptyData = { total: 0, byStatus: {}, byService: [], uniqueClients: 0 };
+        if (scope.empty) return res.status(200).json({ success: true, data: emptyData });
+
+        // $facet: one pass over the scoped bookings, four independent rollups.
+        const [agg] = await Appointment.aggregate([
+            { $match: scope.query },
+            {
+                $facet: {
+                    total: [{ $count: 'n' }],
+                    byStatus: [{ $group: { _id: '$status', n: { $sum: 1 } } }],
+                    // Popular services by booking count — mirrors the frontend's
+                    // `a.service?.name || 'Other'` grouping, top 6.
+                    byService: [
+                        { $lookup: { from: 'services', localField: 'service', foreignField: '_id', as: 'svc' } },
+                        { $group: { _id: { $ifNull: [{ $arrayElemAt: ['$svc.name', 0] }, 'Other'] }, count: { $sum: 1 } } },
+                        { $sort: { count: -1 } },
+                        { $limit: 6 },
+                    ],
+                    // Distinct clients — a registered customer (by id) or a walk-in
+                    // (by name); guest-only bookings (no customer, no walk-in name)
+                    // are excluded, exactly as the frontend Set did.
+                    uniqueClients: [
+                        { $group: { _id: { $ifNull: ['$customer', '$walkInName'] } } },
+                        { $match: { _id: { $ne: null } } },
+                        { $count: 'n' },
+                    ],
+                },
+            },
+        ]);
+
+        const byStatus = {};
+        for (const row of (agg?.byStatus || [])) byStatus[row._id] = row.n;
+
+        res.status(200).json({
+            success: true,
+            data: {
+                total: agg?.total?.[0]?.n || 0,
+                byStatus,
+                byService: (agg?.byService || []).map((s) => ({ name: s._id, count: s.count })),
+                uniqueClients: agg?.uniqueClients?.[0]?.n || 0,
+            },
         });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });

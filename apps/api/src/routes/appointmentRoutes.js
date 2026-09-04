@@ -43,6 +43,7 @@ const {
     providerRescheduleAppointment,
     providerBatchReschedule,
     getBookedSlots,
+    getAppointmentsSummary,
     getRejectionsSummary,
     getAppointmentHistory,
     createGroupBooking,
@@ -79,6 +80,10 @@ router.get('/my-appointments', auth, getMyAppointments);
 router.get('/history', auth, authorize('provider', 'admin'), getAppointmentHistory);
 router.post('/group', auth, authorize('provider', 'admin'), createGroupBooking);
 router.get('/group/:groupId', auth, getGroupBooking);
+// All-time dashboard counters (windowing-safe). Same auth as the list — the
+// controller scopes by role, so a staff/customer principal only ever summarises
+// what they're allowed to see.
+router.get('/summary', auth, getAppointmentsSummary);
 router.get('/', auth, getAllAppointments);
 router.put('/:id', auth, authorize('admin'), updateAppointment);
 router.put('/:id/status', auth, authorize('admin', 'provider'), updateAppointmentStatusRules, updateAppointmentStatus);
