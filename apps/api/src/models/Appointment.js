@@ -210,4 +210,10 @@ appointmentSchema.pre('insertMany', function (next, docs) {
     next();
 });
 
+// Earnings / status-filtered lists / occupancy scan by provider+status(+date);
+// the slot feed and conflict checks scan by teamMember; group views by groupId.
+appointmentSchema.index({ provider: 1, status: 1, appointmentDate: 1 });
+appointmentSchema.index({ teamMember: 1, appointmentDate: 1 });
+appointmentSchema.index({ groupId: 1 });
+
 module.exports = mongoose.model('Appointment', appointmentSchema);

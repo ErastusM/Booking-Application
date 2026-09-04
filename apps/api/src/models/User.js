@@ -249,4 +249,11 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
     return await bcrypt.compare(enteredPassword, this.password);
 };
 
+// Auth lookups by these tokens were full collection scans. Sparse: only the few
+// users mid-flow hold a value, so the index stays tiny.
+userSchema.index({ googleId: 1 }, { sparse: true });
+userSchema.index({ verificationToken: 1 }, { sparse: true });
+userSchema.index({ passwordResetToken: 1 }, { sparse: true });
+userSchema.index({ oauthCode: 1 }, { sparse: true });
+
 module.exports = mongoose.model('User', userSchema);

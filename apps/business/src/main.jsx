@@ -38,8 +38,11 @@ ReactDOM.createRoot(document.getElementById('root')).render(
 const __splash = document.getElementById('app-splash');
 if (__splash) {
     const __briefSplash = document.documentElement.getAttribute('data-splash') === 'brief';
+    // The dashboard is already rendered behind the splash; a fixed hold is dead
+    // time on every open. Hide immediately on a repeat launch, keep a brief flash
+    // on first install only. (The 8s backstop above still covers a stalled boot.)
     window.setTimeout(() => {
         __splash.classList.add('app-splash--hidden');
         window.setTimeout(() => __splash.remove(), 500);
-    }, __briefSplash ? 450 : 2000);
+    }, __briefSplash ? 0 : 600);
 }

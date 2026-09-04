@@ -36,4 +36,8 @@ const blockedTimeSchema = new mongoose.Schema({
     recurrenceEndDate: { type: String, default: null }, // 'YYYY-MM-DD'
 }, { timestamps: true });
 
+// The slot feed and every booking create fetch a provider's blocks for ONE date;
+// a provider-only index still scanned all of their block rows. Scope by date too.
+blockedTimeSchema.index({ provider: 1, date: 1 });
+
 module.exports = mongoose.model('BlockedTime', blockedTimeSchema);

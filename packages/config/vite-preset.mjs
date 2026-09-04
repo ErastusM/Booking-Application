@@ -24,6 +24,28 @@ export const makeViteConfig = ({ port }) => {
         define: { __BUILD_ID__: JSON.stringify(buildId) },
         server: { port, strictPort: true },
         preview: { port, strictPort: true },
-        build: { outDir: 'dist', sourcemap: false },
+        build: {
+            outDir: 'dist',
+            sourcemap: false,
+            rollupOptions: {
+                output: {
+                    // Split the core, always-used libraries into their own stable
+                    // chunks so a deploy that only touches app code doesn't bust
+                    // react/axios from the browser cache (they were bundled into
+                    // index-[hash].js and re-downloaded every deploy). Other deps
+                    // are left to Vite's default chunking, so a lazy-route library
+                    // stays in its lazy chunk instead of being forced eager.
+                    manualChunks(id) {
+                        if (/[\\/]node_modules[\\/](react|react-dom|scheduler|react-router|react-router-dom)[\\/]/.test(id)) {
+                            return 'vendor-react';
+                        }
+                        if (/[\\/]node_modules[\\/]axios[\\/]/.test(id)) {
+                            return 'vendor-axios';
+                        }
+                        return undefined;
+                    },
+                },
+            },
+        },
     };
 };
