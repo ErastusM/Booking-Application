@@ -221,9 +221,23 @@ const revertRescheduleIfRaced = async (appointment, previousSlot) => {
     appointment.appointmentDate = previousSlot.appointmentDate;
     appointment.startTime = previousSlot.startTime;
     appointment.endTime = previousSlot.endTime;
+    // Restore the pre-move segment windows too, when the caller captured them
+    // (a multi-service booking whose segments were shifted with the move).
+    if (previousSlot.services !== undefined) appointment.services = previousSlot.services;
     await appointment.save();
     return true;
 };
+
+// Snapshot a booking's slot (+ segment windows) so a lost race can be undone
+// cleanly, INCLUDING the shifted multi-service segments.
+const slotSnapshot = (appt) => ({
+    appointmentDate: appt.appointmentDate,
+    startTime: appt.startTime,
+    endTime: appt.endTime,
+    services: Array.isArray(appt.services) && appt.services.length
+        ? appt.services.map((s) => (s.toObject ? s.toObject() : { ...s }))
+        : undefined,
+});
 
 /**
  * Which dates of a recurring series can actually be booked?
@@ -1019,6 +1033,20 @@ exports.createAppointment = async (req, res) => {
                 });
                 skippedDates = skipped;
 
+                // Atomic re-check of the ANCHOR occurrence inside the lock. The
+                // single-booking path re-checks here, but filterBookableOccurrences
+                // deliberately never drops occurrence 0 (dropping it could empty the
+                // series), so without this the just-closed create race stays open for
+                // a recurring booking's first date — two concurrent recurring bookings
+                // could both land their anchor on the same person/slot.
+                if (providerId && await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, null, {
+                    teamMember: resolvedTeamMember || null,
+                    bufferBefore: svc.bufferBefore || 0,
+                    bufferAfter: svc.bufferAfter || 0,
+                })) {
+                    throw new SlotTakenError();
+                }
+
                 const docs = kept.map(d => ({ ...baseDoc, appointmentDate: new Date(d), isRecurring: true, recurrenceType, recurrenceInterval: interval, recurrenceGroupId: groupId, recurrenceEndDate: seriesEnd, manageToken: randomUUID() }));
                 const created = await Appointment.insertMany(docs);
                 appointment = created[0];
@@ -1365,6 +1393,33 @@ exports.createMultiServiceAppointment = async (req, res) => {
     }
 };
 
+// On reschedule the booked LENGTH is the source of truth — NOT Service.duration,
+// which ignores per-member duration overrides, chosen options and add-ons and
+// would silently shrink the booking (leaving the tail overlapping the next slot).
+// Falls back to Service.duration only when the stored span is missing/invalid.
+const rescheduledEnd = (appt, newStartMin) => {
+    const span = parseTimeToMinutes(appt.endTime) - parseTimeToMinutes(appt.startTime);
+    const len = span > 0 ? span : ((appt.service && appt.service.duration) || 30);
+    return minutesToTime(newStartMin + len);
+};
+
+// Shift a multi-service booking's per-segment windows by the same start delta so
+// they track the moved appointment. Without this the segments keep their OLD
+// times, leaving phantom busy windows and segment-level double-books. Returns
+// undefined for a single-service booking (nothing to shift). Call BEFORE the
+// appointment's own startTime is reassigned, so the delta is measured correctly.
+const shiftedSegments = (appt, newStartMin) => {
+    if (!Array.isArray(appt.services) || appt.services.length === 0) return undefined;
+    const delta = newStartMin - parseTimeToMinutes(appt.startTime);
+    if (delta === 0) return undefined;
+    return appt.services.map((seg) => {
+        const o = seg.toObject ? seg.toObject() : { ...seg };
+        if (o.startTime) o.startTime = minutesToTime(parseTimeToMinutes(o.startTime) + delta);
+        if (o.endTime) o.endTime = minutesToTime(parseTimeToMinutes(o.endTime) + delta);
+        return o;
+    });
+};
+
 exports.updateAppointment = async (req, res) => {
     try {
         const appointment = await Appointment.findById(req.params.id).populate('service');
@@ -1381,13 +1436,10 @@ exports.updateAppointment = async (req, res) => {
         const newDate = appointmentDate || appointment.appointmentDate;
         const newStart = startTime || appointment.startTime;
         let newEnd = endTime || appointment.endTime;
-        // If the start moved but no explicit end was given, recompute end from the service duration.
+        // If the start moved but no explicit end was given, keep the booked LENGTH
+        // (span), not Service.duration — see rescheduledEnd.
         if (startTime && !endTime) {
-            const dur = appointment.service?.duration
-                || (parseTimeToMinutes(appointment.endTime) - parseTimeToMinutes(appointment.startTime))
-                || 30;
-            const tm = parseTimeToMinutes(startTime) + dur;
-            newEnd = `${String(Math.floor(tm / 60) % 24).padStart(2, '0')}:${String(tm % 60).padStart(2, '0')}`;
+            newEnd = rescheduledEnd(appointment, parseTimeToMinutes(startTime));
         }
 
         const dateChanged = appointmentDate && new Date(appointmentDate).getTime() !== new Date(appointment.appointmentDate).getTime();
@@ -1411,9 +1463,12 @@ exports.updateAppointment = async (req, res) => {
             }
         }
 
+        // Shift multi-service segments by the same delta BEFORE reassigning startTime.
+        const shifted = shiftedSegments(appointment, parseTimeToMinutes(newStart));
         appointment.appointmentDate = appointmentDate ? new Date(appointmentDate) : appointment.appointmentDate;
         appointment.startTime = newStart;
         appointment.endTime = newEnd;
+        if (shifted) appointment.services = shifted;
         appointment.status = status || appointment.status;
         appointment.notes = notes !== undefined ? notes : appointment.notes;
         await appointment.save();
@@ -1750,11 +1805,10 @@ exports.providerRescheduleAppointment = async (req, res) => {
             duration = endMinutes - startMinutes;
             endTime = requestedEndTime;
         } else {
-            duration = appointment.service?.duration || 30;
-            const totalMinutes = startMinutes + duration;
-            const endHours = Math.floor(totalMinutes / 60) % 24;
-            const endMins = totalMinutes % 60;
-            endTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
+            // A drag keeps the booked LENGTH (span), not Service.duration, so a
+            // member duration-override booking isn't silently shrunk.
+            endTime = rescheduledEnd(appointment, startMinutes);
+            duration = parseTimeToMinutes(endTime) - startMinutes;
         }
 
         if (!validBookingWindow(startTime, endTime)) {
@@ -1772,11 +1826,13 @@ exports.providerRescheduleAppointment = async (req, res) => {
             return res.status(400).json({ success: false, message: 'This time slot is already booked' });
         }
 
-        // Keep the old slot so the write can be undone if it lost a race.
-        const previousSlot = { appointmentDate: appointment.appointmentDate, startTime: appointment.startTime, endTime: appointment.endTime };
+        // Keep the old slot (+ segment windows) so the write can be undone if it lost a race.
+        const previousSlot = slotSnapshot(appointment);
+        const shifted = shiftedSegments(appointment, startMinutes);
         appointment.appointmentDate = new Date(appointmentDate);
         appointment.startTime = startTime;
         appointment.endTime = endTime;
+        if (shifted) appointment.services = shifted;
         await appointment.save();
         if (await revertRescheduleIfRaced(appointment, previousSlot)) {
             return res.status(409).json({ success: false, message: 'That time was just taken. Please pick another.' });
@@ -1932,6 +1988,13 @@ exports.providerBatchReschedule = async (req, res) => {
                 }
                 : null;
 
+            // Shift multi-service segments with the move so they don't keep their
+            // old windows; capture the originals for a clean rollback.
+            const segments = shiftedSegments(appt, parseTimeToMinutes(m.startTime));
+            const previousServices = segments
+                ? appt.services.map((s) => (s.toObject ? s.toObject() : { ...s }))
+                : undefined;
+
             planned.push({
                 appt,
                 id: appt._id.toString(),
@@ -1939,11 +2002,13 @@ exports.providerBatchReschedule = async (req, res) => {
                 dateKey: toDateKey(m.appointmentDate),
                 startTime: m.startTime,
                 endTime,
+                segments,
                 scope: conflictScope(appt),
                 previous: {
                     appointmentDate: appt.appointmentDate,
                     startTime: appt.startTime,
                     endTime: appt.endTime,
+                    ...(previousServices ? { services: previousServices } : {}),
                 },
                 // What the write is allowed to match on.
                 guard: expected || {
@@ -2039,6 +2104,7 @@ exports.providerBatchReschedule = async (req, res) => {
                 // reminderSent24h=true and the customer is never reminded.
                 { $set: {
                     appointmentDate: p.appointmentDate, startTime: p.startTime, endTime: p.endTime,
+                    ...(p.segments ? { services: p.segments } : {}),
                     reminderSent24h: false, reminderSent5h: false, reminderSent1h: false,
                 } },
                 { new: true },
@@ -2167,12 +2233,11 @@ exports.rescheduleAppointment = async (req, res) => {
             }
         }
 
-        const duration = appointment.service?.duration || 30;
-        const [hours, minutes] = startTime.split(':').map(Number);
-        const totalMinutes = hours * 60 + minutes + duration;
-        const endHours = Math.floor(totalMinutes / 60) % 24;
-        const endMins = totalMinutes % 60;
-        const endTime = `${String(endHours).padStart(2, '0')}:${String(endMins).padStart(2, '0')}`;
+        // Preserve the booked LENGTH (span), not Service.duration — a member
+        // duration-override booking must keep its real length on reschedule.
+        const startMin = parseTimeToMinutes(startTime);
+        const endTime = rescheduledEnd(appointment, startMin);
+        const duration = parseTimeToMinutes(endTime) - startMin;
 
         if (!validBookingWindow(startTime, endTime)) {
             return res.status(400).json({ success: false, message: 'That time would run past midnight. Pick an earlier start.' });
@@ -2203,11 +2268,13 @@ exports.rescheduleAppointment = async (req, res) => {
             if (unavailable) return res.status(400).json({ success: false, message: unavailable });
         }
 
-        // Keep the old slot so the write can be undone if it lost a race.
-        const previousSlot = { appointmentDate: appointment.appointmentDate, startTime: appointment.startTime, endTime: appointment.endTime };
+        // Keep the old slot (+ segments) so the write can be undone if it lost a race.
+        const previousSlot = slotSnapshot(appointment);
+        const shifted = shiftedSegments(appointment, startMin);
         appointment.appointmentDate = new Date(appointmentDate);
         appointment.startTime = startTime;
         appointment.endTime = endTime;
+        if (shifted) appointment.services = shifted;
         // The slot already passed the schedule + conflict checks above, so it's free —
         // auto-confirm instead of dropping back to pending (no provider action needed).
         appointment.status = 'confirmed';
@@ -2561,10 +2628,10 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
             }
         }
 
-        const duration = appt.service?.duration
-            || (parseTimeToMinutes(appt.endTime) - parseTimeToMinutes(appt.startTime)) || 30;
-        const tm = parseTimeToMinutes(startTime) + duration;
-        const endTime = `${String(Math.floor(tm / 60) % 24).padStart(2, '0')}:${String(tm % 60).padStart(2, '0')}`;
+        // Preserve the booked LENGTH (span), not Service.duration.
+        const startMin = parseTimeToMinutes(startTime);
+        const endTime = rescheduledEnd(appt, startMin);
+        const duration = parseTimeToMinutes(endTime) - startMin;
 
         if (!validBookingWindow(startTime, endTime)) {
             return res.status(400).json({ success: false, message: 'That time would run past midnight. Pick an earlier start.' });
@@ -2593,11 +2660,13 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
             }
         }
 
-        // Keep the old slot so the write can be undone if it lost a race.
-        const previousSlot = { appointmentDate: appt.appointmentDate, startTime: appt.startTime, endTime: appt.endTime };
+        // Keep the old slot (+ segments) so the write can be undone if it lost a race.
+        const previousSlot = slotSnapshot(appt);
+        const shifted = shiftedSegments(appt, startMin);
         appt.appointmentDate = new Date(appointmentDate);
         appt.startTime = startTime;
         appt.endTime = endTime;
+        if (shifted) appt.services = shifted;
         // Free slot (checked above) → auto-confirm rather than await provider approval.
         appt.status = 'confirmed';
         appt.statusHistory.push({ status: 'confirmed', changedBy: appt.customer?._id || null });

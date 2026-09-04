@@ -273,12 +273,24 @@ exports.removeTeamMember = async (req, res) => {
 
         // Purge the rest of the member's bookings (upcoming/unpaid) and everything
         // operational tied to them. Completed/paid ones are excluded from the delete.
-        await Appointment.deleteMany({
+        const purgeFilter = {
             provider: member.provider,
             teamMember: member._id,
             status: { $ne: 'completed' },
             paymentStatus: { $ne: 'paid' },
-        });
+        };
+        // Release any wallet hold on the bookings we're about to delete FIRST — a
+        // hard delete alone left the customer's prepaid funds reserved against a
+        // booking that no longer exists, freezing their money. releaseReservation is
+        // idempotent and a no-op for cash bookings.
+        const walletService = require('../utils/walletService');
+        const doomed = await Appointment.find(purgeFilter).select('_id');
+        for (const appt of doomed) {
+            try {
+                await walletService.releaseReservation({ appointmentId: appt._id, resolvedBy: req.user._id });
+            } catch (e) { /* best-effort: never block removal on a wallet hiccup */ }
+        }
+        await Appointment.deleteMany(purgeFilter);
         // A surviving multi-service booking may list this member on a sub-service
         // performed by someone else — sever that reference so it doesn't dangle.
         await Appointment.updateMany(
