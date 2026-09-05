@@ -8,21 +8,31 @@ exports.getMyConversations = async (req, res) => {
     try {
         const userId = req.user._id;
 
-        // Find all appointments the user is part of that have at least one message
-        const messages = await Message.find({
-            $or: [{ sender: userId }, { recipient: userId }],
-        })
-            .sort({ createdAt: -1 })
-            .populate('sender', 'name avatar')
-            .populate('recipient', 'name avatar')
-            .populate({
-                path: 'appointment',
-                populate: [
-                    { path: 'service', select: 'name' },
-                    { path: 'customer', select: 'name avatar' },
-                    { path: 'provider', select: 'name avatar' },
-                ],
-            });
+        // Find all appointments the user is part of that have at least one message,
+        // and the per-conversation unread counts, together. The unread count used to
+        // be a countDocuments PER conversation inside the loop below (an N+1 that
+        // grew with the user's inbox); one grouped aggregate replaces all of them.
+        const [messages, unreadAgg] = await Promise.all([
+            Message.find({
+                $or: [{ sender: userId }, { recipient: userId }],
+            })
+                .sort({ createdAt: -1 })
+                .populate('sender', 'name avatar')
+                .populate('recipient', 'name avatar')
+                .populate({
+                    path: 'appointment',
+                    populate: [
+                        { path: 'service', select: 'name' },
+                        { path: 'customer', select: 'name avatar' },
+                        { path: 'provider', select: 'name avatar' },
+                    ],
+                }),
+            Message.aggregate([
+                { $match: { recipient: userId, readBy: { $ne: userId } } },
+                { $group: { _id: '$appointment', count: { $sum: 1 } } },
+            ]),
+        ]);
+        const unreadMap = new Map(unreadAgg.map(u => [String(u._id), u.count]));
 
         // Deduplicate by appointment, keep latest message per conversation
         const seen = new Set();
@@ -36,11 +46,7 @@ exports.getMyConversations = async (req, res) => {
                 ? msg.recipient._id
                 : msg.sender._id;
 
-            const unread = await Message.countDocuments({
-                appointment: msg.appointment._id,
-                recipient: userId,
-                readBy: { $ne: userId },
-            });
+            const unread = unreadMap.get(apptId) || 0;
 
             conversations.push({
                 appointment: msg.appointment,

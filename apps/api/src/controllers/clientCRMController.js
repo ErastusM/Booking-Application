@@ -74,11 +74,13 @@ exports.getClientDetail = async (req, res) => {
             return res.status(200).json({ success: true, data: { appointments, note: null } });
         }
 
-        const appointments = await Appointment.find({ provider: providerId, customer: customerId })
-            .populate('service', 'name price duration')
-            .sort({ appointmentDate: -1 });
-
-        const note = await ClientNote.findOne({ provider: providerId, customer: customerId });
+        // The history and the CRM note are independent — fetch them together.
+        const [appointments, note] = await Promise.all([
+            Appointment.find({ provider: providerId, customer: customerId })
+                .populate('service', 'name price duration')
+                .sort({ appointmentDate: -1 }),
+            ClientNote.findOne({ provider: providerId, customer: customerId }),
+        ]);
 
         res.status(200).json({ success: true, data: { appointments, note: note || null } });
     } catch (error) {
