@@ -44,6 +44,10 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
 
     appointmentService: {
         getAllAppointments: (params?: any) => API.get('/appointments', { params }),
+        // All-time dashboard counters (total, per-status, popular services, unique
+        // clients) in one aggregate — so the calendar list can be date-windowed
+        // for speed without those figures shrinking to the window.
+        getAppointmentsSummary: () => API.get('/appointments/summary'),
         getCustomerAppointments: () => API.get('/appointments/my-appointments'),
         // `service` makes the no-member ("any professional") view staff-aware:
         // the server unions the availability of everyone who performs that
