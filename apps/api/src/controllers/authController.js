@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const Category = require('../models/Category');
 const { generateToken, generateRefreshToken } = require('../utils/helpers');
+const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
 const jwt = require('jsonwebtoken');
 const { sendVerificationEmail, sendWelcomeEmail } = require('../utils/emailService');
@@ -12,6 +13,12 @@ const { primaryOrigin, businessOrigin, originForRole } = require('../utils/origi
 // How many recent refresh-token ids (jti hashes) to remember per user. Enough to
 // cover a handful of concurrent devices without growing unbounded.
 const MAX_REFRESH_JTIS = 10;
+
+// A fixed, never-matching bcrypt hash (cost 10, same as the model's genSalt(10)).
+// Used to spend one bcrypt comparison on the "email doesn't exist" login path so
+// it takes the same time as "email exists, wrong password" — otherwise the
+// short-circuit (no candidate rows → no bcrypt) is a user-enumeration timing oracle.
+const DUMMY_PASSWORD_HASH = bcrypt.hashSync('bookplus-timing-equaliser', 10);
 
 const hashJti = (jti) => crypto.createHash('sha256').update(jti).digest('hex');
 
@@ -258,6 +265,14 @@ exports.login = async (req, res) => {
         let user = null;
         for (const candidate of candidates) {
             if (await candidate.matchPassword(password)) { user = candidate; break; }
+        }
+
+        // No candidate rows means the loop above ran zero bcrypt comparisons, so a
+        // non-existent email would answer measurably faster than a real one with a
+        // wrong password — an enumeration oracle. Spend one comparison against a
+        // fixed dummy hash to level the two paths.
+        if (candidates.length === 0) {
+            await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
         }
 
         if (!user) {

@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Appointment = require('../models/Appointment');
 const ClientNote = require('../models/ClientNote');
 
@@ -98,6 +99,18 @@ exports.upsertClientNote = async (req, res) => {
         // Walk-ins have no account to attach a note to.
         if (customerId.startsWith('walkin:')) {
             return res.status(400).json({ success: false, message: 'Notes are only available for registered clients.' });
+        }
+
+        // A note may only be written about an actual client of THIS provider —
+        // someone who has booked with them. Without this, any provider could
+        // upsert a CRM record (allergies, conditions, internal notes, birthday)
+        // keyed to an arbitrary user id for a stranger who never booked with them.
+        if (!mongoose.isValidObjectId(customerId)) {
+            return res.status(400).json({ success: false, message: 'Invalid client id' });
+        }
+        const isClient = await Appointment.exists({ provider: providerId, customer: customerId });
+        if (!isClient) {
+            return res.status(404).json({ success: false, message: 'Client not found' });
         }
 
         const note = await ClientNote.findOneAndUpdate(
