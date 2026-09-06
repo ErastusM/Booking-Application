@@ -34,35 +34,113 @@ exports.getMyEarnings = async (req, res) => {
         const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
 
         const completedBase = { provider: providerId, status: 'completed' };
+        const rangeMatch = { ...completedBase, appointmentDate: { $gte: rangeFrom, $lte: rangeTo } };
 
-        // ── Range totals + month comparison in a single pass (uses appointmentDate) ──
-        const [agg] = await Appointment.aggregate([
-            { $match: { ...completedBase } },
-            {
-                $group: {
-                    _id: null,
-                    rangeEarned: {
-                        $sum: { $cond: [{ $and: [{ $gte: ['$appointmentDate', rangeFrom] }, { $lte: ['$appointmentDate', rangeTo] }] }, '$totalPrice', 0] },
+        // The six report sections read the same completed-appointments collection but
+        // none depends on another's result — they were six sequential round-trips on
+        // the request the Earnings tab waits for. Issue them concurrently: one
+        // round-trip's worth of latency instead of six.
+        const [
+            [agg],
+            byService,
+            overTimeRaw,
+            topClientsRaw,
+            byTeamMemberRaw,
+            recentDocs,
+        ] = await Promise.all([
+            // ── Range totals + month comparison in a single pass (uses appointmentDate) ──
+            Appointment.aggregate([
+                { $match: { ...completedBase } },
+                {
+                    $group: {
+                        _id: null,
+                        rangeEarned: {
+                            $sum: { $cond: [{ $and: [{ $gte: ['$appointmentDate', rangeFrom] }, { $lte: ['$appointmentDate', rangeTo] }] }, '$totalPrice', 0] },
+                        },
+                        rangeCount: {
+                            $sum: { $cond: [{ $and: [{ $gte: ['$appointmentDate', rangeFrom] }, { $lte: ['$appointmentDate', rangeTo] }] }, 1, 0] },
+                        },
+                        thisMonthEarned: {
+                            $sum: { $cond: [{ $gte: ['$appointmentDate', startOfMonth] }, '$totalPrice', 0] },
+                        },
+                        thisMonthCount: {
+                            $sum: { $cond: [{ $gte: ['$appointmentDate', startOfMonth] }, 1, 0] },
+                        },
+                        lastMonthEarned: {
+                            $sum: { $cond: [{ $and: [{ $gte: ['$appointmentDate', startOfLastMonth] }, { $lte: ['$appointmentDate', endOfLastMonth] }] }, '$totalPrice', 0] },
+                        },
+                        lastMonthCount: {
+                            $sum: { $cond: [{ $and: [{ $gte: ['$appointmentDate', startOfLastMonth] }, { $lte: ['$appointmentDate', endOfLastMonth] }] }, 1, 0] },
+                        },
+                        allTimeEarned: { $sum: '$totalPrice' },
+                        allTimeCount: { $sum: 1 },
                     },
-                    rangeCount: {
-                        $sum: { $cond: [{ $and: [{ $gte: ['$appointmentDate', rangeFrom] }, { $lte: ['$appointmentDate', rangeTo] }] }, 1, 0] },
-                    },
-                    thisMonthEarned: {
-                        $sum: { $cond: [{ $gte: ['$appointmentDate', startOfMonth] }, '$totalPrice', 0] },
-                    },
-                    thisMonthCount: {
-                        $sum: { $cond: [{ $gte: ['$appointmentDate', startOfMonth] }, 1, 0] },
-                    },
-                    lastMonthEarned: {
-                        $sum: { $cond: [{ $and: [{ $gte: ['$appointmentDate', startOfLastMonth] }, { $lte: ['$appointmentDate', endOfLastMonth] }] }, '$totalPrice', 0] },
-                    },
-                    lastMonthCount: {
-                        $sum: { $cond: [{ $and: [{ $gte: ['$appointmentDate', startOfLastMonth] }, { $lte: ['$appointmentDate', endOfLastMonth] }] }, 1, 0] },
-                    },
-                    allTimeEarned: { $sum: '$totalPrice' },
-                    allTimeCount: { $sum: 1 },
                 },
-            },
+            ]),
+            // ── Earnings by service (within range) ──
+            Appointment.aggregate([
+                { $match: rangeMatch },
+                { $group: { _id: '$service', earned: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
+                { $lookup: { from: 'services', localField: '_id', foreignField: '_id', as: 'svc' } },
+                { $unwind: { path: '$svc', preserveNullAndEmptyArrays: true } },
+                { $project: { name: { $ifNull: ['$svc.name', 'Unknown'] }, earned: 1, count: 1 } },
+                { $sort: { earned: -1 } },
+            ]),
+            // ── Earnings over time (within range, grouped by day; zero-filled below) ──
+            Appointment.aggregate([
+                { $match: rangeMatch },
+                {
+                    $group: {
+                        _id: { $dateToString: { format: '%Y-%m-%d', date: '$appointmentDate', timezone: 'UTC' } },
+                        earned: { $sum: '$totalPrice' },
+                        count: { $sum: 1 },
+                    },
+                },
+                { $sort: { _id: 1 } },
+            ]),
+            // ── Top clients (within range) ──
+            // A completed appointment belongs to a registered customer, a guest (email),
+            // or a provider-logged walk-in (name). Grouping on `customer` alone collapsed
+            // every guest and walk-in into a single null "Walk-in" row; group on a
+            // per-identity key so distinct guests are counted separately and named.
+            Appointment.aggregate([
+                { $match: rangeMatch },
+                {
+                    $group: {
+                        _id: { $ifNull: ['$customer', { $ifNull: ['$guestEmail', '$walkInName'] }] },
+                        earned: { $sum: '$totalPrice' },
+                        count: { $sum: 1 },
+                        customer: { $first: '$customer' },
+                        guestName: { $first: '$guestName' },
+                        walkInName: { $first: '$walkInName' },
+                    },
+                },
+                { $sort: { earned: -1 } },
+                { $limit: 5 },
+                { $lookup: { from: 'users', localField: 'customer', foreignField: '_id', as: 'u' } },
+                { $unwind: { path: '$u', preserveNullAndEmptyArrays: true } },
+                { $project: { name: { $ifNull: ['$u.name', { $ifNull: ['$guestName', { $ifNull: ['$walkInName', 'Walk-in'] }] }] }, earned: 1, count: 1 } },
+            ]),
+            // ── Earnings by team member (within range) ──
+            // Appointments carry the staff member who performed them. Only surface this
+            // breakdown for businesses that actually assign staff — a solo provider's
+            // bookings are all unassigned, so the section stays empty (byTeamMember: [])
+            // rather than showing a lone, meaningless "Unassigned" row.
+            Appointment.aggregate([
+                { $match: rangeMatch },
+                { $group: { _id: '$teamMember', earned: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
+                { $lookup: { from: 'teammembers', localField: '_id', foreignField: '_id', as: 'tm' } },
+                { $unwind: { path: '$tm', preserveNullAndEmptyArrays: true } },
+                { $project: { name: { $ifNull: ['$tm.name', 'Unassigned'] }, earned: 1, count: 1 } },
+                { $sort: { earned: -1 } },
+            ]),
+            // ── Recent completed appointments (latest 10, range-independent) ──
+            Appointment.find(completedBase)
+                .select('customer guestName walkInName service appointmentDate startTime endTime totalPrice')
+                .populate('service', 'name')
+                .populate('customer', 'name')
+                .sort({ appointmentDate: -1 })
+                .limit(10),
         ]);
 
         const rangeEarned = agg?.rangeEarned || 0;
@@ -74,28 +152,7 @@ exports.getMyEarnings = async (req, res) => {
             : Math.round(((thisMonthEarned - lastMonthEarned) / lastMonthEarned) * 100);
         const avgPerAppointment = rangeCount > 0 ? Math.round(rangeEarned / rangeCount) : 0;
 
-        // ── Earnings by service (within range) ──
-        const byService = await Appointment.aggregate([
-            { $match: { ...completedBase, appointmentDate: { $gte: rangeFrom, $lte: rangeTo } } },
-            { $group: { _id: '$service', earned: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
-            { $lookup: { from: 'services', localField: '_id', foreignField: '_id', as: 'svc' } },
-            { $unwind: { path: '$svc', preserveNullAndEmptyArrays: true } },
-            { $project: { name: { $ifNull: ['$svc.name', 'Unknown'] }, earned: 1, count: 1 } },
-            { $sort: { earned: -1 } },
-        ]);
-
-        // ── Earnings over time (within range, grouped by day, zero-filled) ──
-        const overTimeRaw = await Appointment.aggregate([
-            { $match: { ...completedBase, appointmentDate: { $gte: rangeFrom, $lte: rangeTo } } },
-            {
-                $group: {
-                    _id: { $dateToString: { format: '%Y-%m-%d', date: '$appointmentDate', timezone: 'UTC' } },
-                    earned: { $sum: '$totalPrice' },
-                    count: { $sum: 1 },
-                },
-            },
-            { $sort: { _id: 1 } },
-        ]);
+        // ── Earnings over time: zero-fill the (already-fetched) daily buckets ──
         const overTimeMap = new Map(overTimeRaw.map(d => [d._id, d]));
         const overTime = [];
         const dayCursor = new Date(rangeFrom);
@@ -114,55 +171,15 @@ exports.getMyEarnings = async (req, res) => {
             guard += 1;
         }
 
-        // ── Top clients (within range) ──
-        // A completed appointment belongs to a registered customer, a guest (email),
-        // or a provider-logged walk-in (name). Grouping on `customer` alone collapsed
-        // every guest and walk-in into a single null "Walk-in" row; group on a
-        // per-identity key so distinct guests are counted separately and named.
-        const topClientsRaw = await Appointment.aggregate([
-            { $match: { ...completedBase, appointmentDate: { $gte: rangeFrom, $lte: rangeTo } } },
-            {
-                $group: {
-                    _id: { $ifNull: ['$customer', { $ifNull: ['$guestEmail', '$walkInName'] }] },
-                    earned: { $sum: '$totalPrice' },
-                    count: { $sum: 1 },
-                    customer: { $first: '$customer' },
-                    guestName: { $first: '$guestName' },
-                    walkInName: { $first: '$walkInName' },
-                },
-            },
-            { $sort: { earned: -1 } },
-            { $limit: 5 },
-            { $lookup: { from: 'users', localField: 'customer', foreignField: '_id', as: 'u' } },
-            { $unwind: { path: '$u', preserveNullAndEmptyArrays: true } },
-            { $project: { name: { $ifNull: ['$u.name', { $ifNull: ['$guestName', { $ifNull: ['$walkInName', 'Walk-in'] }] }] }, earned: 1, count: 1 } },
-        ]);
-
-        // ── Earnings by team member (within range) ──
-        // Appointments carry the staff member who performed them. Only surface this
-        // breakdown for businesses that actually assign staff — a solo provider's
-        // bookings are all unassigned, so the section stays empty (byTeamMember: [])
-        // rather than showing a lone, meaningless "Unassigned" row.
-        const byTeamMemberRaw = await Appointment.aggregate([
-            { $match: { ...completedBase, appointmentDate: { $gte: rangeFrom, $lte: rangeTo } } },
-            { $group: { _id: '$teamMember', earned: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
-            { $lookup: { from: 'teammembers', localField: '_id', foreignField: '_id', as: 'tm' } },
-            { $unwind: { path: '$tm', preserveNullAndEmptyArrays: true } },
-            { $project: { name: { $ifNull: ['$tm.name', 'Unassigned'] }, earned: 1, count: 1 } },
-            { $sort: { earned: -1 } },
-        ]);
+        // ── Earnings by team member: only surface it for businesses that assign staff.
+        // A solo provider's bookings are all unassigned, so the section stays empty
+        // (byTeamMember: []) rather than showing a lone, meaningless "Unassigned" row.
         const hasAssignedStaff = byTeamMemberRaw.some(r => r._id != null);
         const byTeamMember = hasAssignedStaff
             ? byTeamMemberRaw.map(r => ({ name: r.name, earned: r.earned, count: r.count }))
             : [];
 
         // ── Recent completed appointments (latest 10, range-independent) ──
-        const recentDocs = await Appointment.find(completedBase)
-            .select('customer guestName walkInName service appointmentDate startTime endTime totalPrice')
-            .populate('service', 'name')
-            .populate('customer', 'name')
-            .sort({ appointmentDate: -1 })
-            .limit(10);
         const recent = recentDocs.map(a => ({
             _id: a._id,
             client: a.customer?.name || a.guestName || a.walkInName || 'Walk-in',

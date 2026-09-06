@@ -20,24 +20,84 @@ exports.getAnalytics = async (req, res) => {
         const last30Days = new Date(now - 30 * 24 * 60 * 60 * 1000);
         const last7Days = new Date(now - 7 * 24 * 60 * 60 * 1000);
 
-        // ── Appointments ──
-        const totalAppointments = await Appointment.countDocuments();
-        const thisMonthAppointments = await Appointment.countDocuments({ createdAt: { $gte: startOfMonth } });
-
-        const appointmentsByStatus = await Appointment.aggregate([
-            { $group: { _id: '$status', count: { $sum: 1 } } },
-        ]);
-
-        // ── Bookings over last 30 days ──
-        const bookingsOverTime = await Appointment.aggregate([
-            { $match: { createdAt: { $gte: last30Days } } },
-            {
-                $group: {
-                    _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-                    count: { $sum: 1 },
-                }
-            },
-            { $sort: { _id: 1 } },
+        // Every panel below reads from a different angle but none depends on
+        // another's result — this admin dashboard was 13 sequential round-trips.
+        // Fire them together: the response waits on the slowest one, not their sum.
+        const [
+            totalAppointments,
+            thisMonthAppointments,
+            appointmentsByStatus,
+            bookingsOverTime,
+            totalUsers,
+            totalCustomers,
+            totalProviders,
+            newUsersThisMonth,
+            newUsersLastWeek,
+            newUsersOverTime,
+            popularServices,
+            busiestDays,
+            ratingsPerService,
+        ] = await Promise.all([
+            // ── Appointments ──
+            Appointment.countDocuments(),
+            Appointment.countDocuments({ createdAt: { $gte: startOfMonth } }),
+            Appointment.aggregate([
+                { $group: { _id: '$status', count: { $sum: 1 } } },
+            ]),
+            // ── Bookings over last 30 days ──
+            Appointment.aggregate([
+                { $match: { createdAt: { $gte: last30Days } } },
+                {
+                    $group: {
+                        _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+                        count: { $sum: 1 },
+                    }
+                },
+                { $sort: { _id: 1 } },
+            ]),
+            // ── Users ──
+            User.countDocuments({ role: { $ne: 'admin' } }),
+            User.countDocuments({ role: 'customer' }),
+            User.countDocuments({ role: 'provider' }),
+            User.countDocuments({ createdAt: { $gte: startOfMonth } }),
+            User.countDocuments({ createdAt: { $gte: last7Days } }),
+            User.aggregate([
+                { $match: { createdAt: { $gte: last30Days }, role: { $ne: 'admin' } } },
+                {
+                    $group: {
+                        _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
+                        count: { $sum: 1 },
+                    }
+                },
+                { $sort: { _id: 1 } },
+            ]),
+            // ── Popular services ──
+            Appointment.aggregate([
+                { $group: { _id: '$service', count: { $sum: 1 } } },
+                { $lookup: { from: 'services', localField: '_id', foreignField: '_id', as: 'service' } },
+                { $unwind: '$service' },
+                { $project: { name: '$service.name', price: '$service.price', count: 1 } },
+                { $sort: { count: -1 } },
+                { $limit: 5 },
+            ]),
+            // ── Busiest days ──
+            Appointment.aggregate([
+                {
+                    $group: {
+                        _id: { $dayOfWeek: '$appointmentDate' },
+                        count: { $sum: 1 },
+                    }
+                },
+                { $sort: { count: -1 } },
+            ]),
+            // ── Average ratings ──
+            Review.aggregate([
+                { $group: { _id: '$service', avgRating: { $avg: '$rating' }, count: { $sum: 1 } } },
+                { $lookup: { from: 'services', localField: '_id', foreignField: '_id', as: 'service' } },
+                { $unwind: '$service' },
+                { $project: { name: '$service.name', avgRating: { $round: ['$avgRating', 1] }, count: 1 } },
+                { $sort: { avgRating: -1 } },
+            ]),
         ]);
 
         // Fill in missing days with 0
@@ -53,24 +113,6 @@ exports.getAnalytics = async (req, res) => {
             });
         }
 
-        // ── Users ──
-        const totalUsers = await User.countDocuments({ role: { $ne: 'admin' } });
-        const totalCustomers = await User.countDocuments({ role: 'customer' });
-        const totalProviders = await User.countDocuments({ role: 'provider' });
-        const newUsersThisMonth = await User.countDocuments({ createdAt: { $gte: startOfMonth } });
-        const newUsersLastWeek = await User.countDocuments({ createdAt: { $gte: last7Days } });
-
-        const newUsersOverTime = await User.aggregate([
-            { $match: { createdAt: { $gte: last30Days }, role: { $ne: 'admin' } } },
-            {
-                $group: {
-                    _id: { $dateToString: { format: '%Y-%m-%d', date: '$createdAt' } },
-                    count: { $sum: 1 },
-                }
-            },
-            { $sort: { _id: 1 } },
-        ]);
-
         const filledUsers = [];
         for (let i = 29; i >= 0; i--) {
             const date = new Date(now - i * 24 * 60 * 60 * 1000);
@@ -83,41 +125,11 @@ exports.getAnalytics = async (req, res) => {
             });
         }
 
-        // ── Popular services ──
-        const popularServices = await Appointment.aggregate([
-            { $group: { _id: '$service', count: { $sum: 1 } } },
-            { $lookup: { from: 'services', localField: '_id', foreignField: '_id', as: 'service' } },
-            { $unwind: '$service' },
-            { $project: { name: '$service.name', price: '$service.price', count: 1 } },
-            { $sort: { count: -1 } },
-            { $limit: 5 },
-        ]);
-
-        // ── Busiest days ──
-        const busiestDays = await Appointment.aggregate([
-            {
-                $group: {
-                    _id: { $dayOfWeek: '$appointmentDate' },
-                    count: { $sum: 1 },
-                }
-            },
-            { $sort: { count: -1 } },
-        ]);
-
         const dayNames = ['', 'Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
         const busiestDaysMapped = busiestDays.map(d => ({
             day: dayNames[d._id],
             count: d.count,
         }));
-
-        // ── Average ratings ──
-        const ratingsPerService = await Review.aggregate([
-            { $group: { _id: '$service', avgRating: { $avg: '$rating' }, count: { $sum: 1 } } },
-            { $lookup: { from: 'services', localField: '_id', foreignField: '_id', as: 'service' } },
-            { $unwind: '$service' },
-            { $project: { name: '$service.name', avgRating: { $round: ['$avgRating', 1] }, count: 1 } },
-            { $sort: { avgRating: -1 } },
-        ]);
 
         res.status(200).json({
             success: true,
@@ -280,33 +292,34 @@ exports.getProviderRevenueList = async (req, res) => {
         const now = new Date();
         const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-        // Service revenue per provider (completed appointments only).
-        const svcAgg = await Appointment.aggregate([
-            { $match: { status: 'completed', provider: { $ne: null } } },
-            {
-                $group: {
-                    _id: '$provider',
-                    servicesRevenue: { $sum: '$totalPrice' },
-                    completedCount: { $sum: 1 },
-                    thisMonthRevenue: { $sum: { $cond: [{ $gte: ['$appointmentDate', startOfMonth] }, '$totalPrice', 0] } },
+        // Four independent rollups feed the leaderboard — issue them together
+        // rather than as four sequential round-trips.
+        const [svcAgg, pkgAgg, wallets, providers] = await Promise.all([
+            // Service revenue per provider (completed appointments only).
+            Appointment.aggregate([
+                { $match: { status: 'completed', provider: { $ne: null } } },
+                {
+                    $group: {
+                        _id: '$provider',
+                        servicesRevenue: { $sum: '$totalPrice' },
+                        completedCount: { $sum: 1 },
+                        thisMonthRevenue: { $sum: { $cond: [{ $gte: ['$appointmentDate', startOfMonth] }, '$totalPrice', 0] } },
+                    },
                 },
-            },
+            ]),
+            // Package (membership) revenue per provider.
+            ClientPackage.aggregate([
+                { $group: { _id: '$provider', packageRevenue: { $sum: '$purchasePrice' }, packageCount: { $sum: 1 } } },
+            ]),
+            // Platform wallet balances per provider.
+            ProviderWallet.find().select('provider balance').lean(),
+            User.find({ role: 'provider' })
+                .select('name email phone providerCategory avatar isActive createdAt')
+                .lean(),
         ]);
         const svcMap = new Map(svcAgg.map(r => [String(r._id), r]));
-
-        // Package (membership) revenue per provider.
-        const pkgAgg = await ClientPackage.aggregate([
-            { $group: { _id: '$provider', packageRevenue: { $sum: '$purchasePrice' }, packageCount: { $sum: 1 } } },
-        ]);
         const pkgMap = new Map(pkgAgg.map(r => [String(r._id), r]));
-
-        // Platform wallet balances per provider.
-        const wallets = await ProviderWallet.find().select('provider balance').lean();
         const walletMap = new Map(wallets.map(w => [String(w.provider), w.balance]));
-
-        const providers = await User.find({ role: 'provider' })
-            .select('name email phone providerCategory avatar isActive createdAt')
-            .lean();
 
         const rows = providers.map(p => {
             const id = String(p._id);
@@ -372,33 +385,80 @@ exports.getProviderRevenueDetail = async (req, res) => {
         const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
         const sixMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 5, 1);
 
-        // Service revenue aggregates (completed only).
-        const [rev] = await Appointment.aggregate([
-            { $match: { provider: providerId, status: 'completed' } },
-            {
-                $group: {
-                    _id: null,
-                    allTime: { $sum: '$totalPrice' },
-                    completedCount: { $sum: 1 },
-                    thisMonth: { $sum: { $cond: [{ $gte: ['$appointmentDate', startOfMonth] }, '$totalPrice', 0] } },
-                    lastMonth: { $sum: { $cond: [{ $and: [{ $gte: ['$appointmentDate', startOfLastMonth] }, { $lte: ['$appointmentDate', endOfLastMonth] }] }, '$totalPrice', 0] } },
+        // Every panel below is scoped to this one provider and independent of the
+        // others — nine sequential round-trips on an admin detail view. The 404
+        // guard above already ran, so fire the nine together.
+        const [
+            [rev],
+            statusAgg,
+            monthlyAgg,
+            topServices,
+            uniqueClientsRaw,
+            [pkg],
+            recentPackages,
+            wallet,
+            recentDocs,
+        ] = await Promise.all([
+            // Service revenue aggregates (completed only).
+            Appointment.aggregate([
+                { $match: { provider: providerId, status: 'completed' } },
+                {
+                    $group: {
+                        _id: null,
+                        allTime: { $sum: '$totalPrice' },
+                        completedCount: { $sum: 1 },
+                        thisMonth: { $sum: { $cond: [{ $gte: ['$appointmentDate', startOfMonth] }, '$totalPrice', 0] } },
+                        lastMonth: { $sum: { $cond: [{ $and: [{ $gte: ['$appointmentDate', startOfLastMonth] }, { $lte: ['$appointmentDate', endOfLastMonth] }] }, '$totalPrice', 0] } },
+                    },
                 },
-            },
+            ]),
+            // Appointment status mix (all statuses).
+            Appointment.aggregate([
+                { $match: { provider: providerId } },
+                { $group: { _id: '$status', count: { $sum: 1 } } },
+            ]),
+            // Monthly service revenue over the last 6 months (UTC bucketed, zero-filled below).
+            Appointment.aggregate([
+                { $match: { provider: providerId, status: 'completed', appointmentDate: { $gte: sixMonthsAgo } } },
+                { $group: { _id: { $dateToString: { format: '%Y-%m', date: '$appointmentDate', timezone: 'UTC' } }, revenue: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
+            ]),
+            // Top services by revenue.
+            Appointment.aggregate([
+                { $match: { provider: providerId, status: 'completed' } },
+                { $group: { _id: '$service', revenue: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
+                { $lookup: { from: 'services', localField: '_id', foreignField: '_id', as: 'svc' } },
+                { $unwind: { path: '$svc', preserveNullAndEmptyArrays: true } },
+                { $project: { name: { $ifNull: ['$svc.name', 'Unknown'] }, revenue: 1, count: 1 } },
+                { $sort: { revenue: -1 } },
+                { $limit: 5 },
+            ]),
+            // Unique clients served (completed, registered customers).
+            Appointment.distinct('customer', { provider: providerId, status: 'completed', customer: { $ne: null } }),
+            // Package (membership) revenue + counts.
+            ClientPackage.aggregate([
+                { $match: { provider: providerId } },
+                { $group: { _id: null, revenue: { $sum: '$purchasePrice' }, count: { $sum: 1 }, active: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } } } },
+            ]),
+            ClientPackage.find({ provider: providerId })
+                .populate('customer', 'name')
+                .populate('package', 'name')
+                .sort({ purchasedAt: -1 })
+                .limit(5)
+                .lean(),
+            ProviderWallet.findOne({ provider: providerId }).select('balance currency').lean(),
+            Appointment.find({ provider: providerId, status: 'completed' })
+                .select('customer guestName walkInName service appointmentDate totalPrice')
+                .populate('service', 'name')
+                .populate('customer', 'name')
+                .sort({ appointmentDate: -1 })
+                .limit(8)
+                .lean(),
         ]);
 
-        // Appointment status mix (all statuses).
-        const statusAgg = await Appointment.aggregate([
-            { $match: { provider: providerId } },
-            { $group: { _id: '$status', count: { $sum: 1 } } },
-        ]);
         const byStatus = statusAgg.reduce((acc, s) => { acc[s._id] = s.count; return acc; }, {});
         const totalAppointments = statusAgg.reduce((s, r) => s + r.count, 0);
+        const uniqueClients = uniqueClientsRaw.length;
 
-        // Monthly service revenue over the last 6 months (UTC bucketed, zero-filled).
-        const monthlyAgg = await Appointment.aggregate([
-            { $match: { provider: providerId, status: 'completed', appointmentDate: { $gte: sixMonthsAgo } } },
-            { $group: { _id: { $dateToString: { format: '%Y-%m', date: '$appointmentDate', timezone: 'UTC' } }, revenue: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
-        ]);
         const monthlyMap = new Map(monthlyAgg.map(m => [m._id, m]));
         const monthly = [];
         for (let i = 5; i >= 0; i--) {
@@ -407,43 +467,6 @@ exports.getProviderRevenueDetail = async (req, res) => {
             const found = monthlyMap.get(key);
             monthly.push({ month: key, label: d.toLocaleDateString('en-US', { month: 'short' }), revenue: found ? found.revenue : 0, count: found ? found.count : 0 });
         }
-
-        // Top services by revenue.
-        const topServices = await Appointment.aggregate([
-            { $match: { provider: providerId, status: 'completed' } },
-            { $group: { _id: '$service', revenue: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
-            { $lookup: { from: 'services', localField: '_id', foreignField: '_id', as: 'svc' } },
-            { $unwind: { path: '$svc', preserveNullAndEmptyArrays: true } },
-            { $project: { name: { $ifNull: ['$svc.name', 'Unknown'] }, revenue: 1, count: 1 } },
-            { $sort: { revenue: -1 } },
-            { $limit: 5 },
-        ]);
-
-        // Unique clients served (completed, registered customers).
-        const uniqueClients = (await Appointment.distinct('customer', { provider: providerId, status: 'completed', customer: { $ne: null } })).length;
-
-        // Package (membership) revenue + counts.
-        const [pkg] = await ClientPackage.aggregate([
-            { $match: { provider: providerId } },
-            { $group: { _id: null, revenue: { $sum: '$purchasePrice' }, count: { $sum: 1 }, active: { $sum: { $cond: [{ $eq: ['$status', 'active'] }, 1, 0] } } } },
-        ]);
-
-        const recentPackages = await ClientPackage.find({ provider: providerId })
-            .populate('customer', 'name')
-            .populate('package', 'name')
-            .sort({ purchasedAt: -1 })
-            .limit(5)
-            .lean();
-
-        const wallet = await ProviderWallet.findOne({ provider: providerId }).select('balance currency').lean();
-
-        const recentDocs = await Appointment.find({ provider: providerId, status: 'completed' })
-            .select('customer guestName walkInName service appointmentDate totalPrice')
-            .populate('service', 'name')
-            .populate('customer', 'name')
-            .sort({ appointmentDate: -1 })
-            .limit(8)
-            .lean();
 
         const servicesRevenue = rev?.allTime || 0;
         const packageRevenue = pkg?.revenue || 0;
