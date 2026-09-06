@@ -6,11 +6,14 @@ import { useAuthContext } from '../context/AuthContext';
 // Lazy — pulls in the Google Maps SDK only when a new provider is onboarding,
 // keeping it out of the main dashboard bundle.
 const OnboardingWizard = lazy(() => import('../components/OnboardingWizard'));
-import FormsManager from '../components/FormsManager';
-import ApptFormsView from '../components/ApptFormsView';
+// Lazy — these render only in secondary tabs (Forms, Services) or on-demand
+// modals (appointment detail), never on the default Calendar view, so they stay
+// out of the initial dashboard chunk and load on first use behind a Suspense.
+const FormsManager = lazy(() => import('../components/FormsManager'));
+const ApptFormsView = lazy(() => import('../components/ApptFormsView'));
 import EnablePushBanner from '../components/EnablePushBanner';
 import SetupChecklistNudge from '../components/SetupChecklistNudge';
-import ServiceFormModal from '../components/ServiceFormModal';
+const ServiceFormModal = lazy(() => import('../components/ServiceFormModal'));
 import { Calendar, History, Scissors, CalendarClock, Clock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, CalendarPlus, Ban, Wallet as WalletIcon, ChevronDown, ChevronLeft, Send, X, Trophy, Download } from 'lucide-react';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { NAMIBIAN_TOWNS, normalizeTown } from '../utils/namibiaTowns';
@@ -21,7 +24,9 @@ import RecurrenceFields from '../components/RecurrenceFields';
 import { currencySymbol } from '../utils/currency';
 import { useToast } from '../components/Toast';
 import { statusConfig, ContactActions, ChromeModal, CloseButton, StatsSkeleton, RowsSkeleton, Avatar, fmtConvTime } from './dashboard/primitives';
-import { ProviderAccountTopUpModal, WalletAdjustmentModal } from './dashboard/WalletModals';
+// Lazy — wallet modals open only from the Wallet tab; keep them off the initial chunk.
+const ProviderAccountTopUpModal = lazy(() => import('./dashboard/WalletModals').then(m => ({ default: m.ProviderAccountTopUpModal })));
+const WalletAdjustmentModal = lazy(() => import('./dashboard/WalletModals').then(m => ({ default: m.WalletAdjustmentModal })));
 import StaffLanesDay from './dashboard/StaffLanesDay';
 
 // CSV cell encoding. Two problems with the previous `"${String(c)}"`:
@@ -1451,14 +1456,18 @@ const ProviderDashboard = () => {
                             </div>
                         </div>
 
-                        <ServiceFormModal
-                            open={showServiceForm}
-                            editing={editingService}
-                            categories={categories}
-                            onClose={() => { setShowServiceForm(false); setEditingService(null); }}
-                            onSaved={async () => { await fetchMyServices(); setShowServiceForm(false); setEditingService(null); }}
-                            onCategoriesChanged={fetchCategories}
-                        />
+                        {showServiceForm && (
+                            <Suspense fallback={null}>
+                                <ServiceFormModal
+                                    open={showServiceForm}
+                                    editing={editingService}
+                                    categories={categories}
+                                    onClose={() => { setShowServiceForm(false); setEditingService(null); }}
+                                    onSaved={async () => { await fetchMyServices(); setShowServiceForm(false); setEditingService(null); }}
+                                    onCategoriesChanged={fetchCategories}
+                                />
+                            </Suspense>
+                        )}
 
                         <div className="catalogue-grid" style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '1.5rem', alignItems: 'start' }}>
                             {(() => {
@@ -3139,26 +3148,30 @@ const ProviderDashboard = () => {
                     )}
 
                     {adjustModal && (
-                        <WalletAdjustmentModal
-                            wallet={adjustModal.wallet}
-                            refundsAllowed={walletSettings?.refundsAllowed}
-                            curSym={curSym}
-                            onClose={() => setAdjustModal(null)}
-                            onSubmit={submitAdjustment}
-                        />
+                        <Suspense fallback={null}>
+                            <WalletAdjustmentModal
+                                wallet={adjustModal.wallet}
+                                refundsAllowed={walletSettings?.refundsAllowed}
+                                curSym={curSym}
+                                onClose={() => setAdjustModal(null)}
+                                onSubmit={submitAdjustment}
+                            />
+                        </Suspense>
                     )}
                     {showAccountTopUp && (
-                        <ProviderAccountTopUpModal
-                            curSym={curSym}
-                            onClose={() => setShowAccountTopUp(false)}
-                            onDone={() => { setShowAccountTopUp(false); fetchWalletData(); }}
-                        />
+                        <Suspense fallback={null}>
+                            <ProviderAccountTopUpModal
+                                curSym={curSym}
+                                onClose={() => setShowAccountTopUp(false)}
+                                onDone={() => { setShowAccountTopUp(false); fetchWalletData(); }}
+                            />
+                        </Suspense>
                     )}
                 </div>
             )}
 
             {/* ── TEAM TAB ── */}
-            {activeTab === 'forms' && <FormsManager />}
+            {activeTab === 'forms' && <Suspense fallback={null}><FormsManager /></Suspense>}
 
             {activeTab === 'team' && (
                 <div>
@@ -4030,7 +4043,7 @@ const ProviderDashboard = () => {
                             </div>
 
                             {/* Intake / consent forms for this appointment */}
-                            <ApptFormsView appointmentId={apptDetailModal._id} />
+                            <Suspense fallback={null}><ApptFormsView appointmentId={apptDetailModal._id} /></Suspense>
 
                             {/* Reschedule - collapsed by default so it doesn't push the actions down */}
                             {apptDetailModal.status !== 'cancelled' && apptDetailModal.status !== 'completed' && (
