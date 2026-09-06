@@ -2561,11 +2561,34 @@ exports.getGroupBooking = async (req, res) => {
         // guessed/obtained a groupId could read every participant's name/email/phone
         // (IDOR). The groupId being a UUID was the only prior barrier.
         const uid = req.user._id.toString();
-        const authorized = req.user.role === 'admin'
-            || appointments.some(a => a.customer?._id?.toString() === uid || a.provider?.toString() === uid);
+        const isStaff = req.user.role === 'admin' || appointments.some(a => a.provider?.toString() === uid);
+        const authorized = isStaff
+            || appointments.some(a => a.customer?._id?.toString() === uid);
         if (!authorized) return res.status(403).json({ success: false, message: 'Not authorized' });
 
-        res.status(200).json({ success: true, data: appointments });
+        // Field-level scoping: a co-participant may see the shared slot/service and
+        // everyone's FIRST name, but not other members' contact details. Returning
+        // the full documents leaked each participant's email/phone, guest contact
+        // fields, and even a guest's manage-booking token to every other member.
+        // The caller's own row and the provider/admin still get the full record.
+        const firstName = (full) => (full || '').toString().trim().split(/\s+/)[0] || null;
+        const data = appointments.map((a) => {
+            const mine = a.customer?._id?.toString() === uid;
+            if (isStaff || mine) return a.toObject();
+            return {
+                _id: a._id,
+                service: a.service,
+                appointmentDate: a.appointmentDate,
+                startTime: a.startTime,
+                endTime: a.endTime,
+                status: a.status,
+                groupId: a.groupId,
+                groupSize: a.groupSize,
+                customer: { name: firstName(a.customer?.name || a.guestName || a.walkInName) },
+            };
+        });
+
+        res.status(200).json({ success: true, data });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

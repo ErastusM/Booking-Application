@@ -153,6 +153,14 @@ exports.submitForm = async (req, res) => {
         }
         const template = await FormTemplate.findById(templateId);
         if (!template) return res.status(404).json({ success: false, message: 'Form not found' });
+        // The template must belong to the appointment's provider. Otherwise a
+        // customer could submit against a DIFFERENT provider's template — its
+        // required-field rules would validate the answers, but the submission would
+        // be stored under this appointment's provider, mismatching template owner
+        // and response owner.
+        if (template.provider.toString() !== appt.provider.toString()) {
+            return res.status(403).json({ success: false, message: 'Not authorized' });
+        }
 
         // Required-field validation (server-side)
         const provided = new Map((answers || []).map(a => [a.label, a.value]));

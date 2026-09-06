@@ -3,6 +3,7 @@ const { safeHttpUrl } = require('../utils/helpers');
 const Wallet = require('../models/Wallet');
 const WalletTransaction = require('../models/WalletTransaction');
 const User = require('../models/User');
+const Appointment = require('../models/Appointment');
 const walletService = require('../utils/walletService');
 const { createNotification, notifyAdmins } = require('../utils/notificationhelper');
 
@@ -283,6 +284,20 @@ exports.createAdjustment = async (req, res) => {
         }
         const client = await User.findById(customerId).select('name');
         if (!client) return res.status(404).json({ success: false, message: 'Client not found' });
+
+        // Only propose an adjustment against an actual client of THIS provider — one
+        // who already has a wallet with them or has booked. Without this, any
+        // provider could spam arbitrary users with wallet-adjustment proposals and
+        // notifications (the balance itself is safe — it needs the client's
+        // approval — but the unsolicited proposal/notification should never reach a
+        // stranger).
+        const [hasWallet, hasBooking] = await Promise.all([
+            Wallet.exists({ provider: req.user._id, customer: customerId }),
+            Appointment.exists({ provider: req.user._id, customer: customerId }),
+        ]);
+        if (!hasWallet && !hasBooking) {
+            return res.status(404).json({ success: false, message: 'Client not found' });
+        }
 
         const txn = await walletService.createAdjustment({
             provider: req.user._id, customer: customerId, amount, direction,
