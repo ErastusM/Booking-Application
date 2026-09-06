@@ -104,14 +104,17 @@ exports.sendMessage = async (req, res) => {
         const appointment = await Appointment.findById(appointmentId);
         if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
 
-        const isParty = appointment.customer.toString() === userId.toString() ||
-            appointment.provider?.toString() === userId.toString();
+        // Null-safe: a guest booking has no `customer` account, so `customer` is
+        // null. A bare `.toString()` here 500'd on any message attempt against a
+        // guest appointment. The optional chaining makes the customer side simply
+        // not match (a guest can't be the authenticated sender anyway), and a
+        // provider messaging a guest falls through to the "no recipient" 400 below.
+        const isCustomerParty = appointment.customer?.toString() === userId.toString();
+        const isParty = isCustomerParty || appointment.provider?.toString() === userId.toString();
         if (!isParty) return res.status(403).json({ success: false, message: 'Not authorized' });
 
         // Determine recipient
-        const recipientId = appointment.customer.toString() === userId.toString()
-            ? appointment.provider
-            : appointment.customer;
+        const recipientId = isCustomerParty ? appointment.provider : appointment.customer;
 
         if (!recipientId) return res.status(400).json({ success: false, message: 'No recipient found for this appointment' });
 
