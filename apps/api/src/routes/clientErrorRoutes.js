@@ -2,6 +2,7 @@ const express = require('express');
 const rateLimit = require('express-rate-limit');
 const pino = require('pino');
 const { sendAlert } = require('../utils/alerts');
+const Sentry = require('../../instrument');
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const router = express.Router();
@@ -56,6 +57,24 @@ router.post('/', limiter, (req, res) => {
         const userAgent = clip(b.userAgent || req.get('user-agent'), 300);
 
         logger.error({ clientError: true, app, type, message, url, userAgent, stack }, `client error [${app}]: ${message}`);
+
+        // Forward the browser error into Sentry so frontend failures land in the
+        // SAME aggregated dashboard as the API's own errors — no frontend SDK, no
+        // bundle cost, reusing this existing sink. Grouped by app+type+message (the
+        // browser stack is a string, so it rides along as context, not a real
+        // JS stack). No-op when Sentry has no DSN. The IP limiter + the frontend's
+        // per-session cap already bound the volume.
+        if (Sentry.isEnabled()) {
+            Sentry.withScope((scope) => {
+                scope.setTag('source', 'client');
+                scope.setTag('client_app', app);
+                scope.setTag('client_error_type', type);
+                scope.setExtras({ url, userAgent, browserStack: stack });
+                scope.setFingerprint(['client', app, type, message]);
+                scope.setLevel('error');
+                Sentry.captureMessage(`[${app}] ${message}`);
+            });
+        }
 
         const key = `${app}:${message}:${stack.slice(0, 120)}`;
         if (shouldAlert(key)) {
