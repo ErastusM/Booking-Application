@@ -274,6 +274,85 @@ async function isMemberFree({ providerId, member, date, startTime, endTime, svc,
 }
 
 /**
+ * "Any available": the earliest-created performer who is free for [startTime,
+ * endTime]. A per-member isMemberFree loop issued ~6 sequential queries PER
+ * performer (TimeOff/Shift/StaffAvailability/BlockedTime/Appointment/Service),
+ * all awaited serially under the booking lock — ~60 round-trips for a 10-person
+ * roster. This batch-loads the whole day in ONE Promise.all of $in queries
+ * (like anyAvailableBusy) and evaluates each performer IN MEMORY with the exact
+ * same predicates staffHoursReason + isMemberFree use (leave → shift replaces
+ * weekly → weekly/business hours; business-wide + own blocks; buffered,
+ * segment-aware appointment clash), returning the first free member's id or null.
+ */
+async function firstFreePerformer({ providerId, performers, date, startTime, endTime, svc, businessSchedule, soloOwner }) {
+    const key = dateStr(date);
+    const startMin = toMin(startTime);
+    const endMin = toMin(endTime);
+    const ids = performers.map(m => m._id);
+    const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0);
+    const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999);
+
+    const [shifts, staffAvs, leaves, blocks, appts] = await Promise.all([
+        Shift.find({ teamMember: { $in: ids }, date: key }).select('teamMember slots breaks').lean(),
+        // Solo owner ignores the per-staff weekly schedule (ignoreWeeklyHours), so
+        // don't even fetch it — matches isMemberFree's soloOwner path.
+        soloOwner ? [] : StaffAvailability.find({ teamMember: { $in: ids } }).select('teamMember schedule').lean(),
+        TimeOff.find({
+            teamMember: { $in: ids }, status: 'approved',
+            startDate: { $lte: key }, endDate: { $gte: key },
+        }).select('teamMember allDay startTime endTime').lean(),
+        // Business-wide (not owner-only) + each performer's own blocks — the same
+        // scope isMemberFree checks, widened to all performers via $in.
+        BlockedTime.find({
+            provider: providerId, date: key,
+            $or: [{ teamMember: null, ownerOnly: { $ne: true } }, { teamMember: { $in: ids } }],
+        }).select('teamMember startTime endTime').lean(),
+        Appointment.find({
+            provider: providerId,
+            $or: [{ teamMember: { $in: ids } }, { 'services.teamMember': { $in: ids } }],
+            appointmentDate: { $gte: dayStart, $lte: dayEnd },
+            status: { $nin: ['cancelled'] },
+        }).select('startTime endTime services teamMember service').lean(),
+    ]);
+    const bufferByService = await bufferMapForAppointments(appts);
+
+    const shiftBy = {}; shifts.forEach(s => { shiftBy[String(s.teamMember)] = s; });
+    const avBy = {}; staffAvs.forEach(a => { avBy[String(a.teamMember)] = a.schedule; });
+    const leavesBy = {}; leaves.forEach(lv => { (leavesBy[String(lv.teamMember)] = leavesBy[String(lv.teamMember)] || []).push(lv); });
+    const businessBlocks = blocks.filter(b => !b.teamMember);            // teamMember null ⇒ business-wide (owner-only already excluded by the query)
+    const memberBlocksBy = {}; blocks.forEach(b => { if (b.teamMember) (memberBlocksBy[String(b.teamMember)] = memberBlocksBy[String(b.teamMember)] || []).push(b); });
+
+    const nStart = startMin - (svc?.bufferBefore || 0);
+    const nEnd = endMin + (svc?.bufferAfter || 0);
+
+    for (const member of performers) {
+        const k = String(member._id);
+        // 1. Approved leave overrides everything (all-day or windowed).
+        const memberLeaves = leavesBy[k] || [];
+        if (memberLeaves.some(lv => (lv.allDay || lv.startTime == null || lv.endTime == null)
+            || overlaps(startMin, endMin, toMin(lv.startTime), toMin(lv.endTime)))) continue;
+        // 2. Rostered hours: a shift REPLACES the weekly pattern for the date.
+        const shift = shiftBy[k];
+        if (shift) {
+            const onShift = (shift.slots || []).some(sl => startMin >= toMin(sl.start) && endMin <= toMin(sl.end));
+            if (!onShift) continue;
+            if ((shift.breaks || []).some(b => overlaps(startMin, endMin, toMin(b.start), toMin(b.end)))) continue;
+        } else {
+            const schedule = soloOwner ? businessSchedule : (avBy[k] || businessSchedule);
+            if (schedule && !withinSchedule(schedule, date, startMin, endMin)) continue;
+        }
+        // 3. Blocked time: business-wide + this member's own.
+        if (businessBlocks.some(b => overlaps(startMin, endMin, toMin(b.startTime), toMin(b.endTime)))) continue;
+        if ((memberBlocksBy[k] || []).some(b => overlaps(startMin, endMin, toMin(b.startTime), toMin(b.endTime)))) continue;
+        // 4. Existing appointments, buffered + segment-aware.
+        const clash = appts.some(a => memberBusyIntervalsBuffered(a, member._id, bufferByService).some(([s, e]) => overlaps(nStart, nEnd, s, e)));
+        if (clash) continue;
+        return member._id;
+    }
+    return null;
+}
+
+/**
  * Resolve which staff member (if any) a new booking lands on.
  * Returns { teamMember: ObjectId|null } or { status, error } for rejection.
  */
@@ -356,13 +435,14 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
     const performers = bookableRoster.filter(m => performsService(m, svc._id));
     if (!performers.length) return { teamMember: null }; // nobody performs it => the owner does
 
-    for (const member of performers) {
-        const check = await isMemberFree({
-            providerId, member, date: appointmentDate, startTime, endTime, svc,
-            businessSchedule, enforceHours: true, ignoreWeeklyHours: soloOwner,
-        });
-        if (check.free) return { teamMember: member._id };
-    }
+    // Batched, in-memory equivalent of an isMemberFree loop — one Promise.all of
+    // $in queries for the whole roster instead of ~6 sequential queries per member
+    // under the booking lock (see firstFreePerformer).
+    const chosen = await firstFreePerformer({
+        providerId, performers, date: appointmentDate, startTime, endTime, svc,
+        businessSchedule, soloOwner,
+    });
+    if (chosen) return { teamMember: chosen };
     return { status: 400, error: 'No staff member is available at that time. You can join the waiting list instead.', reason: 'no_staff_available' };
 }
 
@@ -479,7 +559,7 @@ async function anyAvailableBusy({ providerId, svc, date, appointments }) {
 }
 
 module.exports = {
-    resolveBookingStaff, isMemberFree, performsService, staffHoursReason,
+    resolveBookingStaff, isMemberFree, firstFreePerformer, performsService, staffHoursReason,
     memberBusyIntervals, memberBusyIntervalsBuffered, bufferMapForAppointments,
     memberInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy,
 };

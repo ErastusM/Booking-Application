@@ -4,13 +4,18 @@ exports.getRetentionMetrics = async (req, res) => {
     try {
         const providerId = req.user._id;
 
+        // Only the fields the retention math reads (customer, date, spend), as lean
+        // plain objects, with the never-referenced service join dropped. This was
+        // hydrating every completed appointment (two populates) to compute a handful
+        // of summary numbers.
         const completed = await Appointment.find({
             provider: providerId,
             status: 'completed',
         })
+            .select('customer appointmentDate totalPrice')
             .populate('customer', 'name email')
-            .populate('service', 'name price')
-            .sort({ appointmentDate: 1 });
+            .sort({ appointmentDate: 1 })
+            .lean();
 
         // Group by customer
         const byCustomer = new Map();
