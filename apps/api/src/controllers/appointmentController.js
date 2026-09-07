@@ -19,7 +19,7 @@ const {
 } = require('../utils/emailService');
 const calendarHelper = require('../utils/calendarHelper');
 const { resolveBookingStaff, staffHoursReason, memberBusyIntervalsBuffered, bufferMapForAppointments, memberInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy } = require('../utils/staffBooking');
-const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, toDateKey, BLOCKED_MESSAGE } = require('../utils/blockedTime');
+const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, findBusinessWideBlocksForDate, toDateKey, BLOCKED_MESSAGE } = require('../utils/blockedTime');
 const { overrideFor } = require('../utils/memberPricing');
 const { recordBookingRejection, rejectionsSummary } = require('../utils/bookingRejections');
 const { checkCancellationWindow } = require('../utils/cancellationPolicy');
@@ -407,15 +407,20 @@ exports.getBookedSlots = async (req, res) => {
             if (svcDoc && String(svcDoc.provider) === String(providerId)) {
                 const anyView = await anyAvailableBusy({ providerId, svc: { _id: service }, date, appointments });
                 if (anyView.applied) {
+                    // Re-emit ONLY business-wide blocks — NOT the owner's own
+                    // (ownerOnly) blocks. `blocks` above was fetched with a null
+                    // scope, which also matches owner-only blocks; re-emitting those
+                    // here greyed out slots the team can still take (the owner isn't
+                    // a performer in this view, and anyAvailableBusy already excludes
+                    // owner-only blocks from the columns for the same reason).
+                    const bizBlocks = await findBusinessWideBlocksForDate(providerId, date);
                     return res.status(200).json({
                         success: true,
                         data: [
                             ...anyView.busy,
-                            // Business-wide blocks are also inside the busy list as
-                            // 'off_shift' (they close every column); re-emitted with
-                            // their own kind so the client can label them "Unavailable"
-                            // for the same reason it does today.
-                            ...blocks.map(b => ({ startTime: b.startTime, endTime: b.endTime, kind: 'blocked' })),
+                            // Business-wide blocks close every column; re-emitted with
+                            // their own kind so the client can label them "Unavailable".
+                            ...bizBlocks.map(b => ({ startTime: b.startTime, endTime: b.endTime, kind: 'blocked' })),
                         ],
                         shiftWindow: null,
                     });

@@ -13,6 +13,9 @@ const StaffAvailability = require('../models/StaffAvailability');
 const BlockedTime = require('../models/BlockedTime');
 const TeamMember = require('../models/TeamMember');
 const Appointment = require('../models/Appointment');
+const Shift = require('../models/Shift');
+const TimeOff = require('../models/TimeOff');
+const { NAMIBIA_OFFSET_MIN } = require('./appointmentTime');
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const GRID_STEP = 30; // minutes between offered start times
@@ -79,11 +82,29 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
             status: { $nin: ['cancelled'] },
         }).select('provider teamMember startTime endTime'),
     ]);
-    const staffAvail = await StaffAvailability.find({ teamMember: { $in: members.map(m => m._id) } })
-        .select('teamMember schedule');
+    const memberIds = members.map(m => m._id);
+    // Roster shape for THIS date, mirroring the booking validator's precedence
+    // (staffHoursReason): approved leave overrides the roster, and a date-specific
+    // Shift REPLACES the weekly pattern. Without these the search surfaced openings
+    // the booking flow then rejects (a member on leave, or rostered off that day).
+    const [staffAvail, shifts, leaves] = await Promise.all([
+        StaffAvailability.find({ teamMember: { $in: memberIds } }).select('teamMember schedule'),
+        Shift.find({ teamMember: { $in: memberIds }, date }).select('teamMember slots breaks'),
+        TimeOff.find({
+            teamMember: { $in: memberIds }, status: 'approved',
+            startDate: { $lte: date }, endDate: { $gte: date },
+        }).select('teamMember allDay startTime endTime'),
+    ]);
 
     const availByProvider = new Map(availabilities.map(a => [a.provider.toString(), a.schedule]));
     const staffAvailByMember = new Map(staffAvail.map(a => [a.teamMember.toString(), a.schedule]));
+    const shiftByMember = new Map(shifts.map(s => [s.teamMember.toString(), s]));
+    const leavesByMember = new Map();
+    leaves.forEach((lv) => {
+        const k = lv.teamMember.toString();
+        if (!leavesByMember.has(k)) leavesByMember.set(k, []);
+        leavesByMember.get(k).push(lv);
+    });
     const membersByProvider = new Map();
     members.forEach(m => {
         const pid = m.provider.toString();
@@ -92,10 +113,14 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
     });
 
     // 3) Time filters: an explicit ?time= floor, and never-in-the-past for today.
+    // "Today" and the past-slot floor are Namibia local (Africa/Windhoek, UTC+2),
+    // NOT the server's UTC — slot times are Namibia wall-clock minutes, so a
+    // UTC floor was 2h off and the 00:00–02:00 local window read as the previous
+    // day. Shift into local the same way realStartMs does everywhere else.
     let minStart = time ? toMin(time) : 0;
-    const now = new Date();
-    const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-    if (date === todayStr) minStart = Math.max(minStart, now.getHours() * 60 + now.getMinutes());
+    const nib = new Date(Date.now() + NAMIBIA_OFFSET_MIN * 60000);
+    const todayStr = `${nib.getUTCFullYear()}-${String(nib.getUTCMonth() + 1).padStart(2, '0')}-${String(nib.getUTCDate()).padStart(2, '0')}`;
+    if (date === todayStr) minStart = Math.max(minStart, nib.getUTCHours() * 60 + nib.getUTCMinutes());
 
     const results = [];
     for (const pid of candidateIds) {
@@ -106,7 +131,6 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
         const roster = membersByProvider.get(pid) || [];
         // Columns: each staff member, or the owner when there's no roster.
         const columns = (roster.length ? roster : [null]).map(memberId => {
-            const ownSchedule = memberId ? staffAvailByMember.get(memberId) : null;
             const busy = [];
             appts.forEach(a => {
                 if (a.provider.toString() !== pid) return;
@@ -123,10 +147,36 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
                     || (scope === null && b.ownerOnly && memberId === null);
                 if (applies) busy.push({ start: toMin(b.startTime), end: toMin(b.endTime) });
             });
-            return {
-                blocks: ownSchedule ? blocksFor(ownSchedule, date) : businessBlocks,
-                busy,
-            };
+
+            // Working windows, honouring the booking validator's precedence for a
+            // real member: approved leave → a date-specific Shift (which REPLACES
+            // the weekly pattern, its breaks becoming busy) → weekly pattern →
+            // business hours. The owner column (no roster) has no Shift/TimeOff.
+            let blocks;
+            if (memberId) {
+                const memberLeaves = leavesByMember.get(memberId) || [];
+                // An all-day (or window-less) approved leave closes the whole day.
+                const offAllDay = memberLeaves.some(lv => lv.allDay || lv.startTime == null || lv.endTime == null);
+                if (offAllDay) {
+                    blocks = [];
+                } else {
+                    // Windowed leave → busy interval(s).
+                    memberLeaves.forEach(lv => busy.push({ start: toMin(lv.startTime), end: toMin(lv.endTime) }));
+                    const shift = shiftByMember.get(memberId);
+                    if (shift) {
+                        blocks = (shift.slots || [])
+                            .map(sl => ({ start: toMin(sl.start), end: toMin(sl.end) }))
+                            .filter(b => b.end > b.start);
+                        (shift.breaks || []).forEach(b => busy.push({ start: toMin(b.start), end: toMin(b.end) }));
+                    } else {
+                        const ownSchedule = staffAvailByMember.get(memberId);
+                        blocks = ownSchedule ? blocksFor(ownSchedule, date) : businessBlocks;
+                    }
+                }
+            } else {
+                blocks = businessBlocks;
+            }
+            return { blocks, busy };
         });
 
         const openings = [];

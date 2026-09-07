@@ -7,6 +7,7 @@ const Availability = require('../models/Availability');
 const Shift = require('../models/Shift');
 const TimeOff = require('../models/TimeOff');
 const { searchAvailability } = require('../utils/availabilitySearch');
+const { NAMIBIA_OFFSET_MIN } = require('../utils/appointmentTime');
 
 const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -138,8 +139,13 @@ exports.searchProviders = async (req, res) => {
         if (time && !/^\d{2}:\d{2}$/.test(time)) {
             return res.status(400).json({ success: false, message: 'time must be HH:MM' });
         }
-        const now = new Date();
-        const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+        // "Today" is Namibia-local (Africa/Windhoek, UTC+2), NOT the server's UTC —
+        // the same reference searchAvailability floors past slots against. A UTC
+        // gate disagreed with the search floor in the 00:00–01:59 local window
+        // (still the prior UTC day), letting a search for the just-passed local day
+        // through un-floored and surfacing that day's already-gone slots.
+        const nib = new Date(Date.now() + NAMIBIA_OFFSET_MIN * 60000);
+        const today = `${nib.getUTCFullYear()}-${String(nib.getUTCMonth() + 1).padStart(2, '0')}-${String(nib.getUTCDate()).padStart(2, '0')}`;
         if (date < today) {
             return res.status(400).json({ success: false, message: 'date must be today or later' });
         }
