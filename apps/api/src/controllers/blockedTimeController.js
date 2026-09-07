@@ -11,6 +11,7 @@ function generateOccurrences(startDate, recurrenceType, recurrenceEndDate) {
         : new Date(start.getTime() + MAX_OCCURRENCES * 24 * 60 * 60 * 1000);
 
     let current = new Date(start);
+    let monthlyStep = 0; // months since start, for the monthly branch
     while (current <= end && dates.length < MAX_OCCURRENCES) {
         dates.push(current.toISOString().split('T')[0]);
         if (recurrenceType === 'daily') {
@@ -18,7 +19,17 @@ function generateOccurrences(startDate, recurrenceType, recurrenceEndDate) {
         } else if (recurrenceType === 'weekly') {
             current.setDate(current.getDate() + 7);
         } else if (recurrenceType === 'monthly') {
-            current.setMonth(current.getMonth() + 1);
+            // Advance whole months WITHOUT setMonth's short-month overflow: Jan 31
+            // + 1mo becomes Feb 31 → Mar 3, which skips February AND drifts every
+            // later occurrence off the intended day. Re-anchor on the start's
+            // day-of-month each step, clamped to the target month's length
+            // (so the 31st becomes the 28th/30th in short months, then 31st again).
+            monthlyStep += 1;
+            const m = start.getMonth() + monthlyStep;
+            const year = start.getFullYear() + Math.floor(m / 12);
+            const month = ((m % 12) + 12) % 12;
+            const day = Math.min(start.getDate(), new Date(year, month + 1, 0).getDate());
+            current = new Date(year, month, day);
         } else {
             break;
         }
@@ -175,3 +186,6 @@ exports.deleteBlockedTime = async (req, res) => {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
+
+// Exported for unit testing the recurrence expansion (esp. month-end clamping).
+exports._generateOccurrences = generateOccurrences;

@@ -223,6 +223,20 @@ const revertRescheduleIfRaced = async (appointment, previousSlot) => {
     // (a multi-service booking whose segments were shifted with the move).
     if (previousSlot.services !== undefined) appointment.services = previousSlot.services;
     await appointment.save();
+    // save()'s pre-hook cleared the reminder flags because date/time "changed",
+    // but the booking is back at its ORIGINAL slot — it never actually moved, so a
+    // reminder that already fired must not re-fire. Restore the captured flags via
+    // a hook-bypassing update.
+    if (previousSlot.reminderSent24h !== undefined) {
+        appointment.reminderSent24h = previousSlot.reminderSent24h;
+        appointment.reminderSent5h = previousSlot.reminderSent5h;
+        appointment.reminderSent1h = previousSlot.reminderSent1h;
+        await Appointment.updateOne({ _id: appointment._id }, { $set: {
+            reminderSent24h: previousSlot.reminderSent24h,
+            reminderSent5h: previousSlot.reminderSent5h,
+            reminderSent1h: previousSlot.reminderSent1h,
+        } });
+    }
     return true;
 };
 
@@ -235,6 +249,11 @@ const slotSnapshot = (appt) => ({
     services: Array.isArray(appt.services) && appt.services.length
         ? appt.services.map((s) => (s.toObject ? s.toObject() : { ...s }))
         : undefined,
+    // Captured so a rolled-back move (back to this exact slot) can restore them —
+    // the save-hook clears them on any date/time change (see revertRescheduleIfRaced).
+    reminderSent24h: appt.reminderSent24h,
+    reminderSent5h: appt.reminderSent5h,
+    reminderSent1h: appt.reminderSent1h,
 });
 
 /**
@@ -253,7 +272,7 @@ const slotSnapshot = (appt) => ({
  * overlapping APPOINTMENT is skipped for everyone, since nobody may double-book.
  */
 const filterBookableOccurrences = async ({
-    providerId, dates, startTime, endTime, teamMember, schedule, duration, enforceHoursAndBlocks,
+    providerId, dates, startTime, endTime, teamMember, schedule, duration, enforceHoursAndBlocks, svc,
 }) => {
     if (!providerId || dates.length <= 1) return { kept: dates, skipped: [] };
 
@@ -292,14 +311,20 @@ const filterBookableOccurrences = async ({
 
     const start = parseTimeToMinutes(startTime);
     const end = parseTimeToMinutes(endTime);
+    // Blocked time is a hard block, not buffered (matches overlapsBlockedTime).
     const clashes = (list) => (list || []).some(x =>
         start < parseTimeToMinutes(x.endTime) && end > parseTimeToMinutes(x.startTime));
     // Appointments clash per-segment for a named member (whole span for the owner
     // column), so a colleague's multi-service segment assigned to this member is
-    // seen. Empty buffer map = raw windows (the recurring occurrence itself isn't
-    // buffer-expanded, so widening only the existing side would be asymmetric).
+    // seen. Buffers are applied on BOTH sides — the incoming occurrence widened by
+    // its own service's buffers, each existing window by ITS service's — exactly as
+    // the single-booking guard (isMemberFree) does, so a recurring occurrence can't
+    // land in a buffered booking's cleanup window a one-off booking would be refused.
+    const bufferByService = await bufferMapForAppointments(appts);
+    const nStart = start - (svc?.bufferBefore || 0);
+    const nEnd = end + (svc?.bufferAfter || 0);
     const apptClashes = (list) => (list || []).some(a =>
-        memberBusyIntervalsBuffered(a, teamMember || null, {}).some(([s, e]) => start < e && end > s));
+        memberBusyIntervalsBuffered(a, teamMember || null, bufferByService).some(([s, e]) => nStart < e && nEnd > s));
 
     const kept = [];
     const skipped = [];
@@ -1135,7 +1160,7 @@ exports.createAppointment = async (req, res) => {
                     providerId, dates: candidates, startTime, endTime,
                     teamMember: resolvedTeamMember, schedule: providerSchedule,
                     duration: parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime),
-                    enforceHoursAndBlocks: isCustomerLike,
+                    enforceHoursAndBlocks: isCustomerLike, svc,
                 });
                 skippedDates = skipped;
 
@@ -1578,9 +1603,22 @@ exports.updateAppointment = async (req, res) => {
                 if (await hasConflictingAppointment(providerId, newDate, newStart, newEnd, appointment._id, conflictScope(appointment))) {
                     return res.status(400).json({ success: false, message: 'This time slot is already booked' });
                 }
+                // Parity with the customer/provider/guest reschedule paths: an edit
+                // must not land on provider blocked time or a staff member's rostered
+                // day off / leave / break either.
+                if (await overlapsBlockedTime({
+                    providerId, appointmentDate: newDate, startTime: newStart, endTime: newEnd, teamMember: appointment.teamMember || null,
+                })) {
+                    return res.status(400).json({ success: false, message: BLOCKED_MESSAGE });
+                }
+                const unavailable = await staffUnavailableMessage(appointment, newDate, newStart, newEnd);
+                if (unavailable) return res.status(400).json({ success: false, message: unavailable });
             }
         }
 
+        // Snapshot the slot so a lost race can be undone (the same post-write
+        // backstop every other reschedule path uses — this one had none).
+        const previousSlot = slotSnapshot(appointment);
         // Shift multi-service segments by the same delta BEFORE reassigning startTime.
         const shifted = shiftedSegments(appointment, parseTimeToMinutes(newStart));
         appointment.appointmentDate = appointmentDate ? new Date(appointmentDate) : appointment.appointmentDate;
@@ -1590,6 +1628,12 @@ exports.updateAppointment = async (req, res) => {
         appointment.status = status || appointment.status;
         appointment.notes = notes !== undefined ? notes : appointment.notes;
         await appointment.save();
+        // Check-then-save has a race window; if another write took this slot first,
+        // put the booking back rather than leaving a double-book.
+        if (timingChanged && appointment.status !== 'cancelled'
+            && await revertRescheduleIfRaced(appointment, previousSlot)) {
+            return res.status(409).json({ success: false, message: 'That time was just taken. Please pick another.' });
+        }
         res.status(200).json({ success: true, message: 'Appointment updated successfully', data: appointment });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
@@ -2132,6 +2176,12 @@ exports.providerBatchReschedule = async (req, res) => {
                     appointmentDate: appt.appointmentDate,
                     startTime: appt.startTime,
                     endTime: appt.endTime,
+                    // The forward write clears these (a real move); on rollback the
+                    // booking is back at its original slot, so restore what it had —
+                    // else an already-sent reminder re-fires. undoAll $sets p.previous.
+                    reminderSent24h: appt.reminderSent24h,
+                    reminderSent5h: appt.reminderSent5h,
+                    reminderSent1h: appt.reminderSent1h,
                     ...(previousServices ? { services: previousServices } : {}),
                 },
                 // What the write is allowed to match on.
