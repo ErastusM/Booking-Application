@@ -34,6 +34,22 @@ const scopeFilter = (teamMember) => (teamMember
     ? [{ teamMember: null, ownerOnly: { $ne: true } }, { teamMember }]
     : [{ teamMember: null }]);
 
+/**
+ * BUSINESS-WIDE blocks only (teamMember null, NOT ownerOnly) — the ones that
+ * close every column. The "any professional" slot view uses this so an owner's
+ * OWN personal block doesn't grey out a slot the team can still take: the owner
+ * isn't one of the performers there, and anyAvailableBusy excludes owner-only
+ * blocks for the same reason. (findBlocksForDate(..., null) can't be reused —
+ * its null scope matches owner-only blocks too, and the select drops ownerOnly.)
+ */
+const findBusinessWideBlocksForDate = (providerId, appointmentDate) =>
+    BlockedTime.find({
+        provider: providerId,
+        date: toDateKey(appointmentDate),
+        teamMember: null,
+        ownerOnly: { $ne: true },
+    }).select('startTime endTime reason -_id').lean();
+
 /** Every block covering `appointmentDate` that applies to this booking's scope. */
 const findBlocksForDate = (providerId, appointmentDate, teamMember = null) =>
     BlockedTime.find({
@@ -73,6 +89,6 @@ async function overlapsBlockedTime({ providerId, appointmentDate, startTime, end
 const BLOCKED_MESSAGE = 'That time is not available. Please choose another slot.';
 
 module.exports = {
-    overlapsBlockedTime, findBlocksForDate, findBlocksForDates,
+    overlapsBlockedTime, findBlocksForDate, findBlocksForDates, findBusinessWideBlocksForDate,
     toMinutes, toDateKey, BLOCKED_MESSAGE,
 };

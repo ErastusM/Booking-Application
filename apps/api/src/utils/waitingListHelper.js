@@ -33,19 +33,26 @@ const slotIsFree = async (providerId, appointmentDate, startTime, endTime, teamM
     if (!providerId) return true;
     const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
     const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
+    // Segment- AND buffer-aware, matching the create/reschedule overlap check.
+    // Per-staff: a colleague booked at the same clock time does NOT occupy this
+    // member's column (finding #16); null = the owner's own column. An exact
+    // `teamMember` match also MISSED an existing multi-service ticket where this
+    // member performs only a SEGMENT (its top-level teamMember is a colleague),
+    // and the raw window compare ignored service buffers — so promotion could
+    // double-book a segment performer or land inside another booking's cleanup
+    // time. memberInvolvedFilter + memberBusyIntervalsBuffered close both.
+    const { memberInvolvedFilter, memberBusyIntervalsBuffered, bufferMapForAppointments } = require('./staffBooking');
     const existing = await Appointment.find({
         provider: providerId,
         appointmentDate: { $gte: dayStart, $lte: dayEnd },
         status: { $nin: ['cancelled'] },
-        // Per-staff: a colleague booked at the same clock time does NOT make this slot
-        // occupied for the member this entry is for. Without the filter a multi-staff
-        // business could never promote a waitlisted customer while any other staff
-        // member was busy at that time (finding #16). null = the owner's own column.
-        teamMember: teamMember || null,
-    }).select('startTime endTime');
+        ...(teamMember ? memberInvolvedFilter(teamMember) : { teamMember: null }),
+    }).select('startTime endTime teamMember services service');
     const nStart = toMinutes(startTime);
     const nEnd = toMinutes(endTime || startTime);
-    if (existing.some(a => nStart < toMinutes(a.endTime) && nEnd > toMinutes(a.startTime))) return false;
+    const bufferByService = await bufferMapForAppointments(existing);
+    if (existing.some(a => memberBusyIntervalsBuffered(a, teamMember || null, bufferByService)
+        .some(([s, e]) => nStart < e && nEnd > s))) return false;
 
     // Honour the assigned member's roster: shift → weekly pattern → business
     // hours. The create path refuses a booking onto a rostered day off, an
