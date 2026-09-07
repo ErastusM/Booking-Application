@@ -8,6 +8,7 @@
  * other members' work never move.
  */
 const request = require('supertest');
+const { futureDate } = require('../helpers/dates');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = require('../helpers/factories');
@@ -20,7 +21,7 @@ beforeAll(() => testDb.connect());
 afterAll(() => testDb.closeDatabase());
 afterEach(() => testDb.clearDatabase());
 
-const DATE = '2026-09-16';
+const DATE = futureDate(0);
 const day = new Date(`${DATE}T00:00:00.000Z`);
 
 const setup = async () => {

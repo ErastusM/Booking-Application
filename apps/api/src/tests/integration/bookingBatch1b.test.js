@@ -8,6 +8,7 @@
  *     by the still-correct "taken slot is skipped" path).
  */
 const request = require('supertest');
+const { futureDate } = require('../helpers/dates');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = require('../helpers/factories');
@@ -30,7 +31,7 @@ const everyDay = (start, end) => {
     DAYS.forEach((d) => { s[d] = { enabled: true, slots: [{ start, end }] }; });
     return s;
 };
-const DATE = '2026-12-16';
+const DATE = futureDate(0);
 
 describe('Batch 1b — multi-service lock covers every segment member', () => {
     it('refuses a second concurrent ticket that shares a NON-primary segment member', async () => {

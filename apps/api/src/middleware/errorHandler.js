@@ -3,13 +3,17 @@ const { sendAlert } = require('../utils/alerts');
 const log = pino({ level: process.env.LOG_LEVEL || 'info' });
 
 exports.errorHandler = (err, req, res, next) => {
-    log.error({ err, method: req.method, url: req.originalUrl }, err.message);
+    // Log the PATH only, never the query string — verify-email?token=, oauth ?code=,
+    // and password-reset links carry secrets in the query, and this handler has its
+    // own pino instance that bypasses the request logger's query-stripping serializer.
+    const path = String(req.originalUrl || '').split('?')[0];
+    log.error({ err, method: req.method, url: path }, err.message);
 
     const status = err.statusCode || 500;
 
     // 5xx = something WE broke — page the webhook (throttled, fire-and-forget).
     if (status >= 500) {
-        sendAlert(`500 on ${req.method} ${req.originalUrl}`, err.message).catch(() => {});
+        sendAlert(`500 on ${req.method} ${path}`, err.message).catch(() => {});
     }
 
     // In production, never leak internal error details to the client

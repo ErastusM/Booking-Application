@@ -10,6 +10,7 @@
  * and exactly ONE row lands on the slot. Without the lock both would return 201.
  */
 const request = require('supertest');
+const { futureDate } = require('../helpers/dates');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, authHeader } = require('../helpers/factories');
@@ -30,7 +31,7 @@ const everyDay = (start, end) => {
     DAYS.forEach((d) => { s[d] = { enabled: true, slots: [{ start, end }] }; });
     return s;
 };
-const DATE = '2026-09-16';
+const DATE = futureDate(0);
 
 const book = (customer, svc, provider, startTime, endTime, teamMember) => {
     const body = { service: svc._id.toString(), appointmentDate: DATE, startTime, endTime };

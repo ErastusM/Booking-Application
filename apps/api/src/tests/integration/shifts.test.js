@@ -16,6 +16,7 @@
  * never hears about is a slot the customer picks and is then rejected.
  */
 const request = require('supertest');
+const { futureDate } = require('../helpers/dates');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, authHeader } = require('../helpers/factories');
@@ -38,7 +39,7 @@ const everyDay = (start, end) => {
     return s;
 };
 // A fixed future date avoids "today is a Sunday" flakiness.
-const DATE = '2026-09-16';
+const DATE = futureDate(0);
 // Pass the DATE STRING, exactly as production does (createAppointment forwards
 // req.body.appointmentDate untouched). Building `new Date('...T00:00:00')` here
 // made these tests pass only under UTC: in UTC+2 — the app's own production
@@ -46,7 +47,7 @@ const DATE = '2026-09-16';
 // came out a day early and five of these tests silently exercised the weekly
 // pattern instead of the shift they had just created.
 const asDate = () => DATE;
-const OTHER_DATE = '2026-09-17';
+const OTHER_DATE = futureDate(1);
 
 const setup = async () => {
     const provider = await makeProvider();
@@ -232,7 +233,7 @@ describe('a member\'s shift days for the customer calendar', () => {
 
     it('leaves out shifts beyond the range', async () => {
         const { provider, member } = await setup();
-        await Shift.create({ provider: provider._id, teamMember: member._id, date: '2026-10-05', slots: [{ start: '09:00', end: '13:00' }] });
+        await Shift.create({ provider: provider._id, teamMember: member._id, date: futureDate(19), slots: [{ start: '09:00', end: '13:00' }] });
 
         const res = await shiftDays(provider, member, DATE, OTHER_DATE);
 
@@ -379,8 +380,8 @@ describe('a shift can be sold outside business hours', () => {
 describe('a recurring series respects the roster', () => {
     const Appointment = require('../../models/Appointment');
     // DATE is a Wednesday; a weekly series lands on the next two Wednesdays too.
-    const WEEK_1 = '2026-09-23';
-    const WEEK_2 = '2026-09-30';
+    const WEEK_1 = futureDate(7);
+    const WEEK_2 = futureDate(14);
 
     it('skips the occurrences the member is rostered off, keeps the rest', async () => {
         const { provider, customer, svc, member } = await setup();

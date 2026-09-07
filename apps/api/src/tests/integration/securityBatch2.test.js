@@ -8,6 +8,7 @@
  *      never appear in a user response.
  */
 const request = require('supertest');
+const { futureDate } = require('../helpers/dates');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, authHeader } = require('../helpers/factories');
@@ -26,7 +27,7 @@ const everyDay = (start, end) => {
     DAYS.forEach((d) => { s[d] = { enabled: true, slots: [{ start, end }] }; });
     return s;
 };
-const DATE = '2026-12-16';
+const DATE = futureDate(0);
 
 describe('A — staff-role tokens are held to the customer booking guards', () => {
     it('rejects a staff booking outside the provider\'s published hours (no bypass)', async () => {
