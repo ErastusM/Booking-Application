@@ -263,15 +263,22 @@ exports.login = async (req, res) => {
         const candidates = await User.find(query).select('+password +refreshTokenJtis');
 
         let user = null;
+        let didRealCompare = false;
         for (const candidate of candidates) {
+            // matchPassword short-circuits to false without touching bcrypt when the
+            // account has no password hash (a Google-only / passwordless account), so
+            // track whether an actual bcrypt comparison was performed — candidates
+            // .length alone can't tell a wrong-password attempt from a passwordless one.
+            if (candidate.password) didRealCompare = true;
             if (await candidate.matchPassword(password)) { user = candidate; break; }
         }
 
-        // No candidate rows means the loop above ran zero bcrypt comparisons, so a
-        // non-existent email would answer measurably faster than a real one with a
-        // wrong password — an enumeration oracle. Spend one comparison against a
-        // fixed dummy hash to level the two paths.
-        if (candidates.length === 0) {
+        // If no real bcrypt comparison ran — no candidate rows at all, OR only
+        // passwordless (Google-only) candidates — the failure path answers
+        // measurably faster than a local account with a wrong password, an
+        // enumeration oracle that also singles out passwordless accounts. Spend one
+        // comparison against a fixed dummy hash so all three paths cost the same.
+        if (!user && !didRealCompare) {
             await bcrypt.compare(password, DUMMY_PASSWORD_HASH);
         }
 

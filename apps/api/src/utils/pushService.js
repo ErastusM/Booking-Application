@@ -43,8 +43,16 @@ exports.sendToUser = async (userId, payload) => {
             body: payload.body || '',
             url: payload.url || '/',
         });
+        const { safePushEndpoint } = require('./helpers');
         await Promise.all(subs.map(async (sub) => {
             try {
+                // Defence in depth: never POST to a stored endpoint that isn't a
+                // real https push-service host (guards rows written before the
+                // ingestion validation, or by any other path).
+                if (!safePushEndpoint(sub.endpoint)) {
+                    await PushSubscription.deleteOne({ _id: sub._id });
+                    return;
+                }
                 await webpush.sendNotification(
                     { endpoint: sub.endpoint, keys: sub.keys },
                     body

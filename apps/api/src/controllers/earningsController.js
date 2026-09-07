@@ -128,10 +128,26 @@ exports.getMyEarnings = async (req, res) => {
             // rather than showing a lone, meaningless "Unassigned" row.
             Appointment.aggregate([
                 { $match: rangeMatch },
-                { $group: { _id: '$teamMember', earned: { $sum: '$totalPrice' }, count: { $sum: 1 } } },
+                // Attribute PER SEGMENT: a multi-service ticket splits across staff
+                // (each services[] entry has its own teamMember + price), so crediting
+                // the whole $totalPrice to the top-level member over-paid the primary
+                // and zeroed the others. Multi-service → one row per segment; single-
+                // service → the whole ticket on the top-level member. count is distinct
+                // appointments the member was involved in (not segments).
+                { $project: {
+                    segments: {
+                        $cond: [
+                            { $gt: [{ $size: { $ifNull: ['$services', []] } }, 0] },
+                            { $map: { input: '$services', as: 's', in: { teamMember: '$$s.teamMember', earned: { $ifNull: ['$$s.price', 0] } } } },
+                            [{ teamMember: '$teamMember', earned: { $ifNull: ['$totalPrice', 0] } }],
+                        ],
+                    },
+                } },
+                { $unwind: '$segments' },
+                { $group: { _id: '$segments.teamMember', earned: { $sum: '$segments.earned' }, appts: { $addToSet: '$_id' } } },
                 { $lookup: { from: 'teammembers', localField: '_id', foreignField: '_id', as: 'tm' } },
                 { $unwind: { path: '$tm', preserveNullAndEmptyArrays: true } },
-                { $project: { name: { $ifNull: ['$tm.name', 'Unassigned'] }, earned: 1, count: 1 } },
+                { $project: { name: { $ifNull: ['$tm.name', 'Unassigned'] }, earned: 1, count: { $size: '$appts' } } },
                 { $sort: { earned: -1 } },
             ]),
             // ── Recent completed appointments (latest 10, range-independent) ──

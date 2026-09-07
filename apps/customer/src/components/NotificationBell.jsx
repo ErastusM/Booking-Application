@@ -13,9 +13,21 @@ const NotificationBell = ({ isTransparent }) => {
 
     useEffect(() => {
         fetchNotifications();
-        // Poll every 30 seconds for new notifications
-        const interval = setInterval(fetchNotifications, 30000);
-        return () => clearInterval(interval);
+        // Poll every 30s, but only while the tab is visible — a backgrounded tab
+        // shouldn't keep hitting the API forever (wastes bandwidth + mobile
+        // battery). Refetch immediately when the tab regains visibility. Mirrors
+        // the app's useLiveRefresh hook.
+        let interval = null;
+        const tick = () => { if (document.visibilityState === 'visible') fetchNotifications(); };
+        const start = () => { if (!interval) interval = setInterval(tick, 30000); };
+        const stop = () => { if (interval) { clearInterval(interval); interval = null; } };
+        const onVisibility = () => {
+            if (document.visibilityState === 'visible') { fetchNotifications(); start(); }
+            else stop();
+        };
+        start();
+        document.addEventListener('visibilitychange', onVisibility);
+        return () => { stop(); document.removeEventListener('visibilitychange', onVisibility); };
     }, []);
 
     // Close dropdown when clicking outside

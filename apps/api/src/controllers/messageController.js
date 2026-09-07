@@ -8,30 +8,35 @@ exports.getMyConversations = async (req, res) => {
     try {
         const userId = req.user._id;
 
-        // Find all appointments the user is part of that have at least one message,
-        // and the per-conversation unread counts, together. The unread count used to
-        // be a countDocuments PER conversation inside the loop below (an N+1 that
-        // grew with the user's inbox); one grouped aggregate replaces all of them.
-        const [messages, unreadAgg] = await Promise.all([
-            Message.find({
-                $or: [{ sender: userId }, { recipient: userId }],
-            })
-                .sort({ createdAt: -1 })
-                .populate('sender', 'name avatar')
-                .populate('recipient', 'name avatar')
-                .populate({
-                    path: 'appointment',
-                    populate: [
-                        { path: 'service', select: 'name' },
-                        { path: 'customer', select: 'name avatar' },
-                        { path: 'provider', select: 'name avatar' },
-                    ],
-                }),
+        // The conversation list is one row per appointment (the latest message),
+        // plus the per-conversation unread counts. Loading the user's ENTIRE
+        // message history with four joins each and de-duping in JS grew with inbox
+        // size; instead aggregate the latest message id per appointment first, then
+        // populate ONLY those rows. Unread counts come from a second grouped
+        // aggregate (already replaced the old per-conversation countDocuments N+1).
+        const [latest, unreadAgg] = await Promise.all([
+            Message.aggregate([
+                { $match: { $or: [{ sender: userId }, { recipient: userId }], appointment: { $ne: null } } },
+                { $sort: { createdAt: -1 } },
+                { $group: { _id: '$appointment', msgId: { $first: '$_id' } } },
+            ]),
             Message.aggregate([
                 { $match: { recipient: userId, readBy: { $ne: userId } } },
                 { $group: { _id: '$appointment', count: { $sum: 1 } } },
             ]),
         ]);
+        const messages = await Message.find({ _id: { $in: latest.map(l => l.msgId) } })
+            .sort({ createdAt: -1 })
+            .populate('sender', 'name avatar')
+            .populate('recipient', 'name avatar')
+            .populate({
+                path: 'appointment',
+                populate: [
+                    { path: 'service', select: 'name' },
+                    { path: 'customer', select: 'name avatar' },
+                    { path: 'provider', select: 'name avatar' },
+                ],
+            });
         const unreadMap = new Map(unreadAgg.map(u => [String(u._id), u.count]));
 
         // Deduplicate by appointment, keep latest message per conversation
@@ -71,7 +76,10 @@ exports.getMessages = async (req, res) => {
         // Verify user is part of this appointment
         const appointment = await Appointment.findById(appointmentId);
         if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
-        const isParty = appointment.customer.toString() === userId.toString() ||
+        // A guest booking has no customer account (customer is null); a bare
+        // .toString() here 500'd on any message read against a guest appointment.
+        // sendMessage was already hardened the same way.
+        const isParty = appointment.customer?.toString() === userId.toString() ||
             appointment.provider?.toString() === userId.toString();
         if (!isParty) return res.status(403).json({ success: false, message: 'Not authorized' });
 

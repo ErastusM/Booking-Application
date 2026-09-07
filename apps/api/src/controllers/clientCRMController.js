@@ -12,10 +12,15 @@ exports.getMyClients = async (req, res) => {
         const providerId = req.user._id;
         const providerIdStr = providerId.toString();
 
+        // Only the fields the per-client roll-up below reads — as lean plain
+        // objects, and with the never-referenced service join dropped. This was
+        // hydrating the provider's whole appointment history (two populates) just
+        // to reduce it to one row per client.
         const appointments = await Appointment.find({ provider: providerId })
+            .select('customer walkInName status totalPrice appointmentDate')
             .populate('customer', 'name email phone createdAt')
-            .populate('service', 'name price')
-            .sort({ appointmentDate: -1 });
+            .sort({ appointmentDate: -1 })
+            .lean();
 
         const clientMap = new Map();
         for (const appt of appointments) {

@@ -23,7 +23,8 @@ describe('Web Push', () => {
         const res = await request(app)
             .post('/api/push/subscribe')
             .set(authHeader(user))
-            .send({ endpoint: 'https://example.com/ep1', keys: { p256dh: 'abc', auth: 'def' } });
+            // A real push-service endpoint — arbitrary hosts are now rejected (SSRF guard).
+            .send({ endpoint: 'https://fcm.googleapis.com/fcm/send/ep1', keys: { p256dh: 'abc', auth: 'def' } });
         expect(res.status).toBe(201);
     });
 
@@ -32,7 +33,7 @@ describe('Web Push', () => {
         const res = await request(app)
             .post('/api/push/subscribe')
             .set(authHeader(user))
-            .send({ endpoint: 'https://example.com/ep2' }); // missing keys
+            .send({ endpoint: 'https://fcm.googleapis.com/fcm/send/ep2' }); // missing keys
         expect(res.status).toBe(400);
     });
 

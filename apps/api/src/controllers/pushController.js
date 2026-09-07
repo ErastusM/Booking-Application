@@ -1,5 +1,6 @@
 const PushSubscription = require('../models/PushSubscription');
 const pushService = require('../utils/pushService');
+const { safePushEndpoint } = require('../utils/helpers');
 
 // Public key + whether push is enabled on this server
 exports.getPublicKey = (req, res) => {
@@ -14,12 +15,16 @@ exports.getPublicKey = (req, res) => {
 exports.subscribe = async (req, res) => {
     try {
         const { endpoint, keys } = req.body || {};
-        if (!endpoint || !keys?.p256dh || !keys?.auth) {
+        // Pin the endpoint to a real https push-service host BEFORE storing it —
+        // the server later POSTs to whatever we persist, so an arbitrary URL here
+        // is a blind-SSRF vector (see safePushEndpoint).
+        const safeEndpoint = safePushEndpoint(endpoint);
+        if (!safeEndpoint || !keys?.p256dh || !keys?.auth) {
             return res.status(400).json({ success: false, message: 'Invalid subscription' });
         }
         await PushSubscription.findOneAndUpdate(
-            { endpoint },
-            { user: req.user._id, endpoint, keys, userAgent: req.headers['user-agent'] || '' },
+            { endpoint: safeEndpoint },
+            { user: req.user._id, endpoint: safeEndpoint, keys, userAgent: req.headers['user-agent'] || '' },
             { upsert: true, new: true, setDefaultsOnInsert: true }
         );
         res.status(201).json({ success: true });
