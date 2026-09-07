@@ -53,3 +53,29 @@ exports.safeHttpUrl = (value) => {
         return ''; // not an absolute URL at all
     }
 };
+
+// A Web Push endpoint only ever points at a browser vendor's push service.
+// The server later POSTs to whatever we store (pushService.sendToUser), so an
+// unvalidated, client-supplied endpoint is a blind-SSRF primitive (an internal
+// URL like http://169.254.169.254/… would be fetched from the API's network).
+// Pin it to https + a known push-provider host before it is ever persisted;
+// the provider set is small and stable (every major browser routes through one
+// of these). Returns the normalised URL string, or '' if it isn't a real,
+// https push endpoint.
+const PUSH_ENDPOINT_HOSTS = [
+    'fcm.googleapis.com',                 // Chrome / Chromium / Edge / Opera / Android
+    'web.push.apple.com',                 // Safari / WebKit
+    'updates.push.services.mozilla.com',  // Firefox
+    'notify.windows.com',                 // legacy EdgeHTML / WNS (regional subdomains)
+    'push.microsoft.com',                 // WNS (subdomains)
+];
+exports.safePushEndpoint = (value) => {
+    const raw = (value == null ? '' : String(value)).trim().slice(0, 1000);
+    if (!raw) return '';
+    let u;
+    try { u = new URL(raw); } catch { return ''; }
+    if (u.protocol !== 'https:') return '';
+    const host = u.hostname.toLowerCase();
+    const ok = PUSH_ENDPOINT_HOSTS.some(h => host === h || host.endsWith(`.${h}`));
+    return ok ? u.toString() : '';
+};

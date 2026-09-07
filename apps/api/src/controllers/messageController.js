@@ -71,7 +71,10 @@ exports.getMessages = async (req, res) => {
         // Verify user is part of this appointment
         const appointment = await Appointment.findById(appointmentId);
         if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
-        const isParty = appointment.customer.toString() === userId.toString() ||
+        // A guest booking has no customer account (customer is null); a bare
+        // .toString() here 500'd on any message read against a guest appointment.
+        // sendMessage was already hardened the same way.
+        const isParty = appointment.customer?.toString() === userId.toString() ||
             appointment.provider?.toString() === userId.toString();
         if (!isParty) return res.status(403).json({ success: false, message: 'Not authorized' });
 
