@@ -1,4 +1,7 @@
 require('dotenv').config();
+// Sentry — after dotenv (needs SENTRY_DSN), before express (v8 auto-instruments
+// http/express at require time). Inert unless SENTRY_DSN is set.
+const Sentry = require('./instrument');
 const express = require('express');
 const cors = require('cors');
 const helmet = require('helmet');
@@ -106,9 +109,13 @@ process.on('unhandledRejection', (reason) => {
 });
 process.on('uncaughtException', (err) => {
     logger.fatal({ err }, 'Uncaught exception — exiting for a clean restart');
-    sendAlert('Uncaught exception (restarting)', err.stack || err.message)
-        .catch(() => {})
-        .finally(() => process.exit(1));
+    // Sentry already captured the event (its integration runs first); flush it and
+    // ping the ops webhook before the clean exit, so neither the alert nor the
+    // Sentry event is lost to the immediate process.exit.
+    Promise.allSettled([
+        sendAlert('Uncaught exception (restarting)', err.stack || err.message),
+        Sentry.isEnabled() ? Sentry.flush(2000) : Promise.resolve(),
+    ]).finally(() => process.exit(1));
 });
 
 // Rate limiters — disabled in test environment to prevent 429s during test runs
@@ -250,6 +257,10 @@ app.get('/api/health', async (req, res) => {
 
 // Error handling
 app.use(notFound);
+// Capture route-handler errors in Sentry (with request context) BEFORE the app's
+// own responder formats the 500. No-op when Sentry has no DSN. It re-throws to the
+// next handler, so the custom errorHandler still shapes the client response.
+if (Sentry.isEnabled()) Sentry.setupExpressErrorHandler(app);
 app.use(errorHandler);
 
 const PORT = process.env.PORT || 5000;
