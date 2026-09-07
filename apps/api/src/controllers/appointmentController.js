@@ -1044,6 +1044,15 @@ exports.createAppointment = async (req, res) => {
             }
         }
 
+        // A recurring series is NOT wallet-prepaid: the per-occurrence reservation
+        // is deliberately skipped (reserving weeks of funds up front is unsupported).
+        // Stamping the series paymentMethod:'wallet' while reserving nothing at
+        // booking time and deducting nothing at completion let a customer obtain a
+        // whole wallet_required series for free. Force cash so the appointment
+        // truthfully reflects that the provider collects in person. (Per-occurrence
+        // wallet prepayment for recurring is a separate feature if ever wanted.)
+        if (isRecurring && chosenMethod === 'wallet') chosenMethod = 'cash';
+
         const baseDoc = {
             customer: bookingClient._id, // null for a guest booking
             service,
@@ -1072,6 +1081,35 @@ exports.createAppointment = async (req, res) => {
         // reported back so the client knows which weeks didn't book.
         let skippedDates = [];
 
+        // Pre-compute the recurring series' candidate dates BEFORE acquiring the
+        // lock, so the lock can cover EVERY day the series touches — not just the
+        // anchor. The lock key is per provider+member+DAY, but a recurring
+        // insertMany writes many days; locking only the anchor left every
+        // non-anchor occurrence unserialized, so two series sharing a future date
+        // (or a single booking on that date) could both write it → double-book.
+        // commitBooking reuses this plan instead of recomputing.
+        let recurringPlan = null;
+        if (isRecurring && recurrenceType && ['daily', 'weekly', 'monthly'].includes(recurrenceType)) {
+            const groupId = randomUUID();
+            const interval = Math.min(52, Math.max(1, parseInt(recurrenceInterval, 10) || 1));
+            const seriesEnd = recurrenceEndDate ? new Date(recurrenceEndDate) : (() => {
+                const d = new Date(appointmentDate);
+                d.setMonth(d.getMonth() + 3);
+                return d;
+            })();
+            const candidates = [];
+            const anchor = new Date(appointmentDate);
+            const MAX = 60;
+            let step = 0;
+            let cur = new Date(anchor);
+            while (cur <= seriesEnd && candidates.length < MAX) {
+                candidates.push(new Date(cur));
+                step += 1;
+                cur = occurrenceFromAnchor(anchor, recurrenceType, interval, step);
+            }
+            recurringPlan = { groupId, interval, seriesEnd, candidates };
+        }
+
         // The overlap check and the insert must be ATOMIC. Two concurrent requests
         // for the same person previously both passed a plain find() before either
         // wrote, then both inserted — the same-person double-book seen in
@@ -1081,25 +1119,10 @@ exports.createAppointment = async (req, res) => {
         // replaces the old advisory _id-comparison backstop, which relied on a
         // cross-connection read that isn't guaranteed.
         const commitBooking = async () => {
-            if (isRecurring && recurrenceType && ['daily', 'weekly', 'monthly'].includes(recurrenceType)) {
-                const groupId = randomUUID();
-                // Repeat every N units (the "Custom" frequency); defaults to every 1.
-                const interval = Math.min(52, Math.max(1, parseInt(recurrenceInterval, 10) || 1));
-                const seriesEnd = recurrenceEndDate ? new Date(recurrenceEndDate) : (() => {
-                    const d = new Date(appointmentDate);
-                    d.setMonth(d.getMonth() + 3);
-                    return d;
-                })();
-                const candidates = [];
-                const anchor = new Date(appointmentDate);
-                const MAX = 60;
-                let step = 0;
-                let cur = new Date(anchor);
-                while (cur <= seriesEnd && candidates.length < MAX) {
-                    candidates.push(new Date(cur));
-                    step += 1;
-                    cur = occurrenceFromAnchor(anchor, recurrenceType, interval, step);
-                }
+            if (recurringPlan) {
+                // Reuse the pre-lock plan (see above) so the same candidate days we
+                // locked are the ones we filter and insert.
+                const { groupId, interval, seriesEnd, candidates } = recurringPlan;
 
                 // Drop occurrences that land on blocked time, a closed day, or an
                 // existing booking — previously every date was inserted unchecked.
@@ -1145,7 +1168,14 @@ exports.createAppointment = async (req, res) => {
 
         try {
             if (providerId) {
-                await withBookingLock(bookingLockKey(providerId, resolvedTeamMember, appointmentDate), commitBooking);
+                // A recurring series must hold the lock for EVERY day it will touch
+                // (not just the anchor), so the in-lock read that decides each
+                // occurrence is authoritative and no concurrent booking can slip
+                // into a non-anchor day between the read and the insertMany.
+                const lockKeys = recurringPlan
+                    ? recurringPlan.candidates.map((d) => bookingLockKey(providerId, resolvedTeamMember, d))
+                    : [bookingLockKey(providerId, resolvedTeamMember, appointmentDate)];
+                await withBookingLocks(lockKeys, commitBooking);
             } else {
                 await commitBooking();
             }
@@ -1782,7 +1812,13 @@ exports.updateAppointmentStatus = async (req, res) => {
             if (status === 'completed') {
                 const r = await walletService.deductForCompletion({ appointmentId: appointment._id, resolvedBy: req.user._id });
                 if (r.deducted > 0) createNotification(appointment.customer._id, `N$${r.deducted.toFixed(2)} deducted from your wallet for ${apptPhrase(appointment.service?.name)}`, 'wallet', '/wallet');
-            } else if (status === 'cancelled') {
+            } else if (status === 'cancelled' || status === 'no-show') {
+                // A no-show used to fall through with NO wallet arm, so the hold
+                // taken at booking time was never released OR deducted — the
+                // client's reserved funds stayed frozen forever. Release it, same
+                // as a cancellation (the appointment didn't happen). If the product
+                // later wants a no-show FEE, swap this arm to deductForCompletion —
+                // both are idempotent and no-op for cash bookings.
                 const r = await walletService.releaseReservation({ appointmentId: appointment._id, resolvedBy: req.user._id });
                 if (r.released > 0) createNotification(appointment.customer._id, `N$${r.released.toFixed(2)} released back to your wallet`, 'wallet', '/wallet');
             }
@@ -2488,17 +2524,22 @@ exports.createGroupBooking = async (req, res) => {
             const newEnd = newEH * 60 + newEM + (svc.bufferAfter || 0);
             const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
             const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
+            // Segment- AND buffer-aware, matching the single-booking overlap check.
+            // An exact `teamMember` match + raw window compare missed an existing
+            // multi-service ticket where THIS member performs only a segment (its
+            // top-level teamMember is a colleague), and ignored service buffers —
+            // both let a group booking double-book the member or sit inside another
+            // booking's reserved cleanup time.
             const existing = await Appointment.find({
                 provider: providerId,
                 appointmentDate: { $gte: dayStart, $lte: dayEnd },
                 status: { $nin: ['cancelled'] },
-                teamMember: resolvedTeamMember,
-            }).select('startTime endTime');
-            return existing.some(a => {
-                const [aSH, aSM] = a.startTime.split(':').map(Number);
-                const [aEH, aEM] = a.endTime.split(':').map(Number);
-                return newStart < (aEH * 60 + aEM) && newEnd > (aSH * 60 + aSM);
-            });
+                ...(resolvedTeamMember ? memberInvolvedFilter(resolvedTeamMember) : { teamMember: null }),
+            }).select('startTime endTime teamMember services service');
+            const bufferByService = await bufferMapForAppointments(existing);
+            return existing.some(a =>
+                memberBusyIntervalsBuffered(a, resolvedTeamMember || null, bufferByService)
+                    .some(([s, e]) => newStart < e && newEnd > s));
         };
         // Fast pre-check outside the lock; the lock re-checks authoritatively.
         if (await groupOverlaps()) {
