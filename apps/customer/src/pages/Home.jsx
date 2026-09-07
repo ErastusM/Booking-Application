@@ -260,11 +260,18 @@ const Home = () => {
     // so the search box can actually match a service name (e.g. "haircut") to the
     // business that offers it, not just business/location/category text.
     const [allServices, setAllServices] = useState([]);
+    // Fetching the ENTIRE public service catalogue on every landing-page load — a
+    // second unbounded payload most visitors never need — only powers search-by-
+    // service-name. Defer it until the visitor actually engages the search box.
+    const [catalogueRequested, setCatalogueRequested] = useState(false);
     useEffect(() => {
+        if (!catalogueRequested) return undefined;
+        let stale = false;
         serviceService.getAllServices()
-            .then(res => setAllServices(res.data.data || []))
-            .catch(() => setAllServices([]));
-    }, []);
+            .then(res => { if (!stale) setAllServices(res.data.data || []); })
+            .catch(() => { if (!stale) setAllServices([]); });
+        return () => { stale = true; };
+    }, [catalogueRequested]);
     const serviceNamesByProvider = useMemo(() => {
         const map = new Map();
         allServices.forEach(s => {
@@ -448,19 +455,25 @@ const Home = () => {
     // bottom scrolls into view — no pagination, no "next page" buttons.
     const PAGE = 6;
     const [visibleCount, setVisibleCount] = useState(PAGE);
-    const sentinelRef = useRef(null);
+    const sentinelRef = useRef(null);          // mobile feed sentinel
+    const desktopSentinelRef = useRef(null);   // desktop sections sentinel
     const hasMore = visibleCount < filteredProviders.length;
 
     useEffect(() => { setVisibleCount(PAGE); }, [filteredProviders]);
 
     useEffect(() => {
-        const el = sentinelRef.current;
-        if (!el) return;
+        // Observe BOTH the mobile-feed and desktop-section sentinels with one
+        // observer. Only the viewport's active tree is laid out (the other is
+        // display:none via media query, so its sentinel has zero size and never
+        // intersects) — so the visible grid reveals in PAGE-sized chunks and the
+        // desktop grids are no longer rendered in full on first paint.
+        const els = [sentinelRef.current, desktopSentinelRef.current].filter(Boolean);
+        if (!els.length) return;
         const io = new IntersectionObserver(
-            (entries) => { if (entries[0].isIntersecting) setVisibleCount(c => Math.min(c + PAGE, filteredProviders.length)); },
+            (entries) => { if (entries.some(e => e.isIntersecting)) setVisibleCount(c => Math.min(c + PAGE, filteredProviders.length)); },
             { rootMargin: '700px 0px' }
         );
-        io.observe(el);
+        els.forEach(el => io.observe(el));
         return () => io.disconnect();
     }, [filteredProviders.length, loading]);
 
@@ -498,6 +511,7 @@ const Home = () => {
                         <input
                             value={query}
                             onChange={e => setQuery(e.target.value)}
+                            onFocus={() => setCatalogueRequested(true)}
                             placeholder="Search services or businesses"
                             aria-label="Search services or businesses"
                             style={{ flex: 1, minWidth: 0, border: 'none', outline: 'none', background: 'transparent', fontSize: '1rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}
@@ -590,7 +604,7 @@ const Home = () => {
                                 </div>
                             ) : (
                                 <div className="home-section-grid">
-                                    {filteredProviders.map(p => (
+                                    {filteredProviders.slice(0, visibleCount).map(p => (
                                         <ProviderCard key={`res-${p._id}`} p={p} isFav={favSet.has(String(p._id))} onToggleFav={toggleFav} />
                                     ))}
                                 </div>
@@ -653,7 +667,7 @@ const Home = () => {
                             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.55rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.25rem' }}>Recommended</h2>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: '0 0 1.1rem' }}>Businesses picked for you</p>
                             <div className="home-section-grid">
-                                {recommendedProviders.map(x => (
+                                {recommendedProviders.slice(0, visibleCount).map(x => (
                                     <ProviderCard key={`rec-${x._id}`} p={x} isFav={favSet.has(String(x._id))} onToggleFav={toggleFav} />
                                 ))}
                             </div>
@@ -661,6 +675,9 @@ const Home = () => {
                     )}
                       </>
                     )}
+                    {/* Reveal more desktop cards as this scrolls near view (mirrors the
+                        mobile feed) so the sections aren't rendered in full on first paint. */}
+                    <div ref={desktopSentinelRef} aria-hidden="true" style={{ height: 1 }} />
                 </div>
             </section>
 
