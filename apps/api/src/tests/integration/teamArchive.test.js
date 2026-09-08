@@ -8,6 +8,7 @@
  * survives, and their working life here still ends.
  */
 const request = require('supertest');
+const { futureDate } = require('../helpers/dates');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = require('../helpers/factories');
@@ -62,7 +63,7 @@ describe('archiving a team member', () => {
         await request(app).delete(`/api/team/${member._id}`).set(authHeader(provider));
 
         const res = await resolveBookingStaff({
-            svc: service, providerId: provider._id, appointmentDate: '2026-09-16',
+            svc: service, providerId: provider._id, appointmentDate: futureDate(0),
             startTime: '10:00', endTime: '10:30',
             requestedTeamMember: member._id, requester: { role: 'customer', _id: customer._id },
         });

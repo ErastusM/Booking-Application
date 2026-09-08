@@ -3,6 +3,7 @@
  * -on-join behaviour.
  */
 const request = require('supertest');
+const { futureDate } = require('../helpers/dates');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, authHeader } = require('../helpers/factories');
@@ -125,7 +126,7 @@ describe('promotion respects the roster', () => {
         DAYS.forEach((d) => { s[d] = { enabled: true, slots: [{ start, end }] }; });
         return s;
     };
-    const DATE = '2026-09-16';
+    const DATE = futureDate(0);
 
     it('does not promote a waiter onto the member\'s rostered day off', async () => {
         const provider = await makeProvider();

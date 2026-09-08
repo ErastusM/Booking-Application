@@ -7,6 +7,7 @@
  * so earnings and the client's own record stay intact.
  */
 const request = require('supertest');
+const { futureDate } = require('../helpers/dates');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = require('../helpers/factories');
@@ -38,9 +39,9 @@ const setup = async () => {
     const service = await makeService(provider._id, { price: 100, duration: 60 });
     const member = await TeamMember.create({ provider: provider._id, name: 'Erastus M', role: 'Barber' });
     await StaffAvailability.create({ provider: provider._id, teamMember: member._id, schedule: everyDay('08:00', '17:00') });
-    await Shift.create({ provider: provider._id, teamMember: member._id, date: '2026-09-16', slots: [{ start: '08:00', end: '12:00' }], breaks: [] });
-    await TimeOff.create({ provider: provider._id, teamMember: member._id, startDate: '2026-09-20', endDate: '2026-09-22', type: 'vacation', status: 'approved' });
-    await BlockedTime.create({ provider: provider._id, teamMember: member._id, date: '2026-09-16', startTime: '13:00', endTime: '14:00' });
+    await Shift.create({ provider: provider._id, teamMember: member._id, date: futureDate(0), slots: [{ start: '08:00', end: '12:00' }], breaks: [] });
+    await TimeOff.create({ provider: provider._id, teamMember: member._id, startDate: futureDate(4), endDate: futureDate(6), type: 'vacation', status: 'approved' });
+    await BlockedTime.create({ provider: provider._id, teamMember: member._id, date: futureDate(0), startTime: '13:00', endTime: '14:00' });
     return { provider, customer, service, member };
 };
 
@@ -105,7 +106,7 @@ describe('permanently removing a team member', () => {
         expect((await remove(provider, member)).status).toBe(200);
 
         const res = await resolveBookingStaff({
-            svc: service, providerId: provider._id, appointmentDate: '2026-09-16',
+            svc: service, providerId: provider._id, appointmentDate: futureDate(0),
             startTime: '10:00', endTime: '10:30',
             requestedTeamMember: member._id, requester: { role: 'customer', _id: customer._id },
         });

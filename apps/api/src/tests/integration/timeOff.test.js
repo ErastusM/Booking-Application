@@ -9,6 +9,7 @@
  * in one place and forgotten in another.
  */
 const request = require('supertest');
+const { futureDate } = require('../helpers/dates');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = require('../helpers/factories');
@@ -31,8 +32,8 @@ const everyDay = (start, end) => {
     DAYS.forEach((d) => { s[d] = { enabled: true, slots: [{ start, end }] }; });
     return s;
 };
-const DATE = '2026-09-16';        // inside a 15th–18th leave range used below
-const BEFORE = '2026-09-14';      // outside it
+const DATE = futureDate(0);        // inside a 15th–18th leave range used below
+const BEFORE = futureDate(-2);      // outside it
 
 const setup = async () => {
     const provider = await makeProvider();
@@ -67,7 +68,7 @@ describe('owner-managed time off', () => {
         const { provider, member } = await setup();
 
         const res = await request(app).post(ownerTimeOff(provider, member)).set(authHeader(provider))
-            .send({ startDate: '2026-09-15', endDate: '2026-09-18', allDay: true, type: 'vacation', note: 'Up north' });
+            .send({ startDate: futureDate(-1), endDate: futureDate(2), allDay: true, type: 'vacation', note: 'Up north' });
 
         expect(res.status).toBe(201);
         expect(res.body.data.status).toBe('approved');
@@ -80,7 +81,7 @@ describe('owner-managed time off', () => {
     it('closes the calendar for an all-day leave, and only for those days', async () => {
         const ctx = await setup();
         await request(app).post(ownerTimeOff(ctx.provider, ctx.member)).set(authHeader(ctx.provider))
-            .send({ startDate: '2026-09-15', endDate: '2026-09-18', allDay: true });
+            .send({ startDate: futureDate(-1), endDate: futureDate(2), allDay: true });
 
         // 16th is inside the range — on leave.
         expect((await tryBook(ctx, DATE, '10:00', '10:30')).error).toMatch(/leave/i);
@@ -121,7 +122,7 @@ describe('owner-managed time off', () => {
     it('rejects an inverted range and a timed leave with no times', async () => {
         const { provider, member } = await setup();
         const bad1 = await request(app).post(ownerTimeOff(provider, member)).set(authHeader(provider))
-            .send({ startDate: '2026-09-18', endDate: '2026-09-15' });
+            .send({ startDate: futureDate(2), endDate: futureDate(-1) });
         expect(bad1.status).toBe(400);
 
         const bad2 = await request(app).post(ownerTimeOff(provider, member)).set(authHeader(provider))
@@ -214,7 +215,7 @@ describe('what the customer is shown', () => {
         await TimeOff.create({ provider: provider._id, teamMember: member._id, startDate: DATE, endDate: DATE, allDay: true, status: 'approved' });
 
         const res = await request(app)
-            .get(`/api/providers/${provider._id}/staff/${member._id}/shift-days?from=2026-09-01&to=2026-09-30`);
+            .get(`/api/providers/${provider._id}/staff/${member._id}/shift-days?from=${futureDate(-15)}&to=${futureDate(14)}`);
 
         expect(res.body.data.off).toContain(DATE);
     });

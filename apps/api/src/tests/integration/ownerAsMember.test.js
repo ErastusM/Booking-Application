@@ -6,6 +6,7 @@
  * null. Solo businesses (no staff) keep the owner-implicit flow with no tile.
  */
 const request = require('supertest');
+const { futureDate } = require('../helpers/dates');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, authHeader } = require('../helpers/factories');
@@ -26,7 +27,7 @@ const everyDay = (start, end) => {
     DAYS.forEach((d) => { s[d] = { enabled: true, slots: [{ start, end }] }; });
     return s;
 };
-const DATE = '2026-09-16';
+const DATE = futureDate(0);
 const mins = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 const busyAt = (data, kinds, s, e) => data.some((b) => kinds.includes(b.kind) && mins(b.startTime) < e && mins(b.endTime) > s);
 

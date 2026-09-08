@@ -10,6 +10,7 @@
  *      without releasing the hold, freezing the customer's prepaid funds.
  */
 const request = require('supertest');
+const { futureDate } = require('../helpers/dates');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = require('../helpers/factories');
@@ -32,7 +33,7 @@ const everyDay = (start, end) => {
     return s;
 };
 // A date comfortably in the future so past-slot / cancellation-window guards pass.
-const DATE = '2026-12-16';
+const DATE = futureDate(0);
 
 describe('Fix 1 — recurring booking no longer races on its first occurrence', () => {
     it('lets only ONE of two simultaneous recurring bookings win the anchor slot', async () => {
@@ -44,7 +45,7 @@ describe('Fix 1 — recurring booking no longer races on its first occurrence', 
 
         const bookRecurring = (customer) => request(app).post('/api/appointments').set(authHeader(customer)).send({
             service: svc._id.toString(), appointmentDate: DATE, startTime: '10:00', endTime: '11:00',
-            isRecurring: true, recurrenceType: 'daily', recurrenceEndDate: '2026-12-18',
+            isRecurring: true, recurrenceType: 'daily', recurrenceEndDate: futureDate(2),
         });
 
         const [r1, r2] = await Promise.all([bookRecurring(a), bookRecurring(b)]);

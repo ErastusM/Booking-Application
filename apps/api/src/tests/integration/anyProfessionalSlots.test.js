@@ -9,6 +9,7 @@
  * and the booking validator agree: a slot is shown open iff booking it succeeds.
  */
 const request = require('supertest');
+const { futureDate } = require('../helpers/dates');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = require('../helpers/factories');
@@ -30,7 +31,7 @@ const everyDay = (start, end) => {
     DAYS.forEach((d) => { s[d] = { enabled: true, slots: [{ start, end }] }; });
     return s;
 };
-const DATE = '2026-09-16';
+const DATE = futureDate(0);
 const day = new Date(`${DATE}T00:00:00.000Z`);
 const mins = (t) => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
 // Is [s,e) covered as busy by any entry of the given kinds?
