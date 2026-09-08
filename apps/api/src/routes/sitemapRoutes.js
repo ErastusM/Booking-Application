@@ -128,7 +128,7 @@ const renderProviderCard = (p, canonical, base) => {
 const renderDefaultCard = (base) => {
     const E = htmlEscape;
     const title = 'Bookplus — Book local appointments online';
-    const desc = 'Discover and book appointments with barbers, salons, spas and more across Southern Africa. Reserve your slot in seconds.';
+    const desc = 'Discover and book appointments with local businesses across Southern Africa — beauty, health, fitness, automotive, home services and more. Reserve your slot in seconds.';
     const image = `${base}/icon-512.png`;
     return `<!DOCTYPE html>
 <html lang="en">

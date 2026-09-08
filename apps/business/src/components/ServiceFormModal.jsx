@@ -150,7 +150,7 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                             <label style={label}>Service name</label>
                             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{form.name.length}/255</span>
                         </div>
-                        <input className="input" maxLength={255} value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="Add a service name, e.g. Men's Haircut" style={{ fontSize: '1rem' }} autoFocus />
+                        <input className="input" maxLength={255} value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="Add a service name, e.g. 60-min consultation" style={{ fontSize: '1rem' }} autoFocus />
                     </div>
 
                     <div style={field}>

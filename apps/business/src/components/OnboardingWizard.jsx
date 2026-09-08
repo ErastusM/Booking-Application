@@ -216,7 +216,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                                 A few quick steps so clients can find and book you. You can skip any step and finish it later from Settings.
                             </p>
                             <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Business name</label>
-                            <input className="input" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="e.g. The Vibe Barbershop" style={{ fontSize: '1rem' }} />
+                            <input className="input" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="e.g. Your business name" style={{ fontSize: '1rem' }} />
                             <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', margin: '1.1rem 0 0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Currency</label>
                             <select className="input" value={currency} onChange={(e) => setCurrency(e.target.value)} style={{ fontSize: '1rem' }} aria-label="Currency">
                                 {CURRENCIES.map((c) => (
@@ -291,7 +291,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                                     const locked = i < createdCount;
                                     return (
                                         <div key={i} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', opacity: locked ? 0.6 : 1 }}>
-                                            <input className="input" disabled={locked} value={s.name} onChange={(e) => setRow({ name: e.target.value })} placeholder="Service (e.g. Haircut)" style={{ flex: 2 }} />
+                                            <input className="input" disabled={locked} value={s.name} onChange={(e) => setRow({ name: e.target.value })} placeholder="Service (e.g. 60-min consultation)" style={{ flex: 2 }} />
                                             <input className="input" disabled={locked} type="number" min="5" step="5" value={s.duration} onChange={(e) => setRow({ duration: e.target.value })} placeholder="min" style={{ flex: 1, minWidth: 0 }} title="Duration in minutes" />
                                             <input className="input" disabled={locked} type="number" min="0" value={s.price} onChange={(e) => setRow({ price: e.target.value })} placeholder="Price" style={{ flex: 1, minWidth: 0 }} />
                                             {services.length > 1 && !locked && (
