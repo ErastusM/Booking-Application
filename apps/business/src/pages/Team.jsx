@@ -3,7 +3,7 @@ import { useAuthContext } from '../context/AuthContext';
 import { teamService, providerServiceService } from '../services';
 import { useToast } from '../components/Toast';
 import Switch from '../components/Switch';
-import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft, Star, Trash2 } from 'lucide-react';
+import { UserPlus, Mail, Clock, ConciergeBell, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft, Star, Trash2 } from 'lucide-react';
 
 /**
  * Epic 2.4 — staff management: roster CRUD, invite-to-login, per-staff
@@ -565,7 +565,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                         <div style={{ marginTop: '1.1rem' }} data-testid="panel-personal">
                             <div style={{ display: 'grid', gap: '0.7rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
                                 <Field label="Name" value={personal.name} onChange={e => setPersonal(p => ({ ...p, name: e.target.value }))} data-testid="personal-name" />
-                                <Field label="Job title" value={personal.role} onChange={e => setPersonal(p => ({ ...p, role: e.target.value }))} placeholder="Barber" />
+                                <Field label="Job title" value={personal.role} onChange={e => setPersonal(p => ({ ...p, role: e.target.value }))} placeholder="e.g. Stylist, Trainer, Technician" />
                                 <Field label="Email" type="email" value={personal.email} onChange={e => setPersonal(p => ({ ...p, email: e.target.value }))} />
                                 <Field label="Phone" value={personal.phone} onChange={e => setPersonal(p => ({ ...p, phone: e.target.value }))} />
                                 <Field label="Country" value={personal.country} onChange={e => setPersonal(p => ({ ...p, country: e.target.value }))} placeholder="Namibia" />
@@ -783,7 +783,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                 </Section>
                             )}
 
-                            <Section icon={Scissors} title="Services & prices" hint="(what this person offers · blank price/time = business default)">
+                            <Section icon={ConciergeBell} title="Services & prices" hint="(what this person offers · blank price/time = business default)">
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
                                     <span style={{ fontSize: '0.85rem', color: 'var(--charcoal)' }}>
                                         Offers all services this business books

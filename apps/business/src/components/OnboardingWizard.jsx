@@ -5,7 +5,7 @@ import { cloudinaryAvatar, cloudinaryThumb } from '../utils/cloudinary';
 import { CURRENCIES } from '../utils/currency';
 import { track } from '../services/client';
 import MapPicker, { MAPS_KEY, reverseGeocode } from './MapPicker';
-import { MapPin, Clock, Scissors, Camera, LinkIcon, Check, Copy, Share2, ArrowLeft, Plus, X } from 'lucide-react';
+import { MapPin, Clock, ConciergeBell, Camera, LinkIcon, Check, Copy, Share2, ArrowLeft, Plus, X } from 'lucide-react';
 
 const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'https://www.bookplus.pro';
 
@@ -57,7 +57,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
         { id: 'welcome', Icon: Check },
         { id: 'address', Icon: MapPin, title: 'Where are you located?', sub: 'Drop a pin so clients can find you and get directions.' },
         { id: 'hours', Icon: Clock, title: 'Your working hours', sub: 'When can clients book with you?' },
-        { id: 'services', Icon: Scissors, title: 'What do you offer?', sub: 'Add your services and how long each takes — we build your booking times from this.' },
+        { id: 'services', Icon: ConciergeBell, title: 'What do you offer?', sub: 'Add your services and how long each takes — we build your booking times from this.' },
         { id: 'photos', Icon: Camera, title: 'Show off your work', sub: 'Add a profile photo and at least one photo of your work.' },
         { id: 'link', Icon: LinkIcon, title: 'Your booking link is ready', sub: 'Share this link so clients can book you directly.' },
     ]), []);
@@ -207,7 +207,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                     {current.id === 'welcome' && (
                         <div style={{ paddingTop: '1.5rem' }}>
                             <div style={{ width: '60px', height: '60px', borderRadius: '16px', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.25rem' }}>
-                                <Scissors size={30} strokeWidth={2} />
+                                <ConciergeBell size={30} strokeWidth={2} />
                             </div>
                             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.9rem, 6vw, 2.5rem)', fontWeight: 600, color: 'var(--charcoal)', marginBottom: '0.6rem', lineHeight: 1.1 }}>
                                 Let’s set up your business
@@ -216,7 +216,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                                 A few quick steps so clients can find and book you. You can skip any step and finish it later from Settings.
                             </p>
                             <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Business name</label>
-                            <input className="input" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="e.g. The Vibe Barbershop" style={{ fontSize: '1rem' }} />
+                            <input className="input" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="e.g. Riverside Studio" style={{ fontSize: '1rem' }} />
                             <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', margin: '1.1rem 0 0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Currency</label>
                             <select className="input" value={currency} onChange={(e) => setCurrency(e.target.value)} style={{ fontSize: '1rem' }} aria-label="Currency">
                                 {CURRENCIES.map((c) => (
@@ -291,7 +291,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                                     const locked = i < createdCount;
                                     return (
                                         <div key={i} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', opacity: locked ? 0.6 : 1 }}>
-                                            <input className="input" disabled={locked} value={s.name} onChange={(e) => setRow({ name: e.target.value })} placeholder="Service (e.g. Haircut)" style={{ flex: 2 }} />
+                                            <input className="input" disabled={locked} value={s.name} onChange={(e) => setRow({ name: e.target.value })} placeholder="Service (e.g. 60-min consultation)" style={{ flex: 2 }} />
                                             <input className="input" disabled={locked} type="number" min="5" step="5" value={s.duration} onChange={(e) => setRow({ duration: e.target.value })} placeholder="min" style={{ flex: 1, minWidth: 0 }} title="Duration in minutes" />
                                             <input className="input" disabled={locked} type="number" min="0" value={s.price} onChange={(e) => setRow({ price: e.target.value })} placeholder="Price" style={{ flex: 1, minWidth: 0 }} />
                                             {services.length > 1 && !locked && (
