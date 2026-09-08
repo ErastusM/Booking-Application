@@ -174,6 +174,33 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
                 '/dashboard'
             );
         }
+
+        // If the freed slot belongs to a specific member with their own login,
+        // ping THAT member too (in-app + push via createNotification, and an
+        // email) — a promotion onto their column is a fresh booking they should
+        // hear about, just like a direct one. Best-effort; never break promotion.
+        if (next.teamMember) {
+            try {
+                const TeamMember = require('../models/TeamMember');
+                const m = await TeamMember.findById(next.teamMember)
+                    .select('user name email').populate('user', 'email name').lean();
+                if (m && m.user) {
+                    await createNotification(
+                        m.user._id,
+                        `🔁 Slot refilled — ${next.customer.name} was booked from the waiting list for ${servicePhrase(svc?.name)} on ${dateStr} at ${startTime}.`,
+                        'appointment',
+                        '/my-schedule'
+                    );
+                    const memberEmail = m.user.email || m.email;
+                    if (memberEmail) {
+                        emailService.sendStaffBookingAlert(
+                            memberEmail, m.name, svc?.name || 'Appointment', dateStr,
+                            `${startTime}${endTime ? ` – ${endTime}` : ''}`, next.customer.name,
+                        ).catch(() => {});
+                    }
+                }
+            } catch (err) { logger.warn({ err: err.message }, 'Waitlist member alert failed (non-fatal)'); }
+        }
         pushService.sendToUser(next.customer._id, {
             title: 'A slot opened up! 🎉',
             body: `You’re booked for ${servicePhrase(svc?.name)} on ${dateStr} at ${startTime}.`,

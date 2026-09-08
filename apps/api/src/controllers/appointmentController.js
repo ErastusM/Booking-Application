@@ -16,6 +16,7 @@ const {
     sendAppointmentRescheduled,
     sendAppointmentRescheduledClient,
     sendRebookingPrompt,
+    sendStaffBookingAlert,
 } = require('../utils/emailService');
 const calendarHelper = require('../utils/calendarHelper');
 const { resolveBookingStaff, staffHoursReason, memberBusyIntervalsBuffered, bufferMapForAppointments, memberInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy } = require('../utils/staffBooking');
@@ -128,19 +129,34 @@ const shiftGovernsHours = async (teamMemberId, appointmentDate) => {
     return !!(await Shift.exists({ teamMember: teamMemberId, date: toDateKey(appointmentDate) }));
 };
 
-// Route a business-facing booking alert to the RIGHT inbox. A booking assigned to
-// a team member who has their own login pings THAT member (so a booking with
-// Lungu reaches Lungu, not the owner) and deep-links to their schedule. Owner-
-// column bookings (teamMember null) and roster-only members without a login fall
-// back to the business owner's dashboard, exactly as before.
-const bookingAlertTarget = async (providerId, teamMemberId) => {
-    if (teamMemberId) {
-        const TeamMember = require('../models/TeamMember');
-        const m = await TeamMember.findById(teamMemberId).select('user').lean();
-        if (m && m.user) return { userId: m.user, link: '/my-schedule' };
+// Every distinct team member a booking should alert, resolved to their own login
+// (+ email + name). A booking assigned to members who have their own logins pings
+// EACH of them — so on a multi-service ticket every performer hears about it, not
+// just the primary — and deep-links to their schedule. If no assigned member has
+// a login (owner-column booking, or roster-only members), the alert falls back to
+// the business owner's dashboard, exactly as before. The owner keeps whole-team
+// oversight through the dashboard; this just re-points the actionable per-booking
+// alert to the people it is about.
+const bookingAlertTargets = async (providerId, teamMemberIds) => {
+    const TeamMember = require('../models/TeamMember');
+    const ids = [...new Set((teamMemberIds || []).filter(Boolean).map(String))];
+    const targets = [];
+    for (const id of ids) {
+        const m = await TeamMember.findById(id).select('user name email').populate('user', 'email name').lean();
+        if (m && m.user) {
+            targets.push({
+                userId: m.user._id,
+                link: '/my-schedule',
+                email: m.user.email || m.email || null,
+                name: m.name || m.user.name || null,
+            });
+        }
     }
-    return { userId: providerId, link: '/dashboard' };
+    if (targets.length) return targets;
+    return [{ userId: providerId, link: '/dashboard', email: null, name: null }];
 };
+// Exposed for unit tests of the routing/fan-out logic.
+exports._bookingAlertTargets = bookingAlertTargets;
 
 const isTimeWithinSchedule = (schedule, appointmentDate, startTime, durationMinutes) => {
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -1287,13 +1303,15 @@ exports.createAppointment = async (req, res) => {
                     : (req.user?.name || bookingClient.name);
                 const priceTag = Number.isFinite(basePrice) ? ` (N$${basePrice.toFixed(2)})` : '';
                 if (svc.provider) {
-                    const target = await bookingAlertTarget(svc.provider, appointment.teamMember);
-                    await createNotification(
-                        target.userId,
-                        `🎉 New booking — ${clientLabel} booked ${servicePhrase(svc.name)}${priceTag} on ${bookingDate} at ${startTime}`,
-                        'appointment',
-                        target.link
-                    );
+                    const targets = await bookingAlertTargets(svc.provider, [appointment.teamMember]);
+                    const alertMsg = `🎉 New booking — ${clientLabel} booked ${servicePhrase(svc.name)}${priceTag} on ${bookingDate} at ${startTime}`;
+                    for (const t of targets) {
+                        await createNotification(t.userId, alertMsg, 'appointment', t.link);
+                        // Member gets an email too (owner fallback has no email → in-app/push only, as before).
+                        if (t.email) {
+                            sendStaffBookingAlert(t.email, t.name, svc.name, bookingDate, `${startTime} – ${endTime}`, clientLabel).catch(() => {});
+                        }
+                    }
                 }
                 // When a provider books an existing client, let that client know.
                 if (isProviderBooking && customerId) {
@@ -1539,8 +1557,16 @@ exports.createMultiServiceAppointment = async (req, res) => {
                 const bookingDate = new Date(appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 const label = customerId ? bookingClient.name : (bookingClient.name || 'a walk-in client');
                 const svcNames = built.map(b => b.name).join(', ');
-                const target = await bookingAlertTarget(providerId, appointment.teamMember);
-                await createNotification(target.userId, `🎉 New booking — ${label}: ${svcNames} (N$${totalPrice.toFixed(2)}) on ${bookingDate} at ${spanStart}`, 'appointment', target.link);
+                // Fan out to EVERY distinct performer on the ticket, not just the
+                // primary — a colleague who runs only segment 2 still gets alerted.
+                const targets = await bookingAlertTargets(providerId, built.map(b => b.teamMember));
+                const alertMsg = `🎉 New booking — ${label}: ${svcNames} (N$${totalPrice.toFixed(2)}) on ${bookingDate} at ${spanStart}`;
+                for (const t of targets) {
+                    await createNotification(t.userId, alertMsg, 'appointment', t.link);
+                    if (t.email) {
+                        sendStaffBookingAlert(t.email, t.name, svcNames, bookingDate, spanStart, label).catch(() => {});
+                    }
+                }
                 if (customerId) {
                     await createNotification(bookingClient._id, `✅ You’re booked for ${svcNames} with ${req.user.name} on ${bookingDate} at ${spanStart}.`, 'appointment', '/appointments');
                 }

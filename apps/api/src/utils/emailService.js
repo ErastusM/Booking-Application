@@ -304,6 +304,29 @@ exports.sendAppointmentConfirmed = async (email, name, serviceName, date, time, 
     });
 };
 
+// Member-facing "you have a new booking" alert — sent to a team member (on
+// their own login) when a booking is made with them, so the person the booking
+// is about hears about it directly, not just the owner. Links to their schedule
+// in the business app. Best-effort (safeSend never throws).
+exports.sendStaffBookingAlert = async (email, memberName, serviceName, date, time, clientLabel) => {
+    const url = `${businessOrigin() || '#'}/my-schedule`;
+    const rows = [
+        ['Service', escapeHtml(serviceName)],
+        ['When', `${escapeHtml(String(date))}, ${escapeHtml(String(time))}`],
+    ];
+    if (clientLabel) rows.push(['Client', escapeHtml(String(clientLabel))]);
+    return safeSend({
+        from: FROM, to: email, subject: `New booking — ${serviceName}`,
+        html: shell({
+            heading: `${escapeHtml(memberName || 'Hi')}, you have a new`, headingAccent: 'booking',
+            preheader: `${serviceName} · ${date}, ${time}`,
+            inner: `${detailsCard(rows)}
+                <div style="margin:24px 0;">${primaryButton(url, 'Open my schedule')}</div>
+                ${p(`<span style="color:${C.muted};font-size:13px;">This booking is on your calendar. Open your schedule to see the details.</span>`)}`,
+        }),
+    });
+};
+
 exports.sendAppointmentCompleted = async (email, name, serviceName) => {
     await safeSend({
         from: FROM, to: email, subject: 'Thanks for visiting',
