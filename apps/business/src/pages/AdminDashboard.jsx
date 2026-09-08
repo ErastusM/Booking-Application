@@ -1,5 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { appointmentService, serviceService, userService, providerWalletService, walletService, analyticsService } from '../services';
+import { useToast } from '../components/Toast';
 import { CalendarDays, Scissors, Users, Clock } from 'lucide-react';
 
 // A payment-proof URL comes from the customer's own submission. The API now
@@ -47,6 +48,8 @@ const Pagination = ({ page, pages, onChange }) => (
 );
 
 const AdminDashboard = () => {
+    const toast = useToast();
+    const [pendingId, setPendingId] = useState(null); // guards per-row actions against double-submit
     const [activeTab, setActiveTab] = useState('appointments');
     const [appointments, setAppointments] = useState([]);
     const [services, setServices] = useState([]);
@@ -194,16 +197,21 @@ const AdminDashboard = () => {
     }, [apptStatusFilter, apptPage]);
 
     const handleUpdateStatus = async (id, status) => {
+        if (pendingId === id) return;
+        setPendingId(id);
         try {
             await appointmentService.updateAppointmentStatus(id, status);
             setAppointments(appointments.map(a => a._id === id ? { ...a, status } : a));
+            toast('Status updated.', 'success');
         } catch {
-            setError('Failed to update status');
-        }
+            toast('Failed to update status.', 'error'); // toast reaches the user even for a deep row
+        } finally { setPendingId(null); }
     };
 
     const handleServiceSubmit = async (e) => {
         e.preventDefault();
+        if (pendingId === 'service-form') return;
+        setPendingId('service-form');
         try {
             if (editingService) {
                 await serviceService.updateService(editingService._id, serviceForm);
@@ -214,9 +222,10 @@ const AdminDashboard = () => {
             setShowServiceForm(false);
             setEditingService(null);
             setServiceForm({ name: '', description: '', price: '', duration: '' });
+            toast(editingService ? 'Service updated.' : 'Service created.', 'success');
         } catch {
-            setError('Failed to save service');
-        }
+            toast('Failed to save service.', 'error');
+        } finally { setPendingId(null); }
     };
 
     const handleEditService = (s) => {
@@ -226,47 +235,55 @@ const AdminDashboard = () => {
     };
 
     const handleDeleteService = async (id) => {
-        if (window.confirm('Delete this service?')) {
-            try {
-                await serviceService.deleteService(id);
-                setServices(services.filter(s => s._id !== id));
-            } catch {
-                setError('Failed to delete service');
-            }
-        }
+        if (pendingId === id || !window.confirm('Delete this service?')) return;
+        setPendingId(id);
+        try {
+            await serviceService.deleteService(id);
+            setServices(services.filter(s => s._id !== id));
+            toast('Service deleted.', 'success');
+        } catch {
+            toast('Failed to delete service.', 'error');
+        } finally { setPendingId(null); }
     };
 
     const handleDeleteUser = async (id) => {
-        if (window.confirm('Delete this user?')) {
-            try {
-                await userService.deleteUser(id);
-                setUsers(users.filter(u => u._id !== id));
-            } catch {
-                setError('Failed to delete user');
-            }
-        }
+        if (pendingId === id || !window.confirm('Delete this user?')) return;
+        setPendingId(id);
+        try {
+            await userService.deleteUser(id);
+            setUsers(users.filter(u => u._id !== id));
+            toast('User deleted.', 'success');
+        } catch {
+            toast('Failed to delete user.', 'error');
+        } finally { setPendingId(null); }
     };
 
     const handleRoleChange = async (id, role) => {
+        if (pendingId === id) return;
         if (role === 'admin' && !window.confirm('Grant this user admin access? Admins can manage all users, services, and platform funds.')) {
             return;
         }
+        setPendingId(id);
         try {
             await userService.updateUserRole(id, role);
             setUsers(users.map(u => u._id === id ? { ...u, role } : u));
+            toast(role === 'admin' ? 'User is now an admin.' : 'Role updated.', 'success');
         } catch {
-            setError('Failed to update role');
-        }
+            toast('Failed to update role.', 'error');
+        } finally { setPendingId(null); }
     };
 
     const handleToggleActive = async (id) => {
+        if (pendingId === id) return;
+        setPendingId(id);
         try {
             const res = await userService.toggleUserActive(id);
             const isActive = res.data.data.isActive;
             setUsers(users.map(u => u._id === id ? { ...u, isActive } : u));
+            toast(isActive ? 'User activated.' : 'User suspended.', 'success');
         } catch (err) {
-            setError(err.response?.data?.message || 'Failed to update user status');
-        }
+            toast(err.response?.data?.message || 'Failed to update user status.', 'error');
+        } finally { setPendingId(null); }
     };
 
     const tabs = ['appointments', 'services', 'users', 'revenue', 'wallet'];
