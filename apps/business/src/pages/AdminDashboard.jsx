@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { appointmentService, serviceService, userService, providerWalletService, walletService, analyticsService } from '../services';
-import { CalendarDays, Scissors, Users, Clock } from 'lucide-react';
+import { CalendarDays, ConciergeBell, Users, Clock } from 'lucide-react';
 
 // A payment-proof URL comes from the customer's own submission. The API now
 // stores http(s) only, but rows written before that still hold whatever was sent,
@@ -272,7 +272,7 @@ const AdminDashboard = () => {
     const tabs = ['appointments', 'services', 'users', 'revenue', 'wallet'];
     const stats = [
         { label: 'Total Appointments', value: apptMeta.total, Icon: CalendarDays },
-        { label: 'Total Services', value: services.length, Icon: Scissors },
+        { label: 'Total Services', value: services.length, Icon: ConciergeBell },
         { label: 'Total Users', value: usersMeta.total, Icon: Users },
         { label: 'Pending', value: appointments.filter(a => a.status === 'pending').length, Icon: Clock },
     ];

@@ -4,7 +4,7 @@ import { appointmentService } from '../services';
 import { buildTimeSlots } from '../utils/bookingSlots';
 import { currencySymbol } from '../utils/currency';
 import { apptLocalDate } from '../utils/date';
-import { Calendar, Clock, MapPin, Scissors, User, CheckCircle2, XCircle } from 'lucide-react';
+import { Calendar, Clock, MapPin, ConciergeBell, User, CheckCircle2, XCircle } from 'lucide-react';
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const toMin = (t) => { const [h, m] = String(t || '').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
@@ -120,7 +120,7 @@ const ManageBooking = () => {
                             </div>
 
                             {appt.provider?.name && <Row icon={MapPin}>{appt.provider.name}{appt.provider.address ? ` · ${appt.provider.address}` : ''}</Row>}
-                            {appt.service?.name && <Row icon={Scissors}>{appt.service.name}{appt.service.price ? ` · ${currencySymbol(appt.provider?.currency || appt.provider?.businessProfile?.currency)} ${appt.service.price}` : ''}</Row>}
+                            {appt.service?.name && <Row icon={ConciergeBell}>{appt.service.name}{appt.service.price ? ` · ${currencySymbol(appt.provider?.currency || appt.provider?.businessProfile?.currency)} ${appt.service.price}` : ''}</Row>}
                             <Row icon={Calendar}>{apptLocalDate(appt.appointmentDate)?.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</Row>
                             <Row icon={Clock}>{appt.startTime} – {appt.endTime}</Row>
                             {appt.staff && <Row icon={User}>with {appt.staff}</Row>}

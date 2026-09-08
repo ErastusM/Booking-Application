@@ -14,7 +14,7 @@ const ApptFormsView = lazy(() => import('../components/ApptFormsView'));
 import EnablePushBanner from '../components/EnablePushBanner';
 import SetupChecklistNudge from '../components/SetupChecklistNudge';
 const ServiceFormModal = lazy(() => import('../components/ServiceFormModal'));
-import { Calendar, History, Scissors, CalendarClock, Clock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, CalendarPlus, Ban, Wallet as WalletIcon, ChevronDown, ChevronLeft, Send, X, Trophy, Download } from 'lucide-react';
+import { Calendar, History, CalendarClock, Clock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, CalendarPlus, Ban, Wallet as WalletIcon, ChevronDown, ChevronLeft, Send, X, Trophy, Download } from 'lucide-react';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { NAMIBIAN_TOWNS, normalizeTown } from '../utils/namibiaTowns';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';

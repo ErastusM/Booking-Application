@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { appointmentService, myTimeOffService, myServicesService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
-import { CalendarClock, Palmtree, Scissors } from 'lucide-react';
+import { CalendarClock, Palmtree, ConciergeBell } from 'lucide-react';
 
 /**
  * Epic 2.4 — the staff principal's landing view: ONLY their own column
@@ -184,7 +184,7 @@ const MySchedule = () => {
             {/* ── My services ──────────────────────────────────────── */}
             <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.15rem 1.25rem', marginTop: '2rem' }} data-testid="my-services">
                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.15rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                    <Scissors size={16} /> My services
+                    <ConciergeBell size={16} /> My services
                 </h2>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '0 0 1rem' }}>
                     Pick the services you perform so clients are matched to you correctly. None selected = you perform all of them.
@@ -231,7 +231,7 @@ const MySchedule = () => {
                 return (
                     <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.15rem 1.25rem', marginTop: '2rem' }} data-testid="my-prices">
                         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.15rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                            <Scissors size={16} /> My prices
+                            <ConciergeBell size={16} /> My prices
                         </h2>
                         <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '0 0 1rem' }}>
                             Set your own price and length for each service you perform. Leave a field blank to use the business default shown as the placeholder.

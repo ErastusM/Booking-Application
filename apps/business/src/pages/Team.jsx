@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { useAuthContext } from '../context/AuthContext';
 import { teamService, providerServiceService } from '../services';
 import Switch from '../components/Switch';
-import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft, Star, Trash2 } from 'lucide-react';
+import { UserPlus, Mail, Clock, ConciergeBell, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft, Star, Trash2 } from 'lucide-react';
 
 /**
  * Epic 2.4 — staff management: roster CRUD, invite-to-login, per-staff
@@ -711,7 +711,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                 </Section>
                             )}
 
-                            <Section icon={Scissors} title="Services & prices" hint="(none selected = performs all · blank price/time = business default)">
+                            <Section icon={ConciergeBell} title="Services & prices" hint="(none selected = performs all · blank price/time = business default)">
                                 <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
                                     {services.map(svc => (
                                         <Chip key={svc._id} active={assigned.includes(String(svc._id))} disabled={busy === 'services'} onClick={() => toggleService(String(svc._id))} data-testid="member-service-chip">

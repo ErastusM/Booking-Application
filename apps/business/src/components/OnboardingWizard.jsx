@@ -5,7 +5,7 @@ import { cloudinaryAvatar, cloudinaryThumb } from '../utils/cloudinary';
 import { CURRENCIES } from '../utils/currency';
 import { track } from '../services/client';
 import MapPicker, { MAPS_KEY, reverseGeocode } from './MapPicker';
-import { MapPin, Clock, Scissors, Camera, LinkIcon, Check, Copy, Share2, ArrowLeft, Plus, X } from 'lucide-react';
+import { MapPin, Clock, ConciergeBell, Camera, LinkIcon, Check, Copy, Share2, ArrowLeft, Plus, X } from 'lucide-react';
 
 const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'https://www.bookplus.pro';
 
@@ -57,7 +57,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
         { id: 'welcome', Icon: Check },
         { id: 'address', Icon: MapPin, title: 'Where are you located?', sub: 'Drop a pin so clients can find you and get directions.' },
         { id: 'hours', Icon: Clock, title: 'Your working hours', sub: 'When can clients book with you?' },
-        { id: 'services', Icon: Scissors, title: 'What do you offer?', sub: 'Add your services and how long each takes — we build your booking times from this.' },
+        { id: 'services', Icon: ConciergeBell, title: 'What do you offer?', sub: 'Add your services and how long each takes — we build your booking times from this.' },
         { id: 'photos', Icon: Camera, title: 'Show off your work', sub: 'Add a profile photo and at least one photo of your work.' },
         { id: 'link', Icon: LinkIcon, title: 'Your booking link is ready', sub: 'Share this link so clients can book you directly.' },
     ]), []);
@@ -204,7 +204,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                     {current.id === 'welcome' && (
                         <div style={{ paddingTop: '1.5rem' }}>
                             <div style={{ width: '60px', height: '60px', borderRadius: '16px', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: '1.25rem' }}>
-                                <Scissors size={30} strokeWidth={2} />
+                                <ConciergeBell size={30} strokeWidth={2} />
                             </div>
                             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.9rem, 6vw, 2.5rem)', fontWeight: 600, color: 'var(--charcoal)', marginBottom: '0.6rem', lineHeight: 1.1 }}>
                                 Let’s set up your business
