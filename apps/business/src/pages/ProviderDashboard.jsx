@@ -655,6 +655,7 @@ const ProviderDashboard = () => {
         try {
             approve ? await walletService.approveTopUp(id) : await walletService.rejectTopUp(id);
             await fetchWalletData();
+            toast(approve ? 'Top-up approved.' : 'Top-up rejected.', 'success');
         } catch (err) { toast(err.response?.data?.message || 'Could not update top-up', 'error'); } finally { setResolvingTopUpId(null); }
     };
 
