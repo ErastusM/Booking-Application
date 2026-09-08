@@ -42,9 +42,9 @@ test.describe('Team — invite to log in', () => {
         await page.getByTestId('new-member-name').fill(name);
         await page.getByTestId('new-member-add').click();
 
-        // The add must visibly CONFIRM — an explicit notice, not just a row that
-        // may scroll out of view on a long roster.
-        await expect(page.getByTestId('member-added-notice')).toContainText(name);
+        // The add must visibly CONFIRM — an auto-dismissing toast, not just a row
+        // that may scroll out of view on a long roster.
+        await expect(page.getByText(`${name} added to your team.`)).toBeVisible();
 
         const card = cardByName(page, name);
         await expect(card).toBeVisible();

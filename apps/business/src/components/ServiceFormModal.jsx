@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { providerServiceService, categoryService } from '../services';
 import { NAMIBIAN_TOWNS } from '../utils/namibiaTowns';
 import { useAuthContext } from '../context/AuthContext';
+import { useToast } from './Toast';
 import { currencySymbol } from '../utils/currency';
 import { X, Plus, Trash2, Clock } from 'lucide-react';
 
@@ -31,6 +32,7 @@ const field = { marginBottom: '1.5rem' };
  */
 const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, onCategoriesChanged }) => {
     const { user } = useAuthContext();
+    const toast = useToast();
     const curSym = currencySymbol(user?.businessProfile?.currency);
     const [form, setForm] = useState(blank);
     const [saving, setSaving] = useState(false);
@@ -95,6 +97,7 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
         try {
             if (editing) await providerServiceService.updateMyService(editing._id, payload);
             else await providerServiceService.createMyService(payload);
+            toast(editing ? 'Service saved.' : 'Service created.', 'success');
             onSaved();
         } catch (e) {
             setError(e?.response?.data?.message || 'Could not save the service — please try again.');
