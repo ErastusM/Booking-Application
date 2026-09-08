@@ -27,6 +27,7 @@ const CompleteProfile = lazy(() => import('./pages/CompleteProfile'));
 const VerifyEmail = lazy(() => import('./pages/VerifyEmail'));
 const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
+const AcceptInvite = lazy(() => import('./pages/AcceptInvite'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 
@@ -61,6 +62,7 @@ function AppRoutes() {
                     <Route path="/verify-email" element={<VerifyEmail />} />
                     <Route path="/forgot-password" element={<ForgotPassword />} />
                     <Route path="/reset-password" element={<ResetPassword />} />
+                    <Route path="/accept-invite" element={<AcceptInvite />} />
 
                     {/* Legal — provider-facing copies, hosted in the business app */}
                     <Route path="/terms" element={<TermsOfService />} />

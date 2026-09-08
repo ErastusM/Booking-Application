@@ -428,9 +428,10 @@ exports.sendPasswordResetEmail = async (email, name, token, role) => {
 };
 
 // Staff invite — same set-password mechanics as the reset flow, invite copy.
-// Staff are business-side accounts, so the link opens the business app.
+// Staff are business-side accounts, so the link opens the business app on the
+// accept-invite page, which sets a password AND signs the person straight in.
 exports.sendStaffInviteEmail = async (email, name, businessName, token) => {
-    const url = `${businessOrigin()}/reset-password?token=${token}`;
+    const url = `${businessOrigin()}/accept-invite?token=${token}`;
     // Return safeSend's result so the invite handler can tell the owner whether the
     // email actually went out ({skipped} = SMTP off, {error} = send failed) rather
     // than claiming "sent" unconditionally.
@@ -439,9 +440,26 @@ exports.sendStaffInviteEmail = async (email, name, businessName, token) => {
         html: shell({
             heading: `Hi ${escapeHtml(name)}, you’re invited`,
             preheader: `Join ${businessName} on Bookplus.`,
-            inner: `${p(`${escapeHtml(businessName)} added you to their team on Bookplus. Set a password to log in and see your calendar.`)}
-                <div style="margin:24px 0;">${primaryButton(url, 'Set your password')}</div>
+            inner: `${p(`${escapeHtml(businessName)} added you to their team on Bookplus. Accept your invite to set a password and go straight to your calendar.`)}
+                <div style="margin:24px 0;">${primaryButton(url, 'Accept invite')}</div>
                 ${p(`<span style="color:${C.muted};font-size:13px;">This link expires in 7 days. If you weren’t expecting this, you can safely ignore it.</span>`)}`,
+        }),
+    });
+};
+
+// Owner receipt — an audit trail so the owner has a record of exactly who they
+// invited and when. Fire-and-forget from the invite handler; never blocks the
+// response or affects whether the staff invite itself is reported as sent.
+exports.sendStaffInviteOwnerReceipt = async (ownerEmail, memberName, memberEmail, businessName) => {
+    if (!ownerEmail) return { skipped: true };
+    return safeSend({
+        from: FROM, to: ownerEmail, subject: `Invite sent to ${memberName}`,
+        html: shell({
+            heading: `Team invite sent`,
+            preheader: `You invited ${memberName} to ${businessName}.`,
+            inner: `${p(`You invited <strong>${escapeHtml(memberName)}</strong> (${escapeHtml(memberEmail)}) to join <strong>${escapeHtml(businessName)}</strong> on Bookplus.`)}
+                ${p(`They’ll appear as <em>“Invited · awaiting login”</em> on your team until they accept and sign in for the first time. You can resend the invite from their card if it doesn’t arrive.`)}
+                ${p(`<span style="color:${C.muted};font-size:13px;">This is a confirmation for your records — no action is needed.</span>`)}`,
         }),
     });
 };

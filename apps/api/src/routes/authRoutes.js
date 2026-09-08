@@ -25,6 +25,8 @@ const {
     exchangeOAuthCode,
     forgotPassword,
     resetPassword,
+    getStaffInvite,
+    acceptStaffInvite,
     deactivateAccount,
     deleteAccount,
     blockUser,
@@ -76,6 +78,11 @@ router.post('/block', auth, blockUser);
 router.delete('/block/:userId', auth, unblockUser);
 router.post('/forgot-password', accountProbeLimiter, forgotPassword);
 router.post('/reset-password', resetPassword);
+// Staff invite acceptance (Fresha-style): preview the invite, then set a
+// password and get signed straight in. Public — the token is the credential.
+// Rate-limited like the other token flows against brute-forcing the token.
+router.get('/staff-invite/:token', getStaffInvite);
+router.post('/staff-invite/:token/accept', accountProbeLimiter, acceptStaffInvite);
 router.get('/verify-email', verifyEmail);
 router.post('/resend-verification', resendVerification);
 router.post('/exchange-code', exchangeCodeRules, exchangeOAuthCode);
