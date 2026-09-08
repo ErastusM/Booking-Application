@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuthContext } from '../context/AuthContext';
 import { teamService, providerServiceService } from '../services';
+import { useToast } from '../components/Toast';
 import Switch from '../components/Switch';
 import { UserPlus, Mail, Clock, Scissors, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft, Star, Trash2 } from 'lucide-react';
 
@@ -90,6 +91,8 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
     const [inviteResult, setInviteResult] = useState(null); // sticky {ok, email, error} after a send
     const [handoverTo, setHandoverTo] = useState('');
     const [handoverResult, setHandoverResult] = useState(null); // sticky {moved, skipped, toName, error} after a run
+    const [showRemove, setShowRemove] = useState(false); // themed permanent-removal confirm
+    const [removeTyped, setRemoveTyped] = useState('');
     // Login lifecycle for the status line: no account → roster only; account but
     // never signed in → invited/awaiting; signed in at least once → active.
     const hasLogin = !!member.user;
@@ -362,13 +365,13 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
     // Permanent removal: a hard cascade (upcoming bookings, schedule, shifts, time
     // off, blocks, login all deleted; only paid/completed history is kept, labelled
     // "former staff"). Irreversible — gated behind a name-typing confirm.
-    const removeForever = async () => {
-        const typed = window.prompt(`This permanently removes ${member.name} and everything involving them — upcoming bookings, working hours, shifts, time off, blocks and their login. Only completed/paid appointments are kept (as "former staff") so your earnings stay intact.\n\nThis cannot be undone. Type ${member.name} to confirm:`);
-        if (typed == null) return;
-        if (typed.trim() !== (member.name || '').trim()) { flash('Name did not match — nothing was removed.'); return; }
+    const openRemove = () => { setRemoveTyped(''); setShowRemove(true); };
+    const confirmRemove = async () => {
+        if (removeTyped.trim() !== (member.name || '').trim()) return; // guarded by the disabled button too
         setBusy('remove');
         try {
             await teamService.removeMember(member._id);
+            setShowRemove(false);
             flash(`${member.name} was permanently removed.`);
             onChanged();
         } catch (err) {
@@ -576,7 +579,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                     </button>
                                     <button
                                         type="button"
-                                        onClick={removeForever}
+                                        onClick={openRemove}
                                         disabled={busy === 'remove'}
                                         data-testid="remove-member"
                                         style={{
@@ -595,6 +598,53 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                     <strong>Remove permanently</strong> deletes their upcoming bookings, schedule and login for good — only completed/paid appointments are kept, as “former staff”.
                                 </p>
                             </div>
+
+                            {/* Themed type-to-confirm modal (replaces the native window.prompt so
+                                the destructive step matches the app's own dialog styling). */}
+                            {showRemove && (
+                                <div
+                                    onClick={() => busy !== 'remove' && setShowRemove(false)}
+                                    style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1200, padding: '1rem' }}
+                                >
+                                    <div
+                                        onClick={(e) => e.stopPropagation()}
+                                        role="dialog"
+                                        aria-modal="true"
+                                        style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '440px', padding: '1.5rem', boxShadow: '0 20px 60px rgba(4,5,5,0.35)', border: '1px solid var(--border)' }}
+                                    >
+                                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 600, color: 'var(--danger)', margin: '0 0 0.6rem', display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                                            <Trash2 size={17} /> Remove {member.name}?
+                                        </h3>
+                                        <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.6, margin: '0 0 1rem' }}>
+                                            This permanently removes {member.name} and everything involving them — upcoming bookings, working hours, shifts, time off, blocks and their login. Only completed/paid appointments are kept (as “former staff”) so your earnings stay intact. <strong>This cannot be undone.</strong>
+                                        </p>
+                                        <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 0.4rem' }}>
+                                            Type <strong style={{ color: 'var(--charcoal)' }}>{member.name}</strong> to confirm
+                                        </label>
+                                        <input
+                                            value={removeTyped}
+                                            onChange={(e) => setRemoveTyped(e.target.value)}
+                                            placeholder={member.name}
+                                            className="input"
+                                            data-testid="remove-confirm-name"
+                                            autoFocus
+                                            style={{ width: '100%', marginBottom: '1.1rem' }}
+                                        />
+                                        <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
+                                            <button type="button" onClick={() => setShowRemove(false)} disabled={busy === 'remove'} className="btn-outline" style={{ padding: '0.6rem 1.2rem' }}>Cancel</button>
+                                            <button
+                                                type="button"
+                                                onClick={confirmRemove}
+                                                disabled={busy === 'remove' || removeTyped.trim() !== (member.name || '').trim()}
+                                                data-testid="remove-confirm"
+                                                style={{ padding: '0.6rem 1.3rem', borderRadius: 'var(--radius-sm)', border: 'none', background: 'var(--danger)', color: '#fff', fontFamily: 'var(--font-body)', fontWeight: 600, cursor: 'pointer', opacity: (busy === 'remove' || removeTyped.trim() !== (member.name || '').trim()) ? 0.55 : 1 }}
+                                            >
+                                                {busy === 'remove' ? 'Removing…' : 'Remove permanently'}
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
                         </div>
                     )}
 
@@ -997,13 +1047,13 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
 
 const Team = () => {
     const { user } = useAuthContext();
+    const toast = useToast();
     const [members, setMembers] = useState([]);
     const [services, setServices] = useState([]);
     const [loading, setLoading] = useState(true);
     const [newName, setNewName] = useState('');
     const [error, setError] = useState('');
     const [adding, setAdding] = useState(false);
-    const [addedNotice, setAddedNotice] = useState(''); // sticky "X added" confirmation
 
     const load = () => {
         // Saving a member reloads the roster, which is now server-sorted
@@ -1026,15 +1076,13 @@ const Team = () => {
         const name = newName.trim();
         if (!name || adding) return;
         setError('');
-        setAddedNotice('');
         setAdding(true);
         try {
             await teamService.addMember({ name });
             setNewName('');
-            // Confirm the add succeeded — the new row appears below, but on a long
-            // roster it can scroll out of view, so an explicit notice is what tells
-            // the owner it worked.
-            setAddedNotice(`${name} added to your team.`);
+            // Confirm via the app's standard auto-dismissing toast (the new row
+            // also appears below, but on a long roster it can scroll out of view).
+            toast(`${name} added to your team.`, 'success');
             await load();
         } catch (err) {
             setError(err.response?.data?.message || 'Could not add team member. Please try again.');
@@ -1051,16 +1099,11 @@ const Team = () => {
             </p>
 
             <form onSubmit={addMember} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem', flexWrap: 'wrap' }}>
-                <input value={newName} onChange={e => { setNewName(e.target.value); if (addedNotice) setAddedNotice(''); }} placeholder="Add a team member by name…" className="input" style={{ maxWidth: '300px' }} data-testid="new-member-name" />
+                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Add a team member by name…" className="input" style={{ maxWidth: '300px' }} data-testid="new-member-name" />
                 <button type="submit" className="btn-primary" data-testid="new-member-add" disabled={!newName.trim() || adding} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 1.4rem' }}>
                     <UserPlus size={16} /> {adding ? 'Adding…' : 'Add'}
                 </button>
             </form>
-            {addedNotice && (
-                <p data-testid="member-added-notice" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#065f46', background: '#d1fae5', border: '1px solid #6ee7b7', borderRadius: 'var(--radius)', fontSize: '0.85rem', padding: '0.5rem 0.9rem', margin: '0 0 1rem' }}>
-                    <Check size={14} /> {addedNotice}
-                </p>
-            )}
             {error && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: '0 0 1rem' }}>{error}</p>}
 
             {loading ? (

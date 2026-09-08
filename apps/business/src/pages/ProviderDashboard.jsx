@@ -643,6 +643,7 @@ const ProviderDashboard = () => {
         try {
             const res = await walletService.updateSettings({ ...walletSettings, ...patch });
             setWalletSettings(res.data.data);
+            toast('Wallet settings saved.', 'success');
         } catch (err) {
             setError(err.response?.data?.message || 'Could not save wallet settings');
         } finally { setWalletSaving(false); }
@@ -957,6 +958,7 @@ const ProviderDashboard = () => {
                 setTeamMembers(prev => [...prev, res.data.data]);
             }
             setShowTeamForm(false);
+            toast(editingMember ? `${teamForm.name} updated.` : `${teamForm.name} added to your team.`, 'success');
         } catch (err) { toast(err.response?.data?.message || 'Could not save team member', 'error'); } finally { setSavingTeam(false); }
     };
 
@@ -1082,6 +1084,7 @@ const ProviderDashboard = () => {
             await fetchCategories();
             setNewCategoryName('');
             setShowCategoryForm(false);
+            toast('Category added.', 'success');
         } catch {
             setError('Failed to add category');
         }
@@ -3393,6 +3396,7 @@ const ProviderDashboard = () => {
                                 }
                                 await fetchAppointments(); // {all:true} — a bare refetch truncates the calendar to 20
                                 setShowApptModal(false);
+                                toast('Appointment booked.', 'success');
                             } catch (err) {
                                 setApptError(err.response?.data?.message || 'Failed to create appointment');
                             } finally {
