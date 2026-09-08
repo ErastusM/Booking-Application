@@ -1002,6 +1002,8 @@ const Team = () => {
     const [loading, setLoading] = useState(true);
     const [newName, setNewName] = useState('');
     const [error, setError] = useState('');
+    const [adding, setAdding] = useState(false);
+    const [addedNotice, setAddedNotice] = useState(''); // sticky "X added" confirmation
 
     const load = () => {
         // Saving a member reloads the roster, which is now server-sorted
@@ -1021,14 +1023,23 @@ const Team = () => {
 
     const addMember = async (e) => {
         e.preventDefault();
-        if (!newName.trim()) return;
+        const name = newName.trim();
+        if (!name || adding) return;
         setError('');
+        setAddedNotice('');
+        setAdding(true);
         try {
-            await teamService.addMember({ name: newName.trim() });
+            await teamService.addMember({ name });
             setNewName('');
-            load();
+            // Confirm the add succeeded — the new row appears below, but on a long
+            // roster it can scroll out of view, so an explicit notice is what tells
+            // the owner it worked.
+            setAddedNotice(`${name} added to your team.`);
+            await load();
         } catch (err) {
-            setError(err.response?.data?.message || 'Could not add team member');
+            setError(err.response?.data?.message || 'Could not add team member. Please try again.');
+        } finally {
+            setAdding(false);
         }
     };
 
@@ -1040,11 +1051,16 @@ const Team = () => {
             </p>
 
             <form onSubmit={addMember} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem', flexWrap: 'wrap' }}>
-                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Add a team member by name…" className="input" style={{ maxWidth: '300px' }} data-testid="new-member-name" />
-                <button type="submit" className="btn-primary" data-testid="new-member-add" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 1.4rem' }}>
-                    <UserPlus size={16} /> Add
+                <input value={newName} onChange={e => { setNewName(e.target.value); if (addedNotice) setAddedNotice(''); }} placeholder="Add a team member by name…" className="input" style={{ maxWidth: '300px' }} data-testid="new-member-name" />
+                <button type="submit" className="btn-primary" data-testid="new-member-add" disabled={!newName.trim() || adding} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 1.4rem' }}>
+                    <UserPlus size={16} /> {adding ? 'Adding…' : 'Add'}
                 </button>
             </form>
+            {addedNotice && (
+                <p data-testid="member-added-notice" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', color: '#065f46', background: '#d1fae5', border: '1px solid #6ee7b7', borderRadius: 'var(--radius)', fontSize: '0.85rem', padding: '0.5rem 0.9rem', margin: '0 0 1rem' }}>
+                    <Check size={14} /> {addedNotice}
+                </p>
+            )}
             {error && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: '0 0 1rem' }}>{error}</p>}
 
             {loading ? (
