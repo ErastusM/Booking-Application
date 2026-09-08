@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { reviewService } from '../services';
+import { useToast } from './Toast';
 
 const StarPicker = ({ rating, onRate }) => {
     const [hovered, setHovered] = useState(0);
@@ -31,6 +32,7 @@ const StarPicker = ({ rating, onRate }) => {
 };
 
 const ReviewModal = ({ appointment, onClose, onSubmitted }) => {
+    const toast = useToast();
     const [rating, setRating] = useState(0);
     const [comment, setComment] = useState('');
     const [loading, setLoading] = useState(false);
@@ -52,6 +54,7 @@ const ReviewModal = ({ appointment, onClose, onSubmitted }) => {
         setError('');
         try {
             await reviewService.createReview({ appointmentId: appointment._id, rating, comment });
+            toast('Thanks — your review was submitted.', 'success');
             onSubmitted();
             onClose();
         } catch (err) {

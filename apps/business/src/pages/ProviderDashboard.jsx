@@ -205,6 +205,7 @@ const ProviderDashboard = () => {
     // Recurring series cancel modal
     const [seriesCancelModal, setSeriesCancelModal] = useState(null); // { appt, mode }
     const [seriesCancelMode, setSeriesCancelMode] = useState('this');
+    const [cancellingSeries, setCancellingSeries] = useState(false);
     const [apptDetailModal, setApptDetailModal] = useState(null);
     const [apptRescheduleForm, setApptRescheduleForm] = useState({ appointmentDate: '', startTime: '' });
     const [savingApptDetail, setSavingApptDetail] = useState(false);
@@ -642,6 +643,7 @@ const ProviderDashboard = () => {
         try {
             const res = await walletService.updateSettings({ ...walletSettings, ...patch });
             setWalletSettings(res.data.data);
+            toast('Wallet settings saved.', 'success');
         } catch (err) {
             setError(err.response?.data?.message || 'Could not save wallet settings');
         } finally { setWalletSaving(false); }
@@ -653,6 +655,7 @@ const ProviderDashboard = () => {
         try {
             approve ? await walletService.approveTopUp(id) : await walletService.rejectTopUp(id);
             await fetchWalletData();
+            toast(approve ? 'Top-up approved.' : 'Top-up rejected.', 'success');
         } catch (err) { toast(err.response?.data?.message || 'Could not update top-up', 'error'); } finally { setResolvingTopUpId(null); }
     };
 
@@ -917,12 +920,19 @@ const ProviderDashboard = () => {
     };
 
     const handleSeriesCancel = async () => {
-        if (!seriesCancelModal) return;
+        if (!seriesCancelModal || cancellingSeries) return;
+        setCancellingSeries(true);
         try {
             await appointmentService.cancelAppointmentSeries(seriesCancelModal._id, seriesCancelMode);
             await fetchAppointments(); // {all:true} — a bare refetch truncates the calendar to 20
             setSeriesCancelModal(null);
-        } catch { /* ignore */ }
+            toast('Recurring booking cancelled.', 'success');
+        } catch (err) {
+            // Previously swallowed — a failed cancel left the modal open with no word.
+            toast(err?.response?.data?.message || 'Could not cancel the series. Please try again.', 'error');
+        } finally {
+            setCancellingSeries(false);
+        }
     };
 
     const openAddMember = () => {
@@ -949,6 +959,7 @@ const ProviderDashboard = () => {
                 setTeamMembers(prev => [...prev, res.data.data]);
             }
             setShowTeamForm(false);
+            toast(editingMember ? `${teamForm.name} updated.` : `${teamForm.name} added to your team.`, 'success');
         } catch (err) { toast(err.response?.data?.message || 'Could not save team member', 'error'); } finally { setSavingTeam(false); }
     };
 
@@ -1074,6 +1085,7 @@ const ProviderDashboard = () => {
             await fetchCategories();
             setNewCategoryName('');
             setShowCategoryForm(false);
+            toast('Category added.', 'success');
         } catch {
             setError('Failed to add category');
         }
@@ -3385,6 +3397,7 @@ const ProviderDashboard = () => {
                                 }
                                 await fetchAppointments(); // {all:true} — a bare refetch truncates the calendar to 20
                                 setShowApptModal(false);
+                                toast('Appointment booked.', 'success');
                             } catch (err) {
                                 setApptError(err.response?.data?.message || 'Failed to create appointment');
                             } finally {
@@ -4107,7 +4120,7 @@ const ProviderDashboard = () => {
                             ))}
                             <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
                                 <button onClick={() => setSeriesCancelModal(null)} style={{ flex: 1, padding: '0.85rem', background: 'var(--warm-gray)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--text-secondary)' }}>Keep</button>
-                                <button onClick={handleSeriesCancel} style={{ flex: 1, padding: '0.85rem', background: '#ef4444', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600', color: 'white' }}>Cancel</button>
+                                <button onClick={handleSeriesCancel} disabled={cancellingSeries} style={{ flex: 1, padding: '0.85rem', background: '#ef4444', border: 'none', borderRadius: 'var(--radius-sm)', cursor: cancellingSeries ? 'default' : 'pointer', opacity: cancellingSeries ? 0.7 : 1, fontFamily: 'var(--font-body)', fontWeight: '600', color: 'white' }}>{cancellingSeries ? 'Cancelling…' : 'Cancel'}</button>
                             </div>
                         </div>
                     </div>

@@ -2,13 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
 import { waitingListService } from '../services';
 import { apptLocalDate } from '../utils/date';
+import { useToast } from '../components/Toast';
 
 const MyWaitingList = () => {
     const [searchParams] = useSearchParams();
     const justJoined = searchParams.get('joined') === '1';
+    const toast = useToast();
     const [entries, setEntries] = useState([]);
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
+    const [leavingId, setLeavingId] = useState(null); // entry whose leave request is in flight
     const [error, setError] = useState('');
 
     useEffect(() => {
@@ -32,13 +35,16 @@ const MyWaitingList = () => {
     };
 
     const handleLeave = async (id) => {
-        if (window.confirm('Leave this waiting list?')) {
-            try {
-                await waitingListService.leave(id);
-                setEntries(entries.filter(e => e._id !== id));
-            } catch {
-                setError('Failed to leave waiting list');
-            }
+        if (leavingId === id || !window.confirm('Leave this waiting list?')) return;
+        setLeavingId(id);
+        try {
+            await waitingListService.leave(id);
+            setEntries(entries.filter(e => e._id !== id));
+            toast('You left the waiting list.', 'success');
+        } catch {
+            toast('Failed to leave waiting list.', 'error');
+        } finally {
+            setLeavingId(null);
         }
     };
 
@@ -264,13 +270,15 @@ const MyWaitingList = () => {
                                 {/* Leave button */}
                                 <button
                                     onClick={() => handleLeave(entry._id)}
+                                    disabled={leavingId === entry._id}
                                     style={{
                                         background: 'none',
                                         border: '1px solid var(--border)',
                                         color: 'var(--text-muted)',
                                         padding: '0.5rem 1rem',
                                         borderRadius: 'var(--radius-sm)',
-                                        cursor: 'pointer',
+                                        cursor: leavingId === entry._id ? 'default' : 'pointer',
+                                        opacity: leavingId === entry._id ? 0.6 : 1,
                                         fontSize: '0.8rem',
                                         fontWeight: '600',
                                         fontFamily: 'var(--font-body)',
@@ -279,6 +287,7 @@ const MyWaitingList = () => {
                                         flexShrink: 0,
                                     }}
                                     onMouseEnter={e => {
+                                        if (leavingId === entry._id) return;
                                         e.currentTarget.style.borderColor = '#fca5a5';
                                         e.currentTarget.style.color = '#ef4444';
                                     }}
@@ -287,7 +296,7 @@ const MyWaitingList = () => {
                                         e.currentTarget.style.color = 'var(--text-muted)';
                                     }}
                                 >
-                                    Leave Queue
+                                    {leavingId === entry._id ? 'Leaving…' : 'Leave Queue'}
                                 </button>
                             </div>
                         ))}

@@ -7,6 +7,7 @@ import { cloudinaryThumb } from '../utils/cloudinary';
 import { normalizeTown } from '../utils/namibiaTowns';
 import { currencySymbol } from '../utils/currency';
 import Seo from '../components/Seo';
+import { useToast } from '../components/Toast';
 
 // Provider dashboards live in the business app — cross-app hops are hard
 // navigations (like the Navbar's) so the other app boots fresh with its own data.
@@ -213,6 +214,7 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
 const Home = () => {
     const { user } = useAuthContext();
     const navigate = useNavigate();
+    const toast = useToast();
     const [query, setQuery] = useState('');
     const [searchLoc, setSearchLoc] = useState('');
     const [searchDate, setSearchDate] = useState('');
@@ -406,6 +408,7 @@ const Home = () => {
         } catch {
             favoriteService.list().then(r => setFavorites((r.data.data || []).map(String))).catch(() => {});
             bumpLike(id, wasFav ? 1 : -1); // revert the optimistic like
+            toast("Couldn't update your saved list.", 'error');
         }
     };
 

@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { formService, providerServiceService } from '../services';
+import { useToast } from './Toast';
 
 const FIELD_TYPES = [
     ['text', 'Short text'],
@@ -24,6 +25,7 @@ const blankForm = () => ({ title: '', description: '', kind: 'intake', fields: [
 const labelStyle = { display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.35rem' };
 
 const FormsManager = () => {
+    const toast = useToast();
     const [templates, setTemplates] = useState([]);
     const [services, setServices] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -74,6 +76,7 @@ const FormsManager = () => {
             else await formService.createTemplate(payload);
             setShowForm(false);
             await load();
+            toast(editing ? 'Form updated.' : 'Form created.', 'success');
         } catch {
             setError('Could not save the form.');
         } finally {
@@ -83,7 +86,9 @@ const FormsManager = () => {
 
     const remove = async (t) => {
         if (!window.confirm(`Delete "${t.title}"?`)) return;
-        try { await formService.deleteTemplate(t._id); await load(); } catch { /* ignore */ }
+        setError('');
+        try { await formService.deleteTemplate(t._id); await load(); }
+        catch { setError(`Could not delete "${t.title}". Please try again.`); }
     };
 
     const updateField = (idx, patch) => {

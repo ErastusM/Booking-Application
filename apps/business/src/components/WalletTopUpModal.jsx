@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { walletService } from '../services';
 import { uploadProof } from '../utils/uploadImage';
+import { useToast } from './Toast';
 import { X, Upload, Check } from 'lucide-react';
 
 const labelStyle = { display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' };
@@ -17,6 +18,7 @@ const WalletTopUpModal = ({ providerId, providerName, onClose, onDone }) => {
     const [method, setMethod] = useState('manual');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
+    const toast = useToast();
 
     useEffect(() => {
         if (!providerId) return;
@@ -41,6 +43,7 @@ const WalletTopUpModal = ({ providerId, providerName, onClose, onDone }) => {
         setBusy(true); setError('');
         try {
             await walletService.topUp({ providerId, amount: amt, reference, proofUrl, method });
+            toast('Top-up request sent — awaiting the provider’s confirmation.', 'success');
             onDone();
         } catch (err) {
             setError(err.response?.data?.message || 'Could not submit top-up');

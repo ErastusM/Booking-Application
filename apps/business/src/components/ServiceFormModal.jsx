@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { providerServiceService, categoryService } from '../services';
 import { NAMIBIAN_TOWNS } from '../utils/namibiaTowns';
 import { useAuthContext } from '../context/AuthContext';
+import { useToast } from './Toast';
 import { currencySymbol } from '../utils/currency';
 import { X, Plus, Trash2, Clock } from 'lucide-react';
 
@@ -31,6 +32,7 @@ const field = { marginBottom: '1.5rem' };
  */
 const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, onCategoriesChanged }) => {
     const { user } = useAuthContext();
+    const toast = useToast();
     const curSym = currencySymbol(user?.businessProfile?.currency);
     const [form, setForm] = useState(blank);
     const [saving, setSaving] = useState(false);
@@ -38,6 +40,7 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
     const [showExtra, setShowExtra] = useState(false);
     const [addingCat, setAddingCat] = useState(false);
     const [newCat, setNewCat] = useState('');
+    const [catSaving, setCatSaving] = useState(false);
 
     useEffect(() => {
         if (!open) return;
@@ -95,6 +98,7 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
         try {
             if (editing) await providerServiceService.updateMyService(editing._id, payload);
             else await providerServiceService.createMyService(payload);
+            toast(editing ? 'Service saved.' : 'Service created.', 'success');
             onSaved();
         } catch (e) {
             setError(e?.response?.data?.message || 'Could not save the service — please try again.');
@@ -104,7 +108,8 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
     };
 
     const createCategory = async () => {
-        if (!newCat.trim()) return;
+        if (catSaving || !newCat.trim()) return; // guard against a double-click creating duplicate categories
+        setCatSaving(true);
         try {
             const res = await categoryService.createCategory(newCat.trim());
             await onCategoriesChanged?.();
@@ -114,6 +119,8 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
             setAddingCat(false);
         } catch {
             setError('Could not add the category.');
+        } finally {
+            setCatSaving(false);
         }
     };
 
@@ -151,7 +158,7 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                         {addingCat ? (
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
                                 <input className="input" value={newCat} onChange={(e) => setNewCat(e.target.value)} placeholder="New category name" onKeyDown={(e) => e.key === 'Enter' && createCategory()} autoFocus />
-                                <button type="button" onClick={createCategory} className="btn-primary" style={{ padding: '0 1rem', whiteSpace: 'nowrap' }}>Add</button>
+                                <button type="button" onClick={createCategory} disabled={catSaving} className="btn-primary" style={{ padding: '0 1rem', whiteSpace: 'nowrap' }}>{catSaving ? 'Adding…' : 'Add'}</button>
                                 <button type="button" onClick={() => { setAddingCat(false); setNewCat(''); }} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', padding: '0 0.9rem', cursor: 'pointer' }}>Cancel</button>
                             </div>
                         ) : (
