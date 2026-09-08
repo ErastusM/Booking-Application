@@ -128,6 +128,20 @@ const shiftGovernsHours = async (teamMemberId, appointmentDate) => {
     return !!(await Shift.exists({ teamMember: teamMemberId, date: toDateKey(appointmentDate) }));
 };
 
+// Route a business-facing booking alert to the RIGHT inbox. A booking assigned to
+// a team member who has their own login pings THAT member (so a booking with
+// Lungu reaches Lungu, not the owner) and deep-links to their schedule. Owner-
+// column bookings (teamMember null) and roster-only members without a login fall
+// back to the business owner's dashboard, exactly as before.
+const bookingAlertTarget = async (providerId, teamMemberId) => {
+    if (teamMemberId) {
+        const TeamMember = require('../models/TeamMember');
+        const m = await TeamMember.findById(teamMemberId).select('user').lean();
+        if (m && m.user) return { userId: m.user, link: '/my-schedule' };
+    }
+    return { userId: providerId, link: '/dashboard' };
+};
+
 const isTimeWithinSchedule = (schedule, appointmentDate, startTime, durationMinutes) => {
     const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const dayIndex = new Date(appointmentDate).getDay();
@@ -1273,11 +1287,12 @@ exports.createAppointment = async (req, res) => {
                     : (req.user?.name || bookingClient.name);
                 const priceTag = Number.isFinite(basePrice) ? ` (N$${basePrice.toFixed(2)})` : '';
                 if (svc.provider) {
+                    const target = await bookingAlertTarget(svc.provider, appointment.teamMember);
                     await createNotification(
-                        svc.provider,
+                        target.userId,
                         `🎉 New booking — ${clientLabel} booked ${servicePhrase(svc.name)}${priceTag} on ${bookingDate} at ${startTime}`,
                         'appointment',
-                        '/dashboard'
+                        target.link
                     );
                 }
                 // When a provider books an existing client, let that client know.
@@ -1524,7 +1539,8 @@ exports.createMultiServiceAppointment = async (req, res) => {
                 const bookingDate = new Date(appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 const label = customerId ? bookingClient.name : (bookingClient.name || 'a walk-in client');
                 const svcNames = built.map(b => b.name).join(', ');
-                await createNotification(providerId, `🎉 New booking — ${label}: ${svcNames} (N$${totalPrice.toFixed(2)}) on ${bookingDate} at ${spanStart}`, 'appointment', '/dashboard');
+                const target = await bookingAlertTarget(providerId, appointment.teamMember);
+                await createNotification(target.userId, `🎉 New booking — ${label}: ${svcNames} (N$${totalPrice.toFixed(2)}) on ${bookingDate} at ${spanStart}`, 'appointment', target.link);
                 if (customerId) {
                     await createNotification(bookingClient._id, `✅ You’re booked for ${svcNames} with ${req.user.name} on ${bookingDate} at ${spanStart}.`, 'appointment', '/appointments');
                 }
