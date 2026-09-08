@@ -192,7 +192,7 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
                         '/my-schedule'
                     );
                     const memberEmail = m.user.email || m.email;
-                    if (memberEmail) {
+                    if (memberEmail && typeof emailService.sendStaffBookingAlert === 'function') {
                         emailService.sendStaffBookingAlert(
                             memberEmail, m.name, svc?.name || 'Appointment', dateStr,
                             `${startTime}${endTime ? ` – ${endTime}` : ''}`, next.customer.name,

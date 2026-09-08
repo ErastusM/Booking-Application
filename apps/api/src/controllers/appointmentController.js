@@ -141,9 +141,15 @@ const bookingAlertTargets = async (providerId, teamMemberIds) => {
     const TeamMember = require('../models/TeamMember');
     const ids = [...new Set((teamMemberIds || []).filter(Boolean).map(String))];
     const targets = [];
+    const seenUsers = new Set();
     for (const id of ids) {
         const m = await TeamMember.findById(id).select('user name email').populate('user', 'email name').lean();
         if (m && m.user) {
+            // De-dupe by the LOGIN, not the roster row: two rows pointing at one
+            // user (a data anomaly) must not double-notify that person.
+            const uid = String(m.user._id);
+            if (seenUsers.has(uid)) continue;
+            seenUsers.add(uid);
             targets.push({
                 userId: m.user._id,
                 link: '/my-schedule',
@@ -1308,7 +1314,8 @@ exports.createAppointment = async (req, res) => {
                     for (const t of targets) {
                         await createNotification(t.userId, alertMsg, 'appointment', t.link);
                         // Member gets an email too (owner fallback has no email → in-app/push only, as before).
-                        if (t.email) {
+                        // Guarded so a partial emailService mock in a test can't throw and skip the notices below.
+                        if (t.email && typeof sendStaffBookingAlert === 'function') {
                             sendStaffBookingAlert(t.email, t.name, svc.name, bookingDate, `${startTime} – ${endTime}`, clientLabel).catch(() => {});
                         }
                     }
@@ -1563,8 +1570,8 @@ exports.createMultiServiceAppointment = async (req, res) => {
                 const alertMsg = `🎉 New booking — ${label}: ${svcNames} (N$${totalPrice.toFixed(2)}) on ${bookingDate} at ${spanStart}`;
                 for (const t of targets) {
                     await createNotification(t.userId, alertMsg, 'appointment', t.link);
-                    if (t.email) {
-                        sendStaffBookingAlert(t.email, t.name, svcNames, bookingDate, spanStart, label).catch(() => {});
+                    if (t.email && typeof sendStaffBookingAlert === 'function') {
+                        sendStaffBookingAlert(t.email, t.name, svcNames, bookingDate, `${spanStart} – ${spanEnd}`, label).catch(() => {});
                     }
                 }
                 if (customerId) {
