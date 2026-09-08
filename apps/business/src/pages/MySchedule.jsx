@@ -8,7 +8,10 @@ import { cloudinaryAvatar } from '../utils/cloudinary';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DEFAULT_SCHED = () => Object.fromEntries(DAYS.map(d => [d, { enabled: false, slots: [{ start: '09:00', end: '17:00' }] }]));
-const PW_RE = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
+// Mirror the server's change-password rule exactly (authController.changePassword):
+// ≥8 chars with an uppercase letter, a digit, and one of ! @ # $ % ^ & *. A
+// broader client set would pass validation here and then be rejected by the API.
+const PW_RE = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$/;
 
 /**
  * Epic 2.4 — the staff principal's landing view: ONLY their own column
@@ -31,7 +34,7 @@ const fmtRange = (a, b) => {
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 const MySchedule = () => {
-    const { user } = useAuthContext();
+    const { user, logout } = useAuthContext();
     const [appointments, setAppointments] = useState(null);
     const todayKey = new Date().toISOString().slice(0, 10);
     const [timeOff, setTimeOff] = useState(null);       // null = loading, false = failed
@@ -85,7 +88,10 @@ const MySchedule = () => {
                     setSchedule(norm); setInherits(false);
                 } else { setSchedule(DEFAULT_SCHED()); setInherits(true); }
             })
-            .catch(() => setSchedule(DEFAULT_SCHED()));
+            // On a load failure, HIDE the editor (false) rather than seed all-days-off:
+            // showing an all-off default that a member could save would wipe their
+            // real hours. The section is gated on `schedule` being truthy.
+            .catch(() => setSchedule(false));
         myTimeOffService.list()
             .then(res => setTimeOff(res.data.data || []))
             .catch(() => setTimeOff(false));
@@ -212,10 +218,16 @@ const MySchedule = () => {
         try {
             await authService.changePassword({ currentPassword: pw.current, newPassword: pw.next });
             setPw({ current: '', next: '', confirm: '' });
-            setPwMsg({ ok: true, text: 'Password changed.' });
+            // Changing the password invalidates every session (the server bumps
+            // tokenVersion), so this device is now signed out too. Say so, then log
+            // out cleanly after a beat rather than letting the next request 401 and
+            // bounce them unexpectedly. Leave the button disabled through the logout.
+            setPwMsg({ ok: true, text: 'Password changed — signing you out. Please sign in again.' });
+            setTimeout(() => { logout(); }, 1800);
         } catch (err) {
             setPwMsg({ ok: false, text: err?.response?.data?.message || 'Could not change your password.' });
-        } finally { setPwBusy(false); }
+            setPwBusy(false);
+        }
     };
 
     const flash = (t) => { setMsg(t); setTimeout(() => setMsg(''), 3500); };
