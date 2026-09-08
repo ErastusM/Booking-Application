@@ -250,7 +250,10 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         inviteMember: (id: string, data?: any) => API.post(`/team/${id}/invite`, data || {}),
         // Move every upcoming booking from one member to another (owner action).
         handoverBookings: (id: string, to: string) => API.post(`/team/${id}/handover`, { to }),
-        setMemberServices: (id: string, services: string[]) => API.put(`/team/${id}/services`, { services }),
+        // offersAllServices:true → performs everything; false → only `services` (empty = none).
+        // Omit to leave the flag untouched.
+        setMemberServices: (id: string, services: string[], offersAllServices?: boolean) =>
+            API.put(`/team/${id}/services`, offersAllServices === undefined ? { services } : { services, offersAllServices }),
         // Per-member price/duration overrides: [{ service, price?, duration? }].
         setMemberPricing: (id: string, serviceOverrides: any[]) => API.put(`/team/${id}/pricing`, { serviceOverrides }),
         // Mark this member the business's primary (shown first everywhere); pass
@@ -272,7 +275,8 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
     // the business's services they perform. get() returns { selected, services }.
     myServicesService: {
         get: () => API.get('/team/mine/services'),
-        set: (services: string[]) => API.put('/team/mine/services', { services }),
+        set: (services: string[], offersAllServices?: boolean) =>
+            API.put('/team/mine/services', offersAllServices === undefined ? { services } : { services, offersAllServices }),
         setPricing: (serviceOverrides: any[]) => API.put('/team/mine/pricing', { serviceOverrides }),
     },
 

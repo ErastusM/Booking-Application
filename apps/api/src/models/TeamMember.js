@@ -39,7 +39,20 @@ const teamMemberSchema = new mongoose.Schema({
     // null = roster-only (today's behavior: assignable on the calendar, no login).
     // Set when the owner invites this member to log in (links a User{role:'staff'}).
     user:     { type: mongoose.Schema.Types.ObjectId, ref: 'User', default: null, index: true },
-    // Which services this member performs. Empty = all of the business's services.
+    // Which services this member performs.
+    //
+    // This is a general booking platform — a business's roster can mix trades
+    // (someone who cuts hair, someone who washes cars, someone who does neither
+    // and only runs the desk). So a member's services are their own, and empty
+    // does NOT mean "does everything". `offersAllServices` is the explicit switch:
+    //   true  → performs every service the business offers
+    //   false → performs ONLY the services listed below (empty = none yet)
+    //   unset → legacy rows created before this field: empty services = all,
+    //           otherwise only the listed ones (preserves prior behaviour).
+    // New members are created with offersAllServices:true so the simple
+    // single-trade case (everyone does the same work) still works out of the box,
+    // while a diverse team can switch a member off and pick their own services.
+    offersAllServices: { type: Boolean },
     services: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Service' }],
 
     // Per-member price/duration for a service they perform. A member inherits the
