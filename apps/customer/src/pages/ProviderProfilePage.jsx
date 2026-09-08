@@ -71,7 +71,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
         try {
             const r = await favoriteService.toggle(id);
             setIsFav((r.data.data || []).map(String).includes(String(id)));
-        } catch { setIsFav((f) => !f); }
+        } catch { setIsFav((f) => !f); toast("Couldn't update your saved list.", 'error'); }
     };
 
     const handleShare = async () => {

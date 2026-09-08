@@ -7,6 +7,7 @@ import PushToggle from '../components/PushToggle';
 import AccountDangerZone from '../components/AccountDangerZone';
 import MapPicker, { MAPS_KEY, reverseGeocode } from '../components/MapPicker';
 import { cloudinaryAvatar } from '../utils/cloudinary';
+import { useToast } from '../components/Toast';
 
 const CLOUDINARY_CLOUD = 'dktit6s95';
 const CLOUDINARY_PRESET = 'bookplus';
@@ -15,6 +16,7 @@ const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'https://www.bookplus.
 // Shareable public booking link — same handle the onboarding flow generates.
 // Shown here so a provider can grab it again any time.
 const BookingLinkCard = ({ user, setUser }) => {
+    const toast = useToast();
     const slug = user?.businessProfile?.slug || '';
     const [busy, setBusy] = React.useState(false);
     const [copied, setCopied] = React.useState(false);
@@ -25,7 +27,7 @@ const BookingLinkCard = ({ user, setUser }) => {
         try {
             const res = await authService.generateBookingSlug();
             setUser({ ...user, businessProfile: { ...(user.businessProfile || {}), slug: res.data.data.slug } });
-        } catch { /* ignore */ } finally { setBusy(false); }
+        } catch { toast("Couldn't generate your booking link — please try again.", 'error'); } finally { setBusy(false); }
     };
     const copy = async () => {
         try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* ignore */ }
@@ -84,6 +86,7 @@ const sidebarItems = [
 const ProviderAccount = () => {
     const { user, setUser } = useAuthContext();
     const navigate = useNavigate();
+    const toast = useToast();
     const { darkMode: darkModeOn, toggleDarkMode } = useTheme();
     const [section, setSection] = useState('profile');
 
@@ -230,9 +233,16 @@ const ProviderAccount = () => {
     };
 
     const handleRemovePortfolioImage = async (idx) => {
+        const prev = portfolio; // so we can roll back if the server rejects the change
         const updated = { ...portfolio, images: portfolio.images.filter((_, i) => i !== idx) };
         setPortfolio(updated);
-        try { await authService.updatePortfolio(updated); } catch { /* ignore */ }
+        try {
+            await authService.updatePortfolio(updated);
+            toast('Photo removed.', 'success');
+        } catch {
+            setPortfolio(prev); // put it back — the delete didn't stick
+            toast("Couldn't remove that photo — please try again.", 'error');
+        }
     };
 
     const handleInstagramSave = async () => {
