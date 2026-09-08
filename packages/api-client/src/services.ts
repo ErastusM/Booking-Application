@@ -280,6 +280,17 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         setPricing: (serviceOverrides: any[]) => API.put('/team/mine/pricing', { serviceOverrides }),
     },
 
+    // Staff self-service — a signed-in staff member managing their OWN profile
+    // (name, phone, photo) and weekly working hours, resolved from the token.
+    myProfileService: {
+        get: () => API.get('/team/mine/profile'),
+        update: (data: any) => API.put('/team/mine/profile', data),
+    },
+    myAvailabilityService: {
+        get: () => API.get('/team/mine/availability'),
+        set: (schedule: any) => API.put('/team/mine/availability', { schedule }),
+    },
+
     suggestionService: {
         submit: (data: any) => API.post('/suggestions', data),
     },

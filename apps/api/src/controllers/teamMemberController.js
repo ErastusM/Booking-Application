@@ -1020,6 +1020,59 @@ exports.setMyPricing = async (req, res) => {
     }
 };
 
+/**
+ * GET /api/team/mine/profile  (staff-self)
+ * The member's own editable identity — name, job title, phone, photo, colour.
+ */
+exports.getMyProfile = async (req, res) => {
+    try {
+        const member = await myMemberDoc(req);
+        if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
+        res.status(200).json({
+            success: true,
+            data: {
+                _id: member._id, name: member.name, role: member.role,
+                phone: member.phone, email: member.email,
+                photoUrl: member.photoUrl, color: member.color,
+            },
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * PUT /api/team/mine/profile  (staff-self)
+ * Body: { name?, phone?, photoUrl? } — a member edits their OWN profile. Only
+ * fields present in the body are touched; a member can't reach anyone else's
+ * row (resolved from the token, not an id), nor change their services/permissions
+ * here (those have their own scoped endpoints).
+ */
+exports.setMyProfile = async (req, res) => {
+    try {
+        const member = await myMemberDoc(req);
+        if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
+        const { name, phone, photoUrl } = req.body;
+        if (name !== undefined) {
+            if (!String(name).trim()) return res.status(400).json({ success: false, message: 'Name cannot be empty' });
+            member.name = String(name).trim();
+        }
+        if (phone !== undefined) member.phone = String(phone).trim();
+        if (photoUrl !== undefined) member.photoUrl = photoUrl || null;
+        await member.save();
+        res.status(200).json({
+            success: true,
+            data: {
+                _id: member._id, name: member.name, role: member.role,
+                phone: member.phone, email: member.email,
+                photoUrl: member.photoUrl, color: member.color,
+            },
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
 // Owner/admin, or the staff member themself (their User is linked to the roster row
 // and belongs to this business).
 const canTouchStaffAvailability = (reqUser, member) =>
@@ -1046,6 +1099,40 @@ exports.getTeamMemberAvailability = async (req, res) => {
     }
 };
 
+// Validate a weekly schedule object, returning an error string (naming the day)
+// or null. Shared by the owner and staff-self availability endpoints so both
+// enforce the same rules: no inverted ranges, no overlapping working periods.
+const scheduleError = (schedule) => {
+    const toMins = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+    for (const [day, cfg] of Object.entries(schedule)) {
+        if (!cfg?.enabled) continue;
+        const label = day.charAt(0).toUpperCase() + day.slice(1);
+        for (const slot of cfg.slots || []) {
+            // An inverted range (start ≥ end) used to save silently and left the
+            // member bookable at no valid time — refuse it and name the day.
+            if (toMins(slot.end) <= toMins(slot.start)) {
+                return `${label}: the ending time (${slot.end}) must be after the starting time (${slot.start}). Swap them if they're reversed.`;
+            }
+        }
+        // Overlapping slots would double-count the day and make occupancy stats
+        // nonsense (scheduledMinutes sums each slot with no interval merge).
+        const sorted = [...(cfg.slots || [])].sort((a, b) => toMins(a.start) - toMins(b.start));
+        for (let i = 1; i < sorted.length; i += 1) {
+            if (toMins(sorted[i].start) < toMins(sorted[i - 1].end)) {
+                return `${label}: two working periods overlap. Please make them separate, non-overlapping times.`;
+            }
+        }
+    }
+    return null;
+};
+
+// Upsert a member's weekly schedule (used once the member is resolved + authorized).
+const upsertSchedule = (member, schedule) => StaffAvailability.findOneAndUpdate(
+    { teamMember: member._id },
+    { provider: member.provider, teamMember: member._id, schedule },
+    { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+);
+
 /**
  * PUT /api/team/:id/availability  (provider/admin, or staff-self)
  * Body: { schedule } — upserts the per-staff schedule.
@@ -1056,37 +1143,49 @@ exports.updateTeamMemberAvailability = async (req, res) => {
         if (!schedule || typeof schedule !== 'object') {
             return res.status(400).json({ success: false, message: 'schedule is required' });
         }
-        // An inverted range (start ≥ end) used to save silently and left the
-        // member bookable at no valid time — refuse it and name the day, so the
-        // mistake is caught while the owner is still looking at the form.
-        const toMins = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
-        for (const [day, cfg] of Object.entries(schedule)) {
-            if (!cfg?.enabled) continue;
-            const label = day.charAt(0).toUpperCase() + day.slice(1);
-            for (const slot of cfg.slots || []) {
-                if (toMins(slot.end) <= toMins(slot.start)) {
-                    return res.status(400).json({ success: false, message: `${label}: the ending time (${slot.end}) must be after the starting time (${slot.start}). Swap them if they're reversed.` });
-                }
-            }
-            // Overlapping slots would double-count the day and make occupancy stats
-            // nonsense (scheduledMinutes sums each slot with no interval merge), the
-            // same reason shift periods reject overlap — so refuse them here too.
-            const sorted = [...(cfg.slots || [])].sort((a, b) => toMins(a.start) - toMins(b.start));
-            for (let i = 1; i < sorted.length; i += 1) {
-                if (toMins(sorted[i].start) < toMins(sorted[i - 1].end)) {
-                    return res.status(400).json({ success: false, message: `${label}: two working periods overlap. Please make them separate, non-overlapping times.` });
-                }
-            }
-        }
+        const err = scheduleError(schedule);
+        if (err) return res.status(400).json({ success: false, message: err });
         const member = await TeamMember.findById(req.params.id);
         if (!member || !canTouchStaffAvailability(req.user, member)) {
             return res.status(404).json({ success: false, message: 'Team member not found' });
         }
-        const availability = await StaffAvailability.findOneAndUpdate(
-            { teamMember: member._id },
-            { provider: member.provider, teamMember: member._id, schedule },
-            { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
-        );
+        const availability = await upsertSchedule(member, schedule);
+        res.status(200).json({ success: true, data: availability });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * GET /api/team/mine/availability  (staff-self)
+ * data: null means "no per-staff schedule — inherits business hours".
+ */
+exports.getMyAvailability = async (req, res) => {
+    try {
+        const member = await myMemberDoc(req);
+        if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
+        const availability = await StaffAvailability.findOne({ teamMember: member._id });
+        res.status(200).json({ success: true, data: availability });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * PUT /api/team/mine/availability  (staff-self)
+ * Body: { schedule } — a member sets their OWN weekly working hours.
+ */
+exports.setMyAvailability = async (req, res) => {
+    try {
+        const { schedule } = req.body;
+        if (!schedule || typeof schedule !== 'object') {
+            return res.status(400).json({ success: false, message: 'schedule is required' });
+        }
+        const err = scheduleError(schedule);
+        if (err) return res.status(400).json({ success: false, message: err });
+        const member = await myMemberDoc(req);
+        if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
+        const availability = await upsertSchedule(member, schedule);
         res.status(200).json({ success: true, data: availability });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });

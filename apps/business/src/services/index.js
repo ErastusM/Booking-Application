@@ -33,6 +33,8 @@ export const {
     teamService,
     myTimeOffService,
     myServicesService,
+    myProfileService,
+    myAvailabilityService,
     suggestionService,
     pushService,
     walletService,

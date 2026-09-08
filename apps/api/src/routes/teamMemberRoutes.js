@@ -9,10 +9,19 @@ const {
     handoverUpcomingBookings,
     getTeamMemberAvailability, updateTeamMemberAvailability,
     getMyServices, setMyServices, setMyPricing,
+    getMyProfile, setMyProfile, getMyAvailability, setMyAvailability,
 } = require('../controllers/teamMemberController');
 const {
     listTimeOff, createTimeOff, decideTimeOff, deleteTimeOff,
 } = require('../controllers/timeOffController');
+
+// Staff self-service (token-scoped, no id in the URL). MUST be registered
+// BEFORE the /:id/* routes below, or '/:id/availability' would match
+// '/mine/availability' with id='mine' and swallow it.
+router.get('/mine/profile', auth, getMyProfile);
+router.put('/mine/profile', auth, setMyProfile);
+router.get('/mine/availability', auth, getMyAvailability);
+router.put('/mine/availability', auth, setMyAvailability);
 
 // Availability is auth-only: the controller allows provider/admin OR the staff
 // member themself (a role the blanket authorize below would reject).
