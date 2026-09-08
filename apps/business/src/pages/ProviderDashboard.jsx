@@ -205,6 +205,7 @@ const ProviderDashboard = () => {
     // Recurring series cancel modal
     const [seriesCancelModal, setSeriesCancelModal] = useState(null); // { appt, mode }
     const [seriesCancelMode, setSeriesCancelMode] = useState('this');
+    const [cancellingSeries, setCancellingSeries] = useState(false);
     const [apptDetailModal, setApptDetailModal] = useState(null);
     const [apptRescheduleForm, setApptRescheduleForm] = useState({ appointmentDate: '', startTime: '' });
     const [savingApptDetail, setSavingApptDetail] = useState(false);
@@ -917,12 +918,19 @@ const ProviderDashboard = () => {
     };
 
     const handleSeriesCancel = async () => {
-        if (!seriesCancelModal) return;
+        if (!seriesCancelModal || cancellingSeries) return;
+        setCancellingSeries(true);
         try {
             await appointmentService.cancelAppointmentSeries(seriesCancelModal._id, seriesCancelMode);
             await fetchAppointments(); // {all:true} — a bare refetch truncates the calendar to 20
             setSeriesCancelModal(null);
-        } catch { /* ignore */ }
+            toast('Recurring booking cancelled.', 'success');
+        } catch (err) {
+            // Previously swallowed — a failed cancel left the modal open with no word.
+            toast(err?.response?.data?.message || 'Could not cancel the series. Please try again.', 'error');
+        } finally {
+            setCancellingSeries(false);
+        }
     };
 
     const openAddMember = () => {
@@ -4107,7 +4115,7 @@ const ProviderDashboard = () => {
                             ))}
                             <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
                                 <button onClick={() => setSeriesCancelModal(null)} style={{ flex: 1, padding: '0.85rem', background: 'var(--warm-gray)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--text-secondary)' }}>Keep</button>
-                                <button onClick={handleSeriesCancel} style={{ flex: 1, padding: '0.85rem', background: '#ef4444', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600', color: 'white' }}>Cancel</button>
+                                <button onClick={handleSeriesCancel} disabled={cancellingSeries} style={{ flex: 1, padding: '0.85rem', background: '#ef4444', border: 'none', borderRadius: 'var(--radius-sm)', cursor: cancellingSeries ? 'default' : 'pointer', opacity: cancellingSeries ? 0.7 : 1, fontFamily: 'var(--font-body)', fontWeight: '600', color: 'white' }}>{cancellingSeries ? 'Cancelling…' : 'Cancel'}</button>
                             </div>
                         </div>
                     </div>

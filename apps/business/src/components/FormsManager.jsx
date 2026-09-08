@@ -83,7 +83,9 @@ const FormsManager = () => {
 
     const remove = async (t) => {
         if (!window.confirm(`Delete "${t.title}"?`)) return;
-        try { await formService.deleteTemplate(t._id); await load(); } catch { /* ignore */ }
+        setError('');
+        try { await formService.deleteTemplate(t._id); await load(); }
+        catch { setError(`Could not delete "${t.title}". Please try again.`); }
     };
 
     const updateField = (idx, patch) => {
