@@ -129,10 +129,12 @@ exports.addTeamMember = async (req, res) => {
             email: (email || '').trim().toLowerCase(),
             phone: (phone || '').trim(),
             color: color || '#f03e16',
-            // Start out performing everything the business offers (the common
-            // single-trade case). The owner can switch this off and pick a
-            // specific set — or none — from the member's card.
-            offersAllServices: true,
+            // Start with NO services — a new member offers nothing until their own
+            // are set up (offersAllServices:false + empty list). This keeps a mixed
+            // business honest: adding "the cleaner" must not silently make them
+            // bookable for the barber's whole menu. The owner (or the member) picks
+            // their services, or flips "offers all" on, from the member's card.
+            offersAllServices: false,
         });
         res.status(201).json({ success: true, data: member });
     } catch (error) {

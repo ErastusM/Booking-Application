@@ -359,11 +359,12 @@ describe('GET /api/providers/:id/staff (public)', () => {
 });
 
 describe('offersAllServices — a member’s services are their own and optional', () => {
-    it('new members default to offering all services', async () => {
+    it('new members start with no services (offers nothing until set up)', async () => {
         const owner = await makeProvider();
         const res = await request(app).post('/api/team').set(authHeader(owner)).send({ name: 'New Hire' });
         expect(res.status).toBe(201);
-        expect(res.body.data.offersAllServices).toBe(true);
+        expect(res.body.data.offersAllServices).toBe(false);
+        expect(res.body.data.services || []).toEqual([]);
     });
 
     it('the public picker respects the flag: only-selected, offers-all, and offers-none', async () => {
