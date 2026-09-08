@@ -1109,11 +1109,18 @@ const ProviderDashboard = () => {
         return String(tmId) === String(calendarStaffFilter);
     };
 
-    // Blocked time can be business-wide (teamMember null → blocks everyone, always
-    // shown) or scoped to one staff member (shown when that member is in view).
+    // A block is one of three kinds:
+    //   - owner-only (ownerOnly:true, teamMember null): the owner's OWN block — it
+    //     belongs to the owner's column ('unassigned' = "…(me)") only, NEVER a staff
+    //     member. Missing this check leaked the owner's blocks onto every staffer.
+    //   - business-wide (teamMember null, not ownerOnly): closes every column.
+    //   - member-scoped (teamMember set): shown only when that member is in view.
     const blockMatchesStaffFilter = (b) => {
+        if (b.ownerOnly) {
+            return calendarStaffFilter === 'all' || calendarStaffFilter === 'unassigned';
+        }
         const tmId = b.teamMember?._id || b.teamMember || null;
-        if (!tmId) return true;
+        if (!tmId) return true; // business-wide → blocks everyone, always shown
         if (calendarStaffFilter === 'all') return true;
         if (calendarStaffFilter === 'unassigned') return false;
         return String(tmId) === String(calendarStaffFilter);
