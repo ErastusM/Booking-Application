@@ -2880,7 +2880,7 @@ const ProviderDashboard = () => {
                             </h3>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                                 {[
-                                    ['Plan Name', 'name', 'text', 'e.g. Monthly Grooming Plan'],
+                                    ['Plan Name', 'name', 'text', 'e.g. Monthly Membership Plan'],
                                     [`Price (${curCode})`, 'price', 'number', '0'],
                                     ['Total Sessions', 'totalSessions', 'number', '5'],
                                     ['Validity (days)', 'validityDays', 'number', '365'],
@@ -3192,7 +3192,7 @@ const ProviderDashboard = () => {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                                 {[
                                     ['Full name', 'name', 'text', 'e.g. Amara Ndongo'],
-                                    ['Role / title', 'role', 'text', 'e.g. Barber, Nail Tech'],
+                                    ['Role / title', 'role', 'text', 'e.g. Stylist, Trainer, Technician'],
                                     ['Email (optional)', 'email', 'email', 'staff@email.com'],
                                     ['Phone (optional)', 'phone', 'tel', '+264 81 000 0000'],
                                 ].map(([label, key, type, ph]) => (

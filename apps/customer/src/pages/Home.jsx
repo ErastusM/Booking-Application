@@ -490,7 +490,7 @@ const Home = () => {
         <div style={{ background: 'var(--off-white)', paddingTop: 'var(--page-hero-pad-top)' }}>
             <Seo
                 title="Bookplus — Book trusted local services"
-                description="Discover and book trusted local businesses — hair, beauty, barbers, wellness, automotive and more. Real-time availability and instant confirmation."
+                description="Discover and book trusted local businesses — beauty, health, fitness, automotive, home services and more. Real-time availability and instant confirmation."
                 url={typeof window !== 'undefined' ? window.location.origin + '/' : 'https://www.bookplus.pro/'}
             />
 
