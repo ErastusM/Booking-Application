@@ -157,8 +157,16 @@ const withinSchedule = (schedule, date, startMin, endMin) => {
     return day.slots.some(s => startMin >= toMin(s.start) && endMin <= toMin(s.end));
 };
 
-const performsService = (member, serviceId) =>
-    !member.services?.length || member.services.map(String).includes(String(serviceId));
+// Does this member perform the given service?
+//   offersAllServices === true  → yes, everything
+//   offersAllServices === false → only the services explicitly listed (empty = none)
+//   unset (legacy rows)         → empty list = all, otherwise only the listed ones
+const performsService = (member, serviceId) => {
+    if (member.offersAllServices === true) return true;
+    const list = (member.services || []).map(String);
+    if (member.offersAllServices === false) return list.includes(String(serviceId));
+    return list.length === 0 || list.includes(String(serviceId));
+};
 
 const UNAVAILABLE_MESSAGES = {
     outside_hours: "That time is outside this staff member's working hours.",

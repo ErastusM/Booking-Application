@@ -14,14 +14,18 @@ const AccountDangerZone = () => {
     const [password, setPassword] = useState('');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
+    const [blockError, setBlockError] = useState(''); // shown in the blocked-users card
+    const [unblocking, setUnblocking] = useState(null); // id currently being unblocked
 
     useEffect(() => {
         authService.getBlockedUsers().then((r) => setBlocked(r.data.data || [])).catch(() => {});
     }, []);
 
     const unblock = async (id) => {
+        setBlockError(''); setUnblocking(id);
         try { await authService.unblockUser(id); setBlocked((b) => b.filter((u) => u._id !== id)); }
-        catch { /* ignore */ }
+        catch (e) { setBlockError(e.response?.data?.message || 'Could not unblock that user. Please try again.'); }
+        finally { setUnblocking(null); }
     };
 
     const endSession = async () => { try { await logout(); } finally { navigate('/'); } };
@@ -53,11 +57,12 @@ const AccountDangerZone = () => {
                         {blocked.map((u) => (
                             <div key={u._id} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.5rem 0', borderBottom: '1px solid var(--border)' }}>
                                 <span style={{ fontSize: '0.9rem', color: 'var(--charcoal)' }}>{u.name} <span style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>· {u.role}</span></span>
-                                <button onClick={() => unblock(u._id)} className="btn-outline" style={{ padding: '0.3rem 0.8rem', fontSize: '0.78rem' }}>Unblock</button>
+                                <button onClick={() => unblock(u._id)} disabled={unblocking === u._id} className="btn-outline" style={{ padding: '0.3rem 0.8rem', fontSize: '0.78rem' }}>{unblocking === u._id ? 'Unblocking…' : 'Unblock'}</button>
                             </div>
                         ))}
                     </div>
                 )}
+                {blockError && <p style={{ color: '#dc2626', fontSize: '0.82rem', margin: '0.6rem 0 0' }}>{blockError}</p>}
             </div>
 
             {/* Danger zone */}

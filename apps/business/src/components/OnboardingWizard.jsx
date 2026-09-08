@@ -138,8 +138,11 @@ const OnboardingWizard = ({ user, onComplete }) => {
             // address we already saved so this call doesn't blank it.
             const res = await authService.completeProviderSetup({ businessName: businessName.trim(), address: address.trim() });
             onComplete(res.data.data);
-        } catch {
-            onComplete({ ...user, providerSetupComplete: true });
+        } catch (err) {
+            // Don't fake completion — if the server didn't flip the flag, the user
+            // would just be dropped back into onboarding on their next login. Keep
+            // them here with a clear error so they can retry.
+            setError(err?.response?.data?.message || 'Could not finish setup — please try again.');
         } finally {
             setSaving(false);
         }

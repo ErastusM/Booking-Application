@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { getPushState, enablePush } from '../utils/push';
 import { useAuthContext } from '../context/AuthContext';
+import { useToast } from './Toast';
 
 const DISMISS_KEY = 'bp_push_prompt_dismissed';
 
@@ -13,6 +14,7 @@ const isStandalone = () =>
 // only allows web push for installed PWAs — an "Add to Home Screen" hint.
 const EnablePushBanner = () => {
     const { user } = useAuthContext();
+    const toast = useToast();
     const [mode, setMode] = useState(null); // 'enable' | 'ios' | null
     const [busy, setBusy] = useState(false);
 
@@ -37,8 +39,8 @@ const EnablePushBanner = () => {
     const dismiss = () => { try { localStorage.setItem(DISMISS_KEY, '1'); } catch { /* ignore */ } setMode(null); };
     const turnOn = async () => {
         setBusy(true);
-        try { await enablePush(); setMode(null); }
-        catch { /* permission denied / failed — leave the banner so they can retry */ }
+        try { await enablePush(); toast('Notifications are on.', 'success'); setMode(null); }
+        catch { toast("Couldn't turn on notifications — check your browser's permission settings.", 'error'); /* leave the banner so they can retry */ }
         finally { setBusy(false); }
     };
 

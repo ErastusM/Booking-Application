@@ -7,6 +7,7 @@ const NotificationBell = ({ isTransparent }) => {
     const [unreadCount, setUnreadCount] = useState(0);
     const [open, setOpen] = useState(false);
     const [loading, setLoading] = useState(false);
+    const [busyId, setBusyId] = useState(null); // notification currently being opened/deleted — guards double-clicks
     const [error, setError] = useState('');
     const dropdownRef = useRef(null);
     const navigate = useNavigate();
@@ -87,13 +88,17 @@ const NotificationBell = ({ isTransparent }) => {
 
     const handleDelete = async (e, id) => {
         e.stopPropagation();
+        if (busyId === id) return; // already deleting this one
+        setBusyId(id);
         try {
             await notificationService.deleteNotification(id);
             const deleted = notifications.find(n => n._id === id);
             setNotifications(notifications.filter(n => n._id !== id));
-            if (!deleted.read) setUnreadCount(prev => Math.max(0, prev - 1));
+            if (deleted && !deleted.read) setUnreadCount(prev => Math.max(0, prev - 1));
         } catch (err) {
             setError('Failed to delete notification');
+        } finally {
+            setBusyId(null);
         }
     };
 

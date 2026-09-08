@@ -102,6 +102,7 @@ const Wallet = () => {
             approve ? await walletService.approveAdjustment(id) : await walletService.rejectAdjustment(id);
             await load();
             setTxns({}); setExpanded(null);
+            toast(approve ? 'Adjustment approved.' : 'Adjustment declined.', 'success');
         } catch (err) {
             toast(err.response?.data?.message || 'Could not update the adjustment', 'error');
         } finally { setBusyId(''); }

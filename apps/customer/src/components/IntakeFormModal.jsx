@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { formService } from '../services';
+import { useToast } from './Toast';
 import { useModalChrome } from '../hooks/useModalChrome';
 
 // Should a field show, given current answers and its showIf rule?
@@ -11,6 +12,7 @@ const fieldVisible = (field, answers) => {
 };
 
 const IntakeFormModal = ({ appointmentId, onClose, onCompleted }) => {
+    const toast = useToast();
     const [forms, setForms] = useState([]); // [{ template, completed, submission }]
     const [activeIdx, setActiveIdx] = useState(0);
     const [answers, setAnswers] = useState({}); // label -> value
@@ -75,8 +77,8 @@ const IntakeFormModal = ({ appointmentId, onClose, onCompleted }) => {
             setForms(updated);
             onCompleted && onCompleted();
             const nextPending = updated.findIndex(f => !f.completed);
-            if (nextPending >= 0) setActiveIdx(nextPending);
-            else onClose();
+            if (nextPending >= 0) { toast('Form submitted — next one is ready.', 'success'); setActiveIdx(nextPending); }
+            else { toast('Form submitted. Thank you!', 'success'); onClose(); }
         } catch (err) {
             setError(err.response?.data?.message || 'Could not submit the form.');
         } finally {

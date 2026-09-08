@@ -42,9 +42,9 @@ test.describe('Team — invite to log in', () => {
         await page.getByTestId('new-member-name').fill(name);
         await page.getByTestId('new-member-add').click();
 
-        // The add must visibly CONFIRM — an explicit notice, not just a row that
-        // may scroll out of view on a long roster.
-        await expect(page.getByTestId('member-added-notice')).toContainText(name);
+        // The add must visibly CONFIRM — an auto-dismissing toast, not just a row
+        // that may scroll out of view on a long roster.
+        await expect(page.getByText(`${name} added to your team.`)).toBeVisible();
 
         const card = cardByName(page, name);
         await expect(card).toBeVisible();
@@ -74,10 +74,14 @@ test.describe('My schedule — staff choose their own services', () => {
 
         const services = page.getByTestId('my-services');
         await expect(services).toBeVisible();
-        // Sam performs everything to begin with (no explicit selection).
+        // Sam offers everything to begin with, so the per-service picker is hidden.
         await expect(services).toContainText('You perform every service.');
 
+        // Switch from "offers all" to choosing specific services — this reveals
+        // the picker (and persists offersAllServices:false on its own).
+        await services.getByTestId('my-offers-all-switch').click();
         const chip = services.getByTestId('my-service-chip').filter({ hasText: SEED.serviceName });
+        await expect(chip).toBeVisible();
         // Wait on the actual save so the reload below can't race ahead of it.
         const [saved] = await Promise.all([
             page.waitForResponse(r => r.url().includes('/team/mine/services') && r.request().method() === 'PUT'),
