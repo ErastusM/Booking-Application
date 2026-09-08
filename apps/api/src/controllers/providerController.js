@@ -24,7 +24,16 @@ exports.getProviderStaff = async (req, res) => {
     try {
         const query = { provider: req.params.id, isActive: true };
         if (req.query.serviceId) {
-            query.$or = [{ services: { $size: 0 } }, { services: req.query.serviceId }];
+            // Who performs this service? Mirrors staffBooking.performsService:
+            //   offersAllServices:true  → yes; offersAllServices:false → only if listed;
+            //   legacy rows (field absent) → empty list = all, else only if listed.
+            const sid = req.query.serviceId;
+            query.$or = [
+                { offersAllServices: true },
+                { offersAllServices: false, services: sid },
+                { offersAllServices: { $exists: false }, services: { $size: 0 } },
+                { offersAllServices: { $exists: false }, services: sid },
+            ];
         }
         const staff = await TeamMember.find(query)
             .select('name role color services serviceOverrides photoUrl isPrimary') // public: no email/phone/user
@@ -43,6 +52,7 @@ exports.getProviderStaff = async (req, res) => {
                 _id: 'owner', isOwner: true,
                 name: owner?.name || 'Owner', role: 'Owner',
                 color: '#f03e16', services: [], serviceOverrides: [], isPrimary: false,
+                offersAllServices: true, // the owner covers anything their business books
             });
         }
         res.status(200).json({ success: true, data });
