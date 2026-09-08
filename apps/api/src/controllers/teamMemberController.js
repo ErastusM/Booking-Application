@@ -129,6 +129,10 @@ exports.addTeamMember = async (req, res) => {
             email: (email || '').trim().toLowerCase(),
             phone: (phone || '').trim(),
             color: color || '#f03e16',
+            // Start out performing everything the business offers (the common
+            // single-trade case). The owner can switch this off and pick a
+            // specific set — or none — from the member's card.
+            offersAllServices: true,
         });
         res.status(201).json({ success: true, data: member });
     } catch (error) {
@@ -894,14 +898,20 @@ exports.setTeamMemberPricing = async (req, res) => {
 
 /**
  * PUT /api/team/:id/services  (provider/admin)
- * Body: { services: [serviceId] } — [] means "performs all business services".
- * Every id must be one of the owner's own services.
+ * Body: { services: [serviceId], offersAllServices?: boolean }
+ *   offersAllServices:true  → member performs every service (services list ignored for booking)
+ *   offersAllServices:false → member performs ONLY the listed services (empty = none)
+ * When offersAllServices is omitted the flag is left untouched (back-compat).
+ * Every service id must be one of the owner's own services.
  */
 exports.setTeamMemberServices = async (req, res) => {
     try {
-        const { services } = req.body;
+        const { services, offersAllServices } = req.body;
         if (!Array.isArray(services)) {
             return res.status(400).json({ success: false, message: 'services must be an array of service ids' });
+        }
+        if (offersAllServices !== undefined && typeof offersAllServices !== 'boolean') {
+            return res.status(400).json({ success: false, message: 'offersAllServices must be a boolean' });
         }
         const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
@@ -914,6 +924,7 @@ exports.setTeamMemberServices = async (req, res) => {
         }
 
         member.services = services;
+        if (offersAllServices !== undefined) member.offersAllServices = offersAllServices;
         await member.save();
         res.status(200).json({ success: true, data: member });
     } catch (error) {
@@ -944,6 +955,7 @@ exports.getMyServices = async (req, res) => {
             success: true,
             data: {
                 selected: (member.services || []).map(String),
+                offersAllServices: member.offersAllServices,
                 services,
                 overrides: member.serviceOverrides || [],
             },
@@ -955,14 +967,18 @@ exports.getMyServices = async (req, res) => {
 
 /**
  * PUT /api/team/mine/services  (staff-self)
- * Body: { services: [serviceId] } — [] means "performs all business services".
+ * Body: { services: [serviceId], offersAllServices?: boolean }
+ *   offersAllServices:true  → performs every service; false → only the listed ones (empty = none).
  * A member sets their OWN service list; every id must be one of the business's.
  */
 exports.setMyServices = async (req, res) => {
     try {
-        const { services } = req.body;
+        const { services, offersAllServices } = req.body;
         if (!Array.isArray(services)) {
             return res.status(400).json({ success: false, message: 'services must be an array of service ids' });
+        }
+        if (offersAllServices !== undefined && typeof offersAllServices !== 'boolean') {
+            return res.status(400).json({ success: false, message: 'offersAllServices must be a boolean' });
         }
         const member = await myMemberDoc(req);
         if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
@@ -975,6 +991,7 @@ exports.setMyServices = async (req, res) => {
         }
 
         member.services = services;
+        if (offersAllServices !== undefined) member.offersAllServices = offersAllServices;
         await member.save();
         res.status(200).json({ success: true, data: member });
     } catch (error) {

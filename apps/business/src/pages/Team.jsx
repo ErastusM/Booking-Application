@@ -78,6 +78,13 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
     const [busy, setBusy] = useState('');
     const [msg, setMsg] = useState('');
     const [assigned, setAssigned] = useState((member.services || []).map(String));
+    // Does this member perform everything the business offers, or only a chosen
+    // set? Legacy rows (flag unset) are read the old way: empty list = all.
+    const [offersAll, setOffersAll] = useState(
+        member.offersAllServices !== undefined
+            ? member.offersAllServices
+            : (member.services || []).length === 0
+    );
     // Per-member price/duration overrides, keyed by service id. '' = inherit the
     // business default. Seeded from the member's saved serviceOverrides.
     const [overrides, setOverrides] = useState(() => Object.fromEntries(
@@ -411,8 +418,23 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
         const next = assigned.includes(id) ? assigned.filter(x => x !== id) : [...assigned, id];
         setAssigned(next);
         setBusy('services');
-        try { await teamService.setMemberServices(member._id, next); flash('Services updated'); }
+        // Picking specific services always means "only these" — persist that mode.
+        try { await teamService.setMemberServices(member._id, next, false); flash('Services updated'); }
         catch { flash('Could not update services'); setAssigned(assigned); }
+        finally { setBusy(''); }
+    };
+
+    // Switch between "performs everything the business offers" and "only the
+    // services picked below". This is what makes services optional per person —
+    // a car-wash attendant on a barber's roster, say, need not offer haircuts.
+    const setServiceMode = async (all) => {
+        const prev = offersAll;
+        setOffersAll(all);
+        setBusy('services');
+        try {
+            await teamService.setMemberServices(member._id, assigned, all);
+            flash(all ? 'Now offers all services' : 'Now offers only the selected services');
+        } catch { flash('Could not update services'); setOffersAll(prev); }
         finally { setBusy(''); }
     };
 
@@ -465,7 +487,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                     <span style={{ display: 'block', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
                         {member.role || 'Staff'}
                         {!hasLogin ? ' · roster only' : loggedIn ? ' · active' : ' · invited, awaiting login'}
-                        {(member.services || []).length ? ` · ${member.services.length} service${member.services.length > 1 ? 's' : ''}` : ' · all services'}
+                        {offersAll ? ' · all services' : assigned.length ? ` · ${assigned.length} service${assigned.length > 1 ? 's' : ''}` : ' · no services'}
                     </span>
                 </span>
                 {loggedIn
@@ -711,17 +733,30 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                 </Section>
                             )}
 
-                            <Section icon={Scissors} title="Services & prices" hint="(none selected = performs all · blank price/time = business default)">
-                                <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
-                                    {services.map(svc => (
-                                        <Chip key={svc._id} active={assigned.includes(String(svc._id))} disabled={busy === 'services'} onClick={() => toggleService(String(svc._id))} data-testid="member-service-chip">
-                                            {svc.name}
-                                        </Chip>
-                                    ))}
-                                    {services.length === 0 && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>No services yet — add services first.</p>}
+                            <Section icon={Scissors} title="Services & prices" hint="(what this person offers · blank price/time = business default)">
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                                    <span style={{ fontSize: '0.85rem', color: 'var(--charcoal)' }}>
+                                        Offers all services this business books
+                                    </span>
+                                    <Switch checked={offersAll} disabled={busy === 'services'} onChange={setServiceMode} label={offersAll ? 'All' : 'Only selected'} data-testid="offers-all-switch" />
                                 </div>
+                                {!offersAll && (
+                                    <>
+                                        <p style={{ margin: '0 0 0.5rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
+                                            Pick the services this person offers. Leaving none selected means they don’t take bookings for any listed service.
+                                        </p>
+                                        <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+                                            {services.map(svc => (
+                                                <Chip key={svc._id} active={assigned.includes(String(svc._id))} disabled={busy === 'services'} onClick={() => toggleService(String(svc._id))} data-testid="member-service-chip">
+                                                    {svc.name}
+                                                </Chip>
+                                            ))}
+                                            {services.length === 0 && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>No services yet — add services first.</p>}
+                                        </div>
+                                    </>
+                                )}
                                 {(() => {
-                                    const performed = assigned.length ? services.filter(s => assigned.includes(String(s._id))) : services;
+                                    const performed = offersAll ? services : services.filter(s => assigned.includes(String(s._id)));
                                     if (!performed.length) return null;
                                     return (
                                         <div style={{ marginTop: '0.9rem', display: 'grid', gap: '0.5rem' }}>

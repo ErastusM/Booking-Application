@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { appointmentService, myTimeOffService, myServicesService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { CalendarClock, Palmtree, Scissors } from 'lucide-react';
+import Switch from '../components/Switch';
 
 /**
  * Epic 2.4 — the staff principal's landing view: ONLY their own column
@@ -33,7 +34,8 @@ const MySchedule = () => {
     const [err, setErr] = useState('');
     const [msg, setMsg] = useState('');
     const [services, setServices] = useState(null);     // null = loading, false = failed, [] = the menu
-    const [mySvc, setMySvc] = useState([]);             // ids I perform ([] = all)
+    const [mySvc, setMySvc] = useState([]);             // ids I perform
+    const [offersAll, setOffersAll] = useState(true);   // do I perform everything, or only mySvc?
     const [svcBusy, setSvcBusy] = useState(false);
     const [svcMsg, setSvcMsg] = useState('');
     // My own price/duration per service. Keyed by serviceId → { price, duration }
@@ -52,7 +54,11 @@ const MySchedule = () => {
         myServicesService.get()
             .then(res => {
                 setServices(res.data.data?.services || []);
-                setMySvc((res.data.data?.selected || []).map(String));
+                const selected = (res.data.data?.selected || []).map(String);
+                setMySvc(selected);
+                // Legacy rows (flag unset) followed the old rule: empty = all.
+                const flag = res.data.data?.offersAllServices;
+                setOffersAll(flag !== undefined ? flag : selected.length === 0);
                 const seed = {};
                 (res.data.data?.overrides || []).forEach(o => {
                     seed[String(o.service)] = {
@@ -72,10 +78,24 @@ const MySchedule = () => {
         const prev = mySvc;
         setMySvc(next); setSvcBusy(true); setSvcMsg('');
         try {
-            await myServicesService.set(next);
+            // Picking specific services means "only these".
+            await myServicesService.set(next, false);
             setSvcMsg('Saved'); setTimeout(() => setSvcMsg(''), 2500);
         } catch (e) {
             setMySvc(prev);
+            setSvcMsg(e?.response?.data?.message || 'Could not save');
+        } finally { setSvcBusy(false); }
+    };
+
+    // Switch between "I perform everything" and "only the services I pick".
+    const setServiceMode = async (all) => {
+        const prev = offersAll;
+        setOffersAll(all); setSvcBusy(true); setSvcMsg('');
+        try {
+            await myServicesService.set(mySvc, all);
+            setSvcMsg('Saved'); setTimeout(() => setSvcMsg(''), 2500);
+        } catch (e) {
+            setOffersAll(prev);
             setSvcMsg(e?.response?.data?.message || 'Could not save');
         } finally { setSvcBusy(false); }
     };
@@ -187,7 +207,7 @@ const MySchedule = () => {
                     <Scissors size={16} /> My services
                 </h2>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '0 0 1rem' }}>
-                    Pick the services you perform so clients are matched to you correctly. None selected = you perform all of them.
+                    Tell clients what you offer so they’re matched to you correctly.
                 </p>
 
                 {services === null && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading…</p>}
@@ -197,28 +217,36 @@ const MySchedule = () => {
                 )}
                 {Array.isArray(services) && services.length > 0 && (
                     <>
-                        <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
-                            {services.map(s => {
-                                const active = mySvc.includes(String(s._id));
-                                return (
-                                    <button key={s._id} type="button" onClick={() => toggleService(String(s._id))} disabled={svcBusy}
-                                        data-testid="my-service-chip"
-                                        style={{
-                                            padding: '0.4rem 0.85rem', borderRadius: '999px', fontSize: '0.82rem', fontWeight: 600,
-                                            cursor: svcBusy ? 'default' : 'pointer',
-                                            border: `1px solid ${active ? 'var(--gold)' : 'var(--border)'}`,
-                                            background: active ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)',
-                                            color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                                        }}>
-                                        {s.name}
-                                    </button>
-                                );
-                            })}
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                            <span style={{ fontSize: '0.85rem', color: 'var(--charcoal)' }}>I offer all services this business books</span>
+                            <Switch checked={offersAll} disabled={svcBusy} onChange={setServiceMode} label={offersAll ? 'All' : 'Only selected'} data-testid="my-offers-all-switch" />
                         </div>
-                        <p style={{ margin: '0.7rem 0 0', fontSize: '0.8rem', color: mySvc.length ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
-                            {mySvc.length
-                                ? `You perform ${mySvc.length} of ${services.length} service${services.length > 1 ? 's' : ''}.`
-                                : 'You perform every service.'}
+                        {!offersAll && (
+                            <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+                                {services.map(s => {
+                                    const active = mySvc.includes(String(s._id));
+                                    return (
+                                        <button key={s._id} type="button" onClick={() => toggleService(String(s._id))} disabled={svcBusy}
+                                            data-testid="my-service-chip"
+                                            style={{
+                                                padding: '0.4rem 0.85rem', borderRadius: '999px', fontSize: '0.82rem', fontWeight: 600,
+                                                cursor: svcBusy ? 'default' : 'pointer',
+                                                border: `1px solid ${active ? 'var(--gold)' : 'var(--border)'}`,
+                                                background: active ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)',
+                                                color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                                            }}>
+                                            {s.name}
+                                        </button>
+                                    );
+                                })}
+                            </div>
+                        )}
+                        <p style={{ margin: '0.7rem 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)' }}>
+                            {offersAll
+                                ? 'You perform every service.'
+                                : mySvc.length
+                                    ? `You perform ${mySvc.length} of ${services.length} service${services.length > 1 ? 's' : ''}.`
+                                    : 'You don’t offer any listed services yet — pick the ones you do.'}
                             {svcMsg && <span style={{ marginLeft: '0.5rem', color: svcMsg === 'Saved' ? '#1f8a4c' : 'var(--gold-dark)', fontWeight: 650 }}>{svcMsg}</span>}
                         </p>
                     </>
@@ -227,7 +255,7 @@ const MySchedule = () => {
 
             {/* ── My prices ────────────────────────────────────────── */}
             {Array.isArray(services) && services.length > 0 && (() => {
-                const mine = mySvc.length ? services.filter(s => mySvc.includes(String(s._id))) : services;
+                const mine = offersAll ? services : services.filter(s => mySvc.includes(String(s._id)));
                 return (
                     <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.15rem 1.25rem', marginTop: '2rem' }} data-testid="my-prices">
                         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.15rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>

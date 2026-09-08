@@ -358,6 +358,59 @@ describe('GET /api/providers/:id/staff (public)', () => {
     });
 });
 
+describe('offersAllServices — a member’s services are their own and optional', () => {
+    it('new members default to offering all services', async () => {
+        const owner = await makeProvider();
+        const res = await request(app).post('/api/team').set(authHeader(owner)).send({ name: 'New Hire' });
+        expect(res.status).toBe(201);
+        expect(res.body.data.offersAllServices).toBe(true);
+    });
+
+    it('the public picker respects the flag: only-selected, offers-all, and offers-none', async () => {
+        const owner = await makeProvider();
+        const cut = await makeService(owner._id, { name: 'Cut' });
+        const wash = await makeService(owner._id, { name: 'Car wash' });
+
+        await makeMember(owner, { name: 'Vido', offersAllServices: true });                     // barber: everything
+        await makeMember(owner, { name: 'Lazarus', offersAllServices: false, services: [wash._id] }); // only car wash
+        await makeMember(owner, { name: 'Desk', offersAllServices: false, services: [] });        // nothing bookable
+
+        const staffOnly = (res) => res.body.data.filter((s) => !s.isOwner);
+
+        // A one-stop platform: the car washer must NOT show up for haircuts.
+        const forCut = await request(app).get(`/api/providers/${owner._id}/staff?serviceId=${cut._id}`);
+        expect(staffOnly(forCut).map((s) => s.name).sort()).toEqual(['Vido']);
+
+        const forWash = await request(app).get(`/api/providers/${owner._id}/staff?serviceId=${wash._id}`);
+        expect(staffOnly(forWash).map((s) => s.name).sort()).toEqual(['Lazarus', 'Vido']);
+
+        // "Desk" (offers nothing) never appears for any service.
+        expect(staffOnly(forCut).find((s) => s.name === 'Desk')).toBeUndefined();
+        expect(staffOnly(forWash).find((s) => s.name === 'Desk')).toBeUndefined();
+    });
+
+    it('PUT /api/team/:id/services persists the flag and validates its type', async () => {
+        const owner = await makeProvider();
+        const wash = await makeService(owner._id, { name: 'Car wash' });
+        const member = await makeMember(owner, { offersAllServices: true });
+
+        const ok = await request(app)
+            .put(`/api/team/${member._id}/services`)
+            .set(authHeader(owner))
+            .send({ services: [wash._id.toString()], offersAllServices: false });
+        expect(ok.status).toBe(200);
+        expect(ok.body.data.offersAllServices).toBe(false);
+        expect(ok.body.data.services.map(String)).toEqual([wash._id.toString()]);
+        expect((await TeamMember.findById(member._id)).offersAllServices).toBe(false);
+
+        const bad = await request(app)
+            .put(`/api/team/${member._id}/services`)
+            .set(authHeader(owner))
+            .send({ services: [], offersAllServices: 'yes' });
+        expect(bad.status).toBe(400);
+    });
+});
+
 describe('GET /api/appointments — staff sees ONLY their own column', () => {
     it('scopes a staff principal to their TeamMember; never the whole platform', async () => {
         const owner = await makeProvider();
