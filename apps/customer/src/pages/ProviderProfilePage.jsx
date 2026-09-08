@@ -10,6 +10,7 @@ import WalletTopUpModal from '../components/WalletTopUpModal';
 import { Phone, MessageCircle, Mail, MapPin, ChevronLeft, ChevronRight, X, Share2, Star, Heart, Clock, MoreHorizontal } from 'lucide-react';
 import { normalizeTown } from '../utils/namibiaTowns';
 import Seo from '../components/Seo';
+import { useToast } from '../components/Toast';
 
 // Circular translucent control that floats over the hero photo (back / share / like / ⋯).
 // The circle stays white in both themes, so the icon uses --ink (never flips)
@@ -35,6 +36,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
     const id = providerId || params.id;
     const navigate = useNavigate();
     const { user } = useAuthContext();
+    const toast = useToast();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeCategory, setActiveCategory] = useState('featured');
@@ -95,12 +97,14 @@ const ProviderProfilePage = ({ providerId } = {}) => {
     }, [id, user]);
 
     const toggleBlock = async () => {
+        // The ⋯ menu closes the instant this is clicked, so a toast is the only
+        // signal the block/unblock actually took (and that a failure didn't).
         try {
-            if (blocked) { await authService.unblockUser(id); setBlocked(false); }
+            if (blocked) { await authService.unblockUser(id); setBlocked(false); toast('Business unblocked.', 'success'); }
             else if (window.confirm('Block this business? You won’t be able to book or message each other.')) {
-                await authService.blockUser(id); setBlocked(true);
+                await authService.blockUser(id); setBlocked(true); toast('Business blocked.', 'success');
             }
-        } catch { /* ignore */ }
+        } catch (e) { toast(e.response?.data?.message || 'Could not update block status. Please try again.', 'error'); }
     };
 
     useEffect(() => {
