@@ -113,6 +113,39 @@ describe('POST /api/auth/staff-invite/:token/accept', () => {
         expect(res.status).toBe(400);
     });
 
+    it('refuses a stale invite once the member has been archived (staffOf severed)', async () => {
+        const owner = await makeProvider();
+        const { rawToken, email } = await inviteAndToken(owner);
+        // Archiving severs the business link but leaves the invite token intact.
+        await User.updateOne({ email }, { $set: { staffOf: null } });
+
+        const res = await request(app)
+            .post(`/api/auth/staff-invite/${rawToken}/accept`)
+            .send({ password: 'Str0ng!Pass' });
+        expect(res.status).toBe(400);
+
+        // The archived account was not reactivated or given a password.
+        const user = await User.findOne({ email }).select('+password');
+        expect(user.lastLoginAt).toBeFalsy();
+    });
+
+    it('refuses to reactivate an admin-suspended account', async () => {
+        const owner = await makeProvider();
+        const { rawToken, email } = await inviteAndToken(owner);
+        // Admin suspension = isActive:false with NO deactivatedAt (distinct from
+        // a self-deactivation, which login/accept are allowed to reverse).
+        await User.updateOne({ email }, { $set: { isActive: false, deactivatedAt: null } });
+
+        const res = await request(app)
+            .post(`/api/auth/staff-invite/${rawToken}/accept`)
+            .send({ password: 'Str0ng!Pass' });
+        expect(res.status).toBe(403);
+
+        const user = await User.findOne({ email });
+        expect(user.isActive).toBe(false); // still suspended
+        expect(user.lastLoginAt).toBeFalsy();
+    });
+
     it('cannot be reused once accepted', async () => {
         const owner = await makeProvider();
         const { rawToken } = await inviteAndToken(owner);

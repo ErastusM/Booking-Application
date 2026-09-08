@@ -1507,10 +1507,24 @@ exports.acceptStaffInvite = async (req, res) => {
             passwordResetToken: hashedToken,
             passwordResetExpiry: { $gt: new Date() },
             role: 'staff',
-        }).select('+password name email role providerCategory avatar phone providerSetupComplete tokenVersion');
+            // Must still be attached to a business. Archiving a member severs
+            // staffOf but leaves the invite token intact — a deliberate, terminal
+            // revocation. Without this, an archived member could accept a stale
+            // invite and reactivate a working login, defeating the archive.
+            // Mirrors getStaffInvite's `!user.staffOf` rejection.
+            staffOf: { $ne: null },
+        }).select('+password name email role providerCategory avatar phone providerSetupComplete tokenVersion isActive deactivatedAt staffOf');
 
         if (!user) {
             return res.status(400).json({ success: false, message: 'This invite link is invalid or has expired.' });
+        }
+
+        // An admin suspension (isActive:false with no deactivatedAt) is a
+        // platform-level block that accepting an invite must not silently undo —
+        // mirror login's guard. A self-deactivated account (deactivatedAt set)
+        // may still reactivate on accept, exactly as it does on login.
+        if (user.isActive === false && !user.deactivatedAt) {
+            return res.status(403).json({ success: false, message: 'Your account has been suspended. Please contact support.' });
         }
 
         user.password = password;
