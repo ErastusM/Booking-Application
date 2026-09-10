@@ -20,7 +20,10 @@ async function migrateReviewAttribution() {
     const Service = require('../src/models/Service');
 
     // Unattributed = the provider field was never set (pre-attribution rows) or is
-    // null. New rows always carry a provider, so this shrinks to nothing once run.
+    // null. Almost all rows resolve on the first run; the only rows that remain
+    // matched are ones whose provider genuinely can't be resolved (deleted
+    // appointment AND a service with no provider) — those re-scan but write
+    // nothing, so the migration stays idempotent (updated stays 0 for them).
     const cursor = Review.find({ $or: [{ provider: { $exists: false } }, { provider: null }] })
         .select('_id appointment service')
         .lean()

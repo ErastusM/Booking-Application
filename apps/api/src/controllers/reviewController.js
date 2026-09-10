@@ -1,5 +1,6 @@
 const Review = require('../models/Review');
 const Appointment = require('../models/Appointment');
+const Service = require('../models/Service');
 
 exports.createReview = async (req, res) => {
     try {
@@ -30,6 +31,15 @@ exports.createReview = async (req, res) => {
             return res.status(400).json({ success: false, message: 'You have already reviewed this appointment' });
         }
 
+        // The business the review belongs to. Appointments normally carry a
+        // provider; fall back to the service's provider for the rare booking that
+        // doesn't, so the review can't end up invisible to every per-professional
+        // aggregate (mirrors the backfill migration's fallback).
+        let reviewProvider = appointment.provider || null;
+        if (!reviewProvider && appointment.service) {
+            const svc = await Service.findById(appointment.service).select('provider').lean();
+            reviewProvider = svc?.provider || null;
+        }
         const review = await Review.create({
             customer: req.user._id,
             service: appointment.service,
@@ -41,7 +51,7 @@ exports.createReview = async (req, res) => {
             // it belongs to, so per-professional ratings are accurate and survive a
             // later reassignment of the appointment.
             teamMember: appointment.teamMember || null,
-            provider: appointment.provider || null,
+            provider: reviewProvider,
         });
 
         await review.populate('customer', 'name');
