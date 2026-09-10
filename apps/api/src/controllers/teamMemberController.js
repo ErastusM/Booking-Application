@@ -10,6 +10,14 @@ const { memberBusyIntervals, memberInvolvedFilter } = require('../utils/staffBoo
 const dayKeyOf = (d) => new Date(d).toISOString().slice(0, 10);
 const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
 
+// The business a roster-management request acts on: the owner's own id, or a
+// team:manage (High tier) staff member's employer (staffOf). Used ONLY by the
+// handlers wired to team:manage below; the owner-only crown-jewel routes
+// (setTeamMemberPermissions, inviteTeamMember) and the still-owner-managed
+// routes keep req.user._id, since their authorize() gate guarantees the owner.
+// null = a detached staff account, which the wired handlers 403.
+const businessScope = (req) => (req.user.role === 'staff' ? req.user.staffOf || null : req.user._id);
+
 // The owner's own work is stored UNASSIGNED (teamMember null) — there is no
 // roster row for the boss. These mirror memberInvolvedFilter/memberBusyIntervals
 // for that null case so the owner can be a handover target like anyone else.
@@ -39,14 +47,16 @@ const ownerBusyIntervals = (appt) => {
  */
 exports.handoverUpcomingBookings = async (req, res) => {
     try {
-        const from = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const from = await TeamMember.findOne({ _id: req.params.id, provider: providerId });
         if (!from) return res.status(404).json({ success: false, message: 'Team member not found' });
         // 'owner' hands the book to the boss — their work is stored unassigned
         // (teamMember null), so there is no roster row to look up.
         const toOwner = req.body.to === 'owner';
         let to = null;
         if (!toOwner) {
-            to = await TeamMember.findOne({ _id: req.body.to, provider: req.user._id, isActive: true });
+            to = await TeamMember.findOne({ _id: req.body.to, provider: providerId, isActive: true });
             if (!to) return res.status(400).json({ success: false, message: 'Choose an active team member to hand the bookings to' });
             if (String(from._id) === String(to._id)) {
                 return res.status(400).json({ success: false, message: 'Pick a different member to hand over to' });
@@ -57,7 +67,7 @@ exports.handoverUpcomingBookings = async (req, res) => {
         const targetBusy = (a) => (toOwner ? ownerBusyIntervals(a) : memberBusyIntervals(a, to._id));
 
         const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-        const scope = { provider: req.user._id, status: { $in: ['pending', 'confirmed'] }, appointmentDate: { $gte: dayStart } };
+        const scope = { provider: providerId, status: { $in: ['pending', 'confirmed'] }, appointmentDate: { $gte: dayStart } };
         const [sources, targetsExisting] = await Promise.all([
             Appointment.find({ ...scope, ...memberInvolvedFilter(from._id) }).sort({ appointmentDate: 1, startTime: 1 }),
             Appointment.find({ ...scope, ...targetInvolved }).select('appointmentDate startTime endTime teamMember services').lean(),
@@ -107,7 +117,9 @@ exports.getMyTeam = async (req, res) => {
         // show each member's calendar access without a request per member.
         // Callers that only test `member.user` for truthiness ("has a login")
         // are unaffected — a populated document is just as truthy as an id.
-        const members = await TeamMember.find({ provider: req.user._id })
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const members = await TeamMember.find({ provider: providerId })
             .populate('user', 'staffPermissions staffTier lastLoginAt')
             .sort({ isPrimary: -1, createdAt: 1 }); // the primary member leads the roster
         res.status(200).json({ success: true, data: members });
@@ -118,12 +130,14 @@ exports.getMyTeam = async (req, res) => {
 
 exports.addTeamMember = async (req, res) => {
     try {
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const { name, role, email, phone, color } = req.body;
         if (!name || !name.trim()) {
             return res.status(400).json({ success: false, message: 'Name is required' });
         }
         const member = await TeamMember.create({
-            provider: req.user._id,
+            provider: providerId,
             name: name.trim(),
             role: (role || 'Staff').trim(),
             email: (email || '').trim().toLowerCase(),
@@ -157,20 +171,30 @@ exports.updateTeamMember = async (req, res) => {
             // isn't fully processed just to be truncated to 12.
             : (Array.isArray(languages) ? languages : []).slice(0, 100)
                 .map((l) => String(l).trim()).filter(Boolean).slice(0, 12);
+        // The business (staffOf for a team:manage staff member); the scope filter
+        // below is also the cross-tenant guard.
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         // Read the prior state so a change to `isActive` can be mirrored onto the
         // linked login below (findOneAndUpdate only returns the new value).
-        const existing = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        const existing = await TeamMember.findOne({ _id: req.params.id, provider: providerId });
         if (!existing) return res.status(404).json({ success: false, message: 'Team member not found' });
 
+        // employment + notes are OWNER-ONLY HR. Writing them here was safe only
+        // because this route used to be owner-gated; now a team:manage staff
+        // member reaches it, and must NOT read or write a colleague's HR record.
+        // Strip them for a staff actor (undefined → Mongoose leaves them untouched).
+        const isStaffActor = req.user.role === 'staff';
         const member = await TeamMember.findOneAndUpdate(
-            { _id: req.params.id, provider: req.user._id },
+            { _id: req.params.id, provider: providerId },
             // Undefined keys are dropped by Mongoose, so a partial body only
             // touches the fields it actually sends. bio/pronouns/languages are
-            // customer-facing; employment/notes are owner-only HR — both are safe
-            // to write here because this route is owner-gated (provider: req.user._id).
+            // customer-facing and stay writable by a manager.
             {
                 name, role, email, phone, color, isActive, bookable, photoUrl, country, address, emergencyContact,
-                bio, pronouns, languages: cleanLanguages, employment, notes,
+                bio, pronouns, languages: cleanLanguages,
+                employment: isStaffActor ? undefined : employment,
+                notes: isStaffActor ? undefined : notes,
             },
             { new: true, runValidators: true }
         );
@@ -214,8 +238,10 @@ exports.updateTeamMember = async (req, res) => {
  */
 exports.deleteTeamMember = async (req, res) => {
     try {
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const member = await TeamMember.findOneAndUpdate(
-            { _id: req.params.id, provider: req.user._id },
+            { _id: req.params.id, provider: providerId },
             { $set: { isActive: false, archivedAt: new Date() } },
             { new: true },
         );
@@ -276,7 +302,9 @@ exports.removeTeamMember = async (req, res) => {
         if (!require('mongoose').isValidObjectId(req.params.id)) {
             return res.status(404).json({ success: false, message: 'Team member not found' });
         }
-        const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const member = await TeamMember.findOne({ _id: req.params.id, provider: providerId });
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
 
         const Shift = require('../models/Shift');
@@ -722,8 +750,10 @@ exports.setTeamMemberPermissions = async (req, res) => {
  */
 exports.restoreTeamMember = async (req, res) => {
     try {
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const member = await TeamMember.findOneAndUpdate(
-            { _id: req.params.id, provider: req.user._id },
+            { _id: req.params.id, provider: providerId },
             { $set: { isActive: true, archivedAt: null } },
             { new: true },
         );
@@ -886,13 +916,15 @@ exports.inviteTeamMember = async (req, res) => {
  */
 exports.setTeamMemberPrimary = async (req, res) => {
     try {
-        const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const member = await TeamMember.findOne({ _id: req.params.id, provider: providerId });
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
         const makePrimary = req.body.isPrimary !== false;
         if (makePrimary) {
             // Clear any other primary first, so the flag stays single-valued.
             await TeamMember.updateMany(
-                { provider: req.user._id, _id: { $ne: member._id }, isPrimary: true },
+                { provider: providerId, _id: { $ne: member._id }, isPrimary: true },
                 { $set: { isPrimary: false } },
             );
         }
@@ -943,9 +975,13 @@ const buildServiceOverrides = async (overrides, providerId) => {
  */
 exports.setTeamMemberPricing = async (req, res) => {
     try {
-        const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const member = await TeamMember.findOne({ _id: req.params.id, provider: providerId });
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
-        const { rows, error } = await buildServiceOverrides(req.body.serviceOverrides, req.user._id);
+        // buildServiceOverrides validates every service belongs to the business —
+        // pass the employer id so a manager can't reference another business's services.
+        const { rows, error } = await buildServiceOverrides(req.body.serviceOverrides, providerId);
         if (error) return res.status(400).json({ success: false, message: error });
         member.serviceOverrides = rows;
         await member.save();
@@ -972,11 +1008,14 @@ exports.setTeamMemberServices = async (req, res) => {
         if (offersAllServices !== undefined && typeof offersAllServices !== 'boolean') {
             return res.status(400).json({ success: false, message: 'offersAllServices must be a boolean' });
         }
-        const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const member = await TeamMember.findOne({ _id: req.params.id, provider: providerId });
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
 
         if (services.length) {
-            const owned = await Service.countDocuments({ _id: { $in: services }, provider: req.user._id });
+            // Every assigned service must belong to the caller's business.
+            const owned = await Service.countDocuments({ _id: { $in: services }, provider: providerId });
             if (owned !== new Set(services.map(String)).size) {
                 return res.status(400).json({ success: false, message: 'All services must belong to your business' });
             }
