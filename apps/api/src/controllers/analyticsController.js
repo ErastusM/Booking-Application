@@ -156,7 +156,10 @@ exports.getAnalytics = async (req, res) => {
  */
 exports.getProviderAnalytics = async (req, res) => {
     try {
-        const providerId = req.user._id;
+        // reports:view: operational analytics for the caller's business (staffOf
+        // for a High staff member). Every scoped read below uses this id.
+        const providerId = req.user.role === 'staff' ? req.user.staffOf : req.user._id;
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const now = new Date();
         const parseDate = (val, fallback) => {
             if (!val) return fallback;
