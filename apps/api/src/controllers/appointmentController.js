@@ -2079,7 +2079,7 @@ exports.updateAppointmentStatus = async (req, res) => {
 
 exports.providerRescheduleAppointment = async (req, res) => {
     try {
-        const { appointmentDate, startTime, endTime: requestedEndTime } = req.body;
+        const { appointmentDate, startTime, endTime: requestedEndTime, teamMember: requestedTeamMember } = req.body;
         if (!appointmentDate || !startTime) {
             return res.status(400).json({ success: false, message: 'appointmentDate and startTime are required' });
         }
@@ -2134,6 +2134,39 @@ exports.providerRescheduleAppointment = async (req, res) => {
         const schedule = await getProviderSchedule(providerId);
         if (!isTimeWithinSchedule(schedule, appointmentDate, startTime, duration)) {
             return res.status(400).json({ success: false, message: 'Selected time is outside your availability schedule' });
+        }
+
+        // Optional REASSIGNMENT — dragging a booking into another staff lane changes
+        // WHO performs it, not just when. Validate the new performer exactly as a
+        // booking does (owns the business, active, performs the service, free at the
+        // new time) via resolveBookingStaff, then reassign IN MEMORY before the
+        // conflict + race checks below so they scope to the destination member (via
+        // conflictScope(appointment)) automatically. Owner-only, single-service only:
+        // reassigning multi-service segments is ambiguous and out of scope here.
+        if (requestedTeamMember !== undefined) {
+            const targetMemberId = (requestedTeamMember === '' || requestedTeamMember === 'unassigned' || requestedTeamMember == null)
+                ? null : String(requestedTeamMember);
+            if (String(targetMemberId || '') !== String(appointment.teamMember || '')) {
+                if (!isOwner) {
+                    return res.status(403).json({ success: false, message: 'Only the owner can reassign a booking to another team member.' });
+                }
+                if (Array.isArray(appointment.services) && appointment.services.length) {
+                    return res.status(400).json({ success: false, message: 'Reassign a multi-service booking one service at a time.' });
+                }
+                if (targetMemberId) {
+                    const resolution = await resolveBookingStaff({
+                        svc: appointment.service, providerId, appointmentDate, startTime, endTime,
+                        requestedTeamMember: targetMemberId,
+                        requester: req.user,
+                    });
+                    if (resolution.error) {
+                        return res.status(resolution.status).json({ success: false, message: resolution.error });
+                    }
+                    appointment.teamMember = resolution.teamMember;
+                } else {
+                    appointment.teamMember = null; // the owner's own (unassigned) column
+                }
+            }
         }
 
         const conflict = await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appointment._id, conflictScope(appointment));
