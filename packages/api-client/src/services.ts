@@ -225,6 +225,9 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
     teamService: {
         getMyTeam: () => API.get('/team'),
         addMember: (data: any) => API.post('/team', data),
+        // Add several members at once. Returns { created, failed, results[] } —
+        // each row validated independently, a bad row doesn't fail the batch.
+        bulkAddMembers: (members: any[]) => API.post('/team/bulk', { members }),
         updateMember: (id: string, data: any) => API.put(`/team/${id}`, data),
         // Archives rather than deletes — bookings and earnings reference the member.
         deleteMember: (id: string) => API.delete(`/team/${id}`),

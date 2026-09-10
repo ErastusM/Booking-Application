@@ -116,27 +116,75 @@ exports.getMyTeam = async (req, res) => {
     }
 };
 
+// The create doc for one roster row, with the same normalization + defaults for
+// the single-add and bulk-add paths. `name` may come back empty — the caller
+// treats an empty name as the one hard validation error (as addTeamMember always
+// has). Start with NO services (offersAllServices:false + empty list): a new
+// member offers nothing until their own are set up, so adding "the cleaner"
+// never silently makes them bookable for the barber's whole menu.
+const memberCreateDoc = (providerId, { name, role, email, phone, color } = {}) => ({
+    provider: providerId,
+    name: String(name || '').trim(),
+    role: String(role || 'Staff').trim() || 'Staff',
+    email: String(email || '').trim().toLowerCase(),
+    phone: String(phone || '').trim(),
+    color: color || '#f03e16',
+    offersAllServices: false,
+});
+
 exports.addTeamMember = async (req, res) => {
     try {
-        const { name, role, email, phone, color } = req.body;
-        if (!name || !name.trim()) {
+        const doc = memberCreateDoc(req.user._id, req.body);
+        if (!doc.name) {
             return res.status(400).json({ success: false, message: 'Name is required' });
         }
-        const member = await TeamMember.create({
-            provider: req.user._id,
-            name: name.trim(),
-            role: (role || 'Staff').trim(),
-            email: (email || '').trim().toLowerCase(),
-            phone: (phone || '').trim(),
-            color: color || '#f03e16',
-            // Start with NO services — a new member offers nothing until their own
-            // are set up (offersAllServices:false + empty list). This keeps a mixed
-            // business honest: adding "the cleaner" must not silently make them
-            // bookable for the barber's whole menu. The owner (or the member) picks
-            // their services, or flips "offers all" on, from the member's card.
-            offersAllServices: false,
-        });
+        const member = await TeamMember.create(doc);
         res.status(201).json({ success: true, data: member });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * POST /api/team/bulk  (provider/admin)  Body: { members: [{name, role, email, phone, color}] }
+ *
+ * Add several roster rows in one go — the "set up the whole team at once"
+ * operation. Each row is validated and created independently: a bad row (empty
+ * name, or a create error) is reported in `results` rather than failing the
+ * whole batch, so one typo doesn't discard the other nine. Invite (which mints a
+ * privileged login) is deliberately NOT part of this — it stays a per-member,
+ * owner-only action; bulk only creates the roster entries.
+ */
+exports.bulkAddTeamMembers = async (req, res) => {
+    try {
+        const rows = Array.isArray(req.body.members) ? req.body.members : null;
+        if (!rows || rows.length === 0) {
+            return res.status(400).json({ success: false, message: 'Provide a non-empty members array.' });
+        }
+        if (rows.length > 50) {
+            return res.status(400).json({ success: false, message: 'Add at most 50 members at once.' });
+        }
+        const results = [];
+        let created = 0;
+        for (const raw of rows) {
+            const doc = memberCreateDoc(req.user._id, raw);
+            if (!doc.name) {
+                results.push({ ok: false, name: String(raw?.name || '').trim(), error: 'Name is required' });
+                continue;
+            }
+            try {
+                const member = await TeamMember.create(doc);
+                created += 1;
+                results.push({ ok: true, id: member._id, name: member.name });
+            } catch (e) {
+                results.push({ ok: false, name: doc.name, error: 'Could not add this member' });
+            }
+        }
+        // 201 if anything was created; 400 only when every row failed (all invalid).
+        res.status(created > 0 ? 201 : 400).json({
+            success: created > 0,
+            data: { created, failed: rows.length - created, results },
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

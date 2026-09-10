@@ -1228,6 +1228,11 @@ const Team = () => {
     const [newEmail, setNewEmail] = useState('');
     const [error, setError] = useState('');
     const [adding, setAdding] = useState(false);
+    // Bulk add — one member per line, "Name, Job title, email" (title/email optional).
+    const [bulkOpen, setBulkOpen] = useState(false);
+    const [bulkText, setBulkText] = useState('');
+    const [bulkBusy, setBulkBusy] = useState(false);
+    const [bulkResult, setBulkResult] = useState(null); // { created, failed, results }
 
     const load = () => {
         // Saving a member reloads the roster, which is now server-sorted
@@ -1270,6 +1275,34 @@ const Team = () => {
         }
     };
 
+    // Parse the textarea into member rows: one per non-empty line, fields split
+    // on commas — "Name, Job title, email". Only the name is required per row.
+    const parseBulk = (text) => text.split('\n').map((line) => {
+        const [name = '', role = '', email = ''] = line.split(',').map((s) => s.trim());
+        return { name, role, email };
+    }).filter((r) => r.name || r.role || r.email);
+
+    const addBulk = async () => {
+        if (bulkBusy) return;
+        const members = parseBulk(bulkText).filter((r) => r.name); // drop lines with no name
+        if (members.length === 0) { setBulkResult({ created: 0, failed: 0, results: [], note: 'Add at least one name.' }); return; }
+        setBulkBusy(true); setBulkResult(null);
+        try {
+            const res = await teamService.bulkAddMembers(members);
+            const data = res.data.data;
+            setBulkResult(data);
+            if (data.created > 0) {
+                toast(`Added ${data.created} member${data.created > 1 ? 's' : ''}${data.failed ? `, ${data.failed} skipped` : ''}.`, 'success');
+                setBulkText('');
+                await load();
+            }
+        } catch (err) {
+            setBulkResult({ created: 0, failed: 0, results: [], note: err.response?.data?.message || 'Could not add those members.' });
+        } finally {
+            setBulkBusy(false);
+        }
+    };
+
     return (
         <div className="container" style={{ paddingTop: 'calc(56px + 2rem)', paddingBottom: '4rem', maxWidth: '760px' }}>
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.35rem' }}>Team</h1>
@@ -1286,6 +1319,43 @@ const Team = () => {
                 </button>
             </form>
             {error && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: '0 0 1rem' }}>{error}</p>}
+
+            {/* ── Add several at once ──────────────────────────────── */}
+            <div style={{ marginBottom: '1.75rem' }}>
+                <button type="button" onClick={() => setBulkOpen(o => !o)} data-testid="bulk-toggle"
+                    style={{ border: 'none', background: 'transparent', color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.84rem', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <UserPlus size={14} /> {bulkOpen ? 'Hide bulk add' : 'Add several at once'}
+                </button>
+                {bulkOpen && (
+                    <div style={{ marginTop: '0.7rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem 1.1rem' }} data-testid="bulk-add">
+                        <p style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                            One person per line — <strong>Name, Job title, email</strong> (job title and email optional). Up to 50.
+                        </p>
+                        <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={5} className="input" data-testid="bulk-text"
+                            placeholder={'Alice Johnson, Barber, alice@shop.com\nBob Smith, Stylist\nCarol Ndapewa'}
+                            style={{ width: '100%', fontFamily: 'var(--font-body)', resize: 'vertical', padding: '0.6rem 0.7rem' }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.6rem' }}>
+                            <button type="button" className="btn-primary" onClick={addBulk} disabled={bulkBusy || !bulkText.trim()} data-testid="bulk-submit" style={{ padding: '0.5rem 1.3rem' }}>
+                                {bulkBusy ? 'Adding…' : 'Add all'}
+                            </button>
+                            {bulkResult && (
+                                <span style={{ fontSize: '0.82rem', fontWeight: 650, color: bulkResult.created > 0 ? '#1f8a4c' : 'var(--gold-dark)' }} data-testid="bulk-result">
+                                    {bulkResult.note
+                                        ? bulkResult.note
+                                        : `Added ${bulkResult.created}${bulkResult.failed ? ` · ${bulkResult.failed} skipped` : ''}`}
+                                </span>
+                            )}
+                        </div>
+                        {bulkResult && bulkResult.failed > 0 && Array.isArray(bulkResult.results) && (
+                            <ul style={{ margin: '0.6rem 0 0', padding: '0 0 0 1.1rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                {bulkResult.results.filter(r => !r.ok).map((r, i) => (
+                                    <li key={i}>{r.name || '(no name)'} — {r.error}</li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                )}
+            </div>
 
             {loading ? (
                 <p style={{ color: 'var(--text-muted)' }}>Loading team…</p>
