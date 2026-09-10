@@ -18,10 +18,14 @@ const shape = (e) => ({
 });
 
 // Parse an optional YYYY-MM-DD window into a clockIn filter. Absent → last 30 days.
+// The regex checks FORMAT only, so a well-formed-but-invalid date ('2020-13-99')
+// parses to an Invalid Date — reject those (isValid) so a bad param falls back to
+// the default window instead of casting an Invalid Date into the query (a 500).
+const isValidDay = (s) => /^\d{4}-\d{2}-\d{2}$/.test(s || '') && !Number.isNaN(new Date(`${s}T00:00:00.000Z`).getTime());
 const windowFilter = (from, to) => {
     const filter = {};
-    if (/^\d{4}-\d{2}-\d{2}$/.test(from || '')) filter.$gte = new Date(`${from}T00:00:00.000Z`);
-    if (/^\d{4}-\d{2}-\d{2}$/.test(to || '')) filter.$lte = new Date(`${to}T23:59:59.999Z`);
+    if (isValidDay(from)) filter.$gte = new Date(`${from}T00:00:00.000Z`);
+    if (isValidDay(to)) filter.$lte = new Date(`${to}T23:59:59.999Z`);
     if (!filter.$gte) { const d = new Date(); d.setUTCDate(d.getUTCDate() - 30); filter.$gte = d; }
     return { clockIn: filter };
 };
