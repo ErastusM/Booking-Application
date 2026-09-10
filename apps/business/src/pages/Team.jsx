@@ -70,15 +70,30 @@ const Section = ({ icon: Icon, title, hint, children }) => (
 
 // A metric with no answer prints an em dash, never a zero: "we cannot say" and
 // "they did none" are different facts and must not look the same.
-const Stat = ({ label, value, suffix, note }) => (
-    <div style={{ padding: '0.75rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--card-bg)' }}>
-        <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{label}</div>
-        <div className="tnum" style={{ fontFamily: 'var(--font-display)', fontSize: '1.35rem', fontWeight: 700, color: 'var(--charcoal)', lineHeight: 1.2 }}>
-            {value === null || value === undefined ? '—' : value}{value === null || value === undefined ? '' : (suffix || '')}
+// `delta` (a signed number) renders a small period-over-period chip: ▲ green for
+// up, ▼ red for down, neutral for no change. `deltaText` is the formatted amount
+// (e.g. "N$250" or "3"); `higherIsBad` flips the colours (for no-shows, up = bad).
+const Stat = ({ label, value, suffix, note, delta, deltaText, higherIsBad }) => {
+    const showDelta = delta !== null && delta !== undefined;
+    const up = delta > 0;
+    const good = showDelta && delta !== 0 && (higherIsBad ? !up : up);
+    const bad = showDelta && delta !== 0 && (higherIsBad ? up : !up);
+    const color = good ? '#1f8a4c' : bad ? 'var(--gold-dark)' : 'var(--text-muted)';
+    return (
+        <div style={{ padding: '0.75rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--card-bg)' }}>
+            <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{label}</div>
+            <div className="tnum" style={{ fontFamily: 'var(--font-display)', fontSize: '1.35rem', fontWeight: 700, color: 'var(--charcoal)', lineHeight: 1.2 }}>
+                {value === null || value === undefined ? '—' : value}{value === null || value === undefined ? '' : (suffix || '')}
+            </div>
+            {showDelta && (
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color, marginTop: '0.12rem' }}>
+                    {delta === 0 ? '→ no change' : `${up ? '▲' : '▼'} ${deltaText ?? Math.abs(delta)} vs prev`}
+                </div>
+            )}
+            {note && <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>{note}</div>}
         </div>
-        {note && <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>{note}</div>}
-    </div>
-);
+    );
+};
 
 const Field = ({ label, ...rest }) => (
     <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
@@ -616,11 +631,15 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                             {stats && (
                                 <>
                                     <div style={{ display: 'grid', gap: '0.6rem', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
-                                        <Stat label="Appointments" value={stats.appointments} note={`last ${stats.windowDays} days`} />
-                                        <Stat label="Revenue" value={stats.revenue != null ? `N$${stats.revenue.toLocaleString()}` : null} note="completed only" />
+                                        <Stat label="Appointments" value={stats.appointments} note={`last ${stats.windowDays} days`}
+                                            delta={stats.trend?.appointmentsDelta} deltaText={Math.abs(stats.trend?.appointmentsDelta ?? 0)} />
+                                        <Stat label="Revenue" value={stats.revenue != null ? `N$${stats.revenue.toLocaleString()}` : null} note="completed only"
+                                            delta={stats.trend?.revenueDelta} deltaText={`N$${Math.abs(stats.trend?.revenueDelta ?? 0).toLocaleString()}`} />
                                         <Stat label="Clients" value={stats.clients} note="registered accounts" />
                                         <Stat label="Occupancy" value={stats.occupancy} suffix="%" note="booked ÷ scheduled" />
                                         <Stat label="Retention" value={stats.retention} suffix="%" note="booked more than once" />
+                                        <Stat label="No-shows" value={stats.noShows} note={stats.noShowRate != null ? `${stats.noShowRate}% of attended` : 'no attended bookings'} delta={undefined} higherIsBad />
+                                        <Stat label="Cancellations" value={stats.cancellations} note={`last ${stats.windowDays} days`} higherIsBad />
                                         <Stat label="Rating" value={stats.rating} note={stats.reviews ? `${stats.reviews} review${stats.reviews > 1 ? 's' : ''}` : 'no reviews yet'} />
                                         <Stat label="Upcoming" value={stats.upcoming} note="still to come" />
                                     </div>
