@@ -1,0 +1,151 @@
+/* Bookplus → Ionic variable bridge (Phase 0/1 deliverable).
+ *
+ * Purpose: make Ionic (`ion-*`) components render in the Bookplus brand by
+ * mapping the design tokens in `tokens.css` onto Ionic's `--ion-*` contract.
+ * `tokens.css` stays the single source of truth — this file only re-expresses
+ * those tokens in the shape Ionic expects.
+ *
+ * NOT a 1:1 alias. Three things Ionic forces that a naive alias gets wrong:
+ *   1. Ionic needs RGB *triplets* (`--ion-color-*-rgb`) for opacity math;
+ *      a hex `var()` can't be aliased into an `-rgb` slot, so the triplet is
+ *      the one unavoidable duplication (kept next to its hex, documented).
+ *   2. Bookplus's PRIMARY call-to-action is BLACK (`--ink #040505`), not orange.
+ *      Orange `#f03e16` is an accent, and white-on-orange fails WCAG AA — so
+ *      `--ion-color-primary-contrast` is BLACK, and the real CTA maps to
+ *      `--ion-color-dark`. Use `color="dark"` for the primary button,
+ *      `color="primary"` for orange accents.
+ *   3. Ionic's default component/background colors must be overridden or the
+ *      brand's white-cards-on-gray surface model is lost.
+ *
+ * USAGE (Phase 1): import once, AFTER tokens.css and Ionic's CSS, e.g. in
+ * each app's main.jsx:
+ *     import '@ionic/react/css/core.css';
+ *     import '@bookplus/design-tokens/tokens.css';
+ *     import '@bookplus/design-tokens/ionic-bridge.css';
+ * Dark mode keys off `body.dark-mode` (the class ThemeContext already toggles),
+ * so no JS change is needed to demo. In Phase 3, also toggle `.ion-palette-dark`
+ * from ThemeContext if you adopt Ionic's own dark palette utilities.
+ *
+ * Shade/tint are Ionic's hover/active states (≈ ±12% / +10% mix). `--ink`'s tint
+ * reuses the brand's `--charcoal-light`. Neutral step colors (`--ion-color-step-*`)
+ * are left to Ionic's derivation from background/text; add explicit steps only if
+ * neutral surfaces read off after the spike.
+ */
+
+:root {
+  /* ---- Font ---- */
+  --ion-font-family: var(--font-body);
+
+  /* ---- Page background + text ---- */
+  --ion-background-color: var(--off-white);          /* #e6e8e7 */
+  --ion-background-color-rgb: 230, 232, 231;
+  --ion-text-color: var(--text-primary);             /* #040505 */
+  --ion-text-color-rgb: 4, 5, 5;
+  --ion-border-color: var(--border);                 /* #d3d5d4 */
+
+  /* ---- Component surfaces: preserve white-cards-on-gray ---- */
+  --ion-item-background: var(--card-bg);             /* #ffffff */
+  --ion-card-background: var(--card-bg);
+  --ion-toolbar-background: var(--card-bg);
+  --ion-tab-bar-background: var(--card-bg);
+
+  /* ---- primary = ORANGE ACCENT (fills, focus, selected) ---- */
+  --ion-color-primary: var(--gold);                  /* #f03e16 */
+  --ion-color-primary-rgb: 240, 62, 22;
+  --ion-color-primary-contrast: #040505;             /* black — white fails AA */
+  --ion-color-primary-contrast-rgb: 4, 5, 5;
+  --ion-color-primary-shade: #d33713;
+  --ion-color-primary-tint: #f2512d;
+
+  /* ---- dark = THE REAL PRIMARY CTA (black button) ---- */
+  --ion-color-dark: var(--ink);                      /* #040505 */
+  --ion-color-dark-rgb: 4, 5, 5;
+  --ion-color-dark-contrast: var(--on-ink);          /* #e6e8e7 */
+  --ion-color-dark-contrast-rgb: 230, 232, 231;
+  --ion-color-dark-shade: #030404;
+  --ion-color-dark-tint: var(--charcoal-light);      /* #1c1c1e */
+
+  /* ---- secondary/tertiary: deeper-orange accents (not core brand) ---- */
+  --ion-color-secondary: var(--gold-dark);           /* #b32c0d */
+  --ion-color-secondary-rgb: 179, 44, 13;
+  --ion-color-secondary-contrast: #e6e8e7;
+  --ion-color-secondary-contrast-rgb: 230, 232, 231;
+  --ion-color-secondary-shade: #9d270b;
+  --ion-color-secondary-tint: #ba4124;
+
+  --ion-color-tertiary: var(--gold-light);           /* #ff6a45 */
+  --ion-color-tertiary-rgb: 255, 106, 69;
+  --ion-color-tertiary-contrast: #040505;
+  --ion-color-tertiary-contrast-rgb: 4, 5, 5;
+  --ion-color-tertiary-shade: #e05d3d;
+  --ion-color-tertiary-tint: #ff7958;
+
+  /* ---- neutral roles ---- */
+  --ion-color-medium: var(--text-secondary);         /* #606663 */
+  --ion-color-medium-rgb: 96, 102, 99;
+  --ion-color-medium-contrast: #ffffff;
+  --ion-color-medium-contrast-rgb: 255, 255, 255;
+  --ion-color-medium-shade: #545a57;
+  --ion-color-medium-tint: #707573;
+
+  --ion-color-light: var(--surface-sunken);          /* #dcdedd */
+  --ion-color-light-rgb: 220, 222, 221;
+  --ion-color-light-contrast: #040505;
+  --ion-color-light-contrast-rgb: 4, 5, 5;
+  --ion-color-light-shade: #c2c3c2;
+  --ion-color-light-tint: #e0e1e0;
+
+  /* ---- semantic status (functional, not brand) ---- */
+  --ion-color-success: var(--success);               /* #10b981 */
+  --ion-color-success-rgb: 16, 185, 129;
+  --ion-color-success-contrast: #ffffff;
+  --ion-color-success-contrast-rgb: 255, 255, 255;
+  --ion-color-success-shade: #0ea373;
+  --ion-color-success-tint: #28c08f;
+
+  --ion-color-warning: var(--warning);               /* #f59e0b */
+  --ion-color-warning-rgb: 245, 158, 11;
+  --ion-color-warning-contrast: #040505;
+  --ion-color-warning-contrast-rgb: 4, 5, 5;
+  --ion-color-warning-shade: #d88b0a;
+  --ion-color-warning-tint: #f6a824;
+
+  --ion-color-danger: var(--danger);                 /* #ef4444 */
+  --ion-color-danger-rgb: 239, 68, 68;
+  --ion-color-danger-contrast: #ffffff;
+  --ion-color-danger-contrast-rgb: 255, 255, 255;
+  --ion-color-danger-shade: #d23c3c;
+  --ion-color-danger-tint: #f15757;
+}
+
+/* IonTitle / IonCardTitle use the display face; everything else uses body. */
+ion-title,
+ion-card-title {
+  font-family: var(--font-display);
+}
+
+/* ---- Dark mode: keyed off the existing body.dark-mode toggle ---- */
+body.dark-mode {
+  --ion-background-color: var(--off-white);          /* #0a0a0b (flipped) */
+  --ion-background-color-rgb: 10, 10, 11;
+  --ion-text-color: var(--text-primary);             /* #e6e8e7 (flipped) */
+  --ion-text-color-rgb: 230, 232, 231;
+  --ion-border-color: var(--border);                 /* #2a2c2b */
+
+  --ion-item-background: var(--card-bg);             /* #141416 */
+  --ion-card-background: var(--card-bg);
+  --ion-toolbar-background: var(--card-bg);
+  --ion-tab-bar-background: var(--card-bg);
+
+  /* Orange stays vivid on dark; contrast stays black. */
+  --ion-color-primary-contrast: #040505;
+  --ion-color-primary-contrast-rgb: 4, 5, 5;
+
+  /* --ink never flips (per tokens.css): the black CTA stays black with light text. */
+  --ion-color-medium: var(--text-secondary);         /* #b8bcba */
+  --ion-color-medium-rgb: 184, 188, 186;
+  --ion-color-light: var(--surface-sunken);          /* #0d0d0e */
+  --ion-color-light-rgb: 13, 13, 14;
+  --ion-color-light-contrast: #e6e8e7;
+  --ion-color-light-contrast-rgb: 230, 232, 231;
+}
