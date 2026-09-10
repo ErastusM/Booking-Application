@@ -85,7 +85,20 @@ const ymd = (d) => {
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 
 const ProviderDashboard = () => {
-    const { user, setUser } = useAuthContext();
+    const { user, setUser, hasCap } = useAuthContext();
+
+    // A Medium+ staff member is admitted to this page (App.jsx), but only for the
+    // tabs their tier can use. Owner-only tabs (earnings, team, wallet, services,
+    // insights, availability, memberships, history, overview, messages) are absent
+    // from this whitelist, so a staff member who URL-tampers to ?tab=earnings is
+    // sent back to calendar — and the underlying endpoints 403 for them regardless.
+    // Providers/admins hold every capability, so tabAllowed is always true for them.
+    const STAFF_TAB_CAPS = {
+        calendar: 'calendar:view_all', pending: 'calendar:view_all', confirmed: 'calendar:view_all',
+        completed: 'calendar:view_all', cancelled: 'calendar:view_all',
+        waitlist: 'waitlist:manage', clients: 'clients:view', forms: 'forms:manage',
+    };
+    const tabAllowed = (t) => user?.role !== 'staff' || (!!STAFF_TAB_CAPS[t] && hasCap(STAFF_TAB_CAPS[t]));
     // The business prices in its chosen currency; every money display uses this symbol.
     const curCode = user?.businessProfile?.currency || 'NAD';
     const curSym = currencySymbol(curCode);
@@ -272,10 +285,11 @@ const ProviderDashboard = () => {
         const params = new URLSearchParams(location.search);
         const tab = params.get('tab');
         const validTabs = ['calendar', 'pending', 'confirmed', 'completed', 'cancelled', 'history', 'services', 'availability', 'overview', 'waitlist', 'earnings', 'insights', 'clients', 'messages', 'memberships', 'team', 'forms', 'wallet'];
-        if (tab && validTabs.includes(tab)) {
+        if (tab && validTabs.includes(tab) && tabAllowed(tab)) {
             setActiveTab(tab);
-        } else if (!tab) {
-            // Bare /dashboard (e.g. the bottom-nav Dashboard button) → default view
+        } else if (!tab || !tabAllowed(tab)) {
+            // Bare /dashboard (e.g. the bottom-nav Dashboard button), or a staff
+            // member reaching for a tab their tier can't open → default view.
             setActiveTab('calendar');
         }
         // Raised "+" in the mobile bottom nav can't reach this component's modal

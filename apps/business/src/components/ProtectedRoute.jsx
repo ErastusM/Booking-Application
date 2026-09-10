@@ -2,8 +2,8 @@ import React from 'react';
 import { Navigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 
-const ProtectedRoute = ({ children, allowedRoles, loginPath = '/login' }) => {
-    const { user, loading } = useAuthContext();
+const ProtectedRoute = ({ children, allowedRoles, allowCapability, loginPath = '/login' }) => {
+    const { user, loading, hasAnyCap } = useAuthContext();
 
     if (loading) {
         return (
@@ -25,7 +25,13 @@ const ProtectedRoute = ({ children, allowedRoles, loginPath = '/login' }) => {
     // the generic provider login.
     if (!user) return <Navigate to={loginPath} replace />;
 
-    if (allowedRoles && !allowedRoles.includes(user.role)) {
+    // A route may admit a role OR a capability: a tiered staff member (e.g. a
+    // Medium receptionist holding calendar:view_all / clients:view) reaches an
+    // owner route their role isn't listed for. Server-side checks are the real
+    // guard; this only decides what the UI lets them open.
+    const roleOk = allowedRoles && allowedRoles.includes(user.role);
+    const capOk = allowCapability && hasAnyCap(allowCapability);
+    if (allowedRoles && !roleOk && !capOk) {
         // Redirect to their rightful home inside the business app…
         if (user.role === 'admin') return <Navigate to="/bkplus-command" replace />;
         if (user.role === 'staff') return <Navigate to="/my-schedule" replace />;
