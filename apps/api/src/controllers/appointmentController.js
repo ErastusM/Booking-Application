@@ -2042,7 +2042,16 @@ exports.providerRescheduleAppointment = async (req, res) => {
         // Null-safe: older waiting-list promotions can have provider unset, so fall
         // back to the service's provider rather than dereferencing null (which 500'd).
         const ownerId = appointment.provider?.toString() || appointment.service?.provider?.toString();
-        if (ownerId !== req.user._id.toString()) {
+        const isOwner = ownerId === req.user._id.toString();
+        // A staff member of THIS business may reschedule too: Medium+
+        // (bookings:reschedule) any booking; Low (bookings:reschedule:self) only a
+        // booking they perform. The self-scope ownership check lives here,
+        // independent of the route gate — defence in depth.
+        const staffAllowed = !isOwner && await staffCanActOnAppointment(req.user, appointment, {
+            unscoped: 'bookings:reschedule',
+            selfScoped: 'bookings:reschedule:self',
+        });
+        if (!isOwner && !staffAllowed) {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
         if (!['pending', 'confirmed'].includes(appointment.status)) {
