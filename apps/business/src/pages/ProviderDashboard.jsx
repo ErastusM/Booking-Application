@@ -99,6 +99,11 @@ const ProviderDashboard = () => {
         waitlist: 'waitlist:manage', clients: 'clients:view', forms: 'forms:manage',
     };
     const tabAllowed = (t) => user?.role !== 'staff' || (!!STAFF_TAB_CAPS[t] && hasCap(STAFF_TAB_CAPS[t]));
+    // Route ALL programmatic tab switches through the whitelist too — in-app
+    // buttons (e.g. "View in History", "Message") must not let a staff member open
+    // an owner-tab shell the ?tab= guard would have blocked. Owner tabs collapse to
+    // calendar for staff; providers/admins are unaffected (tabAllowed always true).
+    const selectTab = (t) => setActiveTab(tabAllowed(t) ? t : 'calendar');
     // The business prices in its chosen currency; every money display uses this symbol.
     const curCode = user?.businessProfile?.currency || 'NAD';
     const curSym = currencySymbol(curCode);
@@ -876,6 +881,9 @@ const ProviderDashboard = () => {
     // so the message bubbles align correctly (mine vs. the client's).
     const openChatForAppointment = (appt) => {
         if (!appt?._id) return;
+        // Staff messaging (clients:contact) isn't wired yet — 'messages' is not in
+        // the staff tab whitelist, so don't open the chat shell for a staff member.
+        if (!tabAllowed('messages')) return;
         fetchConversations();
         openConversation({ appointment: { ...appt, provider: { _id: user?._id, name: user?.name } } });
         setApptDetailModal(null);
@@ -1386,7 +1394,7 @@ const ProviderDashboard = () => {
                                     <>
                                         <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No recent {activeTab} appointments</p>
                                         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1rem' }}>All {counts[activeTab]} are older than the calendar window.</p>
-                                        <button type="button" onClick={() => setActiveTab('history')} className="btn-outline" style={{ fontSize: '0.85rem' }}>View in History →</button>
+                                        <button type="button" onClick={() => selectTab('history')} className="btn-outline" style={{ fontSize: '0.85rem' }}>View in History →</button>
                                     </>
                                 ) : (
                                     <>
@@ -1449,7 +1457,7 @@ const ProviderDashboard = () => {
                                 {summary && (counts[activeTab] || 0) > filtered.length && (
                                     <button
                                         type="button"
-                                        onClick={() => setActiveTab('history')}
+                                        onClick={() => selectTab('history')}
                                         style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: '0.85rem 1rem', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}
                                     >
                                         Showing recent {activeTab} bookings · {counts[activeTab] - filtered.length} older in <strong>History</strong> →

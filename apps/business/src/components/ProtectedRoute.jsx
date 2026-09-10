@@ -30,7 +30,10 @@ const ProtectedRoute = ({ children, allowedRoles, allowCapability, loginPath = '
     // owner route their role isn't listed for. Server-side checks are the real
     // guard; this only decides what the UI lets them open.
     const roleOk = allowedRoles && allowedRoles.includes(user.role);
-    const capOk = allowCapability && hasAnyCap(allowCapability);
+    // allowCapability adds a tiered-STAFF path only; provider/admin are handled by
+    // allowedRoles. Scoping to staff keeps admin's redirects unchanged (can()
+    // short-circuits true for admin, which would otherwise admit them here).
+    const capOk = allowCapability && user.role === 'staff' && hasAnyCap(allowCapability);
     if (allowedRoles && !roleOk && !capOk) {
         // Redirect to their rightful home inside the business app…
         if (user.role === 'admin') return <Navigate to="/bkplus-command" replace />;
