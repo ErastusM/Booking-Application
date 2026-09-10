@@ -973,6 +973,11 @@ const BookAppointment = () => {
                                                 <span style={{ minWidth: 0 }}>
                                                     <span style={{ display: 'block', fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{st.name}</span>
                                                     {st.role && <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)' }}>{st.role}</span>}
+                                                    {st.ratingCount > 0 && (
+                                                        <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.1rem' }} data-testid="booking-staff-rating">
+                                                            <span style={{ color: 'var(--gold)' }}>★</span> {st.ratingAvg} <span style={{ opacity: 0.7 }}>({st.ratingCount})</span>
+                                                        </span>
+                                                    )}
                                                 </span>
                                             </button>
                                         );

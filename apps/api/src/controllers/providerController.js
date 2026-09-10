@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const User = require('../models/User');
 const Service = require('../models/Service');
 const Review = require('../models/Review');
@@ -41,7 +42,30 @@ exports.getProviderStaff = async (req, res) => {
             // are deliberately absent so they can never leak here.
             .select('name role color services serviceOverrides photoUrl isPrimary bio pronouns languages')
             .sort({ isPrimary: -1, createdAt: 1 }); // the primary member is shown first
-        const data = staff.map(m => (m.toObject ? m.toObject() : m));
+
+        // Per-professional rating: one aggregate over this business's reviews,
+        // grouped by the professional (the null bucket = the owner's own column).
+        // Keyed by member id (or 'owner') so each tile shows its own stars/count.
+        const ratingBy = {};
+        if (mongoose.isValidObjectId(req.params.id)) {
+            const agg = await Review.aggregate([
+                { $match: { provider: new mongoose.Types.ObjectId(req.params.id) } },
+                { $group: { _id: '$teamMember', avg: { $avg: '$rating' }, count: { $sum: 1 } } },
+            ]);
+            agg.forEach((r) => {
+                ratingBy[r._id ? String(r._id) : 'owner'] = {
+                    ratingAvg: Math.round(r.avg * 10) / 10,
+                    ratingCount: r.count,
+                };
+            });
+        }
+        const withRating = (tile, key) => ({
+            ...tile,
+            ratingAvg: ratingBy[key]?.ratingAvg ?? null,
+            ratingCount: ratingBy[key]?.ratingCount ?? 0,
+        });
+
+        const data = staff.map((m) => withRating(m.toObject ? m.toObject() : m, String(m._id)));
 
         // When a business has a roster, the OWNER is a bookable professional too
         // ("you"), offered FIRST alongside staff. The owner has no TeamMember row —
@@ -51,7 +75,7 @@ exports.getProviderStaff = async (req, res) => {
         const staffCount = await TeamMember.countDocuments({ provider: req.params.id, isActive: true });
         if (staffCount > 0) {
             const owner = await User.findById(req.params.id).select('name businessProfile.ownerTitle avatar');
-            data.unshift({
+            data.unshift(withRating({
                 _id: 'owner', isOwner: true,
                 // The owner's own set job title (e.g. "Barber"); "Owner" only as a fallback.
                 name: owner?.name || 'Owner', role: owner?.businessProfile?.ownerTitle?.trim() || 'Owner',
@@ -59,9 +83,54 @@ exports.getProviderStaff = async (req, res) => {
                 photoUrl: owner?.avatar || null,
                 bio: '', pronouns: '', languages: [], // owner tile keeps the same public shape
                 offersAllServices: true, // the owner covers anything their business books
-            });
+            }, 'owner'));
         }
         res.status(200).json({ success: true, data });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * GET /api/providers/:id/staff/:teamMemberId/reviews?page=&limit=
+ * Public — a single professional's reviews (newest first) with their average.
+ * The 'owner' sentinel (or any non-ObjectId id) maps to the owner's own column,
+ * stored as teamMember:null. Only the reviewer's public identity (name + avatar)
+ * and the service name are returned — never the reviewer's email.
+ */
+exports.getProviderStaffReviews = async (req, res) => {
+    try {
+        const providerId = req.params.id;
+        if (!mongoose.isValidObjectId(providerId)) {
+            return res.status(400).json({ success: false, message: 'Invalid provider' });
+        }
+        const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
+        const page = Math.max(1, parseInt(req.query.page) || 1);
+        const skip = (page - 1) * limit;
+        // 'owner' (or any non-ObjectId) = the owner's own column (teamMember null);
+        // a real member id filters to that professional's reviews.
+        const isOwner = req.params.teamMemberId === 'owner' || !mongoose.isValidObjectId(req.params.teamMemberId);
+        const filter = {
+            provider: new mongoose.Types.ObjectId(providerId),
+            teamMember: isOwner ? null : new mongoose.Types.ObjectId(req.params.teamMemberId),
+        };
+
+        const [reviews, total, avgResult] = await Promise.all([
+            Review.find(filter)
+                .select('rating comment createdAt customer service')
+                .populate('customer', 'name avatar') // public identity only — never email
+                .populate('service', 'name')
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit),
+            Review.countDocuments(filter),
+            Review.aggregate([
+                { $match: filter },
+                { $group: { _id: null, avg: { $avg: '$rating' } } },
+            ]),
+        ]);
+        const avgRating = avgResult[0] ? Math.round(avgResult[0].avg * 10) / 10 : null;
+        res.status(200).json({ success: true, count: reviews.length, total, avgRating, data: reviews });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
