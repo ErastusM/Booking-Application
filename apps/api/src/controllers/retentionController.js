@@ -2,7 +2,10 @@ const Appointment = require('../models/Appointment');
 
 exports.getRetentionMetrics = async (req, res) => {
     try {
-        const providerId = req.user._id;
+        // The business this report is for: the owner's own id, or a reports:view
+        // staff member's employer (staffOf). Every query below scopes to it.
+        const providerId = req.user.role === 'staff' ? req.user.staffOf : req.user._id;
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
 
         // Only the fields the retention math reads (customer, date, spend), as lean
         // plain objects, with the never-referenced service join dropped. This was

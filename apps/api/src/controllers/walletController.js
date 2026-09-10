@@ -8,6 +8,12 @@ const walletService = require('../utils/walletService');
 const { createNotification, notifyAdmins } = require('../utils/notificationhelper');
 
 const money = (n) => `N$${Number(n || 0).toFixed(2)}`;
+
+// The business a provider-side wallet VIEW is for: the owner's own id, or a
+// wallet:view (High tier) staff member's employer (staffOf). Read-only views
+// scope to this; money-movement handlers keep using req.user._id (owner/admin
+// only, never opened to staff). Returns null for a detached staff account.
+const walletBusinessScope = (req) => (req.user.role === 'staff' ? req.user.staffOf || null : req.user._id);
 const isPositiveAmount = (v) => typeof v === 'number' && isFinite(v) && v > 0 && v <= 1_000_000;
 
 // Default settings for a provider who hasn't configured the wallet yet.
@@ -176,7 +182,9 @@ exports.rejectAdjustment = async (req, res) => {
 // GET /api/wallet/provider/summary — dashboard headline figures.
 exports.getProviderSummary = async (req, res) => {
     try {
-        const providerId = new mongoose.Types.ObjectId(req.user._id);
+        const scoped = walletBusinessScope(req);
+        if (!scoped) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const providerId = new mongoose.Types.ObjectId(scoped);
         const [balances] = await Wallet.aggregate([
             { $match: { provider: providerId } },
             { $group: { _id: null, fundsHeld: { $sum: '$totalBalance' }, totalReserved: { $sum: '$reservedBalance' }, wallets: { $sum: 1 } } },
@@ -209,7 +217,9 @@ exports.getProviderSummary = async (req, res) => {
 // GET /api/wallet/provider/wallets — every client wallet this provider holds.
 exports.getProviderWallets = async (req, res) => {
     try {
-        const wallets = await Wallet.find({ provider: req.user._id })
+        const providerId = walletBusinessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const wallets = await Wallet.find({ provider: providerId })
             .populate('customer', 'name email phone avatar')
             .sort({ updatedAt: -1 });
         res.status(200).json({ success: true, data: wallets });
@@ -221,7 +231,9 @@ exports.getProviderWallets = async (req, res) => {
 // GET /api/wallet/provider/topups?status=pending
 exports.getProviderTopups = async (req, res) => {
     try {
-        const query = { provider: req.user._id, type: 'topup' };
+        const providerId = walletBusinessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const query = { provider: providerId, type: 'topup' };
         if (req.query.status) query.status = req.query.status;
         const txns = await WalletTransaction.find(query)
             .populate('customer', 'name email phone avatar')
@@ -319,7 +331,9 @@ exports.createAdjustment = async (req, res) => {
 // GET /api/wallet/provider/adjustments?status=
 exports.getProviderAdjustments = async (req, res) => {
     try {
-        const query = { provider: req.user._id, type: { $in: ['adjustment', 'refund'] } };
+        const providerId = walletBusinessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const query = { provider: providerId, type: { $in: ['adjustment', 'refund'] } };
         if (req.query.status) query.status = req.query.status;
         const txns = await WalletTransaction.find(query)
             .populate('customer', 'name email avatar')
@@ -334,7 +348,9 @@ exports.getProviderAdjustments = async (req, res) => {
 // GET /api/wallet/provider/transactions?customerId= — full activity history.
 exports.getProviderTransactions = async (req, res) => {
     try {
-        const query = { provider: req.user._id };
+        const providerId = walletBusinessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const query = { provider: providerId };
         if (req.query.customerId && mongoose.isValidObjectId(req.query.customerId)) {
             query.customer = req.query.customerId;
         }

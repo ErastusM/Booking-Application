@@ -10,7 +10,10 @@ const Appointment = require('../models/Appointment');
  */
 exports.getMyEarnings = async (req, res) => {
     try {
-        const providerId = req.user._id;
+        // reports:view: a High staff member sees their employer's earnings; every
+        // aggregate below scopes to this id.
+        const providerId = req.user.role === 'staff' ? req.user.staffOf : req.user._id;
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const now = new Date();
 
         // ── Resolve the requested range (defaults to last 30 days) ──
