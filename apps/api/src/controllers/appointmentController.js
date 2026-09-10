@@ -19,7 +19,7 @@ const {
     sendStaffBookingAlert,
 } = require('../utils/emailService');
 const calendarHelper = require('../utils/calendarHelper');
-const { resolveBookingStaff, staffHoursReason, memberBusyIntervalsBuffered, bufferMapForAppointments, memberInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy } = require('../utils/staffBooking');
+const { resolveBookingStaff, staffHoursReason, memberBusyIntervalsBuffered, bufferMapForAppointments, memberInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy, performsService } = require('../utils/staffBooking');
 const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, findBusinessWideBlocksForDate, toDateKey, BLOCKED_MESSAGE } = require('../utils/blockedTime');
 const { overrideFor } = require('../utils/memberPricing');
 const { recordBookingRejection, rejectionsSummary } = require('../utils/bookingRejections');
@@ -255,6 +255,10 @@ const revertRescheduleIfRaced = async (appointment, previousSlot) => {
     appointment.appointmentDate = previousSlot.appointmentDate;
     appointment.startTime = previousSlot.startTime;
     appointment.endTime = previousSlot.endTime;
+    // Undo a reassignment too: a raced reschedule that also changed the performer
+    // must put the booking back on its ORIGINAL member, or the rollback leaves it
+    // on the new member at a slot that was never cleanly checked → double-book.
+    if (previousSlot.teamMember !== undefined) appointment.teamMember = previousSlot.teamMember;
     // Restore the pre-move segment windows too, when the caller captured them
     // (a multi-service booking whose segments were shifted with the move).
     if (previousSlot.services !== undefined) appointment.services = previousSlot.services;
@@ -282,6 +286,11 @@ const slotSnapshot = (appt) => ({
     appointmentDate: appt.appointmentDate,
     startTime: appt.startTime,
     endTime: appt.endTime,
+    // Captured so a rolled-back reschedule restores the ORIGINAL performer too:
+    // the reschedule path may reassign the booking to a different member before
+    // the write, and a lost race must undo that reassignment as well — otherwise
+    // the rollback leaves the booking on the new member and double-books them.
+    teamMember: appt.teamMember,
     services: Array.isArray(appt.services) && appt.services.length
         ? appt.services.map((s) => (s.toObject ? s.toObject() : { ...s }))
         : undefined,
@@ -2079,7 +2088,7 @@ exports.updateAppointmentStatus = async (req, res) => {
 
 exports.providerRescheduleAppointment = async (req, res) => {
     try {
-        const { appointmentDate, startTime, endTime: requestedEndTime } = req.body;
+        const { appointmentDate, startTime, endTime: requestedEndTime, teamMember: requestedTeamMember } = req.body;
         if (!appointmentDate || !startTime) {
             return res.status(400).json({ success: false, message: 'appointmentDate and startTime are required' });
         }
@@ -2136,13 +2145,54 @@ exports.providerRescheduleAppointment = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Selected time is outside your availability schedule' });
         }
 
+        // Snapshot the ORIGINAL slot — INCLUDING teamMember — BEFORE any
+        // reassignment, so a raced rollback below restores the booking's true prior
+        // state (member included), not the half-applied reassign. Captured here, not
+        // after the reassign, precisely so a lost race can't strand the booking on
+        // the new member.
+        const previousSlot = slotSnapshot(appointment);
+
+        // Optional REASSIGNMENT — dragging a booking into another staff lane changes
+        // WHO performs it, not just when. Reassign IN MEMORY before the conflict +
+        // race checks below so both scope to the destination member (via
+        // conflictScope(appointment)). Owner-only, single-service only.
+        if (requestedTeamMember !== undefined) {
+            const targetMemberId = (requestedTeamMember === '' || requestedTeamMember === 'unassigned' || requestedTeamMember == null)
+                ? null : String(requestedTeamMember);
+            if (String(targetMemberId || '') !== String(appointment.teamMember || '')) {
+                if (!isOwner) {
+                    return res.status(403).json({ success: false, message: 'Only the owner can reassign a booking to another team member.' });
+                }
+                if (Array.isArray(appointment.services) && appointment.services.length) {
+                    return res.status(400).json({ success: false, message: 'Reassign a multi-service booking one service at a time.' });
+                }
+                if (targetMemberId) {
+                    // resolveBookingStaff SKIPS the performs-service / free checks for
+                    // an owner requester (owners get the walk-in override), so the
+                    // performer must be validated EXPLICITLY here: on the roster, active,
+                    // bookable, and performs the service. Double-booking the target at
+                    // the new time is caught by the conflict check + raced-rollback
+                    // below (both scope to the new member). The target's own hours/leave
+                    // are an owner override, matching provider walk-in placement.
+                    const target = await TeamMember.findOne({ _id: targetMemberId, provider: providerId });
+                    if (!target) return res.status(400).json({ success: false, message: "That team member isn't on your roster." });
+                    if (target.isActive === false) return res.status(400).json({ success: false, message: 'That team member is no longer active.' });
+                    if (target.bookable === false) return res.status(400).json({ success: false, message: "That team member can't be booked." });
+                    if (!performsService(target, appointment.service?._id || appointment.service)) {
+                        return res.status(400).json({ success: false, message: "That team member doesn't perform this service." });
+                    }
+                    appointment.teamMember = target._id;
+                } else {
+                    appointment.teamMember = null; // the owner's own (unassigned) column
+                }
+            }
+        }
+
         const conflict = await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appointment._id, conflictScope(appointment));
         if (conflict) {
             return res.status(400).json({ success: false, message: 'This time slot is already booked' });
         }
 
-        // Keep the old slot (+ segment windows) so the write can be undone if it lost a race.
-        const previousSlot = slotSnapshot(appointment);
         const shifted = shiftedSegments(appointment, startMinutes);
         appointment.appointmentDate = new Date(appointmentDate);
         appointment.startTime = startTime;
