@@ -36,6 +36,12 @@ exports.createReview = async (req, res) => {
             appointment: appointmentId,
             rating,
             comment,
+            // Attribute the review to the professional who performed the booking
+            // (top-level teamMember; null = the owner's own column) and the business
+            // it belongs to, so per-professional ratings are accurate and survive a
+            // later reassignment of the appointment.
+            teamMember: appointment.teamMember || null,
+            provider: appointment.provider || null,
         });
 
         await review.populate('customer', 'name');
