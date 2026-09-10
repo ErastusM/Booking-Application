@@ -56,7 +56,8 @@ describe('Medium staff book-on-behalf', () => {
 
         const res = await book(medium, onBehalf({ service: service._id.toString(), customerId: client._id.toString() }));
         expect(res.status).toBe(201);
-        expect(String(res.body.data.customer)).toBe(String(client._id));
+        // customer comes back populated in the create response.
+        expect(String(res.body.data.customer?._id || res.body.data.customer)).toBe(String(client._id));
         expect(res.body.data.walkInName).toBeNull();
     });
 
@@ -80,8 +81,9 @@ describe('Medium staff book-on-behalf', () => {
         const res = await book(low, onBehalf({ service: service._id.toString(), customerId: client._id.toString() }));
         expect(res.status).toBe(201);
         // The booking was NOT attached to the client — it's the staff member's own.
-        expect(String(res.body.data.customer)).not.toBe(String(client._id));
-        expect(String(res.body.data.customer)).toBe(String(low._id));
+        const bookedCustomer = String(res.body.data.customer?._id || res.body.data.customer);
+        expect(bookedCustomer).not.toBe(String(client._id));
+        expect(bookedCustomer).toBe(String(low._id));
     });
 
     it("cannot attach another business's client (existence check keys on staffOf)", async () => {
