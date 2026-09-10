@@ -4,7 +4,7 @@ const {
     getMyTemplates, createTemplate, updateTemplate, deleteTemplate,
     getSubmissions, getFormsForAppointment, submitForm,
 } = require('../controllers/formController');
-const { auth, allow } = require('../middleware/auth');
+const { auth, authorize, allow } = require('../middleware/auth');
 
 // Provider template management — forms:manage (Medium tier and up). allow() keeps
 // owner/admin access and adds the tiered-staff path; the controllers scope to the
