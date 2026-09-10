@@ -1434,3 +1434,137 @@ exports.resetPassword = async (req, res) => {
         return res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
+
+/**
+ * GET /api/auth/staff-invite/:token   (public)
+ * Preview for the accept-invite landing page. Resolves an unexpired staff
+ * invite token to who it's for and which business sent it, so the page can
+ * greet the person by name ("Join {business}") instead of the generic
+ * password-reset screen. Reveals nothing an invited person doesn't already
+ * hold in the emailed link — and only for a genuine staff invite.
+ */
+exports.getStaffInvite = async (req, res) => {
+    try {
+        const { token } = req.params;
+        if (!token) return res.status(400).json({ success: false, message: 'Missing invite token' });
+
+        const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+        const user = await User.findOne({
+            passwordResetToken: hashedToken,
+            passwordResetExpiry: { $gt: new Date() },
+            role: 'staff',
+        }).select('name email staffOf lastLoginAt');
+
+        if (!user || !user.staffOf) {
+            return res.status(404).json({ success: false, message: 'This invite link is invalid or has expired.' });
+        }
+
+        const owner = await User.findById(user.staffOf).select('name businessProfile');
+        const businessName = owner?.businessProfile?.businessName || owner?.name || 'the team';
+
+        return res.status(200).json({
+            success: true,
+            data: {
+                valid: true,
+                name: user.name,
+                email: user.email,
+                businessName,
+                // First-time accept vs a returning member re-setting their password.
+                returning: !!user.lastLoginAt,
+            },
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * POST /api/auth/staff-invite/:token/accept   (public)
+ * Body: { password }. The Fresha-style "accept invite" step: an invited staff
+ * member sets their password and is signed straight in — no bounce to a login
+ * screen. Same token mechanics as the reset flow, but scoped to staff and it
+ * returns auth tokens (+ refresh cookie) so the client lands in their own
+ * calendar already authenticated.
+ */
+exports.acceptStaffInvite = async (req, res) => {
+    try {
+        const { token } = req.params;
+        const { password } = req.body;
+        if (!token || !password) {
+            return res.status(400).json({ success: false, message: 'Token and a password are required' });
+        }
+
+        const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?]).{8,}$/;
+        if (!passwordRegex.test(password)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Password must be at least 8 characters and include an uppercase letter, a number and a special character',
+            });
+        }
+
+        const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
+        const user = await User.findOne({
+            passwordResetToken: hashedToken,
+            passwordResetExpiry: { $gt: new Date() },
+            role: 'staff',
+            // Must still be attached to a business. Archiving a member severs
+            // staffOf but leaves the invite token intact — a deliberate, terminal
+            // revocation. Without this, an archived member could accept a stale
+            // invite and reactivate a working login, defeating the archive.
+            // Mirrors getStaffInvite's `!user.staffOf` rejection.
+            staffOf: { $ne: null },
+        }).select('+password name email role providerCategory avatar phone providerSetupComplete tokenVersion isActive deactivatedAt staffOf');
+
+        if (!user) {
+            return res.status(400).json({ success: false, message: 'This invite link is invalid or has expired.' });
+        }
+
+        // An admin suspension (isActive:false with no deactivatedAt) is a
+        // platform-level block that accepting an invite must not silently undo —
+        // mirror login's guard. A self-deactivated account (deactivatedAt set)
+        // may still reactivate on accept, exactly as it does on login.
+        if (user.isActive === false && !user.deactivatedAt) {
+            return res.status(403).json({ success: false, message: 'Your account has been suspended. Please contact support.' });
+        }
+
+        user.password = password;
+        user.passwordResetToken = null;
+        user.passwordResetExpiry = null;
+        user.isActive = true;
+        user.isVerified = true; // proven the mailbox by opening the invite link
+        // Invalidate any prior sessions minted before the password existed.
+        user.tokenVersion = (user.tokenVersion || 0) + 1;
+        user.refreshTokenJtis = [];
+        await user.save();
+
+        // Sign them straight in — the point of the accept step.
+        const { token: accessToken, refreshToken } = await issueAuthTokens(user);
+        setRefreshCookie(res, refreshToken);
+
+        // Records the first sign-in, which flips their Team status from
+        // "Invited · awaiting login" to active for the owner.
+        User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } }).catch(() => {});
+
+        return res.status(200).json({
+            success: true,
+            message: 'Welcome aboard! You are signed in.',
+            data: {
+                user: {
+                    id: user._id,
+                    name: user.name,
+                    email: user.email,
+                    role: user.role,
+                    accountType: User.accountTypeForRole(user.role),
+                    providerCategory: user.providerCategory,
+                    avatar: user.avatar,
+                    phone: user.phone,
+                    providerSetupComplete: user.providerSetupComplete,
+                },
+                token: accessToken,
+                refreshToken,
+            },
+        });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};

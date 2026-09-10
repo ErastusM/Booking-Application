@@ -807,13 +807,24 @@ exports.inviteTeamMember = async (req, res) => {
         // so a failed/again send never loses the login — the owner can just resend.
         // safeSend returns {skipped} when SMTP is off and {error} when a send throws;
         // anything else is a real delivery.
-        const { sendStaffInviteEmail } = require('../utils/emailService');
+        const { sendStaffInviteEmail, sendStaffInviteOwnerReceipt } = require('../utils/emailService');
         const businessName = req.user.businessProfile?.businessName || req.user.name;
         let emailSent = false;
         try {
             const result = await sendStaffInviteEmail(email, member.name, businessName, rawToken);
             emailSent = !!result && !result.skipped && !result.error;
         } catch { emailSent = false; }
+
+        // Owner audit receipt — fire-and-forget and best-effort. A confirmation
+        // of who was invited, for the owner's records; it must never block the
+        // response, change whether the staff invite is reported as delivered, or
+        // fail the invite if the receipt itself errors. Guarded so a missing
+        // implementation can't turn the invite into a 500.
+        try {
+            if (typeof sendStaffInviteOwnerReceipt === 'function') {
+                Promise.resolve(sendStaffInviteOwnerReceipt(req.user.email, member.name, email, businessName)).catch(() => {});
+            }
+        } catch { /* never let the audit receipt affect the invite response */ }
 
         res.status(200).json({ success: true, data: { member, staffUserId: staffUser._id, email, emailSent } });
     } catch (error) {

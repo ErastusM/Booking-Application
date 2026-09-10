@@ -27,6 +27,11 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         resendVerification: (email: string) => API.post('/auth/resend-verification', { email }),
         forgotPassword: (email: string) => API.post('/auth/forgot-password', accountType ? { email, accountType } : { email }),
         resetPassword: (data: any) => API.post('/auth/reset-password', data),
+        // Staff invite acceptance (Fresha-style). getStaffInvite previews who
+        // the invite is for; acceptStaffInvite sets the password and returns a
+        // full auth session (token + refreshToken + user), signing them in.
+        getStaffInvite: (token: string) => API.get(`/auth/staff-invite/${token}`),
+        acceptStaffInvite: (token: string, password: string) => API.post(`/auth/staff-invite/${token}/accept`, { password }),
         deactivateAccount: () => API.post('/auth/deactivate'),
         deleteAccount: (password: string) => API.delete('/auth/account', { data: { password } }),
         getBlockedUsers: () => API.get('/auth/blocked-users'),
