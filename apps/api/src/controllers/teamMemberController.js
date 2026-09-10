@@ -5,7 +5,7 @@ const Service = require('../models/Service');
 const StaffAvailability = require('../models/StaffAvailability');
 const Appointment = require('../models/Appointment');
 const { validate: validatePermissions, isTier } = require('../utils/permissions');
-const { memberBusyIntervals, memberInvolvedFilter } = require('../utils/staffBooking');
+const { memberBusyIntervals, memberInvolvedFilter, pickRotationWeek } = require('../utils/staffBooking');
 
 const dayKeyOf = (d) => new Date(d).toISOString().slice(0, 10);
 const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
@@ -607,20 +607,23 @@ exports.getTeamMemberStats = async (req, res) => {
         }, 0);
 
         const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-        const schedule = staffHours?.schedule || businessHours?.schedule || null;
         const shiftByDate = new Map((shifts || []).map((s) => [s.date, s]));
         // Iterate in UTC because appointmentDate — and therefore the shift keys and
         // the day-of-week the weekly pattern is indexed by — are all UTC-midnight.
         let scheduledMinutes = 0;
         for (let d = new Date(from); d <= to; d.setUTCDate(d.getUTCDate() + 1)) {
-            const shift = shiftByDate.get(d.toISOString().slice(0, 10));
+            const dayKey = d.toISOString().slice(0, 10);
+            const shift = shiftByDate.get(dayKey);
             if (shift) {
                 // A shift is authoritative for its date: slots minus breaks. Empty
                 // slots is a rostered day off — zero scheduled, correctly.
                 scheduledMinutes += Math.max(0, sumPeriods(shift.slots) - sumPeriods(shift.breaks));
                 continue;
             }
-            const cfg = schedule?.[DAY_NAMES[d.getUTCDay()]];
+            // Rotation-aware: the member's week for THIS date (flat schedule when no
+            // rotation), else the business hours when they have no per-staff schedule.
+            const week = staffHours ? pickRotationWeek(staffHours, dayKey) : (businessHours?.schedule || null);
+            const cfg = week?.[DAY_NAMES[d.getUTCDay()]];
             if (cfg?.enabled && Array.isArray(cfg.slots)) scheduledMinutes += sumPeriods(cfg.slots);
         }
 
@@ -1193,12 +1196,49 @@ const scheduleError = (schedule) => {
     return null;
 };
 
+// Normalise an optional rotation from the request body.
+//   undefined            → caller omitted it: PRESERVE any existing rotation (no wipe)
+//   null / empty weeks   → rotation OFF (the flat `schedule` is the single week)
+//   { anchor, weeks[] }  → an N-week rotating cycle
+const parseRotation = (rotation) => {
+    if (rotation === undefined) return undefined;                 // preserve existing
+    if (rotation === null || typeof rotation !== 'object') return { anchor: '', weeks: [] };
+    const weeks = Array.isArray(rotation.weeks) ? rotation.weeks : [];
+    const anchor = typeof rotation.anchor === 'string' ? rotation.anchor.slice(0, 10) : '';
+    // Anchor only means anything with a cycle; drop it when there are no weeks.
+    return { anchor: weeks.length ? anchor : '', weeks };
+};
+
+// Validate a normalised rotation, returning an error string or null. Each week
+// is validated by the SAME scheduleError as the flat schedule, so a rotating
+// schedule can never save an inverted/overlapping period the single week refuses.
+const rotationError = (rotation) => {
+    if (!rotation || !Array.isArray(rotation.weeks) || rotation.weeks.length === 0) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rotation.anchor || '')) {
+        return 'A rotating schedule needs a valid start date (YYYY-MM-DD).';
+    }
+    if (rotation.weeks.length > 8) return 'A rotation can span at most 8 weeks.';
+    for (let i = 0; i < rotation.weeks.length; i += 1) {
+        const week = rotation.weeks[i];
+        if (!week || typeof week !== 'object') return `Week ${i + 1}: each rotation week must be a schedule.`;
+        const err = scheduleError(week);
+        if (err) return `Week ${i + 1} — ${err}`;
+    }
+    return null;
+};
+
 // Upsert a member's weekly schedule (used once the member is resolved + authorized).
-const upsertSchedule = (member, schedule) => StaffAvailability.findOneAndUpdate(
-    { teamMember: member._id },
-    { provider: member.provider, teamMember: member._id, schedule },
-    { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
-);
+// `rotation` undefined leaves any stored rotation untouched (a legacy { schedule }
+// PUT never wipes a rotation); a normalised rotation replaces it.
+const upsertSchedule = (member, schedule, rotation) => {
+    const update = { provider: member.provider, teamMember: member._id, schedule };
+    if (rotation !== undefined) update.rotation = rotation;
+    return StaffAvailability.findOneAndUpdate(
+        { teamMember: member._id },
+        update,
+        { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+    );
+};
 
 /**
  * PUT /api/team/:id/availability  (provider/admin, or staff-self)
@@ -1212,11 +1252,14 @@ exports.updateTeamMemberAvailability = async (req, res) => {
         }
         const err = scheduleError(schedule);
         if (err) return res.status(400).json({ success: false, message: err });
+        const rotation = parseRotation(req.body.rotation);
+        const rotErr = rotationError(rotation);
+        if (rotErr) return res.status(400).json({ success: false, message: rotErr });
         const member = await TeamMember.findById(req.params.id);
         if (!member || !canTouchStaffAvailability(req.user, member)) {
             return res.status(404).json({ success: false, message: 'Team member not found' });
         }
-        const availability = await upsertSchedule(member, schedule);
+        const availability = await upsertSchedule(member, schedule, rotation);
         res.status(200).json({ success: true, data: availability });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
@@ -1250,9 +1293,12 @@ exports.setMyAvailability = async (req, res) => {
         }
         const err = scheduleError(schedule);
         if (err) return res.status(400).json({ success: false, message: err });
+        const rotation = parseRotation(req.body.rotation);
+        const rotErr = rotationError(rotation);
+        if (rotErr) return res.status(400).json({ success: false, message: rotErr });
         const member = await myMemberDoc(req);
         if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
-        const availability = await upsertSchedule(member, schedule);
+        const availability = await upsertSchedule(member, schedule, rotation);
         res.status(200).json({ success: true, data: availability });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });

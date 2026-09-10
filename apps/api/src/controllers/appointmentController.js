@@ -19,7 +19,7 @@ const {
     sendStaffBookingAlert,
 } = require('../utils/emailService');
 const calendarHelper = require('../utils/calendarHelper');
-const { resolveBookingStaff, staffHoursReason, memberBusyIntervalsBuffered, bufferMapForAppointments, memberInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy } = require('../utils/staffBooking');
+const { resolveBookingStaff, staffHoursReason, memberBusyIntervalsBuffered, bufferMapForAppointments, memberInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy, pickRotationWeek } = require('../utils/staffBooking');
 const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, findBusinessWideBlocksForDate, toDateKey, BLOCKED_MESSAGE } = require('../utils/blockedTime');
 const { overrideFor } = require('../utils/memberPricing');
 const { recordBookingRejection, rejectionsSummary } = require('../utils/bookingRejections');
@@ -561,10 +561,14 @@ exports.getBookedSlots = async (req, res) => {
             const StaffAvailability = require('../models/StaffAvailability');
             const bookableCount = await TeamMember.countDocuments({ provider: providerId, isActive: true, bookable: { $ne: false } });
             if (bookableCount !== 1) {
-                const av = await StaffAvailability.findOne({ teamMember: memberId }).select('schedule').lean();
-                if (av?.schedule) {
+                const av = await StaffAvailability.findOne({ teamMember: memberId }).select('schedule rotation').lean();
+                // Rotation-aware: the week that applies on THIS date (or the flat
+                // schedule when the member has no rotation) — same helper the
+                // validator and any-professional picker use, so they stay in lockstep.
+                const daySchedule = pickRotationWeek(av, date);
+                if (daySchedule) {
                     const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-                    const day = av.schedule[DAY_NAMES[new Date(date).getDay()]];
+                    const day = daySchedule[DAY_NAMES[new Date(date).getDay()]];
                     const mins = (t) => { const [h = 0, m = 0] = String(t).split(':').map(Number); return h * 60 + m; };
                     if (!day?.enabled || !Array.isArray(day.slots) || day.slots.length === 0) {
                         busy.push({ startTime: '00:00', endTime: '23:59', kind: 'off_shift' });

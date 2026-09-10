@@ -16,6 +16,7 @@ const Appointment = require('../models/Appointment');
 const Shift = require('../models/Shift');
 const TimeOff = require('../models/TimeOff');
 const { NAMIBIA_OFFSET_MIN } = require('./appointmentTime');
+const { pickRotationWeek } = require('./staffBooking');
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const GRID_STEP = 30; // minutes between offered start times
@@ -88,7 +89,7 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
     // Shift REPLACES the weekly pattern. Without these the search surfaced openings
     // the booking flow then rejects (a member on leave, or rostered off that day).
     const [staffAvail, shifts, leaves] = await Promise.all([
-        StaffAvailability.find({ teamMember: { $in: memberIds } }).select('teamMember schedule'),
+        StaffAvailability.find({ teamMember: { $in: memberIds } }).select('teamMember schedule rotation'),
         Shift.find({ teamMember: { $in: memberIds }, date }).select('teamMember slots breaks'),
         TimeOff.find({
             teamMember: { $in: memberIds }, status: 'approved',
@@ -97,7 +98,9 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
     ]);
 
     const availByProvider = new Map(availabilities.map(a => [a.provider.toString(), a.schedule]));
-    const staffAvailByMember = new Map(staffAvail.map(a => [a.teamMember.toString(), a.schedule]));
+    // Store the whole doc (schedule + rotation) so the rotation week can be
+    // selected per date, mirroring the booking validator (staffBooking).
+    const staffAvailByMember = new Map(staffAvail.map(a => [a.teamMember.toString(), a]));
     const shiftByMember = new Map(shifts.map(s => [s.teamMember.toString(), s]));
     const leavesByMember = new Map();
     leaves.forEach((lv) => {
@@ -169,7 +172,10 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
                             .filter(b => b.end > b.start);
                         (shift.breaks || []).forEach(b => busy.push({ start: toMin(b.start), end: toMin(b.end) }));
                     } else {
-                        const ownSchedule = staffAvailByMember.get(memberId);
+                        const ownDoc = staffAvailByMember.get(memberId);
+                        // Rotation-aware: the week that applies on THIS date (or the
+                        // flat schedule when the member has no rotation).
+                        const ownSchedule = ownDoc ? pickRotationWeek(ownDoc, date) : null;
                         blocks = ownSchedule ? blocksFor(ownSchedule, date) : businessBlocks;
                     }
                 }
