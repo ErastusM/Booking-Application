@@ -153,7 +153,9 @@ exports.updateTeamMember = async (req, res) => {
         // undefined when not sent, so a partial body leaves the field untouched.
         const cleanLanguages = languages === undefined
             ? undefined
-            : (Array.isArray(languages) ? languages : [])
+            // Bound the raw input before mapping so a pathologically large array
+            // isn't fully processed just to be truncated to 12.
+            : (Array.isArray(languages) ? languages : []).slice(0, 100)
                 .map((l) => String(l).trim()).filter(Boolean).slice(0, 12);
         // Read the prior state so a change to `isActive` can be mirrored onto the
         // linked login below (findOneAndUpdate only returns the new value).
@@ -1088,7 +1090,7 @@ exports.setMyProfile = async (req, res) => {
         if (bio !== undefined) member.bio = String(bio).trim();
         if (pronouns !== undefined) member.pronouns = String(pronouns).trim();
         if (languages !== undefined) {
-            member.languages = (Array.isArray(languages) ? languages : [])
+            member.languages = (Array.isArray(languages) ? languages : []).slice(0, 100)
                 .map((l) => String(l).trim()).filter(Boolean).slice(0, 12);
         }
         await member.save();
