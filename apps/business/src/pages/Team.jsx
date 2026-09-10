@@ -3,7 +3,9 @@ import { useAuthContext } from '../context/AuthContext';
 import { teamService, providerServiceService } from '../services';
 import { useToast } from '../components/Toast';
 import Switch from '../components/Switch';
-import { UserPlus, Mail, Clock, ConciergeBell, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft, Star, Trash2 } from 'lucide-react';
+import { UserPlus, Mail, Clock, ConciergeBell, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft, Star, Trash2, Camera } from 'lucide-react';
+import { uploadToCloudinary } from '../utils/uploadImage';
+import { cloudinaryAvatar } from '../utils/cloudinary';
 
 /**
  * Epic 2.4 — staff management: roster CRUD, invite-to-login, per-staff
@@ -74,6 +76,29 @@ const Field = ({ label, ...rest }) => (
     </label>
 );
 
+// Photo-or-colour circle. Falls back to the member's calendar colour with their
+// initial, so a member with no photo still reads as a distinct, colour-coded person.
+const MemberAvatar = ({ member, size = 26 }) => {
+    const initial = (member.name || '?').trim().charAt(0).toUpperCase();
+    if (member.photoUrl) {
+        return (
+            <img
+                src={cloudinaryAvatar(member.photoUrl, size * 3)}
+                alt=""
+                aria-hidden="true"
+                style={{ width: size, height: size, borderRadius: '50%', objectFit: 'cover', flexShrink: 0, display: 'block' }}
+            />
+        );
+    }
+    return (
+        <span aria-hidden="true" style={{
+            width: size, height: size, borderRadius: '50%', background: member.color || 'var(--gold)',
+            flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            color: '#fff', fontSize: size * 0.44, fontWeight: 700, lineHeight: 1,
+        }}>{initial}</span>
+    );
+};
+
 const MemberCard = ({ member, services, colleagues, onChanged }) => {
     const [open, setOpen] = useState(false);
     const [busy, setBusy] = useState('');
@@ -131,7 +156,9 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
         phone: member.phone || '', country: member.country || '', address: member.address || '',
         emergencyName: member.emergencyContact?.name || '',
         emergencyPhone: member.emergencyContact?.phone || '',
+        color: member.color || '#f03e16',
     });
+    const [photoBusy, setPhotoBusy] = useState(false);
 
     useEffect(() => {
         // Pay reads the same figures as Overview, so it must trigger the fetch
@@ -308,6 +335,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
             const draft = {
                 name: personal.name.trim(), role: personal.role.trim(), email: personal.email.trim(),
                 phone: personal.phone.trim(), country: personal.country.trim(), address: personal.address.trim(),
+                color: personal.color,
             };
             const patch = {};
             Object.entries(draft).forEach(([k, v]) => { if (v !== (member[k] || '')) patch[k] = v; });
@@ -323,6 +351,24 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
         } catch (err) {
             flash(err?.response?.data?.message || 'Could not save details');
         } finally { setBusy(''); }
+    };
+
+    // Photo upload → same unsigned Cloudinary path as the provider avatar, then
+    // persist the returned URL on the member. Saves immediately (an upload is an
+    // explicit action) rather than waiting on "Save details".
+    const uploadPhoto = async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = ''; // allow re-selecting the same file after a failure
+        if (!file) return;
+        setPhotoBusy(true);
+        try {
+            const url = await uploadToCloudinary(file);
+            await teamService.updateMember(member._id, { photoUrl: url });
+            flash('Photo updated');
+            onChanged();
+        } catch {
+            flash('Photo upload failed — try again');
+        } finally { setPhotoBusy(false); }
     };
 
     const toggleBookable = async (next) => {
@@ -481,7 +527,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
     return (
         <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: '1rem', overflow: 'hidden' }} data-testid="team-member-card">
             <button type="button" onClick={() => setOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '1rem 1.25rem', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-body)' }}>
-                <span aria-hidden="true" style={{ width: '14px', height: '14px', borderRadius: '50%', background: member.color || 'var(--gold)', flexShrink: 0 }} />
+                <MemberAvatar member={member} size={30} />
                 <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.98rem' }}>
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.name}</span>
@@ -563,6 +609,23 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                     {/* ── Personal ───────────────────────────────────────── */}
                     {tab === 'personal' && (
                         <div style={{ marginTop: '1.1rem' }} data-testid="panel-personal">
+                            {/* Photo + calendar colour — the visual identity clients and the
+                                calendar use. Photo saves on upload; colour saves with details. */}
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.1rem', flexWrap: 'wrap' }}>
+                                <MemberAvatar member={{ ...member, color: personal.color }} size={56} />
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                                    <label className="btn-outline" style={{ padding: '0.45rem 1rem', cursor: photoBusy ? 'default' : 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.4rem', opacity: photoBusy ? 0.6 : 1 }}>
+                                        <Camera size={15} /> {photoBusy ? 'Uploading…' : member.photoUrl ? 'Change photo' : 'Add photo'}
+                                        <input type="file" accept="image/*" onChange={uploadPhoto} disabled={photoBusy} style={{ display: 'none' }} data-testid="personal-photo" />
+                                    </label>
+                                    <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Shown to clients and on the calendar.</span>
+                                </div>
+                                <label style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                    Calendar colour
+                                    <input type="color" value={personal.color} onChange={e => setPersonal(p => ({ ...p, color: e.target.value }))} data-testid="personal-color"
+                                        style={{ width: '48px', height: '34px', padding: '2px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--card-bg)', cursor: 'pointer' }} />
+                                </label>
+                            </div>
                             <div style={{ display: 'grid', gap: '0.7rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
                                 <Field label="Name" value={personal.name} onChange={e => setPersonal(p => ({ ...p, name: e.target.value }))} data-testid="personal-name" />
                                 <Field label="Job title" value={personal.role} onChange={e => setPersonal(p => ({ ...p, role: e.target.value }))} placeholder="e.g. Stylist, Trainer, Technician" />
@@ -1087,6 +1150,8 @@ const Team = () => {
     const [services, setServices] = useState([]);
     const [loading, setLoading] = useState(true);
     const [newName, setNewName] = useState('');
+    const [newRole, setNewRole] = useState('');
+    const [newEmail, setNewEmail] = useState('');
     const [error, setError] = useState('');
     const [adding, setAdding] = useState(false);
 
@@ -1113,8 +1178,13 @@ const Team = () => {
         setError('');
         setAdding(true);
         try {
-            await teamService.addMember({ name });
-            setNewName('');
+            // Capture job title + email up front (both optional) so a new member is
+            // invite-ready without a second edit. The API already accepts them.
+            const payload = { name };
+            if (newRole.trim()) payload.role = newRole.trim();
+            if (newEmail.trim()) payload.email = newEmail.trim();
+            await teamService.addMember(payload);
+            setNewName(''); setNewRole(''); setNewEmail('');
             // Confirm via the app's standard auto-dismissing toast (the new row
             // also appears below, but on a long roster it can scroll out of view).
             toast(`${name} added to your team.`, 'success');
@@ -1133,8 +1203,10 @@ const Team = () => {
                 Invite staff to log in, set who performs which services, and give anyone their own working hours. Clients can pick their professional when booking.
             </p>
 
-            <form onSubmit={addMember} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem', flexWrap: 'wrap' }}>
-                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Add a team member by name…" className="input" style={{ maxWidth: '300px' }} data-testid="new-member-name" />
+            <form onSubmit={addMember} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
+                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name" className="input" style={{ flex: '1 1 180px', maxWidth: '260px' }} data-testid="new-member-name" />
+                <input value={newRole} onChange={e => setNewRole(e.target.value)} placeholder="Job title (optional)" className="input" style={{ flex: '1 1 150px', maxWidth: '220px' }} data-testid="new-member-role" />
+                <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="Email (optional)" className="input" style={{ flex: '1 1 180px', maxWidth: '240px' }} data-testid="new-member-email" />
                 <button type="submit" className="btn-primary" data-testid="new-member-add" disabled={!newName.trim() || adding} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 1.4rem' }}>
                     <UserPlus size={16} /> {adding ? 'Adding…' : 'Add'}
                 </button>
