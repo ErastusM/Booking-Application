@@ -125,9 +125,12 @@ const StaffLanesDay = ({
                     color: m.color || 'var(--gold)',
                 })),
         ];
-        if (staffFilter === 'all') return all;
-        const filtered = all.filter((l) => l.id === String(staffFilter));
-        return filtered.length ? filtered : all; // filter points at a vanished member → show everyone
+        // staffFilter is a Set of lane ids to show (empty = all); the legacy
+        // single-value 'all' string is still honoured for safety.
+        const sel = staffFilter instanceof Set ? staffFilter : null;
+        if (!sel || sel.size === 0 || staffFilter === 'all') return all;
+        const filtered = all.filter((l) => sel.has(l.id));
+        return filtered.length ? filtered : all; // filter points only at vanished members → show everyone
     }, [teamMembers, ownerName, dayAppts, staffFilter]);
 
     const dayCfg = availability?.[DAY_NAMES[date.getDay()]] || null;
