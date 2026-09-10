@@ -235,6 +235,10 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         restoreMember: (id: string) => API.post(`/team/${id}/restore`),
         setMemberPermissions: (id: string, permissions: string[]) =>
             API.put(`/team/${id}/permissions`, { permissions }),
+        // Assign a preset permission tier. Sends permissions:[] so the tier is
+        // authoritative — clearing any legacy per-member flags.
+        setMemberTier: (id: string, tier: string | null) =>
+            API.put(`/team/${id}/permissions`, { tier, permissions: [] }),
         getMemberStats: (id: string, days = 30) => API.get(`/team/${id}/stats`, { params: { days } }),
         // Date-specific shifts. A shift replaces the member's weekly pattern for
         // that date; clearing it hands the date back to the pattern.

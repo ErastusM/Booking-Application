@@ -634,6 +634,38 @@ const buildAppointmentScope = async (req) => {
     return { query: {} };
 };
 
+// A staff member's own roster row (id only), or null if not a staff principal.
+const staffMemberOf = async (user) => {
+    if (!user || user.role !== 'staff' || !user.staffOf) return null;
+    return TeamMember.findOne({ user: user._id, provider: user.staffOf }).select('_id').lean();
+};
+
+// Does a LOADED appointment involve this member — as the top-level performer or a
+// multi-service segment? The in-memory mirror of memberInvolvedFilter.
+const appointmentInvolvesMember = (appointment, memberId) => {
+    const mid = String(memberId);
+    const top = appointment.teamMember && String(appointment.teamMember._id || appointment.teamMember);
+    if (top === mid) return true;
+    return Array.isArray(appointment.services)
+        && appointment.services.some((s) => s.teamMember && String(s.teamMember._id || s.teamMember) === mid);
+};
+
+// Authorize a staff principal to act on a specific booking of THEIR business.
+// `unscoped` (e.g. bookings:status) grants any booking; `selfScoped` (e.g.
+// bookings:status:self) grants only bookings they perform. Returns false for a
+// non-staff user (callers handle admin/provider/customer separately).
+const staffCanActOnAppointment = async (user, appointment, { unscoped, selfScoped }) => {
+    if (!user || user.role !== 'staff' || !user.staffOf) return false;
+    const ownerId = appointment.provider?.toString() || appointment.service?.provider?.toString();
+    if (ownerId !== user.staffOf.toString()) return false; // not this business's booking
+    if (can(user, unscoped)) return true;
+    if (can(user, selfScoped)) {
+        const m = await staffMemberOf(user);
+        return !!(m && appointmentInvolvesMember(appointment, m._id));
+    }
+    return false;
+};
+
 exports.getAllAppointments = async (req, res) => {
     try {
         const scope = await buildAppointmentScope(req);
@@ -1866,7 +1898,13 @@ exports.updateAppointmentStatus = async (req, res) => {
         // Authorize against the appointment's provider, falling back to the service's
         // provider for older waiting-list promotions that were created without one.
         const ownerId = appointment.provider?.toString() || appointment.service?.provider?.toString();
-        if (req.user.role !== 'admin' && ownerId !== req.user._id.toString()) {
+        const isOwnerOrAdmin = req.user.role === 'admin' || ownerId === req.user._id.toString();
+        // A staff member of this business may change status: Medium+ on any booking
+        // (bookings:status), Low only on bookings they perform (bookings:status:self).
+        const staffAllowed = !isOwnerOrAdmin && await staffCanActOnAppointment(req.user, appointment, {
+            unscoped: 'bookings:status', selfScoped: 'bookings:status:self',
+        });
+        if (!isOwnerOrAdmin && !staffAllowed) {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
         // Self-heal: backfill a missing provider so the booking shows on the calendar.

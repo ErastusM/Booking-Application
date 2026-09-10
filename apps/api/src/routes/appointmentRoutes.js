@@ -52,7 +52,7 @@ const {
     cancelAppointmentByToken,
     rescheduleAppointmentByToken,
 } = require('../controllers/appointmentController');
-const { auth, authorize, optionalAuth } = require('../middleware/auth');
+const { auth, authorize, optionalAuth, allow } = require('../middleware/auth');
 const {
     createAppointmentRules,
     updateAppointmentStatusRules,
@@ -86,7 +86,9 @@ router.get('/group/:groupId', auth, getGroupBooking);
 router.get('/summary', auth, getAppointmentsSummary);
 router.get('/', auth, getAllAppointments);
 router.put('/:id', auth, authorize('admin'), updateAppointment);
-router.put('/:id/status', auth, authorize('admin', 'provider'), updateAppointmentStatusRules, updateAppointmentStatus);
+// Staff with the bookings:status:self capability (Low tier and up) may reach this;
+// the controller then enforces booking ownership for the self-scoped grant.
+router.put('/:id/status', auth, allow({ roles: ['admin', 'provider'], capability: 'bookings:status:self' }), updateAppointmentStatusRules, updateAppointmentStatus);
 router.delete('/:id', auth, authorize('customer', 'provider', 'admin'), cancelAppointmentRules, cancelAppointment);
 router.put('/:id/reschedule', auth, authorize('customer', 'provider'), rescheduleAppointmentRules, rescheduleAppointment);
 router.put('/:id/provider-reschedule', auth, authorize('provider'), providerRescheduleAppointment);

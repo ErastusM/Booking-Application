@@ -238,3 +238,48 @@ describe('permission tiers', () => {
         expect(await User.findOne({ email: 'newhire2@test.com' })).toBeNull();
     });
 });
+
+describe('tiered booking-status actions (Phase 1)', () => {
+    const setTier = (userId, t) => User.updateOne({ _id: userId }, { $set: { staffTier: t } });
+    const setStatus = (user, apptId, status) =>
+        request(app).put(`/api/appointments/${apptId}/status`).set(authHeader(user)).send({ status });
+
+    it('a Low member can change the status of their OWN booking', async () => {
+        const { mosesLogin, mine } = await setup([]);
+        await setTier(mosesLogin._id, 'low');
+        const res = await setStatus(mosesLogin, mine._id, 'confirmed');
+        expect(res.status).toBe(200);
+        expect(res.body.data.status).toBe('confirmed');
+    });
+
+    it("a Low member CANNOT change a colleague's booking", async () => {
+        const { mosesLogin, hers } = await setup([]);
+        await setTier(mosesLogin._id, 'low');
+        const res = await setStatus(mosesLogin, hers._id, 'confirmed');
+        expect(res.status).toBe(403);
+    });
+
+    it('a Medium member can change ANY booking in the business', async () => {
+        const { mosesLogin, hers } = await setup([]);
+        await setTier(mosesLogin._id, 'medium');
+        const res = await setStatus(mosesLogin, hers._id, 'confirmed');
+        expect(res.status).toBe(200);
+    });
+
+    it('a Basic member is refused at the route — no booking capability', async () => {
+        const { mosesLogin, mine } = await setup([]); // tier null → Basic
+        const res = await setStatus(mosesLogin, mine._id, 'confirmed');
+        expect(res.status).toBe(403);
+    });
+
+    it("never reaches another business's booking, even at Medium", async () => {
+        const { mosesLogin } = await setup([]);
+        await setTier(mosesLogin._id, 'medium');
+        const other = await makeProvider();
+        const otherCustomer = await makeUser();
+        const otherService = await makeService(other._id);
+        const otherAppt = await makeAppointment(otherCustomer._id, otherService._id, other._id);
+        const res = await setStatus(mosesLogin, otherAppt._id, 'confirmed');
+        expect(res.status).toBe(403);
+    });
+});
