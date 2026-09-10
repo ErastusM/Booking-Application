@@ -147,7 +147,14 @@ exports.updateTeamMember = async (req, res) => {
         const {
             name, role, email, phone, color, isActive, bookable,
             photoUrl, country, address, emergencyContact,
+            bio, pronouns, languages, employment, notes,
         } = req.body;
+        // Normalise languages to a capped list of trimmed, non-empty tags. Left
+        // undefined when not sent, so a partial body leaves the field untouched.
+        const cleanLanguages = languages === undefined
+            ? undefined
+            : (Array.isArray(languages) ? languages : [])
+                .map((l) => String(l).trim()).filter(Boolean).slice(0, 12);
         // Read the prior state so a change to `isActive` can be mirrored onto the
         // linked login below (findOneAndUpdate only returns the new value).
         const existing = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
@@ -156,8 +163,13 @@ exports.updateTeamMember = async (req, res) => {
         const member = await TeamMember.findOneAndUpdate(
             { _id: req.params.id, provider: req.user._id },
             // Undefined keys are dropped by Mongoose, so a partial body only
-            // touches the fields it actually sends.
-            { name, role, email, phone, color, isActive, bookable, photoUrl, country, address, emergencyContact },
+            // touches the fields it actually sends. bio/pronouns/languages are
+            // customer-facing; employment/notes are owner-only HR — both are safe
+            // to write here because this route is owner-gated (provider: req.user._id).
+            {
+                name, role, email, phone, color, isActive, bookable, photoUrl, country, address, emergencyContact,
+                bio, pronouns, languages: cleanLanguages, employment, notes,
+            },
             { new: true, runValidators: true }
         );
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
@@ -1045,6 +1057,7 @@ exports.getMyProfile = async (req, res) => {
                 _id: member._id, name: member.name, role: member.role,
                 phone: member.phone, email: member.email,
                 photoUrl: member.photoUrl, color: member.color,
+                bio: member.bio, pronouns: member.pronouns, languages: member.languages,
             },
         });
     } catch (error) {
@@ -1054,22 +1067,30 @@ exports.getMyProfile = async (req, res) => {
 
 /**
  * PUT /api/team/mine/profile  (staff-self)
- * Body: { name?, phone?, photoUrl? } — a member edits their OWN profile. Only
- * fields present in the body are touched; a member can't reach anyone else's
- * row (resolved from the token, not an id), nor change their services/permissions
- * here (those have their own scoped endpoints).
+ * Body: { name?, phone?, photoUrl?, bio?, pronouns?, languages? } — a member
+ * edits their OWN profile. Only fields present in the body are touched; a member
+ * can't reach anyone else's row (resolved from the token, not an id), nor change
+ * their services/permissions here (those have their own scoped endpoints). A
+ * member may set their own PUBLIC presentation (bio/pronouns/languages) but NOT
+ * owner-only HR fields (employment, notes) — those are absent by design.
  */
 exports.setMyProfile = async (req, res) => {
     try {
         const member = await myMemberDoc(req);
         if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
-        const { name, phone, photoUrl } = req.body;
+        const { name, phone, photoUrl, bio, pronouns, languages } = req.body;
         if (name !== undefined) {
             if (!String(name).trim()) return res.status(400).json({ success: false, message: 'Name cannot be empty' });
             member.name = String(name).trim();
         }
         if (phone !== undefined) member.phone = String(phone).trim();
         if (photoUrl !== undefined) member.photoUrl = photoUrl || null;
+        if (bio !== undefined) member.bio = String(bio).trim();
+        if (pronouns !== undefined) member.pronouns = String(pronouns).trim();
+        if (languages !== undefined) {
+            member.languages = (Array.isArray(languages) ? languages : [])
+                .map((l) => String(l).trim()).filter(Boolean).slice(0, 12);
+        }
         await member.save();
         res.status(200).json({
             success: true,
@@ -1077,6 +1098,7 @@ exports.setMyProfile = async (req, res) => {
                 _id: member._id, name: member.name, role: member.role,
                 phone: member.phone, email: member.email,
                 photoUrl: member.photoUrl, color: member.color,
+                bio: member.bio, pronouns: member.pronouns, languages: member.languages,
             },
         });
     } catch (error) {

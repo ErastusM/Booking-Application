@@ -157,6 +157,13 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
         emergencyName: member.emergencyContact?.name || '',
         emergencyPhone: member.emergencyContact?.phone || '',
         color: member.color || '#f03e16',
+        // Profile depth. bio/pronouns/languages are shown to customers; employment
+        // and notes are owner-only. languages is edited as a comma-separated string.
+        bio: member.bio || '', pronouns: member.pronouns || '',
+        languages: (member.languages || []).join(', '),
+        employmentType: member.employment?.type || '',
+        employmentStart: member.employment?.startDate ? String(member.employment.startDate).slice(0, 10) : '',
+        notes: member.notes || '',
     });
     const [photoBusy, setPhotoBusy] = useState(false);
 
@@ -336,6 +343,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                 name: personal.name.trim(), role: personal.role.trim(), email: personal.email.trim(),
                 phone: personal.phone.trim(), country: personal.country.trim(), address: personal.address.trim(),
                 color: personal.color,
+                bio: personal.bio.trim(), pronouns: personal.pronouns.trim(), notes: personal.notes.trim(),
             };
             const patch = {};
             Object.entries(draft).forEach(([k, v]) => { if (v !== (member[k] || '')) patch[k] = v; });
@@ -343,6 +351,17 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
             const ePhone = personal.emergencyPhone.trim();
             if (eName !== (member.emergencyContact?.name || '') || ePhone !== (member.emergencyContact?.phone || '')) {
                 patch.emergencyContact = { name: eName, phone: ePhone };
+            }
+            // Languages: comma-separated in the UI, an array on the wire.
+            const langs = personal.languages.split(',').map((s) => s.trim()).filter(Boolean).slice(0, 12);
+            if (langs.join(', ') !== (member.languages || []).join(', ')) patch.languages = langs;
+            // Employment (owner-only). Sent whole when either part changes.
+            const empType = personal.employmentType.trim();
+            const empStart = personal.employmentStart || '';
+            const curEmpType = member.employment?.type || '';
+            const curEmpStart = member.employment?.startDate ? String(member.employment.startDate).slice(0, 10) : '';
+            if (empType !== curEmpType || empStart !== curEmpStart) {
+                patch.employment = { type: empType, startDate: empStart || null };
             }
             if (Object.keys(patch).length === 0) { flash('Nothing to save.'); setBusy(''); return; }
             await teamService.updateMember(member._id, patch);
@@ -636,6 +655,41 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                 <Field label="Emergency contact" value={personal.emergencyName} onChange={e => setPersonal(p => ({ ...p, emergencyName: e.target.value }))} />
                                 <Field label="Emergency phone" value={personal.emergencyPhone} onChange={e => setPersonal(p => ({ ...p, emergencyPhone: e.target.value }))} />
                             </div>
+
+                            {/* Public profile — shown to clients on the booking page. */}
+                            <div style={{ marginTop: '1.1rem' }}>
+                                <p style={{ margin: '0 0 0.5rem', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                                    Public profile <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>— shown to clients</span>
+                                </p>
+                                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                    Bio
+                                    <textarea className="input" rows={3} value={personal.bio} maxLength={600} data-testid="personal-bio"
+                                        onChange={e => setPersonal(p => ({ ...p, bio: e.target.value }))}
+                                        placeholder="A short introduction clients see when they pick this professional." style={{ padding: '0.5rem 0.6rem', fontWeight: 400, resize: 'vertical' }} />
+                                </label>
+                                <div style={{ display: 'grid', gap: '0.7rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginTop: '0.7rem' }}>
+                                    <Field label="Pronouns" value={personal.pronouns} onChange={e => setPersonal(p => ({ ...p, pronouns: e.target.value }))} placeholder="e.g. she/her" data-testid="personal-pronouns" />
+                                    <Field label="Languages" value={personal.languages} onChange={e => setPersonal(p => ({ ...p, languages: e.target.value }))} placeholder="English, Oshiwambo, Afrikaans" data-testid="personal-languages" />
+                                </div>
+                            </div>
+
+                            {/* Owner-only — HR details and private notes never leave the business. */}
+                            <div style={{ marginTop: '1.1rem' }}>
+                                <p style={{ margin: '0 0 0.5rem', fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                                    Employment <span style={{ fontWeight: 500, textTransform: 'none', letterSpacing: 0 }}>— only your team sees this</span>
+                                </p>
+                                <div style={{ display: 'grid', gap: '0.7rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
+                                    <Field label="Employment type" value={personal.employmentType} onChange={e => setPersonal(p => ({ ...p, employmentType: e.target.value }))} placeholder="e.g. Employed, Contractor" data-testid="personal-employment-type" />
+                                    <Field label="Start date" type="date" value={personal.employmentStart} onChange={e => setPersonal(p => ({ ...p, employmentStart: e.target.value }))} data-testid="personal-employment-start" />
+                                </div>
+                                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '0.7rem' }}>
+                                    Internal notes <span style={{ fontWeight: 500 }}>(private)</span>
+                                    <textarea className="input" rows={3} value={personal.notes} maxLength={2000} data-testid="personal-notes"
+                                        onChange={e => setPersonal(p => ({ ...p, notes: e.target.value }))}
+                                        placeholder="Notes only your team's admins can see — never shown to clients." style={{ padding: '0.5rem 0.6rem', fontWeight: 400, resize: 'vertical' }} />
+                                </label>
+                            </div>
+
                             <p style={{ margin: '0.7rem 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                                 Only a name is required. Everything else is optional.
                             </p>
