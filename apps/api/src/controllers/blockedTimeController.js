@@ -1,6 +1,11 @@
 const { randomUUID } = require('crypto');
 const BlockedTime = require('../models/BlockedTime');
 
+// The business a request acts on: the owner's own id, or a Medium+ staff
+// member's employer (staffOf). Every provider-scoped query below uses this, so a
+// staff member manages only their own business's calendar. null = detached staff.
+const businessScope = (req) => (req.user.role === 'staff' ? req.user.staffOf || null : req.user._id);
+
 const MAX_OCCURRENCES = 365;
 
 function generateOccurrences(startDate, recurrenceType, recurrenceEndDate) {
@@ -39,7 +44,9 @@ function generateOccurrences(startDate, recurrenceType, recurrenceEndDate) {
 
 exports.getMyBlockedTimes = async (req, res) => {
     try {
-        const query = { provider: req.user._id };
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const query = { provider: providerId };
         // ?teamMember=<id> → only that member's blocks; ?teamMember=business →
         // only business-wide blocks; absent → everything (existing behavior).
         if (req.query.teamMember === 'business') query.teamMember = null;
@@ -54,6 +61,8 @@ exports.getMyBlockedTimes = async (req, res) => {
 
 exports.createBlockedTime = async (req, res) => {
     try {
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const { date, startTime, endTime, reason, isRecurring, recurrenceType, recurrenceEndDate, teamMember, ownerOnly } = req.body;
 
         if (!date || !startTime || !endTime) {
@@ -69,7 +78,7 @@ exports.createBlockedTime = async (req, res) => {
         let teamMemberId = null;
         if (teamMember) {
             const TeamMember = require('../models/TeamMember');
-            const member = await TeamMember.findOne({ _id: teamMember, provider: req.user._id });
+            const member = await TeamMember.findOne({ _id: teamMember, provider: providerId });
             if (!member) {
                 return res.status(400).json({ success: false, message: 'Unknown team member' });
             }
@@ -81,7 +90,7 @@ exports.createBlockedTime = async (req, res) => {
             const groupId = randomUUID();
             const occurrences = generateOccurrences(date, recurrenceType, recurrenceEndDate);
             const docs = occurrences.map(d => ({
-                provider: req.user._id,
+                provider: providerId,
                 teamMember: teamMemberId,
                 ownerOnly: ownerScoped,
                 date: d,
@@ -98,7 +107,7 @@ exports.createBlockedTime = async (req, res) => {
         }
 
         const blocked = await BlockedTime.create({
-            provider: req.user._id,
+            provider: providerId,
             teamMember: teamMemberId,
             ownerOnly: ownerScoped,
             date,
@@ -118,9 +127,11 @@ exports.createBlockedTime = async (req, res) => {
 
 exports.updateBlockedTime = async (req, res) => {
     try {
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const { startTime, endTime, reason, updateMode } = req.body;
 
-        const blocked = await BlockedTime.findOne({ _id: req.params.id, provider: req.user._id });
+        const blocked = await BlockedTime.findOne({ _id: req.params.id, provider: providerId });
         if (!blocked) {
             return res.status(404).json({ success: false, message: 'Blocked time not found' });
         }
@@ -161,9 +172,11 @@ exports.updateBlockedTime = async (req, res) => {
 
 exports.deleteBlockedTime = async (req, res) => {
     try {
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const { deleteMode } = req.body;
 
-        const blocked = await BlockedTime.findOne({ _id: req.params.id, provider: req.user._id });
+        const blocked = await BlockedTime.findOne({ _id: req.params.id, provider: providerId });
         if (!blocked) {
             return res.status(404).json({ success: false, message: 'Blocked time not found' });
         }
