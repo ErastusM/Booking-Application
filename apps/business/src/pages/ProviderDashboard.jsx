@@ -194,7 +194,16 @@ const ProviderDashboard = () => {
     // services[0], so they're unaffected by the extra rows.
     const [apptForm, setApptForm] = useState({ services: [{ serviceId: '' }], date: '', startTime: '', clientMode: 'existing', customerId: '', clientName: '', notes: '', isRecurring: false, recurrenceType: 'weekly', recurrenceInterval: 1, recurrenceEndDate: '', isGroup: false, groupClients: [{ name: '' }], teamMember: '' });
     const [clientPickerSearch, setClientPickerSearch] = useState('');
-    const [calendarStaffFilter, setCalendarStaffFilter] = useState('all'); // 'all' | 'unassigned' | teamMember _id
+    // Multi-select staff filter: a Set of lane ids to show — 'unassigned' (the
+    // owner/me lane) or a teamMember _id. An EMPTY set means "all staff" (the
+    // default), so 'show everyone' and 'show a chosen subset' stay distinct.
+    const [calendarStaffFilter, setCalendarStaffFilter] = useState(() => new Set());
+    const toggleStaffFilter = (id) => setCalendarStaffFilter((prev) => {
+        if (id === 'all') return new Set();               // "All staff" clears the subset
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        return next;
+    });
     const [savingAppt, setSavingAppt] = useState(false);
     const [apptError, setApptError] = useState('');
     // Appointment history
@@ -1102,11 +1111,12 @@ const ProviderDashboard = () => {
         }
     };
 
+    // The staff filter is a Set of lane ids; an empty set shows all. 'unassigned'
+    // is the owner/me lane.
+    const staffFilterShows = (laneId) => calendarStaffFilter.size === 0 || calendarStaffFilter.has(laneId);
     const matchesStaffFilter = (a) => {
-        if (calendarStaffFilter === 'all') return true;
         const tmId = a.teamMember?._id || a.teamMember || null;
-        if (calendarStaffFilter === 'unassigned') return !tmId;
-        return String(tmId) === String(calendarStaffFilter);
+        return staffFilterShows(tmId ? String(tmId) : 'unassigned');
     };
 
     // A block is one of three kinds:
@@ -1116,14 +1126,10 @@ const ProviderDashboard = () => {
     //   - business-wide (teamMember null, not ownerOnly): closes every column.
     //   - member-scoped (teamMember set): shown only when that member is in view.
     const blockMatchesStaffFilter = (b) => {
-        if (b.ownerOnly) {
-            return calendarStaffFilter === 'all' || calendarStaffFilter === 'unassigned';
-        }
+        if (b.ownerOnly) return staffFilterShows('unassigned');
         const tmId = b.teamMember?._id || b.teamMember || null;
         if (!tmId) return true; // business-wide → blocks everyone, always shown
-        if (calendarStaffFilter === 'all') return true;
-        if (calendarStaffFilter === 'unassigned') return false;
-        return String(tmId) === String(calendarStaffFilter);
+        return staffFilterShows(String(tmId));
     };
 
     const activeTeamMembers = teamMembers.filter(m => m.isActive !== false);
@@ -2325,12 +2331,14 @@ const ProviderDashboard = () => {
                                         { id: 'unassigned', label: `${(user?.name || 'Me').split(' ')[0]} (me)` },
                                         ...teamMembers.filter(m => m.isActive !== false).map(m => ({ id: String(m._id), label: m.name, color: m.color })),
                                     ].map(({ id, label, color }) => {
-                                        const isActive = String(calendarStaffFilter) === id;
+                                        // 'All staff' is active when no subset is chosen; each other
+                                        // option is a toggle (membership in the selection Set).
+                                        const isActive = id === 'all' ? calendarStaffFilter.size === 0 : calendarStaffFilter.has(id);
                                         return (
                                             <button
                                                 key={id}
                                                 type="button"
-                                                onClick={() => setCalendarStaffFilter(id)}
+                                                onClick={() => toggleStaffFilter(id)}
                                                 aria-pressed={isActive}
                                                 style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}
                                             >
