@@ -2,10 +2,11 @@
  * Provider reschedule can REASSIGN the performer (backend for drag-to-reassign).
  *
  * PUT /api/appointments/:id/provider-reschedule accepts an optional teamMember.
- * When it changes the performer the new member is validated exactly as a booking
- * is (owner's business, active, performs the service, free at the new time) via
- * resolveBookingStaff, and the conflict/race checks scope to the destination
- * member. Owner-only; single-service only. This suite pins:
+ * When it changes the performer the new member is validated explicitly — on the
+ * owner's roster, active, bookable, and performs the service — and the
+ * conflict/race checks scope to the destination member (so a lost race rolls the
+ * booking back onto its ORIGINAL member, no double-book). Owner-only;
+ * single-service only. This suite pins:
  *   - a valid reassign persists the new performer
  *   - a non-performer is refused
  *   - a target already booked at that time is refused (no double-book)
@@ -59,6 +60,7 @@ describe('provider-reschedule reassignment', () => {
         const nonPerformer = await TeamMember.create({ provider: appt.provider, name: 'Desk', offersAllServices: false, services: [] });
         const res = await reschedule(provider, appt._id, { appointmentDate: DATE, startTime: '14:00', teamMember: String(nonPerformer._id) });
         expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/doesn't perform this service/i); // refused for the RIGHT reason
         expect(String((await Appointment.findById(appt._id)).teamMember || '')).toBe(''); // unchanged (still owner column)
     });
 
