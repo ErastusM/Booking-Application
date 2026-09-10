@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { auth, authorize } = require('../middleware/auth');
 const {
-    getMyTeam, addTeamMember, updateTeamMember, deleteTeamMember, restoreTeamMember, setTeamMemberPermissions, getTeamMemberStats,
+    getMyTeam, addTeamMember, bulkAddTeamMembers, updateTeamMember, deleteTeamMember, restoreTeamMember, setTeamMemberPermissions, getTeamMemberStats,
     getTeamMemberShifts, setTeamMemberShift, clearTeamMemberShift,
     removeTeamMember,
     inviteTeamMember, setTeamMemberServices, setTeamMemberPricing, setTeamMemberPrimary,
@@ -39,6 +39,8 @@ router.use(auth, authorize('provider', 'admin'));
 
 router.get('/', getMyTeam);
 router.post('/', addTeamMember);
+// Add several members at once (per-row results; a bad row doesn't fail the batch).
+router.post('/bulk', bulkAddTeamMembers);
 router.put('/:id', updateTeamMember);
 // DELETE archives rather than removes — bookings, earnings and reviews all
 // reference the member, so the row has to outlive their employment.
