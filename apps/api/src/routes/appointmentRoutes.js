@@ -91,7 +91,9 @@ router.put('/:id', auth, authorize('admin'), updateAppointment);
 router.put('/:id/status', auth, allow({ roles: ['admin', 'provider'], capability: 'bookings:status:self' }), updateAppointmentStatusRules, updateAppointmentStatus);
 router.delete('/:id', auth, authorize('customer', 'provider', 'admin'), cancelAppointmentRules, cancelAppointment);
 router.put('/:id/reschedule', auth, authorize('customer', 'provider'), rescheduleAppointmentRules, rescheduleAppointment);
-router.put('/:id/provider-reschedule', auth, authorize('provider'), providerRescheduleAppointment);
+// Staff with bookings:reschedule:self (Low tier and up) may reach this; the
+// controller then enforces booking ownership for the self-scoped grant.
+router.put('/:id/provider-reschedule', auth, allow({ roles: ['provider'], capability: 'bookings:reschedule:self' }), providerRescheduleAppointment);
 // Drag-to-reschedule: one decision that may move several bookings (a push that
 // ripples through an afternoon). Deliberately NOT :id-scoped — the batch is the
 // unit, and splitting it into per-id calls is what this endpoint exists to avoid.

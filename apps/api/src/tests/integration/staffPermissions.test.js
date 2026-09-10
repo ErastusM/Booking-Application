@@ -283,3 +283,60 @@ describe('tiered booking-status actions (Phase 1)', () => {
         expect(res.status).toBe(403);
     });
 });
+
+describe('tiered reschedule actions (Phase 1b)', () => {
+    const setTier = (userId, t) => User.updateOne({ _id: userId }, { $set: { staffTier: t } });
+    // A weekday at least 3 days out — inside the default availability schedule
+    // (weekends off) so the reschedule target passes the schedule check.
+    const weekday = () => {
+        const d = new Date();
+        d.setDate(d.getDate() + 2);
+        do { d.setDate(d.getDate() + 1); } while (d.getDay() === 0 || d.getDay() === 6);
+        const pad = (n) => String(n).padStart(2, '0');
+        return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+    };
+    const reschedule = (user, apptId, date) =>
+        request(app).put(`/api/appointments/${apptId}/provider-reschedule`).set(authHeader(user))
+            .send({ appointmentDate: date, startTime: '14:00' });
+
+    it('a Low member can reschedule their OWN booking', async () => {
+        const { mosesLogin, mine } = await setup([]);
+        await setTier(mosesLogin._id, 'low');
+        const res = await reschedule(mosesLogin, mine._id, weekday());
+        expect(res.status).toBe(200);
+        expect(res.body.data.startTime).toBe('14:00');
+    });
+
+    it("a Low member CANNOT reschedule a colleague's booking", async () => {
+        const { mosesLogin, hers } = await setup([]);
+        await setTier(mosesLogin._id, 'low');
+        const res = await reschedule(mosesLogin, hers._id, weekday());
+        expect(res.status).toBe(403);
+    });
+
+    it('a Medium member can reschedule ANY booking in the business', async () => {
+        const { mosesLogin, hers } = await setup([]);
+        await setTier(mosesLogin._id, 'medium');
+        const res = await reschedule(mosesLogin, hers._id, weekday());
+        expect(res.status).toBe(200);
+    });
+
+    it('a Basic member is refused at the route — no reschedule capability', async () => {
+        const { mosesLogin, mine } = await setup([]); // tier null → Basic
+        const res = await reschedule(mosesLogin, mine._id, weekday());
+        expect(res.status).toBe(403);
+    });
+
+    it("never reaches another business's booking, even at Medium", async () => {
+        const { mosesLogin } = await setup([]);
+        await setTier(mosesLogin._id, 'medium');
+        const other = await makeProvider();
+        const otherCustomer = await makeUser();
+        const otherService = await makeService(other._id);
+        const otherAppt = await makeAppointment(otherCustomer._id, otherService._id, other._id, {
+            startTime: '10:00', endTime: '10:30',
+        });
+        const res = await reschedule(mosesLogin, otherAppt._id, weekday());
+        expect(res.status).toBe(403);
+    });
+});
