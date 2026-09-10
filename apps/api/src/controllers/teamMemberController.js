@@ -304,7 +304,14 @@ exports.removeTeamMember = async (req, res) => {
         // booking that no longer exists, freezing their money. releaseReservation is
         // idempotent and a no-op for cash bookings.
         const walletService = require('../utils/walletService');
-        const doomed = await Appointment.find(purgeFilter).select('_id');
+        // Load the doomed bookings WITH client + service detail (not just _id): we
+        // release their wallet holds AND notify the affected clients below, since a
+        // hard delete would otherwise make a customer's upcoming booking vanish with
+        // no word — the offboarding-notify gap. Populated once, reused for both.
+        const doomed = await Appointment.find(purgeFilter)
+            .populate('customer', 'name email')
+            .populate('service', 'name')
+            .select('_id customer service appointmentDate startTime guestEmail guestName walkInName');
         for (const appt of doomed) {
             try {
                 await walletService.releaseReservation({ appointmentId: appt._id, resolvedBy: req.user._id });
@@ -339,7 +346,42 @@ exports.removeTeamMember = async (req, res) => {
         }
 
         await TeamMember.deleteOne({ _id: member._id });
-        res.status(200).json({ success: true, message: 'Team member removed' });
+
+        // Tell the affected clients their upcoming booking was cancelled. Their
+        // appointment was just hard-deleted, so without this it simply disappears
+        // from their side with no word. Best-effort per client — a notify failure
+        // must never fail the removal (the bookings are already gone). In-app +
+        // push reaches registered accounts; email reaches guests too.
+        let notified = 0;
+        try {
+            const { createNotification } = require('../utils/notificationhelper');
+            const { sendAppointmentCancelled } = require('../utils/emailService');
+            for (const appt of doomed) {
+                const email = appt.customer?.email || appt.guestEmail || null;
+                const name = appt.customer?.name || appt.guestName || appt.walkInName || 'there';
+                const userId = appt.customer?._id || null;
+                const svcName = appt.service?.name || 'your appointment';
+                const dateLong = new Date(appt.appointmentDate)
+                    .toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
+                if (!userId && !email) continue; // walk-in with no contact — nothing to send
+                notified += 1;
+                if (userId) {
+                    try {
+                        await createNotification(
+                            userId,
+                            `❌ Your ${svcName} on ${dateLong} at ${appt.startTime} was cancelled — ${member.name} is no longer available. Please rebook a time that suits you.`,
+                            'appointment',
+                            '/appointments',
+                        );
+                    } catch (e) { /* best-effort */ }
+                }
+                if (email) {
+                    try { await sendAppointmentCancelled(email, name, svcName, dateLong); } catch (e) { /* best-effort */ }
+                }
+            }
+        } catch (e) { /* never block removal on a notify failure */ }
+
+        res.status(200).json({ success: true, message: 'Team member removed', data: { notified } });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
