@@ -105,7 +105,7 @@ const ProviderAccount = () => {
     }, [user]);
 
     // Profile
-    const [profileForm, setProfileForm] = useState({ name: user?.name || '', phone: user?.phone || '', address: user?.businessProfile?.address || '', businessName: user?.businessProfile?.businessName || '', description: user?.businessProfile?.description || '', cancellationWindowHours: user?.bookingPolicy?.cancellationWindowHours ?? 24, coordinates: user?.businessProfile?.coordinates?.lat != null ? user.businessProfile.coordinates : null });
+    const [profileForm, setProfileForm] = useState({ name: user?.name || '', phone: user?.phone || '', ownerTitle: user?.businessProfile?.ownerTitle || '', address: user?.businessProfile?.address || '', businessName: user?.businessProfile?.businessName || '', description: user?.businessProfile?.description || '', cancellationWindowHours: user?.bookingPolicy?.cancellationWindowHours ?? 24, coordinates: user?.businessProfile?.coordinates?.lat != null ? user.businessProfile.coordinates : null });
     const [avatarUploading, setAvatarUploading] = useState(false);
     const [profileSaving, setProfileSaving] = useState(false);
     const [profileMsg, setProfileMsg] = useState('');
@@ -349,6 +349,11 @@ const ProviderAccount = () => {
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Full Name</label>
                                                 <input value={profileForm.name} onChange={e => setProfileForm(p => ({ ...p, name: e.target.value }))} className="input" />
+                                            </div>
+                                            <div>
+                                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Job title</label>
+                                                <input value={profileForm.ownerTitle} onChange={e => setProfileForm(p => ({ ...p, ownerTitle: e.target.value.slice(0, 60) }))} className="input" placeholder="e.g. Barber, Stylist, Therapist" />
+                                                <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.3rem 0 0' }}>How you appear to clients when they pick a professional. Leave blank to show “Owner”.</p>
                                             </div>
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Phone</label>

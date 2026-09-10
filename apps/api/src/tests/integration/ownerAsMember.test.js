@@ -59,6 +59,17 @@ describe('owner as a bookable professional', () => {
         expect(list[1].name).toBe('Alice');
     });
 
+    it('shows the owner’s own job title when set, "Owner" as the fallback', async () => {
+        const ctx = await setup();
+        // No title set → the generic account label.
+        expect((await staffList(ctx.provider))[0].role).toBe('Owner');
+
+        // Owner sets a job title → clients see that instead.
+        ctx.provider.businessProfile = { ...(ctx.provider.businessProfile || {}), ownerTitle: 'Barber' };
+        await ctx.provider.save();
+        expect((await staffList(ctx.provider))[0].role).toBe('Barber');
+    });
+
     it('a solo business (no staff) shows no owner tile', async () => {
         const provider = await makeProvider();
         await Availability.create({ provider: provider._id, schedule: everyDay('08:00', '19:00') });

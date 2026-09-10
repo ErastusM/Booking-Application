@@ -47,11 +47,13 @@ exports.getProviderStaff = async (req, res) => {
         // businesses (no staff) keep the owner-implicit flow and need no tile.
         const staffCount = await TeamMember.countDocuments({ provider: req.params.id, isActive: true });
         if (staffCount > 0) {
-            const owner = await User.findById(req.params.id).select('name');
+            const owner = await User.findById(req.params.id).select('name businessProfile.ownerTitle avatar');
             data.unshift({
                 _id: 'owner', isOwner: true,
-                name: owner?.name || 'Owner', role: 'Owner',
+                // The owner's own set job title (e.g. "Barber"); "Owner" only as a fallback.
+                name: owner?.name || 'Owner', role: owner?.businessProfile?.ownerTitle?.trim() || 'Owner',
                 color: '#f03e16', services: [], serviceOverrides: [], isPrimary: false,
+                photoUrl: owner?.avatar || null,
                 offersAllServices: true, // the owner covers anything their business books
             });
         }
