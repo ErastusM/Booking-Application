@@ -14,11 +14,25 @@ const TeamMember = require('../../models/TeamMember');
 const Appointment = require('../../models/Appointment');
 const Notification = require('../../models/Notification');
 
-// Capture the cancellation email so we can assert it was attempted per client.
-const cancelMock = jest.fn().mockResolvedValue(true);
-jest.mock('../../utils/emailService', () => new Proxy({}, {
-    get: (_t, prop) => (prop === 'sendAppointmentCancelled' ? cancelMock : jest.fn().mockResolvedValue(true)),
-}));
+// Mock emailService with a MEMOIZING Proxy: the same jest.fn() is returned for a
+// given export on every access, so the controller's `sendAppointmentCancelled`
+// and the spy we assert on are one and the same instance. The factory is
+// self-contained (no outer variable) — jest's babel hoist forbids referencing an
+// outer `const` here, and a factory that returns a hoisted outer var read at the
+// `server` import would hit its temporal dead zone. Grab the spy via require().
+jest.mock('../../utils/emailService', () => {
+    const fns = {};
+    return new Proxy({}, {
+        get: (_t, prop) => {
+            if (prop === '__esModule') return false;
+            if (typeof prop !== 'string') return undefined;
+            fns[prop] = fns[prop] || jest.fn().mockResolvedValue(true);
+            return fns[prop];
+        },
+    });
+});
+const emailService = require('../../utils/emailService');
+const cancelSpy = () => emailService.sendAppointmentCancelled;
 
 beforeAll(() => testDb.connect());
 afterAll(() => testDb.closeDatabase());
@@ -48,7 +62,7 @@ describe('offboarding client-notify — permanent removal', () => {
         // …and the client got an in-app appointment notification + a cancel email.
         const notes = await Notification.find({ user: customer._id, type: 'appointment' });
         expect(notes.length).toBeGreaterThanOrEqual(1);
-        expect(cancelMock).toHaveBeenCalledWith('client@test.com', 'Client One', expect.any(String), expect.any(String));
+        expect(cancelSpy()).toHaveBeenCalledWith('client@test.com', 'Client One', expect.any(String), expect.any(String));
     });
 
     it('does not notify for completed/paid history (which is kept, not cancelled)', async () => {
@@ -65,7 +79,7 @@ describe('offboarding client-notify — permanent removal', () => {
             .set(authHeader(provider));
         expect(res.status).toBe(200);
         expect(res.body.data.notified).toBe(0);            // nothing cancelled → nobody notified
-        expect(cancelMock).not.toHaveBeenCalled();
+        expect(cancelSpy()).not.toHaveBeenCalled();
 
         // Completed history survives, flagged as former staff.
         const kept = await Appointment.findById(completed._id);
@@ -88,6 +102,6 @@ describe('offboarding client-notify — permanent removal', () => {
             .set(authHeader(provider));
         expect(res.status).toBe(200);
         expect(res.body.data.notified).toBe(0);
-        expect(cancelMock).not.toHaveBeenCalled();
+        expect(cancelSpy()).not.toHaveBeenCalled();
     });
 });
