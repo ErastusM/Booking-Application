@@ -719,6 +719,17 @@ exports.updateProfile = async (req, res) => {
             user.markModified('businessProfile');
         }
 
+        // The owner's own job title, shown to clients where the owner appears as a
+        // bookable professional (falls back to "Owner" when blank).
+        if (user.role === 'provider' && req.body.ownerTitle !== undefined) {
+            if (typeof req.body.ownerTitle !== 'string') {
+                return res.status(400).json({ success: false, message: 'Job title must be a string' });
+            }
+            if (!user.businessProfile) user.businessProfile = {};
+            user.businessProfile.ownerTitle = req.body.ownerTitle.trim().slice(0, 60);
+            user.markModified('businessProfile');
+        }
+
         // Short business tagline (shown on discovery cards + public profile).
         if (user.role === 'provider' && req.body.description !== undefined) {
             if (typeof req.body.description !== 'string') {

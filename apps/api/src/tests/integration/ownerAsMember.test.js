@@ -10,6 +10,7 @@ const { futureDate } = require('../helpers/dates');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, authHeader } = require('../helpers/factories');
+const User = require('../../models/User');
 const TeamMember = require('../../models/TeamMember');
 const StaffAvailability = require('../../models/StaffAvailability');
 const Availability = require('../../models/Availability');
@@ -57,6 +58,18 @@ describe('owner as a bookable professional', () => {
         expect(list).toHaveLength(2);
         expect(list[0]).toMatchObject({ _id: 'owner', isOwner: true, name: 'Stark' });
         expect(list[1].name).toBe('Alice');
+    });
+
+    it('shows the owner’s own job title when set, "Owner" as the fallback', async () => {
+        const ctx = await setup();
+        // No title set → the generic account label.
+        expect((await staffList(ctx.provider))[0].role).toBe('Owner');
+
+        // Owner sets a job title → clients see that instead. Set the single nested
+        // field atomically (re-assigning the whole businessProfile object trips the
+        // coordinates sub-path cast on a full-doc save).
+        await User.updateOne({ _id: ctx.provider._id }, { $set: { 'businessProfile.ownerTitle': 'Barber' } });
+        expect((await staffList(ctx.provider))[0].role).toBe('Barber');
     });
 
     it('a solo business (no staff) shows no owner tile', async () => {

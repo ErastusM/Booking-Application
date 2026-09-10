@@ -118,6 +118,11 @@ const userSchema = new mongoose.Schema(
         googleCalendarEmbedUrl: { type: String, default: '' },
         businessProfile: {
             businessName: { type: String, default: '' },
+            // The OWNER's own job title as shown to clients when they appear as a
+            // bookable professional (e.g. "Barber"). The owner has no roster row,
+            // so without this they'd read as the generic account label "Owner".
+            // Blank falls back to "Owner".
+            ownerTitle: { type: String, default: '', maxlength: 60 },
             // ISO-4217 currency the business prices in (chosen at onboarding —
             // Bookplus is international). Symbol/format derived from this code.
             currency: { type: String, default: 'NAD', uppercase: true, trim: true },
