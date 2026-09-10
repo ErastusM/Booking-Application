@@ -26,9 +26,17 @@ beforeAll(() => testDb.connect());
 afterAll(() => testDb.closeDatabase());
 afterEach(() => testDb.clearDatabase());
 
-// 3 days out (past the default cancellation window), a fixed clock time.
-const dateStr = () => { const d = new Date(); d.setDate(d.getDate() + 3); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; };
-const DATE = dateStr();
+// Next future Wednesday — a WEEKDAY the provider's default availability enables
+// (Mon–Fri 09:00–17:00). A plain "+3 days" could land on a weekend, which the
+// business-hours gate (isTimeWithinSchedule) rejects before the reassign runs.
+// All booked times below sit inside 09:00–17:00. Built from local parts to match
+// the controller's date handling (same convention as staffBookingMath).
+const nextFutureWednesday = () => {
+    const d = new Date();
+    d.setDate(d.getDate() + ((3 - d.getDay() + 7) % 7 || 7));
+    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+const DATE = nextFutureWednesday();
 
 const reschedule = (as, id, body) =>
     request(app).put(`/api/appointments/${id}/provider-reschedule`).set(authHeader(as)).send(body);
