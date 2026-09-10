@@ -108,7 +108,7 @@ exports.getMyTeam = async (req, res) => {
         // Callers that only test `member.user` for truthiness ("has a login")
         // are unaffected — a populated document is just as truthy as an id.
         const members = await TeamMember.find({ provider: req.user._id })
-            .populate('user', 'staffPermissions lastLoginAt')
+            .populate('user', 'staffPermissions staffTier lastLoginAt')
             .sort({ isPrimary: -1, createdAt: 1 }); // the primary member leads the roster
         res.status(200).json({ success: true, data: members });
     } catch (error) {

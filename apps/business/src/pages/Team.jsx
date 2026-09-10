@@ -15,6 +15,17 @@ import { cloudinaryAvatar } from '../utils/cloudinary';
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DEFAULT_DAY = { enabled: false, slots: [{ start: '09:00', end: '17:00' }] };
 
+// Permission tiers a staff member can be assigned (mirrors the API's TIERS).
+// Descriptions reflect what is enforced today; higher tiers gain more as later
+// phases wire their capabilities.
+const TIER_OPTIONS = [
+    { value: 'basic', label: 'Basic', desc: 'Sees only their own bookings. Manages their own profile, hours and services.' },
+    { value: 'low', label: 'Service provider', desc: 'Their own book — confirm, complete, cancel and no-show their own appointments.' },
+    { value: 'medium', label: 'Reception', desc: 'Sees the whole calendar and can change any booking’s status.' },
+    { value: 'high', label: 'Manager', desc: 'Reception access, plus management tools (reports, pricing, team) as they roll out.' },
+];
+const TIER_LABELS = Object.fromEntries(TIER_OPTIONS.map((t) => [t.value, t.label]));
+
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // A 'YYYY-MM-DD' range read the way people say it: "16 Aug", "16–20 Aug",
 // "28 Aug – 2 Sep".
@@ -131,7 +142,10 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
     const loggedIn = !!(member.user && member.user.lastLoginAt);
     const invitedPending = hasLogin && !loggedIn;
     const perms = member.user?.staffPermissions || [];
-    const [seesAll, setSeesAll] = useState(perms.includes('calendar:all'));
+    // Current tier: the stored staffTier, else inferred from the legacy flag
+    // (calendar:all ≈ reception-level whole-business view) so pre-tier members
+    // read sensibly until the owner picks one.
+    const [tier, setTier] = useState(member.user?.staffTier || (perms.includes('calendar:all') ? 'medium' : 'basic'));
     const [tab, setTab] = useState('overview');
     const [stats, setStats] = useState(null);      // null = not fetched, false = failed
     const [bookable, setBookable] = useState(member.bookable !== false);
@@ -300,25 +314,19 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
         setToBusy('');
     };
 
-    const setCalendarAccess = async (next) => {
-        const previous = seesAll;
-        setSeesAll(next);            // optimistic — the switch should feel instant
+    const setTierLevel = async (next) => {
+        const previous = tier;
+        setTier(next);              // optimistic
         setBusy('perms');
         try {
-            // The permissions endpoint replaces the whole set, so send every flag
-            // this member already holds with only the calendar one flipped —
-            // sending a bare ['calendar:all'] wiped their other flags (clients:
-            // assigned and anything added later) on every toggle. calendar:self is
-            // the ABSENCE of calendar:all, sent so the stored flags read sensibly.
-            const others = perms.filter((p) => p !== 'calendar:all' && p !== 'calendar:self');
-            await teamService.setMemberPermissions(member._id, [...others, next ? 'calendar:all' : 'calendar:self']);
-            flash(next
-                ? `${member.name} can now see everyone's calendar.`
-                : `${member.name} now sees only their own bookings.`);
+            // Sends permissions:[] so the tier is authoritative — any legacy
+            // per-member flags are cleared and the tier alone governs access.
+            await teamService.setMemberTier(member._id, next);
+            flash(`${member.name}'s access set to ${TIER_LABELS[next] || next}.`);
             onChanged();
         } catch (err) {
-            setSeesAll(previous);
-            flash(err?.response?.data?.message || 'Could not change calendar access.');
+            setTier(previous);
+            flash(err?.response?.data?.message || 'Could not change access level.');
         } finally {
             setBusy('');
         }
@@ -834,15 +842,27 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                             )}
 
                             {member.user && (
-                                <Section icon={Eye} title="Calendar access">
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap', padding: '0.7rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                                        <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: '40ch' }}>
-                                            {seesAll
-                                                ? `${member.name} can open every colleague's calendar and the Staff view.`
-                                                : `${member.name} sees only their own bookings. Colleagues' appointments are hidden entirely.`}
+                                <Section icon={Eye} title="Access level">
+                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', padding: '0.7rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                                        <select
+                                            value={tier}
+                                            disabled={busy === 'perms'}
+                                            onChange={(e) => setTierLevel(e.target.value)}
+                                            className="input"
+                                            data-testid="member-tier"
+                                            style={{ maxWidth: '220px', padding: '0.5rem 0.6rem' }}
+                                        >
+                                            {TIER_OPTIONS.map((t) => (
+                                                <option key={t.value} value={t.value}>{t.label}</option>
+                                            ))}
+                                        </select>
+                                        <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', flex: 1, minWidth: '200px' }}>
+                                            {(TIER_OPTIONS.find((t) => t.value === tier) || {}).desc}
                                         </span>
-                                        <Switch checked={seesAll} disabled={busy === 'perms'} onChange={setCalendarAccess} label={seesAll ? 'Everyone' : 'Own only'} data-testid="calendar-access-switch" />
                                     </div>
+                                    <p style={{ margin: '0.5rem 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
+                                        Owners and admins always have full access and can’t be limited.
+                                    </p>
                                 </Section>
                             )}
 
