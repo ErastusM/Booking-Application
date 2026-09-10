@@ -80,12 +80,20 @@ const CAPABILITIES = [...new Set(HIGH)];
 // descriptive flags map to nothing (they only ever meant the self-baseline).
 const LEGACY_CAP = { 'calendar:all': 'calendar:view_all' };
 
+const CAP_SET = new Set(HIGH); // every staff-assignable capability
+
 // Resolve a requested key to its canonical capability (honour the legacy alias).
 const canonical = (cap) => LEGACY_CAP[cap] || cap;
 
-// Capabilities a member's legacy staffPermissions still grant.
-const legacyCapabilities = (flags) =>
-    (Array.isArray(flags) ? flags : []).map((f) => LEGACY_CAP[f]).filter(Boolean);
+// Capabilities a member's staffPermissions grant: legacy flags via LEGACY_CAP,
+// AND any entry that is already a capability key (validate() only ever stores
+// KNOWN ∪ DESCRIPTIVE ∪ CAPABILITIES, so this makes staffPermissions a real
+// per-member OVERRIDE channel layered on top of the tier). Descriptive flags
+// (calendar:self / clients:assigned) map to nothing — the self-baseline.
+const flagCapabilities = (flags) =>
+    (Array.isArray(flags) ? flags : [])
+        .map((f) => LEGACY_CAP[f] || (CAP_SET.has(f) ? f : null))
+        .filter(Boolean);
 
 /**
  * A staff member's EFFECTIVE capabilities: the Basic self-baseline everyone
@@ -96,7 +104,7 @@ const legacyCapabilities = (flags) =>
 const effectiveCapabilities = (user) => {
     const set = new Set(BASIC);
     if (user && TIERS[user.staffTier]) TIERS[user.staffTier].forEach((c) => set.add(c));
-    legacyCapabilities(user && user.staffPermissions).forEach((c) => set.add(c));
+    flagCapabilities(user && user.staffPermissions).forEach((c) => set.add(c));
     return set;
 };
 

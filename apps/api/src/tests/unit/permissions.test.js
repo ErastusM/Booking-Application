@@ -45,11 +45,14 @@ describe('legacy preservation — the byte-for-byte guarantee', () => {
 });
 
 describe('tiers resolve cumulatively', () => {
-    it('basic < low < medium < high, each a superset', () => {
+    it('basic < low < medium < high, each a strict superset', () => {
         expect(TIER_NAMES).toEqual(['basic', 'low', 'medium', 'high']);
-        expect(new Set(TIERS.low)).toEqual(new Set([...TIERS.basic, ...TIERS.low.filter(c => !TIERS.basic.includes(c))]));
-        expect(TIERS.basic.every(c => TIERS.high.includes(c))).toBe(true);
+        expect(TIERS.basic.every(c => TIERS.low.includes(c))).toBe(true);
+        expect(TIERS.low.every(c => TIERS.medium.includes(c))).toBe(true);
         expect(TIERS.medium.every(c => TIERS.high.includes(c))).toBe(true);
+        expect(TIERS.low.length).toBeGreaterThan(TIERS.basic.length);
+        expect(TIERS.medium.length).toBeGreaterThan(TIERS.low.length);
+        expect(TIERS.high.length).toBeGreaterThan(TIERS.medium.length);
     });
     it('medium grants whole-business calendar + client book, not reports', () => {
         const m = staff({ staffTier: 'medium' });
@@ -74,6 +77,15 @@ describe('tiers resolve cumulatively', () => {
         const l = staff({ staffTier: 'low', staffPermissions: [CALENDAR_ALL] });
         expect(can(l, 'calendar:view_all')).toBe(true); // from the legacy flag
         expect(can(l, 'bookings:create')).toBe(true);    // from the tier
+    });
+
+    it('a capability stored in staffPermissions is a per-member override', () => {
+        // The owner can layer a single extra capability on a member without moving
+        // their whole tier — validate() stores it, effective set honours it.
+        const m = staff({ staffPermissions: ['reports:view'] }); // no tier
+        expect(can(m, 'reports:view')).toBe(true);   // granted via the override channel
+        expect(can(m, 'services:edit')).toBe(false); // nothing else leaks in
+        expect(can(m, 'calendar:view_all')).toBe(false);
     });
 });
 
