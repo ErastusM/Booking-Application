@@ -18,6 +18,25 @@ const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return (
 // null = a detached staff account, which the wired handlers 403.
 const businessScope = (req) => (req.user.role === 'staff' ? req.user.staffOf || null : req.user._id);
 
+// employment + notes are OWNER-ONLY HR (see the TeamMember schema). A
+// team:manage staff actor can run the roster but must NEVER read a colleague's
+// HR record — stripping them on the WRITE path is not enough, since the
+// handlers echo the stored document back and getMyTeam returns the full roster.
+// redactHR drops both fields from a returned member (or array of members) when
+// the actor is staff; the owner/admin sees the unredacted document unchanged.
+const redactHR = (req, doc) => {
+    if (req.user.role !== 'staff' || doc == null) return doc;
+    const strip = (m) => {
+        if (!m) return m;
+        // Work on a plain object so we can delete keys off a Mongoose document.
+        const obj = typeof m.toObject === 'function' ? m.toObject() : m;
+        delete obj.employment;
+        delete obj.notes;
+        return obj;
+    };
+    return Array.isArray(doc) ? doc.map(strip) : strip(doc);
+};
+
 // The owner's own work is stored UNASSIGNED (teamMember null) — there is no
 // roster row for the boss. These mirror memberInvolvedFilter/memberBusyIntervals
 // for that null case so the owner can be a handover target like anyone else.
@@ -122,7 +141,7 @@ exports.getMyTeam = async (req, res) => {
         const members = await TeamMember.find({ provider: providerId })
             .populate('user', 'staffPermissions staffTier lastLoginAt')
             .sort({ isPrimary: -1, createdAt: 1 }); // the primary member leads the roster
-        res.status(200).json({ success: true, data: members });
+        res.status(200).json({ success: true, data: redactHR(req, members) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -150,7 +169,7 @@ exports.addTeamMember = async (req, res) => {
             // their services, or flips "offers all" on, from the member's card.
             offersAllServices: false,
         });
-        res.status(201).json({ success: true, data: member });
+        res.status(201).json({ success: true, data: redactHR(req, member) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -217,7 +236,7 @@ exports.updateTeamMember = async (req, res) => {
                 await User.updateOne({ _id: member.user }, { $set: { isActive: true } });
             }
         }
-        res.status(200).json({ success: true, data: member });
+        res.status(200).json({ success: true, data: redactHR(req, member) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -275,7 +294,7 @@ exports.deleteTeamMember = async (req, res) => {
             // the only record of which account was theirs, which re-inviting
             // needs. See inviteTeamMember for the recovery path.
         }
-        res.status(200).json({ success: true, message: 'Team member archived', data: member });
+        res.status(200).json({ success: true, message: 'Team member archived', data: redactHR(req, member) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -758,7 +777,7 @@ exports.restoreTeamMember = async (req, res) => {
             { new: true },
         );
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
-        res.status(200).json({ success: true, data: member });
+        res.status(200).json({ success: true, data: redactHR(req, member) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -930,7 +949,7 @@ exports.setTeamMemberPrimary = async (req, res) => {
         }
         member.isPrimary = makePrimary;
         await member.save();
-        res.status(200).json({ success: true, data: member });
+        res.status(200).json({ success: true, data: redactHR(req, member) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -985,7 +1004,7 @@ exports.setTeamMemberPricing = async (req, res) => {
         if (error) return res.status(400).json({ success: false, message: error });
         member.serviceOverrides = rows;
         await member.save();
-        res.status(200).json({ success: true, data: member });
+        res.status(200).json({ success: true, data: redactHR(req, member) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -1024,7 +1043,7 @@ exports.setTeamMemberServices = async (req, res) => {
         member.services = services;
         if (offersAllServices !== undefined) member.offersAllServices = offersAllServices;
         await member.save();
-        res.status(200).json({ success: true, data: member });
+        res.status(200).json({ success: true, data: redactHR(req, member) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -1091,7 +1110,7 @@ exports.setMyServices = async (req, res) => {
         member.services = services;
         if (offersAllServices !== undefined) member.offersAllServices = offersAllServices;
         await member.save();
-        res.status(200).json({ success: true, data: member });
+        res.status(200).json({ success: true, data: redactHR(req, member) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -1110,7 +1129,7 @@ exports.setMyPricing = async (req, res) => {
         if (error) return res.status(400).json({ success: false, message: error });
         member.serviceOverrides = rows;
         await member.save();
-        res.status(200).json({ success: true, data: member });
+        res.status(200).json({ success: true, data: redactHR(req, member) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

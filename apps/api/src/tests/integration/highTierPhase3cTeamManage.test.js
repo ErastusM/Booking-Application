@@ -116,8 +116,8 @@ describe('team:manage — CROWN JEWELS stay owner-only (no self-escalation)', ()
     });
 });
 
-describe('team:manage — updateTeamMember strips owner-only HR for a staff actor', () => {
-    it('a High staff member can edit public fields but NOT employment/notes', async () => {
+describe('team:manage — owner-only HR (employment/notes) is neither written nor read by a staff actor', () => {
+    it('a High staff member can edit public fields but NOT employment/notes, and the response hides them', async () => {
         const provider = await makeProvider();
         const { login: high } = await makeStaff(provider, 'high');
         const target = await TeamMember.create({
@@ -133,7 +133,42 @@ describe('team:manage — updateTeamMember strips owner-only HR for a staff acto
 
         const saved = await TeamMember.findById(target._id);
         expect(saved.bio).toBe('public bio');        // public field changed
-        expect(saved.notes).toBe('owner note');       // HR untouched
+        expect(saved.notes).toBe('owner note');       // HR untouched in the DB
         expect(saved.employment.type).toBe('Employed');
+
+        // …and the RESPONSE must not echo the stored HR back to the staff actor.
+        expect(res.body.data.bio).toBe('public bio');
+        expect(res.body.data.notes).toBeUndefined();
+        expect(res.body.data.employment).toBeUndefined();
+    });
+
+    it('getMyTeam does not leak a colleague\'s employment/notes to a High staff member', async () => {
+        const provider = await makeProvider();
+        const { login: high } = await makeStaff(provider, 'high');
+        await TeamMember.create({
+            provider: provider._id, name: 'Colleague',
+            notes: 'confidential HR note', employment: { type: 'Employed', startDate: new Date('2020-01-01') },
+        });
+
+        const res = await request(app).get('/api/team').set(authHeader(high));
+        expect(res.status).toBe(200);
+        for (const m of res.body.data) {
+            expect(m.notes).toBeUndefined();
+            expect(m.employment).toBeUndefined();
+        }
+    });
+
+    it('the owner still sees employment/notes on the roster', async () => {
+        const provider = await makeProvider();
+        await TeamMember.create({
+            provider: provider._id, name: 'Colleague',
+            notes: 'owner note', employment: { type: 'Employed' },
+        });
+
+        const res = await request(app).get('/api/team').set(authHeader(provider));
+        expect(res.status).toBe(200);
+        const row = res.body.data.find((m) => m.name === 'Colleague');
+        expect(row.notes).toBe('owner note');            // owner keeps full visibility
+        expect(row.employment.type).toBe('Employed');
     });
 });
