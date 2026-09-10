@@ -300,6 +300,11 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         set: (schedule: any) => API.put('/team/mine/availability', { schedule }),
     },
 
+    // Staff self-view of their own stats (same figures the owner sees for them).
+    myStatsService: {
+        get: (days = 30) => API.get('/team/mine/stats', { params: { days } }),
+    },
+
     suggestionService: {
         submit: (data: any) => API.post('/suggestions', data),
     },

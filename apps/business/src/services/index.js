@@ -35,6 +35,7 @@ export const {
     myServicesService,
     myProfileService,
     myAvailabilityService,
+    myStatsService,
     suggestionService,
     pushService,
     walletService,

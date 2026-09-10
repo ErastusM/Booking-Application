@@ -499,150 +499,175 @@ exports.clearTeamMemberShift = async (req, res) => {
  *               they have no account, so two guest bookings cannot be known to
  *               be the same person.
  */
+const STATS_DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const statsToMin = (t) => {
+    const [h = 0, m = 0] = String(t || '').split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+};
+// Revenue credited to ONE member across a list of completed bookings, per-segment
+// so a shared multi-service ticket doesn't credit its whole total to the primary.
+const memberSegments = (a, memberId) => (Array.isArray(a.services) && a.services.length
+    ? a.services.filter((s) => String(s.teamMember) === String(memberId))
+    : [{ price: a.totalPrice || 0, startTime: a.startTime, endTime: a.endTime }]);
+const segmentRevenue = (done, memberId) => done.reduce((sum, a) =>
+    sum + memberSegments(a, memberId).reduce((s, seg) => s + (seg.price || 0), 0), 0);
+
+/**
+ * The per-member stats payload for a window of `days`, scoped to `providerId`
+ * (the employer). Shared by the owner endpoint (/:id/stats) and the staff
+ * self-view (/mine/stats) so both compute identical figures.
+ *
+ * Adds over the original: no-show + cancellation counts and a no-show RATE, and
+ * a period-over-period trend (same metrics for the immediately-preceding window
+ * of equal length) so a number can be read as up or down, not just absolute.
+ */
+const computeMemberStats = async (providerId, member, days) => {
+    // Anchor the window to the business day in Africa/Windhoek, then express its
+    // boundaries at UTC-midnight — the instant appointmentDate is stored at.
+    const { NAMIBIA_OFFSET_MIN } = require('../utils/appointmentTime');
+    const nowNam = new Date(Date.now() + NAMIBIA_OFFSET_MIN * 60 * 1000);
+    const startOfToday = new Date(Date.UTC(nowNam.getUTCFullYear(), nowNam.getUTCMonth(), nowNam.getUTCDate()));
+    const to = new Date(startOfToday); to.setUTCHours(23, 59, 59, 999);
+    const from = new Date(startOfToday); from.setUTCDate(from.getUTCDate() - (days - 1));
+    // The immediately-preceding window of equal length, for the trend delta.
+    const toPrev = new Date(from); toPrev.setUTCMilliseconds(toPrev.getUTCMilliseconds() - 1);
+    const fromPrev = new Date(from); fromPrev.setUTCDate(fromPrev.getUTCDate() - days);
+
+    const Appointment = require('../models/Appointment');
+    const Review = require('../models/Review');
+    const Availability = require('../models/Availability');
+
+    // A member counts for a booking if they are its top-level member OR they
+    // perform one of its services (multi-service tickets split across staff).
+    const memberMatch = { $or: [{ teamMember: member._id }, { 'services.teamMember': member._id }] };
+    const inWindow = { provider: providerId, appointmentDate: { $gte: from, $lte: to }, ...memberMatch };
+    const inPrevWindow = { provider: providerId, appointmentDate: { $gte: fromPrev, $lte: toPrev }, ...memberMatch };
+
+    const [done, prevDone, upcoming, noShows, cancellations, ratingAgg, staffHours, businessHours, shifts] = await Promise.all([
+        Appointment.find({ ...inWindow, status: 'completed' })
+            .select('totalPrice customer startTime endTime services'),
+        // Prior window — only what the trend needs (completed count + revenue).
+        Appointment.find({ ...inPrevWindow, status: 'completed' })
+            .select('totalPrice startTime endTime services'),
+        // From the START OF TODAY, not this instant: appointmentDate is a date-only
+        // value at midnight, so a 15:00 booking must not read as already past at 09:00.
+        Appointment.countDocuments({
+            provider: providerId,
+            status: { $in: ['pending', 'confirmed'] },
+            appointmentDate: { $gte: startOfToday },
+            ...memberMatch,
+        }),
+        Appointment.countDocuments({ ...inWindow, status: 'no-show' }),
+        Appointment.countDocuments({ ...inWindow, status: 'cancelled' }),
+        // Reviews carry no teamMember, so the link runs through the booking.
+        Review.aggregate([
+            { $lookup: { from: 'appointments', localField: 'appointment', foreignField: '_id', as: 'appt' } },
+            { $unwind: '$appt' },
+            { $match: { 'appt.teamMember': member._id } },
+            { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
+        ]),
+        StaffAvailability.findOne({ teamMember: member._id }),
+        Availability.findOne({ provider: providerId }),
+        Shift.find({
+            teamMember: member._id,
+            date: { $gte: from.toISOString().slice(0, 10), $lte: to.toISOString().slice(0, 10) },
+        }).select('date slots breaks').lean(),
+    ]);
+
+    const revenue = segmentRevenue(done, member._id);
+    const revenuePrev = segmentRevenue(prevDone, member._id);
+    const bookedMinutes = done.reduce((sum, a) =>
+        sum + memberSegments(a, member._id).reduce((s, seg) => {
+            const mins = statsToMin(seg.endTime) - statsToMin(seg.startTime);
+            return s + (mins > 0 ? mins : 0);
+        }, 0), 0);
+
+    // Clients: registered accounts only, so "the same person twice" is knowable.
+    const counts = new Map();
+    done.forEach((a) => {
+        if (!a.customer) return;
+        const k = a.customer.toString();
+        counts.set(k, (counts.get(k) || 0) + 1);
+    });
+    const clients = counts.size;
+    const returning = [...counts.values()].filter((n) => n > 1).length;
+
+    const sumPeriods = (list) => (list || []).reduce((acc, s) => {
+        const mins = statsToMin(s.end) - statsToMin(s.start);
+        return acc + (mins > 0 ? mins : 0);
+    }, 0);
+
+    const schedule = staffHours?.schedule || businessHours?.schedule || null;
+    const shiftByDate = new Map((shifts || []).map((s) => [s.date, s]));
+    let scheduledMinutes = 0;
+    for (let d = new Date(from); d <= to; d.setUTCDate(d.getUTCDate() + 1)) {
+        const shift = shiftByDate.get(d.toISOString().slice(0, 10));
+        if (shift) {
+            scheduledMinutes += Math.max(0, sumPeriods(shift.slots) - sumPeriods(shift.breaks));
+            continue;
+        }
+        const cfg = schedule?.[STATS_DAY_NAMES[d.getUTCDay()]];
+        if (cfg?.enabled && Array.isArray(cfg.slots)) scheduledMinutes += sumPeriods(cfg.slots);
+    }
+
+    // No-show rate = no-shows ÷ the appointments that were meant to happen
+    // (completed + no-shows). Cancellations are excluded from the denominator —
+    // a cancelled booking was called off ahead of time, not a no-show.
+    const attended = done.length + noShows;
+    return {
+        windowDays: days,
+        appointments: done.length,
+        revenue,
+        clients,
+        upcoming,
+        noShows,
+        cancellations,
+        // null when there were no attendable bookings — "cannot say" ≠ "0% no-show".
+        noShowRate: attended > 0 ? Math.round((noShows / attended) * 100) : null,
+        rating: ratingAgg[0] ? Math.round(ratingAgg[0].avg * 10) / 10 : null,
+        reviews: ratingAgg[0]?.count || 0,
+        // null, not 0 — "we cannot say" is different from "they were idle".
+        occupancy: scheduledMinutes > 0
+            ? Math.min(100, Math.round((bookedMinutes / scheduledMinutes) * 100))
+            : null,
+        retention: clients > 0 ? Math.round((returning / clients) * 100) : null,
+        bookedMinutes,
+        scheduledMinutes,
+        // Period-over-period: the prior equal-length window and the deltas, so the
+        // UI can render an up/down arrow rather than a bare number.
+        trend: {
+            revenuePrev,
+            appointmentsPrev: prevDone.length,
+            revenueDelta: revenue - revenuePrev,
+            appointmentsDelta: done.length - prevDone.length,
+        },
+    };
+};
+
 exports.getTeamMemberStats = async (req, res) => {
     try {
         const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
-
         const days = Math.min(365, Math.max(1, parseInt(req.query.days, 10) || 30));
+        const data = await computeMemberStats(req.user._id, member, days);
+        res.status(200).json({ success: true, data });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
 
-        // Anchor the window to the business day in Africa/Windhoek, then express
-        // its boundaries at UTC-midnight — the exact instant appointmentDate is
-        // stored at. Computed in raw UTC (to.setHours) the window rolled over on
-        // the server's clock, so for the two hours after local midnight "today"
-        // hadn't started yet and that day's bookings fell outside the window.
-        const { NAMIBIA_OFFSET_MIN } = require('../utils/appointmentTime');
-        const nowNam = new Date(Date.now() + NAMIBIA_OFFSET_MIN * 60 * 1000);
-        const startOfToday = new Date(Date.UTC(nowNam.getUTCFullYear(), nowNam.getUTCMonth(), nowNam.getUTCDate()));
-        const to = new Date(startOfToday); to.setUTCHours(23, 59, 59, 999);
-        const from = new Date(startOfToday); from.setUTCDate(from.getUTCDate() - (days - 1));
-
-        const Appointment = require('../models/Appointment');
-        const Review = require('../models/Review');
-        const Availability = require('../models/Availability');
-
-        // A member counts for a booking if they are its top-level member OR they
-        // perform one of its services. A multi-service booking is split across
-        // several staff (services[].teamMember), and each must see — and be paid
-        // for — only their own part, never the whole ticket.
-        const memberMatch = { $or: [{ teamMember: member._id }, { 'services.teamMember': member._id }] };
-        const inWindow = {
-            provider: req.user._id,
-            appointmentDate: { $gte: from, $lte: to },
-            ...memberMatch,
-        };
-
-        const [done, upcoming, ratingAgg, staffHours, businessHours, shifts] = await Promise.all([
-            Appointment.find({ ...inWindow, status: 'completed' })
-                .select('totalPrice customer startTime endTime services'),
-            // From the START OF TODAY, not from this instant. appointmentDate is
-            // a date-only value stored at midnight, so comparing it against `now`
-            // silently dropped every remaining booking today — at 09:00 a 15:00
-            // appointment counted as already past. `startOfToday` is the Windhoek
-            // day at UTC-midnight, matching how appointmentDate is stored. Within-
-            // day precision would need startTime; the auto-complete job flips
-            // finished bookings out of pending/confirmed, so this converges anyway.
-            Appointment.countDocuments({
-                provider: req.user._id,
-                status: { $in: ['pending', 'confirmed'] },
-                appointmentDate: { $gte: startOfToday },
-                ...memberMatch,
-            }),
-            // Reviews carry no teamMember, so the link runs through the booking.
-            Review.aggregate([
-                { $lookup: { from: 'appointments', localField: 'appointment', foreignField: '_id', as: 'appt' } },
-                { $unwind: '$appt' },
-                { $match: { 'appt.teamMember': member._id } },
-                { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
-            ]),
-            StaffAvailability.findOne({ teamMember: member._id }),
-            Availability.findOne({ provider: req.user._id }),
-            // Date-specific shifts across the window. A shift REPLACES the weekly
-            // pattern for its date (models/Shift), so occupancy has to honour it —
-            // otherwise a rostered day off still counts as scheduled and drags the
-            // figure down, and an extra covered day is never counted at all.
-            Shift.find({
-                teamMember: member._id,
-                date: { $gte: from.toISOString().slice(0, 10), $lte: to.toISOString().slice(0, 10) },
-            }).select('date slots breaks').lean(),
-        ]);
-
-        const toMin = (t) => {
-            const [h = 0, m = 0] = String(t || '').split(':').map(Number);
-            return (h || 0) * 60 + (m || 0);
-        };
-        // This member's slice of a booking: the services assigned to them, or —
-        // for a single-service booking with no per-service breakdown — the whole
-        // thing. Crediting the top-level member with the full multi-service total
-        // and its full span is exactly the misattribution this fixes: it inflated
-        // the primary's revenue and occupancy and paid the other performers zero.
-        const mySegments = (a) => (Array.isArray(a.services) && a.services.length
-            ? a.services.filter((s) => String(s.teamMember) === String(member._id))
-            : [{ price: a.totalPrice || 0, startTime: a.startTime, endTime: a.endTime }]);
-
-        const revenue = done.reduce((sum, a) =>
-            sum + mySegments(a).reduce((s, seg) => s + (seg.price || 0), 0), 0);
-        const bookedMinutes = done.reduce((sum, a) =>
-            sum + mySegments(a).reduce((s, seg) => {
-                const mins = toMin(seg.endTime) - toMin(seg.startTime);
-                return s + (mins > 0 ? mins : 0);
-            }, 0), 0);
-
-        // Clients: registered accounts only, so "the same person twice" is knowable.
-        const counts = new Map();
-        done.forEach((a) => {
-            if (!a.customer) return;
-            const k = a.customer.toString();
-            counts.set(k, (counts.get(k) || 0) + 1);
-        });
-        const clients = counts.size;
-        const returning = [...counts.values()].filter((n) => n > 1).length;
-
-        // Occupancy. bookedMinutes is the member's own service minutes (computed
-        // above, per-segment), so a shared multi-service booking no longer counts
-        // its whole span against every performer.
-        const sumPeriods = (list) => (list || []).reduce((acc, s) => {
-            const mins = toMin(s.end) - toMin(s.start);
-            return acc + (mins > 0 ? mins : 0);
-        }, 0);
-
-        const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-        const schedule = staffHours?.schedule || businessHours?.schedule || null;
-        const shiftByDate = new Map((shifts || []).map((s) => [s.date, s]));
-        // Iterate in UTC because appointmentDate — and therefore the shift keys and
-        // the day-of-week the weekly pattern is indexed by — are all UTC-midnight.
-        let scheduledMinutes = 0;
-        for (let d = new Date(from); d <= to; d.setUTCDate(d.getUTCDate() + 1)) {
-            const shift = shiftByDate.get(d.toISOString().slice(0, 10));
-            if (shift) {
-                // A shift is authoritative for its date: slots minus breaks. Empty
-                // slots is a rostered day off — zero scheduled, correctly.
-                scheduledMinutes += Math.max(0, sumPeriods(shift.slots) - sumPeriods(shift.breaks));
-                continue;
-            }
-            const cfg = schedule?.[DAY_NAMES[d.getUTCDay()]];
-            if (cfg?.enabled && Array.isArray(cfg.slots)) scheduledMinutes += sumPeriods(cfg.slots);
-        }
-
-        res.status(200).json({
-            success: true,
-            data: {
-                windowDays: days,
-                appointments: done.length,
-                revenue,
-                clients,
-                upcoming,
-                rating: ratingAgg[0] ? Math.round(ratingAgg[0].avg * 10) / 10 : null,
-                reviews: ratingAgg[0]?.count || 0,
-                // null, not 0 — "we cannot say" is different from "they were idle".
-                occupancy: scheduledMinutes > 0
-                    ? Math.min(100, Math.round((bookedMinutes / scheduledMinutes) * 100))
-                    : null,
-                retention: clients > 0 ? Math.round((returning / clients) * 100) : null,
-                bookedMinutes,
-                scheduledMinutes,
-            },
-        });
+/**
+ * GET /api/team/mine/stats  (staff-self)
+ * The signed-in staff member's OWN stats — same figures the owner sees for them,
+ * scoped to their employer (staffOf). Token-resolved, no id in the URL.
+ */
+exports.getMyStats = async (req, res) => {
+    try {
+        const member = await myMemberDoc(req);
+        if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
+        const days = Math.min(365, Math.max(1, parseInt(req.query.days, 10) || 30));
+        const data = await computeMemberStats(req.user.staffOf, member, days);
+        res.status(200).json({ success: true, data });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

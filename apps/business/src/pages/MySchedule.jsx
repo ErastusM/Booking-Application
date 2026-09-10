@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { appointmentService, myTimeOffService, myServicesService, myProfileService, myAvailabilityService, authService } from '../services';
+import { appointmentService, myTimeOffService, myServicesService, myProfileService, myAvailabilityService, myStatsService, authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
-import { CalendarClock, Palmtree, ConciergeBell, Clock, Camera, KeyRound } from 'lucide-react';
+import { CalendarClock, Palmtree, ConciergeBell, Clock, Camera, KeyRound, BarChart3 } from 'lucide-react';
 import Switch from '../components/Switch';
 import { uploadToCloudinary } from '../utils/uploadImage';
 import { cloudinaryAvatar } from '../utils/cloudinary';
@@ -33,6 +33,30 @@ const fmtRange = (a, b) => {
 };
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
+// A read-only stat tile for the staff self-view. `delta` (signed) renders a
+// period-over-period chip; `higherIsBad` flips the colours (up = worse).
+const StatTile = ({ label, value, suffix, note, delta, deltaText, higherIsBad }) => {
+    const show = delta !== null && delta !== undefined;
+    const up = delta > 0;
+    const good = show && delta !== 0 && (higherIsBad ? !up : up);
+    const bad = show && delta !== 0 && (higherIsBad ? up : !up);
+    const color = good ? '#1f8a4c' : bad ? 'var(--gold-dark)' : 'var(--text-muted)';
+    return (
+        <div style={{ padding: '0.7rem 0.8rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--card-bg)' }}>
+            <div style={{ fontSize: '0.66rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{label}</div>
+            <div className="tnum" style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, color: 'var(--charcoal)', lineHeight: 1.2 }}>
+                {value === null || value === undefined ? '—' : value}{value === null || value === undefined ? '' : (suffix || '')}
+            </div>
+            {show && (
+                <div style={{ fontSize: '0.68rem', fontWeight: 700, color, marginTop: '0.12rem' }}>
+                    {delta === 0 ? '→ no change' : `${up ? '▲' : '▼'} ${deltaText ?? Math.abs(delta)} vs prev`}
+                </div>
+            )}
+            {note && <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>{note}</div>}
+        </div>
+    );
+};
+
 const MySchedule = () => {
     const { user, logout } = useAuthContext();
     const [appointments, setAppointments] = useState(null);
@@ -61,6 +85,8 @@ const MySchedule = () => {
     const [inherits, setInherits] = useState(true);
     const [hoursBusy, setHoursBusy] = useState(false);
     const [hoursMsg, setHoursMsg] = useState('');
+    // My own performance stats (self-view). null = loading, false = failed.
+    const [myStats, setMyStats] = useState(null);
     // Password change.
     const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
     const [pwBusy, setPwBusy] = useState(false);
@@ -92,6 +118,9 @@ const MySchedule = () => {
             // showing an all-off default that a member could save would wipe their
             // real hours. The section is gated on `schedule` being truthy.
             .catch(() => setSchedule(false));
+        myStatsService.get()
+            .then(res => setMyStats(res.data.data))
+            .catch(() => setMyStats(false));
         myTimeOffService.list()
             .then(res => setTimeOff(res.data.data || []))
             .catch(() => setTimeOff(false));
@@ -339,6 +368,28 @@ const MySchedule = () => {
                             {profileBusy === 'save' ? 'Saving…' : 'Save profile'}
                         </button>
                         {profileMsg && <span style={{ fontSize: '0.82rem', fontWeight: 650, color: profileMsg === 'Saved' || profileMsg === 'Photo updated' ? '#1f8a4c' : 'var(--gold-dark)' }}>{profileMsg}</span>}
+                    </div>
+                </div>
+            )}
+
+            {/* ── My performance ───────────────────────────────────── */}
+            {myStats && myStats !== false && (
+                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.15rem 1.25rem', marginTop: '2rem' }} data-testid="my-stats">
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.15rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <BarChart3 size={16} /> My performance
+                    </h2>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '0 0 1rem' }}>
+                        Your own numbers over the last {myStats.windowDays} days, compared with the {myStats.windowDays} before.
+                    </p>
+                    <div style={{ display: 'grid', gap: '0.55rem', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
+                        <StatTile label="Appointments" value={myStats.appointments} note="completed"
+                            delta={myStats.trend?.appointmentsDelta} deltaText={Math.abs(myStats.trend?.appointmentsDelta ?? 0)} />
+                        <StatTile label="Revenue" value={myStats.revenue != null ? `N$${myStats.revenue.toLocaleString()}` : null} note="you generated"
+                            delta={myStats.trend?.revenueDelta} deltaText={`N$${Math.abs(myStats.trend?.revenueDelta ?? 0).toLocaleString()}`} />
+                        <StatTile label="Occupancy" value={myStats.occupancy} suffix="%" note="booked ÷ scheduled" />
+                        <StatTile label="No-shows" value={myStats.noShows} note={myStats.noShowRate != null ? `${myStats.noShowRate}% of attended` : 'no attended bookings'} higherIsBad />
+                        <StatTile label="Rating" value={myStats.rating} note={myStats.reviews ? `${myStats.reviews} review${myStats.reviews > 1 ? 's' : ''}` : 'no reviews yet'} />
+                        <StatTile label="Upcoming" value={myStats.upcoming} note="still to come" />
                     </div>
                 </div>
             )}
