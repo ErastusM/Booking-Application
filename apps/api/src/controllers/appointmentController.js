@@ -893,6 +893,31 @@ exports.createAppointment = async (req, res) => {
         // with past/closed/blocked bookings (audit: staff-role bypass).
         const isCustomerLike = isGuest || !isProviderBooking;
 
+        // Staff walk-in (Phase 1c): a staff member holding `bookings:create` (Low
+        // tier and up) may log a walk-in — a free-text, no-account client — but ONLY
+        // into their OWN column, and held to every customer guard. Deliberately NOT
+        // an owner override: isCustomerLike stays true, so unlike a provider walk-in
+        // they cannot skip published hours / blocked time / past-slot, and cannot
+        // book on behalf of a registered client (customerId). It's gated on a
+        // walkInName being supplied (the intent to log a walk-in rather than book
+        // themselves as a customer) and on the service belonging to their business.
+        const isStaffWalkIn = req.user?.role === 'staff'
+            && !!walkInName?.trim()
+            && !customerId
+            && !!svc.provider && String(svc.provider) === String(req.user.staffOf)
+            && can(req.user, 'bookings:create');
+        let staffWalkInMemberId = null;
+        if (isStaffWalkIn) {
+            // The walk-in lands in the staff member's own column — resolve their
+            // roster row and force it below, so a staff member can never log a
+            // walk-in into a colleague's column.
+            const myMember = await staffMemberOf(req.user);
+            if (!myMember) {
+                return res.status(403).json({ success: false, message: 'You do not have a bookable staff profile to log a walk-in under.' });
+            }
+            staffWalkInMemberId = myMember._id;
+        }
+
         // Customers, guests and providers book here; admins never did (the route
         // dropped authorize() for guest checkout, so re-assert that contract).
         if (req.user?.role === 'admin') {
@@ -928,6 +953,12 @@ exports.createAppointment = async (req, res) => {
                 return res.status(403).json({ success: false, message: 'You can only book on behalf of an existing client. Use a walk-in for a first-time client.' });
             }
             bookingClient = client;
+        }
+        // A staff walk-in is FOR the walk-in person (no account) — not the staff
+        // member who logged it. customer stays null and the name is carried on
+        // walkInName, exactly like a guest record minus the contact channel.
+        if (isStaffWalkIn) {
+            bookingClient = { _id: null, name: walkInName.trim(), email: null, phone: (guestPhone || '').trim() || null };
         }
 
         // Respect blocks — once either party blocks the other, no booking between them.
@@ -1054,7 +1085,12 @@ exports.createAppointment = async (req, res) => {
             const resolution = await resolveBookingStaff({
                 svc, providerId, appointmentDate, startTime, endTime,
                 // Guests resolve staff exactly like a customer ("any available").
-                requestedTeamMember: teamMember || null, requester: req.user || { role: 'customer' },
+                // A staff walk-in is forced onto the logging member's own column;
+                // resolveBookingStaff still validates it (bookable, performs the
+                // service, free) via the customer path, since a staff requester
+                // never owns the business.
+                requestedTeamMember: isStaffWalkIn ? staffWalkInMemberId : (teamMember || null),
+                requester: req.user || { role: 'customer' },
             });
             if (resolution.error) {
                 if (isCustomerLike) {
@@ -1170,8 +1206,9 @@ exports.createAppointment = async (req, res) => {
             guestName: isGuest ? bookingClient.name : null,
             guestEmail: isGuest ? bookingClient.email : null,
             guestPhone: isGuest ? (bookingClient.phone || null) : null,
-            // Walk-in name only when the provider didn't pick a registered client.
-            walkInName: isProviderBooking && !customerId ? (walkInName?.trim() || null) : null,
+            // Walk-in name only when a provider (or a capability-holding staff member
+            // logging their own walk-in) didn't pick a registered client.
+            walkInName: (isProviderBooking || isStaffWalkIn) && !customerId ? (walkInName?.trim() || null) : null,
             teamMember: resolvedTeamMember,
             paymentMethod: chosenMethod,
             manageToken: randomUUID(),
@@ -1339,7 +1376,7 @@ exports.createAppointment = async (req, res) => {
                 const bookingDate = new Date(appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 // Who the booking is for, in human terms — the registered client, the
                 // walk-in's name, or (for a self-booking) the customer themselves.
-                const clientLabel = isProviderBooking
+                const clientLabel = (isProviderBooking || isStaffWalkIn)
                     ? (customerId ? bookingClient.name : (walkInName?.trim() || 'a walk-in client'))
                     : (req.user?.name || bookingClient.name);
                 const priceTag = Number.isFinite(basePrice) ? ` (N$${basePrice.toFixed(2)})` : '';
@@ -1402,15 +1439,18 @@ exports.createAppointment = async (req, res) => {
                 };
                 // Send the confirmation to whoever the booking is for: the registered
                 // client when a provider booked on their behalf, otherwise the requester.
-                await sendAppointmentConfirmed(
-                    bookingClient.email,
-                    bookingClient.name,
-                    svc.name,
-                    dateStr,
-                    timeStr,
-                    gcalUrl,
-                    extras
-                );
+                // A walk-in has no account/email (staff walk-in) — nothing to send.
+                if (bookingClient.email) {
+                    await sendAppointmentConfirmed(
+                        bookingClient.email,
+                        bookingClient.name,
+                        svc.name,
+                        dateStr,
+                        timeStr,
+                        gcalUrl,
+                        extras
+                    );
+                }
             } catch (err) { logger.error({ err }, 'Booking confirmation email failed'); }
         });
     } catch (error) {
