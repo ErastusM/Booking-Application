@@ -8,13 +8,16 @@ const {
     updateCategory,
     deleteCategory,
 } = require('../controllers/categoryController');
-const { auth, authorize } = require('../middleware/auth');
+const { auth, allow } = require('../middleware/auth');
 
-router.get('/main', getMainCategories);
-router.get('/my-categories', auth, authorize('provider'), getMyCategories);
-router.get('/provider/:providerId', getProviderCategories);
-router.post('/', auth, authorize('provider'), createCategory);
-router.put('/:id', auth, authorize('provider'), updateCategory);
-router.delete('/:id', auth, authorize('provider'), deleteCategory);
+// Categories organize the service catalogue → services:edit (High tier).
+const canEditCatalogue = allow({ roles: ['provider'], capability: 'services:edit' });
+
+router.get('/main', getMainCategories); // static list — public
+router.get('/my-categories', auth, canEditCatalogue, getMyCategories);
+router.get('/provider/:providerId', getProviderCategories); // public storefront read
+router.post('/', auth, canEditCatalogue, createCategory);
+router.put('/:id', auth, canEditCatalogue, updateCategory);
+router.delete('/:id', auth, canEditCatalogue, deleteCategory);
 
 module.exports = router;
