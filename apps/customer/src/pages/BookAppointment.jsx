@@ -35,6 +35,7 @@ const BookAppointment = () => {
 
     // â"€â"€ data â"€â"€
     const [services, setServices] = useState([]);
+    const [servicesLoading, setServicesLoading] = useState(true); // true until the first fetch settles
     const [providerInfo, setProviderInfo] = useState(null);
 
     // â"€â"€ selections â"€â"€
@@ -356,6 +357,7 @@ const BookAppointment = () => {
         const providerChanged = prevUrlProviderIdRef.current !== urlProviderId;
         prevUrlProviderIdRef.current = urlProviderId;
         const fetchServices = async () => {
+            setServicesLoading(true);
             try {
                 if (providerChanged) {
                     setSelectedService(null);
@@ -394,6 +396,8 @@ const BookAppointment = () => {
                 }
             } catch {
                 setError('Failed to fetch services');
+            } finally {
+                setServicesLoading(false);
             }
         };
         fetchServices();
@@ -984,7 +988,14 @@ const BookAppointment = () => {
                                 {stepBadge(hasRoster ? 2 : 1)}
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)' }}>{hasRoster && selectedStaff ? `${selectedStaff.name.split(' ')[0]}’s Services` : 'Choose a Service'}</h2>
                             </div>
-                            {services.length === 0 ? (
+                            {servicesLoading ? (
+                                <div role="status" aria-label="Loading services" style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
+                                    <div style={{ marginBottom: '0.6rem', display: 'flex', justifyContent: 'center' }}>
+                                        <span style={{ display: 'inline-block', width: '24px', height: '24px', border: '2px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite' }} />
+                                    </div>
+                                    <p style={{ fontSize: '0.9rem', margin: 0 }}>Loading services…</p>
+                                </div>
+                            ) : services.length === 0 ? (
                                 <div style={{ textAlign: 'center', padding: '2.5rem 1rem', color: 'var(--text-muted)' }}>
                                     <div style={{ marginBottom: '0.5rem', display: 'flex', justifyContent: 'center' }}><CalendarX2 size={34} strokeWidth={1.5} style={{ color: 'var(--text-muted)' }} /></div>
                                     <p style={{ fontSize: '0.9rem', margin: 0 }}>No services available to book right now.</p>
