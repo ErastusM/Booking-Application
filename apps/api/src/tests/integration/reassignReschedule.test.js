@@ -62,6 +62,14 @@ describe('provider-reschedule reassignment', () => {
         expect(String((await Appointment.findById(appt._id)).teamMember || '')).toBe(''); // unchanged (still owner column)
     });
 
+    it('refuses a member who is not bookable (e.g. a receptionist)', async () => {
+        const { provider, appt } = await setup();
+        const desk = await TeamMember.create({ provider: appt.provider, name: 'Reception', offersAllServices: true, bookable: false });
+        const res = await reschedule(provider, appt._id, { appointmentDate: DATE, startTime: '14:00', teamMember: String(desk._id) });
+        expect(res.status).toBe(400);
+        expect(String((await Appointment.findById(appt._id)).teamMember || '')).toBe(''); // unchanged
+    });
+
     it('refuses reassigning onto a member already booked at that time (no double-book)', async () => {
         const { provider, svc, doer, appt } = await setup();
         const other = await makeUser();
