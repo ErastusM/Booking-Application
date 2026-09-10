@@ -37,7 +37,7 @@ class SlotTakenError extends Error {
 }
 const { realStartMs } = require('../utils/appointmentTime');
 const { primaryOrigin } = require('../utils/origins');
-const { can, CALENDAR_ALL } = require('../utils/permissions');
+const { can } = require('../utils/permissions');
 
 // Who a client-facing email/notification for this appointment should go to: the
 // registered customer, or the guest who booked (customer is null for guests).
@@ -616,7 +616,10 @@ const buildAppointmentScope = async (req) => {
         // hardcoded rule: `calendar:all` shows every colleague's bookings, its
         // absence narrows to their own column.
         if (!req.user.staffOf) return { empty: true };
-        if (can(req.user, CALENDAR_ALL)) return { query: { provider: req.user.staffOf } };
+        // The one existing enforcement seam, now expressed as a capability. The
+        // legacy calendar:all flag maps to calendar:view_all, so every current
+        // holder is unchanged; a Medium+ tier grants it by name.
+        if (can(req.user, 'calendar:view_all')) return { query: { provider: req.user.staffOf } };
         const member = await TeamMember.findOne({ user: req.user._id, provider: req.user.staffOf });
         if (!member) return { empty: true };
         // Segment-aware: a staff member sees every booking they perform — top-level

@@ -179,3 +179,62 @@ describe('setting permissions', () => {
         expect(res.body.data.map((a) => a._id)).toEqual([mine._id.toString()]);
     });
 });
+
+describe('permission tiers', () => {
+    it('assigning the Medium tier grants whole-business calendar view', async () => {
+        const { provider, moses, mosesLogin, mine, hers } = await setup([]); // no legacy flags
+
+        const set = await request(app)
+            .put(`/api/team/${moses._id}/permissions`)
+            .set(authHeader(provider))
+            .send({ tier: 'medium' });
+        expect(set.status).toBe(200);
+        expect(set.body.data.tier).toBe('medium');
+        expect((await User.findById(mosesLogin._id)).staffTier).toBe('medium');
+
+        const refreshed = await User.findById(mosesLogin._id);
+        const res = await listFor(refreshed);
+        const ids = res.body.data.map((a) => a._id).sort();
+        expect(ids).toEqual([mine._id.toString(), hers._id.toString()].sort());
+    });
+
+    it('a Basic tier keeps the member scoped to their own bookings', async () => {
+        const { provider, moses, mosesLogin, mine } = await setup([]);
+        await request(app).put(`/api/team/${moses._id}/permissions`).set(authHeader(provider)).send({ tier: 'basic' });
+
+        const res = await listFor(await User.findById(mosesLogin._id));
+        expect(res.body.data.map((a) => a._id)).toEqual([mine._id.toString()]);
+    });
+
+    it('rejects an unknown tier instead of storing it', async () => {
+        const { provider, moses, mosesLogin } = await setup([]);
+        const res = await request(app)
+            .put(`/api/team/${moses._id}/permissions`)
+            .set(authHeader(provider))
+            .send({ tier: 'superuser' });
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/unknown tier/i);
+        expect((await User.findById(mosesLogin._id)).staffTier).toBeNull();
+    });
+
+    it('setting tier:null resets to the self-baseline', async () => {
+        const { provider, moses, mosesLogin } = await setup([]);
+        await request(app).put(`/api/team/${moses._id}/permissions`).set(authHeader(provider)).send({ tier: 'high' });
+        const reset = await request(app).put(`/api/team/${moses._id}/permissions`).set(authHeader(provider)).send({ tier: null });
+        expect(reset.status).toBe(200);
+        expect((await User.findById(mosesLogin._id)).staffTier).toBeNull();
+    });
+
+    it('the invite path now rejects an unknown permission instead of storing it raw', async () => {
+        const provider = await makeProvider();
+        const member = await TeamMember.create({ provider: provider._id, name: 'New Hire', email: 'newhire2@test.com' });
+        const res = await request(app)
+            .post(`/api/team/${member._id}/invite`)
+            .set(authHeader(provider))
+            .send({ permissions: ['calendar:all', 'take:over:everything'] });
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/unknown permission/i);
+        // No staff account was created with the junk.
+        expect(await User.findOne({ email: 'newhire2@test.com' })).toBeNull();
+    });
+});
