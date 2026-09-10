@@ -1,8 +1,17 @@
 import React, { useEffect, useState } from 'react';
-import { appointmentService, myTimeOffService, myServicesService } from '../services';
+import { appointmentService, myTimeOffService, myServicesService, myProfileService, myAvailabilityService, authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
-import { CalendarClock, Palmtree, ConciergeBell } from 'lucide-react';
+import { CalendarClock, Palmtree, ConciergeBell, Clock, Camera, KeyRound } from 'lucide-react';
 import Switch from '../components/Switch';
+import { uploadToCloudinary } from '../utils/uploadImage';
+import { cloudinaryAvatar } from '../utils/cloudinary';
+
+const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
+const DEFAULT_SCHED = () => Object.fromEntries(DAYS.map(d => [d, { enabled: false, slots: [{ start: '09:00', end: '17:00' }] }]));
+// Mirror the server's change-password rule exactly (authController.changePassword):
+// ≥8 chars with an uppercase letter, a digit, and one of ! @ # $ % ^ & *. A
+// broader client set would pass validation here and then be rejected by the API.
+const PW_RE = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*]).{8,}$/;
 
 /**
  * Epic 2.4 — the staff principal's landing view: ONLY their own column
@@ -25,7 +34,7 @@ const fmtRange = (a, b) => {
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
 
 const MySchedule = () => {
-    const { user } = useAuthContext();
+    const { user, logout } = useAuthContext();
     const [appointments, setAppointments] = useState(null);
     const todayKey = new Date().toISOString().slice(0, 10);
     const [timeOff, setTimeOff] = useState(null);       // null = loading, false = failed
@@ -43,11 +52,46 @@ const MySchedule = () => {
     const [prices, setPrices] = useState({});
     const [priceBusy, setPriceBusy] = useState(false);
     const [priceMsg, setPriceMsg] = useState('');
+    // My profile (name, phone, photo) — my own editable identity.
+    const [profile, setProfile] = useState(null);       // null = loading
+    const [profileBusy, setProfileBusy] = useState('');  // '' | 'save' | 'photo'
+    const [profileMsg, setProfileMsg] = useState('');
+    // My weekly working hours. null = loading; `inherits` = no custom schedule yet.
+    const [schedule, setSchedule] = useState(null);
+    const [inherits, setInherits] = useState(true);
+    const [hoursBusy, setHoursBusy] = useState(false);
+    const [hoursMsg, setHoursMsg] = useState('');
+    // Password change.
+    const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
+    const [pwBusy, setPwBusy] = useState(false);
+    const [pwMsg, setPwMsg] = useState('');   // { ok, text }
 
     useEffect(() => {
         appointmentService.getAllAppointments({ all: 'true' })
             .then(res => setAppointments(res.data.data || []))
             .catch(() => setAppointments([]));
+        myProfileService.get()
+            .then(res => setProfile({
+                name: res.data.data?.name || '', phone: res.data.data?.phone || '',
+                photoUrl: res.data.data?.photoUrl || '', role: res.data.data?.role || '',
+                color: res.data.data?.color || '#f03e16',
+            }))
+            .catch(() => setProfile(false));
+        myAvailabilityService.get()
+            .then(res => {
+                const sched = res.data.data?.schedule;
+                if (sched) {
+                    const norm = DEFAULT_SCHED();
+                    DAYS.forEach(d => {
+                        if (sched[d]) norm[d] = { enabled: !!sched[d].enabled, slots: [{ start: sched[d].slots?.[0]?.start || '09:00', end: sched[d].slots?.[0]?.end || '17:00' }] };
+                    });
+                    setSchedule(norm); setInherits(false);
+                } else { setSchedule(DEFAULT_SCHED()); setInherits(true); }
+            })
+            // On a load failure, HIDE the editor (false) rather than seed all-days-off:
+            // showing an all-off default that a member could save would wipe their
+            // real hours. The section is gated on `schedule` being truthy.
+            .catch(() => setSchedule(false));
         myTimeOffService.list()
             .then(res => setTimeOff(res.data.data || []))
             .catch(() => setTimeOff(false));
@@ -125,6 +169,67 @@ const MySchedule = () => {
         } finally { setPriceBusy(false); }
     };
 
+    // ── My profile ──
+    const uploadMyPhoto = async (e) => {
+        const file = e.target.files?.[0];
+        e.target.value = '';
+        if (!file) return;
+        setProfileBusy('photo'); setProfileMsg('');
+        try {
+            const url = await uploadToCloudinary(file);
+            await myProfileService.update({ photoUrl: url });
+            setProfile(p => ({ ...p, photoUrl: url }));
+            setProfileMsg('Photo updated'); setTimeout(() => setProfileMsg(''), 2500);
+        } catch { setProfileMsg('Photo upload failed — try again'); }
+        finally { setProfileBusy(''); }
+    };
+    const saveProfile = async () => {
+        if (!profile.name.trim()) { setProfileMsg('Your name can’t be empty.'); return; }
+        setProfileBusy('save'); setProfileMsg('');
+        try {
+            await myProfileService.update({ name: profile.name.trim(), phone: profile.phone.trim() });
+            setProfileMsg('Saved'); setTimeout(() => setProfileMsg(''), 2500);
+        } catch (e) { setProfileMsg(e?.response?.data?.message || 'Could not save your profile.'); }
+        finally { setProfileBusy(''); }
+    };
+
+    // ── My working hours ──
+    const setDay = (day, patch) => setSchedule(s => ({ ...s, [day]: { ...s[day], ...patch } }));
+    const setDaySlot = (day, key, value) => setSchedule(s => ({
+        ...s, [day]: { ...s[day], slots: [{ ...(s[day].slots?.[0] || { start: '09:00', end: '17:00' }), [key]: value }] },
+    }));
+    const saveHours = async () => {
+        setHoursBusy(true); setHoursMsg('');
+        try {
+            await myAvailabilityService.set(schedule);
+            setInherits(false);
+            setHoursMsg('Saved'); setTimeout(() => setHoursMsg(''), 2500);
+        } catch (e) { setHoursMsg(e?.response?.data?.message || 'Could not save your hours.'); }
+        finally { setHoursBusy(false); }
+    };
+
+    // ── Password ──
+    const changePassword = async (e) => {
+        e.preventDefault();
+        setPwMsg('');
+        if (pw.next !== pw.confirm) { setPwMsg({ ok: false, text: 'The new passwords don’t match.' }); return; }
+        if (!PW_RE.test(pw.next)) { setPwMsg({ ok: false, text: 'Use at least 8 characters with an uppercase letter, a number and a special character.' }); return; }
+        setPwBusy(true);
+        try {
+            await authService.changePassword({ currentPassword: pw.current, newPassword: pw.next });
+            setPw({ current: '', next: '', confirm: '' });
+            // Changing the password invalidates every session (the server bumps
+            // tokenVersion), so this device is now signed out too. Say so, then log
+            // out cleanly after a beat rather than letting the next request 401 and
+            // bounce them unexpectedly. Leave the button disabled through the logout.
+            setPwMsg({ ok: true, text: 'Password changed — signing you out. Please sign in again.' });
+            setTimeout(() => { logout(); }, 1800);
+        } catch (err) {
+            setPwMsg({ ok: false, text: err?.response?.data?.message || 'Could not change your password.' });
+            setPwBusy(false);
+        }
+    };
+
     const flash = (t) => { setMsg(t); setTimeout(() => setMsg(''), 3500); };
 
     // Swallow refetch failures: the request/withdraw already succeeded, so
@@ -199,6 +304,86 @@ const MySchedule = () => {
                         <span style={{ fontSize: '0.72rem', fontWeight: 600, padding: '0.2rem 0.6rem', borderRadius: '99px', textTransform: 'capitalize', background: a.status === 'confirmed' ? 'var(--info-bg)' : 'var(--warning-bg)', color: a.status === 'confirmed' ? 'var(--info-fg)' : 'var(--warning-fg)' }}>{a.status}</span>
                     </div>
                 ))
+            )}
+
+            {/* ── My profile ───────────────────────────────────────── */}
+            {profile && profile !== false && (
+                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.15rem 1.25rem', marginTop: '2rem' }} data-testid="my-profile">
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.15rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <Camera size={16} /> My profile
+                    </h2>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '0 0 1rem' }}>
+                        This is how you appear to clients when they book with you.
+                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                        {profile.photoUrl
+                            ? <img src={cloudinaryAvatar(profile.photoUrl, 168)} alt="" style={{ width: 56, height: 56, borderRadius: '50%', objectFit: 'cover' }} />
+                            : <span aria-hidden="true" style={{ width: 56, height: 56, borderRadius: '50%', background: profile.color || 'var(--gold)', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', color: '#fff', fontWeight: 700, fontSize: '1.4rem' }}>{(profile.name || '?').trim().charAt(0).toUpperCase()}</span>}
+                        <label className="btn-outline" style={{ padding: '0.45rem 1rem', cursor: profileBusy === 'photo' ? 'default' : 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.4rem', opacity: profileBusy === 'photo' ? 0.6 : 1 }}>
+                            <Camera size={15} /> {profileBusy === 'photo' ? 'Uploading…' : profile.photoUrl ? 'Change photo' : 'Add photo'}
+                            <input type="file" accept="image/*" onChange={uploadMyPhoto} disabled={profileBusy === 'photo'} style={{ display: 'none' }} data-testid="my-photo" />
+                        </label>
+                    </div>
+                    <div style={{ display: 'grid', gap: '0.7rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', marginTop: '1rem' }}>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                            Name
+                            <input className="input" style={{ padding: '0.5rem 0.6rem', fontWeight: 400 }} value={profile.name} onChange={e => setProfile(p => ({ ...p, name: e.target.value }))} data-testid="my-name" />
+                        </label>
+                        <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                            Phone
+                            <input className="input" style={{ padding: '0.5rem 0.6rem', fontWeight: 400 }} value={profile.phone} onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))} data-testid="my-phone" />
+                        </label>
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1rem' }}>
+                        <button type="button" className="btn-primary" onClick={saveProfile} disabled={profileBusy === 'save'} data-testid="save-my-profile" style={{ padding: '0.5rem 1.3rem' }}>
+                            {profileBusy === 'save' ? 'Saving…' : 'Save profile'}
+                        </button>
+                        {profileMsg && <span style={{ fontSize: '0.82rem', fontWeight: 650, color: profileMsg === 'Saved' || profileMsg === 'Photo updated' ? '#1f8a4c' : 'var(--gold-dark)' }}>{profileMsg}</span>}
+                    </div>
+                </div>
+            )}
+
+            {/* ── My working hours ─────────────────────────────────── */}
+            {schedule && (
+                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.15rem 1.25rem', marginTop: '2rem' }} data-testid="my-hours">
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.15rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <Clock size={16} /> My working hours
+                    </h2>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '0 0 1rem' }}>
+                        {inherits
+                            ? 'You currently follow the business’s opening hours. Set your own below and save to override them.'
+                            : 'Your own weekly hours. Clients can only book you inside these.'}
+                    </p>
+                    <div style={{ display: 'grid', gap: '0.4rem' }}>
+                        {DAYS.map(d => {
+                            const cfg = schedule[d];
+                            const slot = cfg.slots?.[0] || { start: '09:00', end: '17:00' };
+                            return (
+                                <div key={d} data-testid="my-hours-row" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', width: '128px', fontSize: '0.85rem', color: 'var(--charcoal)', textTransform: 'capitalize' }}>
+                                        <input type="checkbox" checked={cfg.enabled} onChange={e => setDay(d, { enabled: e.target.checked })} data-testid={`my-hours-${d}`} />
+                                        {d}
+                                    </label>
+                                    {cfg.enabled ? (
+                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                                            <input type="time" className="input" value={slot.start} onChange={e => setDaySlot(d, 'start', e.target.value)} style={{ padding: '0.3rem 0.4rem', width: '110px' }} />
+                                            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>–</span>
+                                            <input type="time" className="input" value={slot.end} onChange={e => setDaySlot(d, 'end', e.target.value)} style={{ padding: '0.3rem 0.4rem', width: '110px' }} />
+                                        </span>
+                                    ) : (
+                                        <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>Day off</span>
+                                    )}
+                                </div>
+                            );
+                        })}
+                    </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1rem' }}>
+                        <button type="button" className="btn-primary" onClick={saveHours} disabled={hoursBusy} data-testid="save-my-hours" style={{ padding: '0.5rem 1.3rem' }}>
+                            {hoursBusy ? 'Saving…' : 'Save my hours'}
+                        </button>
+                        {hoursMsg && <span style={{ fontSize: '0.82rem', fontWeight: 650, color: hoursMsg === 'Saved' ? '#1f8a4c' : 'var(--gold-dark)' }}>{hoursMsg}</span>}
+                    </div>
+                </div>
             )}
 
             {/* ── My services ──────────────────────────────────────── */}
@@ -360,6 +545,37 @@ const MySchedule = () => {
                         );
                     })}
                 </div>
+            </div>
+
+            {/* ── Password ─────────────────────────────────────────── */}
+            <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.15rem 1.25rem', marginTop: '2rem' }} data-testid="my-password">
+                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.15rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                    <KeyRound size={16} /> Password
+                </h2>
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '0 0 1rem' }}>
+                    Change the password you use to sign in.
+                </p>
+                <form onSubmit={changePassword} style={{ display: 'grid', gap: '0.7rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', maxWidth: '520px' }}>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        Current password
+                        <input type="password" className="input" style={{ padding: '0.5rem 0.6rem', fontWeight: 400 }} value={pw.current} onChange={e => setPw(p => ({ ...p, current: e.target.value }))} autoComplete="current-password" required data-testid="pw-current" />
+                    </label>
+                    <span />
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        New password
+                        <input type="password" className="input" style={{ padding: '0.5rem 0.6rem', fontWeight: 400 }} value={pw.next} onChange={e => setPw(p => ({ ...p, next: e.target.value }))} autoComplete="new-password" required data-testid="pw-next" />
+                    </label>
+                    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                        Confirm new password
+                        <input type="password" className="input" style={{ padding: '0.5rem 0.6rem', fontWeight: 400 }} value={pw.confirm} onChange={e => setPw(p => ({ ...p, confirm: e.target.value }))} autoComplete="new-password" required data-testid="pw-confirm" />
+                    </label>
+                    <div style={{ gridColumn: '1 / -1', display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.25rem' }}>
+                        <button type="submit" className="btn-primary" disabled={pwBusy} data-testid="save-password" style={{ padding: '0.5rem 1.3rem' }}>
+                            {pwBusy ? 'Saving…' : 'Change password'}
+                        </button>
+                        {pwMsg && <span style={{ fontSize: '0.82rem', fontWeight: 650, color: pwMsg.ok ? '#1f8a4c' : 'var(--gold-dark)' }}>{pwMsg.text}</span>}
+                    </div>
+                </form>
             </div>
         </div>
     );
