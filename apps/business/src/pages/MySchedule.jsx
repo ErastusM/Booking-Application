@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
-import { appointmentService, myTimeOffService, myServicesService, myProfileService, myAvailabilityService, authService } from '../services';
+import { appointmentService, myTimeOffService, myServicesService, myProfileService, myAvailabilityService, timeClockService, authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
-import { CalendarClock, Palmtree, ConciergeBell, Clock, Camera, KeyRound } from 'lucide-react';
+import { CalendarClock, Palmtree, ConciergeBell, Clock, Camera, KeyRound, Timer } from 'lucide-react';
 import Switch from '../components/Switch';
 import { uploadToCloudinary } from '../utils/uploadImage';
 import { cloudinaryAvatar } from '../utils/cloudinary';
@@ -62,6 +62,10 @@ const MySchedule = () => {
     const [hoursBusy, setHoursBusy] = useState(false);
     const [hoursMsg, setHoursMsg] = useState('');
     // Password change.
+    // Time clock. null = loading, false = failed; else { open, entries, totalMinutes }.
+    const [clock, setClock] = useState(null);
+    const [clockBusy, setClockBusy] = useState(false);
+    const [clockMsg, setClockMsg] = useState('');
     const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
     const [pwBusy, setPwBusy] = useState(false);
     const [pwMsg, setPwMsg] = useState('');   // { ok, text }
@@ -92,6 +96,9 @@ const MySchedule = () => {
             // showing an all-off default that a member could save would wipe their
             // real hours. The section is gated on `schedule` being truthy.
             .catch(() => setSchedule(false));
+        timeClockService.get()
+            .then(res => setClock(res.data.data))
+            .catch(() => setClock(false));
         myTimeOffService.list()
             .then(res => setTimeOff(res.data.data || []))
             .catch(() => setTimeOff(false));
@@ -231,6 +238,23 @@ const MySchedule = () => {
     };
 
     const flash = (t) => { setMsg(t); setTimeout(() => setMsg(''), 3500); };
+
+    // ── Time clock ──
+    const punch = async (dir) => {
+        if (clockBusy) return;
+        setClockBusy(true); setClockMsg('');
+        try {
+            await (dir === 'in' ? timeClockService.clockIn() : timeClockService.clockOut());
+            const res = await timeClockService.get();
+            setClock(res.data.data);
+            setClockMsg(dir === 'in' ? 'Clocked in' : 'Clocked out'); setTimeout(() => setClockMsg(''), 2500);
+        } catch (e) {
+            setClockMsg(e?.response?.data?.message || 'Could not update the clock.');
+        } finally { setClockBusy(false); }
+    };
+    const fmtHM = (mins) => `${Math.floor(mins / 60)}h ${mins % 60}m`;
+    const fmtClock = (iso) => new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    const fmtDay = (iso) => new Date(iso).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
 
     // Swallow refetch failures: the request/withdraw already succeeded, so
     // surfacing a reload error as the operation's error would make staff retry
@@ -482,6 +506,47 @@ const MySchedule = () => {
                     </div>
                 );
             })()}
+
+            {/* ── Time clock ───────────────────────────────────────── */}
+            {clock && clock !== false && (
+                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.15rem 1.25rem', marginTop: '2rem' }} data-testid="my-timeclock">
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.15rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <Timer size={16} /> Time clock
+                    </h2>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '0 0 1rem' }}>
+                        Clock in when you start and out when you finish. {clock.totalMinutes > 0 && <>You’ve logged <strong>{fmtHM(clock.totalMinutes)}</strong> in the last 30 days.</>}
+                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        {clock.open ? (
+                            <>
+                                <span style={{ fontSize: '0.9rem', color: 'var(--charcoal)', fontWeight: 600 }} data-testid="clock-status">
+                                    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#1f8a4c', marginRight: 6 }} />
+                                    On the clock since {fmtClock(clock.open.clockIn)}
+                                </span>
+                                <button type="button" className="btn-primary" onClick={() => punch('out')} disabled={clockBusy} data-testid="clock-out" style={{ padding: '0.5rem 1.3rem' }}>
+                                    {clockBusy ? '…' : 'Clock out'}
+                                </button>
+                            </>
+                        ) : (
+                            <button type="button" className="btn-primary" onClick={() => punch('in')} disabled={clockBusy} data-testid="clock-in" style={{ padding: '0.5rem 1.3rem' }}>
+                                {clockBusy ? '…' : 'Clock in'}
+                            </button>
+                        )}
+                        {clockMsg && <span style={{ fontSize: '0.82rem', fontWeight: 650, color: (clockMsg === 'Clocked in' || clockMsg === 'Clocked out') ? '#1f8a4c' : 'var(--gold-dark)' }}>{clockMsg}</span>}
+                    </div>
+                    {Array.isArray(clock.entries) && clock.entries.length > 0 && (
+                        <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }} data-testid="clock-entries">
+                            {clock.entries.slice(0, 8).map((e) => (
+                                <div key={e._id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                                    <span style={{ minWidth: 92, color: 'var(--charcoal)', fontWeight: 600 }}>{fmtDay(e.clockIn)}</span>
+                                    <span>{fmtClock(e.clockIn)} – {e.clockOut ? fmtClock(e.clockOut) : 'now'}</span>
+                                    <span style={{ marginLeft: 'auto', fontWeight: 650, color: e.minutes == null ? '#1f8a4c' : 'var(--charcoal)' }}>{e.minutes == null ? 'open' : fmtHM(e.minutes)}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* ── Time off ─────────────────────────────────────────── */}
             <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.15rem 1.25rem', marginTop: '2rem' }}>
