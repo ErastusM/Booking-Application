@@ -72,6 +72,20 @@ describe('POST /api/team/bulk', () => {
         expect(res.body.data.created).toBe(0);
     });
 
+    it('ignores a spoofed provider/_id on a row — the member lands under the caller', async () => {
+        const provider = await makeProvider();
+        const otherBiz = await makeProvider();
+        const res = await bulk(provider, [
+            { name: 'Sneaky', provider: String(otherBiz._id), isActive: true, bookable: true },
+        ]);
+        expect(res.status).toBe(201);
+        expect(res.body.data.created).toBe(1);
+        // The spoofed provider is dropped — the row belongs to the CALLER, not otherBiz.
+        expect(await TeamMember.countDocuments({ provider: otherBiz._id })).toBe(0);
+        const row = await TeamMember.findOne({ name: 'Sneaky' });
+        expect(String(row.provider)).toBe(String(provider._id));
+    });
+
     it('a staff member cannot bulk-add (owner-only route)', async () => {
         const provider = await makeProvider();
         const staff = await makeUser({ role: 'staff', staffOf: provider._id, email: 'staff@test.com' });

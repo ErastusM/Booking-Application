@@ -1297,7 +1297,15 @@ const Team = () => {
                 await load();
             }
         } catch (err) {
-            setBulkResult({ created: 0, failed: 0, results: [], note: err.response?.data?.message || 'Could not add those members.' });
+            // All-invalid returns 400 with { data: { results:[…reasons…] } } and no
+            // top-level message — axios rejects, so surface the per-row reasons the
+            // server computed rather than a generic line when we have them.
+            const data = err.response?.data?.data;
+            if (data && Array.isArray(data.results) && data.results.length) {
+                setBulkResult(data);
+            } else {
+                setBulkResult({ created: 0, failed: 0, results: [], note: err.response?.data?.message || 'Could not add those members.' });
+            }
         } finally {
             setBulkBusy(false);
         }
