@@ -67,3 +67,37 @@ exports.authorize = (...roles) => {
         next();
     };
 };
+
+const { can } = require('../utils/permissions');
+
+// Capability gate. Runs AFTER auth (req.user hydrated). Because can() returns
+// true for provider/admin, this transparently preserves owner/admin access and
+// only ADDS a staff path for members whose tier grants the capability. Swapping
+// `authorize('provider','admin')` → `requireCapability('<cap>')` on a route is a
+// one-line, independently-revertable change; with default staffTier=null a staff
+// member holds only the self-baseline, so a swap can never silently open a route.
+exports.requireCapability = (capability) => (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+    if (!can(req.user, capability)) {
+        return res.status(403).json({ success: false, message: 'You do not have permission to do that' });
+    }
+    next();
+};
+
+// For customer-inclusive routes (cancel/reschedule/waitlist/…): pass if the
+// user's role is in `roles` OR they hold `capability`. Keeps the customer/owner
+// paths exactly as they were while adding a capability-gated staff path.
+exports.allow = ({ roles = [], capability } = {}) => (req, res, next) => {
+    if (!req.user) {
+        return res.status(401).json({ success: false, message: 'Not authenticated' });
+    }
+    if (roles.includes(req.user.role) || (capability && can(req.user, capability))) {
+        return next();
+    }
+    return res.status(403).json({
+        success: false,
+        message: `User role '${req.user.role}' is not authorized to access this route`,
+    });
+};

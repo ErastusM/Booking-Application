@@ -4,7 +4,7 @@ const User = require('../models/User');
 const Service = require('../models/Service');
 const StaffAvailability = require('../models/StaffAvailability');
 const Appointment = require('../models/Appointment');
-const { validate: validatePermissions } = require('../utils/permissions');
+const { validate: validatePermissions, isTier } = require('../utils/permissions');
 const { memberBusyIntervals, memberInvolvedFilter } = require('../utils/staffBooking');
 
 const dayKeyOf = (d) => new Date(d).toISOString().slice(0, 10);
@@ -649,9 +649,24 @@ exports.getTeamMemberStats = async (req, res) => {
  */
 exports.setTeamMemberPermissions = async (req, res) => {
     try {
-        const { accepted, rejected } = validatePermissions(req.body.permissions);
-        if (rejected.length) {
-            return res.status(400).json({ success: false, message: `Unknown permission: ${rejected.join(', ')}` });
+        // Accept a preset `tier` and/or a legacy/override `permissions` array.
+        // Only the fields present in the body are changed.
+        const update = {};
+        if (req.body.tier !== undefined) {
+            if (req.body.tier !== null && !isTier(req.body.tier)) {
+                return res.status(400).json({ success: false, message: `Unknown tier: ${req.body.tier}` });
+            }
+            update.staffTier = req.body.tier; // null resets to the Basic self-baseline
+        }
+        if (req.body.permissions !== undefined) {
+            const { accepted, rejected } = validatePermissions(req.body.permissions);
+            if (rejected.length) {
+                return res.status(400).json({ success: false, message: `Unknown permission: ${rejected.join(', ')}` });
+            }
+            update.staffPermissions = accepted;
+        }
+        if (!Object.keys(update).length) {
+            return res.status(400).json({ success: false, message: 'Provide a tier or permissions to set' });
         }
 
         const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
@@ -667,14 +682,14 @@ exports.setTeamMemberPermissions = async (req, res) => {
             // Re-assert the link rather than trusting member.user alone: the
             // account must still be a staff account belonging to this business.
             { _id: member.user, role: 'staff', staffOf: req.user._id },
-            { $set: { staffPermissions: accepted } },
+            { $set: update },
             { new: true },
-        ).select('staffPermissions');
+        ).select('staffPermissions staffTier');
         if (!staffUser) {
             return res.status(404).json({ success: false, message: 'That login no longer belongs to your team' });
         }
 
-        res.status(200).json({ success: true, data: { permissions: staffUser.staffPermissions } });
+        res.status(200).json({ success: true, data: { permissions: staffUser.staffPermissions, tier: staffUser.staffTier } });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -754,6 +769,24 @@ exports.inviteTeamMember = async (req, res) => {
             }
             if (isOurFormerStaff) staffUser.staffOf = req.user._id;   // re-attach
         } else {
+            // Validate any caller-supplied permissions / tier before storing — this
+            // path previously wrote req.body.permissions raw, so arbitrary strings
+            // could be persisted as permissions.
+            let staffPermissions = ['calendar:self', 'clients:assigned'];
+            if (req.body.permissions !== undefined) {
+                const { accepted, rejected } = validatePermissions(req.body.permissions);
+                if (rejected.length) {
+                    return res.status(400).json({ success: false, message: `Unknown permission: ${rejected.join(', ')}` });
+                }
+                if (accepted.length) staffPermissions = accepted;
+            }
+            let staffTier = null;
+            if (req.body.tier !== undefined && req.body.tier !== null) {
+                if (!isTier(req.body.tier)) {
+                    return res.status(400).json({ success: false, message: `Unknown tier: ${req.body.tier}` });
+                }
+                staffTier = req.body.tier;
+            }
             staffUser = new User({
                 name: member.name,
                 email,
@@ -767,9 +800,8 @@ exports.inviteTeamMember = async (req, res) => {
                 // marketplace customer — the business side is a distinct account.
                 accountType: 'business',
                 staffOf: req.user._id,
-                staffPermissions: Array.isArray(req.body.permissions) && req.body.permissions.length
-                    ? req.body.permissions
-                    : ['calendar:self', 'clients:assigned'],
+                staffPermissions,
+                staffTier,
                 provider: 'local',
                 isVerified: true, // owner-vouched; they prove the mailbox by using the invite link
             });

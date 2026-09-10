@@ -71,8 +71,13 @@ const userSchema = new mongoose.Schema(
             index: true,
         },
         // Owner-assigned permission flags, e.g. ['calendar:self','clients:assigned'].
-        // Presets map onto these flags so granular control needs no schema change.
+        // Legacy source; superseded by staffTier but retained as a per-member
+        // override layered on top of the tier (see utils/permissions.js).
         staffPermissions: { type: [String], default: [] },
+        // Preset permission tier for a staff member: 'basic' | 'low' | 'medium' |
+        // 'high', or null (Basic self-baseline). Owners/admins are never tiered.
+        // See utils/permissions.js TIERS. null keeps today's behaviour exactly.
+        staffTier: { type: String, enum: ['basic', 'low', 'medium', 'high', null], default: null },
         providerCategory: {
             type: String,
             default: null,
