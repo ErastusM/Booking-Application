@@ -373,6 +373,21 @@ describe('staff walk-in create (Phase 1c)', () => {
         expect(String(res.body.data.teamMember)).not.toBe(String(sarah._id));
     });
 
+    it("prices/times a walk-in off the logger's own column, not a colleague id in the body", async () => {
+        const { moses, sarah, mosesLogin, service } = await setup([]);
+        await setTier(mosesLogin._id, 'low');
+        // Sarah has an inflated per-member price; Moses has none (inherits N$50).
+        await TeamMember.updateOne(
+            { _id: sarah._id },
+            { $set: { serviceOverrides: [{ service: service._id, price: 999 }] } },
+        );
+        const res = await book(mosesLogin, walkIn({ service: service._id.toString(), teamMember: sarah._id.toString() }));
+        expect(res.status).toBe(201);
+        expect(String(res.body.data.teamMember)).toBe(String(moses._id));
+        // Priced off Moses's own column (service default), never Sarah's override.
+        expect(res.body.data.totalPrice).toBe(50);
+    });
+
     it('a Basic member cannot log a walk-in — the name is ignored and they are booked as themselves', async () => {
         const { mosesLogin, service } = await setup([]); // tier null → Basic, no bookings:create
         const res = await book(mosesLogin, walkIn({ service: service._id.toString() }));

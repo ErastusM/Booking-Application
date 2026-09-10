@@ -917,6 +917,14 @@ exports.createAppointment = async (req, res) => {
             }
             staffWalkInMemberId = myMember._id;
         }
+        // A staff walk-in is forced onto the logger's OWN column, so all
+        // member-specific math — per-member price/duration overrides and whether a
+        // member's shift governs the hours — must read that same column, never the
+        // request-body `teamMember` (which is ignored for the column). Reading the
+        // body value would let a walk-in borrow a colleague's shift to skip
+        // published hours, or record a colleague's price/duration. For every other
+        // caller this is exactly the body value, unchanged.
+        const effectiveTeamMember = isStaffWalkIn ? staffWalkInMemberId : teamMember;
 
         // Customers, guests and providers book here; admins never did (the route
         // dropped authorize() for guest checkout, so re-assert that contract).
@@ -1012,8 +1020,8 @@ exports.createAppointment = async (req, res) => {
         let memberDurationOverride = null;
         // 'owner' is the sentinel for the owner's own column, not a real member id
         // — the owner books at the business's default price/duration.
-        if (teamMember && teamMember !== 'owner' && providerId) {
-            const reqMember = await TeamMember.findOne({ _id: teamMember, provider: providerId }).select('serviceOverrides');
+        if (effectiveTeamMember && effectiveTeamMember !== 'owner' && providerId) {
+            const reqMember = await TeamMember.findOne({ _id: effectiveTeamMember, provider: providerId }).select('serviceOverrides');
             const ov = reqMember ? overrideFor(reqMember, svc._id) : null;
             if (ov && ov.price != null) memberPriceOverride = ov.price;
             if (ov && ov.duration != null) memberDurationOverride = ov.duration;
@@ -1062,7 +1070,7 @@ exports.createAppointment = async (req, res) => {
             // A shift for a specifically-requested member overrides business hours
             // for that date (see shiftGovernsHours); the per-staff check inside
             // resolveBookingStaff then enforces the shift's own slots and breaks.
-            const shiftGoverns = teamMember && teamMember !== 'owner' && await shiftGovernsHours(teamMember, appointmentDate);
+            const shiftGoverns = effectiveTeamMember && effectiveTeamMember !== 'owner' && await shiftGovernsHours(effectiveTeamMember, appointmentDate);
             if (providerSchedule && !shiftGoverns) {
                 const bookingDuration = parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime);
                 if (!isTimeWithinSchedule(providerSchedule, appointmentDate, startTime, bookingDuration)) {
