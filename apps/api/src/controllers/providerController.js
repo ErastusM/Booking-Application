@@ -36,7 +36,10 @@ exports.getProviderStaff = async (req, res) => {
             ];
         }
         const staff = await TeamMember.find(query)
-            .select('name role color services serviceOverrides photoUrl isPrimary') // public: no email/phone/user
+            // Public allow-list — bio/pronouns/languages are customer-facing; the
+            // owner-only HR fields (employment, notes, emergencyContact, address…)
+            // are deliberately absent so they can never leak here.
+            .select('name role color services serviceOverrides photoUrl isPrimary bio pronouns languages')
             .sort({ isPrimary: -1, createdAt: 1 }); // the primary member is shown first
         const data = staff.map(m => (m.toObject ? m.toObject() : m));
 
@@ -54,6 +57,7 @@ exports.getProviderStaff = async (req, res) => {
                 name: owner?.name || 'Owner', role: owner?.businessProfile?.ownerTitle?.trim() || 'Owner',
                 color: '#f03e16', services: [], serviceOverrides: [], isPrimary: false,
                 photoUrl: owner?.avatar || null,
+                bio: '', pronouns: '', languages: [], // owner tile keeps the same public shape
                 offersAllServices: true, // the owner covers anything their business books
             });
         }

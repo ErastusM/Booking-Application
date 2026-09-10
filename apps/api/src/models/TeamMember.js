@@ -30,6 +30,29 @@ const teamMemberSchema = new mongoose.Schema({
         name:  { type: String, default: '', trim: true, maxlength: 80 },
         phone: { type: String, default: '', trim: true, maxlength: 40 },
     },
+
+    // ── Profile depth ────────────────────────────────────────────────────
+    // PUBLIC (shown to customers on the professional's profile / booking picker):
+    // a short bio, pronouns, and spoken languages. Exposed only through the
+    // allow-list select in providerController.getProviderStaff — adding a field
+    // here does NOT leak it; it must be named there to reach customers.
+    bio:       { type: String, default: '', trim: true, maxlength: 600 },
+    pronouns:  { type: String, default: '', trim: true, maxlength: 40 },
+    languages: [{ type: String, trim: true, maxlength: 40 }],
+
+    // OWNER-ONLY (HR metadata — never serialised to customers; only getMyTeam,
+    // which returns full docs to the owner, and the owner-gated update path read
+    // these). `employment.type` is free-form on purpose — this is a general
+    // platform and businesses classify staff differently ("Employed",
+    // "Self-employed", "Contractor", "Freelance", …), so no enum.
+    employment: {
+        type:      { type: String, default: '', trim: true, maxlength: 40 },
+        startDate: { type: Date, default: null },
+        endDate:   { type: Date, default: null },
+    },
+    // Private notes the owner keeps about a member. Owner-only — must never appear
+    // in any customer-facing payload.
+    notes:     { type: String, default: '', trim: true, maxlength: 2000 },
     // When this member left. Set instead of deleting the row: appointments,
     // earnings and reviews all point at this _id, so removing it would strip the
     // staff member's name off every booking they ever did and break per-staff
