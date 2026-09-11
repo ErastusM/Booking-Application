@@ -131,6 +131,12 @@ const appointmentSchema = new mongoose.Schema(
         paymentMethod: { type: String, enum: ['cash', 'wallet'], default: 'cash' },
         /* Staff member performing the appointment (multi-chair scheduling) */
         teamMember: { type: mongoose.Schema.Types.ObjectId, ref: 'TeamMember', default: null },
+        /* Where this booking takes place (multi-location). FOUNDATION ONLY — no
+         * read consults it yet, so a null locationId behaves exactly as today
+         * (the business's single/primary "Main" location). Later PRs thread it
+         * through availability/roster/booking one at a time; null always resolves
+         * to the provider's primary location. */
+        locationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Location', default: null },
         /* Snapshot taken when the performing member is PERMANENTLY removed. The
          * roster row is gone, but a completed/paid appointment keeps their name
          * here and is flagged, so earnings and the client's record survive and the
