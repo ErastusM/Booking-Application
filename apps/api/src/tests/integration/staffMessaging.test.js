@@ -79,4 +79,21 @@ describe('clients:contact — staff messaging', () => {
         const { owner, appt } = await setup();
         expect((await send(owner, appt._id, 'Welcome!')).status).toBe(201);
     });
+
+    it('a customer reply routes to the OWNER, not a staff member', async () => {
+        const { owner, customer, appt } = await setup();
+        const res = await send(customer, appt._id, 'Thanks, see you then!');
+        expect(res.status).toBe(201);
+        expect(String(res.body.data.recipient)).toBe(String(owner._id));
+    });
+
+    it('a staff send on a GUEST appointment (no client account) is a clean 400, not a 500', async () => {
+        seq += 1;
+        const owner = await makeProvider();
+        const svc = await makeService(owner._id);
+        const staffYes = await makeUser({ role: 'staff', staffOf: owner._id, staffTier: 'medium', email: `s-guest-${seq}@test.com` });
+        const guestAppt = await makeAppointment(null, svc._id, owner._id, { status: 'confirmed', guestName: 'Walk-in', guestEmail: 'g@test.com' });
+        const res = await send(staffYes, guestAppt._id, 'hi');
+        expect(res.status).toBe(400); // no client account to message — not an unhandled crash
+    });
 });
