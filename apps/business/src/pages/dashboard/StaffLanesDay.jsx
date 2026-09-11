@@ -270,7 +270,7 @@ const StaffLanesDay = ({
             // ever moves this one card, so route that single move to onReassign.
             const primary = moves[0];
             const origLane = (dragItems.find((x) => x.id === primary?.id) || {}).staffKey;
-            const reassigning = canReassign && !!onReassign && primary
+            const reassigning = canReassign && primary
                 && primary.staffKey !== undefined && String(primary.staffKey) !== String(origLane);
             if (reassigning && moves.length === 1) {
                 await onReassign({

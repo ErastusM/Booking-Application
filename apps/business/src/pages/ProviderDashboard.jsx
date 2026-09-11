@@ -1219,8 +1219,19 @@ const ProviderDashboard = () => {
     // reassignment, not a reschedule. It rides the single-appointment endpoint
     // (the batch one never touches the performer) and always moves exactly one
     // card, so there is no batch to build. Owner-only, gated at the call site.
-    const handleCalendarReassign = async ({ id, appointmentDate, startTime, endTime, teamMember }) => {
+    const handleCalendarReassign = async ({ id, appointmentDate, startTime, endTime, teamMember }, { recordUndo = true } = {}) => {
         const before = appointments.find((a) => a._id === id);
+        // The prior slot AND performer, so the reassign can be undone in one call
+        // to the same endpoint — a reassign also emails the client, so it earns the
+        // same one-tap "put it back" a reschedule gets. '' = the owner's own column.
+        const prevUndo = before ? {
+            kind: 'reassign',
+            id,
+            appointmentDate: toDateString(before.appointmentDate),
+            startTime: before.startTime,
+            endTime: before.endTime,
+            teamMember: before.teamMember?._id || before.teamMember || '',
+        } : null;
         // Resolve the destination member object so the card jumps to the new lane
         // immediately; the endpoint returns teamMember as a bare id. '' clears it
         // to the owner's own (unassigned) column.
@@ -1233,13 +1244,16 @@ const ProviderDashboard = () => {
             : a)));
         try {
             const res = await appointmentService.providerRescheduleAppointment(id, { appointmentDate, startTime, endTime, teamMember });
-            // Keep the already-populated customer; re-apply the resolved member so
-            // the name/colour don't vanish (the endpoint sends bare ids back).
+            // Keep the already-populated relations; the endpoint sends bare ids
+            // back, so re-apply customer/provider from the local doc and the
+            // resolved member, or their names/colours would vanish until a refetch.
             setAppointments((prev) => prev.map((a) => (a._id === id
-                ? { ...a, ...res.data.data, customer: a.customer, teamMember: destMember || (res.data.data.teamMember ?? null) }
+                ? { ...a, ...res.data.data, customer: a.customer, provider: a.provider, teamMember: destMember || (res.data.data.teamMember ?? null) }
                 : a)));
+            if (recordUndo) setCalendarUndo(prevUndo);
         } catch (err) {
             if (before) setAppointments((prev) => prev.map((a) => (a._id === id ? before : a))); // exactly as it was
+            if (recordUndo) setCalendarUndo(null);
             toast(err?.response?.data?.message || 'Could not reassign that booking. Please try again.', 'error');
             fetchAppointments({ force: true }); // the server knows something we don't
             throw err;
@@ -1252,6 +1266,20 @@ const ProviderDashboard = () => {
         const restore = calendarUndo;
         if (!restore) return;
         setCalendarUndo(null);
+        // A reassign undo restores the performer AND the slot in one call to the
+        // reassign endpoint; don't record a fresh undo for the undo itself.
+        if (restore.kind === 'reassign') {
+            try {
+                await handleCalendarReassign({
+                    id: restore.id,
+                    appointmentDate: restore.appointmentDate,
+                    startTime: restore.startTime,
+                    endTime: restore.endTime,
+                    teamMember: restore.teamMember,
+                }, { recordUndo: false });
+            } catch { /* handleCalendarReassign already toasts + resyncs */ }
+            return;
+        }
         applySlotsLocally(restore);
         try {
             await appointmentService.batchReschedule(restore, { allowOutsideHours: true });
@@ -2436,9 +2464,11 @@ const ProviderDashboard = () => {
                                 }}
                             >
                                 <span>
-                                    {calendarUndo.length > 1
-                                        ? `Rescheduled ${calendarUndo.length} bookings.`
-                                        : 'Booking moved.'}
+                                    {calendarUndo.kind === 'reassign'
+                                        ? 'Booking reassigned.'
+                                        : calendarUndo.length > 1
+                                            ? `Rescheduled ${calendarUndo.length} bookings.`
+                                            : 'Booking moved.'}
                                 </span>
                                 <button
                                     type="button"

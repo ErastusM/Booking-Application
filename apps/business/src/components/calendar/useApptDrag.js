@@ -112,14 +112,16 @@ export const useApptDrag = ({
         if (unchanged) return;
 
         const { hits, blocked } = assess(item.id, place, item.staffKey);
-        if (blocked) return;
 
         // Dragged into a DIFFERENT lane: this changes who performs the booking, a
         // reassignment rather than a reschedule. The reassign only ever moves this
         // one booking (the server endpoint takes a single appointment), so it can't
-        // also shuffle an occupant out of the way — an occupied destination is a
-        // clean refusal here, not a silent half-move. A free destination asks one
-        // plain question, same as a same-lane move onto clear time.
+        // also shuffle an occupant out of the way — ANY occupied destination
+        // (busy OR finished) is a clean refusal here, not a silent no-op. Handled
+        // before the `blocked` early-return precisely so a drop onto finished work
+        // in the other lane still explains itself instead of vanishing. A free
+        // destination asks one plain question, same as a same-lane move onto clear
+        // time.
         const reassigning = placeStaff !== item.staffKey;
         if (reassigning) {
             if (hits.length) {
@@ -145,6 +147,10 @@ export const useApptDrag = ({
             });
             return;
         }
+
+        // Same-lane: finished work in the way is a hard refusal (it can neither be
+        // picked up nor shoved), so the drop springs back.
+        if (blocked) return;
 
         // NOTHING is rescheduled by the drop itself. Letting go used to commit
         // straight away on a clear slot, which meant a slip of the finger
