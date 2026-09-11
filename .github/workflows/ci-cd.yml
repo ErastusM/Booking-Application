@@ -241,4 +241,7 @@ jobs:
             # Email + account-type auth: backfill accountType and swap the
             # unique email index for the compound {email, accountType} one.
             docker compose exec -T server node scripts/migrate_account_types.js || { echo "DEPLOY FAILED: migrate_account_types.js exited non-zero" >&2; exit 1; }
+            # Multi-location foundation: give each provider a primary "Main"
+            # location so a null locationId always resolves to one.
+            docker compose exec -T server node scripts/migrate_locations.js || { echo "DEPLOY FAILED: migrate_locations.js exited non-zero" >&2; exit 1; }
             docker image prune -f
