@@ -25,6 +25,7 @@ export const {
     providerServiceService,
     providerMarketService,
     categoryService,
+    locationService,
     blockedTimeService,
     messageService,
     clientCRMService,
