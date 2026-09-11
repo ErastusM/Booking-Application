@@ -29,12 +29,17 @@ export const useApptDrag = ({
     scrollerRef,          // ref to the scrolling grid body
     hourPx,               // px per hour — the caller's row height
     items,                // [{ id, dateKey, startMin, endMin, staffKey, locked, label }]
-    columns,              // dateKeys in display order; length 1 disables sideways moves
+    columns,              // dateKeys in display order; length 1 disables sideways (date) moves
+    lanes = [],           // staffKeys in display order; length > 1 turns sideways into a LANE
+                          // change (a reassignment). Views set columns OR lanes, never both —
+                          // a grid moves across days, the staff view moves across people.
+    laneLabel,            // (staffKey) => display name, for the reassign chooser's copy
     onCommit,             // ({ moves, mode }) => Promise<void>
     onTap,                // (id) => void — a press that never became a drag
     fmt = String,         // (minutes) => display time, for the chooser's copy
     enabled = true,
 }) => {
+    const laneName = useCallback((key) => (laneLabel ? laneLabel(key) : '') || '', [laneLabel]);
     const [drag, setDrag] = useState(null);     // live gesture, or null
     const [sheet, setSheet] = useState(null);   // pending collision to resolve
     const [held, setHeld] = useState(null);     // keyboard pick-up
@@ -46,6 +51,7 @@ export const useApptDrag = ({
 
     const itemsRef = useRef(items); itemsRef.current = items;
     const colsRef = useRef(columns); colsRef.current = columns;
+    const lanesRef = useRef(lanes); lanesRef.current = lanes;
 
     const stop = useCallback(() => {
         clearTimeout(g.current.holdTimer);
@@ -60,7 +66,7 @@ export const useApptDrag = ({
     const placeFor = useCallback((item) => {
         if (drag && drag.id === item.id) return drag.place;
         if (held && held.id === item.id && held.place) return held.place;
-        return { dateKey: item.dateKey, startMin: item.startMin, endMin: item.endMin };
+        return { dateKey: item.dateKey, startMin: item.startMin, endMin: item.endMin, staffKey: item.staffKey };
     }, [drag, held]);
 
     /** Visual state for an item: is it in hand, is it about to be shoved? */
@@ -72,9 +78,15 @@ export const useApptDrag = ({
             || !!(held && held.hitIds && held.hitIds.indexOf(item.id) !== -1),
     }), [drag, held]);
 
-    /** Re-derive collisions for a candidate placement. */
+    /**
+     * Re-derive collisions for a candidate placement. Collisions are judged in
+     * the DESTINATION lane: once a card is dragged into another staff member's
+     * lane, it can only clash with THAT member's bookings, not the ones it left
+     * behind — so `place.staffKey` (where it is now) wins over the item's origin.
+     */
     const assess = useCallback((id, place, staffKey) => {
-        const hits = clashesAt(itemsRef.current, id, place, staffKey);
+        const key = place.staffKey !== undefined ? place.staffKey : staffKey;
+        const hits = clashesAt(itemsRef.current, id, place, key);
         const locked = hits.filter((h) => h.locked);
         return {
             hits,
@@ -93,11 +105,51 @@ export const useApptDrag = ({
     }, [onCommit]);
 
     const finish = useCallback(async (item, place, origin, mode) => {
+        const placeStaff = place.staffKey !== undefined ? place.staffKey : item.staffKey;
         const unchanged = place.dateKey === origin.dateKey
-            && place.startMin === origin.startMin && place.endMin === origin.endMin;
+            && place.startMin === origin.startMin && place.endMin === origin.endMin
+            && placeStaff === item.staffKey;
         if (unchanged) return;
 
         const { hits, blocked } = assess(item.id, place, item.staffKey);
+
+        // Dragged into a DIFFERENT lane: this changes who performs the booking, a
+        // reassignment rather than a reschedule. The reassign only ever moves this
+        // one booking (the server endpoint takes a single appointment), so it can't
+        // also shuffle an occupant out of the way — ANY occupied destination
+        // (busy OR finished) is a clean refusal here, not a silent no-op. Handled
+        // before the `blocked` early-return precisely so a drop onto finished work
+        // in the other lane still explains itself instead of vanishing. A free
+        // destination asks one plain question, same as a same-lane move onto clear
+        // time.
+        const reassigning = placeStaff !== item.staffKey;
+        if (reassigning) {
+            if (hits.length) {
+                setSheet({
+                    kind: 'clash', item, place, origin, mode, hits,
+                    routes: [{
+                        key: 'busy', tag: 'Busy', primary: false, plan: null,
+                        label: `${laneName(placeStaff) || 'That lane'} is booked at ${fmt(place.startMin)}`,
+                        reason: 'A reassignment moves one booking at a time — free that slot first, then drag again.',
+                    }],
+                });
+                return;
+            }
+            const movedDay = place.dateKey !== origin.dateKey;
+            setSheet({
+                kind: 'confirm', item, place, origin, mode, hits: [],
+                reassignTo: laneName(placeStaff),
+                routes: [{
+                    key: 'move', tag: 'Reassign', primary: true, plan: [],
+                    label: `Move to ${fmt(place.startMin)}${movedDay ? ', a different day' : ''}`,
+                    detail: [`Was ${fmt(origin.startMin)} – ${fmt(origin.endMin)}`],
+                }],
+            });
+            return;
+        }
+
+        // Same-lane: finished work in the way is a hard refusal (it can neither be
+        // picked up nor shoved), so the drop springs back.
         if (blocked) return;
 
         // NOTHING is rescheduled by the drop itself. Letting go used to commit
@@ -134,7 +186,7 @@ export const useApptDrag = ({
                 staffKey: item.staffKey, origin, mode, hits, fmt,
             }),
         });
-    }, [assess, fmt]);
+    }, [assess, fmt, laneName]);
 
     // ── Pointer gesture ─────────────────────────────────────────────────────
     const onPointerDown = useCallback((item, mode) => (e) => {
@@ -151,7 +203,7 @@ export const useApptDrag = ({
             pointerId: e.pointerId,
             x0: e.clientX, y0: e.clientY,
             scroll0: scroller.scrollTop,
-            origin: { dateKey: item.dateKey, startMin: item.startMin, endMin: item.endMin },
+            origin: { dateKey: item.dateKey, startMin: item.startMin, endMin: item.endMin, staffKey: item.staffKey },
             armed: false, moved: false,
         };
         try { el.setPointerCapture(e.pointerId); } catch { /* mouse without capture support */ }
@@ -177,18 +229,28 @@ export const useApptDrag = ({
         let place;
         if (s.mode === 'resize') {
             const end = clamp(snap(o.endMin + dyMin), o.startMin + SNAP_MIN, DAY_MIN);
-            place = { dateKey: o.dateKey, startMin: o.startMin, endMin: end };
+            // A resize never crosses lanes — a booking can't grow into another
+            // person's day — so the lane it started in is the lane it keeps.
+            place = { dateKey: o.dateKey, startMin: o.startMin, endMin: end, staffKey: o.staffKey };
         } else {
             const dur = o.endMin - o.startMin;
             const start = clamp(snap(o.startMin + dyMin), 0, DAY_MIN - dur);
             let dateKey = o.dateKey;
+            let staffKey = o.staffKey;
+            // Horizontal is one axis or the other, never both: a day grid maps it to
+            // a different DATE, the staff view maps it to a different LANE (person).
             const cols = colsRef.current;
-            if (cols.length > 1 && s.colWidth) {
+            const lns = lanesRef.current;
+            if (cols.length > 1 && s.trackWidth) {
                 const from = cols.indexOf(o.dateKey);
-                const to = clamp(from + Math.round((clientX - s.x0) / s.colWidth), 0, cols.length - 1);
+                const to = clamp(from + Math.round((clientX - s.x0) / s.trackWidth), 0, cols.length - 1);
                 dateKey = cols[to];
+            } else if (lns.length > 1 && s.trackWidth) {
+                const from = lns.indexOf(o.staffKey);
+                const to = clamp(from + Math.round((clientX - s.x0) / s.trackWidth), 0, lns.length - 1);
+                staffKey = lns[to];
             }
-            place = { dateKey, startMin: start, endMin: start + dur };
+            place = { dateKey, startMin: start, endMin: start + dur, staffKey };
         }
         // Bail out when nothing actually changed. Pointer events fire 60–120×/s
         // but the placement only moves every 15 minutes of snap, so without this
@@ -200,7 +262,8 @@ export const useApptDrag = ({
             if (!d) return d;
             if (d.place.dateKey === place.dateKey
                 && d.place.startMin === place.startMin
-                && d.place.endMin === place.endMin) return d;
+                && d.place.endMin === place.endMin
+                && d.place.staffKey === place.staffKey) return d;
             return { ...d, place, ...assess(s.id, place, s.item.staffKey) };
         });
     }, [scrollerRef, hourPx, assess]);
@@ -227,12 +290,14 @@ export const useApptDrag = ({
 
         s.moved = true;
         s.lastX = e.clientX; s.lastY = e.clientY;
-        if (!s.colWidth && colsRef.current.length > 1) {
-            // One column is marked rather than the whole grid: the grid also
-            // contains the time gutter, so dividing its width by the column
-            // count would come out short and sideways drags would overshoot.
+        if (!s.trackWidth && (colsRef.current.length > 1 || lanesRef.current.length > 1)) {
+            // One column/lane is marked rather than the whole grid: the grid also
+            // contains the time gutter, so dividing its width by the column count
+            // would come out short and sideways drags would overshoot. The staff
+            // view marks one lane body the same way, so the same measurement drives
+            // both a date step and a lane step.
             const track = scroller.querySelector('[data-col-track]');
-            if (track) s.colWidth = track.getBoundingClientRect().width;
+            if (track) s.trackWidth = track.getBoundingClientRect().width;
         }
         recompute(e.clientX, e.clientY);
 
@@ -333,7 +398,7 @@ export const useApptDrag = ({
             e.preventDefault();
             if (!mine) {
                 if (item.locked) { onTap && onTap(item.id, 'locked'); return; }
-                const o = { dateKey: item.dateKey, startMin: item.startMin, endMin: item.endMin };
+                const o = { dateKey: item.dateKey, startMin: item.startMin, endMin: item.endMin, staffKey: item.staffKey };
                 setHeld({ id: item.id, item, origin: o, place: { ...o }, ...assess(item.id, o, item.staffKey) });
                 return;
             }
@@ -359,11 +424,18 @@ export const useApptDrag = ({
             const dur = h.place.endMin - h.place.startMin;
             const start = clamp(h.place.startMin + dm, 0, DAY_MIN - dur);
             let dateKey = h.place.dateKey;
+            let staffKey = h.place.staffKey;
+            // Left/right walks the same axis the pointer would: a date in the grid,
+            // a lane (person) in the staff view — so a reassignment is reachable
+            // from the keyboard too, not pointer-only.
             const cols = colsRef.current;
+            const lns = lanesRef.current;
             if (dcol && cols.length > 1) {
                 dateKey = cols[clamp(cols.indexOf(dateKey) + dcol, 0, cols.length - 1)];
+            } else if (dcol && lns.length > 1) {
+                staffKey = lns[clamp(lns.indexOf(staffKey) + dcol, 0, lns.length - 1)];
             }
-            const place = { dateKey, startMin: start, endMin: start + dur };
+            const place = { dateKey, startMin: start, endMin: start + dur, staffKey };
             return { ...h, place, ...assess(h.id, place, h.item.staffKey) };
         });
     }, [enabled, busy, sheet, held, assess, finish, onTap]);
@@ -380,7 +452,7 @@ export const useApptDrag = ({
             const victim = s.hits[0];
             await applyMoves([primary], s.mode);
             // Hand the displaced booking straight over, already picked up.
-            const o = { dateKey: victim.dateKey, startMin: victim.startMin, endMin: victim.endMin };
+            const o = { dateKey: victim.dateKey, startMin: victim.startMin, endMin: victim.endMin, staffKey: victim.staffKey };
             setHeld({ id: victim.id, item: victim, origin: o, place: { ...o }, ...assess(victim.id, o, victim.staffKey) });
             return;
         }
@@ -401,9 +473,24 @@ export const useApptDrag = ({
         // Live status text for the caller's aria-live region.
         status: (() => {
             const live = drag || held;
-            if (sheet) return { tone: 'displace', text: 'That time is already booked — choose what happens to the other booking.' };
+            if (sheet) {
+                if (sheet.kind === 'confirm' && sheet.reassignTo) {
+                    return { tone: 'active', text: `Reassigning to ${sheet.reassignTo} — confirm to apply.` };
+                }
+                return { tone: 'displace', text: 'That time is already booked — choose what happens to the other booking.' };
+            }
             if (!live) return null;
+            // A drag into another lane is a reassignment, not a reschedule — the
+            // overlap copy below ("reschedule both") would be a lie there.
+            const reassigning = live.place && live.origin
+                && live.place.staffKey !== undefined && live.place.staffKey !== live.origin.staffKey;
             if (live.blocked) return { tone: 'blocked', text: `${live.hits.filter((h) => h.locked)[0].label} has already finished, and finished work stays put.` };
+            if (reassigning && live.displacing) {
+                return { tone: 'displace', text: `${laneName(live.place.staffKey) || 'That lane'} is busy then — free the slot or drop on an open time.` };
+            }
+            if (reassigning) {
+                return { tone: 'active', text: `Reassign to ${laneName(live.place.staffKey) || 'this lane'}?`, place: live.place };
+            }
             if (live.displacing) {
                 const extra = live.hits.length > 1 ? ` and ${live.hits.length - 1} more` : '';
                 return { tone: 'displace', text: `Overlaps ${live.hits[0].label}${extra}. Let go and you can reschedule ${live.hits.length > 1 ? 'them' : 'both'}.` };
