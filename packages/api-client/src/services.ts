@@ -184,6 +184,15 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         deleteCategory: (id: string) => API.delete(`/categories/${id}`),
     },
 
+    locationService: {
+        // Owner CRUD for the business's locations. (The public read of a provider's
+        // active locations ships with its route, in the booking-picker work.)
+        getMyLocations: () => API.get('/locations/mine'),
+        createLocation: (data: { name: string; address?: string }) => API.post('/locations', data),
+        updateLocation: (id: string, data: { name?: string; address?: string; isActive?: boolean }) => API.put(`/locations/${id}`, data),
+        setPrimaryLocation: (id: string) => API.put(`/locations/${id}/primary`),
+    },
+
     blockedTimeService: {
         getMyBlockedTimes: () => API.get('/blocked-times'),
         createBlockedTime: (data: any) => API.post('/blocked-times', data),
