@@ -1203,7 +1203,7 @@ exports.createAppointment = async (req, res) => {
         // provider's own active locations; absent → null (resolves to the primary
         // "Main"), the single-location path, which touches no DB. A foreign or
         // inactive location is rejected rather than silently dropped.
-        const locRes = await resolveBookingLocation(svc.provider || providerId, req.body.locationId);
+        const locRes = await resolveBookingLocation(providerId, req.body.locationId);
         if (!locRes.ok) {
             return res.status(400).json({ success: false, message: 'That location is not available for this business.' });
         }
@@ -1502,6 +1502,12 @@ exports.createMultiServiceAppointment = async (req, res) => {
         // come from the catalogue, never the request body, and each service is laid
         // out back-to-back from startTime.
         const providerId = req.user._id;
+        // Multi-location (write threading): validate + record a named location,
+        // same contract as the single-service path — absent → null (primary).
+        const msLoc = await resolveBookingLocation(providerId, req.body.locationId);
+        if (!msLoc.ok) {
+            return res.status(400).json({ success: false, message: 'That location is not available for this business.' });
+        }
         const built = [];
         let cursor = startMin;
         for (const item of reqServices) {
@@ -1617,6 +1623,7 @@ exports.createMultiServiceAppointment = async (req, res) => {
                     customer: bookingClient._id,
                     service: built[0].service, // back-compat: top-level service = the first one
                     provider: providerId,
+                    locationId: msLoc.locationId,
                     appointmentDate: new Date(appointmentDate),
                     startTime: spanStart,
                     endTime: spanEnd,
@@ -2684,6 +2691,13 @@ exports.createGroupBooking = async (req, res) => {
             return res.status(403).json({ success: false, message: 'That service does not belong to your business' });
         }
 
+        // Multi-location (write threading): validate + record a named location on
+        // every participant's booking; absent → null (primary), same contract.
+        const grpLoc = await resolveBookingLocation(providerId || req.user._id, req.body.locationId);
+        if (!grpLoc.ok) {
+            return res.status(400).json({ success: false, message: 'That location is not available for this business.' });
+        }
+
         // Same per-staff resolution every other booking path runs: confirms the
         // requested member is on THIS provider's roster and performs the service.
         let resolvedTeamMember = teamMember || null;
@@ -2768,6 +2782,7 @@ exports.createGroupBooking = async (req, res) => {
             walkInName: c.customerId ? null : (c.name || 'Group Client'),
             service,
             provider: providerId || req.user._id,
+            locationId: grpLoc.locationId,
             appointmentDate: new Date(appointmentDate),
             startTime,
             endTime,

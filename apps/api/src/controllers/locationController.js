@@ -1,3 +1,4 @@
+const mongoose = require('mongoose');
 const Location = require('../models/Location');
 
 // Owner CRUD for business locations. Provider-scoped throughout: every query is
@@ -22,6 +23,12 @@ const shape = (loc) => ({
 // needs to choose a place. Inactive locations are never exposed.
 exports.getProviderLocations = async (req, res) => {
     try {
+        // A malformed id is a client mistake, not a server error — and this is a
+        // public, unauthenticated surface (crawlers, scanners). Treat it like an
+        // unknown provider: an empty list, never a 500 (which would cast-throw).
+        if (!mongoose.isValidObjectId(req.params.providerId)) {
+            return res.status(200).json({ success: true, data: [] });
+        }
         const locations = await Location.find({ provider: req.params.providerId, isActive: true })
             .sort({ isPrimary: -1, createdAt: 1 })
             .select('name address isPrimary');
