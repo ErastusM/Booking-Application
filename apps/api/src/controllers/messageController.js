@@ -2,6 +2,23 @@ const Message = require('../models/Message');
 const Appointment = require('../models/Appointment');
 const User = require('../models/User');
 const { createNotification } = require('../utils/notificationhelper');
+const { can } = require('../utils/permissions');
+
+// The actor's role in an appointment's conversation, or null if they're not a
+// party. A staff member of the appointment's OWN business (staffOf === provider)
+// who holds clients:contact may join as 'staff' — and messages AS THEMSELVES
+// (their own identity is the sender), talking to the client. The staffOf scope
+// is the cross-tenant guard: a staff member can only reach their employer's
+// appointments, never another business's.
+const partyRole = (user, appointment) => {
+    const uid = String(user._id);
+    if (appointment.customer && String(appointment.customer) === uid) return 'customer';
+    if (appointment.provider && String(appointment.provider) === uid) return 'provider';
+    if (user.role === 'staff' && user.staffOf && appointment.provider
+        && String(user.staffOf) === String(appointment.provider)
+        && can(user, 'clients:contact')) return 'staff';
+    return null;
+};
 
 // Get all conversations for the logged-in user (grouped by appointment)
 exports.getMyConversations = async (req, res) => {
@@ -76,12 +93,9 @@ exports.getMessages = async (req, res) => {
         // Verify user is part of this appointment
         const appointment = await Appointment.findById(appointmentId);
         if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
-        // A guest booking has no customer account (customer is null); a bare
-        // .toString() here 500'd on any message read against a guest appointment.
-        // sendMessage was already hardened the same way.
-        const isParty = appointment.customer?.toString() === userId.toString() ||
-            appointment.provider?.toString() === userId.toString();
-        if (!isParty) return res.status(403).json({ success: false, message: 'Not authorized' });
+        // customer / owner / an authorised staff member of this business may read
+        // the appointment's thread. null-safe for guest bookings (customer null).
+        if (!partyRole(req.user, appointment)) return res.status(403).json({ success: false, message: 'Not authorized' });
 
         const messages = await Message.find({ appointment: appointmentId })
             .populate('sender', 'name avatar')
@@ -112,28 +126,30 @@ exports.sendMessage = async (req, res) => {
         const appointment = await Appointment.findById(appointmentId);
         if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
 
-        // Null-safe: a guest booking has no `customer` account, so `customer` is
-        // null. A bare `.toString()` here 500'd on any message attempt against a
-        // guest appointment. The optional chaining makes the customer side simply
-        // not match (a guest can't be the authenticated sender anyway), and a
-        // provider messaging a guest falls through to the "no recipient" 400 below.
-        const isCustomerParty = appointment.customer?.toString() === userId.toString();
-        const isParty = isCustomerParty || appointment.provider?.toString() === userId.toString();
-        if (!isParty) return res.status(403).json({ success: false, message: 'Not authorized' });
+        const role = partyRole(req.user, appointment);
+        if (!role) return res.status(403).json({ success: false, message: 'Not authorized' });
 
-        // Determine recipient
-        const recipientId = isCustomerParty ? appointment.provider : appointment.customer;
-
+        // The customer talks to the business (owner); the owner and any staff
+        // member talk to the customer. A staff member sends AS THEMSELVES — the
+        // sender is their own user id — so the thread shows who actually replied.
+        const recipientId = role === 'customer' ? appointment.provider : appointment.customer;
         if (!recipientId) return res.status(400).json({ success: false, message: 'No recipient found for this appointment' });
 
         // Block check — no messaging in either direction once someone has blocked.
-        const [meDoc, recipDoc] = await Promise.all([
-            User.findById(userId).select('blockedUsers'),
-            User.findById(recipientId).select('blockedUsers'),
-        ]);
-        const isBlocked = (meDoc?.blockedUsers || []).map(String).includes(recipientId.toString())
-            || (recipDoc?.blockedUsers || []).map(String).includes(userId.toString());
-        if (isBlocked) return res.status(403).json({ success: false, message: 'Messaging is unavailable between you and this user.' });
+        // For a STAFF sender we also honour a block between the client and the
+        // BUSINESS OWNER: blocking the business blocks its staff too (and vice
+        // versa), so a client can't be reached by staff after blocking the owner.
+        const pairs = role === 'staff'
+            ? [[userId, recipientId], [appointment.provider, appointment.customer]]
+            : [[userId, recipientId]];
+        const ids = [...new Set(pairs.flat().filter(Boolean).map(String))];
+        const docs = await User.find({ _id: { $in: ids } }).select('blockedUsers');
+        const blockMap = new Map(docs.map((d) => [String(d._id), (d.blockedUsers || []).map(String)]));
+        const blockedBetween = (a, b) => (blockMap.get(String(a)) || []).includes(String(b))
+            || (blockMap.get(String(b)) || []).includes(String(a));
+        if (pairs.some(([a, b]) => a && b && blockedBetween(a, b))) {
+            return res.status(403).json({ success: false, message: 'Messaging is unavailable between you and this user.' });
+        }
 
         const message = await Message.create({
             sender: userId,
