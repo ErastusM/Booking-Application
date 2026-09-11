@@ -50,7 +50,9 @@ test.describe('Locations management', () => {
         // Only one row edits at a time, so its name input + Save are unique page-wide
         // (display-mode rows show text, not inputs). The row locator itself can't be
         // reused here — the name has moved out of the row's text and into the input.
-        await page.getByRole('textbox', { name: 'Location name' }).fill(renamed);
+        // exact:true — otherwise the default substring match also hits the add
+        // form's "New location name" input.
+        await page.getByRole('textbox', { name: 'Location name', exact: true }).fill(renamed);
         await page.getByRole('button', { name: 'Save' }).click();
 
         await expect(page.getByTestId('location-row').filter({ hasText: renamed })).toBeVisible();
