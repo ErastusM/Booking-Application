@@ -38,6 +38,21 @@ describe('migrate_locations — backfill a primary Main location per provider', 
         expect(await migrateLocations()).toBe(0);
     });
 
+    it('backfills only the providers that lack a location (mixed population)', async () => {
+        const has = await makeProvider();
+        await Location.create({ provider: has._id, name: 'Existing', isPrimary: true, isActive: true });
+        const missingA = await makeProvider();
+        const missingB = await makeProvider();
+
+        // Only the two without a location get a Main.
+        expect(await migrateLocations()).toBe(2);
+        expect(await Location.find({ provider: has._id })).toHaveLength(1); // unchanged
+        expect((await Location.findOne({ provider: missingA._id })).name).toBe('Main');
+        expect((await Location.findOne({ provider: missingB._id })).name).toBe('Main');
+        // Re-run over the now-complete population is a no-op.
+        expect(await migrateLocations()).toBe(0);
+    });
+
     it('leaves a provider who already has a location untouched', async () => {
         const p = await makeProvider();
         await Location.create({ provider: p._id, name: 'Custom', isPrimary: true, isActive: true });

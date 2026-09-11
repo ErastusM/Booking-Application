@@ -11,7 +11,9 @@
 const request = require('supertest');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
-const { makeUser, makeProvider, authHeader } = require('../helpers/factories');
+const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = require('../helpers/factories');
+const Location = require('../../models/Location');
+const Appointment = require('../../models/Appointment');
 
 jest.mock('../../utils/emailService', () => new Proxy({}, { get: () => jest.fn().mockResolvedValue(true) }));
 
@@ -106,5 +108,49 @@ describe('locations — owner CRUD', () => {
         expect((await list(customer)).status).toBe(403);
         expect((await create(customer, { name: 'X' })).status).toBe(403);
         expect((await list(staff)).status).toBe(403); // even an employee of a business can't
+    });
+
+    it('refuses to deactivate the last active location (defense in depth)', async () => {
+        // Unreachable through the CRUD (the first location is always primary, and
+        // the primary can't be retired), so seed the artificial state directly:
+        // a lone active NON-primary location. Deactivating it must still be
+        // refused — a business needs at least one active location.
+        const owner = await makeProvider();
+        const only = await Location.create({ provider: owner._id, name: 'Solo', isPrimary: false, isActive: true });
+        const res = await update(owner, only._id, { isActive: false });
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/at least one active/i);
+    });
+
+    it('at most one primary per provider is enforced by the DB (partial unique index)', async () => {
+        const owner = await makeProvider();
+        await Location.create({ provider: owner._id, name: 'A', isPrimary: true, isActive: true });
+        // A second primary for the same provider is rejected at the storage layer.
+        await expect(
+            Location.create({ provider: owner._id, name: 'B', isPrimary: true, isActive: true })
+        ).rejects.toMatchObject({ code: 11000 });
+        // …but two DIFFERENT providers can each have their own primary.
+        const other = await makeProvider();
+        await expect(
+            Location.create({ provider: other._id, name: 'C', isPrimary: true, isActive: true })
+        ).resolves.toBeTruthy();
+    });
+});
+
+describe('Appointment.locationId — inert foundation field', () => {
+    it('defaults to null and stays OUT of ordinary reads (byte-for-byte payloads)', async () => {
+        const owner = await makeProvider();
+        const svc = await makeService(owner._id);
+        const customer = await makeUser();
+        const appt = await makeAppointment(customer._id, svc._id, owner._id, { status: 'confirmed' });
+
+        // A normal fetch must NOT carry the new field (select:false) — so every
+        // existing appointment payload is unchanged.
+        const plain = await Appointment.findById(appt._id);
+        expect(plain.locationId).toBeUndefined();
+
+        // It exists and defaults to null only when explicitly opted into.
+        const withField = await Appointment.findById(appt._id).select('+locationId');
+        expect(withField.locationId).toBeNull();
     });
 });

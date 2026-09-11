@@ -19,7 +19,7 @@ const mongoose = require('mongoose');
  * shifts and history may point at it), mirroring TeamMember.isActive.
  */
 const locationSchema = new mongoose.Schema({
-    provider: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true, index: true },
+    provider: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     name:     { type: String, required: true, trim: true, maxlength: 120 },
     address:  { type: String, default: '', trim: true, maxlength: 300 },
     // The default location a null/unset locationId resolves to. Exactly one per
@@ -31,7 +31,19 @@ const locationSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // Reads are always provider-scoped, usually to "the active ones" or "the
-// primary". Cheap index on the hot filter, matching TeamMember's pattern.
+// primary". Cheap compound index on the hot filter, matching TeamMember's
+// pattern — and it already serves any provider-prefixed query, so no separate
+// index on `provider` alone.
 locationSchema.index({ provider: 1, isActive: 1 });
+
+// HARD guarantee of the "at most one primary per provider" invariant that a
+// null locationId relies on to resolve. A partial unique index means the DB
+// itself rejects a second isPrimary:true for the same provider — so a
+// first-create race or a bad write can never leave two primaries. (It does not
+// force a primary to EXIST; the backfill + create-flow ensure that.)
+locationSchema.index(
+    { provider: 1 },
+    { unique: true, partialFilterExpression: { isPrimary: true } }
+);
 
 module.exports = mongoose.model('Location', locationSchema);

@@ -36,13 +36,26 @@ exports.createLocation = async (req, res) => {
         // (a null locationId must always resolve to something). After that, new
         // locations are non-primary until the owner promotes them.
         const count = await Location.countDocuments({ provider: req.user._id });
-        const location = await Location.create({
+        const base = {
             provider: req.user._id,
             name: name.trim(),
             address: (address || '').trim(),
-            isPrimary: count === 0,
             isActive: true,
-        });
+        };
+        let location;
+        try {
+            location = await Location.create({ ...base, isPrimary: count === 0 });
+        } catch (err) {
+            // Two concurrent first-creates both saw count 0 and both tried to be
+            // primary; the partial unique index let exactly one win. The loser
+            // simply becomes a normal (non-primary) location — a primary already
+            // exists now.
+            if (err && err.code === 11000) {
+                location = await Location.create({ ...base, isPrimary: false });
+            } else {
+                throw err;
+            }
+        }
         res.status(201).json({ success: true, data: shape(location) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
