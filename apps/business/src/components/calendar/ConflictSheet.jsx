@@ -31,14 +31,16 @@ const ConflictSheet = ({ sheet, fmt, onChoose, onCancel, busy }) => {
 
     if (!sheet) return null;
 
-    const { item, place, hits, routes, kind } = sheet;
+    const { item, place, hits, routes, kind, reassignTo } = sheet;
     const confirming = kind === 'confirm';
     const names = hits.map((h) => h.label);
     const nameList = names.length === 1
         ? names[0]
         : `${names.slice(0, -1).join(', ')} and ${names[names.length - 1]}`;
 
-    const title = confirming ? 'Move this booking?' : 'That time is already booked';
+    const title = confirming
+        ? (reassignTo ? 'Reassign this booking?' : 'Move this booking?')
+        : 'That time is already booked';
 
     let assigned = false;
     const takeFirst = (enabled) => {
@@ -79,7 +81,8 @@ const ConflictSheet = ({ sheet, fmt, onChoose, onCancel, busy }) => {
                     {confirming ? (
                         <>
                             would move to{' '}
-                            <span className="tnum" style={{ color: 'var(--charcoal)' }}>{fmt(place.startMin)} – {fmt(place.endMin)}</span>.
+                            <span className="tnum" style={{ color: 'var(--charcoal)' }}>{fmt(place.startMin)} – {fmt(place.endMin)}</span>
+                            {reassignTo ? <>, performed by <strong style={{ color: 'var(--charcoal)' }}>{reassignTo}</strong></> : null}.
                             Nothing changes until you confirm, and the client is only told once it does.
                         </>
                     ) : (

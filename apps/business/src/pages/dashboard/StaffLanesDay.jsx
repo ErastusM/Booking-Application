@@ -10,9 +10,10 @@ import ConflictSheet from '../../components/calendar/ConflictSheet';
 // hatched non-working hours, grey blocked time. FullCalendar's resource
 // (per-column) views are a premium plugin, so this view is rendered by hand;
 // it supports tap-to-open, tap-empty-space-to-book, and press-and-hold to drag
-// a booking to a new time. Dragging SIDEWAYS is deliberately not supported here:
-// a different lane is a different staff member, which is a reassignment rather
-// than a reschedule.
+// a booking to a new time. Dragging SIDEWAYS into another lane reassigns the
+// booking to that staff member — a change of performer, not just time — and is
+// offered only when `onReassign` is provided (owner-only; the server refuses a
+// staff reassignment). Without it, this view is vertical-drag (reschedule) only.
 
 const pad = (n) => String(n).padStart(2, '0');
 const dateKeyOf = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
@@ -87,6 +88,8 @@ const StaffLanesDay = ({
     onSlotClick,             // ({date, startTime, endTime, teamMember}) => void — teamMember '' = unassigned
     headerControl,           // optional node rendered in the header row (e.g. the view switcher)
     onReschedule,            // ({moves, mode}) => Promise — drag/resize commit
+    onReassign,              // ({id, appointmentDate, startTime, endTime, teamMember}) => Promise —
+                             // cross-lane drop (reassign). Owner-only; absent = no sideways drag.
 }) => {
     const dayKey = dateKeyOf(date);
     const isToday = dayKey === dateKeyOf(new Date());
@@ -216,11 +219,12 @@ const StaffLanesDay = ({
     const nowMin = new Date().getHours() * 60 + new Date().getMinutes();
     const showNowLine = isToday && nowMin >= windowStart && nowMin <= windowEnd;
 
-    // ── Drag to reschedule ──────────────────────────────────────────────────
-    // Vertical only here. Sideways in this view means a DIFFERENT staff member,
-    // which is a reassignment rather than a reschedule — it changes who does the
-    // work, needs the service/skill check, and belongs to its own change.
+    // ── Drag to reschedule / reassign ────────────────────────────────────────
+    // Vertical = reschedule (same lane). Sideways = reassign to the lane's staff
+    // member, offered only when onReassign is wired (owner-only). The server does
+    // the real service/skill/free checks on the destination performer.
     const scrollerRef = useRef(null);
+    const canReassign = !!onReassign;
     const dragItems = useMemo(() => {
         const out = [];
         lanes.forEach((l) => {
@@ -241,25 +245,54 @@ const StaffLanesDay = ({
         return out;
     }, [lanes, perLane, dayKey, date]);
 
+    // Lane ids in display order — the sideways axis. Only handed to the hook when
+    // reassignment is allowed, so a staff view stays vertical-only.
+    const laneOrder = useMemo(() => lanes.map((l) => l.id), [lanes]);
+    const laneNameById = useCallback((key) => (lanes.find((l) => l.id === key) || {}).name || '', [lanes]);
+
     const dnd = useApptDrag({
         scrollerRef,
         hourPx: HOUR_PX,
         items: dragItems,
         columns: [dayKey],
+        lanes: canReassign ? laneOrder : [],
+        laneLabel: laneNameById,
         fmt: (m) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`,
         enabled: !!onReschedule,
         onCommit: useCallback(async ({ moves, mode }) => {
             if (!onReschedule) return;
+            // Wall-clock for the payload, matching the reschedule path's own
+            // convention (mod-24, distinct from the display timeOf).
+            const hhmm = (mins) => `${String(Math.floor(mins / 60) % 24).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
+            // A cross-lane drop is a reassignment: the primary (first) move carries
+            // a staffKey different from the booking's current lane. It can't ride the
+            // batch endpoint (which never touches the performer) and a reassign only
+            // ever moves this one card, so route that single move to onReassign.
+            const primary = moves[0];
+            const origLane = (dragItems.find((x) => x.id === primary?.id) || {}).staffKey;
+            const reassigning = canReassign && !!onReassign && primary
+                && primary.staffKey !== undefined && String(primary.staffKey) !== String(origLane);
+            if (reassigning && moves.length === 1) {
+                await onReassign({
+                    id: primary.id,
+                    appointmentDate: primary.dateKey,
+                    startTime: hhmm(primary.startMin),
+                    endTime: hhmm(primary.endMin),
+                    // The owner's own lane ('unassigned') clears the performer.
+                    teamMember: primary.staffKey === 'unassigned' ? '' : primary.staffKey,
+                });
+                return;
+            }
             await onReschedule({
                 mode,
                 moves: moves.map((m) => ({
                     id: m.id,
                     appointmentDate: m.dateKey,
-                    startTime: `${String(Math.floor(m.startMin / 60) % 24).padStart(2, '0')}:${String(m.startMin % 60).padStart(2, '0')}`,
-                    endTime: `${String(Math.floor(m.endMin / 60) % 24).padStart(2, '0')}:${String(m.endMin % 60).padStart(2, '0')}`,
+                    startTime: hhmm(m.startMin),
+                    endTime: hhmm(m.endMin),
                 })),
             });
-        }, [onReschedule]),
+        }, [onReschedule, onReassign, canReassign, dragItems]),
         onTap: (id, why) => {
             if (why === 'locked') return;
             const it = dragItems.find((x) => x.id === id);
@@ -353,12 +386,16 @@ const StaffLanesDay = ({
                     </div>
 
                     {/* Lane bodies */}
-                    {lanes.map((lane) => {
+                    {lanes.map((lane, laneIdx) => {
                         const bucket = perLane[lane.id] || { appts: [], blocks: [] };
                         return (
                             <div
                                 key={`b_${lane.id}`}
                                 ref={(el) => { laneRefs.current[lane.id] = el; }}
+                                // One lane body is marked so the drag hook can measure a single
+                                // lane's width for the sideways (reassign) hit-test — same trick
+                                // the day grid uses for its columns.
+                                {...(laneIdx === 0 ? { 'data-col-track': '' } : {})}
                                 onClick={handleLaneClick(lane)}
                                 style={{
                                     position: 'relative',

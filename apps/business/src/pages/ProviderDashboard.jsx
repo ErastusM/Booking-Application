@@ -1215,6 +1215,39 @@ const ProviderDashboard = () => {
         writesInFlight.current -= 1;
     };
 
+    // Dragging a booking into another staff lane changes WHO performs it — a
+    // reassignment, not a reschedule. It rides the single-appointment endpoint
+    // (the batch one never touches the performer) and always moves exactly one
+    // card, so there is no batch to build. Owner-only, gated at the call site.
+    const handleCalendarReassign = async ({ id, appointmentDate, startTime, endTime, teamMember }) => {
+        const before = appointments.find((a) => a._id === id);
+        // Resolve the destination member object so the card jumps to the new lane
+        // immediately; the endpoint returns teamMember as a bare id. '' clears it
+        // to the owner's own (unassigned) column.
+        const destMember = teamMember ? teamMembers.find((m) => String(m._id) === String(teamMember)) : null;
+
+        writesInFlight.current += 1;
+        apptEpoch.current += 1;
+        setAppointments((prev) => prev.map((a) => (a._id === id
+            ? { ...a, appointmentDate, startTime, endTime, teamMember: destMember || (teamMember || null) }
+            : a)));
+        try {
+            const res = await appointmentService.providerRescheduleAppointment(id, { appointmentDate, startTime, endTime, teamMember });
+            // Keep the already-populated customer; re-apply the resolved member so
+            // the name/colour don't vanish (the endpoint sends bare ids back).
+            setAppointments((prev) => prev.map((a) => (a._id === id
+                ? { ...a, ...res.data.data, customer: a.customer, teamMember: destMember || (res.data.data.teamMember ?? null) }
+                : a)));
+        } catch (err) {
+            if (before) setAppointments((prev) => prev.map((a) => (a._id === id ? before : a))); // exactly as it was
+            toast(err?.response?.data?.message || 'Could not reassign that booking. Please try again.', 'error');
+            fetchAppointments({ force: true }); // the server knows something we don't
+            throw err;
+        } finally {
+            writesInFlight.current -= 1;
+        }
+    };
+
     const undoCalendarReschedule = async () => {
         const restore = calendarUndo;
         if (!restore) return;
@@ -2362,6 +2395,10 @@ const ProviderDashboard = () => {
                                     onBlockClick={(block) => openBlockedTimeForm(block)}
                                     onSlotClick={(sel) => { setApptError(''); setTimeSelectionPreview(sel); }}
                                     onReschedule={handleCalendarReschedule}
+                                    // Reassigning a booking to another performer is owner-only (the
+                                    // server refuses it for staff); only wire it up for the owner so a
+                                    // staff drag can't cross lanes into a guaranteed 403.
+                                    onReassign={user?.role === 'provider' ? handleCalendarReassign : undefined}
                                 />
                             ) : (
                                 <CalendarGrid
