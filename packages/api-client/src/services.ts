@@ -185,13 +185,12 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
     },
 
     locationService: {
-        // Owner CRUD for the business's locations.
+        // Owner CRUD for the business's locations. (The public read of a provider's
+        // active locations ships with its route, in the booking-picker work.)
         getMyLocations: () => API.get('/locations/mine'),
         createLocation: (data: { name: string; address?: string }) => API.post('/locations', data),
         updateLocation: (id: string, data: { name?: string; address?: string; isActive?: boolean }) => API.put(`/locations/${id}`, data),
         setPrimaryLocation: (id: string) => API.put(`/locations/${id}/primary`),
-        // Public: a provider's active locations (for the booking-page picker).
-        getProviderLocations: (providerId: string) => API.get(`/locations/provider/${providerId}`),
     },
 
     blockedTimeService: {

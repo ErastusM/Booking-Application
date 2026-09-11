@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { locationService } from '../services';
 import { useToast } from './Toast';
 
@@ -33,8 +33,11 @@ const LocationRow = ({ loc, busy, onSave, onSetPrimary, onToggleActive }) => {
 
     const cancel = () => { setEditing(false); setName(loc.name); setAddress(loc.address || ''); };
     const save = async () => {
-        await onSave(loc._id, { name: name.trim(), address: address.trim() });
-        setEditing(false);
+        // Leave edit mode only if the save actually succeeded — on a failure the
+        // toast tells the user, and their text stays put so they can retry.
+        if (await onSave(loc._id, { name: name.trim(), address: address.trim() })) {
+            setEditing(false);
+        }
     };
 
     return (
@@ -54,11 +57,11 @@ const LocationRow = ({ loc, busy, onSave, onSetPrimary, onToggleActive }) => {
                 <div style={{ display: 'grid', gap: '0.75rem' }}>
                     <div>
                         <label style={label}>Name</label>
-                        <input style={input} value={name} onChange={(e) => setName(e.target.value)} aria-label="Location name" />
+                        <input style={input} value={name} disabled={busy} onChange={(e) => setName(e.target.value)} aria-label="Location name" />
                     </div>
                     <div>
                         <label style={label}>Address</label>
-                        <input style={input} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="Optional" aria-label="Location address" />
+                        <input style={input} value={address} disabled={busy} onChange={(e) => setAddress(e.target.value)} placeholder="Optional" aria-label="Location address" />
                     </div>
                 </div>
             )}
@@ -93,6 +96,9 @@ const LocationsManager = () => {
     const [loading, setLoading] = useState(true);
     const [busy, setBusy] = useState(false);
     const [form, setForm] = useState({ name: '', address: '' });
+    // A synchronous lock: `busy` only disables buttons after a re-render, so a fast
+    // double-click could fire two mutations (and create two locations) before then.
+    const inFlight = useRef(false);
 
     const load = async () => {
         try {
@@ -110,6 +116,8 @@ const LocationsManager = () => {
     // location primary first") as a toast. Returns whether it succeeded so a row
     // can decide to leave edit mode.
     const guard = async (fn, okMsg) => {
+        if (inFlight.current) return false; // drop a double-click before the disable lands
+        inFlight.current = true;
         setBusy(true);
         try {
             await fn();
@@ -120,6 +128,7 @@ const LocationsManager = () => {
             toast(err?.response?.data?.message || 'Something went wrong. Please try again.', 'error');
             return false;
         } finally {
+            inFlight.current = false;
             setBusy(false);
         }
     };
