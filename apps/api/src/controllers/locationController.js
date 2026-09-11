@@ -17,6 +17,23 @@ const shape = (loc) => ({
     updatedAt: loc.updatedAt,
 });
 
+// PUBLIC — a provider's ACTIVE locations, primary first, for the booking page's
+// (future) location picker. Deliberately narrow: only the fields a customer
+// needs to choose a place. Inactive locations are never exposed.
+exports.getProviderLocations = async (req, res) => {
+    try {
+        const locations = await Location.find({ provider: req.params.providerId, isActive: true })
+            .sort({ isPrimary: -1, createdAt: 1 })
+            .select('name address isPrimary');
+        res.status(200).json({
+            success: true,
+            data: locations.map((l) => ({ _id: l._id, name: l.name, address: l.address, isPrimary: l.isPrimary })),
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
 // List the owner's locations, primary first then newest.
 exports.getMyLocations = async (req, res) => {
     try {

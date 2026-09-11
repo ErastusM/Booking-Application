@@ -23,6 +23,7 @@ const { resolveBookingStaff, staffHoursReason, memberBusyIntervalsBuffered, buff
 const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, findBusinessWideBlocksForDate, toDateKey, BLOCKED_MESSAGE } = require('../utils/blockedTime');
 const { overrideFor } = require('../utils/memberPricing');
 const { recordBookingRejection, rejectionsSummary } = require('../utils/bookingRejections');
+const { resolveBookingLocation } = require('../utils/locationResolver');
 const { checkCancellationWindow } = require('../utils/cancellationPolicy');
 // Serialize the overlap-check + insert for one provider+member+day so two
 // concurrent bookings can't both pass the check and both write (the same-person
@@ -1198,10 +1199,20 @@ exports.createAppointment = async (req, res) => {
         // wallet prepayment for recurring is a separate feature if ever wanted.)
         if (isRecurring && chosenMethod === 'wallet') chosenMethod = 'cash';
 
+        // Multi-location (write threading): a booking may name one of the
+        // provider's own active locations; absent → null (resolves to the primary
+        // "Main"), the single-location path, which touches no DB. A foreign or
+        // inactive location is rejected rather than silently dropped.
+        const locRes = await resolveBookingLocation(svc.provider || providerId, req.body.locationId);
+        if (!locRes.ok) {
+            return res.status(400).json({ success: false, message: 'That location is not available for this business.' });
+        }
+
         const baseDoc = {
             customer: bookingClient._id, // null for a guest booking
             service,
             provider: svc.provider || null,
+            locationId: locRes.locationId,
             startTime,
             endTime,
             notes: notes || '',
