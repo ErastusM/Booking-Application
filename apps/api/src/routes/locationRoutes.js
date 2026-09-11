@@ -1,6 +1,7 @@
 const express = require('express');
 const router = express.Router();
 const {
+    getProviderLocations,
     getMyLocations,
     createLocation,
     updateLocation,
@@ -8,9 +9,11 @@ const {
 } = require('../controllers/locationController');
 const { auth, authorize } = require('../middleware/auth');
 
-// Owner-only for now: managing locations is a business-owner task, and every
-// handler is provider-scoped to req.user._id. (A later PR may expose a public
-// read of a provider's active locations for the booking page.)
+// Public: a provider's active locations, for the booking page's location picker.
+router.get('/provider/:providerId', getProviderLocations);
+
+// Owner-only: managing locations is a business-owner task, and every handler
+// below is provider-scoped to req.user._id.
 router.get('/mine', auth, authorize('provider'), getMyLocations);
 router.post('/', auth, authorize('provider'), createLocation);
 router.put('/:id', auth, authorize('provider'), updateLocation);
