@@ -123,6 +123,7 @@ describe('locations — owner CRUD', () => {
     });
 
     it('at most one primary per provider is enforced by the DB (partial unique index)', async () => {
+        await Location.init(); // ensure the partial unique index is built before we lean on it
         const owner = await makeProvider();
         await Location.create({ provider: owner._id, name: 'A', isPrimary: true, isActive: true });
         // A second primary for the same provider is rejected at the storage layer.
