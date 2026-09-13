@@ -280,6 +280,16 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         withdraw: (id: string) => API.delete(`/timeoff/mine/${id}`),
     },
 
+    // Time clock. Staff punch in/out (self-service); the owner reads a member's
+    // timesheet. get()/memberTimesheet() return { open, entries, totalMinutes }.
+    timeClockService: {
+        get: (from?: string, to?: string) => API.get('/timeclock/mine', { params: { ...(from ? { from } : {}), ...(to ? { to } : {}) } }),
+        clockIn: (note?: string) => API.post('/timeclock/mine/in', note ? { note } : {}),
+        clockOut: (note?: string) => API.post('/timeclock/mine/out', note ? { note } : {}),
+        memberTimesheet: (id: string, from?: string, to?: string) =>
+            API.get(`/timeclock/${id}`, { params: { ...(from ? { from } : {}), ...(to ? { to } : {}) } }),
+    },
+
     // Staff self-service services — the signed-in staff member choosing which of
     // the business's services they perform. get() returns { selected, services }.
     myServicesService: {
