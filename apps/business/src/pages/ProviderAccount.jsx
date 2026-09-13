@@ -6,6 +6,7 @@ import { useTheme } from '../context/ThemeContext';
 import PushToggle from '../components/PushToggle';
 import AccountDangerZone from '../components/AccountDangerZone';
 import MapPicker, { MAPS_KEY, reverseGeocode } from '../components/MapPicker';
+import LocationsManager from '../components/LocationsManager';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { useToast } from '../components/Toast';
 
@@ -79,6 +80,7 @@ const Stars = ({ rating }) => (
 const sidebarItems = [
     { id: 'profile', label: 'My profile' },
     { id: 'portfolio', label: 'Portfolio' },
+    { id: 'locations', label: 'Locations' },
     { id: 'reviews', label: 'Reviews' },
     { id: 'settings', label: 'Personal settings' },
 ];
@@ -517,6 +519,8 @@ const ProviderAccount = () => {
                         )}
 
                         {/* ── REVIEWS ── */}
+                        {section === 'locations' && <LocationsManager />}
+
                         {section === 'reviews' && (
                             <div>
                                 <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.75rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>Reviews</h1>
