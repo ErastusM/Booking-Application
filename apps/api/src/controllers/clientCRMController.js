@@ -2,6 +2,13 @@ const mongoose = require('mongoose');
 const Appointment = require('../models/Appointment');
 const ClientNote = require('../models/ClientNote');
 
+// The business a request acts on. For an owner it's their own id; for a staff
+// member (Medium tier, clients:* capability) it's the business they work for, so
+// the provider-scoped queries below double as the cross-tenant guard — a staff
+// principal only ever reaches their own employer's clients. Returns null for a
+// staff account with no employer (detached), which the handlers reject.
+const businessScope = (req) => (req.user.role === 'staff' ? req.user.staffOf || null : req.user._id);
+
 // Get all unique clients who have used this provider's services — registered
 // customers (booked online) AND walk-ins logged by the provider. A walk-in has
 // no account, so its appointment carries the provider's own id as `customer`
@@ -9,7 +16,8 @@ const ClientNote = require('../models/ClientNote');
 // instead of lumping them under the provider.
 exports.getMyClients = async (req, res) => {
     try {
-        const providerId = req.user._id;
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const providerIdStr = providerId.toString();
 
         // Only the fields the per-client roll-up below reads — as lean plain
@@ -68,7 +76,8 @@ exports.getMyClients = async (req, res) => {
 // Get full appointment history for a specific client (for this provider)
 exports.getClientDetail = async (req, res) => {
     try {
-        const providerId = req.user._id;
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const { customerId } = req.params;
 
         // Walk-in client (no account) — resolve by name; no notes.
@@ -97,7 +106,8 @@ exports.getClientDetail = async (req, res) => {
 // Create or update CRM note for a client
 exports.upsertClientNote = async (req, res) => {
     try {
-        const providerId = req.user._id;
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const { customerId } = req.params;
         const { notes, allergies, conditions, internalNotes, tags, birthday } = req.body;
 
