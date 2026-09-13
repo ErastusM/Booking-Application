@@ -12,9 +12,14 @@ import Wordmark from './Wordmark';
 const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'http://localhost:3002';
 
 const Navbar = () => {
-    const { user, logout } = useAuthContext();
+    const { user, logout, hasCap } = useAuthContext();
     const { darkMode, toggleDarkMode } = useTheme();
     const navigate = useNavigate();
+
+    // A nav item shows for the owner, or for a staff member whose tier holds the
+    // capability (a Medium receptionist gets Calendar + Clients). Kept staff-scoped
+    // so admin's business-nav is unchanged. Owner-only items stay role==='provider'.
+    const navCan = (cap) => user?.role === 'provider' || (user?.role === 'staff' && hasCap(cap));
     const location = useLocation();
     const [scrolled, setScrolled] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
@@ -233,8 +238,8 @@ const Navbar = () => {
                     live in the right cluster/dropdown, so this row stays clean and
                     never has to wrap. */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }} className="nav-desktop">
-                    {user?.role === 'provider' && navLink('/dashboard', 'Calendar')}
-                    {user?.role === 'provider' && navLink('/dashboard?tab=clients', 'Clients')}
+                    {navCan('calendar:view_all') && navLink('/dashboard', 'Calendar')}
+                    {navCan('clients:view') && navLink('/dashboard?tab=clients', 'Clients')}
                     {user?.role === 'provider' && navLink('/dashboard?tab=earnings', 'Earnings')}
                     {user?.role === 'provider' && navLink('/dashboard?tab=services', 'Catalogue')}
                     {user?.role === 'provider' && (
@@ -513,8 +518,8 @@ const Navbar = () => {
 
                     <div style={{ flex: 1, padding: '0.6rem 0' }}>
                         {/* Primary — the four everyday areas (mirrors desktop + bottom nav) */}
-                        {user?.role === 'provider' && mobileLink('/dashboard', 'Calendar')}
-                        {user?.role === 'provider' && mobileLink('/dashboard?tab=clients', 'Clients')}
+                        {navCan('calendar:view_all') && mobileLink('/dashboard', 'Calendar')}
+                        {navCan('clients:view') && mobileLink('/dashboard?tab=clients', 'Clients')}
                         {user?.role === 'provider' && mobileLink('/dashboard?tab=earnings', 'Earnings')}
                         {user?.role === 'provider' && mobileLink('/dashboard?tab=services', 'Catalogue')}
 
