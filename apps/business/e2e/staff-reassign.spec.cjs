@@ -56,10 +56,16 @@ test.describe('Staff lanes — drag to reassign', () => {
         await sheet.getByRole('button', { name: /Move to/ }).click();
         await expect(sheet).toBeHidden();
 
-        // The booking now lives in Billie's lane, not Alex's.
-        await chip(page, 'Billie Barber').click();
+        // The booking now lives in Billie's lane, not Alex's. The staff chips are
+        // multi-select toggles (each chip adds/removes its own lane from the shown
+        // set), so isolate one lane at a time rather than assuming a chip click
+        // replaces the selection.
+        await chip(page, 'Billie Barber').click();     // Billie's lane alone
         await expect(page.getByTestId('staff-lane-appt').filter({ hasText: 'Walk-in Wanda' })).toBeVisible();
-        await chip(page, 'Alex Stylist').click();
+        // Drop Billie before adding Alex — otherwise both lanes show and Wanda
+        // (now in Billie's) would still be counted in the "not on Alex" check.
+        await chip(page, 'Billie Barber').click();     // toggle Billie's lane back off
+        await chip(page, 'Alex Stylist').click();      // now Alex's lane alone
         await expect(page.getByTestId('staff-lane-appt').filter({ hasText: 'Walk-in Wanda' })).toHaveCount(0);
     });
 });
