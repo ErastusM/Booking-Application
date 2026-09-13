@@ -68,9 +68,11 @@ function AppRoutes() {
                     <Route path="/terms" element={<TermsOfService />} />
                     <Route path="/privacy-policy" element={<PrivacyPolicy />} />
 
-                    {/* Provider suite — staff joins in Epic 2.4 with a scoped view */}
+                    {/* Provider suite. A Medium+ staff member (whole-business
+                        calendar / client access) is admitted too; ProviderDashboard
+                        then whitelists which tabs their tier may see. */}
                     <Route path="/dashboard" element={
-                        <ProtectedRoute allowedRoles={['provider']}>
+                        <ProtectedRoute allowedRoles={['provider']} allowCapability={['calendar:view_all', 'clients:view']}>
                             <ProviderDashboard />
                         </ProtectedRoute>
                     } />
