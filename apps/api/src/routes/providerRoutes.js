@@ -7,6 +7,7 @@ const {
     getMySetupStatus,
     getProviderStaff,
     getProviderStaffShiftDays,
+    getProviderStaffReviews,
     searchProviders,
 } = require('../controllers/providerController');
 const { auth } = require('../middleware/auth');
@@ -18,6 +19,7 @@ router.get('/by-slug/:slug', getProviderProfileBySlug);
 router.get('/me/setup-status', auth, getMySetupStatus);
 router.get('/:id/staff', getProviderStaff);
 router.get('/:id/staff/:teamMemberId/shift-days', getProviderStaffShiftDays);
+router.get('/:id/staff/:teamMemberId/reviews', getProviderStaffReviews);
 router.get('/:id', getProviderProfile);
 
 module.exports = router;
