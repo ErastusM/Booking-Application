@@ -1,5 +1,10 @@
 const Service = require('../models/Service');
 
+// The business a catalogue write/read acts on: the owner's own id, or a
+// services:edit (High tier) staff member's employer (staffOf). Ownership checks
+// and the create/list scope use this. null = detached staff (handlers 403).
+const businessScope = (req) => (req.user.role === 'staff' ? req.user.staffOf || null : req.user._id);
+
 // Public catalogue — returns every active service to anyone (no auth, no role filter).
 exports.getAllServices = async (req, res) => {
     try {
@@ -17,7 +22,9 @@ exports.getAllServices = async (req, res) => {
 // Get provider's own services
 exports.getMyServices = async (req, res) => {
     try {
-        const services = await Service.find({ provider: req.user._id })
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const services = await Service.find({ provider: providerId })
             .sort({ createdAt: -1 });
 
         res.status(200).json({ success: true, count: services.length, data: services });
@@ -59,6 +66,8 @@ const sanitizeOptions = (options) => {
 // Provider creates their own service
 exports.createMyService = async (req, res) => {
     try {
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const { name, description, price, duration, location, address, category, options, bufferBefore, bufferAfter } = req.body;
 
         const service = await Service.create({
@@ -69,8 +78,8 @@ exports.createMyService = async (req, res) => {
             options: sanitizeOptions(options) || [],
             bufferBefore: Math.min(120, Math.max(0, Number(bufferBefore) || 0)),
             bufferAfter: Math.min(120, Math.max(0, Number(bufferAfter) || 0)),
-            createdBy: req.user._id,
-            provider: req.user._id,
+            createdBy: req.user._id,      // audit: the actual author (staff or owner)
+            provider: providerId,          // the business the service belongs to
         });
 
         res.status(201).json({ success: true, data: service });
@@ -88,9 +97,16 @@ exports.updateService = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Service not found' });
         }
 
-        // Providers can only update their own
-        if (req.user.role === 'provider' && service.provider?.toString() !== req.user._id.toString()) {
-            return res.status(403).json({ success: false, message: 'Not authorized' });
+        // Ownership: admin may edit any; a provider or a services:edit staff member
+        // only their OWN business's service. The old check gated on role==='provider'
+        // alone, so a staff principal fell THROUGH it — key on the business (staffOf
+        // for staff) so a High staff member can't edit another business's catalogue.
+        if (req.user.role !== 'admin') {
+            const providerId = businessScope(req);
+            if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+            if (service.provider?.toString() !== providerId.toString()) {
+                return res.status(403).json({ success: false, message: 'Not authorized' });
+            }
         }
 
         const { name, description, price, duration, location, address, isActive, category, options, bufferBefore, bufferAfter } = req.body;
@@ -118,8 +134,14 @@ exports.deleteService = async (req, res) => {
             return res.status(404).json({ success: false, message: 'Service not found' });
         }
 
-        if (req.user.role === 'provider' && service.provider?.toString() !== req.user._id.toString()) {
-            return res.status(403).json({ success: false, message: 'Not authorized' });
+        // Same ownership fix as updateService: staff must be checked too (they fell
+        // through the old role==='provider' guard), keyed on their business.
+        if (req.user.role !== 'admin') {
+            const providerId = businessScope(req);
+            if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+            if (service.provider?.toString() !== providerId.toString()) {
+                return res.status(403).json({ success: false, message: 'Not authorized' });
+            }
         }
 
         await Service.findByIdAndDelete(req.params.id);

@@ -5,10 +5,37 @@ const Service = require('../models/Service');
 const StaffAvailability = require('../models/StaffAvailability');
 const Appointment = require('../models/Appointment');
 const { validate: validatePermissions, isTier } = require('../utils/permissions');
-const { memberBusyIntervals, memberInvolvedFilter } = require('../utils/staffBooking');
+const { memberBusyIntervals, memberInvolvedFilter, pickRotationWeek } = require('../utils/staffBooking');
 
 const dayKeyOf = (d) => new Date(d).toISOString().slice(0, 10);
 const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+
+// The business a roster-management request acts on: the owner's own id, or a
+// team:manage (High tier) staff member's employer (staffOf). Used ONLY by the
+// handlers wired to team:manage below; the owner-only crown-jewel routes
+// (setTeamMemberPermissions, inviteTeamMember) and the still-owner-managed
+// routes keep req.user._id, since their authorize() gate guarantees the owner.
+// null = a detached staff account, which the wired handlers 403.
+const businessScope = (req) => (req.user.role === 'staff' ? req.user.staffOf || null : req.user._id);
+
+// employment + notes are OWNER-ONLY HR (see the TeamMember schema). A
+// team:manage staff actor can run the roster but must NEVER read a colleague's
+// HR record — stripping them on the WRITE path is not enough, since the
+// handlers echo the stored document back and getMyTeam returns the full roster.
+// redactHR drops both fields from a returned member (or array of members) when
+// the actor is staff; the owner/admin sees the unredacted document unchanged.
+const redactHR = (req, doc) => {
+    if (req.user.role !== 'staff' || doc == null) return doc;
+    const strip = (m) => {
+        if (!m) return m;
+        // Work on a plain object so we can delete keys off a Mongoose document.
+        const obj = typeof m.toObject === 'function' ? m.toObject() : m;
+        delete obj.employment;
+        delete obj.notes;
+        return obj;
+    };
+    return Array.isArray(doc) ? doc.map(strip) : strip(doc);
+};
 
 // The owner's own work is stored UNASSIGNED (teamMember null) — there is no
 // roster row for the boss. These mirror memberInvolvedFilter/memberBusyIntervals
@@ -39,14 +66,16 @@ const ownerBusyIntervals = (appt) => {
  */
 exports.handoverUpcomingBookings = async (req, res) => {
     try {
-        const from = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const from = await TeamMember.findOne({ _id: req.params.id, provider: providerId });
         if (!from) return res.status(404).json({ success: false, message: 'Team member not found' });
         // 'owner' hands the book to the boss — their work is stored unassigned
         // (teamMember null), so there is no roster row to look up.
         const toOwner = req.body.to === 'owner';
         let to = null;
         if (!toOwner) {
-            to = await TeamMember.findOne({ _id: req.body.to, provider: req.user._id, isActive: true });
+            to = await TeamMember.findOne({ _id: req.body.to, provider: providerId, isActive: true });
             if (!to) return res.status(400).json({ success: false, message: 'Choose an active team member to hand the bookings to' });
             if (String(from._id) === String(to._id)) {
                 return res.status(400).json({ success: false, message: 'Pick a different member to hand over to' });
@@ -57,7 +86,7 @@ exports.handoverUpcomingBookings = async (req, res) => {
         const targetBusy = (a) => (toOwner ? ownerBusyIntervals(a) : memberBusyIntervals(a, to._id));
 
         const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
-        const scope = { provider: req.user._id, status: { $in: ['pending', 'confirmed'] }, appointmentDate: { $gte: dayStart } };
+        const scope = { provider: providerId, status: { $in: ['pending', 'confirmed'] }, appointmentDate: { $gte: dayStart } };
         const [sources, targetsExisting] = await Promise.all([
             Appointment.find({ ...scope, ...memberInvolvedFilter(from._id) }).sort({ appointmentDate: 1, startTime: 1 }),
             Appointment.find({ ...scope, ...targetInvolved }).select('appointmentDate startTime endTime teamMember services').lean(),
@@ -107,10 +136,12 @@ exports.getMyTeam = async (req, res) => {
         // show each member's calendar access without a request per member.
         // Callers that only test `member.user` for truthiness ("has a login")
         // are unaffected — a populated document is just as truthy as an id.
-        const members = await TeamMember.find({ provider: req.user._id })
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const members = await TeamMember.find({ provider: providerId })
             .populate('user', 'staffPermissions staffTier lastLoginAt')
             .sort({ isPrimary: -1, createdAt: 1 }); // the primary member leads the roster
-        res.status(200).json({ success: true, data: members });
+        res.status(200).json({ success: true, data: redactHR(req, members) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -118,12 +149,14 @@ exports.getMyTeam = async (req, res) => {
 
 exports.addTeamMember = async (req, res) => {
     try {
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const { name, role, email, phone, color } = req.body;
         if (!name || !name.trim()) {
             return res.status(400).json({ success: false, message: 'Name is required' });
         }
         const member = await TeamMember.create({
-            provider: req.user._id,
+            provider: providerId,
             name: name.trim(),
             role: (role || 'Staff').trim(),
             email: (email || '').trim().toLowerCase(),
@@ -136,7 +169,7 @@ exports.addTeamMember = async (req, res) => {
             // their services, or flips "offers all" on, from the member's card.
             offersAllServices: false,
         });
-        res.status(201).json({ success: true, data: member });
+        res.status(201).json({ success: true, data: redactHR(req, member) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -157,20 +190,30 @@ exports.updateTeamMember = async (req, res) => {
             // isn't fully processed just to be truncated to 12.
             : (Array.isArray(languages) ? languages : []).slice(0, 100)
                 .map((l) => String(l).trim()).filter(Boolean).slice(0, 12);
+        // The business (staffOf for a team:manage staff member); the scope filter
+        // below is also the cross-tenant guard.
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         // Read the prior state so a change to `isActive` can be mirrored onto the
         // linked login below (findOneAndUpdate only returns the new value).
-        const existing = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        const existing = await TeamMember.findOne({ _id: req.params.id, provider: providerId });
         if (!existing) return res.status(404).json({ success: false, message: 'Team member not found' });
 
+        // employment + notes are OWNER-ONLY HR. Writing them here was safe only
+        // because this route used to be owner-gated; now a team:manage staff
+        // member reaches it, and must NOT read or write a colleague's HR record.
+        // Strip them for a staff actor (undefined → Mongoose leaves them untouched).
+        const isStaffActor = req.user.role === 'staff';
         const member = await TeamMember.findOneAndUpdate(
-            { _id: req.params.id, provider: req.user._id },
+            { _id: req.params.id, provider: providerId },
             // Undefined keys are dropped by Mongoose, so a partial body only
             // touches the fields it actually sends. bio/pronouns/languages are
-            // customer-facing; employment/notes are owner-only HR — both are safe
-            // to write here because this route is owner-gated (provider: req.user._id).
+            // customer-facing and stay writable by a manager.
             {
                 name, role, email, phone, color, isActive, bookable, photoUrl, country, address, emergencyContact,
-                bio, pronouns, languages: cleanLanguages, employment, notes,
+                bio, pronouns, languages: cleanLanguages,
+                employment: isStaffActor ? undefined : employment,
+                notes: isStaffActor ? undefined : notes,
             },
             { new: true, runValidators: true }
         );
@@ -193,7 +236,7 @@ exports.updateTeamMember = async (req, res) => {
                 await User.updateOne({ _id: member.user }, { $set: { isActive: true } });
             }
         }
-        res.status(200).json({ success: true, data: member });
+        res.status(200).json({ success: true, data: redactHR(req, member) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -214,8 +257,10 @@ exports.updateTeamMember = async (req, res) => {
  */
 exports.deleteTeamMember = async (req, res) => {
     try {
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const member = await TeamMember.findOneAndUpdate(
-            { _id: req.params.id, provider: req.user._id },
+            { _id: req.params.id, provider: providerId },
             { $set: { isActive: false, archivedAt: new Date() } },
             { new: true },
         );
@@ -249,7 +294,7 @@ exports.deleteTeamMember = async (req, res) => {
             // the only record of which account was theirs, which re-inviting
             // needs. See inviteTeamMember for the recovery path.
         }
-        res.status(200).json({ success: true, message: 'Team member archived', data: member });
+        res.status(200).json({ success: true, message: 'Team member archived', data: redactHR(req, member) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -276,7 +321,9 @@ exports.removeTeamMember = async (req, res) => {
         if (!require('mongoose').isValidObjectId(req.params.id)) {
             return res.status(404).json({ success: false, message: 'Team member not found' });
         }
-        const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const member = await TeamMember.findOne({ _id: req.params.id, provider: providerId });
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
 
         const Shift = require('../models/Shift');
@@ -541,150 +588,181 @@ exports.clearTeamMemberShift = async (req, res) => {
  *               they have no account, so two guest bookings cannot be known to
  *               be the same person.
  */
+const STATS_DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+const statsToMin = (t) => {
+    const [h = 0, m = 0] = String(t || '').split(':').map(Number);
+    return (h || 0) * 60 + (m || 0);
+};
+// Revenue credited to ONE member across a list of completed bookings, per-segment
+// so a shared multi-service ticket doesn't credit its whole total to the primary.
+const memberSegments = (a, memberId) => (Array.isArray(a.services) && a.services.length
+    ? a.services.filter((s) => String(s.teamMember) === String(memberId))
+    : [{ price: a.totalPrice || 0, startTime: a.startTime, endTime: a.endTime }]);
+const segmentRevenue = (done, memberId) => done.reduce((sum, a) =>
+    sum + memberSegments(a, memberId).reduce((s, seg) => s + (seg.price || 0), 0), 0);
+
+/**
+ * The per-member stats payload for a window of `days`, scoped to `providerId`
+ * (the employer). Shared by the owner endpoint (/:id/stats) and the staff
+ * self-view (/mine/stats) so both compute identical figures.
+ *
+ * Adds over the original: no-show + cancellation counts and a no-show RATE, and
+ * a period-over-period trend (same metrics for the immediately-preceding window
+ * of equal length) so a number can be read as up or down, not just absolute.
+ */
+const computeMemberStats = async (providerId, member, days) => {
+    // Anchor the window to the business day in Africa/Windhoek, then express its
+    // boundaries at UTC-midnight — the instant appointmentDate is stored at.
+    const { NAMIBIA_OFFSET_MIN } = require('../utils/appointmentTime');
+    const nowNam = new Date(Date.now() + NAMIBIA_OFFSET_MIN * 60 * 1000);
+    const startOfToday = new Date(Date.UTC(nowNam.getUTCFullYear(), nowNam.getUTCMonth(), nowNam.getUTCDate()));
+    const to = new Date(startOfToday); to.setUTCHours(23, 59, 59, 999);
+    const from = new Date(startOfToday); from.setUTCDate(from.getUTCDate() - (days - 1));
+    // The immediately-preceding window of equal length, for the trend delta.
+    const toPrev = new Date(from); toPrev.setUTCMilliseconds(toPrev.getUTCMilliseconds() - 1);
+    const fromPrev = new Date(from); fromPrev.setUTCDate(fromPrev.getUTCDate() - days);
+
+    const Appointment = require('../models/Appointment');
+    const Review = require('../models/Review');
+    const Availability = require('../models/Availability');
+
+    // A member counts for a booking if they are its top-level member OR they
+    // perform one of its services (multi-service tickets split across staff).
+    const memberMatch = { $or: [{ teamMember: member._id }, { 'services.teamMember': member._id }] };
+    const inWindow = { provider: providerId, appointmentDate: { $gte: from, $lte: to }, ...memberMatch };
+    const inPrevWindow = { provider: providerId, appointmentDate: { $gte: fromPrev, $lte: toPrev }, ...memberMatch };
+
+    const [done, prevDone, upcoming, noShows, cancellations, ratingAgg, staffHours, businessHours, shifts] = await Promise.all([
+        Appointment.find({ ...inWindow, status: 'completed' })
+            .select('totalPrice customer startTime endTime services'),
+        // Prior window — only what the trend needs (completed count + revenue).
+        Appointment.find({ ...inPrevWindow, status: 'completed' })
+            .select('totalPrice startTime endTime services'),
+        // From the START OF TODAY, not this instant: appointmentDate is a date-only
+        // value at midnight, so a 15:00 booking must not read as already past at 09:00.
+        Appointment.countDocuments({
+            provider: providerId,
+            status: { $in: ['pending', 'confirmed'] },
+            appointmentDate: { $gte: startOfToday },
+            ...memberMatch,
+        }),
+        Appointment.countDocuments({ ...inWindow, status: 'no-show' }),
+        Appointment.countDocuments({ ...inWindow, status: 'cancelled' }),
+        // Reviews carry no teamMember, so the link runs through the booking.
+        Review.aggregate([
+            { $lookup: { from: 'appointments', localField: 'appointment', foreignField: '_id', as: 'appt' } },
+            { $unwind: '$appt' },
+            { $match: { 'appt.teamMember': member._id } },
+            { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
+        ]),
+        StaffAvailability.findOne({ teamMember: member._id }),
+        Availability.findOne({ provider: providerId }),
+        Shift.find({
+            teamMember: member._id,
+            date: { $gte: from.toISOString().slice(0, 10), $lte: to.toISOString().slice(0, 10) },
+        }).select('date slots breaks').lean(),
+    ]);
+
+    const revenue = segmentRevenue(done, member._id);
+    const revenuePrev = segmentRevenue(prevDone, member._id);
+    const bookedMinutes = done.reduce((sum, a) =>
+        sum + memberSegments(a, member._id).reduce((s, seg) => {
+            const mins = statsToMin(seg.endTime) - statsToMin(seg.startTime);
+            return s + (mins > 0 ? mins : 0);
+        }, 0), 0);
+
+    // Clients: registered accounts only, so "the same person twice" is knowable.
+    const counts = new Map();
+    done.forEach((a) => {
+        if (!a.customer) return;
+        const k = a.customer.toString();
+        counts.set(k, (counts.get(k) || 0) + 1);
+    });
+    const clients = counts.size;
+    const returning = [...counts.values()].filter((n) => n > 1).length;
+
+    const sumPeriods = (list) => (list || []).reduce((acc, s) => {
+        const mins = statsToMin(s.end) - statsToMin(s.start);
+        return acc + (mins > 0 ? mins : 0);
+    }, 0);
+
+    const shiftByDate = new Map((shifts || []).map((s) => [s.date, s]));
+    let scheduledMinutes = 0;
+    for (let d = new Date(from); d <= to; d.setUTCDate(d.getUTCDate() + 1)) {
+        const dayKey = d.toISOString().slice(0, 10);
+        const shift = shiftByDate.get(dayKey);
+        if (shift) {
+            // A shift is authoritative for its date: slots minus breaks (empty = day off).
+            scheduledMinutes += Math.max(0, sumPeriods(shift.slots) - sumPeriods(shift.breaks));
+            continue;
+        }
+        // Rotation-aware: the member's EFFECTIVE week for THIS date (the flat
+        // schedule when they have no rotation), else business hours when they have
+        // no per-staff schedule at all. Mirrors the booking resolver so occupancy
+        // and availability never disagree.
+        const week = staffHours ? pickRotationWeek(staffHours, dayKey) : (businessHours?.schedule || null);
+        const cfg = week?.[STATS_DAY_NAMES[d.getUTCDay()]];
+        if (cfg?.enabled && Array.isArray(cfg.slots)) scheduledMinutes += sumPeriods(cfg.slots);
+    }
+
+    // No-show rate = no-shows ÷ the appointments that were meant to happen
+    // (completed + no-shows). Cancellations are excluded from the denominator —
+    // a cancelled booking was called off ahead of time, not a no-show.
+    const attended = done.length + noShows;
+    return {
+        windowDays: days,
+        appointments: done.length,
+        revenue,
+        clients,
+        upcoming,
+        noShows,
+        cancellations,
+        // null when there were no attendable bookings — "cannot say" ≠ "0% no-show".
+        noShowRate: attended > 0 ? Math.round((noShows / attended) * 100) : null,
+        rating: ratingAgg[0] ? Math.round(ratingAgg[0].avg * 10) / 10 : null,
+        reviews: ratingAgg[0]?.count || 0,
+        // null, not 0 — "we cannot say" is different from "they were idle".
+        occupancy: scheduledMinutes > 0
+            ? Math.min(100, Math.round((bookedMinutes / scheduledMinutes) * 100))
+            : null,
+        retention: clients > 0 ? Math.round((returning / clients) * 100) : null,
+        bookedMinutes,
+        scheduledMinutes,
+        // Period-over-period: the prior equal-length window and the deltas, so the
+        // UI can render an up/down arrow rather than a bare number.
+        trend: {
+            revenuePrev,
+            appointmentsPrev: prevDone.length,
+            revenueDelta: revenue - revenuePrev,
+            appointmentsDelta: done.length - prevDone.length,
+        },
+    };
+};
+
 exports.getTeamMemberStats = async (req, res) => {
     try {
         const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
-
         const days = Math.min(365, Math.max(1, parseInt(req.query.days, 10) || 30));
+        const data = await computeMemberStats(req.user._id, member, days);
+        res.status(200).json({ success: true, data });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
 
-        // Anchor the window to the business day in Africa/Windhoek, then express
-        // its boundaries at UTC-midnight — the exact instant appointmentDate is
-        // stored at. Computed in raw UTC (to.setHours) the window rolled over on
-        // the server's clock, so for the two hours after local midnight "today"
-        // hadn't started yet and that day's bookings fell outside the window.
-        const { NAMIBIA_OFFSET_MIN } = require('../utils/appointmentTime');
-        const nowNam = new Date(Date.now() + NAMIBIA_OFFSET_MIN * 60 * 1000);
-        const startOfToday = new Date(Date.UTC(nowNam.getUTCFullYear(), nowNam.getUTCMonth(), nowNam.getUTCDate()));
-        const to = new Date(startOfToday); to.setUTCHours(23, 59, 59, 999);
-        const from = new Date(startOfToday); from.setUTCDate(from.getUTCDate() - (days - 1));
-
-        const Appointment = require('../models/Appointment');
-        const Review = require('../models/Review');
-        const Availability = require('../models/Availability');
-
-        // A member counts for a booking if they are its top-level member OR they
-        // perform one of its services. A multi-service booking is split across
-        // several staff (services[].teamMember), and each must see — and be paid
-        // for — only their own part, never the whole ticket.
-        const memberMatch = { $or: [{ teamMember: member._id }, { 'services.teamMember': member._id }] };
-        const inWindow = {
-            provider: req.user._id,
-            appointmentDate: { $gte: from, $lte: to },
-            ...memberMatch,
-        };
-
-        const [done, upcoming, ratingAgg, staffHours, businessHours, shifts] = await Promise.all([
-            Appointment.find({ ...inWindow, status: 'completed' })
-                .select('totalPrice customer startTime endTime services'),
-            // From the START OF TODAY, not from this instant. appointmentDate is
-            // a date-only value stored at midnight, so comparing it against `now`
-            // silently dropped every remaining booking today — at 09:00 a 15:00
-            // appointment counted as already past. `startOfToday` is the Windhoek
-            // day at UTC-midnight, matching how appointmentDate is stored. Within-
-            // day precision would need startTime; the auto-complete job flips
-            // finished bookings out of pending/confirmed, so this converges anyway.
-            Appointment.countDocuments({
-                provider: req.user._id,
-                status: { $in: ['pending', 'confirmed'] },
-                appointmentDate: { $gte: startOfToday },
-                ...memberMatch,
-            }),
-            // Reviews carry no teamMember, so the link runs through the booking.
-            Review.aggregate([
-                { $lookup: { from: 'appointments', localField: 'appointment', foreignField: '_id', as: 'appt' } },
-                { $unwind: '$appt' },
-                { $match: { 'appt.teamMember': member._id } },
-                { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
-            ]),
-            StaffAvailability.findOne({ teamMember: member._id }),
-            Availability.findOne({ provider: req.user._id }),
-            // Date-specific shifts across the window. A shift REPLACES the weekly
-            // pattern for its date (models/Shift), so occupancy has to honour it —
-            // otherwise a rostered day off still counts as scheduled and drags the
-            // figure down, and an extra covered day is never counted at all.
-            Shift.find({
-                teamMember: member._id,
-                date: { $gte: from.toISOString().slice(0, 10), $lte: to.toISOString().slice(0, 10) },
-            }).select('date slots breaks').lean(),
-        ]);
-
-        const toMin = (t) => {
-            const [h = 0, m = 0] = String(t || '').split(':').map(Number);
-            return (h || 0) * 60 + (m || 0);
-        };
-        // This member's slice of a booking: the services assigned to them, or —
-        // for a single-service booking with no per-service breakdown — the whole
-        // thing. Crediting the top-level member with the full multi-service total
-        // and its full span is exactly the misattribution this fixes: it inflated
-        // the primary's revenue and occupancy and paid the other performers zero.
-        const mySegments = (a) => (Array.isArray(a.services) && a.services.length
-            ? a.services.filter((s) => String(s.teamMember) === String(member._id))
-            : [{ price: a.totalPrice || 0, startTime: a.startTime, endTime: a.endTime }]);
-
-        const revenue = done.reduce((sum, a) =>
-            sum + mySegments(a).reduce((s, seg) => s + (seg.price || 0), 0), 0);
-        const bookedMinutes = done.reduce((sum, a) =>
-            sum + mySegments(a).reduce((s, seg) => {
-                const mins = toMin(seg.endTime) - toMin(seg.startTime);
-                return s + (mins > 0 ? mins : 0);
-            }, 0), 0);
-
-        // Clients: registered accounts only, so "the same person twice" is knowable.
-        const counts = new Map();
-        done.forEach((a) => {
-            if (!a.customer) return;
-            const k = a.customer.toString();
-            counts.set(k, (counts.get(k) || 0) + 1);
-        });
-        const clients = counts.size;
-        const returning = [...counts.values()].filter((n) => n > 1).length;
-
-        // Occupancy. bookedMinutes is the member's own service minutes (computed
-        // above, per-segment), so a shared multi-service booking no longer counts
-        // its whole span against every performer.
-        const sumPeriods = (list) => (list || []).reduce((acc, s) => {
-            const mins = toMin(s.end) - toMin(s.start);
-            return acc + (mins > 0 ? mins : 0);
-        }, 0);
-
-        const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-        const schedule = staffHours?.schedule || businessHours?.schedule || null;
-        const shiftByDate = new Map((shifts || []).map((s) => [s.date, s]));
-        // Iterate in UTC because appointmentDate — and therefore the shift keys and
-        // the day-of-week the weekly pattern is indexed by — are all UTC-midnight.
-        let scheduledMinutes = 0;
-        for (let d = new Date(from); d <= to; d.setUTCDate(d.getUTCDate() + 1)) {
-            const shift = shiftByDate.get(d.toISOString().slice(0, 10));
-            if (shift) {
-                // A shift is authoritative for its date: slots minus breaks. Empty
-                // slots is a rostered day off — zero scheduled, correctly.
-                scheduledMinutes += Math.max(0, sumPeriods(shift.slots) - sumPeriods(shift.breaks));
-                continue;
-            }
-            const cfg = schedule?.[DAY_NAMES[d.getUTCDay()]];
-            if (cfg?.enabled && Array.isArray(cfg.slots)) scheduledMinutes += sumPeriods(cfg.slots);
-        }
-
-        res.status(200).json({
-            success: true,
-            data: {
-                windowDays: days,
-                appointments: done.length,
-                revenue,
-                clients,
-                upcoming,
-                rating: ratingAgg[0] ? Math.round(ratingAgg[0].avg * 10) / 10 : null,
-                reviews: ratingAgg[0]?.count || 0,
-                // null, not 0 — "we cannot say" is different from "they were idle".
-                occupancy: scheduledMinutes > 0
-                    ? Math.min(100, Math.round((bookedMinutes / scheduledMinutes) * 100))
-                    : null,
-                retention: clients > 0 ? Math.round((returning / clients) * 100) : null,
-                bookedMinutes,
-                scheduledMinutes,
-            },
-        });
+/**
+ * GET /api/team/mine/stats  (staff-self)
+ * The signed-in staff member's OWN stats — same figures the owner sees for them,
+ * scoped to their employer (staffOf). Token-resolved, no id in the URL.
+ */
+exports.getMyStats = async (req, res) => {
+    try {
+        const member = await myMemberDoc(req);
+        if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
+        const days = Math.min(365, Math.max(1, parseInt(req.query.days, 10) || 30));
+        const data = await computeMemberStats(req.user.staffOf, member, days);
+        res.status(200).json({ success: true, data });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -764,13 +842,15 @@ exports.setTeamMemberPermissions = async (req, res) => {
  */
 exports.restoreTeamMember = async (req, res) => {
     try {
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const member = await TeamMember.findOneAndUpdate(
-            { _id: req.params.id, provider: req.user._id },
+            { _id: req.params.id, provider: providerId },
             { $set: { isActive: true, archivedAt: null } },
             { new: true },
         );
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
-        res.status(200).json({ success: true, data: member });
+        res.status(200).json({ success: true, data: redactHR(req, member) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -928,19 +1008,21 @@ exports.inviteTeamMember = async (req, res) => {
  */
 exports.setTeamMemberPrimary = async (req, res) => {
     try {
-        const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const member = await TeamMember.findOne({ _id: req.params.id, provider: providerId });
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
         const makePrimary = req.body.isPrimary !== false;
         if (makePrimary) {
             // Clear any other primary first, so the flag stays single-valued.
             await TeamMember.updateMany(
-                { provider: req.user._id, _id: { $ne: member._id }, isPrimary: true },
+                { provider: providerId, _id: { $ne: member._id }, isPrimary: true },
                 { $set: { isPrimary: false } },
             );
         }
         member.isPrimary = makePrimary;
         await member.save();
-        res.status(200).json({ success: true, data: member });
+        res.status(200).json({ success: true, data: redactHR(req, member) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -985,13 +1067,17 @@ const buildServiceOverrides = async (overrides, providerId) => {
  */
 exports.setTeamMemberPricing = async (req, res) => {
     try {
-        const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const member = await TeamMember.findOne({ _id: req.params.id, provider: providerId });
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
-        const { rows, error } = await buildServiceOverrides(req.body.serviceOverrides, req.user._id);
+        // buildServiceOverrides validates every service belongs to the business —
+        // pass the employer id so a manager can't reference another business's services.
+        const { rows, error } = await buildServiceOverrides(req.body.serviceOverrides, providerId);
         if (error) return res.status(400).json({ success: false, message: error });
         member.serviceOverrides = rows;
         await member.save();
-        res.status(200).json({ success: true, data: member });
+        res.status(200).json({ success: true, data: redactHR(req, member) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -1014,11 +1100,14 @@ exports.setTeamMemberServices = async (req, res) => {
         if (offersAllServices !== undefined && typeof offersAllServices !== 'boolean') {
             return res.status(400).json({ success: false, message: 'offersAllServices must be a boolean' });
         }
-        const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const member = await TeamMember.findOne({ _id: req.params.id, provider: providerId });
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
 
         if (services.length) {
-            const owned = await Service.countDocuments({ _id: { $in: services }, provider: req.user._id });
+            // Every assigned service must belong to the caller's business.
+            const owned = await Service.countDocuments({ _id: { $in: services }, provider: providerId });
             if (owned !== new Set(services.map(String)).size) {
                 return res.status(400).json({ success: false, message: 'All services must belong to your business' });
             }
@@ -1027,7 +1116,7 @@ exports.setTeamMemberServices = async (req, res) => {
         member.services = services;
         if (offersAllServices !== undefined) member.offersAllServices = offersAllServices;
         await member.save();
-        res.status(200).json({ success: true, data: member });
+        res.status(200).json({ success: true, data: redactHR(req, member) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -1094,7 +1183,7 @@ exports.setMyServices = async (req, res) => {
         member.services = services;
         if (offersAllServices !== undefined) member.offersAllServices = offersAllServices;
         await member.save();
-        res.status(200).json({ success: true, data: member });
+        res.status(200).json({ success: true, data: redactHR(req, member) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -1113,7 +1202,7 @@ exports.setMyPricing = async (req, res) => {
         if (error) return res.status(400).json({ success: false, message: error });
         member.serviceOverrides = rows;
         await member.save();
-        res.status(200).json({ success: true, data: member });
+        res.status(200).json({ success: true, data: redactHR(req, member) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -1235,12 +1324,49 @@ const scheduleError = (schedule) => {
     return null;
 };
 
+// Normalise an optional rotation from the request body.
+//   undefined            → caller omitted it: PRESERVE any existing rotation (no wipe)
+//   null / empty weeks   → rotation OFF (the flat `schedule` is the single week)
+//   { anchor, weeks[] }  → an N-week rotating cycle
+const parseRotation = (rotation) => {
+    if (rotation === undefined) return undefined;                 // preserve existing
+    if (rotation === null || typeof rotation !== 'object') return { anchor: '', weeks: [] };
+    const weeks = Array.isArray(rotation.weeks) ? rotation.weeks : [];
+    const anchor = typeof rotation.anchor === 'string' ? rotation.anchor.slice(0, 10) : '';
+    // Anchor only means anything with a cycle; drop it when there are no weeks.
+    return { anchor: weeks.length ? anchor : '', weeks };
+};
+
+// Validate a normalised rotation, returning an error string or null. Each week
+// is validated by the SAME scheduleError as the flat schedule, so a rotating
+// schedule can never save an inverted/overlapping period the single week refuses.
+const rotationError = (rotation) => {
+    if (!rotation || !Array.isArray(rotation.weeks) || rotation.weeks.length === 0) return null;
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(rotation.anchor || '')) {
+        return 'A rotating schedule needs a valid start date (YYYY-MM-DD).';
+    }
+    if (rotation.weeks.length > 8) return 'A rotation can span at most 8 weeks.';
+    for (let i = 0; i < rotation.weeks.length; i += 1) {
+        const week = rotation.weeks[i];
+        if (!week || typeof week !== 'object') return `Week ${i + 1}: each rotation week must be a schedule.`;
+        const err = scheduleError(week);
+        if (err) return `Week ${i + 1} — ${err}`;
+    }
+    return null;
+};
+
 // Upsert a member's weekly schedule (used once the member is resolved + authorized).
-const upsertSchedule = (member, schedule) => StaffAvailability.findOneAndUpdate(
-    { teamMember: member._id },
-    { provider: member.provider, teamMember: member._id, schedule },
-    { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
-);
+// `rotation` undefined leaves any stored rotation untouched (a legacy { schedule }
+// PUT never wipes a rotation); a normalised rotation replaces it.
+const upsertSchedule = (member, schedule, rotation) => {
+    const update = { provider: member.provider, teamMember: member._id, schedule };
+    if (rotation !== undefined) update.rotation = rotation;
+    return StaffAvailability.findOneAndUpdate(
+        { teamMember: member._id },
+        update,
+        { new: true, upsert: true, runValidators: true, setDefaultsOnInsert: true }
+    );
+};
 
 /**
  * PUT /api/team/:id/availability  (provider/admin, or staff-self)
@@ -1254,11 +1380,14 @@ exports.updateTeamMemberAvailability = async (req, res) => {
         }
         const err = scheduleError(schedule);
         if (err) return res.status(400).json({ success: false, message: err });
+        const rotation = parseRotation(req.body.rotation);
+        const rotErr = rotationError(rotation);
+        if (rotErr) return res.status(400).json({ success: false, message: rotErr });
         const member = await TeamMember.findById(req.params.id);
         if (!member || !canTouchStaffAvailability(req.user, member)) {
             return res.status(404).json({ success: false, message: 'Team member not found' });
         }
-        const availability = await upsertSchedule(member, schedule);
+        const availability = await upsertSchedule(member, schedule, rotation);
         res.status(200).json({ success: true, data: availability });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
@@ -1292,9 +1421,12 @@ exports.setMyAvailability = async (req, res) => {
         }
         const err = scheduleError(schedule);
         if (err) return res.status(400).json({ success: false, message: err });
+        const rotation = parseRotation(req.body.rotation);
+        const rotErr = rotationError(rotation);
+        if (rotErr) return res.status(400).json({ success: false, message: rotErr });
         const member = await myMemberDoc(req);
         if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
-        const availability = await upsertSchedule(member, schedule);
+        const availability = await upsertSchedule(member, schedule, rotation);
         res.status(200).json({ success: true, data: availability });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });

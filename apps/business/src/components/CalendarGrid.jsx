@@ -172,9 +172,18 @@ const CalendarGrid = ({
         return map;
     }, [teamMembers]);
 
+    // staffFilter is a Set of lane ids to show (empty = all); the legacy
+    // single-value string ('all' | 'unassigned' | id) is still honoured.
+    const staffAll = staffFilter === 'all' || (staffFilter instanceof Set && staffFilter.size === 0);
+    // When exactly one lane is selected the column is that one person, so the
+    // per-event staff name is redundant; show it whenever more than one could appear.
+    const singleStaffSelected = (staffFilter instanceof Set && staffFilter.size === 1)
+        || (typeof staffFilter === 'string' && staffFilter !== 'all');
     const matchesStaff = (tmId) => {
-        if (staffFilter === 'all') return true;
-        if (staffFilter === 'unassigned') return !(tmId && rosterIds.has(tmId));
+        if (staffAll) return true;
+        const laneKey = (tmId && rosterIds.has(tmId)) ? tmId : 'unassigned';
+        if (staffFilter instanceof Set) return staffFilter.has(laneKey);
+        if (staffFilter === 'unassigned') return laneKey === 'unassigned';
         return tmId === String(staffFilter);
     };
 
@@ -598,7 +607,7 @@ const CalendarGrid = ({
                                             {h >= 56 && (
                                                 <div style={{ fontSize: '0.63rem', opacity: 0.85, marginTop: '1px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                                     {ev.service}
-                                                    {ev.staffName && staffFilter === 'all' && <> · <span className="fc-event-appt-staff">{ev.staffName}</span></>}
+                                                    {ev.staffName && !singleStaffSelected && <> · <span className="fc-event-appt-staff">{ev.staffName}</span></>}
                                                 </div>
                                             )}
                                             {/* Bottom edge grabs to change the length. Same press-and-hold
