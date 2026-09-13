@@ -2,6 +2,11 @@ const FormTemplate = require('../models/FormTemplate');
 const FormSubmission = require('../models/FormSubmission');
 const Appointment = require('../models/Appointment');
 
+// The business a template-management request acts on: the owner's own id, or a
+// forms:manage staff member's employer (staffOf). Ownership checks and queries
+// use this so staff only touch their own business's forms. null = detached staff.
+const businessScope = (req) => (req.user.role === 'staff' ? req.user.staffOf || null : req.user._id);
+
 // Keep provider-supplied field definitions within the schema shape
 const sanitizeFields = (fields) => {
     if (!Array.isArray(fields)) return [];
@@ -25,7 +30,9 @@ const sanitizeFields = (fields) => {
 
 exports.getMyTemplates = async (req, res) => {
     try {
-        const templates = await FormTemplate.find({ provider: req.user._id })
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const templates = await FormTemplate.find({ provider: providerId })
             .populate('services', 'name')
             .sort({ createdAt: -1 });
         res.status(200).json({ success: true, data: templates });
@@ -36,12 +43,14 @@ exports.getMyTemplates = async (req, res) => {
 
 exports.createTemplate = async (req, res) => {
     try {
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const { title, description, kind, fields, services, isActive } = req.body;
         if (!title || !String(title).trim()) {
             return res.status(400).json({ success: false, message: 'Title is required' });
         }
         const template = await FormTemplate.create({
-            provider: req.user._id,
+            provider: providerId,
             title: String(title).trim().slice(0, 200),
             description: String(description || '').slice(0, 1000),
             kind: ['intake', 'consent', 'consultation', 'feedback'].includes(kind) ? kind : 'intake',
@@ -58,9 +67,11 @@ exports.createTemplate = async (req, res) => {
 
 exports.updateTemplate = async (req, res) => {
     try {
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const template = await FormTemplate.findById(req.params.id);
         if (!template) return res.status(404).json({ success: false, message: 'Form not found' });
-        if (template.provider.toString() !== req.user._id.toString()) {
+        if (template.provider.toString() !== providerId.toString()) {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
         const { title, description, kind, fields, services, isActive } = req.body;
@@ -80,9 +91,11 @@ exports.updateTemplate = async (req, res) => {
 
 exports.deleteTemplate = async (req, res) => {
     try {
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const template = await FormTemplate.findById(req.params.id);
         if (!template) return res.status(404).json({ success: false, message: 'Form not found' });
-        if (template.provider.toString() !== req.user._id.toString()) {
+        if (template.provider.toString() !== providerId.toString()) {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
         await template.deleteOne();
@@ -96,7 +109,9 @@ exports.deleteTemplate = async (req, res) => {
 
 exports.getSubmissions = async (req, res) => {
     try {
-        const query = { provider: req.user._id };
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const query = { provider: providerId };
         if (req.query.appointment) query.appointment = req.query.appointment;
         if (req.query.customer) query.customer = req.query.customer;
         const submissions = await FormSubmission.find(query)

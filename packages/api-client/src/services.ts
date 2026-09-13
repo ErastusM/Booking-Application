@@ -234,6 +234,9 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
     teamService: {
         getMyTeam: () => API.get('/team'),
         addMember: (data: any) => API.post('/team', data),
+        // Add several members at once. Returns { created, failed, results[] } —
+        // each row validated independently, a bad row doesn't fail the batch.
+        bulkAddMembers: (members: any[]) => API.post('/team/bulk', { members }),
         updateMember: (id: string, data: any) => API.put(`/team/${id}`, data),
         // Archives rather than deletes — bookings and earnings reference the member.
         deleteMember: (id: string) => API.delete(`/team/${id}`),
@@ -278,7 +281,11 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         // isPrimary:false to clear it. Setting one clears any other primary.
         setMemberPrimary: (id: string, isPrimary = true) => API.put(`/team/${id}/primary`, { isPrimary }),
         getMemberAvailability: (id: string) => API.get(`/team/${id}/availability`),
-        updateMemberAvailability: (id: string, schedule: any) => API.put(`/team/${id}/availability`, { schedule }),
+        // `rotation` is an optional multi-week cycle { anchor, weeks[] }. Omit it to
+        // leave any stored rotation untouched; pass null to clear it back to the
+        // single weekly `schedule`.
+        updateMemberAvailability: (id: string, schedule: any, rotation?: any) =>
+            API.put(`/team/${id}/availability`, rotation === undefined ? { schedule } : { schedule, rotation }),
     },
 
     // Staff self-service time off — the signed-in staff member's own requests.
@@ -287,6 +294,16 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         list: () => API.get('/timeoff/mine'),
         request: (leave: any) => API.post('/timeoff/mine', leave),
         withdraw: (id: string) => API.delete(`/timeoff/mine/${id}`),
+    },
+
+    // Time clock. Staff punch in/out (self-service); the owner reads a member's
+    // timesheet. get()/memberTimesheet() return { open, entries, totalMinutes }.
+    timeClockService: {
+        get: (from?: string, to?: string) => API.get('/timeclock/mine', { params: { ...(from ? { from } : {}), ...(to ? { to } : {}) } }),
+        clockIn: (note?: string) => API.post('/timeclock/mine/in', note ? { note } : {}),
+        clockOut: (note?: string) => API.post('/timeclock/mine/out', note ? { note } : {}),
+        memberTimesheet: (id: string, from?: string, to?: string) =>
+            API.get(`/timeclock/${id}`, { params: { ...(from ? { from } : {}), ...(to ? { to } : {}) } }),
     },
 
     // Staff self-service services — the signed-in staff member choosing which of
@@ -306,7 +323,15 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
     },
     myAvailabilityService: {
         get: () => API.get('/team/mine/availability'),
-        set: (schedule: any) => API.put('/team/mine/availability', { schedule }),
+        // `rotation` optional (see teamService.updateMemberAvailability): omit to
+        // preserve any stored rotation, pass null to clear it.
+        set: (schedule: any, rotation?: any) =>
+            API.put('/team/mine/availability', rotation === undefined ? { schedule } : { schedule, rotation }),
+    },
+
+    // Staff self-view of their own stats (same figures the owner sees for them).
+    myStatsService: {
+        get: (days = 30) => API.get('/team/mine/stats', { params: { days } }),
     },
 
     suggestionService: {

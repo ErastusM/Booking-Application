@@ -14,6 +14,42 @@ import { cloudinaryAvatar } from '../utils/cloudinary';
  */
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DEFAULT_DAY = { enabled: false, slots: [{ start: '09:00', end: '17:00' }] };
+const DEFAULT_SCHED = () => Object.fromEntries(DAYS.map(d => [d, { ...DEFAULT_DAY, slots: [{ start: '09:00', end: '17:00' }] }]));
+// Normalise a raw week (from the API or a fresh add) to the single-slot editor shape.
+const normWeek = (raw) => {
+    const w = DEFAULT_SCHED();
+    DAYS.forEach(d => { if (raw?.[d]) w[d] = { enabled: !!raw[d].enabled, slots: [{ start: raw[d].slots?.[0]?.start || '09:00', end: raw[d].slots?.[0]?.end || '17:00' }] }; });
+    return w;
+};
+
+// One editable week grid — reused for the flat schedule and each rotation week.
+// onToggle(day, checked) / onSlot(day, key, value). Keeps the phone-aligned
+// fixed-column layout the workspace tab already uses.
+const HoursGrid = ({ week, onToggle, onSlot }) => (
+    <div>
+        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(84px, 104px) minmax(0, 96px) 12px minmax(0, 96px)', alignItems: 'center', columnGap: '0.45rem', padding: '0 0 0.4rem', marginBottom: '0.3rem', borderBottom: '1px solid var(--border)' }}>
+            <span aria-hidden="true" />
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Starting time</span>
+            <span aria-hidden="true" />
+            <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Ending time</span>
+        </div>
+        {DAYS.map(day => (
+            <div key={day} style={{ display: 'grid', gridTemplateColumns: 'minmax(84px, 104px) minmax(0, 96px) 12px minmax(0, 96px)', alignItems: 'center', columnGap: '0.45rem', padding: '0.3rem 0', fontSize: '0.87rem' }}>
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: 'var(--charcoal)', textTransform: 'capitalize', cursor: 'pointer' }}>
+                    <input type="checkbox" checked={!!week[day]?.enabled} onChange={e => onToggle(day, e.target.checked)} />
+                    {day}
+                </label>
+                {week[day]?.enabled && (
+                    <>
+                        <input type="time" aria-label={`${day} starting time`} value={week[day].slots?.[0]?.start || '09:00'} onChange={e => onSlot(day, 'start', e.target.value)} className="input" style={{ width: '100%', padding: '0.35rem 0.4rem', fontSize: '0.92rem' }} />
+                        <span style={{ color: 'var(--text-muted)', textAlign: 'center' }}>–</span>
+                        <input type="time" aria-label={`${day} ending time`} value={week[day].slots?.[0]?.end || '17:00'} onChange={e => onSlot(day, 'end', e.target.value)} className="input" style={{ width: '100%', padding: '0.35rem 0.4rem', fontSize: '0.92rem' }} />
+                    </>
+                )}
+            </div>
+        ))}
+    </div>
+);
 
 // Permission tiers a staff member can be assigned (mirrors the API's TIERS).
 // Descriptions reflect what is enforced today; higher tiers gain more as later
@@ -70,15 +106,30 @@ const Section = ({ icon: Icon, title, hint, children }) => (
 
 // A metric with no answer prints an em dash, never a zero: "we cannot say" and
 // "they did none" are different facts and must not look the same.
-const Stat = ({ label, value, suffix, note }) => (
-    <div style={{ padding: '0.75rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--card-bg)' }}>
-        <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{label}</div>
-        <div className="tnum" style={{ fontFamily: 'var(--font-display)', fontSize: '1.35rem', fontWeight: 700, color: 'var(--charcoal)', lineHeight: 1.2 }}>
-            {value === null || value === undefined ? '—' : value}{value === null || value === undefined ? '' : (suffix || '')}
+// `delta` (a signed number) renders a small period-over-period chip: ▲ green for
+// up, ▼ red for down, neutral for no change. `deltaText` is the formatted amount
+// (e.g. "N$250" or "3"); `higherIsBad` flips the colours (for no-shows, up = bad).
+const Stat = ({ label, value, suffix, note, delta, deltaText, higherIsBad }) => {
+    const showDelta = delta !== null && delta !== undefined;
+    const up = delta > 0;
+    const good = showDelta && delta !== 0 && (higherIsBad ? !up : up);
+    const bad = showDelta && delta !== 0 && (higherIsBad ? up : !up);
+    const color = good ? '#1f8a4c' : bad ? 'var(--gold-dark)' : 'var(--text-muted)';
+    return (
+        <div style={{ padding: '0.75rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--card-bg)' }}>
+            <div style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{label}</div>
+            <div className="tnum" style={{ fontFamily: 'var(--font-display)', fontSize: '1.35rem', fontWeight: 700, color: 'var(--charcoal)', lineHeight: 1.2 }}>
+                {value === null || value === undefined ? '—' : value}{value === null || value === undefined ? '' : (suffix || '')}
+            </div>
+            {showDelta && (
+                <div style={{ fontSize: '0.7rem', fontWeight: 700, color, marginTop: '0.12rem' }}>
+                    {delta === 0 ? '→ no change' : `${up ? '▲' : '▼'} ${deltaText ?? Math.abs(delta)} vs prev`}
+                </div>
+            )}
+            {note && <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>{note}</div>}
         </div>
-        {note && <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>{note}</div>}
-    </div>
-);
+    );
+};
 
 const Field = ({ label, ...rest }) => (
     <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
@@ -130,6 +181,10 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
         }])
     ));
     const [schedule, setSchedule] = useState(null); // null = inherits business hours
+    // Optional rotating (multi-week) schedule, mirroring the staff self-editor.
+    const [rotationOn, setRotationOn] = useState(false);
+    const [rotation, setRotation] = useState({ anchor: new Date().toISOString().slice(0, 10), weeks: [] });
+    const [activeWk, setActiveWk] = useState(0);
     const [inviteEmail, setInviteEmail] = useState(member.email || '');
     const [inviteResult, setInviteResult] = useState(null); // sticky {ok, email, error} after a send
     const [handoverTo, setHandoverTo] = useState('');
@@ -194,7 +249,14 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
     useEffect(() => {
         if (!open || tab !== 'workspace' || schedule !== null) return;
         teamService.getMemberAvailability(member._id)
-            .then(res => setSchedule(res.data.data?.schedule || 'inherit'))
+            .then(res => {
+                setSchedule(res.data.data?.schedule || 'inherit');
+                const rot = res.data.data?.rotation;
+                if (rot && Array.isArray(rot.weeks) && rot.weeks.length > 0) {
+                    setRotationOn(true);
+                    setRotation({ anchor: rot.anchor || new Date().toISOString().slice(0, 10), weeks: rot.weeks.map(normWeek) });
+                }
+            })
             .catch(() => setSchedule('inherit'));
     }, [open, tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -535,8 +597,16 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
     const saveHours = async () => {
         if (schedule === 'inherit' || !schedule) return;
         setBusy('hours');
-        try { await teamService.updateMemberAvailability(member._id, schedule); flash('Hours saved'); }
-        catch (err) { flash(err?.response?.data?.message || 'Could not save hours'); }
+        try {
+            // With rotation on, week 1 doubles as the flat schedule legacy readers
+            // show; pass null when off so any stored rotation is cleared.
+            if (rotationOn && rotation.weeks.length >= 2) {
+                await teamService.updateMemberAvailability(member._id, rotation.weeks[0], { anchor: rotation.anchor, weeks: rotation.weeks });
+            } else {
+                await teamService.updateMemberAvailability(member._id, schedule, null);
+            }
+            flash('Hours saved');
+        } catch (err) { flash(err?.response?.data?.message || 'Could not save hours'); }
         finally { setBusy(''); }
     };
 
@@ -545,6 +615,28 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
         DAYS.forEach(d => { base[d] = { ...DEFAULT_DAY, enabled: !['saturday', 'sunday'].includes(d) }; });
         setSchedule(base);
     };
+    // Edit one day of the active rotation week.
+    const setWkDay = (day, enabled) => setRotation(r => ({ ...r, weeks: r.weeks.map((w, i) => (i === activeWk ? { ...w, [day]: { ...w[day], enabled } } : w)) }));
+    const setWkSlot = (day, key, value) => setRotation(r => ({
+        ...r,
+        weeks: r.weeks.map((w, i) => (i === activeWk
+            ? { ...w, [day]: { ...w[day], slots: [{ ...(w[day].slots?.[0] || DEFAULT_DAY.slots[0]), [key]: value }] } }
+            : w)),
+    }));
+    const toggleRotation = (on) => {
+        setRotationOn(on);
+        if (on && rotation.weeks.length === 0) {
+            setRotation({ anchor: new Date().toISOString().slice(0, 10), weeks: [normWeek(schedule && schedule !== 'inherit' ? schedule : DEFAULT_SCHED()), DEFAULT_SCHED()] });
+            setActiveWk(0);
+        }
+    };
+    const addWeek = () => setRotation(r => (r.weeks.length >= 8 ? r : { ...r, weeks: [...r.weeks, DEFAULT_SCHED()] }));
+    const removeWeek = (idx) => setRotation(r => {
+        if (r.weeks.length <= 2) return r;
+        const weeks = r.weeks.filter((_, i) => i !== idx);
+        setActiveWk(a => Math.min(a, weeks.length - 1));
+        return { ...r, weeks };
+    });
 
     const setDay = (day, patch) => setSchedule(s => ({ ...s, [day]: { ...s[day], ...patch } }));
     const setSlot = (day, key, value) => setSchedule(s => ({
@@ -616,11 +708,15 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                             {stats && (
                                 <>
                                     <div style={{ display: 'grid', gap: '0.6rem', gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))' }}>
-                                        <Stat label="Appointments" value={stats.appointments} note={`last ${stats.windowDays} days`} />
-                                        <Stat label="Revenue" value={stats.revenue != null ? `N$${stats.revenue.toLocaleString()}` : null} note="completed only" />
+                                        <Stat label="Appointments" value={stats.appointments} note={`last ${stats.windowDays} days`}
+                                            delta={stats.trend?.appointmentsDelta} deltaText={Math.abs(stats.trend?.appointmentsDelta ?? 0)} />
+                                        <Stat label="Revenue" value={stats.revenue != null ? `N$${stats.revenue.toLocaleString()}` : null} note="completed only"
+                                            delta={stats.trend?.revenueDelta} deltaText={`N$${Math.abs(stats.trend?.revenueDelta ?? 0).toLocaleString()}`} />
                                         <Stat label="Clients" value={stats.clients} note="registered accounts" />
                                         <Stat label="Occupancy" value={stats.occupancy} suffix="%" note="booked ÷ scheduled" />
                                         <Stat label="Retention" value={stats.retention} suffix="%" note="booked more than once" />
+                                        <Stat label="No-shows" value={stats.noShows} note={stats.noShowRate != null ? `${stats.noShowRate}% of attended` : 'no attended bookings'} delta={undefined} higherIsBad />
+                                        <Stat label="Cancellations" value={stats.cancellations} note={`last ${stats.windowDays} days`} higherIsBad />
                                         <Stat label="Rating" value={stats.rating} note={stats.reviews ? `${stats.reviews} review${stats.reviews > 1 ? 's' : ''}` : 'no reviews yet'} />
                                         <Stat label="Upcoming" value={stats.upcoming} note="still to come" />
                                     </div>
@@ -1159,31 +1255,48 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                 )}
                                 {schedule && schedule !== 'inherit' && (
                                     <div>
-                                        {/* One shared grid keeps the day, both time fields and the column
-                                            labels aligned in fixed columns — flex-wrap pushed the end field
-                                            onto its own line on phones, which is how hours got entered into
-                                            the wrong boxes. Sized to fit a 360px viewport without wrapping. */}
-                                        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(84px, 104px) minmax(0, 96px) 12px minmax(0, 96px)', alignItems: 'center', columnGap: '0.45rem', padding: '0 0 0.4rem', marginBottom: '0.3rem', borderBottom: '1px solid var(--border)' }}>
-                                            <span aria-hidden="true" />
-                                            <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Starting time</span>
-                                            <span aria-hidden="true" />
-                                            <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Ending time</span>
+                                        {/* Single week vs a rotating multi-week cycle. The grid below keeps
+                                            the day, both time fields and the column labels aligned in fixed
+                                            columns so the end field never wraps onto its own line on phones. */}
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.7rem', flexWrap: 'wrap' }}>
+                                            <span style={{ fontSize: '0.85rem', color: 'var(--charcoal)' }}>Hours rotate over several weeks</span>
+                                            <Switch checked={rotationOn} onChange={toggleRotation} label={rotationOn ? 'Rotating' : 'Same every week'} data-testid="rotation-switch" />
                                         </div>
-                                        {DAYS.map(day => (
-                                            <div key={day} style={{ display: 'grid', gridTemplateColumns: 'minmax(84px, 104px) minmax(0, 96px) 12px minmax(0, 96px)', alignItems: 'center', columnGap: '0.45rem', padding: '0.3rem 0', fontSize: '0.87rem' }}>
-                                                <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: 'var(--charcoal)', textTransform: 'capitalize', cursor: 'pointer' }}>
-                                                    <input type="checkbox" checked={!!schedule[day]?.enabled} onChange={e => setDay(day, { enabled: e.target.checked })} />
-                                                    {day}
+
+                                        {!rotationOn ? (
+                                            <HoursGrid week={schedule} onToggle={(d, c) => setDay(d, { enabled: c })} onSlot={setSlot} />
+                                        ) : (
+                                            <div data-testid="rotation-editor">
+                                                <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', maxWidth: '220px', marginBottom: '0.7rem' }}>
+                                                    Week 1 starts on
+                                                    <input type="date" className="input" value={rotation.anchor} onChange={e => setRotation(r => ({ ...r, anchor: e.target.value }))} style={{ padding: '0.4rem 0.5rem' }} data-testid="rotation-anchor" />
                                                 </label>
-                                                {schedule[day]?.enabled && (
-                                                    <>
-                                                        <input type="time" aria-label={`${day} starting time`} value={schedule[day].slots?.[0]?.start || '09:00'} onChange={e => setSlot(day, 'start', e.target.value)} className="input" style={{ width: '100%', padding: '0.35rem 0.4rem', fontSize: '0.92rem' }} />
-                                                        <span style={{ color: 'var(--text-muted)', textAlign: 'center' }}>–</span>
-                                                        <input type="time" aria-label={`${day} ending time`} value={schedule[day].slots?.[0]?.end || '17:00'} onChange={e => setSlot(day, 'end', e.target.value)} className="input" style={{ width: '100%', padding: '0.35rem 0.4rem', fontSize: '0.92rem' }} />
-                                                    </>
-                                                )}
+                                                <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.7rem' }}>
+                                                    {rotation.weeks.map((_, i) => (
+                                                        <button key={i} type="button" onClick={() => setActiveWk(i)} data-testid="rotation-week-tab"
+                                                            style={{
+                                                                padding: '0.35rem 0.8rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+                                                                border: `1px solid ${i === activeWk ? 'var(--gold)' : 'var(--border)'}`,
+                                                                background: i === activeWk ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)',
+                                                                color: i === activeWk ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                                                            }}>
+                                                            Week {i + 1}
+                                                        </button>
+                                                    ))}
+                                                    {rotation.weeks.length < 8 && (
+                                                        <button type="button" onClick={addWeek} data-testid="rotation-add" className="btn-outline" style={{ padding: '0.35rem 0.8rem', fontSize: '0.8rem' }}>+ Add week</button>
+                                                    )}
+                                                    {rotation.weeks.length > 2 && (
+                                                        <button type="button" onClick={() => removeWeek(activeWk)} data-testid="rotation-remove" className="btn-outline" style={{ padding: '0.35rem 0.8rem', fontSize: '0.8rem' }}>Remove week {activeWk + 1}</button>
+                                                    )}
+                                                </div>
+                                                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 0.5rem' }}>
+                                                    Editing <strong>Week {activeWk + 1}</strong> of {rotation.weeks.length}. The cycle repeats from Week 1’s start date.
+                                                </p>
+                                                <HoursGrid week={rotation.weeks[activeWk] || DEFAULT_SCHED()} onToggle={setWkDay} onSlot={setWkSlot} />
                                             </div>
-                                        ))}
+                                        )}
+
                                         <button type="button" className="btn-primary" onClick={saveHours} disabled={busy === 'hours'} data-testid="save-hours" style={{ marginTop: '0.6rem', padding: '0.55rem 1.4rem' }}>
                                             {busy === 'hours' ? 'Saving…' : 'Save hours'}
                                         </button>
@@ -1228,6 +1341,11 @@ const Team = () => {
     const [newEmail, setNewEmail] = useState('');
     const [error, setError] = useState('');
     const [adding, setAdding] = useState(false);
+    // Bulk add — one member per line, "Name, Job title, email" (title/email optional).
+    const [bulkOpen, setBulkOpen] = useState(false);
+    const [bulkText, setBulkText] = useState('');
+    const [bulkBusy, setBulkBusy] = useState(false);
+    const [bulkResult, setBulkResult] = useState(null); // { created, failed, results }
 
     const load = () => {
         // Saving a member reloads the roster, which is now server-sorted
@@ -1270,6 +1388,42 @@ const Team = () => {
         }
     };
 
+    // Parse the textarea into member rows: one per non-empty line, fields split
+    // on commas — "Name, Job title, email". Only the name is required per row.
+    const parseBulk = (text) => text.split('\n').map((line) => {
+        const [name = '', role = '', email = ''] = line.split(',').map((s) => s.trim());
+        return { name, role, email };
+    }).filter((r) => r.name || r.role || r.email);
+
+    const addBulk = async () => {
+        if (bulkBusy) return;
+        const members = parseBulk(bulkText).filter((r) => r.name); // drop lines with no name
+        if (members.length === 0) { setBulkResult({ created: 0, failed: 0, results: [], note: 'Add at least one name.' }); return; }
+        setBulkBusy(true); setBulkResult(null);
+        try {
+            const res = await teamService.bulkAddMembers(members);
+            const data = res.data.data;
+            setBulkResult(data);
+            if (data.created > 0) {
+                toast(`Added ${data.created} member${data.created > 1 ? 's' : ''}${data.failed ? `, ${data.failed} skipped` : ''}.`, 'success');
+                setBulkText('');
+                await load();
+            }
+        } catch (err) {
+            // All-invalid returns 400 with { data: { results:[…reasons…] } } and no
+            // top-level message — axios rejects, so surface the per-row reasons the
+            // server computed rather than a generic line when we have them.
+            const data = err.response?.data?.data;
+            if (data && Array.isArray(data.results) && data.results.length) {
+                setBulkResult(data);
+            } else {
+                setBulkResult({ created: 0, failed: 0, results: [], note: err.response?.data?.message || 'Could not add those members.' });
+            }
+        } finally {
+            setBulkBusy(false);
+        }
+    };
+
     return (
         <div className="container" style={{ paddingTop: 'calc(56px + 2rem)', paddingBottom: '4rem', maxWidth: '760px' }}>
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.35rem' }}>Team</h1>
@@ -1286,6 +1440,43 @@ const Team = () => {
                 </button>
             </form>
             {error && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: '0 0 1rem' }}>{error}</p>}
+
+            {/* ── Add several at once ──────────────────────────────── */}
+            <div style={{ marginBottom: '1.75rem' }}>
+                <button type="button" onClick={() => setBulkOpen(o => !o)} data-testid="bulk-toggle"
+                    style={{ border: 'none', background: 'transparent', color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.84rem', cursor: 'pointer', padding: 0, display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                    <UserPlus size={14} /> {bulkOpen ? 'Hide bulk add' : 'Add several at once'}
+                </button>
+                {bulkOpen && (
+                    <div style={{ marginTop: '0.7rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem 1.1rem' }} data-testid="bulk-add">
+                        <p style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                            One person per line — <strong>Name, Job title, email</strong> (job title and email optional). Up to 50.
+                        </p>
+                        <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={5} className="input" data-testid="bulk-text"
+                            placeholder={'Alice Johnson, Barber, alice@shop.com\nBob Smith, Stylist\nCarol Ndapewa'}
+                            style={{ width: '100%', fontFamily: 'var(--font-body)', resize: 'vertical', padding: '0.6rem 0.7rem' }} />
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.6rem' }}>
+                            <button type="button" className="btn-primary" onClick={addBulk} disabled={bulkBusy || !bulkText.trim()} data-testid="bulk-submit" style={{ padding: '0.5rem 1.3rem' }}>
+                                {bulkBusy ? 'Adding…' : 'Add all'}
+                            </button>
+                            {bulkResult && (
+                                <span style={{ fontSize: '0.82rem', fontWeight: 650, color: bulkResult.created > 0 ? '#1f8a4c' : 'var(--gold-dark)' }} data-testid="bulk-result">
+                                    {bulkResult.note
+                                        ? bulkResult.note
+                                        : `Added ${bulkResult.created}${bulkResult.failed ? ` · ${bulkResult.failed} skipped` : ''}`}
+                                </span>
+                            )}
+                        </div>
+                        {bulkResult && bulkResult.failed > 0 && Array.isArray(bulkResult.results) && (
+                            <ul style={{ margin: '0.6rem 0 0', padding: '0 0 0 1.1rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                                {bulkResult.results.filter(r => !r.ok).map((r, i) => (
+                                    <li key={i}>{r.name || '(no name)'} — {r.error}</li>
+                                ))}
+                            </ul>
+                        )}
+                    </div>
+                )}
+            </div>
 
             {loading ? (
                 <p style={{ color: 'var(--text-muted)' }}>Loading team…</p>

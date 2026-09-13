@@ -1,13 +1,49 @@
 import React, { useEffect, useState } from 'react';
-import { appointmentService, myTimeOffService, myServicesService, myProfileService, myAvailabilityService, authService } from '../services';
+import { appointmentService, myTimeOffService, myServicesService, myProfileService, myAvailabilityService, myStatsService, timeClockService, authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
-import { CalendarClock, Palmtree, ConciergeBell, Clock, Camera, KeyRound } from 'lucide-react';
+import { CalendarClock, Palmtree, ConciergeBell, Clock, Camera, KeyRound, BarChart3, Timer } from 'lucide-react';
 import Switch from '../components/Switch';
 import { uploadToCloudinary } from '../utils/uploadImage';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DEFAULT_SCHED = () => Object.fromEntries(DAYS.map(d => [d, { enabled: false, slots: [{ start: '09:00', end: '17:00' }] }]));
+// Normalise a raw week object (from the API or a fresh add) to the single-slot
+// editor shape, mirroring how the flat schedule is normalised on load.
+const normWeek = (raw) => {
+    const w = DEFAULT_SCHED();
+    DAYS.forEach(d => {
+        if (raw?.[d]) w[d] = { enabled: !!raw[d].enabled, slots: [{ start: raw[d].slots?.[0]?.start || '09:00', end: raw[d].slots?.[0]?.end || '17:00' }] };
+    });
+    return w;
+};
+
+// One editable week grid — reused for the flat schedule and each rotation week.
+const WeekGrid = ({ week, onToggle, onSlot, testPrefix }) => (
+    <div style={{ display: 'grid', gap: '0.4rem' }}>
+        {DAYS.map(d => {
+            const cfg = week[d] || { enabled: false, slots: [{ start: '09:00', end: '17:00' }] };
+            const slot = cfg.slots?.[0] || { start: '09:00', end: '17:00' };
+            return (
+                <div key={d} data-testid={`${testPrefix}-row`} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
+                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', width: '128px', fontSize: '0.85rem', color: 'var(--charcoal)', textTransform: 'capitalize' }}>
+                        <input type="checkbox" checked={cfg.enabled} onChange={e => onToggle(d, e.target.checked)} data-testid={`${testPrefix}-${d}`} />
+                        {d}
+                    </label>
+                    {cfg.enabled ? (
+                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
+                            <input type="time" className="input" value={slot.start} onChange={e => onSlot(d, 'start', e.target.value)} style={{ padding: '0.3rem 0.4rem', width: '110px' }} />
+                            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>–</span>
+                            <input type="time" className="input" value={slot.end} onChange={e => onSlot(d, 'end', e.target.value)} style={{ padding: '0.3rem 0.4rem', width: '110px' }} />
+                        </span>
+                    ) : (
+                        <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>Day off</span>
+                    )}
+                </div>
+            );
+        })}
+    </div>
+);
 // Mirror the server's change-password rule exactly (authController.changePassword):
 // ≥8 chars with an uppercase letter, a digit, and one of ! @ # $ % ^ & *. A
 // broader client set would pass validation here and then be rejected by the API.
@@ -32,6 +68,30 @@ const fmtRange = (a, b) => {
     return `${pa[2]} ${MONTHS[pa[1] - 1]} – ${pb[2]} ${MONTHS[pb[1] - 1]}`;
 };
 const cap = (s) => (s ? s.charAt(0).toUpperCase() + s.slice(1) : s);
+
+// A read-only stat tile for the staff self-view. `delta` (signed) renders a
+// period-over-period chip; `higherIsBad` flips the colours (up = worse).
+const StatTile = ({ label, value, suffix, note, delta, deltaText, higherIsBad }) => {
+    const show = delta !== null && delta !== undefined;
+    const up = delta > 0;
+    const good = show && delta !== 0 && (higherIsBad ? !up : up);
+    const bad = show && delta !== 0 && (higherIsBad ? up : !up);
+    const color = good ? '#1f8a4c' : bad ? 'var(--gold-dark)' : 'var(--text-muted)';
+    return (
+        <div style={{ padding: '0.7rem 0.8rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)', background: 'var(--card-bg)' }}>
+            <div style={{ fontSize: '0.66rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>{label}</div>
+            <div className="tnum" style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: 700, color: 'var(--charcoal)', lineHeight: 1.2 }}>
+                {value === null || value === undefined ? '—' : value}{value === null || value === undefined ? '' : (suffix || '')}
+            </div>
+            {show && (
+                <div style={{ fontSize: '0.68rem', fontWeight: 700, color, marginTop: '0.12rem' }}>
+                    {delta === 0 ? '→ no change' : `${up ? '▲' : '▼'} ${deltaText ?? Math.abs(delta)} vs prev`}
+                </div>
+            )}
+            {note && <div style={{ fontSize: '0.66rem', color: 'var(--text-muted)', marginTop: '0.1rem' }}>{note}</div>}
+        </div>
+    );
+};
 
 const MySchedule = () => {
     const { user, logout } = useAuthContext();
@@ -61,7 +121,19 @@ const MySchedule = () => {
     const [inherits, setInherits] = useState(true);
     const [hoursBusy, setHoursBusy] = useState(false);
     const [hoursMsg, setHoursMsg] = useState('');
+    // My own performance stats (self-view). null = loading, false = failed.
+    const [myStats, setMyStats] = useState(null);
+    // Optional rotating (multi-week) schedule. rotationOn gates the editor;
+    // rotation = { anchor 'YYYY-MM-DD', weeks: [normWeek,…] }; activeWk is the
+    // week tab being edited.
+    const [rotationOn, setRotationOn] = useState(false);
+    const [rotation, setRotation] = useState({ anchor: todayKey, weeks: [] });
+    const [activeWk, setActiveWk] = useState(0);
     // Password change.
+    // Time clock. null = loading, false = failed; else { open, entries, totalMinutes }.
+    const [clock, setClock] = useState(null);
+    const [clockBusy, setClockBusy] = useState(false);
+    const [clockMsg, setClockMsg] = useState('');
     const [pw, setPw] = useState({ current: '', next: '', confirm: '' });
     const [pwBusy, setPwBusy] = useState(false);
     const [pwMsg, setPwMsg] = useState('');   // { ok, text }
@@ -81,17 +153,24 @@ const MySchedule = () => {
             .then(res => {
                 const sched = res.data.data?.schedule;
                 if (sched) {
-                    const norm = DEFAULT_SCHED();
-                    DAYS.forEach(d => {
-                        if (sched[d]) norm[d] = { enabled: !!sched[d].enabled, slots: [{ start: sched[d].slots?.[0]?.start || '09:00', end: sched[d].slots?.[0]?.end || '17:00' }] };
-                    });
-                    setSchedule(norm); setInherits(false);
+                    setSchedule(normWeek(sched)); setInherits(false);
                 } else { setSchedule(DEFAULT_SCHED()); setInherits(true); }
+                const rot = res.data.data?.rotation;
+                if (rot && Array.isArray(rot.weeks) && rot.weeks.length > 0) {
+                    setRotationOn(true);
+                    setRotation({ anchor: rot.anchor || todayKey, weeks: rot.weeks.map(normWeek) });
+                }
             })
             // On a load failure, HIDE the editor (false) rather than seed all-days-off:
             // showing an all-off default that a member could save would wipe their
             // real hours. The section is gated on `schedule` being truthy.
             .catch(() => setSchedule(false));
+        myStatsService.get()
+            .then(res => setMyStats(res.data.data))
+            .catch(() => setMyStats(false));
+        timeClockService.get()
+            .then(res => setClock(res.data.data))
+            .catch(() => setClock(false));
         myTimeOffService.list()
             .then(res => setTimeOff(res.data.data || []))
             .catch(() => setTimeOff(false));
@@ -194,14 +273,47 @@ const MySchedule = () => {
     };
 
     // ── My working hours ──
-    const setDay = (day, patch) => setSchedule(s => ({ ...s, [day]: { ...s[day], ...patch } }));
+    const setDay = (day, enabled) => setSchedule(s => ({ ...s, [day]: { ...s[day], enabled } }));
     const setDaySlot = (day, key, value) => setSchedule(s => ({
         ...s, [day]: { ...s[day], slots: [{ ...(s[day].slots?.[0] || { start: '09:00', end: '17:00' }), [key]: value }] },
     }));
+    // Edit one day of the active rotation week.
+    const setWkDay = (day, enabled) => setRotation(r => {
+        const weeks = r.weeks.map((w, i) => (i === activeWk ? { ...w, [day]: { ...w[day], enabled } } : w));
+        return { ...r, weeks };
+    });
+    const setWkSlot = (day, key, value) => setRotation(r => {
+        const weeks = r.weeks.map((w, i) => (i === activeWk
+            ? { ...w, [day]: { ...w[day], slots: [{ ...(w[day].slots?.[0] || { start: '09:00', end: '17:00' }), [key]: value }] } }
+            : w));
+        return { ...r, weeks };
+    });
+    // Turn rotation on: seed a 2-week cycle from the current single week + a blank
+    // second week. Turning it off clears the cycle (the single week takes over).
+    const toggleRotation = (on) => {
+        setRotationOn(on);
+        if (on && rotation.weeks.length === 0) {
+            setRotation({ anchor: todayKey, weeks: [normWeek(schedule), DEFAULT_SCHED()] });
+            setActiveWk(0);
+        }
+    };
+    const addWeek = () => setRotation(r => (r.weeks.length >= 8 ? r : { ...r, weeks: [...r.weeks, DEFAULT_SCHED()] }));
+    const removeWeek = (idx) => setRotation(r => {
+        if (r.weeks.length <= 2) return r; // a rotation needs at least two weeks
+        const weeks = r.weeks.filter((_, i) => i !== idx);
+        setActiveWk(a => Math.min(a, weeks.length - 1));
+        return { ...r, weeks };
+    });
     const saveHours = async () => {
         setHoursBusy(true); setHoursMsg('');
         try {
-            await myAvailabilityService.set(schedule);
+            // With rotation on, week 1 doubles as the flat schedule (what legacy
+            // readers show); pass null when off to clear any stored rotation.
+            if (rotationOn && rotation.weeks.length >= 2) {
+                await myAvailabilityService.set(rotation.weeks[0], { anchor: rotation.anchor, weeks: rotation.weeks });
+            } else {
+                await myAvailabilityService.set(schedule, null);
+            }
             setInherits(false);
             setHoursMsg('Saved'); setTimeout(() => setHoursMsg(''), 2500);
         } catch (e) { setHoursMsg(e?.response?.data?.message || 'Could not save your hours.'); }
@@ -231,6 +343,23 @@ const MySchedule = () => {
     };
 
     const flash = (t) => { setMsg(t); setTimeout(() => setMsg(''), 3500); };
+
+    // ── Time clock ──
+    const punch = async (dir) => {
+        if (clockBusy) return;
+        setClockBusy(true); setClockMsg('');
+        try {
+            await (dir === 'in' ? timeClockService.clockIn() : timeClockService.clockOut());
+            const res = await timeClockService.get();
+            setClock(res.data.data);
+            setClockMsg(dir === 'in' ? 'Clocked in' : 'Clocked out'); setTimeout(() => setClockMsg(''), 2500);
+        } catch (e) {
+            setClockMsg(e?.response?.data?.message || 'Could not update the clock.');
+        } finally { setClockBusy(false); }
+    };
+    const fmtHM = (mins) => `${Math.floor(mins / 60)}h ${mins % 60}m`;
+    const fmtClock = (iso) => new Date(iso).toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
+    const fmtDay = (iso) => new Date(iso).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
 
     // Swallow refetch failures: the request/withdraw already succeeded, so
     // surfacing a reload error as the operation's error would make staff retry
@@ -343,6 +472,28 @@ const MySchedule = () => {
                 </div>
             )}
 
+            {/* ── My performance ───────────────────────────────────── */}
+            {myStats && myStats !== false && (
+                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.15rem 1.25rem', marginTop: '2rem' }} data-testid="my-stats">
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.15rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <BarChart3 size={16} /> My performance
+                    </h2>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '0 0 1rem' }}>
+                        Your own numbers over the last {myStats.windowDays} days, compared with the {myStats.windowDays} before.
+                    </p>
+                    <div style={{ display: 'grid', gap: '0.55rem', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))' }}>
+                        <StatTile label="Appointments" value={myStats.appointments} note="completed"
+                            delta={myStats.trend?.appointmentsDelta} deltaText={Math.abs(myStats.trend?.appointmentsDelta ?? 0)} />
+                        <StatTile label="Revenue" value={myStats.revenue != null ? `N$${myStats.revenue.toLocaleString()}` : null} note="you generated"
+                            delta={myStats.trend?.revenueDelta} deltaText={`N$${Math.abs(myStats.trend?.revenueDelta ?? 0).toLocaleString()}`} />
+                        <StatTile label="Occupancy" value={myStats.occupancy} suffix="%" note="booked ÷ scheduled" />
+                        <StatTile label="No-shows" value={myStats.noShows} note={myStats.noShowRate != null ? `${myStats.noShowRate}% of attended` : 'no attended bookings'} higherIsBad />
+                        <StatTile label="Rating" value={myStats.rating} note={myStats.reviews ? `${myStats.reviews} review${myStats.reviews > 1 ? 's' : ''}` : 'no reviews yet'} />
+                        <StatTile label="Upcoming" value={myStats.upcoming} note="still to come" />
+                    </div>
+                </div>
+            )}
+
             {/* ── My working hours ─────────────────────────────────── */}
             {schedule && (
                 <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.15rem 1.25rem', marginTop: '2rem' }} data-testid="my-hours">
@@ -354,29 +505,47 @@ const MySchedule = () => {
                             ? 'You currently follow the business’s opening hours. Set your own below and save to override them.'
                             : 'Your own weekly hours. Clients can only book you inside these.'}
                     </p>
-                    <div style={{ display: 'grid', gap: '0.4rem' }}>
-                        {DAYS.map(d => {
-                            const cfg = schedule[d];
-                            const slot = cfg.slots?.[0] || { start: '09:00', end: '17:00' };
-                            return (
-                                <div key={d} data-testid="my-hours-row" style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap' }}>
-                                    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', width: '128px', fontSize: '0.85rem', color: 'var(--charcoal)', textTransform: 'capitalize' }}>
-                                        <input type="checkbox" checked={cfg.enabled} onChange={e => setDay(d, { enabled: e.target.checked })} data-testid={`my-hours-${d}`} />
-                                        {d}
-                                    </label>
-                                    {cfg.enabled ? (
-                                        <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
-                                            <input type="time" className="input" value={slot.start} onChange={e => setDaySlot(d, 'start', e.target.value)} style={{ padding: '0.3rem 0.4rem', width: '110px' }} />
-                                            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>–</span>
-                                            <input type="time" className="input" value={slot.end} onChange={e => setDaySlot(d, 'end', e.target.value)} style={{ padding: '0.3rem 0.4rem', width: '110px' }} />
-                                        </span>
-                                    ) : (
-                                        <span style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>Day off</span>
-                                    )}
-                                </div>
-                            );
-                        })}
+
+                    {/* Single week vs a rotating multi-week cycle. */}
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.9rem' }}>
+                        <span style={{ fontSize: '0.85rem', color: 'var(--charcoal)' }}>My hours rotate over several weeks</span>
+                        <Switch checked={rotationOn} onChange={toggleRotation} label={rotationOn ? 'Rotating' : 'Same every week'} data-testid="my-rotation-switch" />
                     </div>
+
+                    {!rotationOn ? (
+                        <WeekGrid week={schedule} onToggle={setDay} onSlot={setDaySlot} testPrefix="my-hours" />
+                    ) : (
+                        <div data-testid="my-rotation">
+                            <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', maxWidth: '220px', marginBottom: '0.8rem' }}>
+                                Week 1 starts on
+                                <input type="date" className="input" value={rotation.anchor} onChange={e => setRotation(r => ({ ...r, anchor: e.target.value }))} style={{ padding: '0.4rem 0.5rem' }} data-testid="my-rotation-anchor" />
+                            </label>
+                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.8rem' }}>
+                                {rotation.weeks.map((_, i) => (
+                                    <button key={i} type="button" onClick={() => setActiveWk(i)} data-testid="my-rotation-week-tab"
+                                        style={{
+                                            padding: '0.35rem 0.8rem', borderRadius: '999px', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer',
+                                            border: `1px solid ${i === activeWk ? 'var(--gold)' : 'var(--border)'}`,
+                                            background: i === activeWk ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)',
+                                            color: i === activeWk ? 'var(--gold-dark)' : 'var(--text-secondary)',
+                                        }}>
+                                        Week {i + 1}
+                                    </button>
+                                ))}
+                                {rotation.weeks.length < 8 && (
+                                    <button type="button" onClick={addWeek} data-testid="my-rotation-add" className="btn-outline" style={{ padding: '0.35rem 0.8rem', fontSize: '0.8rem' }}>+ Add week</button>
+                                )}
+                                {rotation.weeks.length > 2 && (
+                                    <button type="button" onClick={() => removeWeek(activeWk)} data-testid="my-rotation-remove" className="btn-outline" style={{ padding: '0.35rem 0.8rem', fontSize: '0.8rem' }}>Remove week {activeWk + 1}</button>
+                                )}
+                            </div>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 0.6rem' }}>
+                                Editing <strong>Week {activeWk + 1}</strong> of {rotation.weeks.length}. The cycle repeats from Week 1’s start date.
+                            </p>
+                            <WeekGrid week={rotation.weeks[activeWk] || DEFAULT_SCHED()} onToggle={setWkDay} onSlot={setWkSlot} testPrefix="my-rotation-hours" />
+                        </div>
+                    )}
+
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '1rem' }}>
                         <button type="button" className="btn-primary" onClick={saveHours} disabled={hoursBusy} data-testid="save-my-hours" style={{ padding: '0.5rem 1.3rem' }}>
                             {hoursBusy ? 'Saving…' : 'Save my hours'}
@@ -482,6 +651,47 @@ const MySchedule = () => {
                     </div>
                 );
             })()}
+
+            {/* ── Time clock ───────────────────────────────────────── */}
+            {clock && clock !== false && (
+                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.15rem 1.25rem', marginTop: '2rem' }} data-testid="my-timeclock">
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.15rem', display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                        <Timer size={16} /> Time clock
+                    </h2>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '0 0 1rem' }}>
+                        Clock in when you start and out when you finish. {clock.totalMinutes > 0 && <>You’ve logged <strong>{fmtHM(clock.totalMinutes)}</strong> in the last 30 days.</>}
+                    </p>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
+                        {clock.open ? (
+                            <>
+                                <span style={{ fontSize: '0.9rem', color: 'var(--charcoal)', fontWeight: 600 }} data-testid="clock-status">
+                                    <span style={{ display: 'inline-block', width: 8, height: 8, borderRadius: '50%', background: '#1f8a4c', marginRight: 6 }} />
+                                    On the clock since {fmtClock(clock.open.clockIn)}
+                                </span>
+                                <button type="button" className="btn-primary" onClick={() => punch('out')} disabled={clockBusy} data-testid="clock-out" style={{ padding: '0.5rem 1.3rem' }}>
+                                    {clockBusy ? '…' : 'Clock out'}
+                                </button>
+                            </>
+                        ) : (
+                            <button type="button" className="btn-primary" onClick={() => punch('in')} disabled={clockBusy} data-testid="clock-in" style={{ padding: '0.5rem 1.3rem' }}>
+                                {clockBusy ? '…' : 'Clock in'}
+                            </button>
+                        )}
+                        {clockMsg && <span style={{ fontSize: '0.82rem', fontWeight: 650, color: (clockMsg === 'Clocked in' || clockMsg === 'Clocked out') ? '#1f8a4c' : 'var(--gold-dark)' }}>{clockMsg}</span>}
+                    </div>
+                    {Array.isArray(clock.entries) && clock.entries.length > 0 && (
+                        <div style={{ marginTop: '1rem', display: 'flex', flexDirection: 'column', gap: '0.4rem' }} data-testid="clock-entries">
+                            {clock.entries.slice(0, 8).map((e) => (
+                                <div key={e._id} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                                    <span style={{ minWidth: 92, color: 'var(--charcoal)', fontWeight: 600 }}>{fmtDay(e.clockIn)}</span>
+                                    <span>{fmtClock(e.clockIn)} – {e.clockOut ? fmtClock(e.clockOut) : 'now'}</span>
+                                    <span style={{ marginLeft: 'auto', fontWeight: 650, color: e.minutes == null ? '#1f8a4c' : 'var(--charcoal)' }}>{e.minutes == null ? 'open' : fmtHM(e.minutes)}</span>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
 
             {/* ── Time off ─────────────────────────────────────────── */}
             <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.15rem 1.25rem', marginTop: '2rem' }}>

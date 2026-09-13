@@ -3,9 +3,9 @@ const mongoose = require('mongoose');
 const teamMemberSchema = new mongoose.Schema({
     provider: { type: mongoose.Schema.Types.ObjectId, ref: 'User', required: true },
     name:     { type: String, required: true, trim: true, maxlength: 80 },
-    role:     { type: String, trim: true, default: 'Staff' },
-    email:    { type: String, trim: true, lowercase: true, default: '' },
-    phone:    { type: String, trim: true, default: '' },
+    role:     { type: String, trim: true, default: 'Staff', maxlength: 60 },
+    email:    { type: String, trim: true, lowercase: true, default: '', maxlength: 120 },
+    phone:    { type: String, trim: true, default: '', maxlength: 40 },
     color:    { type: String, default: '#f03e16' }, // for calendar colour coding
     isActive: { type: Boolean, default: true },
     // Separate from isActive on purpose: a receptionist or a manager is very
