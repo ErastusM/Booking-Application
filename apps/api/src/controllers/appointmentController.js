@@ -906,6 +906,20 @@ exports.createAppointment = async (req, res) => {
             && !customerId
             && !!svc.provider && String(svc.provider) === String(req.user.staffOf)
             && can(req.user, 'bookings:create');
+        // Staff book-on-behalf (Phase 2b): a Medium+ staff member (holding
+        // clients:view AND bookings:create) may attach an EXISTING client of the
+        // business to a booking — the reception equivalent of the owner's
+        // book-on-behalf. Like isStaffWalkIn it is NOT an owner override:
+        // isCustomerLike stays true, so published hours / blocked time / past-slot
+        // still apply. Gated on a Medium-only client capability so Low walk-in
+        // staff don't gain it. Mutually exclusive with the walk-in path (keyed on
+        // customerId present + walkInName absent).
+        const isStaffOnBehalf = req.user?.role === 'staff'
+            && !!customerId
+            && !walkInName?.trim()
+            && !!svc.provider && String(svc.provider) === String(req.user.staffOf)
+            && can(req.user, 'bookings:create')
+            && can(req.user, 'clients:view');
         let staffWalkInMemberId = null;
         if (isStaffWalkIn) {
             // The walk-in lands in the staff member's own column — resolve their
@@ -944,19 +958,24 @@ exports.createAppointment = async (req, res) => {
         let bookingClient = isGuest
             ? { _id: null, name: guestName.trim(), email: guestEmail.trim(), phone: (guestPhone || '').trim() }
             : req.user;
-        if (isProviderBooking && customerId) {
+        if ((isProviderBooking || isStaffOnBehalf) && customerId) {
             const client = await User.findById(customerId).select('name email phone role');
             if (!client) {
                 return res.status(404).json({ success: false, message: 'Selected client not found' });
             }
-            // A provider may only book on behalf of a real client of THEIRS — a
-            // customer account that has booked them before. Without this, a provider
-            // could attach a confirmed booking to (and read the name + email of) ANY
-            // account on the platform, and reserve against a stranger's wallet held
-            // with them. First-time in-person clients go through the walk-in path
-            // (walkInName), which needs no pre-existing relationship.
+            // A provider (or a Medium staff member of the business) may only book on
+            // behalf of a real client of the BUSINESS — a customer account that has
+            // booked it before. Without this, they could attach a confirmed booking
+            // to (and read the name + email of) ANY account on the platform, and
+            // reserve against a stranger's wallet held with the business. First-time
+            // in-person clients go through the walk-in path (walkInName), which needs
+            // no pre-existing relationship. The existence check keys on the BUSINESS
+            // owner id — for a staff member that is their employer (staffOf), never
+            // their own id — so it stays the exact "existing client of this business"
+            // guarantee and can't be crossed to another tenant.
+            const businessOwnerId = isProviderBooking ? req.user._id : req.user.staffOf;
             const isMyClient = client.role === 'customer'
-                && await Appointment.exists({ customer: customerId, provider: req.user._id });
+                && await Appointment.exists({ customer: customerId, provider: businessOwnerId });
             if (!isMyClient) {
                 return res.status(403).json({ success: false, message: 'You can only book on behalf of an existing client. Use a walk-in for a first-time client.' });
             }
@@ -1340,7 +1359,7 @@ exports.createAppointment = async (req, res) => {
         // is never blocked. Cash bookings, walk-ins and recurring series skip this.
         const reservationClientId = req.user?.role === 'customer'
             ? req.user._id
-            : (isProviderBooking && customerId ? bookingClient._id : null);
+            : ((isProviderBooking || isStaffOnBehalf) && customerId ? bookingClient._id : null);
         if (reservationClientId && svc.provider && !isRecurring && walletCfg?.enabled && chosenMethod === 'wallet') {
             try {
                 const result = await walletService.reserveFunds({
@@ -1384,7 +1403,7 @@ exports.createAppointment = async (req, res) => {
                 const bookingDate = new Date(appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 // Who the booking is for, in human terms — the registered client, the
                 // walk-in's name, or (for a self-booking) the customer themselves.
-                const clientLabel = (isProviderBooking || isStaffWalkIn)
+                const clientLabel = (isProviderBooking || isStaffWalkIn || isStaffOnBehalf)
                     ? (customerId ? bookingClient.name : (walkInName?.trim() || 'a walk-in client'))
                     : (req.user?.name || bookingClient.name);
                 const priceTag = Number.isFinite(basePrice) ? ` (N$${basePrice.toFixed(2)})` : '';
@@ -1400,8 +1419,9 @@ exports.createAppointment = async (req, res) => {
                         }
                     }
                 }
-                // When a provider books an existing client, let that client know.
-                if (isProviderBooking && customerId) {
+                // When a provider (or a staff member on their behalf) books an
+                // existing client, let that client know.
+                if ((isProviderBooking || isStaffOnBehalf) && customerId) {
                     await createNotification(
                         bookingClient._id,
                         `✅ You’re booked for ${servicePhrase(svc.name)} with ${req.user.name} on ${bookingDate} at ${startTime}.`,
