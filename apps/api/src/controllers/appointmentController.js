@@ -19,10 +19,11 @@ const {
     sendStaffBookingAlert,
 } = require('../utils/emailService');
 const calendarHelper = require('../utils/calendarHelper');
-const { resolveBookingStaff, staffHoursReason, memberBusyIntervalsBuffered, bufferMapForAppointments, memberInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy } = require('../utils/staffBooking');
+const { resolveBookingStaff, staffHoursReason, memberBusyIntervalsBuffered, bufferMapForAppointments, memberInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy, performsService, pickRotationWeek } = require('../utils/staffBooking');
 const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, findBusinessWideBlocksForDate, toDateKey, BLOCKED_MESSAGE } = require('../utils/blockedTime');
 const { overrideFor } = require('../utils/memberPricing');
 const { recordBookingRejection, rejectionsSummary } = require('../utils/bookingRejections');
+const { resolveBookingLocation } = require('../utils/locationResolver');
 const { checkCancellationWindow } = require('../utils/cancellationPolicy');
 // Serialize the overlap-check + insert for one provider+member+day so two
 // concurrent bookings can't both pass the check and both write (the same-person
@@ -255,6 +256,10 @@ const revertRescheduleIfRaced = async (appointment, previousSlot) => {
     appointment.appointmentDate = previousSlot.appointmentDate;
     appointment.startTime = previousSlot.startTime;
     appointment.endTime = previousSlot.endTime;
+    // Undo a reassignment too: a raced reschedule that also changed the performer
+    // must put the booking back on its ORIGINAL member, or the rollback leaves it
+    // on the new member at a slot that was never cleanly checked → double-book.
+    if (previousSlot.teamMember !== undefined) appointment.teamMember = previousSlot.teamMember;
     // Restore the pre-move segment windows too, when the caller captured them
     // (a multi-service booking whose segments were shifted with the move).
     if (previousSlot.services !== undefined) appointment.services = previousSlot.services;
@@ -282,6 +287,11 @@ const slotSnapshot = (appt) => ({
     appointmentDate: appt.appointmentDate,
     startTime: appt.startTime,
     endTime: appt.endTime,
+    // Captured so a rolled-back reschedule restores the ORIGINAL performer too:
+    // the reschedule path may reassign the booking to a different member before
+    // the write, and a lost race must undo that reassignment as well — otherwise
+    // the rollback leaves the booking on the new member and double-books them.
+    teamMember: appt.teamMember,
     services: Array.isArray(appt.services) && appt.services.length
         ? appt.services.map((s) => (s.toObject ? s.toObject() : { ...s }))
         : undefined,
@@ -561,10 +571,14 @@ exports.getBookedSlots = async (req, res) => {
             const StaffAvailability = require('../models/StaffAvailability');
             const bookableCount = await TeamMember.countDocuments({ provider: providerId, isActive: true, bookable: { $ne: false } });
             if (bookableCount !== 1) {
-                const av = await StaffAvailability.findOne({ teamMember: memberId }).select('schedule').lean();
-                if (av?.schedule) {
+                const av = await StaffAvailability.findOne({ teamMember: memberId }).select('schedule rotation').lean();
+                // Rotation-aware: the week that applies on THIS date (or the flat
+                // schedule when the member has no rotation) — same helper the
+                // validator and any-professional picker use, so they stay in lockstep.
+                const daySchedule = pickRotationWeek(av, date);
+                if (daySchedule) {
                     const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-                    const day = av.schedule[DAY_NAMES[new Date(date).getDay()]];
+                    const day = daySchedule[DAY_NAMES[new Date(date).getDay()]];
                     const mins = (t) => { const [h = 0, m = 0] = String(t).split(':').map(Number); return h * 60 + m; };
                     if (!day?.enabled || !Array.isArray(day.slots) || day.slots.length === 0) {
                         busy.push({ startTime: '00:00', endTime: '23:59', kind: 'off_shift' });
@@ -906,6 +920,20 @@ exports.createAppointment = async (req, res) => {
             && !customerId
             && !!svc.provider && String(svc.provider) === String(req.user.staffOf)
             && can(req.user, 'bookings:create');
+        // Staff book-on-behalf (Phase 2b): a Medium+ staff member (holding
+        // clients:view AND bookings:create) may attach an EXISTING client of the
+        // business to a booking — the reception equivalent of the owner's
+        // book-on-behalf. Like isStaffWalkIn it is NOT an owner override:
+        // isCustomerLike stays true, so published hours / blocked time / past-slot
+        // still apply. Gated on a Medium-only client capability so Low walk-in
+        // staff don't gain it. Mutually exclusive with the walk-in path (keyed on
+        // customerId present + walkInName absent).
+        const isStaffOnBehalf = req.user?.role === 'staff'
+            && !!customerId
+            && !walkInName?.trim()
+            && !!svc.provider && String(svc.provider) === String(req.user.staffOf)
+            && can(req.user, 'bookings:create')
+            && can(req.user, 'clients:view');
         let staffWalkInMemberId = null;
         if (isStaffWalkIn) {
             // The walk-in lands in the staff member's own column — resolve their
@@ -944,19 +972,24 @@ exports.createAppointment = async (req, res) => {
         let bookingClient = isGuest
             ? { _id: null, name: guestName.trim(), email: guestEmail.trim(), phone: (guestPhone || '').trim() }
             : req.user;
-        if (isProviderBooking && customerId) {
+        if ((isProviderBooking || isStaffOnBehalf) && customerId) {
             const client = await User.findById(customerId).select('name email phone role');
             if (!client) {
                 return res.status(404).json({ success: false, message: 'Selected client not found' });
             }
-            // A provider may only book on behalf of a real client of THEIRS — a
-            // customer account that has booked them before. Without this, a provider
-            // could attach a confirmed booking to (and read the name + email of) ANY
-            // account on the platform, and reserve against a stranger's wallet held
-            // with them. First-time in-person clients go through the walk-in path
-            // (walkInName), which needs no pre-existing relationship.
+            // A provider (or a Medium staff member of the business) may only book on
+            // behalf of a real client of the BUSINESS — a customer account that has
+            // booked it before. Without this, they could attach a confirmed booking
+            // to (and read the name + email of) ANY account on the platform, and
+            // reserve against a stranger's wallet held with the business. First-time
+            // in-person clients go through the walk-in path (walkInName), which needs
+            // no pre-existing relationship. The existence check keys on the BUSINESS
+            // owner id — for a staff member that is their employer (staffOf), never
+            // their own id — so it stays the exact "existing client of this business"
+            // guarantee and can't be crossed to another tenant.
+            const businessOwnerId = isProviderBooking ? req.user._id : req.user.staffOf;
             const isMyClient = client.role === 'customer'
-                && await Appointment.exists({ customer: customerId, provider: req.user._id });
+                && await Appointment.exists({ customer: customerId, provider: businessOwnerId });
             if (!isMyClient) {
                 return res.status(403).json({ success: false, message: 'You can only book on behalf of an existing client. Use a walk-in for a first-time client.' });
             }
@@ -1198,10 +1231,20 @@ exports.createAppointment = async (req, res) => {
         // wallet prepayment for recurring is a separate feature if ever wanted.)
         if (isRecurring && chosenMethod === 'wallet') chosenMethod = 'cash';
 
+        // Multi-location (write threading): a booking may name one of the
+        // provider's own active locations; absent → null (resolves to the primary
+        // "Main"), the single-location path, which touches no DB. A foreign or
+        // inactive location is rejected rather than silently dropped.
+        const locRes = await resolveBookingLocation(providerId, req.body.locationId);
+        if (!locRes.ok) {
+            return res.status(400).json({ success: false, message: 'That location is not available for this business.' });
+        }
+
         const baseDoc = {
             customer: bookingClient._id, // null for a guest booking
             service,
             provider: svc.provider || null,
+            locationId: locRes.locationId,
             startTime,
             endTime,
             notes: notes || '',
@@ -1340,7 +1383,7 @@ exports.createAppointment = async (req, res) => {
         // is never blocked. Cash bookings, walk-ins and recurring series skip this.
         const reservationClientId = req.user?.role === 'customer'
             ? req.user._id
-            : (isProviderBooking && customerId ? bookingClient._id : null);
+            : ((isProviderBooking || isStaffOnBehalf) && customerId ? bookingClient._id : null);
         if (reservationClientId && svc.provider && !isRecurring && walletCfg?.enabled && chosenMethod === 'wallet') {
             try {
                 const result = await walletService.reserveFunds({
@@ -1384,7 +1427,7 @@ exports.createAppointment = async (req, res) => {
                 const bookingDate = new Date(appointmentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
                 // Who the booking is for, in human terms — the registered client, the
                 // walk-in's name, or (for a self-booking) the customer themselves.
-                const clientLabel = (isProviderBooking || isStaffWalkIn)
+                const clientLabel = (isProviderBooking || isStaffWalkIn || isStaffOnBehalf)
                     ? (customerId ? bookingClient.name : (walkInName?.trim() || 'a walk-in client'))
                     : (req.user?.name || bookingClient.name);
                 const priceTag = Number.isFinite(basePrice) ? ` (N$${basePrice.toFixed(2)})` : '';
@@ -1400,8 +1443,9 @@ exports.createAppointment = async (req, res) => {
                         }
                     }
                 }
-                // When a provider books an existing client, let that client know.
-                if (isProviderBooking && customerId) {
+                // When a provider (or a staff member on their behalf) books an
+                // existing client, let that client know.
+                if ((isProviderBooking || isStaffOnBehalf) && customerId) {
                     await createNotification(
                         bookingClient._id,
                         `✅ You’re booked for ${servicePhrase(svc.name)} with ${req.user.name} on ${bookingDate} at ${startTime}.`,
@@ -1491,6 +1535,12 @@ exports.createMultiServiceAppointment = async (req, res) => {
         // come from the catalogue, never the request body, and each service is laid
         // out back-to-back from startTime.
         const providerId = req.user._id;
+        // Multi-location (write threading): validate + record a named location,
+        // same contract as the single-service path — absent → null (primary).
+        const msLoc = await resolveBookingLocation(providerId, req.body.locationId);
+        if (!msLoc.ok) {
+            return res.status(400).json({ success: false, message: 'That location is not available for this business.' });
+        }
         const built = [];
         let cursor = startMin;
         for (const item of reqServices) {
@@ -1606,6 +1656,7 @@ exports.createMultiServiceAppointment = async (req, res) => {
                     customer: bookingClient._id,
                     service: built[0].service, // back-compat: top-level service = the first one
                     provider: providerId,
+                    locationId: msLoc.locationId,
                     appointmentDate: new Date(appointmentDate),
                     startTime: spanStart,
                     endTime: spanEnd,
@@ -2079,7 +2130,7 @@ exports.updateAppointmentStatus = async (req, res) => {
 
 exports.providerRescheduleAppointment = async (req, res) => {
     try {
-        const { appointmentDate, startTime, endTime: requestedEndTime } = req.body;
+        const { appointmentDate, startTime, endTime: requestedEndTime, teamMember: requestedTeamMember } = req.body;
         if (!appointmentDate || !startTime) {
             return res.status(400).json({ success: false, message: 'appointmentDate and startTime are required' });
         }
@@ -2136,13 +2187,54 @@ exports.providerRescheduleAppointment = async (req, res) => {
             return res.status(400).json({ success: false, message: 'Selected time is outside your availability schedule' });
         }
 
+        // Snapshot the ORIGINAL slot — INCLUDING teamMember — BEFORE any
+        // reassignment, so a raced rollback below restores the booking's true prior
+        // state (member included), not the half-applied reassign. Captured here, not
+        // after the reassign, precisely so a lost race can't strand the booking on
+        // the new member.
+        const previousSlot = slotSnapshot(appointment);
+
+        // Optional REASSIGNMENT — dragging a booking into another staff lane changes
+        // WHO performs it, not just when. Reassign IN MEMORY before the conflict +
+        // race checks below so both scope to the destination member (via
+        // conflictScope(appointment)). Owner-only, single-service only.
+        if (requestedTeamMember !== undefined) {
+            const targetMemberId = (requestedTeamMember === '' || requestedTeamMember === 'unassigned' || requestedTeamMember == null)
+                ? null : String(requestedTeamMember);
+            if (String(targetMemberId || '') !== String(appointment.teamMember || '')) {
+                if (!isOwner) {
+                    return res.status(403).json({ success: false, message: 'Only the owner can reassign a booking to another team member.' });
+                }
+                if (Array.isArray(appointment.services) && appointment.services.length) {
+                    return res.status(400).json({ success: false, message: 'Reassign a multi-service booking one service at a time.' });
+                }
+                if (targetMemberId) {
+                    // resolveBookingStaff SKIPS the performs-service / free checks for
+                    // an owner requester (owners get the walk-in override), so the
+                    // performer must be validated EXPLICITLY here: on the roster, active,
+                    // bookable, and performs the service. Double-booking the target at
+                    // the new time is caught by the conflict check + raced-rollback
+                    // below (both scope to the new member). The target's own hours/leave
+                    // are an owner override, matching provider walk-in placement.
+                    const target = await TeamMember.findOne({ _id: targetMemberId, provider: providerId });
+                    if (!target) return res.status(400).json({ success: false, message: "That team member isn't on your roster." });
+                    if (target.isActive === false) return res.status(400).json({ success: false, message: 'That team member is no longer active.' });
+                    if (target.bookable === false) return res.status(400).json({ success: false, message: "That team member can't be booked." });
+                    if (!performsService(target, appointment.service?._id || appointment.service)) {
+                        return res.status(400).json({ success: false, message: "That team member doesn't perform this service." });
+                    }
+                    appointment.teamMember = target._id;
+                } else {
+                    appointment.teamMember = null; // the owner's own (unassigned) column
+                }
+            }
+        }
+
         const conflict = await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appointment._id, conflictScope(appointment));
         if (conflict) {
             return res.status(400).json({ success: false, message: 'This time slot is already booked' });
         }
 
-        // Keep the old slot (+ segment windows) so the write can be undone if it lost a race.
-        const previousSlot = slotSnapshot(appointment);
         const shifted = shiftedSegments(appointment, startMinutes);
         appointment.appointmentDate = new Date(appointmentDate);
         appointment.startTime = startTime;
@@ -2673,6 +2765,13 @@ exports.createGroupBooking = async (req, res) => {
             return res.status(403).json({ success: false, message: 'That service does not belong to your business' });
         }
 
+        // Multi-location (write threading): validate + record a named location on
+        // every participant's booking; absent → null (primary), same contract.
+        const grpLoc = await resolveBookingLocation(providerId || req.user._id, req.body.locationId);
+        if (!grpLoc.ok) {
+            return res.status(400).json({ success: false, message: 'That location is not available for this business.' });
+        }
+
         // Same per-staff resolution every other booking path runs: confirms the
         // requested member is on THIS provider's roster and performs the service.
         let resolvedTeamMember = teamMember || null;
@@ -2757,6 +2856,7 @@ exports.createGroupBooking = async (req, res) => {
             walkInName: c.customerId ? null : (c.name || 'Group Client'),
             service,
             provider: providerId || req.user._id,
+            locationId: grpLoc.locationId,
             appointmentDate: new Date(appointmentDate),
             startTime,
             endTime,

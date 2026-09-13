@@ -131,6 +131,15 @@ const appointmentSchema = new mongoose.Schema(
         paymentMethod: { type: String, enum: ['cash', 'wallet'], default: 'cash' },
         /* Staff member performing the appointment (multi-chair scheduling) */
         teamMember: { type: mongoose.Schema.Types.ObjectId, ref: 'TeamMember', default: null },
+        /* Where this booking takes place (multi-location). `select: false` keeps it
+         * OUT of every query RESULT, so existing read payloads are unchanged unless
+         * a caller opts in with `.select('+locationId')`. (A create/insert response
+         * returns the in-memory doc, so it does reflect the value just recorded —
+         * null for a single-location business.) A null value behaves exactly as
+         * today (the business's single/primary "Main" location); reads are threaded
+         * to filter by location one dimension at a time, with null always resolving
+         * to the provider's primary location. */
+        locationId: { type: mongoose.Schema.Types.ObjectId, ref: 'Location', default: null, select: false },
         /* Snapshot taken when the performing member is PERMANENTLY removed. The
          * roster row is gone, but a completed/paid appointment keeps their name
          * here and is flagged, so earnings and the client's record survive and the
