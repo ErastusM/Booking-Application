@@ -2,7 +2,7 @@ const express = require('express');
 const router = express.Router();
 const { auth, authorize, allow } = require('../middleware/auth');
 const {
-    getMyTeam, addTeamMember, updateTeamMember, deleteTeamMember, restoreTeamMember, setTeamMemberPermissions, getTeamMemberStats,
+    getMyTeam, addTeamMember, bulkAddTeamMembers, updateTeamMember, deleteTeamMember, restoreTeamMember, setTeamMemberPermissions, getTeamMemberStats,
     getTeamMemberShifts, setTeamMemberShift, clearTeamMemberShift,
     removeTeamMember,
     inviteTeamMember, setTeamMemberServices, setTeamMemberPricing, setTeamMemberPrimary,
@@ -55,6 +55,9 @@ const canManageTeam = allow({ roles: ['provider', 'admin'], capability: 'team:ma
 
 router.get('/', auth, canManageTeam, getMyTeam);
 router.post('/', auth, canManageTeam, addTeamMember);
+// Add several members at once (per-row results; a bad row doesn't fail the batch).
+// Roster management → same team:manage gate as single-add.
+router.post('/bulk', auth, canManageTeam, bulkAddTeamMembers);
 router.put('/:id', auth, canManageTeam, updateTeamMember);
 // DELETE archives rather than removes — bookings, earnings and reviews all
 // reference the member, so the row has to outlive their employment.
