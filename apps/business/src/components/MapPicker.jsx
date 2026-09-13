@@ -4,6 +4,25 @@ import { Crosshair } from 'lucide-react';
 
 export const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
+// Shown whenever the map can't be used — the address field below still works.
+const FALLBACK_MSG = 'Map couldn’t load — you can still type your address below.';
+
+// Google calls window.gm_authFailure when it rejects the API key at RUNTIME —
+// a restricted/invalid key, billing off, or the Maps JS API not enabled. This is
+// invisible to useJsApiLoader: the script itself loads fine (isLoaded=true,
+// loadError=null), so without this Google would grey the map and overlay its own
+// "This page can't load Google Maps correctly" dialog. It's a single global
+// callback, so record the failure module-side and let every mounted picker
+// subscribe, then swap in our own tidy fallback instead.
+let mapsAuthFailed = false;
+const authFailureListeners = new Set();
+if (typeof window !== 'undefined') {
+    window.gm_authFailure = () => {
+        mapsAuthFailed = true;
+        authFailureListeners.forEach((fn) => { try { fn(); } catch { /* ignore */ } });
+    };
+}
+
 // Windhoek — a sensible default centre for a Namibian marketplace until the
 // business drops their own pin.
 export const DEFAULT_CENTER = { lat: -22.5609, lng: 17.0658 };
@@ -32,6 +51,15 @@ const MapPicker = ({ coordinates, onPick, height = 240 }) => {
     const hasPin = coordinates && coordinates.lat != null;
     const center = hasPin ? coordinates : DEFAULT_CENTER;
 
+    // Subscribe to the runtime key-rejection signal (see gm_authFailure above).
+    const [authFailed, setAuthFailed] = React.useState(mapsAuthFailed);
+    React.useEffect(() => {
+        if (mapsAuthFailed) { setAuthFailed(true); return undefined; }
+        const cb = () => setAuthFailed(true);
+        authFailureListeners.add(cb);
+        return () => { authFailureListeners.delete(cb); };
+    }, []);
+
     const locate = () => {
         if (!navigator.geolocation) return;
         navigator.geolocation.getCurrentPosition(
@@ -41,7 +69,10 @@ const MapPicker = ({ coordinates, onPick, height = 240 }) => {
         );
     };
 
-    if (loadError) return <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Map couldn’t load — you can still type your address below.</p>;
+    // A failed script load OR a rejected key both collapse to the same graceful
+    // fallback — the map is unusable either way, and Google's own error dialog
+    // never gets a container to render into.
+    if (loadError || authFailed) return <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{FALLBACK_MSG}</p>;
     if (!isLoaded) return <div style={{ height, borderRadius: 'var(--radius)', background: 'var(--surface-sunken)' }} />;
 
     return (
