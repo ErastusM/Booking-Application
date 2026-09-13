@@ -1,10 +1,11 @@
 const express = require('express');
 const router = express.Router();
-const { auth, authorize } = require('../middleware/auth');
+const { auth, authorize, allow } = require('../middleware/auth');
 const pw = require('../controllers/providerWalletController');
 
-// Provider — own platform balance + submit a top-up for admin approval
-router.get('/me', auth, authorize('provider'), pw.getMyBalance);
+// Provider — own platform balance (read: wallet:view, High tier) + submit a
+// top-up (money-movement, stays provider-only).
+router.get('/me', auth, allow({ roles: ['provider'], capability: 'wallet:view' }), pw.getMyBalance);
 router.post('/topup', auth, authorize('provider'), pw.submitTopUp);
 
 // Admin — oversee and top up provider accounts

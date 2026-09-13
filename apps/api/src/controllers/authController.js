@@ -398,6 +398,10 @@ exports.login = async (req, res) => {
                     avatar: user.avatar,
                     phone: user.phone,
                     providerSetupComplete: user.providerSetupComplete,
+                    // Staff tier/permissions ride along so the business app can gate
+                    // nav/tabs off the cached user before /auth/profile resolves.
+                    staffTier: user.staffTier,
+                    staffPermissions: user.staffPermissions,
                 },
                 token,
                 refreshToken,

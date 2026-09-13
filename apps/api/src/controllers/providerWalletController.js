@@ -22,8 +22,12 @@ const getOrCreateWallet = async (provider) => {
 // GET /api/provider-wallet/me — provider's platform balance + recent history.
 exports.getMyBalance = async (req, res) => {
     try {
-        const wallet = await getOrCreateWallet(req.user._id);
-        const transactions = await ProviderWalletTransaction.find({ provider: req.user._id })
+        // wallet:view (read-only): a High staff member sees their employer's
+        // platform balance; scope to staffOf. Movement (topup) stays provider-only.
+        const providerId = req.user.role === 'staff' ? req.user.staffOf : req.user._id;
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const wallet = await getOrCreateWallet(providerId);
+        const transactions = await ProviderWalletTransaction.find({ provider: providerId })
             .sort({ createdAt: -1 }).limit(100);
         res.status(200).json({ success: true, data: { wallet, transactions } });
     } catch (error) {
