@@ -85,7 +85,25 @@ const ymd = (d) => {
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 
 const ProviderDashboard = () => {
-    const { user, setUser } = useAuthContext();
+    const { user, setUser, hasCap } = useAuthContext();
+
+    // A Medium+ staff member is admitted to this page (App.jsx), but only for the
+    // tabs their tier can use. Owner-only tabs (earnings, team, wallet, services,
+    // insights, availability, memberships, history, overview, messages) are absent
+    // from this whitelist, so a staff member who URL-tampers to ?tab=earnings is
+    // sent back to calendar — and the underlying endpoints 403 for them regardless.
+    // Providers/admins hold every capability, so tabAllowed is always true for them.
+    const STAFF_TAB_CAPS = {
+        calendar: 'calendar:view_all', pending: 'calendar:view_all', confirmed: 'calendar:view_all',
+        completed: 'calendar:view_all', cancelled: 'calendar:view_all',
+        waitlist: 'waitlist:manage', clients: 'clients:view', forms: 'forms:manage',
+    };
+    const tabAllowed = (t) => user?.role !== 'staff' || (!!STAFF_TAB_CAPS[t] && hasCap(STAFF_TAB_CAPS[t]));
+    // Route ALL programmatic tab switches through the whitelist too — in-app
+    // buttons (e.g. "View in History", "Message") must not let a staff member open
+    // an owner-tab shell the ?tab= guard would have blocked. Owner tabs collapse to
+    // calendar for staff; providers/admins are unaffected (tabAllowed always true).
+    const selectTab = (t) => setActiveTab(tabAllowed(t) ? t : 'calendar');
     // The business prices in its chosen currency; every money display uses this symbol.
     const curCode = user?.businessProfile?.currency || 'NAD';
     const curSym = currencySymbol(curCode);
@@ -194,7 +212,16 @@ const ProviderDashboard = () => {
     // services[0], so they're unaffected by the extra rows.
     const [apptForm, setApptForm] = useState({ services: [{ serviceId: '' }], date: '', startTime: '', clientMode: 'existing', customerId: '', clientName: '', notes: '', isRecurring: false, recurrenceType: 'weekly', recurrenceInterval: 1, recurrenceEndDate: '', isGroup: false, groupClients: [{ name: '' }], teamMember: '' });
     const [clientPickerSearch, setClientPickerSearch] = useState('');
-    const [calendarStaffFilter, setCalendarStaffFilter] = useState('all'); // 'all' | 'unassigned' | teamMember _id
+    // Multi-select staff filter: a Set of lane ids to show — 'unassigned' (the
+    // owner/me lane) or a teamMember _id. An EMPTY set means "all staff" (the
+    // default), so 'show everyone' and 'show a chosen subset' stay distinct.
+    const [calendarStaffFilter, setCalendarStaffFilter] = useState(() => new Set());
+    const toggleStaffFilter = (id) => setCalendarStaffFilter((prev) => {
+        if (id === 'all') return new Set();               // "All staff" clears the subset
+        const next = new Set(prev);
+        if (next.has(id)) next.delete(id); else next.add(id);
+        return next;
+    });
     const [savingAppt, setSavingAppt] = useState(false);
     const [apptError, setApptError] = useState('');
     // Appointment history
@@ -272,10 +299,11 @@ const ProviderDashboard = () => {
         const params = new URLSearchParams(location.search);
         const tab = params.get('tab');
         const validTabs = ['calendar', 'pending', 'confirmed', 'completed', 'cancelled', 'history', 'services', 'availability', 'overview', 'waitlist', 'earnings', 'insights', 'clients', 'messages', 'memberships', 'team', 'forms', 'wallet'];
-        if (tab && validTabs.includes(tab)) {
+        if (tab && validTabs.includes(tab) && tabAllowed(tab)) {
             setActiveTab(tab);
-        } else if (!tab) {
-            // Bare /dashboard (e.g. the bottom-nav Dashboard button) → default view
+        } else if (!tab || !tabAllowed(tab)) {
+            // Bare /dashboard (e.g. the bottom-nav Dashboard button), or a staff
+            // member reaching for a tab their tier can't open → default view.
             setActiveTab('calendar');
         }
         // Raised "+" in the mobile bottom nav can't reach this component's modal
@@ -862,6 +890,9 @@ const ProviderDashboard = () => {
     // so the message bubbles align correctly (mine vs. the client's).
     const openChatForAppointment = (appt) => {
         if (!appt?._id) return;
+        // Staff messaging (clients:contact) isn't wired yet — 'messages' is not in
+        // the staff tab whitelist, so don't open the chat shell for a staff member.
+        if (!tabAllowed('messages')) return;
         fetchConversations();
         openConversation({ appointment: { ...appt, provider: { _id: user?._id, name: user?.name } } });
         setApptDetailModal(null);
@@ -1102,11 +1133,12 @@ const ProviderDashboard = () => {
         }
     };
 
+    // The staff filter is a Set of lane ids; an empty set shows all. 'unassigned'
+    // is the owner/me lane.
+    const staffFilterShows = (laneId) => calendarStaffFilter.size === 0 || calendarStaffFilter.has(laneId);
     const matchesStaffFilter = (a) => {
-        if (calendarStaffFilter === 'all') return true;
         const tmId = a.teamMember?._id || a.teamMember || null;
-        if (calendarStaffFilter === 'unassigned') return !tmId;
-        return String(tmId) === String(calendarStaffFilter);
+        return staffFilterShows(tmId ? String(tmId) : 'unassigned');
     };
 
     // A block is one of three kinds:
@@ -1116,14 +1148,10 @@ const ProviderDashboard = () => {
     //   - business-wide (teamMember null, not ownerOnly): closes every column.
     //   - member-scoped (teamMember set): shown only when that member is in view.
     const blockMatchesStaffFilter = (b) => {
-        if (b.ownerOnly) {
-            return calendarStaffFilter === 'all' || calendarStaffFilter === 'unassigned';
-        }
+        if (b.ownerOnly) return staffFilterShows('unassigned');
         const tmId = b.teamMember?._id || b.teamMember || null;
         if (!tmId) return true; // business-wide → blocks everyone, always shown
-        if (calendarStaffFilter === 'all') return true;
-        if (calendarStaffFilter === 'unassigned') return false;
-        return String(tmId) === String(calendarStaffFilter);
+        return staffFilterShows(String(tmId));
     };
 
     const activeTeamMembers = teamMembers.filter(m => m.isActive !== false);
@@ -1215,10 +1243,71 @@ const ProviderDashboard = () => {
         writesInFlight.current -= 1;
     };
 
+    // Dragging a booking into another staff lane changes WHO performs it — a
+    // reassignment, not a reschedule. It rides the single-appointment endpoint
+    // (the batch one never touches the performer) and always moves exactly one
+    // card, so there is no batch to build. Owner-only, gated at the call site.
+    const handleCalendarReassign = async ({ id, appointmentDate, startTime, endTime, teamMember }, { recordUndo = true } = {}) => {
+        const before = appointments.find((a) => a._id === id);
+        // The prior slot AND performer, so the reassign can be undone in one call
+        // to the same endpoint — a reassign also emails the client, so it earns the
+        // same one-tap "put it back" a reschedule gets. '' = the owner's own column.
+        const prevUndo = before ? {
+            kind: 'reassign',
+            id,
+            appointmentDate: toDateString(before.appointmentDate),
+            startTime: before.startTime,
+            endTime: before.endTime,
+            teamMember: before.teamMember?._id || before.teamMember || '',
+        } : null;
+        // Resolve the destination member object so the card jumps to the new lane
+        // immediately; the endpoint returns teamMember as a bare id. '' clears it
+        // to the owner's own (unassigned) column.
+        const destMember = teamMember ? teamMembers.find((m) => String(m._id) === String(teamMember)) : null;
+
+        writesInFlight.current += 1;
+        apptEpoch.current += 1;
+        setAppointments((prev) => prev.map((a) => (a._id === id
+            ? { ...a, appointmentDate, startTime, endTime, teamMember: destMember || (teamMember || null) }
+            : a)));
+        try {
+            const res = await appointmentService.providerRescheduleAppointment(id, { appointmentDate, startTime, endTime, teamMember });
+            // Keep the already-populated relations; the endpoint sends bare ids
+            // back, so re-apply customer/provider from the local doc and the
+            // resolved member, or their names/colours would vanish until a refetch.
+            setAppointments((prev) => prev.map((a) => (a._id === id
+                ? { ...a, ...res.data.data, customer: a.customer, provider: a.provider, teamMember: destMember || (res.data.data.teamMember ?? null) }
+                : a)));
+            if (recordUndo) setCalendarUndo(prevUndo);
+        } catch (err) {
+            if (before) setAppointments((prev) => prev.map((a) => (a._id === id ? before : a))); // exactly as it was
+            if (recordUndo) setCalendarUndo(null);
+            toast(err?.response?.data?.message || 'Could not reassign that booking. Please try again.', 'error');
+            fetchAppointments({ force: true }); // the server knows something we don't
+            throw err;
+        } finally {
+            writesInFlight.current -= 1;
+        }
+    };
+
     const undoCalendarReschedule = async () => {
         const restore = calendarUndo;
         if (!restore) return;
         setCalendarUndo(null);
+        // A reassign undo restores the performer AND the slot in one call to the
+        // reassign endpoint; don't record a fresh undo for the undo itself.
+        if (restore.kind === 'reassign') {
+            try {
+                await handleCalendarReassign({
+                    id: restore.id,
+                    appointmentDate: restore.appointmentDate,
+                    startTime: restore.startTime,
+                    endTime: restore.endTime,
+                    teamMember: restore.teamMember,
+                }, { recordUndo: false });
+            } catch { /* handleCalendarReassign already toasts + resyncs */ }
+            return;
+        }
         applySlotsLocally(restore);
         try {
             await appointmentService.batchReschedule(restore, { allowOutsideHours: true });
@@ -1372,7 +1461,7 @@ const ProviderDashboard = () => {
                                     <>
                                         <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>No recent {activeTab} appointments</p>
                                         <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '1rem' }}>All {counts[activeTab]} are older than the calendar window.</p>
-                                        <button type="button" onClick={() => setActiveTab('history')} className="btn-outline" style={{ fontSize: '0.85rem' }}>View in History →</button>
+                                        <button type="button" onClick={() => selectTab('history')} className="btn-outline" style={{ fontSize: '0.85rem' }}>View in History →</button>
                                     </>
                                 ) : (
                                     <>
@@ -1435,7 +1524,7 @@ const ProviderDashboard = () => {
                                 {summary && (counts[activeTab] || 0) > filtered.length && (
                                     <button
                                         type="button"
-                                        onClick={() => setActiveTab('history')}
+                                        onClick={() => selectTab('history')}
                                         style={{ background: 'none', border: '1px dashed var(--border)', borderRadius: 'var(--radius)', padding: '0.85rem 1rem', cursor: 'pointer', fontSize: '0.82rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}
                                     >
                                         Showing recent {activeTab} bookings · {counts[activeTab] - filtered.length} older in <strong>History</strong> →
@@ -2325,12 +2414,14 @@ const ProviderDashboard = () => {
                                         { id: 'unassigned', label: `${(user?.name || 'Me').split(' ')[0]} (me)` },
                                         ...teamMembers.filter(m => m.isActive !== false).map(m => ({ id: String(m._id), label: m.name, color: m.color })),
                                     ].map(({ id, label, color }) => {
-                                        const isActive = String(calendarStaffFilter) === id;
+                                        // 'All staff' is active when no subset is chosen; each other
+                                        // option is a toggle (membership in the selection Set).
+                                        const isActive = id === 'all' ? calendarStaffFilter.size === 0 : calendarStaffFilter.has(id);
                                         return (
                                             <button
                                                 key={id}
                                                 type="button"
-                                                onClick={() => setCalendarStaffFilter(id)}
+                                                onClick={() => toggleStaffFilter(id)}
                                                 aria-pressed={isActive}
                                                 style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', flexShrink: 0 }}
                                             >
@@ -2362,6 +2453,10 @@ const ProviderDashboard = () => {
                                     onBlockClick={(block) => openBlockedTimeForm(block)}
                                     onSlotClick={(sel) => { setApptError(''); setTimeSelectionPreview(sel); }}
                                     onReschedule={handleCalendarReschedule}
+                                    // Reassigning a booking to another performer is owner-only (the
+                                    // server refuses it for staff); only wire it up for the owner so a
+                                    // staff drag can't cross lanes into a guaranteed 403.
+                                    onReassign={user?.role === 'provider' ? handleCalendarReassign : undefined}
                                 />
                             ) : (
                                 <CalendarGrid
@@ -2399,9 +2494,11 @@ const ProviderDashboard = () => {
                                 }}
                             >
                                 <span>
-                                    {calendarUndo.length > 1
-                                        ? `Rescheduled ${calendarUndo.length} bookings.`
-                                        : 'Booking moved.'}
+                                    {calendarUndo.kind === 'reassign'
+                                        ? 'Booking reassigned.'
+                                        : calendarUndo.length > 1
+                                            ? `Rescheduled ${calendarUndo.length} bookings.`
+                                            : 'Booking moved.'}
                                 </span>
                                 <button
                                     type="button"
