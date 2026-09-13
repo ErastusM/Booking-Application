@@ -10,6 +10,7 @@ const {
     getTeamMemberAvailability, updateTeamMemberAvailability,
     getMyServices, setMyServices, setMyPricing,
     getMyProfile, setMyProfile, getMyAvailability, setMyAvailability,
+    getMyStats,
 } = require('../controllers/teamMemberController');
 const {
     listTimeOff, createTimeOff, decideTimeOff, deleteTimeOff,
@@ -34,6 +35,11 @@ router.put('/:id/availability', auth, updateTeamMemberAvailability);
 router.get('/mine/services', auth, getMyServices);
 router.put('/mine/services', auth, setMyServices);
 router.put('/mine/pricing', auth, setMyPricing);
+
+// Staff self-view of their OWN stats (token-scoped). Before the per-route gates
+// so a staff member — not just the owner — can reach it, and before '/:id/stats'
+// so 'mine' isn't read as a member id.
+router.get('/mine/stats', auth, getMyStats);
 
 // From here down, every route was previously gated by a single blanket
 // `authorize('provider','admin')`. Phase 3c opens the OPERATIONAL roster
