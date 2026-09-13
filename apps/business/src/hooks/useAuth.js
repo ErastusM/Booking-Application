@@ -1,6 +1,7 @@
 import { useState, useCallback, useEffect } from 'react';
 import API from '../services/api';
 import client from '../services/client';
+import { can, canAny } from '../utils/permissions';
 
 export const useAuth = () => {
     // Hydrate the user from cache so a returning client sees the app logged-in
@@ -96,5 +97,10 @@ export const useAuth = () => {
         window.dispatchEvent(new Event('auth-logout'));
     }, []);
 
-    return { user, token, loading, error, login, logout, setUser };
+    // Capability helpers for UI gating (owners/admins hold everything; a staff
+    // member holds their tier's set). Server-side checks remain the real guard.
+    const hasCap = useCallback((cap) => can(user, cap), [user]);
+    const hasAnyCap = useCallback((caps) => canAny(user, caps), [user]);
+
+    return { user, token, loading, error, login, logout, setUser, hasCap, hasAnyCap };
 };

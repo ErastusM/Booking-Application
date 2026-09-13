@@ -157,6 +157,36 @@ const withinSchedule = (schedule, date, startMin, endMin) => {
     return day.slots.some(s => startMin >= toMin(s.start) && endMin <= toMin(s.end));
 };
 
+const DAY_MS = 86400000;
+/**
+ * The effective single-week schedule object for a StaffAvailability doc on a
+ * given date. If the member has a rotating (multi-week) schedule, this picks
+ * weeks[weekIndex]; otherwise it returns the flat `schedule` — so a doc with no
+ * rotation (every legacy row) resolves BYTE-IDENTICALLY to the pre-rotation code.
+ *
+ * The returned object is fed to withinSchedule/scheduleDayIntervals unchanged,
+ * so the weekday is still derived exactly as before — rotation only chooses
+ * WHICH week's object those helpers then index by weekday.
+ *
+ * Week index uses a UTC YYYY-MM-DD basis (dateStr), the SAME basis the Shift and
+ * TimeOff date keys use — never getDay() — so a date can never fall into a
+ * different rotation week than its own shift/leave rows at a tz boundary.
+ * Never returns undefined for a doc that exists (falls back to `schedule`), so a
+ * configured-but-empty week reads as CLOSED, not as "no hours constraint".
+ */
+const pickRotationWeek = (doc, date) => {
+    if (!doc) return null;
+    const rot = doc.rotation;
+    const weeks = rot && Array.isArray(rot.weeks) ? rot.weeks : [];
+    if (weeks.length === 0 || !rot.anchor) return doc.schedule || null;
+    const a = Date.parse(`${String(rot.anchor).slice(0, 10)}T00:00:00Z`);
+    const d = Date.parse(`${dateStr(date)}T00:00:00Z`);
+    if (!Number.isFinite(a) || !Number.isFinite(d)) return doc.schedule || null;
+    const wk = Math.floor((d - a) / (7 * DAY_MS));
+    const idx = ((wk % weeks.length) + weeks.length) % weeks.length; // handles dates before the anchor
+    return weeks[idx] || doc.schedule || null;
+};
+
 // Does this member perform the given service?
 //   offersAllServices === true  → yes, everything
 //   offersAllServices === false → only the services explicitly listed (empty = none)
@@ -236,7 +266,9 @@ async function staffHoursReason({ member, date, startTime, endTime, businessSche
     // caller still checks real bookings and blocked time, so this only widens the
     // hours window, never the conflict rules.
     const staffAv = ignoreWeeklyHours ? null : await StaffAvailability.findOne({ teamMember: member._id });
-    const schedule = staffAv?.schedule || businessSchedule;
+    // pickRotationWeek collapses a rotating schedule to the week that applies on
+    // this date; for a non-rotating doc it is exactly staffAv.schedule.
+    const schedule = pickRotationWeek(staffAv, date) || businessSchedule;
     if (schedule && !withinSchedule(schedule, date, startMin, endMin)) return 'outside_hours';
     return null;
 }
@@ -304,7 +336,7 @@ async function firstFreePerformer({ providerId, performers, date, startTime, end
         Shift.find({ teamMember: { $in: ids }, date: key }).select('teamMember slots breaks').lean(),
         // Solo owner ignores the per-staff weekly schedule (ignoreWeeklyHours), so
         // don't even fetch it — matches isMemberFree's soloOwner path.
-        soloOwner ? [] : StaffAvailability.find({ teamMember: { $in: ids } }).select('teamMember schedule').lean(),
+        soloOwner ? [] : StaffAvailability.find({ teamMember: { $in: ids } }).select('teamMember schedule rotation').lean(),
         TimeOff.find({
             teamMember: { $in: ids }, status: 'approved',
             startDate: { $lte: key }, endDate: { $gte: key },
@@ -325,7 +357,9 @@ async function firstFreePerformer({ providerId, performers, date, startTime, end
     const bufferByService = await bufferMapForAppointments(appts);
 
     const shiftBy = {}; shifts.forEach(s => { shiftBy[String(s.teamMember)] = s; });
-    const avBy = {}; staffAvs.forEach(a => { avBy[String(a.teamMember)] = a.schedule; });
+    // Store the whole doc (schedule + rotation) so the rotation week can be
+    // selected per date below, not just the flat schedule.
+    const avBy = {}; staffAvs.forEach(a => { avBy[String(a.teamMember)] = a; });
     const leavesBy = {}; leaves.forEach(lv => { (leavesBy[String(lv.teamMember)] = leavesBy[String(lv.teamMember)] || []).push(lv); });
     const businessBlocks = blocks.filter(b => !b.teamMember);            // teamMember null ⇒ business-wide (owner-only already excluded by the query)
     const memberBlocksBy = {}; blocks.forEach(b => { if (b.teamMember) (memberBlocksBy[String(b.teamMember)] = memberBlocksBy[String(b.teamMember)] || []).push(b); });
@@ -346,7 +380,7 @@ async function firstFreePerformer({ providerId, performers, date, startTime, end
             if (!onShift) continue;
             if ((shift.breaks || []).some(b => overlaps(startMin, endMin, toMin(b.start), toMin(b.end)))) continue;
         } else {
-            const schedule = soloOwner ? businessSchedule : (avBy[k] || businessSchedule);
+            const schedule = soloOwner ? businessSchedule : (pickRotationWeek(avBy[k], date) || businessSchedule);
             if (schedule && !withinSchedule(schedule, date, startMin, endMin)) continue;
         }
         // 3. Blocked time: business-wide + this member's own.
@@ -495,7 +529,7 @@ async function anyAvailableBusy({ providerId, svc, date, appointments }) {
     const [availabilityDoc, shifts, staffAvs, leaves, blocks] = await Promise.all([
         Availability.findOne({ provider: providerId }),
         Shift.find({ provider: providerId, teamMember: { $in: ids }, date: key }).select('teamMember slots breaks').lean(),
-        soloOwner ? [] : StaffAvailability.find({ teamMember: { $in: ids } }).select('teamMember schedule').lean(),
+        soloOwner ? [] : StaffAvailability.find({ teamMember: { $in: ids } }).select('teamMember schedule rotation').lean(),
         TimeOff.find({
             provider: providerId, teamMember: { $in: ids }, status: 'approved',
             startDate: { $lte: key }, endDate: { $gte: key },
@@ -534,7 +568,7 @@ async function anyAvailableBusy({ providerId, svc, date, appointments }) {
                 (shift.breaks || []).map(b => [toMin(b.start), toMin(b.end)])
             );
         } else {
-            const schedule = soloOwner ? businessSchedule : (avBy[k]?.schedule || businessSchedule);
+            const schedule = soloOwner ? businessSchedule : (pickRotationWeek(avBy[k], date) || businessSchedule);
             working = scheduleDayIntervals(schedule, date);
         }
         const leaveCuts = (leavesBy[k] || []).map(lv => (
@@ -570,4 +604,5 @@ module.exports = {
     resolveBookingStaff, isMemberFree, firstFreePerformer, performsService, staffHoursReason,
     memberBusyIntervals, memberBusyIntervalsBuffered, bufferMapForAppointments,
     memberInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy,
+    pickRotationWeek, scheduleDayIntervals, withinSchedule,
 };

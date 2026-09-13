@@ -241,4 +241,7 @@ jobs:
             # Email + account-type auth: backfill accountType and swap the
             # unique email index for the compound {email, accountType} one.
             docker compose exec -T server node scripts/migrate_account_types.js || { echo "DEPLOY FAILED: migrate_account_types.js exited non-zero" >&2; exit 1; }
+            # Per-professional review attribution: backfill Review.teamMember/provider
+            # from each review's appointment so pro ratings include history.
+            docker compose exec -T server node scripts/migrate_review_attribution.js || { echo "DEPLOY FAILED: migrate_review_attribution.js exited non-zero" >&2; exit 1; }
             docker image prune -f
