@@ -181,6 +181,20 @@ jobs:
   deploy:
     needs: build-and-push
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    # SERIALIZE PRODUCTION DEPLOYS. Two merges landing seconds apart each ran
+    # `docker compose pull && up` against the SAME droplet at the same time.
+    # They fought over the containers, the server never passed its health check
+    # ("waiting for API health (unknown)" → `service "server" is not running`),
+    # the migration step then failed, and the API went down. Both runs went red
+    # and nothing deployed. This queues deploys instead of overlapping them.
+    #
+    # cancel-in-progress:false so an in-flight deploy is never killed part-way —
+    # that could leave the stack half-updated. GitHub keeps only the NEWEST
+    # pending job per group (cancelling older pending ones), so when several
+    # merges land together the most recent commit is the one that ends up live.
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
     runs-on: ubuntu-latest
     env:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
