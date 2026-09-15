@@ -87,7 +87,7 @@ describe('permanently removing a team member', () => {
         }
     });
 
-    it('ends the linked login (staffOf severed, tokens bumped)', async () => {
+    it('hard-deletes the lone staff login (permanent means permanent — the email is freed)', async () => {
         const { provider, member } = await setup();
         const staffUser = await makeUser({ role: 'staff', staffOf: provider._id, tokenVersion: 0 });
         member.user = staffUser._id;
@@ -95,10 +95,47 @@ describe('permanently removing a team member', () => {
 
         expect((await remove(provider, member)).status).toBe(200);
 
+        // The account backing only this membership is gone, so its email can be
+        // invited again instead of colliding as "already belongs to another account".
+        expect(await User.findById(staffUser._id)).toBeNull();
+    });
+
+    it('leaves a login still on an ACTIVE sibling row completely untouched', async () => {
+        const { provider, member } = await setup();
+        const staffUser = await makeUser({ role: 'staff', staffOf: provider._id, tokenVersion: 0 });
+        member.user = staffUser._id;
+        await member.save();
+        // A duplicate, still-active roster row backed by the same login.
+        const twin = await TeamMember.create({
+            provider: provider._id, name: 'Erastus M (twin)', role: 'Barber', user: staffUser._id,
+        });
+
+        expect((await remove(provider, member)).status).toBe(200);
+
         const after = await User.findById(staffUser._id);
-        expect(after).not.toBeNull();          // the account itself is kept
-        expect(after.staffOf).toBeNull();      // but its link to this business is gone
-        expect(after.tokenVersion).toBe(1);    // and every issued token is invalidated
+        expect(after).not.toBeNull();                                   // the shared login survives
+        expect(after.staffOf.toString()).toBe(provider._id.toString()); // still attached for the twin
+        expect(after.tokenVersion).toBe(0);                             // and untouched — the twin still uses it
+        expect(await TeamMember.findById(twin._id)).not.toBeNull();
+    });
+
+    it('revokes but keeps a login shared only by an archived sibling row', async () => {
+        const { provider, member } = await setup();
+        const staffUser = await makeUser({ role: 'staff', staffOf: provider._id, tokenVersion: 0 });
+        member.user = staffUser._id;
+        await member.save();
+        // An archived (inactive) sibling row still references the login — don't delete it.
+        await TeamMember.create({
+            provider: provider._id, name: 'Erastus M (archived)', role: 'Barber',
+            user: staffUser._id, isActive: false, archivedAt: new Date(),
+        });
+
+        expect((await remove(provider, member)).status).toBe(200);
+
+        const after = await User.findById(staffUser._id);
+        expect(after).not.toBeNull();          // kept — an archived row still points at it
+        expect(after.staffOf).toBeNull();      // but access revoked
+        expect(after.tokenVersion).toBe(1);
     });
 
     it('stops them taking new bookings (the row is really gone)', async () => {

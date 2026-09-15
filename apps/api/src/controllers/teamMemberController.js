@@ -434,16 +434,33 @@ exports.removeTeamMember = async (req, res) => {
             BlockedTime.deleteMany({ provider: member.provider, teamMember: member._id }),
         ]);
 
-        // End their login. Same guard as archive: only revoke when no other active
-        // roster row for this business shares the account (a duplicate re-add).
-        const otherActive = member.user
-            ? await TeamMember.findOne({ provider: member.provider, user: member.user, _id: { $ne: member._id }, isActive: true })
-            : null;
-        if (member.user && !otherActive) {
-            await User.updateOne(
-                { _id: member.user },
-                { $inc: { tokenVersion: 1 }, $set: { refreshTokenJtis: [], staffOf: null } },
-            );
+        // End their login. Permanent removal is terminal, so the staff LOGIN goes
+        // too — otherwise the account was only DETACHED (staffOf:null) and left
+        // behind, keeping the email occupied so a later re-invite on that address
+        // 409'd ("already belongs to another account"). Delete it outright when it
+        // is a plain staff login whose ONLY roster row is the one being removed, so
+        // the email is freed for a fresh invite. Guardrails: an account still on an
+        // ACTIVE sibling row (a duplicate add) is left live and untouched; a login
+        // shared only by an archived sibling row, or a non-staff account, is kept
+        // but has its access revoked (the previous behaviour); and the person's
+        // separate marketplace CUSTOMER account is a distinct {email, accountType}
+        // record that is never matched here.
+        if (member.user) {
+            const [linkedUser, activeSibling, anySibling] = await Promise.all([
+                User.findById(member.user).select('role'),
+                TeamMember.exists({ user: member.user, _id: { $ne: member._id }, isActive: true }),
+                TeamMember.exists({ user: member.user, _id: { $ne: member._id } }),
+            ]);
+            if (!activeSibling && linkedUser) {
+                if (linkedUser.role === 'staff' && !anySibling) {
+                    await User.deleteOne({ _id: member.user });   // lone staff login → free the email
+                } else {
+                    await User.updateOne(                          // shared-archived / non-staff → revoke only
+                        { _id: member.user },
+                        { $inc: { tokenVersion: 1 }, $set: { refreshTokenJtis: [], staffOf: null } },
+                    );
+                }
+            }
         }
 
         await TeamMember.deleteOne({ _id: member._id });
@@ -955,10 +972,26 @@ exports.inviteTeamMember = async (req, res) => {
             // the roster row still points at it.
             const isOurFormerStaff = linked && staffUser._id.equals(linked._id) && staffUser.role === 'staff';
             if (!isOwnStaff && !isOurFormerStaff) {
-                return res.status(409).json({ success: false, message: 'That email already belongs to another account' });
+                // Is it a fully-orphaned staff login — detached (staffOf:null) and
+                // backed by NO roster row anywhere? Such accounts are leftovers from
+                // before permanent removal hard-deleted the login: they belong to no
+                // business yet keep the email occupied and 409 every future invite.
+                // Delete the orphan and fall through to mint a clean account, so
+                // re-inviting that address works and the backlog is cleaned up on
+                // contact. Accounts still in use — a provider's own login, or active/
+                // archived staff still on someone's roster — keep the block.
+                const isOrphanStaffLogin = staffUser.role === 'staff' && !staffUser.staffOf
+                    && !(await TeamMember.exists({ user: staffUser._id }));
+                if (!isOrphanStaffLogin) {
+                    return res.status(409).json({ success: false, message: 'That email already belongs to another account' });
+                }
+                await User.deleteOne({ _id: staffUser._id });
+                staffUser = null;   // recreated fresh below
+            } else if (isOurFormerStaff) {
+                staffUser.staffOf = req.user._id;   // re-attach our own archived member's login
             }
-            if (isOurFormerStaff) staffUser.staffOf = req.user._id;   // re-attach
-        } else {
+        }
+        if (!staffUser) {
             // Validate any caller-supplied permissions / tier before storing — this
             // path previously wrote req.body.permissions raw, so arbitrary strings
             // could be persisted as permissions.
