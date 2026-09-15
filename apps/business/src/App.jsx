@@ -72,7 +72,7 @@ function AppRoutes() {
                         calendar / client access) is admitted too; ProviderDashboard
                         then whitelists which tabs their tier may see. */}
                     <Route path="/dashboard" element={
-                        <ProtectedRoute allowedRoles={['provider']} allowCapability={['calendar:view_all', 'clients:view']}>
+                        <ProtectedRoute allowedRoles={['provider']} allowCapability={['calendar:view_all', 'clients:assigned']}>
                             <ProviderDashboard />
                         </ProtectedRoute>
                     } />

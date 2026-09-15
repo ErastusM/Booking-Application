@@ -25,12 +25,18 @@ const CALENDAR_ALL = 'calendar:all';
 const KNOWN = [CALENDAR_ALL];
 
 /**
- * Legacy flags the invite flow wrote that were descriptive rather than enforced.
- * `calendar:self` is the ABSENCE of calendar:all; `clients:assigned` never
- * branched anything. They map to no capability — the self-baseline every staff
- * member already holds — but stay accepted so old rosters and re-invites validate.
+ * Legacy flags the invite flow wrote that are descriptive rather than enforced.
+ * `calendar:self` is the ABSENCE of calendar:view_all, so it maps to no
+ * capability — the self-baseline every staff member already holds — but stays
+ * accepted so old rosters and re-invites validate.
+ *
+ * `clients:assigned` USED to sit here as a no-op, which is why a staff member
+ * saw either nothing or (on Medium) the whole business's client list. The spec
+ * always called for assigned-only (DUAL_APP_SPEC §2b "/clients … staff(assigned)",
+ * §4.2 "for calendar/clients, to their own assignments", Epic 2.4 AC), so it is
+ * now a REAL capability in BASIC — see below.
  */
-const DESCRIPTIVE = ['calendar:self', 'clients:assigned'];
+const DESCRIPTIVE = ['calendar:self'];
 
 // ── Capability vocabulary ──────────────────────────────────────────────────
 // Grouped by the tier that first grants them. Higher tiers are cumulative.
@@ -42,6 +48,12 @@ const BASIC = [
     'account:self', 'profile:self', 'calendar:view', 'availability:self', 'availability:view',
     'services:view', 'services:self', 'prices:self', 'timeoff:self', 'providers:view',
     'reviews:view', 'forms:submit', 'clients:contact:self',
+    // Every staff member may see the clients they personally serve — and ONLY
+    // those. Seeing the whole business's client list is the owner's view alone;
+    // no tier or flag widens a staff principal to it (clientCRMController's
+    // buildClientScope enforces this). Being in BASIC means an invited staff
+    // member holds it from day one, which is what the Epic 2.4 AC requires.
+    'clients:assigned',
 ];
 
 // Low — a service provider running their OWN book.
@@ -88,8 +100,8 @@ const canonical = (cap) => LEGACY_CAP[cap] || cap;
 // Capabilities a member's staffPermissions grant: legacy flags via LEGACY_CAP,
 // AND any entry that is already a capability key (validate() only ever stores
 // KNOWN ∪ DESCRIPTIVE ∪ CAPABILITIES, so this makes staffPermissions a real
-// per-member OVERRIDE channel layered on top of the tier). Descriptive flags
-// (calendar:self / clients:assigned) map to nothing — the self-baseline.
+// per-member OVERRIDE channel layered on top of the tier). The remaining
+// descriptive flag (calendar:self) maps to nothing — the self-baseline.
 const flagCapabilities = (flags) =>
     (Array.isArray(flags) ? flags : [])
         .map((f) => LEGACY_CAP[f] || (CAP_SET.has(f) ? f : null))
