@@ -46,7 +46,7 @@ const makeUnverified = (over) => User.create({
 
 describe('GET /api/auth/verify-email redirect origin', () => {
     it('sends a verified PROVIDER back to the business app', async () => {
-        await makeUnverified({ email: 'prov@x.com', token: 'tok-prov', role: 'provider', providerCategory: 'Beauty & Grooming' });
+        await makeUnverified({ email: 'prov@x.com', token: 'tok-prov', role: 'provider', providerCategory: 'Home services' });
         const res = await request(app).get('/api/auth/verify-email?token=tok-prov&app=business');
         expect(res.status).toBe(302);
         expect(res.headers.location).toBe(`${BUSINESS}/verify-email?status=success&role=provider`);

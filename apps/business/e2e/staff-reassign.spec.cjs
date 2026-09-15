@@ -8,7 +8,7 @@ const chip = (page, name) => page.getByRole('button', { name, exact: true });
  * lanes) view reassigns it to that lane's team member (a change of performer),
  * routed to the single provider-reschedule endpoint with a teamMember.
  *
- * The seed books "Walk-in Wanda" on Alex on today AND tomorrow. This drives
+ * The seed books "Guest Wanda" on Alex on today AND tomorrow. This drives
  * TOMORROW's copy so the card is never "elapsed" (finished bookings lock and
  * can't be dragged), keeping the test independent of the wall-clock time the
  * run happens to start at.
@@ -28,11 +28,11 @@ test.describe('Staff lanes — drag to reassign', () => {
     });
 
     test('dragging a booking into another lane reassigns its performer', async ({ page }) => {
-        const wanda = page.getByTestId('staff-lane-appt').filter({ hasText: 'Walk-in Wanda' });
+        const wanda = page.getByTestId('staff-lane-appt').filter({ hasText: 'Guest Wanda' });
         await expect(wanda).toBeVisible();
 
         const card = await wanda.boundingBox();
-        const billieHeader = page.getByTestId('staff-lane-header').filter({ hasText: 'Billie Barber' });
+        const billieHeader = page.getByTestId('staff-lane-header').filter({ hasText: 'Billie Chen' });
         const billie = await billieHeader.boundingBox();
 
         const startX = card.x + card.width / 2;
@@ -52,7 +52,7 @@ test.describe('Staff lanes — drag to reassign', () => {
         // Nothing is written until the reassign is confirmed.
         const sheet = page.getByRole('dialog', { name: 'Reassign this booking?' });
         await expect(sheet).toBeVisible();
-        await expect(sheet.getByText('Billie Barber')).toBeVisible();
+        await expect(sheet.getByText('Billie Chen')).toBeVisible();
         await sheet.getByRole('button', { name: /Move to/ }).click();
         await expect(sheet).toBeHidden();
 
@@ -60,12 +60,12 @@ test.describe('Staff lanes — drag to reassign', () => {
         // multi-select toggles (each chip adds/removes its own lane from the shown
         // set), so isolate one lane at a time rather than assuming a chip click
         // replaces the selection.
-        await chip(page, 'Billie Barber').click();     // Billie's lane alone
-        await expect(page.getByTestId('staff-lane-appt').filter({ hasText: 'Walk-in Wanda' })).toBeVisible();
+        await chip(page, 'Billie Chen').click();     // Billie's lane alone
+        await expect(page.getByTestId('staff-lane-appt').filter({ hasText: 'Guest Wanda' })).toBeVisible();
         // Drop Billie before adding Alex — otherwise both lanes show and Wanda
         // (now in Billie's) would still be counted in the "not on Alex" check.
-        await chip(page, 'Billie Barber').click();     // toggle Billie's lane back off
-        await chip(page, 'Alex Stylist').click();      // now Alex's lane alone
-        await expect(page.getByTestId('staff-lane-appt').filter({ hasText: 'Walk-in Wanda' })).toHaveCount(0);
+        await chip(page, 'Billie Chen').click();     // toggle Billie's lane back off
+        await chip(page, 'Alex Rivera').click();      // now Alex's lane alone
+        await expect(page.getByTestId('staff-lane-appt').filter({ hasText: 'Guest Wanda' })).toHaveCount(0);
     });
 });

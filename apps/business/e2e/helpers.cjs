@@ -19,7 +19,7 @@ const SEED = {
         businessPassword: 'Different1!', // opens the BUSINESS side
     },
     staffName: 'Sam Staff',
-    serviceName: 'E2E Haircut',
+    serviceName: 'E2E Session',
     providerName: 'E2E Provider',
     // The dashboard addresses the owner by first name only.
     providerFirstName: 'E2E',

@@ -16,7 +16,7 @@ afterAll(() => testDb.closeDatabase());
 const seedProvider = () => makeProvider({
     businessProfile: { businessName: 'Vibe Barbershop', slug: 'vibebarbershop', address: '12 Independence Ave, Windhoek' },
     avatar: 'https://res.cloudinary.com/demo/image/upload/v1/vibe.jpg',
-    providerCategory: 'Beauty & Grooming',
+    providerCategory: 'Home services',
 });
 
 describe('GET /api/seo/prerender/b/:slug', () => {

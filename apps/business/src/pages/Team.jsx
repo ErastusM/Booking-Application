@@ -751,7 +751,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                             </div>
                             <div style={{ display: 'grid', gap: '0.7rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
                                 <Field label="Name" value={personal.name} onChange={e => setPersonal(p => ({ ...p, name: e.target.value }))} data-testid="personal-name" />
-                                <Field label="Job title" value={personal.role} onChange={e => setPersonal(p => ({ ...p, role: e.target.value }))} placeholder="e.g. Stylist, Trainer, Technician" />
+                                <Field label="Job title" value={personal.role} onChange={e => setPersonal(p => ({ ...p, role: e.target.value }))} placeholder="e.g. Practitioner, Trainer, Technician" />
                                 <Field label="Email" type="email" value={personal.email} onChange={e => setPersonal(p => ({ ...p, email: e.target.value }))} />
                                 <Field label="Phone" value={personal.phone} onChange={e => setPersonal(p => ({ ...p, phone: e.target.value }))} />
                                 <Field label="Country" value={personal.country} onChange={e => setPersonal(p => ({ ...p, country: e.target.value }))} placeholder="Namibia" />
@@ -1453,7 +1453,7 @@ const Team = () => {
                             One person per line — <strong>Name, Job title, email</strong> (job title and email optional). Up to 50.
                         </p>
                         <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={5} className="input" data-testid="bulk-text"
-                            placeholder={'Alice Johnson, Barber, alice@shop.com\nBob Smith, Stylist\nCarol Ndapewa'}
+                            placeholder={'Alice Johnson, Manager, alice@example.com\nBob Smith, Specialist\nCarol Ndapewa'}
                             style={{ width: '100%', fontFamily: 'var(--font-body)', resize: 'vertical', padding: '0.6rem 0.7rem' }} />
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.6rem' }}>
                             <button type="button" className="btn-primary" onClick={addBulk} disabled={bulkBusy || !bulkText.trim()} data-testid="bulk-submit" style={{ padding: '0.5rem 1.3rem' }}>
