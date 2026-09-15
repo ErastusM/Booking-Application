@@ -96,7 +96,7 @@ const ProviderDashboard = () => {
     const STAFF_TAB_CAPS = {
         calendar: 'calendar:view_all', pending: 'calendar:view_all', confirmed: 'calendar:view_all',
         completed: 'calendar:view_all', cancelled: 'calendar:view_all',
-        waitlist: 'waitlist:manage', clients: 'clients:view', forms: 'forms:manage',
+        waitlist: 'waitlist:manage', clients: 'clients:assigned', forms: 'forms:manage',
     };
     const tabAllowed = (t) => user?.role !== 'staff' || (!!STAFF_TAB_CAPS[t] && hasCap(STAFF_TAB_CAPS[t]));
     // Route ALL programmatic tab switches through the whitelist too — in-app
