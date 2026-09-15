@@ -55,7 +55,7 @@ describe('registration with an email used by the other account type', () => {
         const second = await request(app).post('/api/auth/register').send(registerPayload({
             role: 'provider',
             password: BUSINESS_PW,
-            providerCategory: 'Beauty & Grooming',
+            providerCategory: 'Home services',
         }));
         expect(second.status).toBe(201);
         expect(second.body.data.user.role).toBe('provider');
@@ -74,7 +74,7 @@ describe('registration with an email used by the other account type', () => {
 
     it('stamps accountType from role on creation', async () => {
         await request(app).post('/api/auth/register').send(registerPayload({
-            role: 'provider', providerCategory: 'Beauty & Grooming',
+            role: 'provider', providerCategory: 'Home services',
         }));
         const doc = await User.findOne({ email: EMAIL });
         expect(doc.accountType).toBe('business');
@@ -194,7 +194,7 @@ describe('PUT /api/auth/become-provider with a dual email', () => {
 
         const res = await request(app).put('/api/auth/become-provider')
             .set('Authorization', `Bearer ${login.body.data.token}`)
-            .send({ providerCategory: 'Beauty & Grooming' });
+            .send({ providerCategory: 'Home services' });
         expect(res.status).toBe(400);
         expect(res.body.message).toMatch(/business account with this email already exists/i);
 
@@ -209,7 +209,7 @@ describe('PUT /api/auth/become-provider with a dual email', () => {
 
         const res = await request(app).put('/api/auth/become-provider')
             .set('Authorization', `Bearer ${login.body.data.token}`)
-            .send({ providerCategory: 'Beauty & Grooming' });
+            .send({ providerCategory: 'Home services' });
         expect(res.status).toBe(200);
 
         const upgraded = await User.findOne({ email: EMAIL });

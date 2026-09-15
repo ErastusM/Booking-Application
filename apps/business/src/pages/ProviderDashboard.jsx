@@ -1636,7 +1636,7 @@ const ProviderDashboard = () => {
                                         <div>
                                             {catalogueFiltered.length === 0 ? (
                                                 <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '4rem 2rem', textAlign: 'center' }}>
-                                                    <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>✂️</div>
+                                                    <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🗂️</div>
                                                     <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>{catalogueSearch ? 'No services match your search' : 'No services yet'}</p>
                                                     <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{catalogueSearch ? 'Try a different name' : 'Add your first service to start receiving bookings'}</p>
                                                 </div>
@@ -3308,7 +3308,7 @@ const ProviderDashboard = () => {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                                 {[
                                     ['Full name', 'name', 'text', 'e.g. Amara Ndongo'],
-                                    ['Role / title', 'role', 'text', 'e.g. Stylist, Trainer, Technician'],
+                                    ['Role / title', 'role', 'text', 'e.g. Practitioner, Trainer, Technician'],
                                     ['Email (optional)', 'email', 'email', 'staff@email.com'],
                                     ['Phone (optional)', 'phone', 'tel', '+264 81 000 0000'],
                                 ].map(([label, key, type, ph]) => (
@@ -3450,7 +3450,7 @@ const ProviderDashboard = () => {
                                 .filter(Boolean);
                             if (selectedServices.length === 0) { setApptError('Please select at least one service'); return; }
                             if (!apptForm.isGroup && apptForm.clientMode === 'existing' && !apptForm.customerId) {
-                                setApptError('Please choose a client, or switch to Walk-in.'); return;
+                                setApptError('Please choose a client, or switch to Guest.'); return;
                             }
                             if (!apptForm.date) { setApptError('Please pick a date'); return; }
                             if (!apptForm.startTime) { setApptError('Please pick a start time'); return; }
@@ -3605,7 +3605,7 @@ const ProviderDashboard = () => {
                                         <div>
                                             {/* Choose between an existing registered client and a walk-in */}
                                             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                                                {[{ mode: 'existing', label: 'Existing client' }, { mode: 'walkin', label: 'Walk-in client' }].map(opt => {
+                                                {[{ mode: 'existing', label: 'Existing client' }, { mode: 'walkin', label: 'Guest' }].map(opt => {
                                                     const active = apptForm.clientMode === opt.mode;
                                                     return (
                                                         <button key={opt.mode} type="button" onClick={() => setApptForm(f => ({ ...f, clientMode: opt.mode }))} style={{
@@ -3623,7 +3623,7 @@ const ProviderDashboard = () => {
                                                     <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client</label>
                                                     {clients.length === 0 ? (
                                                         <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
-                                                            {loadingClients ? 'Loading your clients…' : 'No saved clients yet — switch to Walk-in to book by name.'}
+                                                            {loadingClients ? 'Loading your clients…' : 'No saved clients yet — switch to Guest to book by name.'}
                                                         </p>
                                                     ) : (
                                                         <>

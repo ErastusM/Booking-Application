@@ -34,14 +34,14 @@ const PORT = process.env.PORT || 5050;
     // Seed a verified provider with a bookable service + full weekday availability
     const provider = await User.create({
         name: 'E2E Provider', email: 'e2e-provider@bookplus.dev', password: 'Password1!',
-        phone: '+264810000000', role: 'provider', providerCategory: 'Beauty & Grooming',
+        phone: '+264810000000', role: 'provider', providerCategory: 'Home services',
         isVerified: true, provider: 'local',
         // Onboarded, so the setup wizard doesn't overlay the dashboard and
         // swallow clicks in specs that drive the calendar.
         providerSetupComplete: true,
     });
     const service = await Service.create({
-        name: 'E2E Haircut', description: 'A test haircut', price: 100, duration: 30,
+        name: 'E2E Session', description: 'A test service', price: 100, duration: 30,
         provider: provider._id, createdBy: provider._id, isActive: true, location: 'Windhoek',
     });
     const everyDay = { enabled: true, slots: [{ start: '08:00', end: '18:00' }] };
@@ -63,8 +63,8 @@ const PORT = process.env.PORT || 5050;
     // dashboard's staff filter and Staff (per-staff lanes) view have real
     // content to assert against.
     const [alex] = await TeamMember.create([
-        { provider: provider._id, name: 'Alex Stylist', role: 'Stylist', color: '#3B82F6' },
-        { provider: provider._id, name: 'Billie Barber', role: 'Barber', color: '#10B981' },
+        { provider: provider._id, name: 'Alex Rivera', role: 'Specialist', color: '#3B82F6' },
+        { provider: provider._id, name: 'Billie Chen', role: 'Technician', color: '#10B981' },
     ]);
     // Both members are left WITHOUT an explicit StaffAvailability on purpose: a
     // member with none inherits the business hours (staffHoursReason falls back to
@@ -80,7 +80,7 @@ const PORT = process.env.PORT || 5050;
     const tomorrow = new Date(today); tomorrow.setDate(tomorrow.getDate() + 1);
     await Appointment.create([today, tomorrow].map((appointmentDate) => ({
         service: service._id, provider: provider._id, teamMember: alex._id,
-        walkInName: 'Walk-in Wanda', appointmentDate,
+        walkInName: 'Guest Wanda', appointmentDate,
         // A full hour, so the calendar card is tall enough to show every line
         // (short events hide the staff tag by design).
         startTime: '10:00', endTime: '11:00', status: 'confirmed', totalPrice: 100,
@@ -97,7 +97,7 @@ const PORT = process.env.PORT || 5050;
         lastLoginAt: new Date(),
     });
     await TeamMember.create({
-        provider: provider._id, name: 'Sam Staff', role: 'Stylist', color: '#8B5CF6',
+        provider: provider._id, name: 'Sam Staff', role: 'Specialist', color: '#8B5CF6',
         user: samUser._id, bookable: false,
     });
 
@@ -109,7 +109,7 @@ const PORT = process.env.PORT || 5050;
     });
     await User.create({
         name: 'E2E Dual', email: 'e2e-dual@bookplus.dev', password: 'Password1!',
-        phone: '+264810000003', role: 'provider', providerCategory: 'Beauty & Grooming',
+        phone: '+264810000003', role: 'provider', providerCategory: 'Home services',
         isVerified: true, provider: 'local', providerSetupComplete: true,
     });
 
@@ -123,7 +123,7 @@ const PORT = process.env.PORT || 5050;
     });
     await User.create({
         name: 'E2E Split', email: 'e2e-split@bookplus.dev', password: 'Different1!',
-        phone: '+264810000004', role: 'provider', providerCategory: 'Beauty & Grooming',
+        phone: '+264810000004', role: 'provider', providerCategory: 'Home services',
         isVerified: true, provider: 'local', providerSetupComplete: true,
     });
 

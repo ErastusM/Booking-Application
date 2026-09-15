@@ -3,7 +3,7 @@
 const SEED = {
     customer: { email: 'e2e-customer@bookplus.dev', password: 'Password1!' },
     provider: { email: 'e2e-provider@bookplus.dev', password: 'Password1!' },
-    serviceName: 'E2E Haircut',
+    serviceName: 'E2E Session',
     providerName: 'E2E Provider',
 };
 

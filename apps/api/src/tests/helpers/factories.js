@@ -29,7 +29,7 @@ exports.makeProvider = async (overrides = {}) => {
         password: 'Password1!',
         phone: '+15550002000',
         role: 'provider',
-        providerCategory: 'Beauty & Grooming',
+        providerCategory: 'Home services',
         isVerified: true,
         provider: 'local',
         ...overrides,

@@ -217,7 +217,7 @@ const AnalyticsDashboard = () => {
 
                 <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '2rem' }}>
                     <MiniStat label="Customers" value={users.customers} icon="🧑" />
-                    <MiniStat label="Providers" value={users.providers} icon="💈" />
+                    <MiniStat label="Providers" value={users.providers} icon="🏪" />
                     <MiniStat label="New This Week" value={users.newLastWeek} icon="🆕" sub="New users" />
                     <MiniStat label="Completion Rate" value={`${appointments.total ? Math.round((appointments.byStatus.find(s => s._id === 'completed')?.count || 0) / appointments.total * 100) : 0}%`} icon="✅" sub="Of all bookings" />
                 </div>
