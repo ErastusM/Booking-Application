@@ -108,6 +108,43 @@ describe('POST /api/team/:id/invite', () => {
         expect(stillCustomer.staffOf).toBeFalsy();
     });
 
+    it('reuses an email whose only staff account is a fully-orphaned leftover', async () => {
+        // A staff login detached (staffOf:null) with NO roster row anywhere is a
+        // leftover from an older permanent removal — it belonged to no business but
+        // kept the email occupied, 409'ing every re-invite. It's now deleted and a
+        // clean account minted, so a removed person can be re-added on the same email.
+        const owner = await makeProvider();
+        const orphan = await makeUser({ email: 'boomerang@test.com', role: 'staff', staffOf: null, name: 'Boomerang' });
+        const member = await makeMember(owner, { name: 'Boomerang', email: 'boomerang@test.com' });
+
+        const res = await request(app).post(`/api/team/${member._id}/invite`).set(authHeader(owner));
+        expect(res.status).toBe(200);
+
+        // The stale orphan is gone; a fresh staff account was created and attached.
+        expect(await User.findById(orphan._id)).toBeNull();
+        const fresh = await User.findOne({ email: 'boomerang@test.com', role: 'staff' });
+        expect(fresh).toBeTruthy();
+        expect(String(fresh._id)).not.toBe(String(orphan._id));
+        expect(fresh.staffOf.toString()).toBe(owner._id.toString());
+        expect((await TeamMember.findById(member._id)).user.toString()).toBe(String(fresh._id));
+    });
+
+    it('still refuses an email that is active staff at another business', async () => {
+        const owner = await makeProvider();
+        const rival = await makeProvider();
+        // A live staff account of a DIFFERENT business — not an orphan, so it stays blocked.
+        const taken = await makeUser({ email: 'taken@test.com', role: 'staff', staffOf: rival._id });
+        const member = await makeMember(owner, { name: 'New' });
+
+        const res = await request(app)
+            .post(`/api/team/${member._id}/invite`)
+            .set(authHeader(owner))
+            .send({ email: 'taken@test.com' });
+        expect(res.status).toBe(409);
+        // The other business's account is untouched.
+        expect(await User.findById(taken._id)).toBeTruthy();
+    });
+
     it("cannot invite another provider's team member", async () => {
         const owner = await makeProvider();
         const rival = await makeProvider();
