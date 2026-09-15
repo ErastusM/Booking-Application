@@ -1,37 +1,40 @@
-// Keep in sync with client/src/constants/mainCategories.js
+// Granular service categories used for provider signup and the marketplace
+// category filter. Kept as a flat list because providerCategory is a single value.
+//
+// ALPHABETICAL on purpose, with 'Other' pinned last. This list is rendered in
+// array order by the provider-signup picker and the marketplace filter, so any
+// THEMATIC grouping necessarily front-loads whichever vertical is placed first —
+// it previously opened with nine consecutive hair/beauty entries, which made a
+// universal booking platform read as a salon directory to every other trade.
+// Alphabetical privileges no vertical and scans better in a 26-option select.
+//
+// Keep all three copies byte-identical: apps/customer, apps/business, apps/api.
 const MAIN_CATEGORIES = [
-    // Hair & beauty
-    'Hair & styling',
+    'Automotive',
     'Barbering',
-    'Nails',
-    'Hair removal',
+    'Cleaning',
+    'Counseling & therapy',
+    'Dental',
+    'Events & rentals',
     'Eyebrows & eyelashes',
     'Facials & skincare',
+    'Fitness & training',
+    'Hair & styling',
+    'Hair removal',
+    'Holistic health',
+    'Home services',
     'Makeup',
     'Massage & spa',
-    'Tattoo & piercing',
-    // Health & wellness
-    'Fitness & training',
-    'Physical therapy',
-    'Holistic health',
-    'Counseling & therapy',
-    'Nutrition & diet',
-    // Medical
-    'Dental',
     'Medical',
+    'Nails',
+    'Nutrition & diet',
     'Optical',
-    // Pets
     'Pet grooming',
-    'Veterinary',
-    // Home & auto
-    'Automotive',
-    'Cleaning',
-    'Home services',
-    // Creative & events
     'Photography & video',
-    'Events & rentals',
-    // Education
+    'Physical therapy',
+    'Tattoo & piercing',
     'Tutoring & education',
+    'Veterinary',
     'Other',
 ];
 

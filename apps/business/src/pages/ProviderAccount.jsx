@@ -354,7 +354,7 @@ const ProviderAccount = () => {
                                             </div>
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Job title</label>
-                                                <input value={profileForm.ownerTitle} onChange={e => setProfileForm(p => ({ ...p, ownerTitle: e.target.value.slice(0, 60) }))} className="input" placeholder="e.g. Barber, Stylist, Therapist" />
+                                                <input value={profileForm.ownerTitle} onChange={e => setProfileForm(p => ({ ...p, ownerTitle: e.target.value.slice(0, 60) }))} className="input" placeholder="e.g. Therapist, Trainer, Consultant, Technician" />
                                                 <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.3rem 0 0' }}>How you appear to clients when they pick a professional. Leave blank to show “Owner”.</p>
                                             </div>
                                             <div>

@@ -19,7 +19,7 @@ test.describe('Team — working hours labels', () => {
         await login(page, SEED.provider);
         await page.goto('/team');
 
-        const card = cardByName(page, 'Alex Stylist');
+        const card = cardByName(page, 'Alex Rivera');
         await expandCard(card);
         await card.getByTestId('tab-workspace').click();
 

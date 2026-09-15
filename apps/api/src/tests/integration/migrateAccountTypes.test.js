@@ -30,7 +30,7 @@ describe('legacy email_1 index blocks a second account; boot migration heals it'
         await User.collection.createIndex({ email: 1 }, { unique: true, name: 'email_1' });
 
         // A business account is created fine…
-        await User.create(mk({ role: 'provider', providerCategory: 'Beauty & Grooming', name: 'Biz' }));
+        await User.create(mk({ role: 'provider', providerCategory: 'Home services', name: 'Biz' }));
 
         // …but the SAME email as a customer is rejected by email_1 — this is the
         // reported "email already exists" block.

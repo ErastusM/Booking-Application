@@ -113,7 +113,7 @@ describe('POST /api/auth/register', () => {
     it('provider registration succeeds with valid providerCategory', async () => {
         const res = await request(app)
             .post('/api/auth/register')
-            .send({ ...validPayload, role: 'provider', providerCategory: 'Beauty & Grooming', email: 'provider@test.com' });
+            .send({ ...validPayload, role: 'provider', providerCategory: 'Home services', email: 'provider@test.com' });
         expect(res.status).toBe(201);
         expect(res.body.data.user.role).toBe('provider');
     });
