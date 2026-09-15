@@ -17,10 +17,15 @@ const seed = async () => {
     console.log('Cleared categories');
 
     // ── Create demo providers ──
+    // DELIBERATELY cross-vertical. Bookplus is a universal, one-stop booking
+    // platform for ANY appointment-based business, so the demo data spans
+    // different industries (health/physio, tutoring, grooming, home trades)
+    // rather than modelling one trade. Keep it that way — a single-vertical seed
+    // makes the whole product read as if it is only for that vertical.
     const providerData = [
         {
-            name: 'Marcus N.',
-            email: 'marcus@bookplus.com',
+            name: 'Dr. Lena Health & Physio',
+            email: 'lena@bookplus.com',
             phone: '0811234567',
             password: 'Admin123!',
             role: 'provider',
@@ -29,8 +34,8 @@ const seed = async () => {
             location: 'Windhoek Central',
         },
         {
-            name: 'James Styles',
-            email: 'james@bookplus.com',
+            name: 'BrightMind Tutoring',
+            email: 'brightmind@bookplus.com',
             phone: '0812345678',
             password: 'Admin123!',
             role: 'provider',
@@ -39,8 +44,8 @@ const seed = async () => {
             location: 'Klein Windhoek',
         },
         {
-            name: 'David Cuts',
-            email: 'david@bookplus.com',
+            name: 'FreshFade Studio',
+            email: 'freshfade@bookplus.com',
             phone: '0813456789',
             password: 'Admin123!',
             role: 'provider',
@@ -49,8 +54,8 @@ const seed = async () => {
             location: 'Katutura',
         },
         {
-            name: 'Sam K.',
-            email: 'sam@bookplus.com',
+            name: 'QuickFix Home Services',
+            email: 'quickfix@bookplus.com',
             phone: '0814567890',
             password: 'Admin123!',
             role: 'provider',
@@ -73,96 +78,102 @@ const seed = async () => {
     }
 
     // ── Create categories and services per provider ──
+    // Each provider models a DIFFERENT kind of booking business on purpose.
     const providerServices = [
         {
-            provider: providers[0], // Marcus — Windhoek Central
+            provider: providers[0], // Dr. Lena — Health & Physio (Windhoek Central)
+            categories: [
+                {
+                    name: 'Physiotherapy',
+                    services: [
+                        { name: 'Sports Physio Session', description: 'Assessment and treatment for a sports injury or strain.', price: 350, duration: 45 },
+                        { name: 'Injury Rehab Session', description: 'Guided rehabilitation exercises and hands-on therapy.', price: 400, duration: 60 },
+                    ],
+                },
+                {
+                    name: 'Massage Therapy',
+                    services: [
+                        { name: 'Deep Tissue Massage', description: 'Firm-pressure massage targeting tension and knots.', price: 300, duration: 60 },
+                        { name: 'Relaxation Massage', description: 'Gentle full-body massage to unwind and de-stress.', price: 250, duration: 45 },
+                    ],
+                },
+                {
+                    name: 'Consultation',
+                    services: [
+                        { name: 'Initial Assessment', description: 'First-visit consultation and treatment plan.', price: 200, duration: 30 },
+                    ],
+                },
+            ],
+        },
+        {
+            provider: providers[1], // BrightMind — Tutoring (Klein Windhoek)
+            categories: [
+                {
+                    name: 'Academic Tutoring',
+                    services: [
+                        { name: 'Maths Tutoring (1 hour)', description: 'One-on-one maths support for any grade.', price: 180, duration: 60 },
+                        { name: 'Science Tutoring (1 hour)', description: 'Physics, chemistry or biology, tailored to the student.', price: 180, duration: 60 },
+                    ],
+                },
+                {
+                    name: 'Exam Preparation',
+                    services: [
+                        { name: 'Exam Prep Intensive', description: 'Focused revision and past-paper practice before exams.', price: 250, duration: 90 },
+                    ],
+                },
+                {
+                    name: 'Languages',
+                    services: [
+                        { name: 'English Reading Support', description: 'Reading, comprehension and writing help.', price: 150, duration: 45 },
+                    ],
+                },
+            ],
+        },
+        {
+            provider: providers[2], // FreshFade — Grooming (Katutura)
             categories: [
                 {
                     name: 'Haircuts',
                     services: [
-                        { name: 'Classic Haircut', description: 'Clean, precise haircut tailored to your style.', price: 120, duration: 30 },
-                        { name: 'Fade Cut', description: 'Sharp fade from skin to length with clean lines.', price: 150, duration: 45 },
-                        { name: 'Kids Haircut', description: 'Fun, gentle haircut for children under 12.', price: 80, duration: 25 },
+                        { name: 'Signature Haircut', description: 'Clean, precise haircut tailored to your style.', price: 150, duration: 45 },
+                        { name: 'Kids Cut', description: 'Fun, gentle haircut for children under 12.', price: 80, duration: 25 },
                     ],
                 },
                 {
                     name: 'Beard',
                     services: [
-                        { name: 'Beard Trim', description: 'Shape and trim your beard to perfection.', price: 80, duration: 20 },
-                        { name: 'Beard Design', description: 'Custom beard design and sharp lines.', price: 120, duration: 30 },
+                        { name: 'Beard Trim & Shape', description: 'Shape and trim your beard to perfection.', price: 80, duration: 20 },
                     ],
                 },
                 {
                     name: 'Combos',
                     services: [
-                        { name: 'Cut & Beard Combo', description: 'Full haircut plus beard trim and shape.', price: 180, duration: 60 },
+                        { name: 'Cut & Beard Combo', description: 'Full haircut plus beard trim and shape.', price: 200, duration: 60 },
                     ],
                 },
             ],
         },
         {
-            provider: providers[1], // James — Klein Windhoek
+            provider: providers[3], // QuickFix — Home Services / trades (Eros)
             categories: [
                 {
-                    name: 'Premium Cuts',
+                    name: 'Plumbing',
                     services: [
-                        { name: 'Signature Cut', description: 'James\'s signature style cut with consultation.', price: 250, duration: 60 },
-                        { name: 'Low Taper Fade', description: 'Clean low taper with sharp edges.', price: 200, duration: 45 },
-                        { name: 'High Top Fade', description: 'Bold high top with precise fade.', price: 220, duration: 50 },
+                        { name: 'Plumbing Callout', description: 'On-site visit to diagnose and quote a plumbing issue.', price: 250, duration: 60 },
+                        { name: 'Leak Repair', description: 'Locate and repair a leaking pipe, tap or fitting.', price: 350, duration: 90 },
                     ],
                 },
                 {
-                    name: 'Treatments',
+                    name: 'Electrical',
                     services: [
-                        { name: 'Hot Towel Shave', description: 'Traditional straight razor shave with hot towel.', price: 180, duration: 40 },
-                        { name: 'Scalp Treatment', description: 'Deep conditioning scalp massage and treatment.', price: 150, duration: 35 },
-                    ],
-                },
-            ],
-        },
-        {
-            provider: providers[2], // David — Katutura
-            categories: [
-                {
-                    name: 'Cuts',
-                    services: [
-                        { name: 'Regular Cut', description: 'Affordable, clean cut for any style.', price: 60, duration: 25 },
-                        { name: 'Shape Up', description: 'Edge up and shape up for a clean look.', price: 50, duration: 15 },
-                        { name: 'Skin Fade', description: 'Smooth skin fade with your choice of length on top.', price: 90, duration: 35 },
+                        { name: 'Electrical Inspection', description: 'Safety inspection of wiring, outlets and the DB board.', price: 300, duration: 60 },
+                        { name: 'Socket / Light Installation', description: 'Install or replace a socket, switch or light fitting.', price: 280, duration: 45 },
                     ],
                 },
                 {
-                    name: 'Beard',
+                    name: 'Appliances',
                     services: [
-                        { name: 'Beard Line Up', description: 'Sharp beard line up and neck cleanup.', price: 40, duration: 15 },
-                        { name: 'Full Beard Groom', description: 'Complete beard wash, trim and oil treatment.', price: 70, duration: 25 },
-                    ],
-                },
-                {
-                    name: 'Specials',
-                    services: [
-                        { name: 'Student Special', description: 'Cut + shape up at a discounted student rate.', price: 80, duration: 35 },
-                    ],
-                },
-            ],
-        },
-        {
-            provider: providers[3], // Sam — Eros
-            categories: [
-                {
-                    name: 'Haircuts',
-                    services: [
-                        { name: 'Executive Cut', description: 'Professional cut for the working gentleman.', price: 160, duration: 40 },
-                        { name: 'Textured Crop', description: 'Modern textured crop with fade.', price: 170, duration: 45 },
-                        { name: 'Caesar Cut', description: 'Classic Caesar cut with clean edges.', price: 140, duration: 35 },
-                    ],
-                },
-                {
-                    name: 'Grooming',
-                    services: [
-                        { name: 'Full Groom Package', description: 'Cut, beard, eyebrow trim and hot towel finish.', price: 280, duration: 90 },
-                        { name: 'Eyebrow Trim', description: 'Clean eyebrow shaping and trim.', price: 50, duration: 15 },
-                        { name: 'Hair Wash & Style', description: 'Shampoo, condition, blow dry and style.', price: 100, duration: 30 },
+                        { name: 'Appliance Repair Visit', description: 'Diagnose and repair a household appliance on site.', price: 320, duration: 60 },
                     ],
                 },
             ],
