@@ -55,6 +55,10 @@ docker compose up -d    # mongodb · server · customer · business · nginx · 
   (+ `/insights`) — admins log into business.bookplus.pro.
 - Push to `main` = deploy (CI builds images → Docker Hub → SSH auto-deploy).
   **Never push to main without explicit approval.**
+- Images are tagged by commit sha and the deploy pins that exact tag, so a
+  deploy always ships the commit it was gated on. `cat /app/.env` on the droplet
+  shows the live commit; `cd /app && sh ops/rollback.sh` restores the previous
+  one. Details in `DEPLOY_DUAL_APP.md`.
 - Version bump = `apps/api` + `apps/customer` + `apps/business` package.json
   and an annotated `vX.Y.Z` tag.
 - Local env: apps take `VITE_API_URL` (API **origin** only, e.g.
