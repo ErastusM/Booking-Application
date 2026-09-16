@@ -239,7 +239,7 @@ const Navbar = () => {
                     never has to wrap. */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }} className="nav-desktop">
                     {navCan('calendar:view_all') && navLink('/dashboard', 'Calendar')}
-                    {navCan('clients:view') && navLink('/dashboard?tab=clients', 'Clients')}
+                    {navCan('clients:assigned') && navLink('/dashboard?tab=clients', 'Clients')}
                     {user?.role === 'provider' && navLink('/dashboard?tab=earnings', 'Earnings')}
                     {user?.role === 'provider' && navLink('/dashboard?tab=services', 'Catalogue')}
                     {user?.role === 'provider' && (
@@ -519,7 +519,7 @@ const Navbar = () => {
                     <div style={{ flex: 1, padding: '0.6rem 0' }}>
                         {/* Primary — the four everyday areas (mirrors desktop + bottom nav) */}
                         {navCan('calendar:view_all') && mobileLink('/dashboard', 'Calendar')}
-                        {navCan('clients:view') && mobileLink('/dashboard?tab=clients', 'Clients')}
+                        {navCan('clients:assigned') && mobileLink('/dashboard?tab=clients', 'Clients')}
                         {user?.role === 'provider' && mobileLink('/dashboard?tab=earnings', 'Earnings')}
                         {user?.role === 'provider' && mobileLink('/dashboard?tab=services', 'Catalogue')}
 

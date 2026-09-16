@@ -1,6 +1,8 @@
 const mongoose = require('mongoose');
 const Appointment = require('../models/Appointment');
 const ClientNote = require('../models/ClientNote');
+const TeamMember = require('../models/TeamMember');
+const { memberInvolvedFilter } = require('../utils/staffBooking');
 
 // The business a request acts on. For an owner it's their own id; for a staff
 // member (Medium tier, clients:* capability) it's the business they work for, so
@@ -9,6 +11,37 @@ const ClientNote = require('../models/ClientNote');
 // staff account with no employer (detached), which the handlers reject.
 const businessScope = (req) => (req.user.role === 'staff' ? req.user.staffOf || null : req.user._id);
 
+/**
+ * WHICH clients this request may read — the business scope narrowed by assignment.
+ *
+ * The owner (and admin) sees every client of the business. A STAFF member sees
+ * only the clients they are ASSIGNED to: the bookings they personally perform,
+ * top-level or as one segment of a multi-service ticket. That is what the spec
+ * always specified — DUAL_APP_SPEC §2b ("/clients … provider/admin, staff(assigned)"),
+ * §4.2 ("a staff principal is scoped to staffOf and, for calendar/clients, to
+ * their own assignments") and the Epic 2.4 AC ("an invited staff … sees only
+ * their calendar + assigned clients") — but `clients:assigned` was a no-op, so a
+ * Medium-tier staff member got the WHOLE client list instead.
+ *
+ * Deliberately, NO capability widens a staff principal here: seeing the whole
+ * business is the owner's view alone. This mirrors buildAppointmentScope in
+ * appointmentController (same memberInvolvedFilter, so the calendar and the CRM
+ * can never disagree about which bookings are "theirs"), with one difference —
+ * the calendar has calendar:view_all, the client list has no equivalent.
+ *
+ * Returns { forbidden } for a detached staff account, { empty } for a staff
+ * member with no roster row (they perform nothing, so they have no clients), or
+ * { providerId, filter }.
+ */
+const buildClientScope = async (req) => {
+    const providerId = businessScope(req);
+    if (!providerId) return { forbidden: true };
+    if (req.user.role !== 'staff') return { providerId, filter: { provider: providerId } };
+    const member = await TeamMember.findOne({ user: req.user._id, provider: providerId }).select('_id');
+    if (!member) return { providerId, empty: true };
+    return { providerId, filter: { provider: providerId, ...memberInvolvedFilter(member._id) } };
+};
+
 // Get all unique clients who have used this provider's services — registered
 // customers (booked online) AND walk-ins logged by the provider. A walk-in has
 // no account, so its appointment carries the provider's own id as `customer`
@@ -16,15 +49,19 @@ const businessScope = (req) => (req.user.role === 'staff' ? req.user.staffOf || 
 // instead of lumping them under the provider.
 exports.getMyClients = async (req, res) => {
     try {
-        const providerId = businessScope(req);
-        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const scope = await buildClientScope(req);
+        if (scope.forbidden) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        // A staff member with no roster row performs nothing, so they have no
+        // assigned clients — an empty list, not an error.
+        if (scope.empty) return res.status(200).json({ success: true, data: [] });
+        const { providerId } = scope;
         const providerIdStr = providerId.toString();
 
         // Only the fields the per-client roll-up below reads — as lean plain
         // objects, and with the never-referenced service join dropped. This was
         // hydrating the provider's whole appointment history (two populates) just
         // to reduce it to one row per client.
-        const appointments = await Appointment.find({ provider: providerId })
+        const appointments = await Appointment.find(scope.filter)
             .select('customer walkInName status totalPrice appointmentDate')
             .populate('customer', 'name email phone createdAt')
             .sort({ appointmentDate: -1 })
@@ -76,26 +113,40 @@ exports.getMyClients = async (req, res) => {
 // Get full appointment history for a specific client (for this provider)
 exports.getClientDetail = async (req, res) => {
     try {
-        const providerId = businessScope(req);
-        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const scope = await buildClientScope(req);
+        if (scope.forbidden) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        if (scope.empty) return res.status(404).json({ success: false, message: 'Client not found' });
+        const { providerId } = scope;
         const { customerId } = req.params;
 
         // Walk-in client (no account) — resolve by name; no notes.
         if (customerId.startsWith('walkin:')) {
             const name = customerId.slice('walkin:'.length).replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-            const appointments = await Appointment.find({ provider: providerId, walkInName: new RegExp(`^${name}$`, 'i') })
+            const appointments = await Appointment.find({ ...scope.filter, walkInName: new RegExp(`^${name}$`, 'i') })
                 .populate('service', 'name price duration')
                 .sort({ appointmentDate: -1 });
+            // For staff the scope is assignment-narrowed, so no rows means this
+            // isn't one of their clients — don't confirm the person exists.
+            if (!appointments.length && req.user.role === 'staff') {
+                return res.status(404).json({ success: false, message: 'Client not found' });
+            }
             return res.status(200).json({ success: true, data: { appointments, note: null } });
         }
 
         // The history and the CRM note are independent — fetch them together.
         const [appointments, note] = await Promise.all([
-            Appointment.find({ provider: providerId, customer: customerId })
+            Appointment.find({ ...scope.filter, customer: customerId })
                 .populate('service', 'name price duration')
                 .sort({ appointmentDate: -1 }),
             ClientNote.findOne({ provider: providerId, customer: customerId }),
         ]);
+
+        // Same guard for registered clients: a staff member may only open a
+        // client they actually serve. The note is business-wide, so withhold it
+        // (and the 200) rather than leak a colleague's client's CRM record.
+        if (!appointments.length && req.user.role === 'staff') {
+            return res.status(404).json({ success: false, message: 'Client not found' });
+        }
 
         res.status(200).json({ success: true, data: { appointments, note: note || null } });
     } catch (error) {
@@ -106,8 +157,10 @@ exports.getClientDetail = async (req, res) => {
 // Create or update CRM note for a client
 exports.upsertClientNote = async (req, res) => {
     try {
-        const providerId = businessScope(req);
-        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const scope = await buildClientScope(req);
+        if (scope.forbidden) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        if (scope.empty) return res.status(404).json({ success: false, message: 'Client not found' });
+        const { providerId } = scope;
         const { customerId } = req.params;
         const { notes, allergies, conditions, internalNotes, tags, birthday } = req.body;
 
@@ -123,7 +176,9 @@ exports.upsertClientNote = async (req, res) => {
         if (!mongoose.isValidObjectId(customerId)) {
             return res.status(400).json({ success: false, message: 'Invalid client id' });
         }
-        const isClient = await Appointment.exists({ provider: providerId, customer: customerId });
+        // Scope-narrowed, so for a staff member this ALSO enforces assignment: they
+        // may only write a note about a client they personally serve.
+        const isClient = await Appointment.exists({ ...scope.filter, customer: customerId });
         if (!isClient) {
             return res.status(404).json({ success: false, message: 'Client not found' });
         }

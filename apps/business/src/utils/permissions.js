@@ -15,6 +15,11 @@ const BASIC = [
     'account:self', 'profile:self', 'calendar:view', 'availability:self', 'availability:view',
     'services:view', 'services:self', 'prices:self', 'timeoff:self', 'providers:view',
     'reviews:view', 'forms:submit', 'clients:contact:self',
+    // Every staff member may see the clients they personally serve — and only
+    // those. The whole-business client list is the owner's view alone; the
+    // server (clientCRMController buildClientScope) narrows staff to their
+    // assigned clients regardless of tier.
+    'clients:assigned',
 ];
 const LOW = BASIC.concat([
     'bookings:status:self', 'bookings:reschedule:self', 'bookings:cancel:self',
