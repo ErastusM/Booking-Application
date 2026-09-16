@@ -72,9 +72,10 @@ const teamMemberSchema = new mongoose.Schema({
     //   false → performs ONLY the services listed below (empty = none yet)
     //   unset → legacy rows created before this field: empty services = all,
     //           otherwise only the listed ones (preserves prior behaviour).
-    // New members are created with offersAllServices:true so the simple
-    // single-trade case (everyone does the same work) still works out of the box,
-    // while a diverse team can switch a member off and pick their own services.
+    // New members are created with offersAllServices:false and an empty list
+    // (memberCreateDoc), so a new hire offers NOTHING until their services are
+    // picked — adding "the cleaner" must never make them bookable for the whole
+    // menu. The owner flips this on for a member who genuinely does everything.
     offersAllServices: { type: Boolean },
     services: [{ type: mongoose.Schema.Types.ObjectId, ref: 'Service' }],
 

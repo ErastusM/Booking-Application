@@ -1023,6 +1023,12 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                     </span>
                                     <Switch checked={offersAll} disabled={busy === 'services'} onChange={setServiceMode} label={offersAll ? 'All' : 'Only selected'} data-testid="offers-all-switch" />
                                 </div>
+                                {!offersAll && assigned.length === 0 && (
+                                    <p style={{ margin: '0 0 0.6rem', fontSize: '0.82rem', fontWeight: 600, color: 'var(--gold-dark)' }} data-testid="no-services-yet">
+                                        Nothing selected yet — {member.name.split(' ')[0]} can’t be booked for any service until you tick the ones they offer below.
+                                        The list is this business’s catalogue; if their service isn’t there, add it under Services first.
+                                    </p>
+                                )}
                                 {!offersAll && (
                                     <>
                                         <p style={{ margin: '0 0 0.5rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
@@ -1363,18 +1369,20 @@ const Team = () => {
 
     useEffect(() => { load(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // Name, job title and email are all mandatory on a member: the title is what
+    // clients see when they pick a professional, the email is how the member is
+    // invited to log in. The server enforces this too — the form just refuses to
+    // submit an incomplete row so the owner isn't sent a 400 they could have seen.
+    const canAdd = !!newName.trim() && !!newRole.trim() && !!newEmail.trim();
+
     const addMember = async (e) => {
         e.preventDefault();
         const name = newName.trim();
-        if (!name || adding) return;
+        if (!canAdd || adding) return;
         setError('');
         setAdding(true);
         try {
-            // Capture job title + email up front (both optional) so a new member is
-            // invite-ready without a second edit. The API already accepts them.
-            const payload = { name };
-            if (newRole.trim()) payload.role = newRole.trim();
-            if (newEmail.trim()) payload.email = newEmail.trim();
+            const payload = { name, role: newRole.trim(), email: newEmail.trim() };
             await teamService.addMember(payload);
             setNewName(''); setNewRole(''); setNewEmail('');
             // Confirm via the app's standard auto-dismissing toast (the new row
@@ -1389,7 +1397,8 @@ const Team = () => {
     };
 
     // Parse the textarea into member rows: one per non-empty line, fields split
-    // on commas — "Name, Job title, email". Only the name is required per row.
+    // on commas — "Name, Job title, email". All three are required; the server
+    // reports any row that is missing one, without failing the rest.
     const parseBulk = (text) => text.split('\n').map((line) => {
         const [name = '', role = '', email = ''] = line.split(',').map((s) => s.trim());
         return { name, role, email };
@@ -1433,9 +1442,9 @@ const Team = () => {
 
             <form onSubmit={addMember} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
                 <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name" className="input" style={{ flex: '1 1 180px', maxWidth: '260px' }} data-testid="new-member-name" />
-                <input value={newRole} onChange={e => setNewRole(e.target.value)} placeholder="Job title (optional)" className="input" style={{ flex: '1 1 150px', maxWidth: '220px' }} data-testid="new-member-role" />
-                <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="Email (optional)" className="input" style={{ flex: '1 1 180px', maxWidth: '240px' }} data-testid="new-member-email" />
-                <button type="submit" className="btn-primary" data-testid="new-member-add" disabled={!newName.trim() || adding} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 1.4rem' }}>
+                <input value={newRole} onChange={e => setNewRole(e.target.value)} placeholder="Job title" required className="input" style={{ flex: '1 1 150px', maxWidth: '220px' }} data-testid="new-member-role" />
+                <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="Email" required className="input" style={{ flex: '1 1 180px', maxWidth: '240px' }} data-testid="new-member-email" />
+                <button type="submit" className="btn-primary" data-testid="new-member-add" disabled={!canAdd || adding} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 1.4rem' }}>
                     <UserPlus size={16} /> {adding ? 'Adding…' : 'Add'}
                 </button>
             </form>
@@ -1450,7 +1459,7 @@ const Team = () => {
                 {bulkOpen && (
                     <div style={{ marginTop: '0.7rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem 1.1rem' }} data-testid="bulk-add">
                         <p style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                            One person per line — <strong>Name, Job title, email</strong> (job title and email optional). Up to 50.
+                            One person per line — <strong>Name, Job title, email</strong> (all three required). Up to 50.
                         </p>
                         <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={5} className="input" data-testid="bulk-text"
                             placeholder={'Alice Johnson, Manager, alice@example.com\nBob Smith, Specialist\nCarol Ndapewa'}

@@ -398,7 +398,7 @@ describe('GET /api/providers/:id/staff (public)', () => {
 describe('offersAllServices — a member’s services are their own and optional', () => {
     it('new members start with no services (offers nothing until set up)', async () => {
         const owner = await makeProvider();
-        const res = await request(app).post('/api/team').set(authHeader(owner)).send({ name: 'New Hire' });
+        const res = await request(app).post('/api/team').set(authHeader(owner)).send({ name: 'New Hire', role: 'Cleaner', email: 'hire@test.com' });
         expect(res.status).toBe(201);
         expect(res.body.data.offersAllServices).toBe(false);
         expect(res.body.data.services || []).toEqual([]);
@@ -503,5 +503,56 @@ describe('Staff principal — login + profile (spec §4.2 auth)', () => {
         expect(profile.body.data.role).toBe('staff');
         expect(profile.body.data.staffOf.toString()).toBe(owner._id.toString());
         expect(profile.body.data.staffPermissions).toEqual(['calendar:self']);
+    });
+});
+
+describe('a team member must have a job title and an email', () => {
+    const add = (owner, body) => request(app).post('/api/team').set(authHeader(owner)).send(body);
+
+    it('refuses a member with no job title', async () => {
+        const owner = await makeProvider();
+        const res = await add(owner, { name: 'No Title', email: 'nt@test.com' });
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/job title is required/i);
+    });
+
+    it('refuses a member with no email', async () => {
+        const owner = await makeProvider();
+        const res = await add(owner, { name: 'No Email', role: 'Cleaner' });
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/email is required/i);
+    });
+
+    it('refuses a malformed email', async () => {
+        const owner = await makeProvider();
+        const res = await add(owner, { name: 'Bad Email', role: 'Cleaner', email: 'not-an-email' });
+        expect(res.status).toBe(400);
+        expect(res.body.message).toMatch(/valid email/i);
+    });
+
+    it('no longer silently defaults the job title to "Staff"', async () => {
+        // The title is what clients see when picking a professional; a meaningless
+        // default used to be written whenever the owner left it blank.
+        const owner = await makeProvider();
+        const res = await add(owner, { name: 'Real Title', role: 'Cleaner', email: 'rt@test.com' });
+        expect(res.status).toBe(201);
+        expect(res.body.data.role).toBe('Cleaner');
+        expect(await TeamMember.countDocuments({ provider: owner._id, role: 'Staff' })).toBe(0);
+    });
+
+    it('an edit cannot clear the job title or the email', async () => {
+        const owner = await makeProvider();
+        const created = await add(owner, { name: 'Keep', role: 'Cleaner', email: 'keep@test.com' });
+        const id = created.body.data._id;
+        const noRole = await request(app).put(`/api/team/${id}`).set(authHeader(owner)).send({ role: '   ' });
+        expect(noRole.status).toBe(400);
+        const noEmail = await request(app).put(`/api/team/${id}`).set(authHeader(owner)).send({ email: '' });
+        expect(noEmail.status).toBe(400);
+        // A partial edit that omits them is still fine.
+        const ok = await request(app).put(`/api/team/${id}`).set(authHeader(owner)).send({ phone: '+264810000000' });
+        expect(ok.status).toBe(200);
+        const row = await TeamMember.findById(id);
+        expect(row.role).toBe('Cleaner');
+        expect(row.email).toBe('keep@test.com');
     });
 });

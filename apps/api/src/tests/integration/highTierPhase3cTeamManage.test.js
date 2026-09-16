@@ -33,7 +33,7 @@ describe('team:manage — wired operational routes', () => {
     it('a High staff member adds a member under their EMPLOYER', async () => {
         const provider = await makeProvider();
         const { login: high } = await makeStaff(provider, 'high');
-        const res = await request(app).post('/api/team').set(authHeader(high)).send({ name: 'New Hire' });
+        const res = await request(app).post('/api/team').set(authHeader(high)).send({ name: 'New Hire', role: 'Cleaner', email: 'hire@test.com' });
         expect(res.status).toBe(201);
         expect(String(res.body.data.provider)).toBe(String(provider._id));
     });
@@ -54,7 +54,7 @@ describe('team:manage — wired operational routes', () => {
     it('a Medium staff member cannot manage the team (no team:manage)', async () => {
         const provider = await makeProvider();
         const { login: medium } = await makeStaff(provider, 'medium');
-        const res = await request(app).post('/api/team').set(authHeader(medium)).send({ name: 'X' });
+        const res = await request(app).post('/api/team').set(authHeader(medium)).send({ name: 'X', role: 'Cleaner', email: 'x@test.com' });
         expect(res.status).toBe(403);
     });
 
