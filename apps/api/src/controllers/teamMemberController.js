@@ -147,21 +147,37 @@ exports.getMyTeam = async (req, res) => {
     }
 };
 
-// The create doc for one roster row, with the same normalization + defaults for
-// the single-add and bulk-add paths. `name` may come back empty — the caller
-// treats an empty name as the one hard validation error (as addTeamMember always
-// has). Start with NO services (offersAllServices:false + empty list): a new
-// member offers nothing until their own are set up, so adding "the cleaner"
-// never silently makes them bookable for the barber's whole menu.
+// The create doc for one roster row, with the same normalization for the
+// single-add and bulk-add paths. Start with NO services (offersAllServices:false
+// + empty list): a new member offers nothing until their own are set up, so
+// adding "the cleaner" never silently makes them bookable for the barber's whole
+// menu. Validation lives in memberCreateError() so both paths refuse the same
+// things for the same reasons.
 const memberCreateDoc = (providerId, { name, role, email, phone, color } = {}) => ({
     provider: providerId,
     name: String(name || '').trim(),
-    role: String(role || 'Staff').trim() || 'Staff',
+    role: String(role || '').trim(),
     email: String(email || '').trim().toLowerCase(),
     phone: String(phone || '').trim(),
     color: color || '#f03e16',
     offersAllServices: false,
 });
+
+// Loose shape check only — deliverability is proven by the invite link, not here.
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+// A team member must have a name, a JOB TITLE and an EMAIL. The title is what
+// clients see when they pick a professional (it used to silently default to
+// "Staff", which is meaningless to a customer); the email is how the member is
+// invited to log in and reached about their bookings. Returns the first problem
+// as a user-facing message, or null when the row is acceptable.
+const memberCreateError = (doc) => {
+    if (!doc.name) return 'Name is required';
+    if (!doc.role) return 'Job title is required';
+    if (!doc.email) return 'Email is required';
+    if (!EMAIL_RE.test(doc.email)) return 'Enter a valid email address';
+    return null;
+};
 
 exports.addTeamMember = async (req, res) => {
     try {
@@ -170,8 +186,9 @@ exports.addTeamMember = async (req, res) => {
         const providerId = businessScope(req);
         if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const doc = memberCreateDoc(providerId, req.body);
-        if (!doc.name) {
-            return res.status(400).json({ success: false, message: 'Name is required' });
+        const problem = memberCreateError(doc);
+        if (problem) {
+            return res.status(400).json({ success: false, message: problem });
         }
         const member = await TeamMember.create(doc);
         res.status(201).json({ success: true, data: redactHR(req, member) });
@@ -207,8 +224,9 @@ exports.bulkAddTeamMembers = async (req, res) => {
         let created = 0;
         for (const raw of rows) {
             const doc = memberCreateDoc(providerId, raw);
-            if (!doc.name) {
-                results.push({ ok: false, name: String(raw?.name || '').trim(), error: 'Name is required' });
+            const problem = memberCreateError(doc);
+            if (problem) {
+                results.push({ ok: false, name: String(raw?.name || '').trim(), error: problem });
                 continue;
             }
             try {
@@ -252,6 +270,18 @@ exports.updateTeamMember = async (req, res) => {
         // linked login below (findOneAndUpdate only returns the new value).
         const existing = await TeamMember.findOne({ _id: req.params.id, provider: providerId });
         if (!existing) return res.status(404).json({ success: false, message: 'Team member not found' });
+
+        // Job title and email are mandatory on a member and must not be cleared by
+        // an edit. Only judged when the field is actually sent — a partial body
+        // that omits them leaves them untouched.
+        if (role !== undefined && !String(role).trim()) {
+            return res.status(400).json({ success: false, message: 'Job title is required' });
+        }
+        if (email !== undefined) {
+            const e = String(email).trim().toLowerCase();
+            if (!e) return res.status(400).json({ success: false, message: 'Email is required' });
+            if (!EMAIL_RE.test(e)) return res.status(400).json({ success: false, message: 'Enter a valid email address' });
+        }
 
         // employment + notes are OWNER-ONLY HR. Writing them here was safe only
         // because this route used to be owner-gated; now a team:manage staff

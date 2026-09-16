@@ -40,6 +40,10 @@ test.describe('Team — invite to log in', () => {
         // seeded roster (unique name survives a CI retry against the same server).
         const name = `E2E Invitee ${Date.now()}`;
         await page.getByTestId('new-member-name').fill(name);
+        // Job title and email are mandatory on a member; the Add button stays
+        // disabled until all three are filled.
+        await page.getByTestId('new-member-role').fill('Specialist');
+        await page.getByTestId('new-member-email').fill(`invitee-${Date.now()}@example.com`);
         await page.getByTestId('new-member-add').click();
 
         // The add must visibly CONFIRM — an auto-dismissing toast, not just a row

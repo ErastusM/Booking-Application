@@ -22,9 +22,9 @@ describe('POST /api/team/bulk', () => {
     it('creates several members at once, all scoped to the caller business', async () => {
         const provider = await makeProvider();
         const res = await bulk(provider, [
-            { name: 'Alice', role: 'Barber' },
-            { name: 'Bob', email: 'BOB@Test.com' },
-            { name: 'Carol' },
+            { name: 'Alice', role: 'Barber', email: 'alice@test.com' },
+            { name: 'Bob', role: 'Cleaner', email: 'BOB@Test.com' },
+            { name: 'Carol', role: 'Manager', email: 'carol@test.com' },
         ]);
         expect(res.status).toBe(201);
         expect(res.body.data.created).toBe(3);
@@ -36,22 +36,28 @@ describe('POST /api/team/bulk', () => {
         expect(rows.map((r) => r.name)).toEqual(['Alice', 'Bob', 'Carol']);
         expect(rows[1].email).toBe('bob@test.com');   // normalized like addTeamMember
         expect(rows[0].role).toBe('Barber');
-        expect(rows[2].role).toBe('Staff');           // default
+        expect(rows[2].role).toBe('Manager');         // no silent "Staff" default any more
         expect(rows.every((r) => r.offersAllServices === false)).toBe(true);
     });
 
     it('reports a bad row without failing the good ones', async () => {
         const provider = await makeProvider();
         const res = await bulk(provider, [
-            { name: 'Good One' },
-            { name: '   ' },          // blank name → reported, not created
-            { name: 'Good Two' },
+            { name: 'Good One', role: 'Cleaner', email: 'g1@test.com' },
+            { name: '   ', role: 'Cleaner', email: 'blank@test.com' },   // blank name → reported, not created
+            { name: 'No Title', email: 'nt@test.com' },                  // missing job title → reported
+            { name: 'No Email', role: 'Cleaner' },                       // missing email → reported
+            { name: 'Good Two', role: 'Cleaner', email: 'g2@test.com' },
         ]);
         expect(res.status).toBe(201);
         expect(res.body.data.created).toBe(2);
-        expect(res.body.data.failed).toBe(1);
-        const bad = res.body.data.results.find((r) => !r.ok);
-        expect(bad.error).toMatch(/name is required/i);
+        expect(res.body.data.failed).toBe(3);
+        const errors = res.body.data.results.filter((r) => !r.ok).map((r) => r.error);
+        expect(errors).toEqual(expect.arrayContaining([
+            expect.stringMatching(/name is required/i),
+            expect.stringMatching(/job title is required/i),
+            expect.stringMatching(/email is required/i),
+        ]));
         expect(await TeamMember.countDocuments({ provider: provider._id })).toBe(2);
     });
 
@@ -59,14 +65,14 @@ describe('POST /api/team/bulk', () => {
         const provider = await makeProvider();
         expect((await bulk(provider, [])).status).toBe(400);
         expect((await request(app).post('/api/team/bulk').set(authHeader(provider)).send({})).status).toBe(400);
-        const tooMany = Array.from({ length: 51 }, (_, i) => ({ name: `M${i}` }));
+        const tooMany = Array.from({ length: 51 }, (_, i) => ({ name: `M${i}`, role: 'Cleaner', email: `m${i}@test.com` }));
         expect((await bulk(provider, tooMany)).status).toBe(400);
         expect(await TeamMember.countDocuments({ provider: provider._id })).toBe(0);
     });
 
     it('returns 400 with success:false when every row is invalid', async () => {
         const provider = await makeProvider();
-        const res = await bulk(provider, [{ name: '' }, { role: 'Barber' }]);
+        const res = await bulk(provider, [{ name: '', role: 'Cleaner', email: 'a@test.com' }, { role: 'Barber', email: 'b@test.com' }]);
         expect(res.status).toBe(400);
         expect(res.body.success).toBe(false);
         expect(res.body.data.created).toBe(0);
@@ -76,7 +82,7 @@ describe('POST /api/team/bulk', () => {
         const provider = await makeProvider();
         const otherBiz = await makeProvider();
         const res = await bulk(provider, [
-            { name: 'Sneaky', provider: String(otherBiz._id), isActive: true, bookable: true },
+            { name: 'Sneaky', role: 'Cleaner', email: 'sneaky@test.com', provider: String(otherBiz._id), isActive: true, bookable: true },
         ]);
         expect(res.status).toBe(201);
         expect(res.body.data.created).toBe(1);
@@ -89,7 +95,7 @@ describe('POST /api/team/bulk', () => {
     it('a staff member cannot bulk-add (owner-only route)', async () => {
         const provider = await makeProvider();
         const staff = await makeUser({ role: 'staff', staffOf: provider._id, email: 'staff@test.com' });
-        const res = await bulk(staff, [{ name: 'X' }]);
+        const res = await bulk(staff, [{ name: 'X', role: 'Cleaner', email: 'x@test.com' }]);
         expect([401, 403]).toContain(res.status);
         expect(await TeamMember.countDocuments({ provider: provider._id })).toBe(0);
     });

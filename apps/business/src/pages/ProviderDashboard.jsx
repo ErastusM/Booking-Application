@@ -285,7 +285,9 @@ const ProviderDashboard = () => {
     const [loadingTeam, setLoadingTeam] = useState(false);
     const [showTeamForm, setShowTeamForm] = useState(false);
     const [editingMember, setEditingMember] = useState(null);
-    const [teamForm, setTeamForm] = useState({ name: '', role: 'Staff', email: '', phone: '', color: '#f03e16' });
+    // Job title is NOT prefilled: it's what clients see when picking a
+    // professional, so it must be the owner's own words, not a default.
+    const [teamForm, setTeamForm] = useState({ name: '', role: '', email: '', phone: '', color: '#f03e16' });
     const [savingTeam, setSavingTeam] = useState(false);
 
     // Show onboarding wizard for providers who haven't completed setup
@@ -978,8 +980,11 @@ const ProviderDashboard = () => {
         setShowTeamForm(true);
     };
 
+    // Name, job title and email are mandatory (the server enforces the same).
+    const teamFormComplete = !!teamForm.name.trim() && !!teamForm.role.trim() && !!teamForm.email.trim();
+
     const handleSaveMember = async () => {
-        if (!teamForm.name.trim()) return;
+        if (!teamFormComplete) return;
         setSavingTeam(true);
         try {
             if (editingMember) {
@@ -3308,8 +3313,8 @@ const ProviderDashboard = () => {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', marginBottom: '1rem' }}>
                                 {[
                                     ['Full name', 'name', 'text', 'e.g. Amara Ndongo'],
-                                    ['Role / title', 'role', 'text', 'e.g. Practitioner, Trainer, Technician'],
-                                    ['Email (optional)', 'email', 'email', 'staff@email.com'],
+                                    ['Job title', 'role', 'text', 'e.g. Practitioner, Trainer, Technician'],
+                                    ['Email', 'email', 'email', 'staff@email.com'],
                                     ['Phone (optional)', 'phone', 'tel', '+264 81 000 0000'],
                                 ].map(([label, key, type, ph]) => (
                                     <div key={key}>
@@ -3328,7 +3333,7 @@ const ProviderDashboard = () => {
                                 </div>
                             </div>
                             <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                <button onClick={handleSaveMember} disabled={savingTeam || !teamForm.name.trim()} className="btn-primary" style={{ padding: '0.65rem 1.5rem' }}>{savingTeam ? 'Saving...' : 'Save member'}</button>
+                                <button onClick={handleSaveMember} disabled={savingTeam || !teamFormComplete} className="btn-primary" style={{ padding: '0.65rem 1.5rem' }}>{savingTeam ? 'Saving...' : 'Save member'}</button>
                                 <button onClick={() => setShowTeamForm(false)} className="btn-outline" style={{ padding: '0.65rem 1.25rem' }}>Cancel</button>
                             </div>
                         </div>
