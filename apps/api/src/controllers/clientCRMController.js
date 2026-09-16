@@ -3,6 +3,7 @@ const Appointment = require('../models/Appointment');
 const ClientNote = require('../models/ClientNote');
 const TeamMember = require('../models/TeamMember');
 const { memberInvolvedFilter } = require('../utils/staffBooking');
+const { can } = require('../utils/permissions');
 
 // The business a request acts on. For an owner it's their own id; for a staff
 // member (Medium tier, clients:* capability) it's the business they work for, so
@@ -23,23 +24,30 @@ const businessScope = (req) => (req.user.role === 'staff' ? req.user.staffOf || 
  * their calendar + assigned clients") — but `clients:assigned` was a no-op, so a
  * Medium-tier staff member got the WHOLE client list instead.
  *
- * Deliberately, NO capability widens a staff principal here: seeing the whole
- * business is the owner's view alone. This mirrors buildAppointmentScope in
+ * No TIER widens a staff principal here — seeing every client is the owner's
+ * view alone. The single exception is the owner-granted `clients:view_all`
+ * add-on (front desk / manager), which no tier confers and which the owner must
+ * switch on for one named person. This mirrors buildAppointmentScope in
  * appointmentController (same memberInvolvedFilter, so the calendar and the CRM
- * can never disagree about which bookings are "theirs"), with one difference —
- * the calendar has calendar:view_all, the client list has no equivalent.
+ * can never disagree about which bookings are "theirs").
  *
  * Returns { forbidden } for a detached staff account, { empty } for a staff
  * member with no roster row (they perform nothing, so they have no clients), or
- * { providerId, filter }.
+ * { providerId, filter, assigned } — `assigned` true when the filter is
+ * narrowed to this member's own bookings, false for a whole-business view.
  */
 const buildClientScope = async (req) => {
     const providerId = businessScope(req);
     if (!providerId) return { forbidden: true };
-    if (req.user.role !== 'staff') return { providerId, filter: { provider: providerId } };
+    if (req.user.role !== 'staff') return { providerId, filter: { provider: providerId }, assigned: false };
+    // The one way a staff member sees the WHOLE business's clients: the owner
+    // explicitly granted them clients:view_all (front desk / manager). No tier
+    // confers it — see GRANTABLE in utils/permissions — so this can only ever be
+    // a deliberate, per-person decision by the owner.
+    if (can(req.user, 'clients:view_all')) return { providerId, filter: { provider: providerId }, assigned: false };
     const member = await TeamMember.findOne({ user: req.user._id, provider: providerId }).select('_id');
     if (!member) return { providerId, empty: true };
-    return { providerId, filter: { provider: providerId, ...memberInvolvedFilter(member._id) } };
+    return { providerId, filter: { provider: providerId, ...memberInvolvedFilter(member._id) }, assigned: true };
 };
 
 // Get all unique clients who have used this provider's services — registered
@@ -125,9 +133,11 @@ exports.getClientDetail = async (req, res) => {
             const appointments = await Appointment.find({ ...scope.filter, walkInName: new RegExp(`^${name}$`, 'i') })
                 .populate('service', 'name price duration')
                 .sort({ appointmentDate: -1 });
-            // For staff the scope is assignment-narrowed, so no rows means this
-            // isn't one of their clients — don't confirm the person exists.
-            if (!appointments.length && req.user.role === 'staff') {
+            // Only when the scope is assignment-narrowed does "no rows" mean
+            // "not one of their clients" — don't confirm the person exists. A
+            // whole-business viewer (owner, or granted clients:view_all) is not
+            // narrowed, so it must not 404 here.
+            if (!appointments.length && scope.assigned) {
                 return res.status(404).json({ success: false, message: 'Client not found' });
             }
             return res.status(200).json({ success: true, data: { appointments, note: null } });
@@ -141,10 +151,10 @@ exports.getClientDetail = async (req, res) => {
             ClientNote.findOne({ provider: providerId, customer: customerId }),
         ]);
 
-        // Same guard for registered clients: a staff member may only open a
-        // client they actually serve. The note is business-wide, so withhold it
-        // (and the 200) rather than leak a colleague's client's CRM record.
-        if (!appointments.length && req.user.role === 'staff') {
+        // Same guard for registered clients: an assignment-scoped member may only
+        // open a client they actually serve. The note is business-wide, so withhold
+        // it (and the 200) rather than leak a colleague's client's CRM record.
+        if (!appointments.length && scope.assigned) {
             return res.status(404).json({ success: false, message: 'Client not found' });
         }
 

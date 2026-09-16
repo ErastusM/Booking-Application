@@ -85,14 +85,30 @@ const TIERS = {
 };
 const TIER_NAMES = Object.keys(TIERS);
 
-// Every staff-assignable capability (High is cumulative, so it is the full set).
-const CAPABILITIES = [...new Set(HIGH)];
+/**
+ * OWNER-GRANTED add-ons: capabilities an owner switches on for ONE named person
+ * and that NO tier ever confers.
+ *
+ * `clients:view_all` widens a staff member from their ASSIGNED clients to the
+ * whole business's client list — the front-desk / manager case. That list is
+ * otherwise the owner's view alone (buildClientScope), so this deliberately sits
+ * OUTSIDE the tier ladder: folding it into High would make "promote someone to
+ * High" silently hand over every client record, which is exactly the leak the
+ * assigned-client scoping closed. It is grantable only as an explicit
+ * per-member staffPermissions entry, so granting it is always a deliberate act
+ * against one person.
+ */
+const GRANTABLE = ['clients:view_all'];
+
+// Everything a staffPermissions entry may name: the tier ladder plus the
+// owner-granted add-ons (which no tier includes).
+const CAPABILITIES = [...new Set([...HIGH, ...GRANTABLE])];
 
 // Legacy flag → capability. calendar:all becomes calendar:view_all; the
 // descriptive flags map to nothing (they only ever meant the self-baseline).
 const LEGACY_CAP = { 'calendar:all': 'calendar:view_all' };
 
-const CAP_SET = new Set(HIGH); // every staff-assignable capability
+const CAP_SET = new Set(CAPABILITIES); // every staff-assignable capability (tiers + add-ons)
 
 // Resolve a requested key to its canonical capability (honour the legacy alias).
 const canonical = (cap) => LEGACY_CAP[cap] || cap;
@@ -148,6 +164,6 @@ const isTier = (t) => TIER_NAMES.includes(t);
 
 module.exports = {
     CALENDAR_ALL, KNOWN, DESCRIPTIVE,
-    CAPABILITIES, TIERS, TIER_NAMES,
+    CAPABILITIES, GRANTABLE, TIERS, TIER_NAMES,
     can, validate, isTier, effectiveCapabilities,
 };

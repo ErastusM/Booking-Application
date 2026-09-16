@@ -251,6 +251,12 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         // authoritative — clearing any legacy per-member flags.
         setMemberTier: (id: string, tier: string | null) =>
             API.put(`/team/${id}/permissions`, { tier, permissions: [] }),
+        // Set the tier AND the owner-granted add-ons in one call. Use this
+        // whenever a member holds add-on grants (e.g. clients:view_all): the
+        // endpoint replaces staffPermissions wholesale, so sending a tier alone
+        // via setMemberTier would silently drop them.
+        setMemberAccess: (id: string, tier: string | null, permissions: string[]) =>
+            API.put(`/team/${id}/permissions`, { tier, permissions }),
         getMemberStats: (id: string, days = 30) => API.get(`/team/${id}/stats`, { params: { days } }),
         // Date-specific shifts. A shift replaces the member's weekly pattern for
         // that date; clearing it hands the date back to the pattern.
