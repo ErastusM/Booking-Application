@@ -201,6 +201,11 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
     // (calendar:all ≈ reception-level whole-business view) so pre-tier members
     // read sensibly until the owner picks one.
     const [tier, setTier] = useState(member.user?.staffTier || (perms.includes('calendar:all') ? 'medium' : 'basic'));
+    // Owner-granted add-ons, held separately from the tier because the endpoint
+    // REPLACES staffPermissions wholesale — saving one without the other would
+    // silently drop it. No tier confers these; the owner switches them on per
+    // person (see GRANTABLE in utils/permissions).
+    const [viewAllClients, setViewAllClients] = useState(perms.includes('clients:view_all'));
     const [tab, setTab] = useState('overview');
     const [stats, setStats] = useState(null);      // null = not fetched, false = failed
     const [bookable, setBookable] = useState(member.bookable !== false);
@@ -388,14 +393,35 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
         setTier(next);              // optimistic
         setBusy('perms');
         try {
-            // Sends permissions:[] so the tier is authoritative — any legacy
-            // per-member flags are cleared and the tier alone governs access.
-            await teamService.setMemberTier(member._id, next);
+            // Send the tier WITH the owner-granted add-ons: the endpoint replaces
+            // staffPermissions wholesale, so omitting them here would revoke a
+            // grant as a side effect of changing tier. Legacy flags still clear.
+            await teamService.setMemberAccess(member._id, next, viewAllClients ? ['clients:view_all'] : []);
             flash(`${member.name}'s access set to ${TIER_LABELS[next] || next}.`);
             onChanged();
         } catch (err) {
             setTier(previous);
             flash(err?.response?.data?.message || 'Could not change access level.');
+        } finally {
+            setBusy('');
+        }
+    };
+
+    // Grant/revoke the whole-business client list for this one person. Sends the
+    // current tier alongside so the tier isn't reset by the same wholesale write.
+    const toggleViewAllClients = async () => {
+        const next = !viewAllClients;
+        setViewAllClients(next);            // optimistic
+        setBusy('perms');
+        try {
+            await teamService.setMemberAccess(member._id, tier, next ? ['clients:view_all'] : []);
+            flash(next
+                ? `${member.name} can now see all of the business's clients.`
+                : `${member.name} now sees only the clients they serve.`);
+            onChanged();
+        } catch (err) {
+            setViewAllClients(!next);
+            flash(err?.response?.data?.message || 'Could not change client access.');
         } finally {
             setBusy('');
         }
@@ -1010,6 +1036,26 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                             {(TIER_OPTIONS.find((t) => t.value === tier) || {}).desc}
                                         </span>
                                     </div>
+                                    <label
+                                        style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', marginTop: '0.6rem', padding: '0.7rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: busy === 'perms' ? 'default' : 'pointer' }}
+                                    >
+                                        <input
+                                            type="checkbox"
+                                            checked={viewAllClients}
+                                            disabled={busy === 'perms'}
+                                            onChange={toggleViewAllClients}
+                                            data-testid="member-view-all-clients"
+                                        />
+                                        <span style={{ flex: 1, minWidth: 0 }}>
+                                            <span style={{ display: 'block', fontSize: '0.86rem', fontWeight: 600, color: 'var(--charcoal)' }}>
+                                                See all clients
+                                            </span>
+                                            <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
+                                                For front desk or managers. Off, they see only the clients they
+                                                personally serve — no access level grants this on its own.
+                                            </span>
+                                        </span>
+                                    </label>
                                     <p style={{ margin: '0.5rem 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
                                         Owners and admins always have full access and can’t be limited.
                                     </p>

@@ -37,9 +37,18 @@ const HIGH = MEDIUM.concat([
 
 export const TIERS = { basic: BASIC, low: LOW, medium: MEDIUM, high: HIGH };
 
+/**
+ * Owner-granted add-ons: switched on for ONE person and conferred by NO tier.
+ * `clients:view_all` widens a staff member from their assigned clients to the
+ * whole business's client list (front desk / manager). Kept out of the ladder on
+ * purpose — folding it into High would hand over every client record just for
+ * promoting someone. Mirrors GRANTABLE in apps/api/src/utils/permissions.js.
+ */
+export const GRANTABLE = ['clients:view_all'];
+
 // Legacy flag → capability (mirrors the backend's LEGACY_CAP).
 const LEGACY_CAP = { 'calendar:all': 'calendar:view_all' };
-const CAP_SET = new Set(HIGH);
+const CAP_SET = new Set([...HIGH, ...GRANTABLE]);
 const canonical = (cap) => LEGACY_CAP[cap] || cap;
 
 const flagCapabilities = (flags) =>
