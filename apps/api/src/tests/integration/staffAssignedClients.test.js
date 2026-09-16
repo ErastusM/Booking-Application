@@ -15,6 +15,7 @@ const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const Appointment = require('../../models/Appointment');
 const TeamMember = require('../../models/TeamMember');
+const User = require('../../models/User');
 const { makeProvider, makeUser, makeService, makeAppointment, authHeader } = require('../helpers/factories');
 
 beforeAll(() => testDb.connect());
@@ -92,6 +93,49 @@ describe('staff client list is assignment-scoped', () => {
         const res = await list(stray);
         expect(res.status).toBe(200);
         expect(res.body.data).toEqual([]);
+    });
+});
+
+describe('clients:view_all — the owner-granted front-desk add-on', () => {
+    it('NO tier grants it, not even High — it must be granted per person', async () => {
+        // The load-bearing property. If this ever fails, promoting someone to
+        // Manager silently hands them every client record, which is the leak the
+        // assigned-client scoping exists to prevent.
+        const { mineUser } = await setup({ tier: 'high', permissions: [] });
+        const res = await list(mineUser);
+        expect(res.status).toBe(200);
+        expect(res.body.data.map((c) => c.customer.name)).toEqual(['My Client']);
+    });
+
+    it('a granted member sees the WHOLE business client list', async () => {
+        const { mineUser } = await setup({ tier: 'basic', permissions: ['clients:view_all'] });
+        const names = (await list(mineUser)).body.data.map((c) => c.customer.name).sort();
+        expect(names).toEqual(['My Client', 'Their Client']);
+    });
+
+    it('a granted member may open a client they do not personally serve', async () => {
+        const { mineUser, theirClient } = await setup({ tier: 'basic', permissions: ['clients:view_all'] });
+        const res = await request(app).get(`/api/crm/clients/${theirClient._id}`).set(authHeader(mineUser));
+        expect(res.status).toBe(200);
+    });
+
+    it('the grant does NOT cross businesses', async () => {
+        // Widening the scope must never widen it past staffOf.
+        const { theirClient } = await setup({ permissions: ['clients:view_all'] });
+        const otherOwner = await makeProvider();
+        const outsider = await makeUser({
+            role: 'staff', staffOf: otherOwner._id, staffPermissions: ['clients:view_all'],
+        });
+        const names = (await list(outsider)).body.data.map((c) => c.customer.name);
+        expect(names).not.toContain('Their Client');
+    });
+
+    it('revoking it returns the member to assigned-only', async () => {
+        const { mineUser } = await setup({ tier: 'medium', permissions: ['clients:view_all'] });
+        expect((await list(mineUser)).body.data.length).toBe(2);
+        await User.updateOne({ _id: mineUser._id }, { $set: { staffPermissions: [] } });
+        const after = (await list(mineUser)).body.data.map((c) => c.customer.name);
+        expect(after).toEqual(['My Client']);
     });
 });
 
