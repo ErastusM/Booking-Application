@@ -1550,15 +1550,17 @@ exports.acceptStaffInvite = async (req, res) => {
         // Invalidate any prior sessions minted before the password existed.
         user.tokenVersion = (user.tokenVersion || 0) + 1;
         user.refreshTokenJtis = [];
+        // Accepting IS the first sign-in: it flips their Team status from
+        // "Invited · awaiting login" to active for the owner. Persist it in the
+        // same save as the password rather than a fire-and-forget update after
+        // the response — that write raced anything reading the user straight
+        // after accept (the invite-accept test saw lastLoginAt still null).
+        user.lastLoginAt = new Date();
         await user.save();
 
         // Sign them straight in — the point of the accept step.
         const { token: accessToken, refreshToken } = await issueAuthTokens(user);
         setRefreshCookie(res, refreshToken);
-
-        // Records the first sign-in, which flips their Team status from
-        // "Invited · awaiting login" to active for the owner.
-        User.updateOne({ _id: user._id }, { $set: { lastLoginAt: new Date() } }).catch(() => {});
 
         return res.status(200).json({
             success: true,
