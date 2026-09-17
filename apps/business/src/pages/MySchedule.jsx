@@ -194,6 +194,41 @@ const MySchedule = () => {
             .catch(() => setServices(false));
     }, []);
 
+    // "My trade isn't on the menu" — a member adding the service they actually do.
+    const [newSvc, setNewSvc] = useState({ name: '', price: '', duration: '' });
+    const [addBusy, setAddBusy] = useState(false);
+    const [addMsg, setAddMsg] = useState('');
+
+    // Add the service this member performs. It joins the business's catalogue and
+    // is assigned to them in one call, so someone whose trade the business doesn't
+    // list yet (a cleaner at a barbershop) can make themselves bookable without
+    // waiting on the owner. Re-reads the list afterwards so the chips, the "only
+    // selected" state and the prices table all reflect it.
+    const addOwnService = async () => {
+        const name = newSvc.name.trim();
+        if (!name || addBusy) return;
+        setAddBusy(true); setAddMsg('');
+        try {
+            const res = await myServicesService.add(
+                name,
+                newSvc.price === '' ? undefined : Number(newSvc.price),
+                newSvc.duration === '' ? undefined : Number(newSvc.duration),
+            );
+            const reused = !!res?.data?.data?.reused;
+            const fresh = await myServicesService.get();
+            setServices(fresh.data.data?.services || []);
+            setMySvc((fresh.data.data?.selected || []).map(String));
+            setOffersAll(fresh.data.data?.offersAllServices === true);
+            setNewSvc({ name: '', price: '', duration: '' });
+            setAddMsg(reused
+                ? `Your business already offers ${name} — you're now listed for it.`
+                : `Added ${name}. Clients can book you for it.`);
+            setTimeout(() => setAddMsg(''), 5000);
+        } catch (e) {
+            setAddMsg(e?.response?.data?.message || 'Could not add that service');
+        } finally { setAddBusy(false); }
+    };
+
     // Auto-save each toggle (same as the owner's Team screen), optimistic with a
     // revert if the save fails.
     const toggleService = async (id) => {
@@ -567,7 +602,9 @@ const MySchedule = () => {
                 {services === null && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading…</p>}
                 {services === false && <p style={{ margin: 0, color: 'var(--gold-dark)', fontSize: '0.85rem' }}>Couldn’t load the service list.</p>}
                 {Array.isArray(services) && services.length === 0 && (
-                    <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Your business hasn’t added any services yet.</p>
+                    <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                        Your business hasn’t added any services yet — add the one you do below.
+                    </p>
                 )}
                 {Array.isArray(services) && services.length > 0 && (
                     <>
@@ -604,6 +641,50 @@ const MySchedule = () => {
                             {svcMsg && <span style={{ marginLeft: '0.5rem', color: svcMsg === 'Saved' ? '#1f8a4c' : 'var(--gold-dark)', fontWeight: 650 }}>{svcMsg}</span>}
                         </p>
                     </>
+                )}
+
+                {/* A roster can mix trades: the list above is the BUSINESS's menu, so a
+                    cleaner hired into a barbershop would otherwise have nothing to pick
+                    and stay unbookable until the owner added their service. */}
+                {Array.isArray(services) && (
+                    <div data-testid="add-own-service" style={{ marginTop: '1.1rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                        <p style={{ margin: '0 0 0.6rem', fontSize: '0.85rem', fontWeight: 650, color: 'var(--charcoal)' }}>
+                            Don’t see what you do?
+                        </p>
+                        <p style={{ margin: '0 0 0.7rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                            Add it and you’ll be bookable for it straight away. It joins your business’s
+                            service list, so your manager can see and edit it.
+                        </p>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                            <input
+                                value={newSvc.name}
+                                onChange={(e) => setNewSvc({ ...newSvc, name: e.target.value })}
+                                placeholder="What you do, e.g. Cleaning"
+                                data-testid="own-service-name"
+                                style={{ flex: '1 1 12rem', minWidth: '10rem', padding: '0.5rem 0.7rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', fontSize: '0.85rem' }}
+                            />
+                            <input
+                                value={newSvc.price}
+                                onChange={(e) => setNewSvc({ ...newSvc, price: e.target.value })}
+                                placeholder="Price" inputMode="numeric" data-testid="own-service-price"
+                                style={{ width: '5.5rem', padding: '0.5rem 0.7rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', fontSize: '0.85rem' }}
+                            />
+                            <input
+                                value={newSvc.duration}
+                                onChange={(e) => setNewSvc({ ...newSvc, duration: e.target.value })}
+                                placeholder="Minutes" inputMode="numeric" data-testid="own-service-duration"
+                                style={{ width: '5.5rem', padding: '0.5rem 0.7rem', borderRadius: 'var(--radius)', border: '1px solid var(--border)', fontSize: '0.85rem' }}
+                            />
+                            <button type="button" className="btn-primary" onClick={addOwnService}
+                                disabled={!newSvc.name.trim() || addBusy} data-testid="own-service-add"
+                                style={{ padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+                                {addBusy ? 'Adding…' : 'Add'}
+                            </button>
+                        </div>
+                        {addMsg && (
+                            <p data-testid="own-service-msg" style={{ margin: '0.6rem 0 0', fontSize: '0.8rem', fontWeight: 600, color: 'var(--gold-dark)' }}>{addMsg}</p>
+                        )}
+                    </div>
                 )}
             </div>
 
