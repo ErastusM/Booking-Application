@@ -139,10 +139,21 @@ const BookAppointment = () => {
     // populated `category` = {_id, name, order}; unassigned ones fall under
     // "Other services"). Headers only show when there's more than one group.
     const groupedServices = useMemo(() => {
-        // Person-first: once a member is chosen, show only the services THEY perform
-        // (an empty services list on the member means they perform all).
-        const memberIds = selectedStaff ? (selectedStaff.services || []).map(String) : null;
-        const performs = (s) => !memberIds || memberIds.length === 0 || memberIds.includes(String(s._id));
+        // Person-first: once a member is chosen, show only the services THEY perform.
+        //
+        // A member's services are their OWN — a business can mix trades, so a cleaner
+        // hired into a barbershop must not be offered the barbering menu. Read the
+        // member's own flag and only fall back to the old "empty list = performs
+        // everything" rule for legacy rows that predate it (migrate_member_services_flag
+        // backfills those, so the fallback should find nothing in practice). Mirrors
+        // performsService() in the API's utils/staffBooking.
+        const performs = (s) => {
+            if (!selectedStaff) return true;
+            if (selectedStaff.offersAllServices === true) return true;
+            const ids = (selectedStaff.services || []).map(String);
+            if (selectedStaff.offersAllServices === false) return ids.includes(String(s._id));
+            return ids.length === 0 || ids.includes(String(s._id));
+        };
         const map = new Map();
         services.filter(performs).forEach((s) => {
             const cat = s.category;
