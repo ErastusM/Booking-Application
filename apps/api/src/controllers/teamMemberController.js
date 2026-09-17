@@ -1307,6 +1307,75 @@ exports.setMyServices = async (req, res) => {
 };
 
 /**
+ * POST /api/team/mine/services  (staff-self)
+ * Body: { name, price?, duration? }
+ *
+ * A member adds the service THEY actually perform, and is assigned to it.
+ *
+ * Until now a member could only tick services the business already sold, so a
+ * cleaner hired into a barbershop had nothing to tick and stayed unbookable
+ * until the owner added "Cleaning" for them. On a platform meant to cover every
+ * kind of booking, a roster that mixes trades has to let each person say what
+ * they do.
+ *
+ * The service still belongs to the BUSINESS, not the member. That is what keeps
+ * the rest of the product coherent: customers book the business, one catalogue
+ * feeds pricing, earnings and reporting, and the owner can edit or retire it
+ * like any other service. `createdBy` records who added it.
+ *
+ * If the business already sells something by that name, the member is assigned
+ * to THAT service instead of a near-duplicate being created — a catalogue with
+ * two "Trim" rows splits bookings across records that look identical to
+ * everyone.
+ */
+exports.addMyService = async (req, res) => {
+    try {
+        const providerId = req.user.staffOf;
+        if (!providerId) {
+            return res.status(403).json({ success: false, message: 'Only a team member can add their own service.' });
+        }
+        const member = await myMemberDoc(req);
+        if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
+
+        const name = String(req.body.name || '').trim();
+        if (!name) return res.status(400).json({ success: false, message: 'A service name is required' });
+        if (name.length > 100) return res.status(400).json({ success: false, message: 'That service name is too long' });
+        const price = Math.max(0, Number(req.body.price) || 0);
+        const duration = Math.max(5, Number(req.body.duration) || 30);
+
+        // Case-insensitive exact match on the business's existing menu, including
+        // retired rows — reviving one the owner turned off is still better than
+        // creating a second row with the same name.
+        const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+        let service = await Service.findOne({ provider: providerId, name: new RegExp(`^${escaped}$`, 'i') });
+        const reused = !!service;
+        if (!service) {
+            service = await Service.create({
+                name,
+                // The model requires a description; the member's form asks only for
+                // what they need, so fall back to the name rather than blocking them.
+                description: String(req.body.description || name).trim().slice(0, 300),
+                price,
+                duration,
+                provider: providerId,
+                createdBy: req.user._id,
+            });
+        }
+
+        // Assign it to them, idempotently, and keep them on "only selected" — adding
+        // one service must never be a back door to the whole menu.
+        const already = (member.services || []).some((id) => String(id) === String(service._id));
+        if (!already) member.services = [...(member.services || []), service._id];
+        member.offersAllServices = false;
+        await member.save();
+
+        res.status(reused ? 200 : 201).json({ success: true, data: { service, reused, selected: (member.services || []).map(String) } });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
  * PUT /api/team/mine/pricing  (staff-self)
  * Body: { serviceOverrides: [{ service, price?, duration? }] }
  * A member sets their OWN price/duration per service (full autonomy).

@@ -319,6 +319,12 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         set: (services: string[], offersAllServices?: boolean) =>
             API.put('/team/mine/services', offersAllServices === undefined ? { services } : { services, offersAllServices }),
         setPricing: (serviceOverrides: any[]) => API.put('/team/mine/pricing', { serviceOverrides }),
+        // Add the service this member actually performs. It joins the business's
+        // catalogue and is assigned to them in the same call, so a member whose
+        // trade isn't on the menu can make themselves bookable without waiting
+        // on the owner. An existing service of the same name is reused.
+        add: (name: string, price?: number, duration?: number) =>
+            API.post('/team/mine/services', { name, price, duration }),
     },
 
     // Staff self-service — a signed-in staff member managing their OWN profile
