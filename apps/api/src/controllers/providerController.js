@@ -40,7 +40,11 @@ exports.getProviderStaff = async (req, res) => {
             // Public allow-list — bio/pronouns/languages are customer-facing; the
             // owner-only HR fields (employment, notes, emergencyContact, address…)
             // are deliberately absent so they can never leak here.
-            .select('name role color services serviceOverrides photoUrl isPrimary bio pronouns languages')
+            // `offersAllServices` is part of the ANSWER, not an internal detail: without
+            // it the client sees only `services: []` and cannot tell "performs nothing
+            // yet" from a legacy row that means "performs everything". That ambiguity
+            // showed a newly hired cleaner the whole barbering menu.
+            .select('name role color services offersAllServices serviceOverrides photoUrl isPrimary bio pronouns languages')
             .sort({ isPrimary: -1, createdAt: 1 }); // the primary member is shown first
 
         // Per-professional rating: one aggregate over this business's reviews,
