@@ -43,8 +43,24 @@ if ! echo "$target" | grep -Eq '^[0-9a-f]{40}$'; then
 fi
 
 if [ "$target" = "$current" ]; then
-    echo "Already running $target — nothing to do."
-    exit 0
+    # /app/.env is what the last deploy INTENDED, which is not always what is
+    # running: a deploy that failed after writing its pin leaves exactly that
+    # mismatch, and that is precisely the state someone runs this script in. So
+    # confirm against the containers before no-opping — otherwise a retried
+    # rollback prints a reassuring "nothing to do" and exits 0 over the broken
+    # release it was invoked to remove.
+    drift=0
+    for svc in $REPOS; do
+        want="$(docker image inspect -f '{{.Id}}' "erastusm/bookplus-$svc:$target" 2>/dev/null || echo missing)"
+        have="$(docker inspect -f '{{.Image}}' "bookplus-$svc" 2>/dev/null || echo none)"
+        if [ "$want" = missing ] || [ "$want" != "$have" ]; then drift=1; fi
+    done
+    if [ "$drift" = 0 ]; then
+        echo "Already running $target — nothing to do."
+        exit 0
+    fi
+    echo "/app/.env already names $target, but the containers do not match it."
+    echo "Re-converging onto $target rather than reporting success."
 fi
 
 echo "Rolling back:  $current  ->  $target"

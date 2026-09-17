@@ -71,6 +71,34 @@ After a rollback, `PREVIOUS_IMAGE_TAG` is cleared rather than set to the build
 you just escaped, so a second no-argument `rollback.sh` cannot re-ship it. Going
 back further takes an explicit sha.
 
+## When a deploy is skipped
+
+The deploy refuses to run when its commit is no longer the tip of `main`, because
+deploys are serialized but **builds are not** — an older commit's slower build can
+otherwise finish last and take production backwards. A skipped run is green and
+says so in its job summary.
+
+Almost always the newer commit's own run deploys it and there is nothing to do.
+One case needs a human, and it is worth knowing:
+
+> Deploy jobs enter the `deploy-production` concurrency group when their build
+> finishes, and GitHub holds only **one running plus one pending** job per group —
+> a third arrival cancels the pending one. With three merges in flight, an older
+> commit's late-finishing deploy can evict a newer commit's pending deploy. The
+> older one then runs and correctly refuses itself, and the newest commit is never
+> deployed until the next merge.
+
+This is a **stall, not a wrong-version deploy** — shipping older code is impossible
+now. To check and recover:
+
+```bash
+ssh <droplet> 'grep IMAGE_TAG /app/.env'   # should equal main's tip
+```
+
+If it doesn't match, re-run the deploy job on the workflow run for main's tip.
+Merging one PR at a time — the house rule anyway, since concurrent deploys once
+took production down — avoids the window entirely.
+
 ## Disk retention
 
 Per-commit tags are never dangling, so `docker image prune -f` — which only
