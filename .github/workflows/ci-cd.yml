@@ -123,7 +123,20 @@ jobs:
           retention-days: 7
           if-no-files-found: ignore
 
-  # 2) On push to main only: build & push both images to Docker Hub
+  # 2) On push to main only: build & push both images to Docker Hub.
+  #
+  #    IMMUTABLE PER-COMMIT TAGS. Both images used to be pushed as `:latest` only —
+  #    one mutable pointer that two overlapping main runs both write. Whichever
+  #    BUILD finished last won, regardless of which COMMIT was newer, so an older
+  #    commit finishing second left `:latest` on older code and the next deploy
+  #    shipped it silently. The deploy concurrency group doesn't help: it
+  #    serializes deploys, not builds.
+  #
+  #    Each run now also writes a tag named after its own commit, which no other
+  #    run ever writes, and the deploy pins that exact tag (see IMAGE_TAG below).
+  #    `:latest` is still published for humans and as the compose fallback, but
+  #    NOTHING automated consumes it any more — under a build race it may briefly
+  #    name an older commit, and that is now harmless.
   build-and-push:
     needs: [test, e2e]   # a red browser run must not reach Docker Hub
     if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -143,7 +156,9 @@ jobs:
           context: ./apps/api
           platforms: linux/amd64
           push: true
-          tags: erastusm/bookplus-server:latest
+          tags: |
+            erastusm/bookplus-server:${{ github.sha }}
+            erastusm/bookplus-server:latest
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
@@ -154,7 +169,9 @@ jobs:
           file: ./apps/customer/Dockerfile
           platforms: linux/amd64
           push: true
-          tags: erastusm/bookplus-customer:latest
+          tags: |
+            erastusm/bookplus-customer:${{ github.sha }}
+            erastusm/bookplus-customer:latest
           build-args: |
             VITE_API_URL=https://api.bookplus.pro
             VITE_BUSINESS_URL=https://business.bookplus.pro
@@ -168,7 +185,9 @@ jobs:
           file: ./apps/business/Dockerfile
           platforms: linux/amd64
           push: true
-          tags: erastusm/bookplus-business:latest
+          tags: |
+            erastusm/bookplus-business:${{ github.sha }}
+            erastusm/bookplus-business:latest
           build-args: |
             VITE_API_URL=https://api.bookplus.pro
             VITE_CUSTOMER_URL=https://www.bookplus.pro
@@ -176,7 +195,7 @@ jobs:
           cache-from: type=gha
           cache-to: type=gha,mode=max
 
-  # 3) On push to main: pull the new images on the server and restart.
+  # 3) On push to main: pull the images CI just built FOR THIS COMMIT and restart.
   #    Skipped automatically unless the DEPLOY_HOST secret is configured.
   deploy:
     needs: build-and-push
@@ -184,26 +203,92 @@ jobs:
     # SERIALIZE PRODUCTION DEPLOYS. Two merges landing seconds apart each ran
     # `docker compose pull && up` against the SAME droplet at the same time.
     # They fought over the containers, the server never passed its health check
-    # ("waiting for API health (unknown)" → `service "server" is not running`),
+    # ("waiting for API health (unknown)" -> `service "server" is not running`),
     # the migration step then failed, and the API went down. Both runs went red
     # and nothing deployed. This queues deploys instead of overlapping them.
     #
     # cancel-in-progress:false so an in-flight deploy is never killed part-way —
-    # that could leave the stack half-updated. GitHub keeps only the NEWEST
-    # pending job per group (cancelling older pending ones), so when several
-    # merges land together the most recent commit is the one that ends up live.
+    # that could leave the stack half-updated.
+    #
+    # KNOWN LIMIT, do not read more into this than it gives you. Jobs enter this
+    # group when their build finishes, i.e. in BUILD order, which is exactly the
+    # order this change establishes is NOT commit order. GitHub holds one running
+    # job plus one pending job per group and cancels the previously-pending one
+    # when another queues. So with three merges in flight, an older commit's
+    # late-finishing deploy can evict a newer commit's pending deploy; the older
+    # one then runs, correctly refuses itself at the superseded check below, and
+    # the newest commit ends up never deployed until the next merge.
+    #
+    # That is a stall, not a wrong-version deploy — the superseded check makes it
+    # impossible to ship older code — and the recovery is to re-run the newest
+    # commit's deploy job, which the skip message tells you to do. Deploying one
+    # merge at a time (the house rule) avoids the window entirely. See
+    # DEPLOY_DUAL_APP.md, "When a deploy is skipped".
     concurrency:
       group: deploy-production
       cancel-in-progress: false
     runs-on: ubuntu-latest
     env:
       DEPLOY_HOST: ${{ secrets.DEPLOY_HOST }}
+      # The exact images to ship. build-and-push tagged them with this commit's
+      # sha, so the deploy names the build it was gated on rather than following
+      # a mutable `:latest` that a slower, older build may have moved.
+      IMAGE_TAG: ${{ github.sha }}
     steps:
       - uses: actions/checkout@v4
+
+      # Deploys are serialized, but BUILDS are not, so serialization alone does
+      # not mean the newest commit wins. Interleaving that bites: A merges, B
+      # (newer) merges, B's build finishes first and B deploys, then A's slower
+      # build finishes and A's deploy — with nothing newer queued behind it —
+      # runs last and reverts production to A. Per-commit tags make that deploy
+      # honest rather than silent, but it is still a downgrade.
+      #
+      # So: refuse to deploy a commit that is no longer the tip of main. This
+      # must stay the FIRST step, because the scp below overwrites the droplet's
+      # docker-compose.yml and nginx config — a superseded run that skipped only
+      # the compose-up would still have reverted those.
+      #
+      # It is a skipped step, not a failed one: being overtaken by a newer merge
+      # is normal, and a red X there would train everyone to ignore red deploys.
+      - name: Check this commit is still the tip of main
+        id: tip
+        run: |
+          git fetch --depth=1 origin main
+          tip="$(git rev-parse FETCH_HEAD)"
+          if [ "$tip" != "$GITHUB_SHA" ]; then
+            echo "superseded=true" >> "$GITHUB_OUTPUT"
+            echo "::warning title=Deploy skipped::main is now $tip, so this run will not deploy the older commit $GITHUB_SHA. Confirm $tip actually reached production - if its own deploy was cancelled by the concurrency queue, re-run it."
+            {
+              echo "### Deploy skipped — this commit is no longer the tip of main"
+              echo
+              echo "| | commit |"
+              echo "|---|---|"
+              echo "| this run | \`$GITHUB_SHA\` |"
+              echo "| tip of main | \`$tip\` |"
+              echo
+              echo "Deploying this run would have taken production **backwards**, so it stopped."
+              echo
+              echo "**Check production is not left behind.** Normally the newer commit's own run"
+              echo "deploys it and there is nothing to do. But if that run was cancelled while"
+              echo "pending (GitHub keeps only one pending job per concurrency group), nothing"
+              echo "ships until the next merge. Verify and, if needed, recover:"
+              echo
+              echo '```bash'
+              echo "ssh <droplet> 'grep IMAGE_TAG /app/.env'   # should print $tip"
+              echo '```'
+              echo
+              echo "If it does not, re-run the deploy job on the workflow run for \`$tip\`."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "superseded=false" >> "$GITHUB_OUTPUT"
+            echo "$GITHUB_SHA is the tip of main — deploying."
+          fi
+
       # Keep the droplet's compose + nginx config in lockstep with the repo —
       # new services/subdomains would otherwise require a manual copy.
       - name: Sync compose + nginx config to the host
-        if: env.DEPLOY_HOST != ''
+        if: env.DEPLOY_HOST != '' && steps.tip.outputs.superseded != 'true'
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.DEPLOY_HOST }}
@@ -214,7 +299,7 @@ jobs:
           overwrite: true
 
       - name: Deploy over SSH (compose pull + up)
-        if: env.DEPLOY_HOST != ''
+        if: env.DEPLOY_HOST != '' && steps.tip.outputs.superseded != 'true'
         uses: appleboy/ssh-action@v1.2.0
         env:
           VAPID_PUBLIC_KEY: ${{ secrets.VAPID_PUBLIC_KEY }}
@@ -223,9 +308,41 @@ jobs:
           host: ${{ secrets.DEPLOY_HOST }}
           username: ${{ secrets.DEPLOY_USER }}
           key: ${{ secrets.DEPLOY_SSH_KEY }}
-          envs: VAPID_PUBLIC_KEY,VAPID_PRIVATE_KEY
+          envs: VAPID_PUBLIC_KEY,VAPID_PRIVATE_KEY,IMAGE_TAG
           script: |
             cd /app
+            # docker-compose.yml reads ${IMAGE_TAG:-latest}. `:-` substitutes the
+            # default when the variable is unset OR EMPTY, so an IMAGE_TAG that
+            # failed to arrive would silently deploy `:latest` instead of failing.
+            # Refuse to proceed unless it is a real commit sha.
+            if ! echo "$IMAGE_TAG" | grep -Eq '^[0-9a-f]{40}$'; then
+              echo "DEPLOY FAILED: IMAGE_TAG is not a 40-character commit sha ('$IMAGE_TAG')" >&2
+              exit 1
+            fi
+
+            # RECLAIM DISK FIRST. `docker image prune -f` only removes DANGLING
+            # (untagged) images. Until now, moving `:latest` left the previous
+            # image untagged, so that prune reclaimed it. Per-commit tags are
+            # never dangling, so the prune stops reclaiming app images entirely
+            # and this one droplet fills up over weeks.
+            #
+            # This runs BEFORE the pull on purpose: a nearly-full disk is exactly
+            # when the pull fails, and everything below can exit non-zero, so a
+            # run of failed deploys would otherwise accumulate images that are
+            # never collected. Reclaiming at the START makes every deploy — including
+            # the failed ones — clean up after its predecessor.
+            #
+            # Keeps the 3 newest tags per repo: what is live, the rollback target,
+            # and one spare. `docker rmi` refuses to delete an image that a
+            # container is using, so the live set is safe by construction and
+            # every failure here is genuinely ignorable.
+            for repo in erastusm/bookplus-server erastusm/bookplus-customer erastusm/bookplus-business; do
+              docker images --format '{{.Repository}}:{{.Tag}}' "$repo" 2>/dev/null \
+                | grep -v ':<none>$' | grep -v ':latest$' | tail -n +4 \
+                | while read -r img; do docker rmi "$img" >/dev/null 2>&1 || true; done
+            done
+            docker image prune -f >/dev/null 2>&1 || true
+
             # Dual-app env (idempotent): SSO cookie scope + the new app origins.
             grep -q '^COOKIE_DOMAIN=' .env.production || echo 'COOKIE_DOMAIN=.bookplus.pro' >> .env.production
             # Web Push: seed VAPID keys from repo secrets once they exist (idempotent,
@@ -237,8 +354,37 @@ jobs:
             fi
             sed -i '/^CLIENT_URL=/ s|,https://app.bookplus.pro||' .env.production
             grep -q 'business.bookplus.pro' .env.production || sed -i '/^CLIENT_URL=/ s|$|,https://business.bookplus.pro|' .env.production
-            docker compose pull
-            docker compose up -d --force-recreate
+
+            # PULL BEFORE PINNING. IMAGE_TAG is exported into this shell, and a
+            # shell variable outranks /app/.env for compose interpolation, so the
+            # pull already fetches THIS commit's images without the pin being
+            # written yet. If the pull fails, /app/.env still names the last good
+            # deploy and the running stack is untouched — nothing is half-updated.
+            #
+            # `docker compose pull` (not `docker pull` of the three app images)
+            # so mongo, nginx and certbot keep being refreshed as they always were.
+            docker compose pull || { echo "DEPLOY FAILED: docker compose pull" >&2; exit 1; }
+
+            # Persist the pin so the droplet is self-describing: any later bare
+            # `docker compose up -d` / `run` / `exec` in /app — a human, or
+            # expand-tls.yml, or init-letsencrypt.sh — reproduces exactly what is
+            # live instead of resurrecting a different image. Written via a temp
+            # file + mv so a dropped SSH session can never leave a half-written .env.
+            #
+            # PREVIOUS_IMAGE_TAG is the rollback target, and is deliberately NOT
+            # overwritten when the same commit is deployed twice (a re-run of a
+            # half-failed deploy would otherwise destroy the very thing you roll
+            # back to).
+            prev="$(sed -n 's/^IMAGE_TAG=//p' .env 2>/dev/null | tail -n1)"
+            prior="$(sed -n 's/^PREVIOUS_IMAGE_TAG=//p' .env 2>/dev/null | tail -n1)"
+            if [ -n "$prev" ] && [ "$prev" != "$IMAGE_TAG" ]; then keep="$prev"; else keep="$prior"; fi
+            {
+              grep -v -E '^(IMAGE_TAG|PREVIOUS_IMAGE_TAG)=' .env 2>/dev/null || true
+              if [ -n "$keep" ]; then echo "PREVIOUS_IMAGE_TAG=$keep"; fi
+              echo "IMAGE_TAG=$IMAGE_TAG"
+            } > .env.next && mv .env.next .env
+
+            docker compose up -d --force-recreate || { echo "DEPLOY FAILED: docker compose up" >&2; exit 1; }
             # Best-effort readiness gate (non-fatal): wait for the API container to
             # report healthy via its Docker healthcheck before running migrations,
             # so a slow boot doesn't race the migration step. Never fails the deploy.
@@ -247,6 +393,24 @@ jobs:
               [ "$status" = healthy ] && { echo "API container healthy"; break; }
               echo "waiting for API health ($status)..."; sleep 3
             done
+
+            # PROVE the rollout is the commit we meant. This is what makes the
+            # whole per-commit scheme trustworthy instead of merely intended: one
+            # bad interpolation, a stale /app/.env, or a compose quirk would
+            # otherwise ship the wrong code under a green deploy — the exact class
+            # of silent failure this change exists to end. Compares image IDs, not
+            # reference strings, because what `.Config.Image` reports varies by
+            # Docker version.
+            for svc in server customer business; do
+              want=$(docker image inspect -f '{{.Id}}' "erastusm/bookplus-$svc:$IMAGE_TAG" 2>/dev/null || echo missing)
+              have=$(docker inspect -f '{{.Image}}' "bookplus-$svc" 2>/dev/null || echo none)
+              if [ "$want" = missing ] || [ "$want" != "$have" ]; then
+                echo "DEPLOY FAILED: bookplus-$svc is not running erastusm/bookplus-$svc:$IMAGE_TAG (container image $have, expected $want)" >&2
+                exit 1
+              fi
+            done
+            echo "verified: server, customer and business are all running $IMAGE_TAG"
+
             # One-off data migrations, all idempotent — safe on every deploy.
             # They run via `exec` against the NEW container (hence the health gate
             # above), so a failure can't gate the rollout itself — but it must fail
@@ -266,4 +430,16 @@ jobs:
             # does today, so "empty list" can never again be mistaken for
             # "performs everything".
             docker compose exec -T server node scripts/migrate_member_services_flag.js || { echo "DEPLOY FAILED: migrate_member_services_flag.js exited non-zero" >&2; exit 1; }
+
+            # Only now — a fully verified, migrated rollout — move the droplet's
+            # LOCAL `:latest` onto it. Nothing in the deploy path reads `:latest`
+            # any more, so without this it would freeze at whatever was pulled
+            # before this change and the compose `${IMAGE_TAG:-latest}` fallback
+            # would quietly serve ancient code if /app/.env ever went missing.
+            # Keeping it in step means the fallback degrades to what is live.
+            for svc in server customer business; do
+              docker tag "erastusm/bookplus-$svc:$IMAGE_TAG" "erastusm/bookplus-$svc:latest" || true
+            done
             docker image prune -f
+            echo "deployed $IMAGE_TAG   (rollback target: ${keep:-none yet})"
+            df -h /app | tail -n1

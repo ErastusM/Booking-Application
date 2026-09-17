@@ -16,8 +16,26 @@ services:
       retries: 5
       start_period: 20s
 
+  # PINNED PER-DEPLOY. The deploy job writes IMAGE_TAG=<commit sha> into /app/.env
+  # (compose's interpolation file — NOT .env.production, which is only env_file:
+  # for container environment) and CI tags every image with its commit. So the
+  # three app services always move together, as one commit, and a deploy can
+  # never land a customer build from one commit beside a server build from another.
+  #
+  # Keep the `:-latest` default. Verified on Compose v5.1.1: a bare ${IMAGE_TAG}
+  # with /app/.env missing does NOT fail the file — compose only warns and
+  # interpolates a blank string, yielding `erastusm/bookplus-server:`, a malformed
+  # reference that survives `config` and blows up later at pull/up time. The
+  # default turns that silent landmine into a valid reference.
+  #
+  # It is a safe fallback only because the deploy retags the droplet's LOCAL
+  # `:latest` onto each successful rollout, so `latest` there means "what is
+  # live" rather than "whatever was pulled last". Note `:-` also substitutes when
+  # the variable is set but EMPTY, which is why the deploy refuses to run unless
+  # IMAGE_TAG is a 40-character sha — otherwise a tag that failed to arrive would
+  # quietly deploy `latest` under a green tick.
   server:
-    image: erastusm/bookplus-server:latest
+    image: erastusm/bookplus-server:${IMAGE_TAG:-latest}
     container_name: bookplus-server
     restart: always
     # NOT published to the host. nginx reaches the API as http://server:5000 over
@@ -61,7 +79,7 @@ services:
 
   # Dual-app split (Epic 1): customer marketplace + business suite.
   customer:
-    image: erastusm/bookplus-customer:latest
+    image: erastusm/bookplus-customer:${IMAGE_TAG:-latest}
     container_name: bookplus-customer
     restart: always
     depends_on:
@@ -76,7 +94,7 @@ services:
       start_period: 15s
 
   business:
-    image: erastusm/bookplus-business:latest
+    image: erastusm/bookplus-business:${IMAGE_TAG:-latest}
     container_name: bookplus-business
     restart: always
     depends_on:
