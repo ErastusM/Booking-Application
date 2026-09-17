@@ -165,9 +165,17 @@ alerts), `LOG_LEVEL`.
 
 1. **test** — `npm test` in `apps/api` (Jest, in‑memory Mongo, ~319 tests).
 2. **build‑and‑push** — builds 3 Docker images and pushes to Docker Hub
-   (`erastusm/bookplus-{server,customer,business}`).
-3. **deploy** — SSHes to the host, syncs `docker-compose.yml`,
-   `nginx/conf.d/bookplus.conf` and `ops/`, then `docker compose pull` + `up`.
+   (`erastusm/bookplus-{server,customer,business}`), tagged with the **commit
+   sha** as well as `:latest`.
+3. **deploy** — skips if the commit is no longer the tip of `main`, then SSHes to
+   the host, syncs `docker-compose.yml`, `nginx/conf.d/bookplus.conf` and `ops/`,
+   pins `IMAGE_TAG=<sha>` in `/app/.env`, runs `docker compose pull` + `up`, and
+   verifies every container is on that commit before the migrations run.
+
+The deploy ships a specific commit's images, never `:latest` — two overlapping
+builds both write `:latest`, so the last build to finish used to win regardless
+of which commit was newer. `cat /app/.env` on the host says what is live;
+`sh ops/rollback.sh` puts the previous release back. See `DEPLOY_DUAL_APP.md`.
 
 The API image bundles its own `package-lock`, so CI tests exactly what ships.
 Feature work uses `feat/*` / `chore/*` branches → PR → CI → squash‑merge. The nginx

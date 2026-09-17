@@ -8,7 +8,7 @@ const {
     inviteTeamMember, setTeamMemberServices, setTeamMemberPricing, setTeamMemberPrimary,
     handoverUpcomingBookings,
     getTeamMemberAvailability, updateTeamMemberAvailability,
-    getMyServices, setMyServices, setMyPricing,
+    getMyServices, setMyServices, addMyService, setMyPricing,
     getMyProfile, setMyProfile, getMyAvailability, setMyAvailability,
     getMyStats,
 } = require('../controllers/teamMemberController');
@@ -34,6 +34,10 @@ router.put('/:id/availability', auth, updateTeamMemberAvailability);
 // from the token rather than being read as a member id.
 router.get('/mine/services', auth, getMyServices);
 router.put('/mine/services', auth, setMyServices);
+// A member adds the service they actually perform. Ticking from the business's
+// menu is not enough on a platform that mixes trades — a cleaner hired into a
+// barbershop has nothing to tick until someone adds "Cleaning".
+router.post('/mine/services', auth, addMyService);
 router.put('/mine/pricing', auth, setMyPricing);
 
 // Staff self-view of their OWN stats (token-scoped). Before the per-route gates
