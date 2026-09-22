@@ -430,6 +430,10 @@ jobs:
             # does today, so "empty list" can never again be mistaken for
             # "performs everything".
             docker compose exec -T server node scripts/migrate_member_services_flag.js || { echo "DEPLOY FAILED: migrate_member_services_flag.js exited non-zero" >&2; exit 1; }
+            # Blocked time is per-person: re-scope legacy owner blocks (stored as
+            # business-wide because `ownerOnly` did not exist before 2026-09-01)
+            # so they stop closing every team member's day. Prints what it changed.
+            docker compose exec -T server node scripts/migrate_blocked_time_scope.js || { echo "DEPLOY FAILED: migrate_blocked_time_scope.js exited non-zero" >&2; exit 1; }
 
             # Only now — a fully verified, migrated rollout — move the droplet's
             # LOCAL `:latest` onto it. Nothing in the deploy path reads `:latest`
