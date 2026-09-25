@@ -1,4 +1,5 @@
 const pino = require('pino');
+const { isFullName, FULL_NAME_MESSAGE } = require('../utils/personName');
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const { randomUUID } = require('crypto');
 const Appointment = require('../models/Appointment');
@@ -975,6 +976,15 @@ exports.createAppointment = async (req, res) => {
 
         if (isGuest && (!guestName?.trim() || !guestEmail?.trim())) {
             return res.status(400).json({ success: false, message: 'Please provide your name and email to book as a guest.' });
+        }
+        // A booking carries the client's full name so the business can tell apart
+        // clients who share a first name or a surname. Accounts created before this
+        // rule are asked to complete their name at their next booking.
+        if (isGuest && !isFullName(guestName)) {
+            return res.status(400).json({ success: false, code: 'full_name_required', message: FULL_NAME_MESSAGE });
+        }
+        if (req.user?.role === 'customer' && !isFullName(req.user.name)) {
+            return res.status(400).json({ success: false, code: 'full_name_required', message: 'Please add your surname to your name so the business can tell you apart.' });
         }
 
         // A provider booking from their calendar can either log a walk-in (free-text

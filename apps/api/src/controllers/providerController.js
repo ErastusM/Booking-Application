@@ -33,7 +33,10 @@ const PROFILE_SELECT = 'name avatar providerCategory businessProfile portfolio p
  */
 exports.getProviderStaff = async (req, res) => {
     try {
-        const query = { provider: req.params.id, isActive: true };
+        // Only people clients can book: active AND bookable. A front desk member
+        // (bookable:false) used to be listed, picked, and then refused at the very
+        // last step ("not available for online booking").
+        const query = { provider: req.params.id, isActive: true, bookable: { $ne: false } };
         if (req.query.serviceId) {
             // Who performs this service? Mirrors staffBooking.performsService:
             //   offersAllServices:true  → yes; offersAllServices:false → only if listed;
@@ -86,7 +89,7 @@ exports.getProviderStaff = async (req, res) => {
         // their column is the unassigned one — so synthesize an entry under the
         // 'owner' sentinel id, which the booking flow maps to teamMember:null. Solo
         // businesses (no staff) keep the owner-implicit flow and need no tile.
-        const staffCount = await TeamMember.countDocuments({ provider: req.params.id, isActive: true });
+        const staffCount = await TeamMember.countDocuments({ provider: req.params.id, isActive: true, bookable: { $ne: false } });
         if (staffCount > 0) {
             const owner = await User.findById(req.params.id).select('name businessProfile.ownerTitle avatar');
             data.unshift(withRating({
