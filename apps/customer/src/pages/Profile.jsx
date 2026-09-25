@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { isFullName, splitName, joinName } from '../utils/personName';
 import { useNavigate } from 'react-router-dom';
 import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
@@ -64,7 +65,12 @@ const Profile = () => {
     const toggleOpen = (key) => setOpen(o => (o === key ? null : key));
 
     // Profile edit form
-    const [formData, setFormData] = useState({ name: user?.name || '', phone: user?.phone || '', avatar: user?.avatar || '' });
+    // Name is edited as first name + surname (both required for clients) and sent
+    // to the API as one `name`, the same shape it has always stored.
+    const [formData, setFormData] = useState(() => {
+        const { first, last } = splitName(user?.name);
+        return { first, last, phone: user?.phone || '', avatar: user?.avatar || '' };
+    });
     const [loading, setLoading] = useState(false);
     const [success, setSuccess] = useState('');
     const [error, setError] = useState('');
@@ -81,9 +87,11 @@ const Profile = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        const name = joinName(formData.first, formData.last);
+        if (!isFullName(name)) { setError('Please enter your first name and surname.'); return; }
         setLoading(true); setSuccess(''); setError('');
         try {
-            const response = await authService.updateProfile(formData);
+            const response = await authService.updateProfile({ name, phone: formData.phone, avatar: formData.avatar });
             setUser(response.data.data);
             setSuccess('Profile updated successfully.');
         } catch (err) {
@@ -171,9 +179,15 @@ const Profile = () => {
                             {success && <div style={okMsg}>{success}</div>}
                             {error && <div style={errMsg}>{error}</div>}
                             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
-                                <div>
-                                    <label style={fieldLabelStyle}>Full name</label>
-                                    <input className="input" type="text" name="name" value={formData.name} onChange={handleChange} required />
+                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.6rem' }}>
+                                    <div>
+                                        <label htmlFor="profile-first" style={fieldLabelStyle}>First name</label>
+                                        <input id="profile-first" className="input" type="text" name="first" value={formData.first} onChange={handleChange} autoComplete="given-name" required />
+                                    </div>
+                                    <div>
+                                        <label htmlFor="profile-last" style={fieldLabelStyle}>Surname</label>
+                                        <input id="profile-last" className="input" type="text" name="last" value={formData.last} onChange={handleChange} autoComplete="family-name" required />
+                                    </div>
                                 </div>
                                 <div>
                                     <label style={fieldLabelStyle}>Email</label>
