@@ -409,6 +409,7 @@ exports.login = async (req, res) => {
                     // nav/tabs off the cached user before /auth/profile resolves.
                     staffTier: user.staffTier,
                     staffPermissions: user.staffPermissions,
+                    staffOf: user.staffOf,
                 },
                 token,
                 refreshToken,
@@ -1551,7 +1552,7 @@ exports.acceptStaffInvite = async (req, res) => {
             // invite and reactivate a working login, defeating the archive.
             // Mirrors getStaffInvite's `!user.staffOf` rejection.
             staffOf: { $ne: null },
-        }).select('+password name email role providerCategory avatar phone providerSetupComplete tokenVersion isActive deactivatedAt staffOf');
+        }).select('+password name email role providerCategory avatar phone providerSetupComplete tokenVersion isActive deactivatedAt staffOf staffTier staffPermissions');
 
         if (!user) {
             return res.status(400).json({ success: false, message: 'This invite link is invalid or has expired.' });
@@ -1599,6 +1600,12 @@ exports.acceptStaffInvite = async (req, res) => {
                     avatar: user.avatar,
                     phone: user.phone,
                     providerSetupComplete: user.providerSetupComplete,
+                    // Same staff fields as login, so the business app gates its
+                    // buttons off the member's real level from the first render
+                    // (an undefined tier would read as the Service-provider default).
+                    staffTier: user.staffTier,
+                    staffPermissions: user.staffPermissions,
+                    staffOf: user.staffOf,
                 },
                 token: accessToken,
                 refreshToken,

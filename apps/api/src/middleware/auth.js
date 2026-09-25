@@ -74,8 +74,10 @@ const { can } = require('../utils/permissions');
 // true for provider/admin, this transparently preserves owner/admin access and
 // only ADDS a staff path for members whose tier grants the capability. Swapping
 // `authorize('provider','admin')` → `requireCapability('<cap>')` on a route is a
-// one-line, independently-revertable change; with default staffTier=null a staff
-// member holds only the self-baseline, so a swap can never silently open a route.
+// one-line, independently-revertable change. A staff member with no tier chosen
+// (staffTier=null) holds the Service-provider set ('low': own calendar, own
+// bookings, own blocked time); only an explicit 'basic' is view-only. Choose the
+// capability for a swap with that default in mind — it is what a fresh invite gets.
 exports.requireCapability = (capability) => (req, res, next) => {
     if (!req.user) {
         return res.status(401).json({ success: false, message: 'Not authenticated' });
@@ -89,11 +91,15 @@ exports.requireCapability = (capability) => (req, res, next) => {
 // For customer-inclusive routes (cancel/reschedule/waitlist/…): pass if the
 // user's role is in `roles` OR they hold `capability`. Keeps the customer/owner
 // paths exactly as they were while adding a capability-gated staff path.
+// `capability` may be a list — holding ANY of them passes (e.g. blocked-time
+// writes: calendar:manage for the whole business, calendar:block:self for a
+// member's own lane, with the controller enforcing the lane).
 exports.allow = ({ roles = [], capability } = {}) => (req, res, next) => {
     if (!req.user) {
         return res.status(401).json({ success: false, message: 'Not authenticated' });
     }
-    if (roles.includes(req.user.role) || (capability && can(req.user, capability))) {
+    const caps = capability ? [].concat(capability) : [];
+    if (roles.includes(req.user.role) || caps.some((c) => can(req.user, c))) {
         return next();
     }
     return res.status(403).json({

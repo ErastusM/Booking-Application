@@ -4,7 +4,7 @@ const User = require('../models/User');
 const Service = require('../models/Service');
 const StaffAvailability = require('../models/StaffAvailability');
 const Appointment = require('../models/Appointment');
-const { validate: validatePermissions, isTier } = require('../utils/permissions');
+const { validate: validatePermissions, isTier, DEFAULT_TIER } = require('../utils/permissions');
 const { memberBusyIntervals, memberInvolvedFilter, pickRotationWeek } = require('../utils/staffBooking');
 const { memberSlugMap } = require('../utils/memberLink');
 
@@ -898,7 +898,9 @@ exports.setTeamMemberPermissions = async (req, res) => {
             if (req.body.tier !== null && !isTier(req.body.tier)) {
                 return res.status(400).json({ success: false, message: `Unknown tier: ${req.body.tier}` });
             }
-            update.staffTier = req.body.tier; // null resets to the Basic self-baseline
+            // null = "nobody chose a level", which resolves to the Service-provider
+            // default ('low') in utils/permissions. View-only is the explicit 'basic'.
+            update.staffTier = req.body.tier;
         }
         if (req.body.permissions !== undefined) {
             const { accepted, rejected } = validatePermissions(req.body.permissions);
@@ -1040,7 +1042,10 @@ exports.inviteTeamMember = async (req, res) => {
                 }
                 if (accepted.length) staffPermissions = accepted;
             }
-            let staffTier = null;
+            // A new member runs their own calendar from day one ("Service
+            // provider") unless the owner picks another level. Stored explicitly
+            // so the roster shows what they actually hold.
+            let staffTier = DEFAULT_TIER;
             if (req.body.tier !== undefined && req.body.tier !== null) {
                 if (!isTier(req.body.tier)) {
                     return res.status(400).json({ success: false, message: `Unknown tier: ${req.body.tier}` });

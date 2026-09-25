@@ -8,6 +8,7 @@ import { UserPlus, Mail, Clock, ConciergeBell, ChevronDown, Check, Eye, User, Ba
 import { uploadToCloudinary } from '../utils/uploadImage';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import ShareBookingLink, { bookingUrl } from '../components/ShareBookingLink';
+import { DEFAULT_TIER } from '../utils/permissions';
 
 /**
  * Epic 2.4 — staff management: roster CRUD, invite-to-login, per-staff
@@ -55,11 +56,12 @@ const HoursGrid = ({ week, onToggle, onSlot }) => (
 );
 
 // Permission tiers a staff member can be assigned (mirrors the API's TIERS).
-// Descriptions reflect what is enforced today; higher tiers gain more as later
-// phases wire their capabilities.
+// "Service provider" comes first: it is what a member holds when nobody chose a
+// level (DEFAULT_TIER), and what a new invite gets. View only is an explicit
+// choice, never the accidental default.
 const TIER_OPTIONS = [
-    { value: 'basic', label: 'Basic', desc: 'Sees only their own bookings. Manages their own profile, hours and services.' },
-    { value: 'low', label: 'Service provider', desc: 'Their own book — confirm, complete, cancel and no-show their own appointments.' },
+    { value: 'low', label: 'Service provider', desc: 'Runs their own calendar: books their clients, blocks their own time, confirms/completes/cancels their own bookings.' },
+    { value: 'basic', label: 'View only', desc: 'Sees their own bookings; can’t book or block time.' },
     { value: 'medium', label: 'Reception', desc: 'Sees the whole calendar and can change any booking’s status.' },
     { value: 'high', label: 'Manager', desc: 'Reception access, plus management tools (reports, pricing, team) as they roll out.' },
 ];
@@ -239,9 +241,12 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
     const invitedPending = hasLogin && !loggedIn;
     const perms = member.user?.staffPermissions || [];
     // Current tier: the stored staffTier, else inferred from the legacy flag
-    // (calendar:all ≈ reception-level whole-business view) so pre-tier members
-    // read sensibly until the owner picks one.
-    const [tier, setTier] = useState(member.user?.staffTier || (perms.includes('calendar:all') ? 'medium' : 'basic'));
+    // (calendar:all ≈ reception-level whole-business view), else the
+    // Service-provider default a member with no level chosen actually holds.
+    // (This used to fall back to 'basic', and toggling "See all clients" wrote
+    // that inferred value back — so some stored 'basic' rows were never a
+    // deliberate owner choice.)
+    const [tier, setTier] = useState(member.user?.staffTier || (perms.includes('calendar:all') ? 'medium' : DEFAULT_TIER));
     // Owner-granted add-ons, held separately from the tier because the endpoint
     // REPLACES staffPermissions wholesale — saving one without the other would
     // silently drop it. No tier confers these; the owner switches them on per
@@ -1040,6 +1045,11 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                             {busy === 'invite' ? 'Sending…' : invitedPending ? 'Resend invite' : 'Send invite'}
                                         </button>
                                     </div>
+                                    {!hasLogin && (
+                                        <p style={{ margin: '0.55rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                            They join as a Service provider — they run their own calendar. You can change their access level here any time.
+                                        </p>
+                                    )}
                                 </Section>
                             )}
 

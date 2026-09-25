@@ -11,7 +11,9 @@
  *   1. A capability is only meaningful once something actually checks it. The
  *      vocabulary is defined here; routes adopt requireCapability() incrementally
  *      (see middleware/auth.js). Until a route is switched, its capability grants
- *      nothing — default staffTier=null grants only the self-baseline.
+ *      nothing. A member nobody chose a level for (staffTier null/undefined)
+ *      resolves to DEFAULT_TIER ('low', "Service provider") — they run their own
+ *      calendar from day one. Only an EXPLICIT 'basic' is view-only.
  *   2. Owners (role 'provider') and platform admins (role 'admin') are never
  *      tier-gated. can() short-circuits to true for them BEFORE any lookup — a
  *      permission system that could lock an owner out of their own business would
@@ -56,10 +58,16 @@ const BASIC = [
     'clients:assigned',
 ];
 
-// Low — a service provider running their OWN book.
+// Low — "Service provider": a member running their OWN calendar. They book
+// walk-ins and the clients they personally serve into their own column
+// (appointmentController isStaffWalkIn / isStaffSelfOnBehalf), confirm /
+// complete / cancel / reschedule their own bookings, and block time in their
+// OWN lane only (`calendar:block:self` — blockedTimeController refuses
+// business-wide, owner-only and colleagues' blocks). Whole-business blocking is
+// `calendar:manage` (Medium+).
 const LOW = BASIC.concat([
     'bookings:status:self', 'bookings:reschedule:self', 'bookings:cancel:self',
-    'bookings:create', 'waitlist:manage',
+    'bookings:create', 'waitlist:manage', 'calendar:block:self',
 ]);
 
 // Medium — reception / front desk: the whole-business calendar + client book.
@@ -84,6 +92,25 @@ const TIERS = {
     high: HIGH,
 };
 const TIER_NAMES = Object.keys(TIERS);
+
+/**
+ * The level a staff member holds when nobody chose one (staffTier null or
+ * undefined): "Service provider". A freshly invited member must be able to book
+ * their own clients and block their own time; view-only is an explicit owner
+ * choice ('basic'), never the accidental default.
+ */
+const DEFAULT_TIER = 'low';
+
+/**
+ * The tier a user actually resolves to: no tier chosen → DEFAULT_TIER; a known
+ * tier → itself; anything else (a value the schema enum should never admit)
+ * fails closed to the view-only baseline.
+ */
+const resolvedTier = (user) => {
+    const t = user ? user.staffTier : null;
+    if (t === null || t === undefined || t === '') return DEFAULT_TIER;
+    return TIERS[t] ? t : 'basic';
+};
 
 /**
  * OWNER-GRANTED add-ons: capabilities an owner switches on for ONE named person
@@ -125,13 +152,14 @@ const flagCapabilities = (flags) =>
 
 /**
  * A staff member's EFFECTIVE capabilities: the Basic self-baseline everyone
- * holds, plus their assigned tier's set, plus anything their legacy flags still
- * grant. A member with staffTier=null and only legacy flags resolves to exactly
- * today's behaviour.
+ * holds, plus their tier's set, plus anything their staffPermissions grant
+ * (legacy flags and owner-granted add-ons). A member with no tier (null or
+ * undefined) resolves to DEFAULT_TIER ('low', Service provider); an explicit
+ * 'basic' stays the view-only self-baseline.
  */
 const effectiveCapabilities = (user) => {
     const set = new Set(BASIC);
-    if (user && TIERS[user.staffTier]) TIERS[user.staffTier].forEach((c) => set.add(c));
+    TIERS[resolvedTier(user)].forEach((c) => set.add(c));
     flagCapabilities(user && user.staffPermissions).forEach((c) => set.add(c));
     return set;
 };
@@ -164,6 +192,6 @@ const isTier = (t) => TIER_NAMES.includes(t);
 
 module.exports = {
     CALENDAR_ALL, KNOWN, DESCRIPTIVE,
-    CAPABILITIES, GRANTABLE, TIERS, TIER_NAMES,
-    can, validate, isTier, effectiveCapabilities,
+    CAPABILITIES, GRANTABLE, TIERS, TIER_NAMES, DEFAULT_TIER,
+    can, validate, isTier, effectiveCapabilities, resolvedTier,
 };

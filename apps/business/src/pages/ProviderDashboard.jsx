@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState, useRef, lazy, Suspense } from 'react';
+import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import CalendarGrid from '../components/CalendarGrid';
-import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService, waitingListService, earningsService, analyticsService, walletService, providerWalletService, authService, myAvailabilityService, myProfileService, myServicesService, providerMarketService } from '../services';
+import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService, waitingListService, earningsService, analyticsService, walletService, providerWalletService, authService, myAvailabilityService, myServicesService, providerMarketService } from '../services';
 import StaffReadinessBanner from '../components/StaffReadinessBanner';
 import { useAuthContext } from '../context/AuthContext';
 // Lazy — pulls in the Google Maps SDK only when a new provider is onboarding,
@@ -19,6 +20,7 @@ import { Calendar, History, CalendarClock, Clock, LayoutDashboard, TrendingUp, B
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { NAMIBIAN_TOWNS, normalizeTown } from '../utils/namibiaTowns';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
+import useMyMember from '../hooks/useMyMember';
 import { buildTimeSlots } from '../utils/bookingSlots';
 import { fmtClock } from '../utils/time';
 import { sortClients } from '../utils/clientSort';
@@ -118,12 +120,46 @@ const ProviderDashboard = () => {
         services: 'services:self', availability: 'availability:self', messages: 'calendar:view',
     };
     const isStaff = user?.role === 'staff';
+    // A team member's own roster row ({ _id, name, bookable }) — their column is
+    // where their bookings and their blocked time go.
+    const myMember = useMyMember(user);
+    const myMemberId = myMember?._id || null;
     // What this person may do from the calendar. Owners can do everything; a team
     // member only what their access allows (the server enforces the same).
-    const canBook = !isStaff || hasCap('bookings:create');
-    const canBookExistingClient = !isStaff || hasCap('clients:view');
-    const canManageBlocks = !isStaff || hasCap('calendar:manage');
     const seesWholeTeam = !isStaff || hasCap('calendar:view_all');
+    // A member who only sees their own calendar books ONLY into their own column
+    // (the server forces it), so a column that isn't bookable can't take anything
+    // — don't offer a booking the server would refuse. Unknown (still loading)
+    // counts as bookable; the server stays the backstop.
+    const ownColumnClosed = isStaff && !seesWholeTeam && myMember?.bookable === false;
+    const canBook = (!isStaff || hasCap('bookings:create')) && !ownColumnClosed;
+    // Which clients the picker offers is decided server-side (/crm/clients: a
+    // member sees the clients they serve), and a member with bookings:create may
+    // book those — so anyone who can book gets "Existing client".
+    const canBookExistingClient = canBook;
+    // calendar:manage (Medium+) = the whole business's blocked time;
+    // calendar:block:self (Service provider) = their OWN lane only.
+    const canManageBlocks = !isStaff || hasCap('calendar:manage');
+    const canBlockOwn = isStaff && !canManageBlocks && hasCap('calendar:block:self') && !!myMemberId;
+    const canBlock = canManageBlocks || canBlockOwn;
+    // May this person edit / unblock THIS block? Own-lane members only their own.
+    const canEditBlock = (b) => {
+        if (!b || !isStaff || canManageBlocks) return !!b;
+        if (!canBlockOwn || b.ownerOnly) return false;
+        const tm = String(b.teamMember?._id || b.teamMember || '');
+        return !!tm && tm === String(myMemberId);
+    };
+    // Does this (loaded) booking involve me — top-level or a multi-service segment?
+    const apptIsMine = (a) => {
+        if (!a || !myMemberId) return false;
+        const mid = String(myMemberId);
+        if (String(a.teamMember?._id || a.teamMember || '') === mid) return true;
+        return Array.isArray(a.services) && a.services.some((x) => String(x?.teamMember?._id || x?.teamMember || '') === mid);
+    };
+    // Booking actions a member may take on THIS booking (server: bookings:status /
+    // bookings:reschedule for any booking, the :self variants for their own).
+    const canChangeApptStatus = (a) => !isStaff || hasCap('bookings:status') || (hasCap('bookings:status:self') && apptIsMine(a));
+    const canRescheduleAppt = (a) => !isStaff || hasCap('bookings:reschedule') || (hasCap('bookings:reschedule:self') && apptIsMine(a));
     const tabAllowed = (t) => user?.role !== 'staff' || (!!STAFF_TAB_CAPS[t] && hasCap(STAFF_TAB_CAPS[t]));
     // Route ALL programmatic tab switches through the whitelist too — in-app
     // buttons (e.g. "View in History", "Message") must not let a staff member open
@@ -222,10 +258,9 @@ const ProviderDashboard = () => {
         };
     }, [calendarView]);
     const [blockedTimes, setBlockedTimes] = useState([]);
-    // A team member's own roster row id — their calendar shows only the blocked
-    // time that is theirs or closes the whole business, never a colleague's or
-    // the owner's personal blocks.
-    const [myMemberId, setMyMemberId] = useState(null);
+    // A team member's calendar shows only the blocked time that is theirs (lane =
+    // myMemberId, above) or closes the whole business, never a colleague's or the
+    // owner's personal blocks.
     // The business a team member works for — their screens say "Vido Barber", not "your business".
     const [staffBusinessName, setStaffBusinessName] = useState('');
     const businessName = isStaff ? (staffBusinessName || 'your business') : (user?.businessProfile?.businessName || user?.name || 'your business');
@@ -386,7 +421,6 @@ const ProviderDashboard = () => {
             fetchMyServices(),
             fetchCategories(),
             fetchBlockedTimes(),
-            isStaff && myProfileService.get().then((r) => setMyMemberId(r.data.data?._id || null)),
             isStaff && user?.staffOf && providerMarketService.getProviderProfile(user.staffOf)
                 .then((r) => { const p = r.data.data?.provider || r.data.data; setStaffBusinessName(p?.businessProfile?.businessName || p?.name || ''); })
                 .catch(() => {}),
@@ -525,6 +559,10 @@ const ProviderDashboard = () => {
         } catch { }
     };
 
+    // Where a new block goes by default: the owner's own time for the owner, a
+    // team member's own lane for them.
+    const myBlockDefaultScope = () => (isStaff ? (myMemberId ? String(myMemberId) : 'owner') : 'owner');
+
     const openBlockedTimeForm = (item = null) => {
         setBlockedTimeChecked(false);
         if (item) {
@@ -543,11 +581,27 @@ const ProviderDashboard = () => {
             });
         } else {
             setEditingBlockedTime(null);
-            // Default new blocks to the owner alone, so a personal block never
-            // fans out onto the whole team — business-wide is a deliberate choice.
-            setBlockedTimeForm({ blockType: 'Custom', title: '', date: new Date().toISOString().split('T')[0], startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', teamMember: 'owner' });
+            // Default new blocks to the person making them, so a personal block
+            // never fans out onto the whole team — business-wide is a deliberate
+            // choice. For the owner that's their own (owner-only) time; for a team
+            // member it's their own lane ('owner' would block the OWNER's column).
+            setBlockedTimeForm({ blockType: 'Custom', title: '', date: new Date().toISOString().split('T')[0], startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', teamMember: myBlockDefaultScope() });
         }
         setShowBlockedTimeForm(true);
+    };
+
+    // Tapping a block on the calendar opens it for editing only when this person
+    // may change it; otherwise say whose it is instead of opening a form whose
+    // Update / Unblock the server would refuse.
+    const handleCalendarBlockClick = (block) => {
+        if (canEditBlock(block)) { openBlockedTimeForm(block); return; }
+        const lane = String(block?.teamMember?._id || block?.teamMember || '');
+        const mine = !!lane && !!myMemberId && lane === String(myMemberId);
+        toast(!lane && !block?.ownerOnly
+            ? `This time is closed for all of ${businessName}. Only the owner can change it.`
+            : mine
+                ? 'Your access is view only — ask the owner to change your blocked time.'
+                : 'This blocked time isn’t yours to change.', 'info');
     };
 
     const closeBlockedTimeForm = () => {
@@ -588,8 +642,10 @@ const ProviderDashboard = () => {
     const saveBlockedTime = async (mode) => {
         setSavingBlockedTime(true);
         // Scope: 'owner' → the owner alone (ownerOnly), '' → business-wide,
-        // an id → that member. Split into the two fields the API expects.
-        const scopeVal = blockedTimeForm.teamMember;
+        // an id → that member. Split into the two fields the API expects. A
+        // Service provider may only block their own lane — pin it whatever the
+        // form holds (the server refuses anything else).
+        const scopeVal = canBlockOwn ? String(myMemberId) : blockedTimeForm.teamMember;
         const scopeTeamMember = (scopeVal && scopeVal !== 'owner') ? scopeVal : undefined;
         const scopeOwnerOnly = scopeVal === 'owner';
         // Optimistic update: close the panel and show the block immediately
@@ -916,6 +972,8 @@ const ProviderDashboard = () => {
     // Client/service fields for a FRESH booking — used to reset the New Appointment
     // form so a generic "+ Appointment" never inherits a client left over from the
     // client-detail "Book Appointment" entry point (or a prior open).
+    // A walk-in row of the client list: no account behind it, keyed "walkin:<name>".
+    const isWalkInEntry = (c) => !!(c?.isWalkIn || c?.customer?.isWalkIn || String(c?.customer?._id || '').startsWith('walkin:'));
     const blankApptFields = { services: [{ serviceId: '' }], clientMode: 'existing', customerId: '', clientName: '', isGroup: false, groupClients: [{ name: '' }], notes: '', startTime: '', teamMember: '' };
     const openBlankApptModal = (extra = {}) => {
         setApptError('');
@@ -925,13 +983,16 @@ const ProviderDashboard = () => {
 
     const openApptModalForClient = (client) => {
         const customerId = client?.customer?._id || '';
-        if (!customerId) return;
+        if (!customerId || !canBook) return;
         setApptError('');
+        // A walk-in has no account (its list id is "walkin:<name>", not a client
+        // id) — book them again by name.
+        const walkIn = isWalkInEntry(client);
         setApptForm(prev => ({
             ...prev,
-            clientMode: 'existing',
-            customerId,
-            clientName: '',
+            clientMode: walkIn ? 'walkin' : 'existing',
+            customerId: walkIn ? '' : customerId,
+            clientName: walkIn ? (client.customer?.name || '') : '',
             isGroup: false,
             date: prev.date || toDateKey(new Date()),
             startTime: '',
@@ -1799,7 +1860,17 @@ const ProviderDashboard = () => {
                 {/* A team member's own working hours + time off, in the same layout */}
                 {activeTab === 'availability' && isStaff && (
                     <Suspense fallback={<RowsSkeleton />}>
-                        <MemberHoursTab businessName={businessName} />
+                        <MemberHoursTab
+                            businessName={businessName}
+                            // Their own lane's blocked time, where the owner has "Blocked
+                            // Times" — offered when their access lets them block time.
+                            blocks={canBlock && myMemberId
+                                ? blockedTimes.filter((b) => String(b.teamMember?._id || b.teamMember || '') === String(myMemberId))
+                                : null}
+                            onAddBlock={() => openBlockedTimeForm()}
+                            onEditBlock={(b) => openBlockedTimeForm(b)}
+                            onDeleteBlock={(b) => handleDeleteBlockedTime(b)}
+                        />
                     </Suspense>
                 )}
 
@@ -2572,9 +2643,11 @@ const ProviderDashboard = () => {
                                     height="100%"
                                     headerControl={viewMenu}
                                     onApptClick={openApptDetail}
-                                    onBlockClick={(block) => openBlockedTimeForm(block)}
-                                    onSlotClick={(canBook || canManageBlocks) ? (sel) => { setApptError(''); setTimeSelectionPreview(sel); } : undefined}
-                                    onReschedule={handleCalendarReschedule}
+                                    onBlockClick={handleCalendarBlockClick}
+                                    onSlotClick={(canBook || canBlock) ? (sel) => { setApptError(''); setTimeSelectionPreview(sel); } : undefined}
+                                    // Drag-to-move rides the owner-only batch endpoint; a team
+                                    // member moves their own booking with Actions → Reschedule.
+                                    onReschedule={isStaff ? undefined : handleCalendarReschedule}
                                     // Reassigning a booking to another performer is owner-only (the
                                     // server refuses it for staff); only wire it up for the owner so a
                                     // staff drag can't cross lanes into a guaranteed 403.
@@ -2595,9 +2668,9 @@ const ProviderDashboard = () => {
                                     height="100%"
                                     headerControl={viewMenu}
                                     onEventClick={openApptDetail}
-                                    onBlockClick={(block) => openBlockedTimeForm(block)}
-                                    onSlotClick={(canBook || canManageBlocks) ? (sel) => { setApptError(''); setTimeSelectionPreview(sel); } : undefined}
-                                    onReschedule={handleCalendarReschedule}
+                                    onBlockClick={handleCalendarBlockClick}
+                                    onSlotClick={(canBook || canBlock) ? (sel) => { setApptError(''); setTimeSelectionPreview(sel); } : undefined}
+                                    onReschedule={isStaff ? undefined : handleCalendarReschedule}
                                 />
                             )}
                         </div>
@@ -2660,8 +2733,11 @@ const ProviderDashboard = () => {
                             </div>
                         )}
 
-                        {/* On selection release: ask whether to book a client or block the time */}
-                        {timeSelectionPreview && (
+                        {/* On selection release: ask whether to book a client or block the time.
+                            Portalled to <body>: the full-screen calendar is its own fixed
+                            stacking layer, which pinned this sheet UNDER the phone's bottom nav
+                            (its Cancel sat behind the "+"). */}
+                        {timeSelectionPreview && createPortal(
                             <div onClick={() => setTimeSelectionPreview(null)} className="sheet-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.6)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center', padding: '0' }}>
                                 <div onClick={e => e.stopPropagation()} role="dialog" aria-modal="true" className="scale-in sheet-panel" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', borderRadius: '20px 20px 0 0', boxShadow: 'var(--shadow-lg)', overflow: 'hidden', paddingBottom: 'env(safe-area-inset-bottom)' }}>
                                     <div style={{ padding: '1.5rem 1.5rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
@@ -2682,14 +2758,17 @@ const ProviderDashboard = () => {
                                         }} className="btn-primary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.8rem' }}>
                                             <CalendarPlus size={18} strokeWidth={2} /> Add appointment
                                         </button>}
-                                        {canManageBlocks && <button onClick={() => {
+                                        {canBlock && <button onClick={() => {
                                             openBlockedTimeForm(null);
                                             setBlockedTimeForm(prev => ({
                                                 ...prev,
                                                 date: timeSelectionPreview.date,
                                                 startTime: timeSelectionPreview.startTime,
                                                 endTime: timeSelectionPreview.endTime,
-                                                teamMember: timeSelectionPreview.teamMember !== undefined ? timeSelectionPreview.teamMember : prev.teamMember,
+                                                // A Service provider blocks their own lane, whichever column was tapped.
+                                                teamMember: canBlockOwn
+                                                    ? String(myMemberId)
+                                                    : (timeSelectionPreview.teamMember !== undefined ? timeSelectionPreview.teamMember : prev.teamMember),
                                             }));
                                             setTimeSelectionPreview(null);
                                         }} className="btn-outline" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.8rem' }}>
@@ -2698,7 +2777,8 @@ const ProviderDashboard = () => {
                                         <button onClick={() => setTimeSelectionPreview(null)} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.85rem', padding: '0.4rem', marginTop: '0.1rem' }}>Cancel</button>
                                     </div>
                                 </div>
-                            </div>
+                            </div>,
+                            document.body,
                         )}
 
                         {/* Drag-to-move confirmation (appointments + blocked time) */}
@@ -2925,6 +3005,7 @@ const ProviderDashboard = () => {
                                 </div>
                             </div>
                             <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '70vh', overflowY: 'auto' }}>
+                                {canBook && (
                                 <button
                                     onClick={() => openApptModalForClient(selectedClient)}
                                     className="btn-primary"
@@ -2932,6 +3013,7 @@ const ProviderDashboard = () => {
                                 >
                                     <CalendarPlus size={15} strokeWidth={2} /> Book Appointment
                                 </button>
+                                )}
                                 {/* Quick contact - call / email / chat */}
                                 {(() => {
                                     const cust = selectedClient.customer;
@@ -4023,15 +4105,28 @@ const ProviderDashboard = () => {
                                 editing we show the scope read-only. */}
                             <div>
                                 <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Applies to</label>
-                                {!editingBlockedTime && activeTeamMembers.length > 0 ? (
+                                {!editingBlockedTime && (isStaff ? canManageBlocks : activeTeamMembers.length > 0) ? (
                                     <Select
                                         value={blockedTimeForm.teamMember}
                                         onChange={e => setBlockedTimeForm(p => ({ ...p, teamMember: e.target.value }))}
                                         options={[
-                                            { value: 'owner', label: `Only me${user?.name ? ` (${user.name.split(' ')[0]})` : ' (owner)'}` },
-                                            { value: '', label: 'Whole business (everyone)' },
-                                            ...activeTeamMembers.map(m => ({ value: m._id, label: `${m.name}${m.role ? ` · ${m.role}` : ''} only` })),
-                                            ...(blockedTimeForm.teamMember && blockedTimeForm.teamMember !== 'owner' && !activeTeamMembers.some(m => String(m._id) === String(blockedTimeForm.teamMember))
+                                            ...(isStaff
+                                                // A team member who manages the calendar (Reception / Manager):
+                                                // "Only me" is THEIR lane; the owner's own time is a separate,
+                                                // clearly-named option (it used to read "Only me" and block the
+                                                // owner's column instead).
+                                                ? [
+                                                    ...(myMemberId ? [{ value: String(myMemberId), label: `Only me${myMember?.name ? ` (${myMember.name.split(' ')[0]})` : ''}` }] : []),
+                                                    { value: '', label: 'Whole business (everyone)' },
+                                                    { value: 'owner', label: 'Owner only' },
+                                                    ...activeTeamMembers.filter(m => String(m._id) !== String(myMemberId)).map(m => ({ value: m._id, label: `${m.name}${m.role ? ` · ${m.role}` : ''} only` })),
+                                                ]
+                                                : [
+                                                    { value: 'owner', label: `Only me${user?.name ? ` (${user.name.split(' ')[0]})` : ' (owner)'}` },
+                                                    { value: '', label: 'Whole business (everyone)' },
+                                                    ...activeTeamMembers.map(m => ({ value: m._id, label: `${m.name}${m.role ? ` · ${m.role}` : ''} only` })),
+                                                ]),
+                                            ...(blockedTimeForm.teamMember && blockedTimeForm.teamMember !== 'owner' && String(blockedTimeForm.teamMember) !== String(myMemberId || '') && !activeTeamMembers.some(m => String(m._id) === String(blockedTimeForm.teamMember))
                                                 ? [{ value: blockedTimeForm.teamMember, label: `${teamMembers.find(m => String(m._id) === String(blockedTimeForm.teamMember))?.name || 'Staff member'} · inactive` }]
                                                 : []),
                                         ]}
@@ -4041,18 +4136,28 @@ const ProviderDashboard = () => {
                                     />
                                 ) : (() => {
                                     const scope = blockedTimeForm.teamMember;
+                                    // A team member's own lane reads "Only me (name)" — for a Service
+                                    // provider it is the ONLY lane they can block.
+                                    const isMine = isStaff && !!myMemberId && String(scope) === String(myMemberId);
                                     const isMemberScope = scope && scope !== 'owner';
-                                    const label = isMemberScope
-                                        ? `${teamMembers.find(m => String(m._id) === scope)?.name || 'Staff member'} only`
-                                        : scope === 'owner'
-                                            ? `Only me${user?.name ? ` (${user.name.split(' ')[0]})` : ''}`
-                                            : (activeTeamMembers.length > 0 ? 'Whole business (everyone)' : (user?.name || 'Only me'));
+                                    const mineName = myMember?.name || user?.name || '';
+                                    const label = isMine
+                                        ? `Only me${mineName ? ` (${mineName.split(' ')[0]})` : ''}`
+                                        : isMemberScope
+                                            ? `${teamMembers.find(m => String(m._id) === scope)?.name || 'Staff member'} only`
+                                            : scope === 'owner'
+                                                ? (isStaff ? 'Owner only' : `Only me${user?.name ? ` (${user.name.split(' ')[0]})` : ''}`)
+                                                : (activeTeamMembers.length > 0 || isStaff ? 'Whole business (everyone)' : (user?.name || 'Only me'));
+                                    // The signed-in person's avatar stands for "me": the owner's own
+                                    // time, or a team member's own lane.
+                                    const showMyAvatar = !!user?.avatar && (isStaff ? isMine : !isMemberScope);
+                                    const initial = (isMine ? mineName : isMemberScope ? teamMembers.find(m => String(m._id) === scope)?.name : (isStaff ? businessName : user?.name))?.[0] || '?';
                                     return (
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem 0.875rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--warm-gray)' }}>
-                                        <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: user?.avatar && !isMemberScope ? 'transparent' : 'var(--ink)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                            {user?.avatar && !isMemberScope
+                                    <div data-testid="block-scope-fixed" style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.65rem 0.875rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--warm-gray)' }}>
+                                        <div style={{ width: '30px', height: '30px', borderRadius: '50%', background: showMyAvatar ? 'transparent' : 'var(--ink)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                            {showMyAvatar
                                                 ? <img src={cloudinaryAvatar(user.avatar)} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                : <span style={{ color: 'var(--gold)', fontWeight: '600', fontSize: '0.8rem' }}>{(isMemberScope ? teamMembers.find(m => String(m._id) === scope)?.name : user?.name)?.[0] || '?'}</span>}
+                                                : <span style={{ color: 'var(--gold)', fontWeight: '600', fontSize: '0.8rem' }}>{initial}</span>}
                                         </div>
                                         <span style={{ fontSize: '0.875rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)', fontWeight: '500' }}>{label}</span>
                                     </div>
@@ -4115,15 +4220,16 @@ const ProviderDashboard = () => {
 
                             <div style={{ flexGrow: 1 }} />
 
-                            {/* Save button */}
-                            <button type="submit" disabled={savingBlockedTime} style={{ width: '100%', padding: '0.9rem', background: savingBlockedTime ? '#9ca3af' : 'var(--ink)', color: 'var(--on-ink)', border: 'none', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.95rem', fontWeight: '600', cursor: savingBlockedTime ? 'not-allowed' : 'pointer', letterSpacing: '0.03em' }}>
+                            {/* Save button — hidden on a block this person may not change (the
+                                calendar doesn't open those, but never offer a write the server refuses). */}
+                            {(!editingBlockedTime || canEditBlock(editingBlockedTime)) && <button type="submit" disabled={savingBlockedTime} style={{ width: '100%', padding: '0.9rem', background: savingBlockedTime ? '#9ca3af' : 'var(--ink)', color: 'var(--on-ink)', border: 'none', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.95rem', fontWeight: '600', cursor: savingBlockedTime ? 'not-allowed' : 'pointer', letterSpacing: '0.03em' }}>
                                 {savingBlockedTime ? 'Saving...' : editingBlockedTime ? 'Update' : 'Save'}
-                            </button>
+                            </button>}
 
-                            {/* Unblock / delete — only when editing an existing block. Opens the
-                                recurring "this / all" chooser for repeating blocks, otherwise
-                                removes it and closes the panel. */}
-                            {editingBlockedTime && (
+                            {/* Unblock / delete — only when editing an existing block this person
+                                may change. Opens the recurring "this / all" chooser for repeating
+                                blocks, otherwise removes it and closes the panel. */}
+                            {editingBlockedTime && canEditBlock(editingBlockedTime) && (
                                 <button type="button" onClick={() => handleDeleteBlockedTime(editingBlockedTime)} disabled={savingBlockedTime} style={{ width: '100%', marginTop: '0.65rem', padding: '0.85rem', background: 'none', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: '600', cursor: savingBlockedTime ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
                                     <Ban size={16} /> Unblock this time
                                 </button>
@@ -4175,10 +4281,15 @@ const ProviderDashboard = () => {
                             // complete / no-show transitions only make sense while it's still
                             // pending or confirmed. Hide the Actions chip once there's nothing
                             // left to do (completed / cancelled).
-                            const canConfirm = apptDetailModal.status === 'pending';
-                            const canReschedule = apptDetailModal.status !== 'cancelled' && apptDetailModal.status !== 'completed';
-                            const canFinish = apptDetailModal.status === 'pending' || apptDetailModal.status === 'confirmed';
-                            const hasApptActions = canConfirm || canReschedule || canFinish;
+                            // A team member only sees the actions their access allows on THIS
+                            // booking (View only: none; Service provider: their own bookings).
+                            const statusOk = canChangeApptStatus(apptDetailModal);
+                            const stillOpen = apptDetailModal.status !== 'cancelled' && apptDetailModal.status !== 'completed';
+                            const canConfirm = statusOk && apptDetailModal.status === 'pending';
+                            const canReschedule = canRescheduleAppt(apptDetailModal) && stillOpen;
+                            const canFinish = statusOk && (apptDetailModal.status === 'pending' || apptDetailModal.status === 'confirmed');
+                            const canCancel = statusOk && stillOpen;
+                            const hasApptActions = canConfirm || canReschedule || canFinish || canCancel;
                             const menuItem = { display: 'flex', alignItems: 'center', gap: '0.55rem', width: '100%', textAlign: 'left', padding: '0.6rem 0.75rem', borderRadius: '9px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.86rem', fontWeight: 600, color: 'var(--charcoal)' };
                             return (
                                 <div style={{ padding: '1.1rem 1.5rem', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
@@ -4253,7 +4364,7 @@ const ProviderDashboard = () => {
                                                                     <Ban size={16} color="#7c3aed" /> Mark no-show
                                                                 </button>
                                                             )}
-                                                            {canReschedule && (
+                                                            {canCancel && (
                                                                 <>
                                                                     <div style={{ borderTop: '1px solid var(--border)', margin: '0.3rem 0' }} />
                                                                     <button role="menuitem" type="button" style={{ ...menuItem, color: 'var(--danger)' }}
@@ -4261,8 +4372,9 @@ const ProviderDashboard = () => {
                                                                             setShowApptActions(false);
                                                                             // Recurring bookings open the this/future/all chooser;
                                                                             // one-offs confirm and cancel in place. Same logic the
-                                                                            // old standalone Cancel button used.
-                                                                            if (apptDetailModal.isRecurring) {
+                                                                            // old standalone Cancel button used. Cancelling a whole
+                                                                            // series is the owner's; a team member cancels this one.
+                                                                            if (apptDetailModal.isRecurring && !isStaff) {
                                                                                 setSeriesCancelModal(apptDetailModal);
                                                                                 setSeriesCancelMode('this');
                                                                                 setApptDetailModal(null);
@@ -4346,8 +4458,9 @@ const ProviderDashboard = () => {
                             {/* Intake / consent forms for this appointment */}
                             <Suspense fallback={null}><ApptFormsView appointmentId={apptDetailModal._id} /></Suspense>
 
-                            {/* Reschedule - collapsed by default so it doesn't push the actions down */}
-                            {apptDetailModal.status !== 'cancelled' && apptDetailModal.status !== 'completed' && (
+                            {/* Reschedule - collapsed by default so it doesn't push the actions down.
+                                Only for people whose access lets them move THIS booking. */}
+                            {apptDetailModal.status !== 'cancelled' && apptDetailModal.status !== 'completed' && canRescheduleAppt(apptDetailModal) && (
                                 <div style={{ background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
                                     <button onClick={() => setShowReschedule(s => !s)} aria-expanded={showReschedule} style={{ width: '100%', display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '0.85rem 1rem', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
                                         <span style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--charcoal)', textTransform: 'uppercase', letterSpacing: '0.07em' }}>Reschedule</span>

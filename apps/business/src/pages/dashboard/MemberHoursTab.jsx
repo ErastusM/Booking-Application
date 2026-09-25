@@ -6,8 +6,9 @@ import { useToast } from '../../components/Toast';
 // A team member's own working hours, in the owner's "Working Hours" layout (a
 // row per day with a toggle and times, Save Changes). Nothing is inherited from
 // the business: a member with no hours yet starts with every day off. Below it,
-// "Time off" takes the place of the owner's "Blocked Times" — the member asks,
-// the owner approves.
+// "Blocked time" (a member whose access lets them block their own time — the
+// dashboard passes `blocks` and the handlers, and owns the form) and "Time off"
+// — the member asks, the owner approves.
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const OFF_WEEK = () => Object.fromEntries(DAYS.map((d) => [d, { enabled: false, slots: [{ start: '09:00', end: '17:00' }] }]));
@@ -25,7 +26,9 @@ const niceDate = (k) => new Date(`${k}T12:00:00`).toLocaleDateString('en-GB', { 
 
 const card = { background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)' };
 
-const MemberHoursTab = ({ businessName = 'the business' }) => {
+const blockWhen = (b) => `${niceDate(b.date)} · ${b.startTime}–${b.endTime}`;
+
+const MemberHoursTab = ({ businessName = 'the business', blocks = null, onAddBlock, onEditBlock, onDeleteBlock }) => {
     const toast = useToast();
     const [schedule, setSchedule] = useState(null);
     const [hadHours, setHadHours] = useState(true);
@@ -87,6 +90,22 @@ const MemberHoursTab = ({ businessName = 'the business' }) => {
     };
 
     const upcoming = (leave || []).filter((t) => t.endDate >= todayKey()).sort((a, b) => a.startDate.localeCompare(b.startDate));
+    // The member's own upcoming blocks. A repeating block is stored one row per
+    // occurrence, so a series shows once — at its next occurrence.
+    const upcomingBlocks = (() => {
+        if (!Array.isArray(blocks)) return [];
+        const seen = new Set();
+        return blocks
+            .filter((b) => String(b.date).slice(0, 10) >= todayKey() && !String(b._id).startsWith('tmp_'))
+            .sort((a, b) => (`${a.date} ${a.startTime}`).localeCompare(`${b.date} ${b.startTime}`))
+            .filter((b) => {
+                if (!b.isRecurring || !b.recurrenceGroupId) return true;
+                if (seen.has(b.recurrenceGroupId)) return false;
+                seen.add(b.recurrenceGroupId);
+                return true;
+            })
+            .slice(0, 30);
+    })();
 
     return (
         <div data-testid="member-hours">
@@ -136,7 +155,45 @@ const MemberHoursTab = ({ businessName = 'the business' }) => {
                 </div>
             )}
 
-            {/* Time off — in place of the owner's "Blocked Times" */}
+            {/* Blocked time — the member's own lane, like the owner's "Blocked Times" */}
+            {Array.isArray(blocks) && onAddBlock && (
+                <div style={{ marginTop: '2rem' }} data-testid="member-blocks">
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
+                        <div>
+                            <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)' }}>Blocked time</h2>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.825rem', marginTop: '0.2rem' }}>Block off time in your own calendar — clients can’t book you then.</p>
+                        </div>
+                        <button onClick={onAddBlock} className="btn-outline" style={{ padding: '0.55rem 1.1rem', fontSize: '0.825rem', flexShrink: 0 }} data-testid="member-add-block">+ Block time</button>
+                    </div>
+                    {upcomingBlocks.length === 0 ? (
+                        <div style={{ ...card, padding: '2rem', textAlign: 'center' }}>
+                            <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No blocked time coming up.</p>
+                        </div>
+                    ) : (
+                        <div style={{ ...card, overflow: 'hidden' }}>
+                            {upcomingBlocks.map((b, i) => (
+                                <div key={b._id} data-testid="member-block" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.875rem 1.25rem', borderBottom: i < upcomingBlocks.length - 1 ? '1px solid var(--border)' : 'none', flexWrap: 'wrap' }}>
+                                    <div style={{ minWidth: 0 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                                            <span style={{ fontWeight: '600', fontSize: '0.9rem', color: 'var(--charcoal)' }}>{blockWhen(b)}</span>
+                                            {b.isRecurring && (
+                                                <span style={{ fontSize: '0.68rem', fontWeight: '600', padding: '0.1rem 0.5rem', borderRadius: '99px', background: 'var(--surface-sunken)', color: 'var(--text-secondary)' }}>Repeats {b.recurrenceType}</span>
+                                            )}
+                                        </div>
+                                        {b.reason && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{b.reason}</div>}
+                                    </div>
+                                    <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                                        {onEditBlock && <button onClick={() => onEditBlock(b)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.3rem 0.7rem', minHeight: '32px', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Edit</button>}
+                                        {onDeleteBlock && <button onClick={() => onDeleteBlock(b)} style={{ background: 'none', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', padding: '0.3rem 0.7rem', minHeight: '32px', cursor: 'pointer', fontSize: '0.78rem', color: '#dc2626' }}>Unblock</button>}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* Time off — the member asks, the owner approves */}
             <div style={{ marginTop: '2rem' }}>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', marginBottom: '1rem' }}>
                     <div>

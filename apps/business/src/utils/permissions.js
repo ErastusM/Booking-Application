@@ -9,7 +9,8 @@
  * can(user, cap): owners (role 'provider') and admins hold everything; other
  * non-staff hold nothing; a staff member holds their tier's set ∪ the Basic
  * self-baseline ∪ any capability granted by staffPermissions (the override
- * channel). Missing staffTier ⇒ Basic baseline only.
+ * channel). Missing staffTier (null/undefined — nobody chose a level) ⇒ the
+ * Service-provider default ('low'); only an explicit 'basic' is view-only.
  */
 const BASIC = [
     'account:self', 'profile:self', 'calendar:view', 'availability:self', 'availability:view',
@@ -21,9 +22,12 @@ const BASIC = [
     // assigned clients regardless of tier.
     'clients:assigned',
 ];
+// Service provider: runs their own calendar — books walk-ins and the clients
+// they serve into their own column, confirms/completes/cancels their own
+// bookings, and blocks time in their OWN lane (calendar:block:self).
 const LOW = BASIC.concat([
     'bookings:status:self', 'bookings:reschedule:self', 'bookings:cancel:self',
-    'bookings:create', 'waitlist:manage',
+    'bookings:create', 'waitlist:manage', 'calendar:block:self',
 ]);
 const MEDIUM = LOW.concat([
     'calendar:view_all', 'bookings:edit', 'bookings:status', 'bookings:reschedule',
@@ -36,6 +40,16 @@ const HIGH = MEDIUM.concat([
 ]);
 
 export const TIERS = { basic: BASIC, low: LOW, medium: MEDIUM, high: HIGH };
+
+/** The level a member holds when nobody chose one (mirrors DEFAULT_TIER in the API). */
+export const DEFAULT_TIER = 'low';
+
+/** The tier a user resolves to: no tier → DEFAULT_TIER; unknown → view-only. */
+export const resolvedTier = (user) => {
+    const t = user ? user.staffTier : null;
+    if (t === null || t === undefined || t === '') return DEFAULT_TIER;
+    return TIERS[t] ? t : 'basic';
+};
 
 /**
  * Owner-granted add-ons: switched on for ONE person and conferred by NO tier.
@@ -58,7 +72,7 @@ const flagCapabilities = (flags) =>
 
 export const effectiveCapabilities = (user) => {
     const set = new Set(BASIC);
-    if (user && TIERS[user.staffTier]) TIERS[user.staffTier].forEach((c) => set.add(c));
+    TIERS[resolvedTier(user)].forEach((c) => set.add(c));
     flagCapabilities(user && user.staffPermissions).forEach((c) => set.add(c));
     return set;
 };

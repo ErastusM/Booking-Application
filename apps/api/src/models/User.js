@@ -74,9 +74,11 @@ const userSchema = new mongoose.Schema(
         // Legacy source; superseded by staffTier but retained as a per-member
         // override layered on top of the tier (see utils/permissions.js).
         staffPermissions: { type: [String], default: [] },
-        // Preset permission tier for a staff member: 'basic' | 'low' | 'medium' |
-        // 'high', or null (Basic self-baseline). Owners/admins are never tiered.
-        // See utils/permissions.js TIERS. null keeps today's behaviour exactly.
+        // Preset permission tier for a staff member: 'basic' (explicit view-only) |
+        // 'low' (Service provider) | 'medium' | 'high', or null = nobody chose a
+        // level, which resolves to the Service-provider default (DEFAULT_TIER in
+        // utils/permissions.js). New invites store 'low' explicitly. Owners/admins
+        // are never tiered.
         staffTier: { type: String, enum: ['basic', 'low', 'medium', 'high', null], default: null },
         providerCategory: {
             type: String,
