@@ -32,8 +32,14 @@ const open = async (props = {}) => {
         rest.forEach(([x, y]) => fireEvent.pointerMove(stage, { pointerId: 1, clientX: x, clientY: y }));
         fireEvent.pointerUp(stage, { pointerId: 1 });
     };
+    // A wheel event `ms` into the test, so gestures can be timed.
+    const wheel = (deltaY, ms) => {
+        const e = new WheelEvent('wheel', { deltaY, bubbles: true, cancelable: true });
+        Object.defineProperty(e, 'timeStamp', { value: ms });
+        fireEvent(stage, e);
+    };
     const done = () => { fireEvent.click(screen.getByTestId('photo-editor-done')); return onDone.mock.calls.at(-1)[0]; };
-    return { stage, drag, done };
+    return { stage, drag, wheel, done };
 };
 const note = () => screen.getByTestId('photo-framing-note').textContent;
 
@@ -48,6 +54,27 @@ describe('PhotoEditor', () => {
         drag([[200, 300], [201, 300], [202, 301], [200, 302], [203, 301], [201, 299]]);
         expect(note()).toMatch(/^Automatic framing\./);
         expect(done()).toEqual({ edit: null, shape: '1:1' });
+    });
+
+    it('fingers resting on a trackpad save no crop', async () => {
+        const { wheel, done } = await open();
+        // A pixel or two of scroll now and then, and a wobble that stays under 10px.
+        wheel(-1, 1000);
+        wheel(-3, 1400);
+        wheel(-2, 1800); wheel(-3, 1816); wheel(2, 1832); wheel(-3, 1848);
+        expect(note()).toMatch(/^Automatic framing\./);
+        expect(done().edit).toBeNull();
+    });
+
+    it('a real scroll zooms, none of it lost, and the rest of the gesture follows', async () => {
+        const { wheel, done } = await open();
+        [0, 16, 32].forEach((ms) => wheel(-3, 1000 + ms)); // 9px: still nothing
+        expect(note()).toMatch(/^Automatic framing\./);
+        wheel(-3, 1048); // 12px: past the slop, and all 12 zoom
+        expect(note()).toMatch(/^Framed by you\./);
+        expect(done().edit.w).toBeCloseTo(1 / Math.exp(12 * 0.0015), 3);
+        wheel(-1, 1064); // the tail of the same gesture zooms too
+        expect(done().edit.w).toBeCloseTo(1 / Math.exp(13 * 0.0015), 3);
     });
 
     it('zooming out at the widest changes nothing', async () => {

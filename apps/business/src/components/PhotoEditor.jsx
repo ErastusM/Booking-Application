@@ -25,6 +25,14 @@ const round4 = (n) => Math.round(n * 10000) / 10000;
 export const DRAG_SLOP = 4;
 export const isDrag = (from, to) => Math.hypot(to.x - from.x, to.y - from.y) > DRAG_SLOP;
 
+// A trackpad sends a pixel or two of scroll when fingers rest on it or a flick
+// winds down: too little to see, but enough to frame the photo. Scrolling only
+// zooms once a burst adds up to more than WHEEL_SLOP px (a 1.5% zoom); then the
+// whole burst applies and the rest of that gesture follows as it comes. A
+// WHEEL_GAP ms pause ends the gesture.
+const WHEEL_SLOP = 10;
+const WHEEL_GAP = 250;
+
 // Apply a crop change from the owner's hands ({ crop, touched } → next state).
 // Only a change that really moves or zooms the photo makes it theirs: zooming
 // out at the widest, or pushing against the photo's edge, leaves it automatic.
@@ -68,6 +76,7 @@ const PhotoEditor = ({ url, edit, shape: startShape, isCover, onDone, onCancel, 
     const frameRef = useRef(null);
     const pointers = useRef(new Map());
     const pinch = useRef(null);
+    const wheel = useRef({ sum: 0, t: -Infinity, live: false });
     const warmthId = useFilterId();
     const src = cloudinaryPhoto(url, 1600);
     const coarse = typeof window !== 'undefined' && window.matchMedia?.('(pointer: coarse)').matches;
@@ -129,8 +138,19 @@ const PhotoEditor = ({ url, edit, shape: startShape, isCover, onDone, onCancel, 
         const onWheel = (e) => {
             if (tab !== 'crop') return;
             e.preventDefault();
+            // In px, so the slop means the same with a line- or page-stepping wheel.
+            let d = e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? 400 : 1);
+            const w = wheel.current;
+            if (e.timeStamp - w.t > WHEEL_GAP) Object.assign(w, { sum: 0, live: false });
+            w.t = e.timeStamp;
+            if (!w.live) {
+                w.sum += d;
+                if (Math.abs(w.sum) <= WHEEL_SLOP) return;
+                w.live = true;
+                d = w.sum;
+            }
             const [fx, fy] = frameFraction(e.clientX, e.clientY);
-            change((c) => zoomTo(c, zoomOf(c, ratio) * Math.exp(-e.deltaY * 0.0015), ratio, fx, fy));
+            change((c) => zoomTo(c, zoomOf(c, ratio) * Math.exp(-d * 0.0015), ratio, fx, fy));
         };
         el.addEventListener('wheel', onWheel, { passive: false });
         return () => el.removeEventListener('wheel', onWheel);
