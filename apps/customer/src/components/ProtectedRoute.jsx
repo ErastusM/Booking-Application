@@ -1,8 +1,9 @@
 import React from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 
 const ProtectedRoute = ({ children, allowedRoles }) => {
+    const location = useLocation();
     const { user, loading } = useAuthContext();
 
     if (loading) {
@@ -20,7 +21,9 @@ const ProtectedRoute = ({ children, allowedRoles }) => {
         );
     }
 
-    if (!user) return <Navigate to="/login" replace />;
+    // Come back to the page they asked for (e.g. a gift card email's
+    // /wallet?redeem=<code>) once they've signed in.
+    if (!user) return <Navigate to={`/login?next=${encodeURIComponent(location.pathname + location.search)}`} replace />;
 
     if (allowedRoles && !allowedRoles.includes(user.role)) {
         // Business-side roles belong on the business app — hand them to their

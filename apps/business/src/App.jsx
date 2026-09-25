@@ -16,7 +16,7 @@ import Login from './pages/Login';
 // decision §8.3). Customer-side routes live in apps/customer.
 const ProviderDashboard = lazy(() => import('./pages/ProviderDashboard'));
 const Team = lazy(() => import('./pages/Team'));
-const MySchedule = lazy(() => import('./pages/MySchedule'));
+const MemberAccount = lazy(() => import('./pages/MemberAccount'));
 const ProviderAccount = lazy(() => import('./pages/ProviderAccount'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const AdminLogin = lazy(() => import('./pages/AdminLogin'));
@@ -30,6 +30,12 @@ const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const AcceptInvite = lazy(() => import('./pages/AcceptInvite'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+
+// Owners and team members share one Account URL; each gets their own sections.
+const AccountPage = () => {
+    const { user } = useAuthContext();
+    return user?.role === 'staff' ? <MemberAccount /> : <ProviderAccount />;
+};
 
 const RouteFallback = () => (
     <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -81,14 +87,13 @@ function AppRoutes() {
                             <Team />
                         </ProtectedRoute>
                     } />
-                    <Route path="/my-schedule" element={
-                        <ProtectedRoute allowedRoles={['staff']}>
-                            <MySchedule />
-                        </ProtectedRoute>
-                    } />
+                    {/* The old "My schedule" page: a team member's services, hours and
+                        account now live in the same screens as the owner's. Old links land
+                        on their services. */}
+                    <Route path="/my-schedule" element={<Navigate to="/dashboard?tab=services" replace />} />
                     <Route path="/account" element={
-                        <ProtectedRoute allowedRoles={['provider']}>
-                            <ProviderAccount />
+                        <ProtectedRoute allowedRoles={['provider', 'staff']}>
+                            <AccountPage />
                         </ProtectedRoute>
                     } />
 

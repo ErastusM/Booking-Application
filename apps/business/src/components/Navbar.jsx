@@ -85,6 +85,7 @@ const Navbar = () => {
         { to: '/dashboard?tab=insights', label: 'Insights' },
         { to: '/dashboard?tab=messages', label: 'Messages' },
         { to: '/dashboard?tab=memberships', label: 'Memberships' },
+        { to: '/dashboard?tab=giftcards', label: 'Gift cards' },
         { to: '/team', label: 'Team' },
     ];
     // Config areas — grouped under the account menu / Settings.
@@ -238,7 +239,7 @@ const Navbar = () => {
                     live in the right cluster/dropdown, so this row stays clean and
                     never has to wrap. */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }} className="nav-desktop">
-                    {navCan('calendar:view_all') && navLink('/dashboard', 'Calendar')}
+                    {navCan('calendar:view') && navLink('/dashboard', 'Calendar')}
                     {navCan('clients:assigned') && navLink('/dashboard?tab=clients', 'Clients')}
                     {user?.role === 'provider' && navLink('/dashboard?tab=earnings', 'Earnings')}
                     {user?.role === 'provider' && navLink('/dashboard?tab=services', 'Catalogue')}
@@ -268,7 +269,9 @@ const Navbar = () => {
                             )}
                         </div>
                     )}
-                    {user?.role === 'staff' && navLink('/my-schedule', 'My Schedule')}
+                    {user?.role === 'staff' && navLink('/dashboard?tab=services', 'My services')}
+                    {user?.role === 'staff' && navLink('/dashboard?tab=availability', 'My hours')}
+                    {user?.role === 'staff' && navLink('/account', 'Account')}
                     {user?.role === 'admin' && navLink('/bkplus-command', 'Dashboard')}
                     {user?.role === 'admin' && navLink('/bkplus-command/insights', 'Analytics')}
                 </div>
@@ -518,7 +521,7 @@ const Navbar = () => {
 
                     <div style={{ flex: 1, padding: '0.6rem 0' }}>
                         {/* Primary — the four everyday areas (mirrors desktop + bottom nav) */}
-                        {navCan('calendar:view_all') && mobileLink('/dashboard', 'Calendar')}
+                        {navCan('calendar:view') && mobileLink('/dashboard', 'Calendar')}
                         {navCan('clients:assigned') && mobileLink('/dashboard?tab=clients', 'Clients')}
                         {user?.role === 'provider' && mobileLink('/dashboard?tab=earnings', 'Earnings')}
                         {user?.role === 'provider' && mobileLink('/dashboard?tab=services', 'Catalogue')}
@@ -532,7 +535,13 @@ const Navbar = () => {
                         {user?.role === 'provider' && SETTINGS_LINKS.map(l => <React.Fragment key={l.to}>{mobileLink(l.to, l.label)}</React.Fragment>)}
                         {user?.role === 'provider' && mobileLink('/account', 'My Account')}
 
-                        {user?.role === 'staff' && mobileLink('/my-schedule', 'My Schedule')}
+                        {user?.role === 'staff' && mobileLink('/dashboard?tab=services', 'My services')}
+                        {user?.role === 'staff' && drawerSection('More')}
+                        {user?.role === 'staff' && mobileLink('/dashboard?tab=messages', 'Messages')}
+                        {user?.role === 'staff' && hasCap('waitlist:manage') && mobileLink('/dashboard?tab=waitlist', 'Waiting list')}
+                        {user?.role === 'staff' && drawerSection('Settings')}
+                        {user?.role === 'staff' && mobileLink('/dashboard?tab=availability', 'My working hours')}
+                        {user?.role === 'staff' && mobileLink('/account', 'My Account')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command/insights', 'Analytics')}
 
@@ -595,7 +604,7 @@ const Navbar = () => {
 
         {/* Mobile bottom navigation — provider: flat full-width bar flush to the
             bottom edge with a top border (matches the calendar design mock). */}
-        {user?.role === 'provider' && createPortal(
+        {(user?.role === 'provider' || user?.role === 'staff') && createPortal(
             <div className="nav-mobile" style={{
                 position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
                 display: 'flex', justifyContent: 'center',
@@ -635,6 +644,7 @@ const Navbar = () => {
                         which ProviderDashboard turns into openBlankApptModal(). The lift
                         is a transform on THIS span only (a grandchild), never on the
                         fixed bar itself — so the iOS repaint fix above is untouched. */}
+                    {(user?.role === 'provider' || (user?.role === 'staff' && hasCap('bookings:create'))) && (
                     <Link to="/dashboard?new=1" aria-label="New booking" style={{ flexShrink: 0, alignSelf: 'center', margin: '0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', WebkitTapHighlightColor: 'transparent' }}>
                         <span style={{
                             width: '50px', height: '50px', borderRadius: '50%',
@@ -652,8 +662,11 @@ const Navbar = () => {
                             <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14"/></svg>
                         </span>
                     </Link>
-
-                    {bottomTab({ to: '/dashboard?tab=earnings', label: 'Earnings', icon: (
+                    )}
+                    {user?.role === 'staff' && bottomTab({ to: '/dashboard?tab=services', label: 'Services', icon: (
+                        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M5 6h14M5 12h14M5 18h9"/></svg>
+                    ) })}
+                    {user?.role === 'provider' && bottomTab({ to: '/dashboard?tab=earnings', label: 'Earnings', icon: (
                         <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
                     ) })}
                     {bottomTab({ to: '/account', label: 'Account', icon: (

@@ -8,7 +8,7 @@ const {
     inviteTeamMember, setTeamMemberServices, setTeamMemberPricing, setTeamMemberPrimary,
     handoverUpcomingBookings,
     getTeamMemberAvailability, updateTeamMemberAvailability,
-    getMyServices, setMyServices, addMyService, setMyPricing,
+    getMyServices, setMyServices, addMyService, addTeamMemberService, setMyPricing,
     getMyProfile, setMyProfile, getMyAvailability, setMyAvailability,
     getMyStats,
 } = require('../controllers/teamMemberController');
@@ -88,6 +88,8 @@ router.post('/:id/invite', auth, ownerOnly, inviteTeamMember);
 // Move a member's upcoming bookings to a colleague (conflicts skipped + reported).
 router.post('/:id/handover', auth, canManageTeam, handoverUpcomingBookings);
 router.put('/:id/services', auth, canManageTeam, setTeamMemberServices);
+// Give ONE member a service of their own from their Team card (see controller).
+router.post('/:id/services', auth, canManageTeam, addTeamMemberService);
 router.put('/:id/pricing', auth, canManageTeam, setTeamMemberPricing);
 // Choosing the face of the business — a manager task.
 router.put('/:id/primary', auth, canManageTeam, setTeamMemberPrimary);

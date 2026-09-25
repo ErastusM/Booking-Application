@@ -22,5 +22,6 @@ export const {
     suggestionService,
     pushService,
     walletService,
+    giftCardService,
     formService,
 } = client.services;

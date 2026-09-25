@@ -333,8 +333,54 @@ const rejectAdjustment = async ({ transactionId, customerId }) => {
     return { ok: true, transaction: txn };
 };
 
+/**
+ * Redeem a gift card code → credit the redeemer's wallet with the card's business.
+ * The status flip active→redeemed is the single-winner gate (two people typing
+ * the same code, or a double tap, can't both be credited). If the credit itself
+ * fails, the claim is rolled back so the code stays usable.
+ * Returns { ok, giftCard, wallet, transaction } or { ok:false, reason }.
+ */
+const redeemGiftCard = async ({ code, customer }) => {
+    const GiftCard = require('../models/GiftCard');
+    const clean = String(code || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
+    if (!clean) return { ok: false, reason: 'not_found' };
+    // Accept it typed with or without the dashes.
+    const pretty = clean.startsWith('GIFT') && clean.length === 12
+        ? `GIFT-${clean.slice(4, 8)}-${clean.slice(8)}` : String(code).toUpperCase().trim();
+    const card = await GiftCard.findOneAndUpdate(
+        { code: pretty, status: 'active' },
+        { $set: { status: 'redeemed', redeemedBy: customer, redeemedAt: new Date() } },
+        { new: true }
+    );
+    if (!card) {
+        const existing = await GiftCard.findOne({ code: pretty }).select('status').lean();
+        return { ok: false, reason: existing ? (existing.status === 'void' ? 'void' : 'already_redeemed') : 'not_found' };
+    }
+    try {
+        const wallet = await getOrCreateWallet(customer, card.provider);
+        const before = snap(wallet);
+        const updated = await Wallet.findByIdAndUpdate(wallet._id, { $inc: { totalBalance: card.amount } }, { new: true });
+        const transaction = await WalletTransaction.create({
+            wallet: wallet._id, customer, provider: card.provider,
+            type: 'giftcard', status: 'approved', direction: 'credit', amount: card.amount,
+            reference: card.code, giftCard: card._id,
+            balanceBefore: before, balanceAfter: snap(updated),
+            initiatedBy: customer, resolvedBy: customer, resolvedAt: new Date(),
+        });
+        card.walletTransaction = transaction._id;
+        await card.save();
+        return { ok: true, giftCard: card, wallet: updated, transaction };
+    } catch (err) {
+        logger.error({ err: err.message, giftCard: String(card._id) }, 'gift card credit failed — rolling back claim');
+        await GiftCard.updateOne({ _id: card._id, status: 'redeemed', walletTransaction: null },
+            { $set: { status: 'active', redeemedBy: null, redeemedAt: null } });
+        return { ok: false, reason: 'error' };
+    }
+};
+
 module.exports = {
     getOrCreateWallet,
+    redeemGiftCard,
     reserveFunds,
     releaseReservation,
     deductForCompletion,
