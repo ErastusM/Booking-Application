@@ -36,6 +36,20 @@ export const cloudinaryPhoto = (url, w = 1000) => {
     return url;
 };
 
+// A portfolio photo its owner never framed, cropped by Cloudinary to the post
+// shape around what's in it (g_auto: the client's head and haircut, not the
+// wall behind them). Cloudinary takes the landscape 1.91:1 as a decimal.
+// Anything that isn't a Cloudinary upload comes back unchanged — PhotoFrame
+// then fills the shape from the centre.
+const AUTO_CROP_RATIOS = { '1:1': '1:1', '4:5': '4:5', '1.91:1': '1.91' };
+export const cloudinaryAutoCrop = (url, shape = '1:1', w = 1000) => {
+    if (isCloudinary(url)) {
+        const ar = AUTO_CROP_RATIOS[shape] || AUTO_CROP_RATIOS['1:1'];
+        return url.replace('/image/upload/', `/image/upload/c_fill,g_auto,ar_${ar},w_${w},q_auto:good,f_auto/`);
+    }
+    return url;
+};
+
 // Square avatar / profile photo. Handles Cloudinary uploads and Google OAuth photos.
 export const cloudinaryAvatar = (url, size = 256) => {
     if (isCloudinary(url)) {

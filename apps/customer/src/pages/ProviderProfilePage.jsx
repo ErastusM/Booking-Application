@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import PhotoFrame, { ratioOf } from '../components/PhotoFrame';
+import PhotoFrame, { WholePhoto, hasCrop, ratioOf } from '../components/PhotoFrame';
 import { useParams, useNavigate } from 'react-router-dom';
 import { providerMarketService, availabilityService, authService, favoriteService } from '../services';
 import { track } from '../services/client';
@@ -262,6 +262,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
 
     const { provider, categories, reviews } = data;
     const photos = provider.photos || [];
+    const lightboxEdit = lightbox >= 0 ? provider.photoEdits?.[photos[lightbox]] : undefined;
     const businessName = provider.businessProfile?.businessName || provider.name;
     const address = provider.address || provider.businessProfile?.address || '';
     const categoryKeys = Object.keys(categories);
@@ -361,7 +362,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                     // big screens so a portrait post isn't taller than the window.
                     <div className="feed-carousel" onScroll={e => setHeroIdx(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))} style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', maxWidth: `min(100%, ${Math.round(560 * ratioOf(provider.photoShape))}px)`, margin: '0 auto' }}>
                         {photos.map((src, i) => (
-                            <PhotoFrame key={i} src={src} width={1200} alt={`${businessName} photo ${i + 1}`}
+                            <PhotoFrame key={src} src={src} width={1200} alt={`${businessName} photo ${i + 1}`}
                                 shape={provider.photoShape} edit={provider.photoEdits?.[src]}
                                 imgProps={{ loading: i === 0 ? 'eager' : 'lazy', decoding: 'async', onClick: () => setLightbox(i) }}
                                 style={{ flex: '0 0 100%', width: '100%', scrollSnapAlign: 'start', cursor: 'pointer' }} />
@@ -771,10 +772,16 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                     {lightbox > 0 && (
                         <button onClick={(e) => { e.stopPropagation(); setLightbox(i => i - 1); }} aria-label="Previous photo" style={lightboxBtnStyle({ left: '0.75rem' })}><ChevronLeft size={26} /></button>
                     )}
-                    {/* Bigger, but still the owner's framing — never the parts they cropped out. */}
-                    <div onClick={(e) => e.stopPropagation()} className="scale-in" style={{ width: `min(92vw, calc(86dvh * ${ratioOf(provider.photoShape)}))`, borderRadius: '8px', overflow: 'hidden', boxShadow: '0 12px 48px rgba(0,0,0,0.5)' }}>
-                        <PhotoFrame src={photos[lightbox]} width={1400} shape={provider.photoShape} edit={provider.photoEdits?.[photos[lightbox]]} alt={`${businessName} photo ${lightbox + 1}`} />
-                    </div>
+                    {/* A photo the owner framed: bigger, but still their framing — never the
+                        parts they cropped out. One they never framed: the whole picture. */}
+                    {hasCrop(lightboxEdit) ? (
+                        <div onClick={(e) => e.stopPropagation()} className="scale-in" style={{ width: `min(92vw, calc(86dvh * ${ratioOf(provider.photoShape)}))`, borderRadius: '8px', overflow: 'hidden', boxShadow: '0 12px 48px rgba(0,0,0,0.5)' }}>
+                            <PhotoFrame src={photos[lightbox]} width={1400} shape={provider.photoShape} edit={lightboxEdit} alt={`${businessName} photo ${lightbox + 1}`} />
+                        </div>
+                    ) : (
+                        <WholePhoto src={photos[lightbox]} width={1400} edit={lightboxEdit} alt={`${businessName} photo ${lightbox + 1}`} onClick={(e) => e.stopPropagation()} className="scale-in"
+                            style={{ maxWidth: '92vw', maxHeight: '86dvh', borderRadius: '8px', boxShadow: '0 12px 48px rgba(0,0,0,0.5)' }} />
+                    )}
                     {lightbox < photos.length - 1 && (
                         <button onClick={(e) => { e.stopPropagation(); setLightbox(i => i + 1); }} aria-label="Next photo" style={lightboxBtnStyle({ right: '0.75rem' })}><ChevronRight size={26} /></button>
                     )}

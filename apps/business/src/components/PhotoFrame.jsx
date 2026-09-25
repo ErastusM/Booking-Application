@@ -1,12 +1,14 @@
 import React, { useId } from 'react';
-import { cloudinaryPhoto } from '../utils/cloudinary';
+import { cloudinaryPhoto, cloudinaryAutoCrop } from '../utils/cloudinary';
 
 // One portfolio photo, drawn the way its owner framed it (Instagram-style):
 // the business's post shape, the photo's own crop (fractions of the original)
-// and its adjustments. A photo nobody framed fills the shape anchored to the
-// TOP — for a barber or stylist the haircut is the product, not the collar.
-// The business app's editor draws with this same maths, so what the owner
-// sees is what clients get. Keep in sync with apps/customer.
+// and its adjustments. A photo nobody framed is cropped to the shape by
+// Cloudinary around what's in it (g_auto), so a client's head and haircut stay
+// in view wherever they sit in the picture; a photo hosted anywhere else fills
+// the shape from the centre. The business app's editor draws a framed photo
+// with this same maths, so what the owner frames is what clients get.
+// Keep in sync with apps/customer.
 
 export const SHAPES = [
     { id: '1:1', label: 'Square', ratio: 1 },
@@ -20,10 +22,11 @@ const clamp = (n, lo, hi) => Math.min(hi, Math.max(lo, n));
 // The biggest crop with the frame's ratio that fits a photo of aspect `ar` (width / height).
 export const maxCrop = (ar, ratio) => (ar > ratio ? { w: ratio / ar, h: 1 } : { w: 1, h: ar / ratio });
 
-// Where an unframed photo sits: full width (or height), anchored to the top.
+// Where the editor starts a photo nobody framed: full width (or height),
+// centred. Until the owner moves or zooms it, clients see the automatic crop.
 export const defaultCrop = (ar, ratio) => {
     const { w, h } = maxCrop(ar, ratio);
-    return { x: (1 - w) / 2, y: 0, w, h, ar };
+    return { x: (1 - w) / 2, y: (1 - h) / 2, w, h, ar };
 };
 
 export const hasCrop = (e) => !!e && e.w > 0 && e.h > 0 && e.x != null && e.y != null;
@@ -45,10 +48,12 @@ const cropFor = (e, ratio) => {
     return Math.abs((ratio * e.h) / e.w - e.ar) / e.ar < 0.02 ? e : fitCrop(e, ratio);
 };
 
-// CSS box for the <img> inside a frame: the crop scaled up to fill it.
+// CSS box for the <img> inside a frame: the crop scaled up to fill it. With no
+// crop the image is Cloudinary's automatic crop (already the frame's shape) or,
+// from anywhere else, the whole photo filling the frame from the centre.
 export const cropBox = (c) => c
     ? { width: `${100 / c.w}%`, height: `${100 / c.h}%`, left: `${(-c.x / c.w) * 100}%`, top: `${(-c.y / c.h) * 100}%`, maxWidth: 'none' }
-    : { left: 0, top: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: 'center top' };
+    : { left: 0, top: 0, width: '100%', height: '100%', objectFit: 'cover', objectPosition: '50% 50%' };
 
 // Warmth is a colour-temperature shift (more red, less blue), which CSS
 // filters can't express, so it's a one-matrix SVG filter the <img> points at.
@@ -77,14 +82,30 @@ const PhotoFrame = ({ src, width = 1000, edit, shape = '1:1', alt = '', classNam
     const ratio = ratioOf(shape);
     const crop = cropFor(edit, ratio);
     const warmthId = useFilterId();
-    // A zoomed-in crop blows part of the photo up, so fetch enough pixels for it.
-    const url = cloudinaryPhoto(src, Math.min(2400, Math.round(width / (crop ? crop.w : 1))));
+    // Framed: the whole photo with the owner's crop drawn on top — a zoomed-in
+    // crop blows part of it up, so fetch enough pixels for it. Unframed:
+    // Cloudinary's automatic crop, already the frame's shape at its width.
+    const url = crop
+        ? cloudinaryPhoto(src, Math.min(2400, Math.round(width / crop.w)))
+        : cloudinaryAutoCrop(src, shape, Math.min(2400, Math.round(width)));
     return (
         <div className={className} style={{ position: 'relative', overflow: 'hidden', aspectRatio: String(ratio), background: 'var(--warm-gray)', ...style }}>
             {edit?.warmth ? <WarmthFilter id={warmthId} warmth={edit.warmth} /> : null}
             <img src={url} alt={alt} draggable={false} {...imgProps} style={{ position: 'absolute', ...cropBox(crop), filter: photoFilter(edit, warmthId), display: 'block' }} />
             {children}
         </div>
+    );
+};
+
+// The whole photo, nothing cropped, with its adjustments — the full-screen view
+// of a photo its owner never framed (a framed one keeps its framing there too).
+export const WholePhoto = ({ src, width = 1400, edit, alt = '', style, ...imgProps }) => {
+    const warmthId = useFilterId();
+    return (
+        <>
+            {edit?.warmth ? <WarmthFilter id={warmthId} warmth={edit.warmth} /> : null}
+            <img src={cloudinaryPhoto(src, width)} alt={alt} {...imgProps} style={{ objectFit: 'contain', display: 'block', ...style, filter: photoFilter(edit, warmthId) }} />
+        </>
     );
 };
 
