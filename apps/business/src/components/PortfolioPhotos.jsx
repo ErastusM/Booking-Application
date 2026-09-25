@@ -19,7 +19,7 @@ const move = (list, from, to) => {
 };
 
 // Every photo's framing re-fitted to a new post shape (same centre and zoom).
-// A crop that can't be re-fitted falls back to the automatic fill; adjustments stay.
+// A crop that can't be re-fitted falls back to automatic framing; adjustments stay.
 export const refitEdits = (edits, ratio) => Object.fromEntries(Object.entries(edits || {}).map(([url, e]) => {
     if (!hasCrop(e)) return [url, e];
     const fitted = fitCrop(e, ratio);

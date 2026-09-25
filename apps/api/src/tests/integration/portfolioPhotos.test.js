@@ -69,7 +69,7 @@ describe('PUT /api/auth/portfolio', () => {
         expect((0.8 * e.h) / e.w).toBeCloseTo(e.ar, 6);
     });
 
-    test('a crop without the photo\'s shape falls back to the automatic fill on a shape change', async () => {
+    test('a crop without the photo\'s shape falls back to automatic framing on a shape change', async () => {
         const owner = await makeProvider();
         await User.updateOne({ _id: owner._id }, { portfolio: { images: [A], shape: '1:1', edits: [{ url: A, x: 0.1, y: 0.1, w: 0.5, h: 0.5, contrast: 12 }] } });
         const res = await request(app).put('/api/auth/portfolio').set(authHeader(owner)).send({ shape: '1.91:1' });

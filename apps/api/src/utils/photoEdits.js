@@ -32,7 +32,7 @@ const maxCrop = (ar, ratio) => (ar > ratio ? { w: ratio / ar, h: 1 } : { w: 1, h
  * zoom) re-fitted when it was made for another shape, so a photo can never be
  * drawn stretched. Mirrors PhotoFrame's fitCrop in the apps. A crop that
  * doesn't say the photo's own shape (`ar`) can't be re-fitted: when the post
- * shape changes it falls back to the automatic fill, keeping the adjustments.
+ * shape changes it falls back to automatic framing, keeping the adjustments.
  */
 const fitEdit = (e, shape, shapeChanged) => {
     if (e.w == null) return e;

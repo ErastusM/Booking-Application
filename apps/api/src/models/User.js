@@ -156,7 +156,8 @@ const userSchema = new mongoose.Schema(
             instagramUrl: { type: String, default: '' },
             // Instagram-style posts: every photo in the business's post shares one
             // shape, and each can carry the owner's own framing and adjustments.
-            // A photo with no edit fills the shape automatically, anchored to the top.
+            // A photo with no crop is framed automatically: the apps ask Cloudinary
+            // for a crop in the post shape around what's in the photo (g_auto).
             shape: { type: String, enum: ['1:1', '4:5', '1.91:1'], default: '1:1' },
             edits: [{
                 _id: false,
