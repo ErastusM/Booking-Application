@@ -3,7 +3,7 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { providerMarketService, favoriteService, appointmentService, serviceService } from '../services';
 import { Search, Star, ArrowRight, Heart, MapPin } from 'lucide-react';
-import { cloudinaryThumb } from '../utils/cloudinary';
+import { cloudinaryThumb, cloudinaryFeedPhoto, FEED_PHOTO_RATIO } from '../utils/cloudinary';
 import { normalizeTown } from '../utils/namibiaTowns';
 import { currencySymbol } from '../utils/currency';
 import Seo from '../components/Seo';
@@ -138,13 +138,16 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
                             // Key by provider id + src (not the array index) so a different
                             // business's photo never reuses this <img> node and paints the
                             // wrong company's picture during a re-render.
-                            <img key={`${id}-${src}`} src={cloudinaryThumb(src, 1000)} alt={`${p.businessName || p.name} photo ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" className="feed-media-img" style={{ flex: '0 0 100%', width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', scrollSnapAlign: 'start', display: 'block', background: 'var(--warm-gray)' }} />
+                            // The URL asks for the SAME 4:5 shape this slot renders (one crop, not two),
+                            // and objectPosition keeps the top for any non-Cloudinary source the
+                            // browser still has to crop — the haircut, not the collar.
+                            <img key={`${id}-${src}`} src={cloudinaryFeedPhoto(src, 1000)} alt={`${p.businessName || p.name} photo ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" className="feed-media-img" style={{ flex: '0 0 100%', width: '100%', aspectRatio: FEED_PHOTO_RATIO, objectFit: 'cover', objectPosition: 'center top', scrollSnapAlign: 'start', display: 'block', background: 'var(--warm-gray)' }} />
                         ))}
                     </div>
                 ) : (
                     // Same aspect ratio as a photo so every card in the feed is the SAME
                     // height, even for a business that hasn't added photos yet.
-                    <div className="feed-media-img" style={{ aspectRatio: '1 / 1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.7rem', padding: '1rem', background: 'linear-gradient(135deg, var(--surface-sunken), var(--warm-gray))', cursor: 'pointer' }}>
+                    <div className="feed-media-img" style={{ aspectRatio: FEED_PHOTO_RATIO, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.7rem', padding: '1rem', background: 'linear-gradient(135deg, var(--surface-sunken), var(--warm-gray))', cursor: 'pointer' }}>
                         <div style={{ width: '68px', height: '68px', borderRadius: '18px', flexShrink: 0, background: 'var(--ink)', color: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '1.9rem', fontWeight: '600' }}>{initial}</div>
                         <div style={{ textAlign: 'center' }}>
                             <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.92rem' }}>Photos coming soon</p>
@@ -699,7 +702,7 @@ const Home = () => {
                         {loading ? (
                             [0, 1, 2].map(i => (
                                 <div key={i} style={{ borderRadius: '18px', overflow: 'hidden', border: '1px solid var(--border)' }}>
-                                    <div style={{ aspectRatio: '1 / 1', background: 'var(--warm-gray)' }} />
+                                    <div style={{ aspectRatio: FEED_PHOTO_RATIO, background: 'var(--warm-gray)' }} />
                                     <div style={{ padding: '0.85rem 1.1rem 1.05rem' }}>
                                         <div style={{ height: '14px', width: '60%', background: 'var(--warm-gray)', borderRadius: '6px', marginBottom: '8px' }} />
                                         <div style={{ height: '10px', width: '40%', background: 'var(--warm-gray)', borderRadius: '6px' }} />
@@ -722,7 +725,7 @@ const Home = () => {
                                     // Shaped skeleton (not a bare spinner) so the incoming card's
                                     // space is reserved and matches the initial-load placeholder.
                                     <div ref={sentinelRef} style={{ borderRadius: '18px', overflow: 'hidden', border: '1px solid var(--border)' }}>
-                                        <div className="skeleton" style={{ aspectRatio: '1 / 1' }} />
+                                        <div className="skeleton" style={{ aspectRatio: FEED_PHOTO_RATIO }} />
                                         <div style={{ padding: '0.85rem 1.1rem 1.05rem' }}>
                                             <div className="skeleton skeleton-line" style={{ width: '60%' }} />
                                             <div className="skeleton skeleton-line" style={{ width: '40%', marginBottom: 0 }} />

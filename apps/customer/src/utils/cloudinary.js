@@ -27,6 +27,27 @@ export const cloudinaryThumb = (url, w = 800) => {
     return url;
 };
 
+// Feed photo — the hero image of each business card in the home feed.
+//
+// Portrait 4:5, anchored to the TOP. Two things this deliberately avoids:
+//  - cloudinaryThumb's landscape 4:3 crop. The feed used to fetch 4:3 and then
+//    let CSS crop that again into a square, so a portrait photo was cut twice:
+//    first its top (the landscape crop), then its sides (the square). The URL
+//    must request the exact shape the slot renders, so there is ONE crop.
+//  - g_auto. Smart gravity centres on the detected subject, which in a
+//    head-and-shoulders shot is the FACE, so it pulled the frame down and away
+//    from the hair. For a barber, stylist or braider the haircut is the product.
+//    g_north keeps the top of the frame and trims from the bottom (cape, chest),
+//    which suits the close portrait shots businesses post of their work.
+export const FEED_PHOTO_RATIO = '4 / 5';
+export const cloudinaryFeedPhoto = (url, w = 1000) => {
+    if (isCloudinary(url)) {
+        return url.replace('/image/upload/', `/image/upload/c_fill,g_north,ar_4:5,w_${w},q_auto:good,f_auto/`);
+    }
+    if (isGooglePhoto(url)) return upsizeGoogle(url, w);
+    return url;
+};
+
 // Square avatar / profile photo. Handles Cloudinary uploads and Google OAuth photos.
 export const cloudinaryAvatar = (url, size = 256) => {
     if (isCloudinary(url)) {
