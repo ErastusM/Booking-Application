@@ -10,7 +10,7 @@ const uid = () => ++_counter;
 exports.makeUser = async (overrides = {}) => {
     const n = uid();
     const defaults = {
-        name: overrides.name || `User ${n}`,
+        name: overrides.name || `Test User${n}`,
         email: overrides.email || `user${n}@test.com`,
         password: 'Password1!',
         phone: '+15550001000',
