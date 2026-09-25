@@ -219,6 +219,18 @@ const MySchedule = () => {
             setServices(fresh.data.data?.services || []);
             setMySvc((fresh.data.data?.selected || []).map(String));
             setOffersAll(fresh.data.data?.offersAllServices === true);
+            // Re-seed My prices too. Adding a service now stores the typed price and
+            // minutes as this member's own override, and "Save my prices" replaces
+            // the whole override list — so a stale form here would silently wipe the
+            // price that was just set the next time it was saved.
+            const seeded = {};
+            (fresh.data.data?.overrides || []).forEach(o => {
+                seeded[String(o.service)] = {
+                    price: o.price == null ? '' : String(o.price),
+                    duration: o.duration == null ? '' : String(o.duration),
+                };
+            });
+            setPrices(seeded);
             setNewSvc({ name: '', price: '', duration: '' });
             setAddMsg(reused
                 ? `Your business already offers ${name} — you're now listed for it.`
@@ -608,10 +620,15 @@ const MySchedule = () => {
                 )}
                 {Array.isArray(services) && services.length > 0 && (
                     <>
-                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                            <span style={{ fontSize: '0.85rem', color: 'var(--charcoal)' }}>I offer all services this business books</span>
-                            <Switch checked={offersAll} disabled={svcBusy} onChange={setServiceMode} label={offersAll ? 'All' : 'Only selected'} data-testid="my-offers-all-switch" />
-                        </div>
+                        {/* Only ever a way OUT of "everything on the menu", never a way in:
+                            a member's services are their own, and widening yourself to the
+                            whole business's menu is not a member's call (the API refuses it). */}
+                        {offersAll && (
+                            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
+                                <span style={{ fontSize: '0.85rem', color: 'var(--charcoal)' }}>I offer all services this business books</span>
+                                <Switch checked={offersAll} disabled={svcBusy} onChange={setServiceMode} label="All" data-testid="my-offers-all-switch" />
+                            </div>
+                        )}
                         {!offersAll && (
                             <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
                                 {services.map(s => {
