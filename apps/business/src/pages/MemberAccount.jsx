@@ -7,6 +7,7 @@ import { useToast } from '../components/Toast';
 import PushToggle from '../components/PushToggle';
 import { uploadToCloudinary } from '../utils/uploadImage';
 import { cloudinaryAvatar } from '../utils/cloudinary';
+import ShareBookingLink, { bookingUrl } from '../components/ShareBookingLink';
 
 // A team member's Account, in the owner's Account layout: the same side menu,
 // headings and cards, with the sections a member has — My profile, My working
@@ -134,6 +135,16 @@ const MemberAccount = () => {
                                             </label>
                                             <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: 600, color: 'var(--charcoal)' }}>{profile.name}</div>
                                             <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{profile.role || 'Team member'} · set by your business</div>
+                                        </div>
+                                        {/* Their own booking link: clients who open it book with them straight away. */}
+                                        <div data-testid="my-booking-link" style={{ ...cardStyle, padding: '1.5rem' }}>
+                                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 600, color: 'var(--charcoal)', marginBottom: '0.15rem' }}>Your booking link</h3>
+                                            <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '0 0 0.8rem' }}>
+                                                {bookingUrl(profile.businessSlug, profile.linkSlug)
+                                                    ? 'Clients who open it book with you straight away, for your own services and prices.'
+                                                    : `Your link appears once ${profile.businessName || 'the business'} creates its booking link. Ask the owner to open Account → Your booking link.`}
+                                            </p>
+                                            <ShareBookingLink url={bookingUrl(profile.businessSlug, profile.linkSlug)} shareTitle={`Book with ${(profile.name || user?.name || 'me').split(' ')[0]}`} testId="my-link" />
                                         </div>
                                         <div style={{ ...cardStyle, padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                                             <div><label style={labelStyle} htmlFor="ma-name">Name clients see</label><input id="ma-name" className="input" value={profile.name || ''} onChange={(e) => setProfile((p) => ({ ...p, name: e.target.value }))} /></div>

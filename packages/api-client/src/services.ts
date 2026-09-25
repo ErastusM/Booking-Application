@@ -162,6 +162,9 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         getProviderProfile: (id: string) => API.get(`/providers/${id}`),
         // Resolve a shareable booking-link handle to the public profile.
         getProviderBySlug: (slug: string) => API.get(`/providers/by-slug/${slug}`),
+        // Personal booking link /b/<business>/<member> → { providerId, teamMemberId }.
+        getMemberBySlug: (slug: string, memberSlug: string) =>
+            API.get(`/providers/by-slug/${encodeURIComponent(slug)}/member/${encodeURIComponent(memberSlug)}`),
         // Bookable staff for the customer staff-selection step (public).
         getProviderStaff: (id: string, serviceId?: string) =>
             API.get(`/providers/${id}/staff`, { params: serviceId ? { serviceId } : {} }),

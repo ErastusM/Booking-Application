@@ -3,9 +3,10 @@ import { useAuthContext } from '../context/AuthContext';
 import { teamService, providerServiceService } from '../services';
 import { useToast } from '../components/Toast';
 import Switch from '../components/Switch';
-import { UserPlus, Mail, Clock, ConciergeBell, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft, Star, Trash2, Camera } from 'lucide-react';
+import { UserPlus, Mail, Clock, ConciergeBell, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft, Star, Trash2, Camera, Share2 } from 'lucide-react';
 import { uploadToCloudinary } from '../utils/uploadImage';
 import { cloudinaryAvatar } from '../utils/cloudinary';
+import ShareBookingLink, { bookingUrl } from '../components/ShareBookingLink';
 
 /**
  * Epic 2.4 — staff management: roster CRUD, invite-to-login, per-staff
@@ -162,6 +163,7 @@ const MemberAvatar = ({ member, size = 26 }) => {
 };
 
 const MemberCard = ({ member, services, colleagues, onChanged }) => {
+    const { user } = useAuthContext();
     const [open, setOpen] = useState(false);
     const [busy, setBusy] = useState('');
     const [msg, setMsg] = useState('');
@@ -950,6 +952,14 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                     {/* ── Workspace ──────────────────────────────────────── */}
                     {tab === 'workspace' && (
                         <div data-testid="panel-workspace">
+                            {/* Their personal booking link — opens booking with them chosen. */}
+                            <Section icon={Share2} title={`${(member.name || '').split(' ')[0]}'s booking link`} hint="· opens booking with them chosen">
+                                {user?.businessProfile?.slug && member.linkSlug ? (
+                                    <ShareBookingLink url={bookingUrl(user.businessProfile.slug, member.linkSlug)} shareTitle={`Book with ${(member.name || '').split(' ')[0]}`} testId="member-link" />
+                                ) : (
+                                    <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>Create your business booking link first (Account → Your booking link); each member's link builds on it.</p>
+                                )}
+                            </Section>
                             {/* Sticky result of the last invite — stays put after the roster
                                 reloads (which flips this member to "has login"), so the owner
                                 keeps the confirmation that the email actually went out. */}
