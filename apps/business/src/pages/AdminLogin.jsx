@@ -23,7 +23,7 @@ const AdminLogin = () => {
     useEffect(() => {
         if (authLoading || !user) return;
         if (user.role === 'admin') navigate('/bkplus-command', { replace: true });
-        else if (user.role === 'staff') navigate('/my-schedule', { replace: true });
+        else if (user.role === 'staff') navigate('/dashboard', { replace: true });
         else if (user.role === 'provider') navigate('/dashboard', { replace: true });
     }, [user, authLoading, navigate]);
 
@@ -40,7 +40,7 @@ const AdminLogin = () => {
                 // Valid credentials, wrong door. Sign them in but send them home.
                 login(data);
                 setNotice(`You're signed in as a ${role || 'user'}, which isn't an admin account. Taking you to your dashboard…`);
-                setTimeout(() => navigate(role === 'staff' ? '/my-schedule' : '/dashboard', { replace: true }), 1600);
+                setTimeout(() => navigate('/dashboard', { replace: true }), 1600);
                 return;
             }
             login(data);

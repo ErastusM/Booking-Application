@@ -16,7 +16,9 @@ const { createServiceRules, updateServiceRules } = require('../middleware/valida
 const canEditServices = allow({ roles: ['admin', 'provider'], capability: 'services:edit' });
 
 router.get('/', getAllServices); // public marketplace read — never gated
-router.get('/my-services', auth, allow({ roles: ['provider'], capability: 'services:edit' }), getMyServices);
+// Reading the business's catalogue is services:view (every team member —
+// front desk forms, booking on behalf); changing it stays services:edit.
+router.get('/my-services', auth, allow({ roles: ['provider'], capability: 'services:view' }), getMyServices);
 router.post('/', auth, authorize('admin'), createServiceRules, createService); // admin GLOBAL service (provider:null) — stays admin-only
 router.post('/my-services', auth, allow({ roles: ['provider'], capability: 'services:edit' }), createServiceRules, createMyService);
 router.put('/:id', auth, canEditServices, updateServiceRules, updateService);

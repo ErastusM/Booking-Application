@@ -64,7 +64,7 @@ const AcceptInvite = () => {
             const session = res.data?.data;
             // Store the session and go straight to their calendar — signed in.
             login(session);
-            navigate('/my-schedule');
+            navigate('/dashboard');
         } catch (err) {
             setError(err.response?.data?.message || 'Could not accept the invite. The link may have expired.');
             setLoading(false);

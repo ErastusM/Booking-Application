@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
-import { appointmentService, serviceService, waitingListService, providerMarketService, availabilityService, walletService } from '../services';
+import { appointmentService, serviceService, waitingListService, providerMarketService, availabilityService, walletService, authService } from '../services';
+import { isFullName, splitName, joinName } from '../utils/personName';
 import { Calendar, Clock, CalendarX2 } from 'lucide-react';
 import { buildTimeSlots } from '../utils/bookingSlots';
 import { cloudinaryAvatar } from '../utils/cloudinary';
@@ -25,7 +26,7 @@ const friendlyError = (err, fallback) =>
 const toYMD = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 
 const BookAppointment = () => {
-    const { user } = useAuthContext();
+    const { user, setUser } = useAuthContext();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
     const rescheduleId = searchParams.get('reschedule'); // present → reschedule mode
@@ -42,6 +43,10 @@ const BookAppointment = () => {
     const [selectedService, setSelectedService] = useState(null);
     const [staffList, setStaffList] = useState([]);
     const [selectedStaff, setSelectedStaff] = useState(null); // null = any available professional
+    // Arrived through a member's personal booking link (/b/<business>/<member>):
+    // the professional is already chosen, so show them as a compact "chosen" row
+    // with a Change link instead of the whole roster.
+    const [pickerOpen, setPickerOpen] = useState(() => searchParams.get('via') !== 'link');
     const [selectedAddOns, setSelectedAddOns] = useState([]);
     const [selectedOption, setSelectedOption] = useState(null); // sub-option (mutually exclusive variant)
     const [optionSheet, setOptionSheet] = useState(null); // service pending option selection
@@ -70,8 +75,14 @@ const BookAppointment = () => {
     const [wallet, setWallet] = useState(null); // this provider's wallet + settings (when wallet is enabled)
     const [recurrence, setRecurrence] = useState({ isRecurring: false, recurrenceType: 'weekly', recurrenceInterval: 1, recurrenceEndDate: '' });
     const [paymentMethod, setPaymentMethod] = useState('cash'); // 'wallet' | 'cash' (when the provider's wallet is on)
-    const [guest, setGuest] = useState({ name: '', email: '', phone: '' }); // guest checkout (no account)
-    const guestReady = !!(guest.name.trim() && guest.email.trim()); // required to confirm as a guest
+    const [guest, setGuest] = useState({ first: '', last: '', email: '', phone: '' }); // guest checkout (no account)
+    const guestName = joinName(guest.first, guest.last);
+    const guestReady = isFullName(guestName) && !!guest.email.trim(); // required to confirm as a guest
+    // A signed-in client whose account predates full names (one word) adds their
+    // surname here before confirming; saved to their profile, then the booking goes.
+    const accountNeedsName = !!user && user.role === 'customer' && !isFullName(user.name);
+    const [nameFix, setNameFix] = useState(() => splitName(user?.name));
+    const nameFixReady = !accountNeedsName || isFullName(joinName(nameFix.first, nameFix.last));
     // The long date grid + time-slot list can scroll well past the top, and on
     // mobile the fixed bottom bar makes it easy to get stranded — show a "back to
     // top" button once the user has scrolled down so they can always return.
@@ -472,9 +483,23 @@ const BookAppointment = () => {
         // Guests must leave contact details so we can send the confirmation + a
         // manage link. Guard here too (buttons are also disabled) and stay put.
         if (!rescheduleId && !user && !guestReady) {
-            setError('Please enter your name and email to confirm your booking.');
+            setError('Please enter your first name, surname and email to confirm your booking.');
             window.scrollTo({ top: 0, behavior: 'smooth' });
             return;
+        }
+        if (!rescheduleId && accountNeedsName) {
+            if (!nameFixReady) {
+                setError('Please add your first name and surname so the business can tell you apart.');
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+                return;
+            }
+            try {
+                const res = await authService.updateProfile({ name: joinName(nameFix.first, nameFix.last) });
+                if (res?.data?.data) setUser?.((u) => ({ ...(u || {}), ...res.data.data }));
+            } catch (err) {
+                setError(friendlyError(err, 'Could not save your name'));
+                return;
+            }
         }
         setLoading(true);
         setError('');
@@ -496,7 +521,7 @@ const BookAppointment = () => {
                     ...(selectedStaff?._id ? { teamMember: selectedStaff._id } : {}),
                     ...(wallet?.settings?.enabled ? { paymentMethod } : {}),
                     // Guest checkout: send contact details instead of relying on a session.
-                    ...(!user ? { guestName: guest.name.trim(), guestEmail: guest.email.trim(), guestPhone: guest.phone.trim() } : {}),
+                    ...(!user ? { guestName, guestEmail: guest.email.trim(), guestPhone: guest.phone.trim() } : {}),
                     ...(recurrence.isRecurring ? {
                         isRecurring: true,
                         recurrenceType: recurrence.recurrenceType,
@@ -819,6 +844,22 @@ const BookAppointment = () => {
                                 </div>
                             </div>
 
+                            {/* An older account with a one-word name completes it before booking. */}
+                            {!rescheduleId && accountNeedsName && (
+                                <div style={cardStyle} data-testid="complete-name">
+                                    <div style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>Your full name</div>
+                                    <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)', margin: '0 0 0.9rem' }}>
+                                        Add your first name and surname so the business can tell you apart from other clients. We’ll save it to your profile.
+                                    </p>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.6rem' }}>
+                                        <input type="text" value={nameFix.first} onChange={e => setNameFix(n => ({ ...n, first: e.target.value }))}
+                                            placeholder="First name *" aria-label="Your first name" autoComplete="given-name" autoCapitalize="words" className="input" style={{ fontFamily: 'var(--font-body)' }} />
+                                        <input type="text" value={nameFix.last} onChange={e => setNameFix(n => ({ ...n, last: e.target.value }))}
+                                            placeholder="Surname *" aria-label="Your surname" autoComplete="family-name" autoCapitalize="words" className="input" style={{ fontFamily: 'var(--font-body)' }} />
+                                    </div>
+                                </div>
+                            )}
+
                             {/* Guest contact — only when not signed in */}
                             {!user && (
                                 <div style={cardStyle}>
@@ -828,8 +869,12 @@ const BookAppointment = () => {
                                         <Link to="/login" style={{ color: 'var(--gold-dark)', fontWeight: 600 }}>Log in</Link>.
                                     </p>
                                     <div style={{ display: 'grid', gap: '0.6rem' }}>
-                                        <input type="text" value={guest.name} onChange={e => setGuest(g => ({ ...g, name: e.target.value }))}
-                                            placeholder="Full name *" aria-label="Your name" autoComplete="name" className="input" style={{ fontFamily: 'var(--font-body)' }} />
+                                        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.6rem' }}>
+                                            <input type="text" value={guest.first} onChange={e => setGuest(g => ({ ...g, first: e.target.value }))}
+                                                placeholder="First name *" aria-label="Your first name" autoComplete="given-name" autoCapitalize="words" className="input" style={{ fontFamily: 'var(--font-body)' }} data-testid="guest-first-name" />
+                                            <input type="text" value={guest.last} onChange={e => setGuest(g => ({ ...g, last: e.target.value }))}
+                                                placeholder="Surname *" aria-label="Your surname" autoComplete="family-name" autoCapitalize="words" className="input" style={{ fontFamily: 'var(--font-body)' }} data-testid="guest-last-name" />
+                                        </div>
                                         <input type="email" value={guest.email} onChange={e => setGuest(g => ({ ...g, email: e.target.value }))}
                                             placeholder="Email *" aria-label="Your email" autoComplete="email" inputMode="email" className="input" style={{ fontFamily: 'var(--font-body)' }} />
                                         <input type="tel" value={guest.phone} onChange={e => setGuest(g => ({ ...g, phone: e.target.value }))}
@@ -863,7 +908,7 @@ const BookAppointment = () => {
                                 <button
                                     data-testid="booking-confirm"
                                     onClick={handleConfirm}
-                                    disabled={loading || !!confirmedOverlay || (!user && !guestReady) || walletShort}
+                                    disabled={loading || !!confirmedOverlay || (!user && !guestReady) || !nameFixReady || walletShort}
                                     style={{ width: '100%', padding: '0.875rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: 'var(--radius-sm)', fontSize: '0.95rem', fontWeight: '600', fontFamily: 'var(--font-body)', cursor: loading ? 'not-allowed' : 'pointer', opacity: loading ? 0.85 : 1, letterSpacing: '0.03em', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.6rem' }}
                                 >
                                     {loading && <span style={{ display: 'inline-block', width: '16px', height: '16px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
@@ -880,7 +925,7 @@ const BookAppointment = () => {
                         <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '600', color: 'var(--charcoal)' }}>{curSym} {totalPrice}</div>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>Estimated total</div>
                     </div>
-                    <button data-testid="booking-confirm-mobile" onClick={handleConfirm} disabled={loading || !!confirmedOverlay || (!user && !guestReady) || walletShort} style={{ flex: 1, marginLeft: '0.9rem', justifyContent: 'center', padding: '0.875rem 1rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '600', fontFamily: 'var(--font-body)', cursor: (loading || (!user && !guestReady) || walletShort) ? 'not-allowed' : 'pointer', opacity: (loading || (!user && !guestReady) || walletShort) ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                    <button data-testid="booking-confirm-mobile" onClick={handleConfirm} disabled={loading || !!confirmedOverlay || (!user && !guestReady) || !nameFixReady || walletShort} style={{ flex: 1, marginLeft: '0.9rem', justifyContent: 'center', padding: '0.875rem 1rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '600', fontFamily: 'var(--font-body)', cursor: (loading || (!user && !guestReady) || !nameFixReady || walletShort) ? 'not-allowed' : 'pointer', opacity: (loading || (!user && !guestReady) || !nameFixReady || walletShort) ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         {loading && <span style={{ display: 'inline-block', width: '15px', height: '15px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
                         {loading ? 'Confirming...' : rescheduleId ? 'Confirm reschedule' : 'Confirm'}
                     </button>
@@ -961,7 +1006,19 @@ const BookAppointment = () => {
 
                         {/* Step 1 - Professional (person-first). The roster comes back
                             main-member-first; picking one drives the services + prices below. */}
-                        {hasRoster && (
+                        {hasRoster && !pickerOpen && selectedStaff && (
+                            <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: '0.8rem' }} data-testid="booking-staff-chosen">
+                                <span aria-hidden="true" style={{ width: '48px', height: '48px', borderRadius: '50%', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: selectedStaff.color || 'var(--gold)', color: 'var(--on-ink)', fontWeight: 700 }}>
+                                    {selectedStaff.photoUrl ? <img src={selectedStaff.photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (selectedStaff.name || '?').trim()[0]?.toUpperCase()}
+                                </span>
+                                <span style={{ flex: 1, minWidth: 0 }}>
+                                    <span style={{ display: 'block', fontWeight: 700, color: 'var(--charcoal)' }}>{selectedStaff.name}</span>
+                                    <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)' }}>{selectedStaff.role ? `${selectedStaff.role} · ` : ''}chosen from the link</span>
+                                </span>
+                                <button type="button" onClick={() => setPickerOpen(true)} style={{ background: 'none', border: 'none', color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', minHeight: '44px', padding: '0 0.4rem', fontFamily: 'var(--font-body)', textDecoration: 'underline' }}>Change</button>
+                            </div>
+                        )}
+                        {hasRoster && (pickerOpen || !selectedStaff) && (
                             <div style={cardStyle}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
                                     {stepBadge(1)}

@@ -9,6 +9,7 @@ const Shift = require('../models/Shift');
 const TimeOff = require('../models/TimeOff');
 const { pickRotationWeek } = require('../utils/staffBooking');
 const { photoPresentation } = require('../utils/photoEdits');
+const { memberSlugMap, findMemberIdBySlug } = require('../utils/memberLink');
 
 // The member's effective week for a given date, or null when they have no weekly
 // schedule at all (they inherit business hours, so nothing to narrow). Rotation
@@ -34,7 +35,10 @@ const PROFILE_SELECT = 'name avatar providerCategory businessProfile portfolio p
  */
 exports.getProviderStaff = async (req, res) => {
     try {
-        const query = { provider: req.params.id, isActive: true };
+        // Only people clients can book: active AND bookable. A front desk member
+        // (bookable:false) used to be listed, picked, and then refused at the very
+        // last step ("not available for online booking").
+        const query = { provider: req.params.id, isActive: true, bookable: { $ne: false } };
         if (req.query.serviceId) {
             // Who performs this service? Mirrors staffBooking.performsService:
             //   offersAllServices:true  → yes; offersAllServices:false → only if listed;
@@ -80,14 +84,19 @@ exports.getProviderStaff = async (req, res) => {
             ratingCount: ratingBy[key]?.ratingCount ?? 0,
         });
 
-        const data = staff.map((m) => withRating(m.toObject ? m.toObject() : m, String(m._id)));
+        // Each professional's personal booking-link handle (/b/<business>/<member>).
+        const slugs = await memberSlugMap(req.params.id);
+        const data = staff.map((m) => ({
+            ...withRating(m.toObject ? m.toObject() : m, String(m._id)),
+            linkSlug: slugs.get(String(m._id)) || null,
+        }));
 
         // When a business has a roster, the OWNER is a bookable professional too
         // ("you"), offered FIRST alongside staff. The owner has no TeamMember row —
         // their column is the unassigned one — so synthesize an entry under the
         // 'owner' sentinel id, which the booking flow maps to teamMember:null. Solo
         // businesses (no staff) keep the owner-implicit flow and need no tile.
-        const staffCount = await TeamMember.countDocuments({ provider: req.params.id, isActive: true });
+        const staffCount = await TeamMember.countDocuments({ provider: req.params.id, isActive: true, bookable: { $ne: false } });
         if (staffCount > 0) {
             const owner = await User.findById(req.params.id).select('name businessProfile.ownerTitle avatar');
             data.unshift(withRating({
@@ -496,6 +505,26 @@ exports.getProviderProfileBySlug = async (req, res) => {
 
         const data = await buildProviderProfilePayload(provider);
         res.status(200).json({ success: true, data });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * GET /api/providers/by-slug/:slug/member/:memberSlug
+ * Public — resolves a personal booking link (/b/<business>/<member>) to the ids
+ * the booking flow needs. Only an ACTIVE member resolves; a paused, removed or
+ * renamed member 404s so the customer app falls back to the business page.
+ */
+exports.getMemberBySlug = async (req, res) => {
+    try {
+        const slug = String(req.params.slug || '').trim().toLowerCase();
+        const provider = slug && await User.findOne({ 'businessProfile.slug': slug, role: 'provider' }).select('_id');
+        if (!provider) return res.status(404).json({ success: false, message: 'Provider not found' });
+        const memberId = await findMemberIdBySlug(provider._id, req.params.memberSlug);
+        const member = memberId && await TeamMember.findOne({ _id: memberId, provider: provider._id, isActive: true }).select('name');
+        if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
+        res.status(200).json({ success: true, data: { providerId: provider._id, teamMemberId: member._id, name: member.name } });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

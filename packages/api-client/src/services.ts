@@ -162,6 +162,9 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         getProviderProfile: (id: string) => API.get(`/providers/${id}`),
         // Resolve a shareable booking-link handle to the public profile.
         getProviderBySlug: (slug: string) => API.get(`/providers/by-slug/${slug}`),
+        // Personal booking link /b/<business>/<member> → { providerId, teamMemberId }.
+        getMemberBySlug: (slug: string, memberSlug: string) =>
+            API.get(`/providers/by-slug/${encodeURIComponent(slug)}/member/${encodeURIComponent(memberSlug)}`),
         // Bookable staff for the customer staff-selection step (public).
         getProviderStaff: (id: string, serviceId?: string) =>
             API.get(`/providers/${id}/staff`, { params: serviceId ? { serviceId } : {} }),
@@ -170,6 +173,9 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         // and close a day they're rostered off (business open). Public.
         getProviderStaffShiftDays: (id: string, teamMemberId: string, from: string, to: string) =>
             API.get(`/providers/${id}/staff/${teamMemberId}/shift-days`, { params: { from, to } }),
+        // One professional's reviews + average (public). 'owner' = the owner's own column.
+        getProviderStaffReviews: (id: string, teamMemberId: string, page = 1) =>
+            API.get(`/providers/${id}/staff/${teamMemberId}/reviews`, { params: { page, limit: 20 } }),
         // Availability-first search: providers with a real opening on `date`
         // (optionally at/after `time`, narrowed by `q`).
         searchProviders: (params: { date: string; time?: string; q?: string }) =>
@@ -279,6 +285,10 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         handoverBookings: (id: string, to: string) => API.post(`/team/${id}/handover`, { to }),
         // offersAllServices:true → performs everything; false → only `services` (empty = none).
         // Omit to leave the flag untouched.
+        // Give ONE member a service of their own (name + their price and minutes).
+        // Reuses a same-named service on the menu rather than duplicating it.
+        addMemberService: (id: string, name: string, price?: number, duration?: number) =>
+            API.post(`/team/${id}/services`, { name, price, duration }),
         setMemberServices: (id: string, services: string[], offersAllServices?: boolean) =>
             API.put(`/team/${id}/services`, offersAllServices === undefined ? { services } : { services, offersAllServices }),
         // Per-member price/duration overrides: [{ service, price?, duration? }].
@@ -354,6 +364,15 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         getPublicKey: () => API.get('/push/vapid-public-key'),
         subscribe: (subscription: any) => API.post('/push/subscribe', subscription),
         unsubscribe: (endpoint: string) => API.post('/push/unsubscribe', { endpoint }),
+    },
+
+    // Gift cards: the owner sells (after being paid directly), a client redeems
+    // the code into their wallet with that business.
+    giftCardService: {
+        list: () => API.get('/giftcards'),
+        create: (data: any) => API.post('/giftcards', data),
+        void: (id: string) => API.post(`/giftcards/${id}/void`),
+        redeem: (code: string) => API.post('/giftcards/redeem', { code }),
     },
 
     walletService: {

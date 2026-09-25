@@ -1,4 +1,5 @@
 const User = require('../models/User');
+const { isFullName, FULL_NAME_MESSAGE } = require('../utils/personName');
 const Category = require('../models/Category');
 const { SHAPES, cleanEdits, fitEdit } = require('../utils/photoEdits');
 const { generateToken, generateRefreshToken } = require('../utils/helpers');
@@ -122,6 +123,11 @@ exports.register = async (req, res) => {
                 message:
                     'Password must be at least 8 characters and include an uppercase letter, a number and a special character'
             });
+        }
+
+        // Clients book under their name, so it must tell them apart from others.
+        if (assignedRole === 'customer' && !isFullName(name)) {
+            return res.status(400).json({ success: false, code: 'full_name_required', message: FULL_NAME_MESSAGE });
         }
 
         if (assignedRole === 'provider' && (!providerCategory || providerCategory.trim().length === 0)) {
@@ -675,6 +681,9 @@ exports.updateProfile = async (req, res) => {
             });
         }
 
+        if (name && user.role === 'customer' && !isFullName(name)) {
+            return res.status(400).json({ success: false, code: 'full_name_required', message: FULL_NAME_MESSAGE });
+        }
         user.name = name || user.name;
         user.phone = phone || user.phone;
         user.avatar = avatar || user.avatar;

@@ -13,6 +13,7 @@ const request = require('supertest');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = require('../helpers/factories');
+const Appointment = require('../../models/Appointment');
 const TeamMember = require('../../models/TeamMember');
 
 jest.mock('../../utils/emailService', () => new Proxy({}, { get: () => jest.fn().mockResolvedValue(true) }));
@@ -72,18 +73,19 @@ describe('Medium staff book-on-behalf', () => {
         expect(res.body.message).toMatch(/existing client/i);
     });
 
-    it('a Low staff member cannot book on behalf — customerId is ignored, they book themselves', async () => {
+    it('a Low staff member cannot book on behalf — refused, and nothing is booked in their own name', async () => {
         const provider = await makeProvider();
         const service = await makeService(provider._id);
         const low = await makeStaff(provider, 'low'); // has bookings:create but NOT clients:view
         const client = await makeClientOf(provider, service);
+        const before = await Appointment.countDocuments({});
 
         const res = await book(low, onBehalf({ service: service._id.toString(), customerId: client._id.toString() }));
-        expect(res.status).toBe(201);
-        // The booking was NOT attached to the client — it's the staff member's own.
-        const bookedCustomer = String(res.body.data.customer?._id || res.body.data.customer);
-        expect(bookedCustomer).not.toBe(String(client._id));
-        expect(bookedCustomer).toBe(String(low._id));
+        // It used to fall through and book the STAFF MEMBER as the client, silently
+        // dropping the client they picked. Now it says to use a walk-in instead.
+        expect(res.status).toBe(403);
+        expect(res.body.code).toBe('staff_booking_not_allowed');
+        expect(await Appointment.countDocuments({})).toBe(before);
     });
 
     it("cannot attach another business's client (existence check keys on staffOf)", async () => {

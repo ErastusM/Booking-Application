@@ -10,6 +10,7 @@ import LocationsManager from '../components/LocationsManager';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { useToast } from '../components/Toast';
 import PortfolioPhotos, { MAX_PHOTOS } from '../components/PortfolioPhotos';
+import ShareBookingLink, { bookingUrl } from '../components/ShareBookingLink';
 
 const CLOUDINARY_CLOUD = 'dktit6s95';
 const CLOUDINARY_PRESET = 'bookplus';
@@ -21,8 +22,7 @@ const BookingLinkCard = ({ user, setUser }) => {
     const toast = useToast();
     const slug = user?.businessProfile?.slug || '';
     const [busy, setBusy] = React.useState(false);
-    const [copied, setCopied] = React.useState(false);
-    const url = slug ? `${CUSTOMER_URL}/b/${slug}` : '';
+    const url = bookingUrl(slug);
 
     const generate = async () => {
         setBusy(true);
@@ -31,23 +31,13 @@ const BookingLinkCard = ({ user, setUser }) => {
             setUser({ ...user, businessProfile: { ...(user.businessProfile || {}), slug: res.data.data.slug } });
         } catch { toast("Couldn't generate your booking link — please try again.", 'error'); } finally { setBusy(false); }
     };
-    const copy = async () => {
-        try { await navigator.clipboard.writeText(url); setCopied(true); setTimeout(() => setCopied(false), 1600); } catch { /* ignore */ }
-    };
-    const share = async () => {
-        if (navigator.share) { try { await navigator.share({ title: user?.businessProfile?.businessName || user?.name, url }); } catch { /* cancelled */ } }
-        else copy();
-    };
 
     return (
         <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', padding: '1.1rem 1.25rem', marginBottom: '1.5rem' }}>
-            <p style={{ margin: '0 0 0.6rem', fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.92rem' }}>Your booking link</p>
+            <p style={{ margin: '0 0 0.2rem', fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.92rem' }}>Your booking link</p>
+            <p style={{ margin: '0 0 0.7rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Each team member also has their own link, on the Team page.</p>
             {slug ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    <span style={{ flex: 1, minWidth: '180px', fontSize: '0.88rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{url}</span>
-                    <button onClick={copy} style={{ border: '1px solid var(--border)', background: 'var(--card-bg)', color: copied ? '#16a34a' : 'var(--charcoal)', borderRadius: 'var(--radius-sm)', padding: '0.4rem 0.9rem', cursor: 'pointer', fontSize: '0.8rem', fontWeight: 600, fontFamily: 'var(--font-body)' }}>{copied ? 'Copied!' : 'Copy'}</button>
-                    <button onClick={share} className="btn-primary" style={{ padding: '0.4rem 0.9rem', fontSize: '0.8rem' }}>Share</button>
-                </div>
+                <ShareBookingLink url={url} shareTitle={user?.businessProfile?.businessName || user?.name} />
             ) : (
                 <button onClick={generate} disabled={busy} className="btn-primary" style={{ padding: '0.5rem 1.1rem', fontSize: '0.85rem' }}>
                     {busy ? 'Generating…' : 'Get my booking link'}

@@ -3,9 +3,10 @@ import { useAuthContext } from '../context/AuthContext';
 import { teamService, providerServiceService } from '../services';
 import { useToast } from '../components/Toast';
 import Switch from '../components/Switch';
-import { UserPlus, Mail, Clock, ConciergeBell, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft, Star, Trash2, Camera } from 'lucide-react';
+import { UserPlus, Mail, Clock, ConciergeBell, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft, Star, Trash2, Camera, Share2 } from 'lucide-react';
 import { uploadToCloudinary } from '../utils/uploadImage';
 import { cloudinaryAvatar } from '../utils/cloudinary';
+import ShareBookingLink, { bookingUrl } from '../components/ShareBookingLink';
 
 /**
  * Epic 2.4 — staff management: roster CRUD, invite-to-login, per-staff
@@ -162,6 +163,7 @@ const MemberAvatar = ({ member, size = 26 }) => {
 };
 
 const MemberCard = ({ member, services, colleagues, onChanged }) => {
+    const { user } = useAuthContext();
     const [open, setOpen] = useState(false);
     const [busy, setBusy] = useState('');
     const [msg, setMsg] = useState('');
@@ -578,6 +580,36 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
         } finally { setBusy(''); }
     };
 
+    // A member's services are their OWN. What the owner types here becomes that
+    // person's service at their own price and minutes — it is not picked from, or
+    // inherited from, the rest of the business's menu.
+    const [newSvc, setNewSvc] = useState({ name: '', price: '', duration: '' });
+    const [addedHere, setAddedHere] = useState([]); // services created on this card, until the parent reloads
+    const addOwnService = async () => {
+        const name = newSvc.name.trim();
+        if (!name || busy === 'add-service') return;
+        setBusy('add-service');
+        try {
+            const res = await teamService.addMemberService(
+                member._id, name,
+                newSvc.price === '' ? undefined : Number(newSvc.price),
+                newSvc.duration === '' ? undefined : Number(newSvc.duration),
+            );
+            const d = res?.data?.data || {};
+            if (d.service) setAddedHere(prev => prev.some(x => String(x._id) === String(d.service._id)) ? prev : [...prev, d.service]);
+            setAssigned((d.selected || []).map(String));
+            setOffersAll(false);
+            setOverrides(Object.fromEntries((d.serviceOverrides || []).map(o => [String(o.service?._id || o.service), {
+                price: o.price ?? '', duration: o.duration ?? '',
+            }])));
+            setNewSvc({ name: '', price: '', duration: '' });
+            flash(d.reused ? `${name} is already on your menu — ${member.name.split(' ')[0]} now offers it` : `Added ${name} for ${member.name.split(' ')[0]}`);
+            onChanged?.();
+        } catch (err) {
+            flash(err?.response?.data?.message || 'Could not add that service');
+        } finally { setBusy(''); }
+    };
+
     const toggleService = async (id) => {
         const next = assigned.includes(id) ? assigned.filter(x => x !== id) : [...assigned, id];
         setAssigned(next);
@@ -920,6 +952,14 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                     {/* ── Workspace ──────────────────────────────────────── */}
                     {tab === 'workspace' && (
                         <div data-testid="panel-workspace">
+                            {/* Their personal booking link — opens booking with them chosen. */}
+                            <Section icon={Share2} title={`${(member.name || '').split(' ')[0]}'s booking link`} hint="· opens booking with them chosen">
+                                {user?.businessProfile?.slug && member.linkSlug ? (
+                                    <ShareBookingLink url={bookingUrl(user.businessProfile.slug, member.linkSlug)} shareTitle={`Book with ${(member.name || '').split(' ')[0]}`} testId="member-link" />
+                                ) : (
+                                    <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-muted)' }}>Create your business booking link first (Account → Your booking link); each member's link builds on it.</p>
+                                )}
+                            </Section>
                             {/* Sticky result of the last invite — stays put after the roster
                                 reloads (which flips this member to "has login"), so the owner
                                 keeps the confirmation that the email actually went out. */}
@@ -1062,66 +1102,110 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                 </Section>
                             )}
 
-                            <Section icon={ConciergeBell} title="Services & prices" hint="(what this person offers · blank price/time = business default)">
-                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem' }}>
-                                    <span style={{ fontSize: '0.85rem', color: 'var(--charcoal)' }}>
-                                        Offers all services this business books
-                                    </span>
-                                    <Switch checked={offersAll} disabled={busy === 'services'} onChange={setServiceMode} label={offersAll ? 'All' : 'Only selected'} data-testid="offers-all-switch" />
-                                </div>
-                                {!offersAll && assigned.length === 0 && (
-                                    <p style={{ margin: '0 0 0.6rem', fontSize: '0.82rem', fontWeight: 600, color: 'var(--gold-dark)' }} data-testid="no-services-yet">
-                                        Nothing selected yet — {member.name.split(' ')[0]} can’t be booked for any service until you tick the ones they offer below.
-                                        The list is this business’s catalogue; if their service isn’t there, add it under Services first.
-                                    </p>
-                                )}
-                                {!offersAll && (
-                                    <>
-                                        <p style={{ margin: '0 0 0.5rem', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                                            Pick the services this person offers. Leaving none selected means they don’t take bookings for any listed service.
-                                        </p>
-                                        <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
-                                            {services.map(svc => (
-                                                <Chip key={svc._id} active={assigned.includes(String(svc._id))} disabled={busy === 'services'} onClick={() => toggleService(String(svc._id))} data-testid="member-service-chip">
-                                                    {svc.name}
-                                                </Chip>
-                                            ))}
-                                            {services.length === 0 && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>No services yet — add services first.</p>}
-                                        </div>
-                                    </>
-                                )}
+                            <Section icon={ConciergeBell} title="Services & prices" hint="(what this person does, at their own price and time)">
                                 {(() => {
-                                    const performed = offersAll ? services : services.filter(s => assigned.includes(String(s._id)));
-                                    if (!performed.length) return null;
+                                    const first = member.name.split(' ')[0];
+                                    const catalogue = [...services, ...addedHere.filter(a => !services.some(s => String(s._id) === String(a._id)))];
+                                    const mine = offersAll ? catalogue : catalogue.filter(s => assigned.includes(String(s._id)));
+                                    const others = catalogue.filter(s => !assigned.includes(String(s._id)));
                                     return (
-                                        <div style={{ marginTop: '0.9rem', display: 'grid', gap: '0.5rem' }}>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 6.5rem 6.5rem', gap: '0.5rem', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
-                                                <span>{member.name.split(' ')[0]}’s service</span><span>Price</span><span>Minutes</span>
-                                            </div>
-                                            {performed.map(svc => {
-                                                const ov = overrides[String(svc._id)] || { price: '', duration: '' };
-                                                return (
-                                                    <div key={svc._id} style={{ display: 'grid', gridTemplateColumns: '1fr 6.5rem 6.5rem', gap: '0.5rem', alignItems: 'center' }}>
-                                                        <span style={{ fontSize: '0.85rem', color: 'var(--charcoal)' }}>{svc.name}</span>
-                                                        <input className="input" type="number" min="0" inputMode="decimal"
-                                                            placeholder={svc.price != null ? String(svc.price) : '—'}
-                                                            value={ov.price}
-                                                            onChange={e => setOverride(String(svc._id), 'price', e.target.value)}
-                                                            data-testid="member-price" style={{ padding: '0.4rem 0.5rem' }} />
-                                                        <input className="input" type="number" min="1" inputMode="numeric"
-                                                            placeholder={svc.duration != null ? String(svc.duration) : '—'}
-                                                            value={ov.duration}
-                                                            onChange={e => setOverride(String(svc._id), 'duration', e.target.value)}
-                                                            data-testid="member-duration" style={{ padding: '0.4rem 0.5rem' }} />
+                                        <>
+                                            {/* Only shown while it is ON, as a way OUT. It is the one thing that
+                                                makes a member inherit the business's whole menu, so a new member
+                                                never starts on it and it is never offered as a way in. */}
+                                            {offersAll && (
+                                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', marginBottom: '0.75rem', padding: '0.6rem 0.75rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
+                                                    <span style={{ fontSize: '0.82rem', color: 'var(--charcoal)' }}>
+                                                        {first} is set to offer <strong>everything on your menu</strong>. Turn this off to give them their own list.
+                                                    </span>
+                                                    <Switch checked={offersAll} disabled={busy === 'services'} onChange={setServiceMode} label="All" data-testid="offers-all-switch" />
+                                                </div>
+                                            )}
+
+                                            {!offersAll && mine.length === 0 && (
+                                                <p style={{ margin: '0 0 0.7rem', fontSize: '0.82rem', fontWeight: 600, color: 'var(--gold-dark)' }} data-testid="no-services-yet">
+                                                    {first} doesn’t offer anything yet, so clients can’t book them. Add what {first} does below — it’s theirs, at their own price.
+                                                </p>
+                                            )}
+
+                                            {mine.length > 0 && (
+                                                <div style={{ display: 'grid', gap: '0.5rem', marginBottom: '0.9rem' }} data-testid="member-own-services">
+                                                    <div style={{ display: 'grid', gridTemplateColumns: offersAll ? '1fr 6.5rem 6.5rem' : '1fr 6.5rem 6.5rem 2rem', gap: '0.5rem', fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>
+                                                        <span>{first}’s service</span><span>Price</span><span>Minutes</span>{!offersAll && <span />}
                                                     </div>
-                                                );
-                                            })}
-                                            <div>
-                                                <button type="button" className="btn-primary" disabled={busy === 'pricing'} onClick={savePricing} style={{ marginTop: '0.15rem' }}>
-                                                    {busy === 'pricing' ? 'Saving…' : 'Save prices'}
-                                                </button>
-                                            </div>
-                                        </div>
+                                                    {mine.map(svc => {
+                                                        const ov = overrides[String(svc._id)] || { price: '', duration: '' };
+                                                        return (
+                                                            <div key={svc._id} style={{ display: 'grid', gridTemplateColumns: offersAll ? '1fr 6.5rem 6.5rem' : '1fr 6.5rem 6.5rem 2rem', gap: '0.5rem', alignItems: 'center' }}>
+                                                                <span style={{ fontSize: '0.85rem', color: 'var(--charcoal)' }}>{svc.name}</span>
+                                                                <input className="input" type="number" min="0" inputMode="decimal"
+                                                                    placeholder={svc.price != null ? String(svc.price) : '—'}
+                                                                    value={ov.price}
+                                                                    onChange={e => setOverride(String(svc._id), 'price', e.target.value)}
+                                                                    data-testid="member-price" style={{ padding: '0.4rem 0.5rem' }} />
+                                                                <input className="input" type="number" min="1" inputMode="numeric"
+                                                                    placeholder={svc.duration != null ? String(svc.duration) : '—'}
+                                                                    value={ov.duration}
+                                                                    onChange={e => setOverride(String(svc._id), 'duration', e.target.value)}
+                                                                    data-testid="member-duration" style={{ padding: '0.4rem 0.5rem' }} />
+                                                                {!offersAll && (
+                                                                    <button type="button" aria-label={`Remove ${svc.name} from ${first}`} title={`Remove from ${first}`}
+                                                                        disabled={busy === 'services'} onClick={() => toggleService(String(svc._id))}
+                                                                        data-testid="member-service-remove"
+                                                                        style={{ border: '1px solid var(--border)', background: 'var(--card-bg)', borderRadius: '8px', height: '2rem', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1rem', lineHeight: 1 }}>×</button>
+                                                                )}
+                                                            </div>
+                                                        );
+                                                    })}
+                                                    <div>
+                                                        <button type="button" className="btn-primary" disabled={busy === 'pricing'} onClick={savePricing} style={{ marginTop: '0.15rem' }}>
+                                                            {busy === 'pricing' ? 'Saving…' : 'Save prices'}
+                                                        </button>
+                                                    </div>
+                                                </div>
+                                            )}
+
+                                            {!offersAll && (
+                                                <>
+                                                    <p style={{ margin: '0 0 0.45rem', fontSize: '0.8rem', fontWeight: 650, color: 'var(--charcoal)' }}>Add a service {first} offers</p>
+                                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }} data-testid="member-add-service">
+                                                        <input className="input" value={newSvc.name} placeholder="e.g. Car wash"
+                                                            onChange={e => setNewSvc(v => ({ ...v, name: e.target.value }))}
+                                                            onKeyDown={e => { if (e.key === 'Enter') addOwnService(); }}
+                                                            data-testid="member-add-service-name" style={{ flex: '1 1 11rem', minWidth: '9rem', padding: '0.45rem 0.6rem' }} />
+                                                        <input className="input" type="number" min="0" inputMode="decimal" value={newSvc.price} placeholder="Price"
+                                                            onChange={e => setNewSvc(v => ({ ...v, price: e.target.value }))}
+                                                            data-testid="member-add-service-price" style={{ width: '6rem', padding: '0.45rem 0.6rem' }} />
+                                                        <input className="input" type="number" min="5" inputMode="numeric" value={newSvc.duration} placeholder="Minutes"
+                                                            onChange={e => setNewSvc(v => ({ ...v, duration: e.target.value }))}
+                                                            data-testid="member-add-service-duration" style={{ width: '6rem', padding: '0.45rem 0.6rem' }} />
+                                                        <button type="button" className="btn-primary" disabled={!newSvc.name.trim() || busy === 'add-service'}
+                                                            onClick={addOwnService} data-testid="member-add-service-submit" style={{ padding: '0.45rem 1rem' }}>
+                                                            {busy === 'add-service' ? 'Adding…' : 'Add'}
+                                                        </button>
+                                                    </div>
+
+                                                    {/* The rest of the menu is tucked away, not laid out as the member's
+                                                        options: a washer's card shouldn't open on a wall of haircuts. It
+                                                        stays one tap away for the case it's for — a second barber who
+                                                        does the same cuts. */}
+                                                    {others.length > 0 && (
+                                                        <details style={{ marginTop: '0.8rem' }} data-testid="member-from-menu">
+                                                            <summary style={{ cursor: 'pointer', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                                                Or give {first} a service your business already offers ({others.length})
+                                                            </summary>
+                                                            <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginTop: '0.6rem' }}>
+                                                                {others.map(svc => (
+                                                                    <Chip key={svc._id} active={false} disabled={busy === 'services'} onClick={() => toggleService(String(svc._id))} data-testid="member-service-chip">
+                                                                        + {svc.name}
+                                                                    </Chip>
+                                                                ))}
+                                                            </div>
+                                                        </details>
+                                                    )}
+                                                </>
+                                            )}
+                                        </>
                                     );
                                 })()}
                             </Section>
