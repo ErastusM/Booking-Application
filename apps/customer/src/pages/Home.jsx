@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef } from 'react';
+import PhotoFrame, { ratioOf } from '../components/PhotoFrame';
 import { Link, useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { providerMarketService, favoriteService, appointmentService, serviceService } from '../services';
@@ -138,13 +139,16 @@ const FeedCard = ({ p, isFav, likeCount, onToggleFav }) => {
                             // Key by provider id + src (not the array index) so a different
                             // business's photo never reuses this <img> node and paints the
                             // wrong company's picture during a re-render.
-                            <img key={`${id}-${src}`} src={cloudinaryThumb(src, 1000)} alt={`${p.businessName || p.name} photo ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" className="feed-media-img" style={{ flex: '0 0 100%', width: '100%', aspectRatio: '1 / 1', objectFit: 'cover', scrollSnapAlign: 'start', display: 'block', background: 'var(--warm-gray)' }} />
+                            <PhotoFrame key={`${id}-${src}`} src={src} width={1000} alt={`${p.businessName || p.name} photo ${i + 1}`}
+                                shape={p.photoShape} edit={p.photoEdits?.[src]} className="feed-media-img"
+                                imgProps={{ loading: i === 0 ? 'eager' : 'lazy', decoding: 'async' }}
+                                style={{ flex: '0 0 100%', width: '100%', scrollSnapAlign: 'start' }} />
                         ))}
                     </div>
                 ) : (
                     // Same aspect ratio as a photo so every card in the feed is the SAME
                     // height, even for a business that hasn't added photos yet.
-                    <div className="feed-media-img" style={{ aspectRatio: '1 / 1', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.7rem', padding: '1rem', background: 'linear-gradient(135deg, var(--surface-sunken), var(--warm-gray))', cursor: 'pointer' }}>
+                    <div className="feed-media-img feed-media-placeholder" style={{ aspectRatio: String(ratioOf(p.photoShape)), display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.7rem', padding: '1rem', background: 'linear-gradient(135deg, var(--surface-sunken), var(--warm-gray))', cursor: 'pointer' }}>
                         <div style={{ width: '68px', height: '68px', borderRadius: '18px', flexShrink: 0, background: 'var(--ink)', color: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-display)', fontSize: '1.9rem', fontWeight: '600' }}>{initial}</div>
                         <div style={{ textAlign: 'center' }}>
                             <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.92rem' }}>Photos coming soon</p>

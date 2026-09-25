@@ -8,6 +8,7 @@ const Availability = require('../models/Availability');
 const Shift = require('../models/Shift');
 const TimeOff = require('../models/TimeOff');
 const { pickRotationWeek } = require('../utils/staffBooking');
+const { photoPresentation } = require('../utils/photoEdits');
 
 // The member's effective week for a given date, or null when they have no weekly
 // schedule at all (they inherit business hours, so nothing to narrow). Rotation
@@ -345,6 +346,8 @@ exports.getAllProviders = async (req, res) => {
                 avatar: p.avatar,
                 coverImage: p.portfolio?.images?.[0] || null,
                 photos: (p.portfolio?.images || []).slice(0, 5),
+                // How the owner framed them (post shape + per-photo crop/adjust).
+                ...photoPresentation(p.portfolio, (p.portfolio?.images || []).slice(0, 5)),
                 likesCount: Math.max(0, p.businessProfile?.likesCount || 0),
                 createdAt: p.createdAt,
                 providerCategory: p.providerCategory || null,
@@ -439,6 +442,7 @@ async function buildProviderProfilePayload(provider) {
             phone: provider.phone || '',
             email: provider.email || '',
             photos: (provider.portfolio?.images || []).slice(0, 10),
+            ...photoPresentation(provider.portfolio, (provider.portfolio?.images || []).slice(0, 10)),
             instagramUrl: provider.portfolio?.instagramUrl || '',
             likesCount: Math.max(0, provider.businessProfile?.likesCount || 0),
             avgRating,

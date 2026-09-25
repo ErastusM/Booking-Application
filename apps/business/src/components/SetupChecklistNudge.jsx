@@ -13,7 +13,7 @@ const ITEMS = [
     { key: 'address', label: 'Add your location', to: '/account' },
     { key: 'hours', label: 'Set your working hours', to: '/dashboard?tab=availability' },
     { key: 'services', label: 'Add your services', to: '/dashboard?tab=services' },
-    { key: 'photos', label: 'Add photos', to: '/account' },
+    { key: 'photos', label: 'Add photos', to: '/account?section=portfolio' },
 ];
 
 // Dashboard reminder: nudges a provider to finish any onboarding step they

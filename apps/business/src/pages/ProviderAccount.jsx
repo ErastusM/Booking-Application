@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { authService, reviewService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
@@ -9,6 +9,7 @@ import MapPicker, { MAPS_KEY, reverseGeocode } from '../components/MapPicker';
 import LocationsManager from '../components/LocationsManager';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { useToast } from '../components/Toast';
+import PortfolioPhotos, { MAX_PHOTOS } from '../components/PortfolioPhotos';
 
 const CLOUDINARY_CLOUD = 'dktit6s95';
 const CLOUDINARY_PRESET = 'bookplus';
@@ -90,7 +91,15 @@ const ProviderAccount = () => {
     const navigate = useNavigate();
     const toast = useToast();
     const { darkMode: darkModeOn, toggleDarkMode } = useTheme();
-    const [section, setSection] = useState('profile');
+    // ?section=portfolio (etc.) opens that section — the setup nudge links straight to it.
+    const location = useLocation();
+    const sectionFromUrl = () => {
+        const s = new URLSearchParams(location.search).get('section');
+        return sidebarItems.some((i) => i.id === s) ? s : 'profile';
+    };
+    const [section, setSection] = useState(sectionFromUrl);
+    useEffect(() => { setSection(sectionFromUrl()); // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [location.search]);
 
     // Login & security
     const [settingsOpen, setSettingsOpen] = useState(null); // 'security' | 'appearance' | 'calendar'
@@ -148,11 +157,12 @@ const ProviderAccount = () => {
     };
 
     // Portfolio
-    const [portfolio, setPortfolio] = useState({ images: [], instagramUrl: '' });
+    // edits: { [photo url]: { crop + adjustments } } — the API stores them as a list.
+    const [portfolio, setPortfolio] = useState({ images: [], instagramUrl: '', shape: '1:1', edits: {} });
     const [portfolioLoading, setPortfolioLoading] = useState(false);
     const [portfolioSaving, setPortfolioSaving] = useState(false);
-    const [portfolioMsg, setPortfolioMsg] = useState('');
-    const portfolioInputRef = useRef();
+    const portfolioRef = useRef(portfolio); // the latest, for saves that finish after an upload
+    portfolioRef.current = portfolio;
 
     // Reviews
     const [reviews, setReviews] = useState([]);
@@ -175,8 +185,10 @@ const ProviderAccount = () => {
         setPortfolioLoading(true);
         try {
             const res = await authService.getProfile();
-            const p = res.data.data?.portfolio || { images: [], instagramUrl: '' };
-            setPortfolio({ images: p.images || [], instagramUrl: p.instagramUrl || '' });
+            const p = res.data.data?.portfolio || {};
+            const edits = {};
+            (p.edits || []).forEach(({ url, ...e }) => { if (url) edits[url] = e; });
+            setPortfolio({ images: p.images || [], instagramUrl: p.instagramUrl || '', shape: p.shape || '1:1', edits });
         } catch { /* ignore */ } finally {
             setPortfolioLoading(false);
         }
@@ -219,41 +231,43 @@ const ProviderAccount = () => {
         finally { setProfileSaving(false); }
     };
 
-    const handlePortfolioImageAdd = async (e) => {
-        const files = Array.from(e.target.files || []);
-        if (!files.length) return;
-        setPortfolioSaving(true);
-        setPortfolioMsg('Uploading...');
+    // Save the whole portfolio (photos, order, post shape, framing). Shown at once;
+    // put back as it was if the server refuses, so the screen never lies.
+    const savePortfolio = async (next, okMsg) => {
+        const prev = portfolioRef.current;
+        setPortfolio(next);
         try {
-            const urls = await Promise.all(files.map(uploadToCloudinary));
-            const updated = { ...portfolio, images: [...portfolio.images, ...urls].slice(0, 30) };
-            await authService.updatePortfolio(updated);
-            setPortfolio(updated);
-            setPortfolioMsg('Images added!');
-        } catch { setPortfolioMsg('Upload failed — try again'); }
-        finally { setPortfolioSaving(false); }
+            await authService.updatePortfolio({
+                images: next.images,
+                instagramUrl: next.instagramUrl,
+                shape: next.shape,
+                edits: Object.entries(next.edits || {}).filter(([url]) => next.images.includes(url)).map(([url, e]) => ({ ...e, url })),
+            });
+            if (okMsg) toast(okMsg, 'success');
+            return true;
+        } catch {
+            setPortfolio(prev);
+            toast("Couldn't save your photos — please try again.", 'error');
+            return false;
+        }
     };
 
-    const handleRemovePortfolioImage = async (idx) => {
-        const prev = portfolio; // so we can roll back if the server rejects the change
-        const updated = { ...portfolio, images: portfolio.images.filter((_, i) => i !== idx) };
-        setPortfolio(updated);
+    const handlePortfolioImageAdd = async (files) => {
+        const room = MAX_PHOTOS - portfolioRef.current.images.length;
+        if (!files.length || room <= 0) return;
+        setPortfolioSaving(true);
         try {
-            await authService.updatePortfolio(updated);
-            toast('Photo removed.', 'success');
-        } catch {
-            setPortfolio(prev); // put it back — the delete didn't stick
-            toast("Couldn't remove that photo — please try again.", 'error');
-        }
+            const urls = await Promise.all(files.slice(0, room).map(uploadToCloudinary));
+            const latest = portfolioRef.current; // the owner may have reordered or edited meanwhile
+            await savePortfolio({ ...latest, images: [...latest.images, ...urls] }, urls.length === 1 ? 'Photo added.' : `${urls.length} photos added.`);
+            if (files.length > room) toast(`Only ${MAX_PHOTOS} photos fit — the rest weren't added.`, 'error');
+        } catch { toast('Upload failed — please try again.', 'error'); }
+        finally { setPortfolioSaving(false); }
     };
 
     const handleInstagramSave = async () => {
         setPortfolioSaving(true);
-        setPortfolioMsg('');
-        try {
-            await authService.updatePortfolio(portfolio);
-            setPortfolioMsg('Instagram link saved!');
-        } catch { setPortfolioMsg('Save failed'); }
+        try { await savePortfolio(portfolio, 'Instagram link saved.'); }
         finally { setPortfolioSaving(false); }
     };
 
@@ -452,46 +466,13 @@ const ProviderAccount = () => {
                         {section === 'portfolio' && (
                             <div>
                                 <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.75rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>Portfolio</h1>
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem' }}>Showcase your best work to attract more clients</p>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem' }}>These photos are your post on the Bookplus feed — pick its shape, then frame each one.</p>
 
                                 {portfolioLoading ? (
                                     <p style={{ color: 'var(--text-muted)' }}>Loading...</p>
                                 ) : (
                                     <>
-                                        {/* Upload images */}
-                                        <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1.5rem' }}>
-                                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem' }}>
-                                                <h3 style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)' }}>Images ({portfolio.images.length}/30)</h3>
-                                                <button onClick={() => portfolioInputRef.current?.click()} disabled={portfolioSaving} className="btn-primary" style={{ padding: '0.5rem 1.25rem', fontSize: '0.875rem' }}>
-                                                    {portfolioSaving ? 'Uploading...' : '+ Add photos'}
-                                                </button>
-                                            </div>
-                                            <input ref={portfolioInputRef} type="file" accept="image/jpeg,image/png,image/webp,image/avif" multiple onChange={handlePortfolioImageAdd} style={{ display: 'none' }} />
-
-                                            {portfolio.images.length === 0 ? (
-                                                <div
-                                                    onClick={() => portfolioInputRef.current?.click()}
-                                                    style={{ border: '2px dashed var(--border)', borderRadius: 'var(--radius-sm)', padding: '3rem', textAlign: 'center', cursor: 'pointer', color: 'var(--text-muted)' }}
-                                                >
-                                                    <div style={{ fontSize: '2rem', marginBottom: '0.5rem' }}>🖼️</div>
-                                                    <p style={{ fontWeight: '500', marginBottom: '0.25rem' }}>Add your images here</p>
-                                                    <p style={{ fontSize: '0.8rem' }}>JPG, PNG, AVIF, WEBP · max 10 MB each</p>
-                                                </div>
-                                            ) : (
-                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: '0.75rem' }}>
-                                                    {portfolio.images.map((url, i) => (
-                                                        <div key={i} style={{ position: 'relative', aspectRatio: '1', borderRadius: 'var(--radius-sm)', overflow: 'hidden' }}>
-                                                            <img src={url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                            <button
-                                                                onClick={() => handleRemovePortfolioImage(i)}
-                                                                style={{ position: 'absolute', top: '4px', right: '4px', background: 'rgba(0,0,0,0.6)', color: 'white', border: 'none', borderRadius: '50%', width: '22px', height: '22px', cursor: 'pointer', fontSize: '0.8rem', lineHeight: 1, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                                                            >×</button>
-                                                        </div>
-                                                    ))}
-                                                </div>
-                                            )}
-                                            {portfolioMsg && <p style={{ marginTop: '0.75rem', fontSize: '0.8rem', color: portfolioMsg.includes('fail') ? 'var(--danger)' : 'var(--success)' }}>{portfolioMsg}</p>}
-                                        </div>
+                                        <PortfolioPhotos portfolio={portfolio} onSave={savePortfolio} onAddFiles={handlePortfolioImageAdd} uploading={portfolioSaving} />
 
                                         {/* Instagram link */}
                                         <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>

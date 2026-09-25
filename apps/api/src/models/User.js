@@ -154,6 +154,19 @@ const userSchema = new mongoose.Schema(
         portfolio: {
             images: [{ type: String }],
             instagramUrl: { type: String, default: '' },
+            // Instagram-style posts: every photo in the business's post shares one
+            // shape, and each can carry the owner's own framing and adjustments.
+            // A photo with no edit fills the shape automatically, anchored to the top.
+            shape: { type: String, enum: ['1:1', '4:5', '1.91:1'], default: '1:1' },
+            edits: [{
+                _id: false,
+                url: { type: String, required: true },
+                // Crop as fractions of the original image (0–1), plus its natural
+                // aspect ratio so a crop can be re-fitted if the shape changes.
+                x: Number, y: Number, w: Number, h: Number, ar: Number,
+                // Adjustments, each -100…100 (0 = unchanged).
+                brightness: Number, contrast: Number, warmth: Number, saturation: Number,
+            }],
         },
         // Prepaid wallet config (providers). Opt-in: off until the provider sets it up.
         walletSettings: {
