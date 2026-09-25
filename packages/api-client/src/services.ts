@@ -170,6 +170,9 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         // and close a day they're rostered off (business open). Public.
         getProviderStaffShiftDays: (id: string, teamMemberId: string, from: string, to: string) =>
             API.get(`/providers/${id}/staff/${teamMemberId}/shift-days`, { params: { from, to } }),
+        // One professional's reviews + average (public). 'owner' = the owner's own column.
+        getProviderStaffReviews: (id: string, teamMemberId: string, page = 1) =>
+            API.get(`/providers/${id}/staff/${teamMemberId}/reviews`, { params: { page, limit: 20 } }),
         // Availability-first search: providers with a real opening on `date`
         // (optionally at/after `time`, narrowed by `q`).
         searchProviders: (params: { date: string; time?: string; q?: string }) =>

@@ -24,8 +24,8 @@ const StaffReadinessBanner = () => {
                 const schedule = hrs.data.data?.schedule;
                 const hasHours = !!schedule && Object.values(schedule).some((day) => day?.enabled && (day.slots || []).length > 0);
                 const todo = [];
-                if (!hasServices) todo.push({ label: 'add your services and prices', to: '/my-schedule#services' });
-                if (!hasHours) todo.push({ label: 'set your working hours', to: '/my-schedule#hours' });
+                if (!hasServices) todo.push({ label: 'add your services and prices', to: '/dashboard?tab=services' });
+                if (!hasHours) todo.push({ label: 'set your working hours', to: '/dashboard?tab=availability' });
                 setMissing(todo.length ? todo : null);
             })
             .catch(() => { /* a readiness hint is best-effort — never block the calendar */ });

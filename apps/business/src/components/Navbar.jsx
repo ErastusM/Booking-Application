@@ -192,15 +192,10 @@ const Navbar = () => {
     // Calendar (the tab-less dashboard) stays active for any non-nav ?tab. No
     // underline indicator — active state reads from the tinted chip + gold label.
     const bottomTab = ({ to, icon, label }) => {
-        const [toPathHash, toQs] = to.split('?');
-        // A staff tab may point at a section of /my-schedule (#services / #account);
-        // bare /my-schedule opens on services, so that tab reads active there.
-        const [toPath, toHash] = toPathHash.split('#');
+        const [toPath, toQs] = to.split('?');
         const toTab = toQs ? new URLSearchParams(toQs).get('tab') : null;
         const curTab = new URLSearchParams(location.search).get('tab');
-        const active = location.pathname === toPath
-            && (toHash ? (location.hash || '#services') === `#${toHash}` : true)
-            && (toTab ? curTab === toTab : (toPath === '/dashboard' ? !curTab : true));
+        const active = location.pathname === toPath && (toTab ? curTab === toTab : (toPath === '/dashboard' ? !curTab : true));
         return (
             <Link key={to} to={to} aria-label={label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', textDecoration: 'none', minWidth: 0, WebkitTapHighlightColor: 'transparent' }}>
                 <span style={{
@@ -273,7 +268,9 @@ const Navbar = () => {
                             )}
                         </div>
                     )}
-                    {user?.role === 'staff' && navLink('/my-schedule#services', 'Services & hours')}
+                    {user?.role === 'staff' && navLink('/dashboard?tab=services', 'My services')}
+                    {user?.role === 'staff' && navLink('/dashboard?tab=availability', 'My hours')}
+                    {user?.role === 'staff' && navLink('/account', 'Account')}
                     {user?.role === 'admin' && navLink('/bkplus-command', 'Dashboard')}
                     {user?.role === 'admin' && navLink('/bkplus-command/insights', 'Analytics')}
                 </div>
@@ -537,7 +534,13 @@ const Navbar = () => {
                         {user?.role === 'provider' && SETTINGS_LINKS.map(l => <React.Fragment key={l.to}>{mobileLink(l.to, l.label)}</React.Fragment>)}
                         {user?.role === 'provider' && mobileLink('/account', 'My Account')}
 
-                        {user?.role === 'staff' && mobileLink('/my-schedule#services', 'Services & hours')}
+                        {user?.role === 'staff' && mobileLink('/dashboard?tab=services', 'My services')}
+                        {user?.role === 'staff' && drawerSection('More')}
+                        {user?.role === 'staff' && mobileLink('/dashboard?tab=messages', 'Messages')}
+                        {user?.role === 'staff' && hasCap('waitlist:manage') && mobileLink('/dashboard?tab=waitlist', 'Waiting list')}
+                        {user?.role === 'staff' && drawerSection('Settings')}
+                        {user?.role === 'staff' && mobileLink('/dashboard?tab=availability', 'My working hours')}
+                        {user?.role === 'staff' && mobileLink('/account', 'My Account')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command/insights', 'Analytics')}
 
@@ -640,7 +643,7 @@ const Navbar = () => {
                         which ProviderDashboard turns into openBlankApptModal(). The lift
                         is a transform on THIS span only (a grandchild), never on the
                         fixed bar itself — so the iOS repaint fix above is untouched. */}
-                    {user?.role === 'provider' && (
+                    {(user?.role === 'provider' || (user?.role === 'staff' && hasCap('bookings:create'))) && (
                     <Link to="/dashboard?new=1" aria-label="New booking" style={{ flexShrink: 0, alignSelf: 'center', margin: '0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', WebkitTapHighlightColor: 'transparent' }}>
                         <span style={{
                             width: '50px', height: '50px', borderRadius: '50%',
@@ -659,13 +662,13 @@ const Navbar = () => {
                         </span>
                     </Link>
                     )}
-                    {user?.role === 'staff' && bottomTab({ to: '/my-schedule#services', label: 'Services', icon: (
+                    {user?.role === 'staff' && bottomTab({ to: '/dashboard?tab=services', label: 'Services', icon: (
                         <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M5 6h14M5 12h14M5 18h9"/></svg>
                     ) })}
                     {user?.role === 'provider' && bottomTab({ to: '/dashboard?tab=earnings', label: 'Earnings', icon: (
                         <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
                     ) })}
-                    {bottomTab({ to: user?.role === 'staff' ? '/my-schedule#account' : '/account', label: 'Account', icon: (
+                    {bottomTab({ to: '/account', label: 'Account', icon: (
                         <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                     ) })}
                 </div>

@@ -954,6 +954,19 @@ exports.createAppointment = async (req, res) => {
         // caller this is exactly the body value, unchanged.
         const effectiveTeamMember = isStaffWalkIn ? staffWalkInMemberId : teamMember;
 
+        // A staff account is not a client. Anything that isn't a walk-in or (with
+        // client access) a booking for an existing client used to fall through to
+        // the customer path and record the TEAM MEMBER as the client — silently
+        // dropping the client they picked. Refuse it and say what to do instead.
+        if (req.user?.role === 'staff' && !isStaffWalkIn && !isStaffOnBehalf) {
+            const reason = !can(req.user, 'bookings:create')
+                ? 'Your access doesn’t include making bookings. Ask the owner.'
+                : customerId
+                    ? 'Your access doesn’t include booking for existing clients. Book them as a walk-in by name instead.'
+                    : 'Enter the client’s name to book them as a walk-in.';
+            return res.status(403).json({ success: false, code: 'staff_booking_not_allowed', message: reason });
+        }
+
         // Customers, guests and providers book here; admins never did (the route
         // dropped authorize() for guest checkout, so re-assert that contract).
         if (req.user?.role === 'admin') {

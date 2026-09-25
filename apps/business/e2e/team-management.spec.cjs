@@ -8,7 +8,7 @@ const { SEED, login } = require('./helpers.cjs');
  *      member to "invited, awaiting login" (the e2e API has SMTP disabled, so the
  *      honest result here is the "didn't send" branch — the account is still made),
  *   3. a staff member lands on the calendar and manages their OWN services
- *      from Services & hours.
+ *      from the Services screen.
  */
 
 // A member card is a collapsible; its header is the first button inside it.
@@ -72,36 +72,33 @@ test.describe('Team — invite to log in', () => {
     });
 });
 
-test.describe('Services & hours — staff choose their own services', () => {
-    test('a staff member selects a service and it persists across a reload', async ({ page }) => {
+test.describe('A team member manages their own services', () => {
+    test('adds a service at their own price from the Services screen, and it persists', async ({ page }) => {
         await login(page, SEED.staff);
-        // A team member's home is the same calendar the owner uses (their own
-        // bookings only); services and hours live on /my-schedule.
+        // A team member's home is the same calendar the owner uses (their own bookings).
         await expect(page).toHaveURL(/\/dashboard/);
         await expect(page.getByTestId('calendar-view-menu')).toBeVisible();
-        await page.goto('/my-schedule#services');
 
-        const services = page.getByTestId('my-services');
+        // Their Services screen is the owner's "Service menu" layout, scoped to them.
+        await page.goto('/dashboard?tab=services');
+        const services = page.getByTestId('member-services');
         await expect(services).toBeVisible();
-        // Sam offers everything to begin with, so the per-service picker is hidden.
-        await expect(services).toContainText('You perform every service.');
 
-        // Switch from "offers all" to choosing specific services — this reveals
-        // the picker (and persists offersAllServices:false on its own).
-        await services.getByTestId('my-offers-all-switch').click();
-        const chip = services.getByTestId('my-service-chip').filter({ hasText: SEED.serviceName });
-        await expect(chip).toBeVisible();
-        // Wait on the actual save so the reload below can't race ahead of it.
-        const [saved] = await Promise.all([
-            page.waitForResponse(r => r.url().includes('/team/mine/services') && r.request().method() === 'PUT'),
-            chip.click(),
+        await services.getByTestId('member-add-service').click();
+        await page.getByTestId('member-service-name').fill('Beard oil');
+        await page.getByTestId('member-service-price').fill('80');
+        await page.getByTestId('member-service-duration').fill('20');
+        const [priced] = await Promise.all([
+            page.waitForResponse((r) => r.url().includes('/team/mine/pricing') && r.request().method() === 'PUT'),
+            page.getByTestId('member-service-save').click(),
         ]);
-        expect(saved.ok()).toBeTruthy();
-        await expect(services).toContainText('You perform 1 of 1 service.');
+        expect(priced.ok()).toBeTruthy();
+        const card = services.getByTestId('member-service').filter({ hasText: 'Beard oil' });
+        await expect(card).toContainText('80');
+        await expect(card).toContainText('20 min');
 
-        // Survives a reload — it was actually persisted, not just local state.
+        // Survives a reload — it was saved, not just local state.
         await page.reload();
-        const after = page.getByTestId('my-services');
-        await expect(after).toContainText('You perform 1 of 1 service.');
+        await expect(page.getByTestId('member-service').filter({ hasText: 'Beard oil' })).toContainText('80');
     });
 });
