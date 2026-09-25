@@ -61,6 +61,18 @@ const nextFrame = (cb: () => void) => {
     else setTimeout(cb, 0);
 };
 
+// Pad a column by half its height (less half a row) at each end, like a wheel,
+// so an early or late value (00–02, 21–23) can still sit in the middle, level
+// with the other column. Without it the list stops scrolling short and the two
+// picked values end up a few pixels out of line.
+const padForCentre = (list: HTMLElement | null) => {
+    const row = list?.querySelector<HTMLElement>('.bp-time-opt');
+    if (!list || !row) return;
+    const edge = `${Math.max(0, Math.floor((list.clientHeight - row.offsetHeight) / 2))}px`;
+    list.style.paddingTop = edge;
+    list.style.paddingBottom = edge;
+};
+
 export const TimePicker = forwardRef<HTMLButtonElement, TimePickerProps>(function TimePicker(props, ref) {
     const {
         value, onChange, onValueChange, step = 15, min, max, placeholder = '--:--', disabled, required, invalid,
@@ -138,6 +150,8 @@ export const TimePicker = forwardRef<HTMLButtonElement, TimePickerProps>(functio
         const focusEl = hourListRef.current?.querySelector<HTMLElement>(`[data-h="${shownH}"]`);
         focusEl?.focus({ preventScroll: true });
         nextFrame(() => {
+            padForCentre(hourListRef.current);
+            padForCentre(minuteListRef.current);
             scrollIntoList(hourListRef.current, hourListRef.current?.querySelector<HTMLElement>(`[data-h="${shownH}"]`) ?? null, true);
             scrollIntoList(minuteListRef.current, minuteListRef.current?.querySelector<HTMLElement>(`[data-m="${shownM}"]`) ?? null, true);
         });

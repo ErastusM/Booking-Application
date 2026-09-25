@@ -4,6 +4,8 @@ import { useAuthContext } from '../context/AuthContext';
 import { authService } from '../services';
 import MAIN_CATEGORIES from '../constants/mainCategories';
 import { cloudinaryAvatar } from '../utils/cloudinary';
+// App-styled replacement for the native <select>, so the picker wears the app's colours.
+import { Select } from '@bookplus/ui';
 
 // Landing spot for a Google sign-in that hasn't given us a phone number yet
 // (see AuthCallBack.jsx's needsPhone redirect). Mirrors apps/customer's
@@ -17,10 +19,14 @@ const CompleteProfile = () => {
     const [customCategory, setCustomCategory] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    // The category picker has no native `required` bubble: once a submit has
+    // been tried, an empty category shows the red border next to the error.
+    const [triedSubmit, setTriedSubmit] = useState(false);
     const isProvider = user?.role === 'provider';
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setTriedSubmit(true);
         if (!phone.trim()) {
             setError('Please enter your phone number');
             return;
@@ -100,13 +106,21 @@ const CompleteProfile = () => {
 
                             {isProvider && (
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                                    <label id="main-category-label" style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                                         Main service category
                                     </label>
-                                    <select value={category} onChange={e => setCategory(e.target.value)} required className="input">
-                                        <option value="">Select your category</option>
-                                        {MAIN_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
+                                    <Select
+                                        value={category}
+                                        onChange={e => setCategory(e.target.value)}
+                                        options={MAIN_CATEGORIES.map(c => ({ value: c, label: c }))}
+                                        placeholder="Select your category"
+                                        searchable
+                                        searchPlaceholder="Search categories"
+                                        sheetTitle="Main service category"
+                                        aria-labelledby="main-category-label"
+                                        required
+                                        invalid={triedSubmit && !category}
+                                    />
                                     {category === 'Other' && (
                                         <input
                                             type="text"

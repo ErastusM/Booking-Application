@@ -3,6 +3,8 @@ import { Gift, Plus, Copy, Check, Share2, ChevronLeft } from 'lucide-react';
 import { giftCardService, walletService } from '../../services';
 import { useToast } from '../../components/Toast';
 import { currencySymbol } from '../../utils/currency';
+// App-styled confirm dialog in place of window.confirm.
+import { useConfirm } from '@bookplus/ui';
 
 // Gift cards (owner). Three views on one screen: the list, "sell a gift card",
 // and the finished card to hand over. The owner is paid directly (cash, EFT,
@@ -22,6 +24,7 @@ const mono = { fontFamily: 'ui-monospace, Menlo, Consolas, monospace', letterSpa
 
 const GiftCards = ({ currency = 'NAD', businessName = '' }) => {
     const toast = useToast();
+    const confirm = useConfirm();
     const sym = currencySymbol(currency);
     const money = (n) => `${sym}${Number(n || 0).toLocaleString('en-US', { maximumFractionDigits: 2 })}`;
 
@@ -68,7 +71,13 @@ const GiftCards = ({ currency = 'NAD', businessName = '' }) => {
     };
 
     const cancelCard = async (c) => {
-        if (!window.confirm(`Cancel the ${money(c.amount)} gift card for ${c.recipientName}? The code will stop working.`)) return;
+        if (!(await confirm({
+            title: `Cancel the ${money(c.amount)} gift card for ${c.recipientName}?`,
+            message: 'The code will stop working.',
+            confirmLabel: 'Cancel gift card',
+            cancelLabel: 'Keep it',
+            danger: true,
+        }))) return;
         setBusy('void');
         try {
             const res = await giftCardService.void(c._id);

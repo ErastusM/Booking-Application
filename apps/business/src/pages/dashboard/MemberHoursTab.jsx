@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { Select, DatePicker, TimePicker } from '@bookplus/ui';
 import { myAvailabilityService, myTimeOffService } from '../../services';
 import { useToast } from '../../components/Toast';
 
@@ -67,6 +68,9 @@ const MemberHoursTab = ({ businessName = 'the business' }) => {
 
     const requestLeave = async (e) => {
         e.preventDefault();
+        // The date picker has no native min check on submit, so a first day that
+        // slipped into the past (the form left open past midnight) is caught here.
+        if (form.startDate < todayKey()) { toast('The first day can’t be in the past', 'error'); return; }
         if (form.endDate < form.startDate) { toast('The last day can’t be before the first day', 'error'); return; }
         setBusy('request');
         try {
@@ -115,9 +119,9 @@ const MemberHoursTab = ({ businessName = 'the business' }) => {
                                     <div style={{ fontWeight: '600', color: c.enabled ? 'var(--charcoal)' : 'var(--text-muted)', fontSize: '1rem', textTransform: 'capitalize', marginBottom: c.enabled ? '0.55rem' : 0 }}>{day}</div>
                                     {c.enabled ? (
                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                            <input type="time" aria-label={`${day} start`} value={c.slots[0]?.start || '09:00'} onChange={(e) => setTime(day, 'start', e.target.value)} className="input" style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '1rem' }} />
+                                            <TimePicker aria-label={`${day} start`} value={c.slots[0]?.start || '09:00'} onChange={(e) => setTime(day, 'start', e.target.value)} sheetTitle={`${day[0].toUpperCase()}${day.slice(1)} start`} style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '1rem' }} />
                                             <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', flexShrink: 0 }}>to</span>
-                                            <input type="time" aria-label={`${day} end`} value={c.slots[0]?.end || '17:00'} onChange={(e) => setTime(day, 'end', e.target.value)} className="input" style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '1rem' }} />
+                                            <TimePicker aria-label={`${day} end`} value={c.slots[0]?.end || '17:00'} onChange={(e) => setTime(day, 'end', e.target.value)} sheetTitle={`${day[0].toUpperCase()}${day.slice(1)} end`} style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '1rem' }} />
                                         </div>
                                     ) : (
                                         <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Not working</div>
@@ -148,16 +152,15 @@ const MemberHoursTab = ({ businessName = 'the business' }) => {
                     <form onSubmit={requestLeave} style={{ ...card, padding: '1.1rem 1.25rem', marginBottom: '1rem', display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.75rem' }}>
                             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600 }}>First day
-                                <input type="date" className="input" value={form.startDate} min={todayKey()} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value, endDate: f.endDate < e.target.value ? e.target.value : f.endDate }))} />
+                                <DatePicker value={form.startDate} min={todayKey()} onChange={(e) => setForm((f) => ({ ...f, startDate: e.target.value, endDate: f.endDate < e.target.value ? e.target.value : f.endDate }))} sheetTitle="First day" style={{ fontWeight: 400 }} />
                             </label>
                             <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600 }}>Last day
-                                <input type="date" className="input" value={form.endDate} min={form.startDate} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} />
+                                <DatePicker value={form.endDate} min={form.startDate} onChange={(e) => setForm((f) => ({ ...f, endDate: e.target.value }))} sheetTitle="Last day" style={{ fontWeight: 400 }} />
                             </label>
                         </div>
                         <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600 }}>Kind
-                            <select className="input" value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}>
-                                {TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                            </select>
+                            <Select value={form.type} onChange={(e) => setForm((f) => ({ ...f, type: e.target.value }))}
+                                options={TYPES.map(([v, l]) => ({ value: v, label: l }))} sheetTitle="Kind of time off" style={{ fontWeight: 400 }} />
                         </label>
                         <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.8rem', fontWeight: 600 }}>Note (optional)
                             <input className="input" maxLength={200} value={form.note} onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))} placeholder="e.g. Family wedding" />

@@ -4,6 +4,7 @@ import { NAMIBIAN_TOWNS } from '../utils/namibiaTowns';
 import { useAuthContext } from '../context/AuthContext';
 import { useToast } from './Toast';
 import { currencySymbol } from '../utils/currency';
+import { Select } from '@bookplus/ui';
 import { X, Plus, Trash2, Clock } from 'lucide-react';
 
 // Preset durations (minutes) for the dropdown; a service's saved value is added
@@ -75,6 +76,16 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
 
     const durationOptions = DURATIONS.includes(Number(form.duration)) ? DURATIONS : [...DURATIONS, Number(form.duration)].sort((a, b) => a - b);
 
+    // A saved category that isn't in the list yet (still loading, or deleted)
+    // shows its populated name rather than a raw id; kept hidden from the list.
+    const categoryOptions = [
+        { value: '', label: 'Featured (uncategorized)' },
+        ...categories.map((c) => ({ value: c._id, label: c.name })),
+        ...(form.category && !categories.some((c) => c._id === form.category)
+            ? [{ value: form.category, label: (editing?.category?._id === form.category && editing.category.name) || 'Featured (uncategorized)', hidden: true }]
+            : []),
+    ];
+
     const submit = async () => {
         if (!form.name.trim()) { setError('Please add a service name'); return; }
         setSaving(true);
@@ -126,8 +137,10 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
 
     // Full-screen sheet — fade in (a scale-from-center would zoom the whole
     // viewport and expose edge gaps); reduced-motion neutralizes it globally.
+    // z 2400: above the app chrome and PhotoEditor (2000), but below the
+    // @bookplus/ui picker layer (2500) so its dropdowns open on top, and below toasts.
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9998, background: 'var(--off-white)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)', animation: 'fadeIn var(--dur) var(--ease-out) both' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 2400, background: 'var(--off-white)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)', animation: 'fadeIn var(--dur) var(--ease-out) both' }}>
             {/* Header */}
             <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                 <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 600, color: 'var(--charcoal)', margin: 0 }}>
@@ -162,11 +175,9 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                                 <button type="button" onClick={() => { setAddingCat(false); setNewCat(''); }} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', padding: '0 0.9rem', cursor: 'pointer' }}>Cancel</button>
                             </div>
                         ) : (
-                            <select className="input" value={form.category} onChange={(e) => { if (e.target.value === '__new__') { setAddingCat(true); } else { set({ category: e.target.value }); } }}>
-                                <option value="">Featured (uncategorized)</option>
-                                {categories.map((c) => <option key={c._id} value={c._id}>{c.name}</option>)}
-                                <option value="__new__">+ New category…</option>
-                            </select>
+                            <Select value={form.category} onChange={(e) => set({ category: e.target.value })} options={categoryOptions}
+                                actions={[{ label: '+ New category…', onSelect: () => setAddingCat(true), 'data-testid': 'service-new-category' }]}
+                                searchPlaceholder="Search categories" aria-label="Menu category" data-testid="service-category" />
                         )}
                         <p style={helper}>The category displayed to you, and to clients online.</p>
                     </div>
@@ -185,10 +196,9 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', ...field }}>
                         <div>
                             <label style={label}>Price type</label>
-                            <select className="input" value={form.priceType} onChange={(e) => set({ priceType: e.target.value })}>
-                                <option value="fixed">Fixed</option>
-                                <option value="free">Free</option>
-                            </select>
+                            <Select value={form.priceType} onChange={(e) => set({ priceType: e.target.value })}
+                                options={[{ value: 'fixed', label: 'Fixed' }, { value: 'free', label: 'Free' }]}
+                                aria-label="Price type" data-testid="service-price-type" />
                         </div>
                         <div>
                             <label style={label}>Price</label>
@@ -201,9 +211,10 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
 
                     <div style={field}>
                         <label style={label}>Duration</label>
-                        <select className="input" value={form.duration} onChange={(e) => set({ duration: Number(e.target.value) })}>
-                            {durationOptions.map((m) => <option key={m} value={m}>{fmtDur(m)}</option>)}
-                        </select>
+                        {/* A fixed list of lengths: no search box, even past 8 rows. */}
+                        <Select value={form.duration} onChange={(e) => set({ duration: Number(e.target.value) })}
+                            options={durationOptions.map((m) => ({ value: m, label: fmtDur(m) }))} searchable={false}
+                            aria-label="Duration" data-testid="service-duration" />
                     </div>
 
                     {/* Extra time (buffers) */}
@@ -260,11 +271,16 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', ...field }}>
                         <div>
                             <label style={label}>Town</label>
-                            <select className="input" value={form.location} onChange={(e) => set({ location: e.target.value })}>
-                                <option value="">Select a town…</option>
-                                {form.location && !NAMIBIAN_TOWNS.includes(form.location) && <option value={form.location}>{form.location}</option>}
-                                {NAMIBIAN_TOWNS.map((t) => <option key={t} value={t}>{t}</option>)}
-                            </select>
+                            {/* Optional field: "Clear town" stands in for the old blank row
+                                so a picked town can still be taken back to ''. */}
+                            <Select value={form.location} onChange={(e) => set({ location: e.target.value })}
+                                options={[
+                                    ...(form.location && !NAMIBIAN_TOWNS.includes(form.location) ? [{ value: form.location, label: form.location }] : []),
+                                    ...NAMIBIAN_TOWNS.map((t) => ({ value: t, label: t })),
+                                ]}
+                                actions={form.location ? [{ label: 'Clear town', onSelect: () => set({ location: '' }), 'data-testid': 'service-town-clear' }] : undefined}
+                                placeholder="Select a town…" searchable searchPlaceholder="Search towns"
+                                aria-label="Town" data-testid="service-town" />
                         </div>
                         <div>
                             <label style={label}>Street address</label>

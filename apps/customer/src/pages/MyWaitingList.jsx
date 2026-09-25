@@ -3,11 +3,13 @@ import { useSearchParams } from 'react-router-dom';
 import { waitingListService } from '../services';
 import { apptLocalDate } from '../utils/date';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '@bookplus/ui';
 
 const MyWaitingList = () => {
     const [searchParams] = useSearchParams();
     const justJoined = searchParams.get('joined') === '1';
     const toast = useToast();
+    const confirm = useConfirm();
     const [entries, setEntries] = useState([]);
     const [notifications, setNotifications] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -35,7 +37,7 @@ const MyWaitingList = () => {
     };
 
     const handleLeave = async (id) => {
-        if (leavingId === id || !window.confirm('Leave this waiting list?')) return;
+        if (leavingId === id || !(await confirm({ title: 'Leave this waiting list?', confirmLabel: 'Leave', cancelLabel: 'Stay' }))) return;
         setLeavingId(id);
         try {
             await waitingListService.leave(id);

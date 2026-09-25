@@ -555,7 +555,8 @@ body.dark-mode select option { background: var(--card-bg); color: var(--text-pri
    sharp-cornered patches inside the rounded pill. (The input selector repeats
    the :not() chain to out-rank the global rule's specificity.) */
 body.dark-mode .home-search-inner input:not([type="submit"]):not([type="button"]):not([type="checkbox"]):not([type="radio"]),
-body.dark-mode .home-search-inner select { background: transparent !important; }
+body.dark-mode .home-search-inner select,
+body.dark-mode .home-search-inner .bp-trigger { background: transparent !important; }
 
 /* Broad surface coverage — any element explicitly set to white via class */
 body.dark-mode .surface-white,
@@ -1057,6 +1058,10 @@ body.dark-mode .fc-bookplus-wrapper .fc-timegrid-slot-minor {
 .input.is-invalid:focus { box-shadow: 0 0 0 3px rgba(239,68,68,0.18); }
 textarea.input { min-height: 88px; resize: vertical; line-height: 1.55; padding-top: 0.7rem; }
 .input:hover:not(:focus) { border-color: #bfc2c1; }
+/* The app-styled picker triggers (@bookplus/ui) are .input buttons: keep their
+   invalid (red) and open (orange) borders while hovered instead of the grey above. */
+.input.bp-trigger[aria-invalid="true"] { border-color: var(--danger); }
+.input.bp-trigger[aria-expanded="true"] { border-color: var(--gold); }
 
 /* Segmented control */
 .segmented { display: inline-flex; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px; gap: 2px; }
@@ -1242,6 +1247,18 @@ body.dark-mode .home-hero-wash {
     color: var(--charcoal);
     cursor: pointer;
   }
+  /* Same look for the app-styled location/date/time pickers (@bookplus/ui):
+     their trigger is an .input button, so drop its field chrome to sit flush
+     in the pill. It opens as a popover here (this segment is desktop-only). */
+  .home-search-when .input.bp-trigger {
+    width: auto;
+    border: none;
+    background-color: transparent;
+    padding: 0.35rem 0.3rem;
+    font-size: 0.92rem;
+  }
+  .home-search-when .bp-trigger .bp-trigger-text { color: var(--charcoal); }
+  .home-search-when .bp-trigger[data-empty="true"] .bp-trigger-text { color: var(--text-muted); }
   .discover-feed {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(272px, 1fr));

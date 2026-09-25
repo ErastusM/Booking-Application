@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import MiniCalendar from './MiniCalendar';
+import { Select } from '@bookplus/ui';
 
 // Shared recurring-booking controls: frequency presets plus a fully-custom
 // "every N days/weeks/months", with the end date chosen on the same calendar
@@ -46,11 +47,13 @@ const RecurrenceFields = ({ value, onChange, minDate }) => {
                             <input type="number" min="1" max="52" value={recurrenceInterval}
                                 onChange={(e) => set({ recurrenceInterval: Math.min(52, Math.max(1, parseInt(e.target.value, 10) || 1)) })}
                                 className="input" style={{ width: '72px', textAlign: 'center' }} />
-                            <select value={recurrenceType} onChange={(e) => set({ recurrenceType: e.target.value })} className="input" style={{ width: 'auto' }}>
-                                <option value="daily">day{plural}</option>
-                                <option value="weekly">week{plural}</option>
-                                <option value="monthly">month{plural}</option>
-                            </select>
+                            <Select value={recurrenceType} onChange={(e) => set({ recurrenceType: e.target.value })} style={{ width: 'auto' }}
+                                options={[
+                                    { value: 'daily', label: `day${plural}` },
+                                    { value: 'weekly', label: `week${plural}` },
+                                    { value: 'monthly', label: `month${plural}` },
+                                ]}
+                                popoverMinWidth={160} aria-label="Repeat unit" sheetTitle="Repeat every" data-testid="recurrence-unit" />
                         </div>
                     )}
 

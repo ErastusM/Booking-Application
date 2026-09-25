@@ -8,6 +8,8 @@ import AccountDangerZone from '../components/AccountDangerZone';
 import MapPicker, { MAPS_KEY, reverseGeocode } from '../components/MapPicker';
 import LocationsManager from '../components/LocationsManager';
 import { cloudinaryAvatar } from '../utils/cloudinary';
+// App-styled replacement for the native <select>, so the picker wears the app's colours.
+import { Select } from '@bookplus/ui';
 import { useToast } from '../components/Toast';
 import PortfolioPhotos, { MAX_PHOTOS } from '../components/PortfolioPhotos';
 import ShareBookingLink, { bookingUrl } from '../components/ShareBookingLink';
@@ -15,6 +17,17 @@ import ShareBookingLink, { bookingUrl } from '../components/ShareBookingLink';
 const CLOUDINARY_CLOUD = 'dktit6s95';
 const CLOUDINARY_PRESET = 'bookplus';
 const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'https://www.bookplus.pro';
+
+// Notice (in hours) a client must give to cancel or reschedule online.
+const CANCELLATION_OPTIONS = [
+    { value: 0, label: 'Clients can cancel anytime' },
+    { value: 2, label: 'At least 2 hours before' },
+    { value: 4, label: 'At least 4 hours before' },
+    { value: 12, label: 'At least 12 hours before' },
+    { value: 24, label: 'At least 24 hours before' },
+    { value: 48, label: 'At least 48 hours before' },
+    { value: 72, label: 'At least 3 days before' },
+];
 
 // Shareable public booking link — same handle the onboarding flow generates.
 // Shown here so a provider can grab it again any time.
@@ -393,21 +406,15 @@ const ProviderAccount = () => {
                                                 <textarea value={profileForm.address} onChange={e => setProfileForm(p => ({ ...p, address: e.target.value }))} className="input" rows={2} placeholder="e.g. 12 Independence Ave, Windhoek" style={{ resize: 'vertical', fontSize: '1rem' }} />
                                             </div>
                                             <div>
-                                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Cancellation policy</label>
-                                                <select
+                                                <label id="cancellation-policy-label" style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Cancellation policy</label>
+                                                <Select
                                                     value={profileForm.cancellationWindowHours}
                                                     onChange={e => setProfileForm(p => ({ ...p, cancellationWindowHours: Number(e.target.value) }))}
-                                                    className="input"
-                                                    style={{ cursor: 'pointer' }}
-                                                >
-                                                    <option value={0}>Clients can cancel anytime</option>
-                                                    <option value={2}>At least 2 hours before</option>
-                                                    <option value={4}>At least 4 hours before</option>
-                                                    <option value={12}>At least 12 hours before</option>
-                                                    <option value={24}>At least 24 hours before</option>
-                                                    <option value={48}>At least 48 hours before</option>
-                                                    <option value={72}>At least 3 days before</option>
-                                                </select>
+                                                    options={CANCELLATION_OPTIONS}
+                                                    aria-labelledby="cancellation-policy-label"
+                                                    sheetTitle="Cancellation policy"
+                                                    data-testid="cancellation-policy"
+                                                />
                                                 <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.3rem 0 0' }}>How much notice clients must give to cancel or reschedule online. You can always cancel from your side.</p>
                                             </div>
                                             {profileMsg && <p style={{ fontSize: '0.8rem', color: profileMsg.includes('fail') ? 'var(--danger)' : 'var(--success)' }}>{profileMsg}</p>}

@@ -12,6 +12,7 @@ import { Phone, MessageCircle, Mail, MapPin, ChevronLeft, ChevronRight, X, Share
 import { normalizeTown } from '../utils/namibiaTowns';
 import Seo from '../components/Seo';
 import { useToast } from '../components/Toast';
+import { useConfirm } from '@bookplus/ui';
 
 // Circular translucent control that floats over the hero photo (back / share / like / ⋯).
 // The circle stays white in both themes, so the icon uses --ink (never flips)
@@ -38,6 +39,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
     const navigate = useNavigate();
     const { user } = useAuthContext();
     const toast = useToast();
+    const confirm = useConfirm();
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [activeCategory, setActiveCategory] = useState('featured');
@@ -102,7 +104,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
         // signal the block/unblock actually took (and that a failure didn't).
         try {
             if (blocked) { await authService.unblockUser(id); setBlocked(false); toast('Business unblocked.', 'success'); }
-            else if (window.confirm('Block this business? You won’t be able to book or message each other.')) {
+            else if (await confirm({ title: 'Block this business?', message: 'You won’t be able to book or message each other.', confirmLabel: 'Block', danger: true })) {
                 await authService.blockUser(id); setBlocked(true); toast('Business blocked.', 'success');
             }
         } catch (e) { toast(e.response?.data?.message || 'Could not update block status. Please try again.', 'error'); }

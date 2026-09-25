@@ -27,6 +27,10 @@ import MiniCalendar from '../components/MiniCalendar';
 import RecurrenceFields from '../components/RecurrenceFields';
 import { currencySymbol } from '../utils/currency';
 import { useToast } from '../components/Toast';
+// App-styled replacements for the native <select>, date/time inputs and
+// window.confirm, so every picker and prompt wears the app's colours (and times
+// are always 24-hour, whatever the device's locale).
+import { Select, DatePicker, TimePicker, useConfirm } from '@bookplus/ui';
 import { statusConfig, ContactActions, ChromeModal, CloseButton, StatsSkeleton, RowsSkeleton, Avatar, fmtConvTime } from './dashboard/primitives';
 // Lazy — wallet modals open only from the Wallet tab; keep them off the initial chunk.
 const ProviderAccountTopUpModal = lazy(() => import('./dashboard/WalletModals').then(m => ({ default: m.ProviderAccountTopUpModal })));
@@ -55,6 +59,10 @@ const safeProofUrl = (u) => {
     const raw = (u == null ? '' : String(u)).trim();
     return /^https?:\/\//i.test(raw) ? raw : '';
 };
+
+// Trigger label for the custom-range date pickers ("Mar 10, 2026"). The picker's
+// default adds the weekday, which gets cut off in these half-width phone fields.
+const rangeDateLabel = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 
 // Clear (✕) button for a search field. Sits at the right edge of the input, so
 // the parent must be position:relative and the input needs right padding to
@@ -129,6 +137,7 @@ const ProviderDashboard = () => {
     const location = useLocation();
     const navigate = useNavigate();
     const toast = useToast();
+    const confirm = useConfirm();
     const fcWrapRef = useRef(null);
     // Day/week calendar fills the space from its top down to just above the bottom
     // nav, instead of a fixed 680px that left dead grey space on tall phones.
@@ -233,6 +242,9 @@ const ProviderDashboard = () => {
     const [editingBlockedTime, setEditingBlockedTime] = useState(null);
     const [blockedTimeForm, setBlockedTimeForm] = useState({ blockType: 'Custom', title: '', date: '', startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', customDays: [], teamMember: 'owner' });
     const [savingBlockedTime, setSavingBlockedTime] = useState(false);
+    // Set by a submit that failed the form's own checks, so the empty or
+    // out-of-order date/time fields show the red border until the panel reopens.
+    const [blockedTimeChecked, setBlockedTimeChecked] = useState(false);
     const [recurringActionModal, setRecurringActionModal] = useState(null);
     const [timeSelectionPreview, setTimeSelectionPreview] = useState(null);
     const [pendingMove, setPendingMove] = useState(null); // drag-to-move confirmation
@@ -245,7 +257,6 @@ const ProviderDashboard = () => {
     // Group bookings and the legacy single-service create path only ever read
     // services[0], so they're unaffected by the extra rows.
     const [apptForm, setApptForm] = useState({ services: [{ serviceId: '' }], date: '', startTime: '', clientMode: 'existing', customerId: '', clientName: '', notes: '', isRecurring: false, recurrenceType: 'weekly', recurrenceInterval: 1, recurrenceEndDate: '', isGroup: false, groupClients: [{ name: '' }], teamMember: '' });
-    const [clientPickerSearch, setClientPickerSearch] = useState('');
     // Multi-select staff filter: a Set of lane ids to show — 'unassigned' (the
     // owner/me lane) or a teamMember _id. An EMPTY set means "all staff" (the
     // default), so 'show everyone' and 'show a chosen subset' stay distinct.
@@ -511,6 +522,7 @@ const ProviderDashboard = () => {
     };
 
     const openBlockedTimeForm = (item = null) => {
+        setBlockedTimeChecked(false);
         if (item) {
             setEditingBlockedTime(item);
             setBlockedTimeForm({
@@ -541,6 +553,26 @@ const ProviderDashboard = () => {
 
     const handleBlockedTimeSubmit = async (e) => {
         e.preventDefault();
+        // The date and time fields are app-styled pickers, which have no native
+        // `required` bubble, so the form checks them itself before anything is
+        // sent or shown optimistically. End-after-start mirrors the API's rule.
+        const { date, startTime, endTime } = blockedTimeForm;
+        const missing = [
+            !editingBlockedTime && !date && 'a date',
+            !startTime && 'a start time',
+            !endTime && 'an end time',
+        ].filter(Boolean);
+        if (missing.length) {
+            setBlockedTimeChecked(true);
+            const last = missing.pop();
+            toast(`Please pick ${missing.length ? `${missing.join(', ')} and ` : ''}${last}.`, 'error');
+            return;
+        }
+        if (endTime <= startTime) {
+            setBlockedTimeChecked(true);
+            toast('The end time must be after the start time.', 'error');
+            return;
+        }
         if (editingBlockedTime && editingBlockedTime.isRecurring) {
             setRecurringActionModal({ action: 'update', item: editingBlockedTime });
             setRecurringMode('this');
@@ -884,7 +916,6 @@ const ProviderDashboard = () => {
     const openBlankApptModal = (extra = {}) => {
         setApptError('');
         setApptForm(prev => ({ ...prev, ...blankApptFields, ...(canBookExistingClient ? {} : { clientMode: 'walkin' }), date: toDateKey(new Date()), ...extra }));
-        setClientPickerSearch('');
         setShowApptModal(true);
     };
 
@@ -901,7 +932,6 @@ const ProviderDashboard = () => {
             date: prev.date || toDateKey(new Date()),
             startTime: '',
         }));
-        setClientPickerSearch(client.customer?.name || '');
         setShowApptModal(true);
     };
 
@@ -1126,10 +1156,14 @@ const ProviderDashboard = () => {
             const isWallet = appt?.paymentMethod === 'wallet';
             const amount = appt?.totalPrice ?? appt?.service?.price;
             const who = appt?.customer?.name || 'the client';
-            const msg = isWallet && amount != null
-                ? `Mark this appointment complete?\n\nThis releases ${nMoney(amount)} from ${who}'s reserved balance to you. This can't be undone.`
-                : 'Mark this appointment as complete?';
-            if (!window.confirm(msg)) return;
+            const ok = isWallet && amount != null
+                ? await confirm({
+                    title: 'Mark this appointment complete?',
+                    message: `This releases ${nMoney(amount)} from ${who}'s reserved balance to you. This can't be undone.`,
+                    confirmLabel: 'Mark complete',
+                })
+                : await confirm({ title: 'Mark this appointment as complete?', confirmLabel: 'Mark complete' });
+            if (!ok) return;
         }
         // optimistic
         setAppointments(prev => prev.map(a => a._id === id ? { ...a, status } : a));
@@ -1171,7 +1205,7 @@ const ProviderDashboard = () => {
     };
 
     const handleDeleteService = async (id) => {
-        if (window.confirm('Delete this service?')) {
+        if (await confirm({ title: 'Delete this service?', confirmLabel: 'Delete', danger: true })) {
             try {
                 await providerServiceService.deleteMyService(id);
                 setMyServices(myServices.filter(s => s._id !== id));
@@ -1196,7 +1230,7 @@ const ProviderDashboard = () => {
     };
 
     const handleDeleteCategory = async (id) => {
-        if (window.confirm('Delete this category? Services will become uncategorized.')) {
+        if (await confirm({ title: 'Delete this category?', message: 'Services will become uncategorized.', confirmLabel: 'Delete', danger: true })) {
             try {
                 await categoryService.deleteCategory(id);
                 await fetchCategories();
@@ -1479,6 +1513,10 @@ const ProviderDashboard = () => {
             )}
         </div>
     );
+
+    // Service choices for the New Appointment form: the group picker and every
+    // multi-service row. The list gets a search box once it is long.
+    const serviceOptions = myServices.map(s => ({ value: s._id, label: `${s.name} (${s.duration} min)` }));
 
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
@@ -1788,9 +1826,9 @@ const ProviderDashboard = () => {
                                             <div style={{ fontWeight: '600', color: config.enabled ? 'var(--charcoal)' : 'var(--text-muted)', fontSize: '1rem', textTransform: 'capitalize', marginBottom: config.enabled ? '0.55rem' : 0 }}>{day}</div>
                                             {config.enabled ? (
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                                    <input type="time" value={config.slots[0]?.start || '09:00'} onChange={e => handleTimeChange(day, 'start', e.target.value)} className="input" style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '1rem' }} />
+                                                    <TimePicker value={config.slots[0]?.start || '09:00'} onChange={e => handleTimeChange(day, 'start', e.target.value)} aria-label={`${day.charAt(0).toUpperCase()}${day.slice(1)} opening time`} hideIcon style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '1rem' }} />
                                                     <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', flexShrink: 0 }}>to</span>
-                                                    <input type="time" value={config.slots[0]?.end || '17:00'} onChange={e => handleTimeChange(day, 'end', e.target.value)} className="input" style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '1rem' }} />
+                                                    <TimePicker value={config.slots[0]?.end || '17:00'} onChange={e => handleTimeChange(day, 'end', e.target.value)} aria-label={`${day.charAt(0).toUpperCase()}${day.slice(1)} closing time`} hideIcon style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '1rem' }} />
                                                 </div>
                                             ) : (
                                                 <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Not available</div>
@@ -2070,7 +2108,7 @@ const ProviderDashboard = () => {
                             <button onClick={exportInsightsCsv} disabled={!insights} style={{ padding: '0.5rem 1rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: insights ? 'pointer' : 'not-allowed', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}><Download size={14} strokeWidth={2} /> Export CSV</button>
                         </div>
 
-                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', marginBottom: '1.5rem' }}>
+                        <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center', marginBottom: '1.5rem' }}>
                             {[['week','This week'],['month','This month'],['lastMonth','Last month'],['30d','Last 30 days']].map(([key, label]) => (
                                 <button key={key} onClick={() => { setInsightsPreset(key); fetchInsights(key); }} style={{
                                     padding: '0.4rem 1rem', borderRadius: '99px', border: '1.5px solid',
@@ -2080,10 +2118,12 @@ const ProviderDashboard = () => {
                                     fontSize: '0.8rem', fontWeight: insightsPreset === key ? '600' : '400', cursor: 'pointer', fontFamily: 'var(--font-body)',
                                 }}>{label}</button>
                             ))}
-                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center', marginLeft: '0.25rem' }}>
-                                <input type="date" value={insightsRange.from} onChange={e => setInsightsRange(r => ({ ...r, from: e.target.value }))} className="input" style={{ padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
+                            {/* The 340px basis sends the custom range onto its own line on a
+                                phone instead of squeezing it beside a preset pill. */}
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', alignItems: 'center', marginLeft: '0.25rem', flex: '1 1 340px', maxWidth: '560px' }}>
+                                <DatePicker value={insightsRange.from} onChange={e => setInsightsRange(r => ({ ...r, from: e.target.value }))} aria-label="Custom range start date" placeholder="From" clearable size="sm" formatValue={rangeDateLabel} style={{ flex: '1 1 140px', minWidth: 0 }} />
                                 <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>–</span>
-                                <input type="date" value={insightsRange.to} onChange={e => setInsightsRange(r => ({ ...r, to: e.target.value }))} className="input" style={{ padding: '0.35rem 0.5rem', flex: '1 1 120px', minWidth: 0 }} />
+                                <DatePicker value={insightsRange.to} onChange={e => setInsightsRange(r => ({ ...r, to: e.target.value }))} aria-label="Custom range end date" placeholder="To" clearable size="sm" formatValue={rangeDateLabel} style={{ flex: '1 1 140px', minWidth: 0 }} />
                                 <button onClick={() => { setInsightsPreset('custom'); fetchInsights('custom', insightsRange); }} disabled={!insightsRange.from || !insightsRange.to} style={{ padding: '0.4rem 0.85rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: '0.78rem', fontWeight: '600', cursor: (insightsRange.from && insightsRange.to) ? 'pointer' : 'not-allowed', fontFamily: 'var(--font-body)' }}>Apply</button>
                             </div>
                         </div>
@@ -2219,18 +2259,7 @@ const ProviderDashboard = () => {
                             {[['from', 'From', 'Custom range start date'], ['to', 'To', 'Custom range end date']].map(([key, label, aria]) => (
                                 <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem', flex: '1 1 140px', minWidth: 0 }}>
                                     <span style={{ fontSize: '0.7rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>{label}</span>
-                                    <span style={{ position: 'relative', display: 'block' }}>
-                                        <input type="date" value={earningsRange[key]} onChange={e => setEarningsRange(r => ({ ...r, [key]: e.target.value }))} aria-label={aria} className="input" style={{ padding: '0.55rem 0.7rem', width: '100%', minWidth: 0, minHeight: '44px' }} />
-                                        {/* iOS Safari renders an EMPTY date input as a blank box — no
-                                            "dd/mm/yyyy" hint like Chrome — so the field reads as broken.
-                                            This overlay supplies that hint and disappears once a date is
-                                            picked. pointerEvents:none keeps taps going to the input. */}
-                                        {!earningsRange[key] && (
-                                            <span aria-hidden="true" style={{ position: 'absolute', left: '0.65rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.85rem', pointerEvents: 'none', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                                                <Calendar size={13} strokeWidth={2} /> Pick a date
-                                            </span>
-                                        )}
-                                    </span>
+                                    <DatePicker value={earningsRange[key]} onChange={e => setEarningsRange(r => ({ ...r, [key]: e.target.value }))} aria-label={aria} placeholder="Pick a date" clearable formatValue={rangeDateLabel} style={{ padding: '0.55rem 0.7rem', width: '100%', minWidth: 0, minHeight: '44px', fontSize: '0.9rem' }} />
                                 </label>
                             ))}
                             <button onClick={() => { setEarningsPreset('custom'); fetchEarnings('custom', earningsRange); }} disabled={!earningsRange.from || !earningsRange.to} style={{ padding: '0.55rem 1.1rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', fontSize: '0.8rem', fontWeight: '600', cursor: (earningsRange.from && earningsRange.to) ? 'pointer' : 'not-allowed', opacity: (earningsRange.from && earningsRange.to) ? 1 : 0.55, fontFamily: 'var(--font-body)', whiteSpace: 'nowrap' }}>Apply range</button>
@@ -2644,7 +2673,6 @@ const ProviderDashboard = () => {
                                             // prior open. teamMember comes from the staff lane if the selection did.
                                             setApptError('');
                                             setApptForm(prev => ({ ...prev, ...blankApptFields, ...(canBookExistingClient ? {} : { clientMode: 'walkin' }), date: timeSelectionPreview.date, startTime: timeSelectionPreview.startTime, teamMember: timeSelectionPreview.teamMember !== undefined ? timeSelectionPreview.teamMember : prev.teamMember }));
-                                            setClientPickerSearch('');
                                             setShowApptModal(true);
                                             setTimeSelectionPreview(null);
                                         }} className="btn-primary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.8rem' }}>
@@ -2706,9 +2734,9 @@ const ProviderDashboard = () => {
                                         </label>
                                         {adjustHours.enabled && (
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                                                <input type="time" value={adjustHours.start} onChange={e => setAdjustHours(h => ({ ...h, start: e.target.value }))} className="input" style={{ flex: 1, minWidth: 0, padding: '0.55rem 0.6rem' }} />
+                                                <TimePicker value={adjustHours.start} onChange={e => setAdjustHours(h => ({ ...h, start: e.target.value }))} aria-label="Opening time" style={{ flex: 1, minWidth: 0, padding: '0.55rem 0.6rem' }} />
                                                 <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>to</span>
-                                                <input type="time" value={adjustHours.end} onChange={e => setAdjustHours(h => ({ ...h, end: e.target.value }))} className="input" style={{ flex: 1, minWidth: 0, padding: '0.55rem 0.6rem' }} />
+                                                <TimePicker value={adjustHours.end} onChange={e => setAdjustHours(h => ({ ...h, end: e.target.value }))} aria-label="Closing time" style={{ flex: 1, minWidth: 0, padding: '0.55rem 0.6rem' }} />
                                             </div>
                                         )}
                                         <button onClick={saveAdjustHours} disabled={savingAdjustHours} className="btn-primary" style={{ width: '100%', padding: '0.8rem', marginTop: '0.25rem' }}>
@@ -2883,7 +2911,7 @@ const ProviderDashboard = () => {
                                     <button
                                         onClick={async () => {
                                             const id = selectedClient.customer?._id;
-                                            if (id && window.confirm('Block this client? You won’t be able to book or message each other. You can unblock them in Account settings.')) {
+                                            if (id && await confirm({ title: 'Block this client?', message: 'You won’t be able to book or message each other. You can unblock them in Account settings.', confirmLabel: 'Block', danger: true })) {
                                                 try { await authService.blockUser(id); toast('Client blocked.', 'success'); } catch { toast('Could not block client.', 'error'); }
                                             }
                                         }}
@@ -3146,7 +3174,7 @@ const ProviderDashboard = () => {
                                             Edit
                                         </button>
                                         <button
-                                            onClick={async () => { if (window.confirm('Delete this membership plan?')) { await packageService.deletePackage(pkg._id); setMyPackages(prev => prev.filter(p => p._id !== pkg._id)); } }}
+                                            onClick={async () => { if (await confirm({ title: 'Delete this membership plan?', confirmLabel: 'Delete', danger: true })) { await packageService.deletePackage(pkg._id); setMyPackages(prev => prev.filter(p => p._id !== pkg._id)); } }}
                                             style={{ flex: 1, background: 'none', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', padding: '0.45rem', fontSize: '0.8rem', cursor: 'pointer', color: '#dc2626', fontFamily: 'var(--font-body)' }}>
                                             Delete
                                         </button>
@@ -3256,12 +3284,18 @@ const ProviderDashboard = () => {
 
                                 <div style={{ padding: '0.75rem 0', borderTop: '1px solid var(--border)' }}>
                                     <label style={{ display: 'block', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem', marginBottom: '0.4rem' }}>Balance expiry</label>
-                                    <select value={walletSettings?.expiryMonths ?? ''} onChange={(e) => saveWalletSettings({ expiryMonths: e.target.value === '' ? null : Number(e.target.value) })} className="input" style={{ width: '100%', maxWidth: '260px' }}>
-                                        <option value="">Never expire</option>
-                                        <option value="6">Expire after 6 months</option>
-                                        <option value="12">Expire after 12 months</option>
-                                        <option value="24">Expire after 24 months</option>
-                                    </select>
+                                    <Select
+                                        value={walletSettings?.expiryMonths ?? ''}
+                                        onChange={(e) => saveWalletSettings({ expiryMonths: e.target.value === '' ? null : Number(e.target.value) })}
+                                        options={[
+                                            { value: '', label: 'Never expire' },
+                                            { value: '6', label: 'Expire after 6 months' },
+                                            { value: '12', label: 'Expire after 12 months' },
+                                            { value: '24', label: 'Expire after 24 months' },
+                                        ]}
+                                        aria-label="Balance expiry"
+                                        style={{ width: '100%', maxWidth: '260px' }}
+                                    />
                                 </div>
 
                                 <div style={{ padding: '0.75rem 0 0', borderTop: '1px solid var(--border)' }}>
@@ -3459,7 +3493,7 @@ const ProviderDashboard = () => {
                                             style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.75rem', fontSize: '0.75rem', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}>
                                             Edit
                                         </button>
-                                        <button onClick={() => window.confirm(`Remove ${m.name} from your team?`) && handleDeleteMember(m._id)}
+                                        <button onClick={async () => { if (await confirm({ title: `Remove ${m.name} from your team?`, confirmLabel: 'Remove', danger: true })) handleDeleteMember(m._id); }}
                                             style={{ background: 'none', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.75rem', fontSize: '0.75rem', cursor: 'pointer', color: '#dc2626', fontFamily: 'var(--font-body)' }}>
                                             Remove
                                         </button>
@@ -3538,6 +3572,11 @@ const ProviderDashboard = () => {
                                 .map(row => myServices.find(s => s._id === row.serviceId))
                                 .filter(Boolean);
                             if (selectedServices.length === 0) { setApptError('Please select at least one service'); return; }
+                            // The service pickers have no native `required` bubble, so a row
+                            // still on "Select a service" stops the booking here instead.
+                            if (apptForm.isGroup ? !apptForm.services[0]?.serviceId : apptForm.services.some(r => !r.serviceId)) {
+                                setApptError(apptForm.isGroup ? 'Please select a service' : 'Pick a service for every row, or remove the empty one.'); return;
+                            }
                             if (!apptForm.isGroup && apptForm.clientMode === 'existing' && !apptForm.customerId) {
                                 setApptError('Please choose a client, or switch to Guest.'); return;
                             }
@@ -3605,10 +3644,18 @@ const ProviderDashboard = () => {
                                 {apptForm.isGroup ? (
                                     <div>
                                         <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Service</label>
-                                        <select value={apptForm.services[0]?.serviceId || ''} onChange={e => setApptForm(f => ({ ...f, services: [{ serviceId: e.target.value }] }))} required className="input" style={{ width: '100%' }}>
-                                            <option value="">Select a service</option>
-                                            {myServices.map(s => <option key={s._id} value={s._id}>{s.name} ({s.duration} min)</option>)}
-                                        </select>
+                                        <Select
+                                            value={apptForm.services[0]?.serviceId || ''}
+                                            onChange={e => setApptForm(f => ({ ...f, services: [{ serviceId: e.target.value }] }))}
+                                            options={serviceOptions}
+                                            placeholder="Select a service"
+                                            searchPlaceholder="Search services"
+                                            aria-label="Service"
+                                            required
+                                            invalid={!!apptError && !apptForm.services[0]?.serviceId}
+                                            data-testid="appt-service-0"
+                                            style={{ width: '100%' }}
+                                        />
                                         {myServices.length === 0 && <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.35rem' }}>{isStaff ? 'You have no services yet. Add yours under Services first.' : 'No services found. Add services in the Catalogue tab first.'}</p>}
                                     </div>
                                 ) : (
@@ -3619,16 +3666,18 @@ const ProviderDashboard = () => {
                                                 const rowSvc = myServices.find(s => s._id === row.serviceId);
                                                 return (
                                                     <div key={i} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                                        <select
+                                                        <Select
                                                             value={row.serviceId}
                                                             onChange={e => setApptForm(f => ({ ...f, services: f.services.map((r, j) => j === i ? { ...r, serviceId: e.target.value } : r) }))}
+                                                            options={serviceOptions}
+                                                            placeholder="Select a service"
+                                                            searchPlaceholder="Search services"
+                                                            aria-label={apptForm.services.length > 1 ? `Service ${i + 1}` : 'Service'}
                                                             required
-                                                            className="input"
+                                                            invalid={!!apptError && !row.serviceId}
+                                                            data-testid={`appt-service-${i}`}
                                                             style={{ flex: 1, minWidth: 0 }}
-                                                        >
-                                                            <option value="">Select a service</option>
-                                                            {myServices.map(s => <option key={s._id} value={s._id}>{s.name} ({s.duration} min)</option>)}
-                                                        </select>
+                                                        />
                                                         {rowSvc && (
                                                             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
                                                                 {curSym} {rowSvc.price} · {rowSvc.duration}m
@@ -3660,17 +3709,22 @@ const ProviderDashboard = () => {
                                 {teamMembers.length > 0 && seesWholeTeam && (
                                     <div>
                                         <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Staff member</label>
-                                        <select value={apptForm.teamMember} onChange={e => setApptForm(f => ({ ...f, teamMember: e.target.value }))} className="input" style={{ width: '100%' }}>
-                                            <option value="">Me / unassigned</option>
-                                            {teamMembers.filter(m => m.isActive !== false).map(m => <option key={m._id} value={m._id}>{m.name}{m.role ? ` · ${m.role}` : ''}</option>)}
-                                            {/* Booking from an inactive member's lane (they can still hold
-                                                appointments) must not render a blank select */}
-                                            {apptForm.teamMember && !teamMembers.some(m => String(m._id) === String(apptForm.teamMember) && m.isActive !== false) && (
-                                                <option value={apptForm.teamMember}>
-                                                    {teamMembers.find(m => String(m._id) === String(apptForm.teamMember))?.name || 'Staff member'} · inactive
-                                                </option>
-                                            )}
-                                        </select>
+                                        <Select
+                                            value={apptForm.teamMember}
+                                            onChange={e => setApptForm(f => ({ ...f, teamMember: e.target.value }))}
+                                            options={[
+                                                { value: '', label: 'Me / unassigned' },
+                                                ...teamMembers.filter(m => m.isActive !== false).map(m => ({ value: m._id, label: `${m.name}${m.role ? ` · ${m.role}` : ''}` })),
+                                                // Booking from an inactive member's lane (they can still hold
+                                                // appointments) must not show a raw id
+                                                ...(apptForm.teamMember && !teamMembers.some(m => String(m._id) === String(apptForm.teamMember) && m.isActive !== false)
+                                                    ? [{ value: apptForm.teamMember, label: `${teamMembers.find(m => String(m._id) === String(apptForm.teamMember))?.name || 'Staff member'} · inactive` }]
+                                                    : []),
+                                            ]}
+                                            aria-label="Staff member"
+                                            data-testid="appt-staff"
+                                            style={{ width: '100%' }}
+                                        />
                                     </div>
                                 )}
                                 {/* Group booking toggle (owner-only: group bookings are the owner's) */}
@@ -3719,28 +3773,29 @@ const ProviderDashboard = () => {
                                                             {loadingClients ? 'Loading your clients…' : 'No saved clients yet — switch to Guest to book by name.'}
                                                         </p>
                                                     ) : (
-                                                        <>
-                                                            <div style={{ position: 'relative', marginBottom: '0.4rem' }}>
-                                                                <input type="text" value={clientPickerSearch} onChange={e => setClientPickerSearch(e.target.value)} placeholder="Search by name or email" className="input" style={{ width: '100%', paddingRight: clientPickerSearch ? '2.6rem' : undefined }} />
-                                                                {clientPickerSearch && <SearchClear onClear={() => setClientPickerSearch('')} label="Clear client search" />}
-                                                            </div>
-                                                            <select value={apptForm.customerId} onChange={e => setApptForm(f => ({ ...f, customerId: e.target.value }))} required className="input" style={{ width: '100%' }}>
-                                                                <option value="">Select a client</option>
-                                                                {/* A–Z by name (shared sortedClients), not the API's recent-visit order. */}
-                                                                {sortedClients
-                                                                    .filter(c => c.customer && c.customer._id !== user?._id)
-                                                                    .filter(c => {
-                                                                        const q = clientPickerSearch.trim().toLowerCase();
-                                                                        if (!q) return true;
-                                                                        return (c.customer.name || '').toLowerCase().includes(q) || (c.customer.email || '').toLowerCase().includes(q);
-                                                                    })
-                                                                    .map(c => (
-                                                                        <option key={c.customer._id} value={c.customer._id}>
-                                                                            {c.customer.name}{c.customer.email ? ` — ${c.customer.email}` : ''}
-                                                                        </option>
-                                                                    ))}
-                                                            </select>
-                                                        </>
+                                                        // A–Z by name (shared sortedClients; the API returns clients by last visit), with the
+                                                        // email as a second line; the picker's own search box finds a
+                                                        // client by name or email.
+                                                        <Select
+                                                            value={apptForm.customerId}
+                                                            onChange={e => setApptForm(f => ({ ...f, customerId: e.target.value }))}
+                                                            options={sortedClients
+                                                                .filter(c => c.customer && c.customer._id !== user?._id)
+                                                                .map(c => ({
+                                                                    value: c.customer._id,
+                                                                    label: c.customer.name || c.customer.email || 'Unnamed client',
+                                                                    description: c.isWalkIn ? 'Walk-in' : (c.customer.name ? c.customer.email : undefined),
+                                                                    searchText: `${c.customer.name || ''} ${c.customer.email || ''}`,
+                                                                }))}
+                                                            placeholder="Select a client"
+                                                            searchable
+                                                            searchPlaceholder="Search by name or email"
+                                                            aria-label="Client"
+                                                            required
+                                                            invalid={!!apptError && !apptForm.customerId}
+                                                            data-testid="appt-client"
+                                                            style={{ width: '100%' }}
+                                                        />
                                                     )}
                                                 </div>
                                             ) : (
@@ -3922,7 +3977,7 @@ const ProviderDashboard = () => {
                             {!editingBlockedTime && (
                                 <div>
                                     <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Date</label>
-                                    <input required className="input" type="date" value={blockedTimeForm.date} onChange={e => setBlockedTimeForm(p => ({ ...p, date: e.target.value }))} style={{ width: '100%', boxSizing: 'border-box' }} />
+                                    <DatePicker value={blockedTimeForm.date} onChange={e => setBlockedTimeForm(p => ({ ...p, date: e.target.value }))} aria-label="Date" required invalid={blockedTimeChecked && !blockedTimeForm.date} data-testid="block-date" style={{ width: '100%', boxSizing: 'border-box' }} />
                                 </div>
                             )}
 
@@ -3930,11 +3985,11 @@ const ProviderDashboard = () => {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                                 <div>
                                     <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Start time</label>
-                                    <input required className="input" type="time" value={blockedTimeForm.startTime} onChange={e => setBlockedTimeForm(p => ({ ...p, startTime: e.target.value }))} style={{ width: '100%', boxSizing: 'border-box' }} />
+                                    <TimePicker value={blockedTimeForm.startTime} onChange={e => setBlockedTimeForm(p => ({ ...p, startTime: e.target.value }))} step={5} aria-label="Start time" required invalid={blockedTimeChecked && !blockedTimeForm.startTime} data-testid="block-start" style={{ width: '100%', boxSizing: 'border-box' }} />
                                 </div>
                                 <div>
                                     <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>End time</label>
-                                    <input required className="input" type="time" value={blockedTimeForm.endTime} onChange={e => setBlockedTimeForm(p => ({ ...p, endTime: e.target.value }))} style={{ width: '100%', boxSizing: 'border-box' }} />
+                                    <TimePicker value={blockedTimeForm.endTime} onChange={e => setBlockedTimeForm(p => ({ ...p, endTime: e.target.value }))} step={5} aria-label="End time" required invalid={blockedTimeChecked && (!blockedTimeForm.endTime || (!!blockedTimeForm.startTime && blockedTimeForm.endTime <= blockedTimeForm.startTime))} data-testid="block-end" style={{ width: '100%', boxSizing: 'border-box' }} />
                                     {blockedTimeForm.startTime && blockedTimeForm.endTime && blockedTimeForm.endTime > blockedTimeForm.startTime && (
                                         <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
                                             {Math.round((new Date(`2000-01-01T${blockedTimeForm.endTime}`) - new Date(`2000-01-01T${blockedTimeForm.startTime}`)) / 60000)} mins duration
@@ -3949,21 +4004,21 @@ const ProviderDashboard = () => {
                             <div>
                                 <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Applies to</label>
                                 {!editingBlockedTime && activeTeamMembers.length > 0 ? (
-                                    <select
-                                        className="input"
+                                    <Select
                                         value={blockedTimeForm.teamMember}
                                         onChange={e => setBlockedTimeForm(p => ({ ...p, teamMember: e.target.value }))}
+                                        options={[
+                                            { value: 'owner', label: `Only me${user?.name ? ` (${user.name.split(' ')[0]})` : ' (owner)'}` },
+                                            { value: '', label: 'Whole business (everyone)' },
+                                            ...activeTeamMembers.map(m => ({ value: m._id, label: `${m.name}${m.role ? ` · ${m.role}` : ''} only` })),
+                                            ...(blockedTimeForm.teamMember && blockedTimeForm.teamMember !== 'owner' && !activeTeamMembers.some(m => String(m._id) === String(blockedTimeForm.teamMember))
+                                                ? [{ value: blockedTimeForm.teamMember, label: `${teamMembers.find(m => String(m._id) === String(blockedTimeForm.teamMember))?.name || 'Staff member'} · inactive` }]
+                                                : []),
+                                        ]}
+                                        aria-label="Applies to"
+                                        data-testid="block-scope"
                                         style={{ width: '100%', boxSizing: 'border-box' }}
-                                    >
-                                        <option value="owner">Only me{user?.name ? ` (${user.name.split(' ')[0]})` : ' (owner)'}</option>
-                                        <option value="">Whole business (everyone)</option>
-                                        {activeTeamMembers.map(m => <option key={m._id} value={m._id}>{m.name}{m.role ? ` · ${m.role}` : ''} only</option>)}
-                                        {blockedTimeForm.teamMember && blockedTimeForm.teamMember !== 'owner' && !activeTeamMembers.some(m => String(m._id) === String(blockedTimeForm.teamMember)) && (
-                                            <option value={blockedTimeForm.teamMember}>
-                                                {teamMembers.find(m => String(m._id) === String(blockedTimeForm.teamMember))?.name || 'Staff member'} · inactive
-                                            </option>
-                                        )}
-                                    </select>
+                                    />
                                 ) : (() => {
                                     const scope = blockedTimeForm.teamMember;
                                     const isMemberScope = scope && scope !== 'owner';
@@ -3989,16 +4044,23 @@ const ProviderDashboard = () => {
                             {!editingBlockedTime && (
                                 <div>
                                     <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Frequency</label>
-                                    <select className="input" value={blockedTimeForm.isRecurring ? blockedTimeForm.recurrenceType : 'none'} onChange={e => {
-                                        if (e.target.value === 'none') setBlockedTimeForm(p => ({ ...p, isRecurring: false, recurrenceType: 'weekly', customDays: [] }));
-                                        else setBlockedTimeForm(p => ({ ...p, isRecurring: true, recurrenceType: e.target.value }));
-                                    }} style={{ width: '100%', boxSizing: 'border-box' }}>
-                                        <option value="none">Doesn't repeat</option>
-                                        <option value="daily">Daily</option>
-                                        <option value="weekly">Weekly</option>
-                                        <option value="monthly">Monthly</option>
-                                        <option value="custom">Custom (select days)</option>
-                                    </select>
+                                    <Select
+                                        value={blockedTimeForm.isRecurring ? blockedTimeForm.recurrenceType : 'none'}
+                                        onChange={e => {
+                                            if (e.target.value === 'none') setBlockedTimeForm(p => ({ ...p, isRecurring: false, recurrenceType: 'weekly', customDays: [] }));
+                                            else setBlockedTimeForm(p => ({ ...p, isRecurring: true, recurrenceType: e.target.value }));
+                                        }}
+                                        options={[
+                                            { value: 'none', label: "Doesn't repeat" },
+                                            { value: 'daily', label: 'Daily' },
+                                            { value: 'weekly', label: 'Weekly' },
+                                            { value: 'monthly', label: 'Monthly' },
+                                            { value: 'custom', label: 'Custom (select days)' },
+                                        ]}
+                                        aria-label="Frequency"
+                                        data-testid="block-frequency"
+                                        style={{ width: '100%', boxSizing: 'border-box' }}
+                                    />
                                     {blockedTimeForm.isRecurring && blockedTimeForm.recurrenceType === 'custom' && (
                                         <div style={{ marginTop: '0.65rem' }}>
                                             <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.5rem' }}>Repeat on</label>
@@ -4018,7 +4080,7 @@ const ProviderDashboard = () => {
                                     {blockedTimeForm.isRecurring && (
                                         <div style={{ marginTop: '0.65rem' }}>
                                             <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>End date <span style={{ fontWeight: 400, textTransform: 'none' }}>(Optional)</span></label>
-                                            <input className="input" type="date" value={blockedTimeForm.recurrenceEndDate} onChange={e => setBlockedTimeForm(p => ({ ...p, recurrenceEndDate: e.target.value }))} style={{ width: '100%', boxSizing: 'border-box' }} />
+                                            <DatePicker value={blockedTimeForm.recurrenceEndDate} onChange={e => setBlockedTimeForm(p => ({ ...p, recurrenceEndDate: e.target.value }))} min={blockedTimeForm.date || undefined} placeholder="No end date" clearable aria-label="Repeat end date" data-testid="block-repeat-end" style={{ width: '100%', boxSizing: 'border-box' }} />
                                         </div>
                                     )}
                                 </div>
@@ -4164,7 +4226,7 @@ const ProviderDashboard = () => {
                                                             )}
                                                             {canFinish && (
                                                                 <button role="menuitem" type="button" style={menuItem}
-                                                                    onClick={async () => { setShowApptActions(false); if (window.confirm('Mark this appointment as a no-show?')) { await handleStatusUpdate(apptDetailModal._id, 'no-show'); setApptDetailModal(null); } }}
+                                                                    onClick={async () => { setShowApptActions(false); if (await confirm({ title: 'Mark this appointment as a no-show?', confirmLabel: 'Mark no-show' })) { await handleStatusUpdate(apptDetailModal._id, 'no-show'); setApptDetailModal(null); } }}
                                                                     onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
                                                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                                                 >
@@ -4186,7 +4248,7 @@ const ProviderDashboard = () => {
                                                                                 setApptDetailModal(null);
                                                                                 return;
                                                                             }
-                                                                            if (window.confirm('Cancel this appointment?')) {
+                                                                            if (await confirm({ title: 'Cancel this appointment?', confirmLabel: 'Cancel appointment', cancelLabel: 'Keep it', danger: true })) {
                                                                                 await handleStatusUpdate(apptDetailModal._id, 'cancelled');
                                                                                 setApptDetailModal(null);
                                                                             }
@@ -4276,11 +4338,11 @@ const ProviderDashboard = () => {
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.85rem' }}>
                                         <div>
                                             <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontFamily: 'var(--font-body)' }}>New date</label>
-                                            <input type="date" className="input" value={apptRescheduleForm.appointmentDate} onChange={e => setApptRescheduleForm(f => ({ ...f, appointmentDate: e.target.value }))} style={{ fontSize: '1rem', padding: '0.5rem 0.75rem' }} />
+                                            <DatePicker value={apptRescheduleForm.appointmentDate} onChange={e => setApptRescheduleForm(f => ({ ...f, appointmentDate: e.target.value }))} aria-label="New date" formatValue={d => new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} data-testid="reschedule-date" style={{ width: '100%', fontSize: '1rem', padding: '0.5rem 0.75rem' }} />
                                         </div>
                                         <div>
                                             <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontFamily: 'var(--font-body)' }}>Start time</label>
-                                            <input type="time" className="input" value={apptRescheduleForm.startTime} onChange={e => setApptRescheduleForm(f => ({ ...f, startTime: e.target.value }))} style={{ fontSize: '1rem', padding: '0.5rem 0.75rem' }} />
+                                            <TimePicker value={apptRescheduleForm.startTime} onChange={e => setApptRescheduleForm(f => ({ ...f, startTime: e.target.value }))} step={5} aria-label="Start time" data-testid="reschedule-time" style={{ width: '100%', fontSize: '1rem', padding: '0.5rem 0.75rem' }} />
                                         </div>
                                     </div>
                                     {apptDetailError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem', marginBottom: '0.75rem', fontFamily: 'var(--font-body)' }}>{apptDetailError}</p>}

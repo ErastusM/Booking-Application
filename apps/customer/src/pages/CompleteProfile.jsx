@@ -4,6 +4,9 @@ import { useAuthContext } from '../context/AuthContext';
 import { authService } from '../services';
 import MAIN_CATEGORIES from '../constants/mainCategories';
 import { cloudinaryAvatar } from '../utils/cloudinary';
+import { Select } from '@bookplus/ui';
+
+const CATEGORY_REQUIRED = 'Please choose your main service category';
 
 const CompleteProfile = () => {
     const { user, setUser } = useAuthContext();
@@ -22,7 +25,7 @@ const CompleteProfile = () => {
             return;
         }
         if (isProvider && !category) {
-            setError('Please choose your main service category');
+            setError(CATEGORY_REQUIRED);
             return;
         }
         if (isProvider && category === 'Other' && !customCategory.trim()) {
@@ -109,10 +112,19 @@ const CompleteProfile = () => {
                                     <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                                         Main service category
                                     </label>
-                                    <select value={category} onChange={e => setCategory(e.target.value)} required className="input">
-                                        <option value="">Select your category</option>
-                                        {MAIN_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
+                                    {/* No native `required` bubble on the app-styled Select — handleSubmit checks it. */}
+                                    <Select
+                                        value={category}
+                                        onChange={e => setCategory(e.target.value)}
+                                        options={MAIN_CATEGORIES.map(c => ({ value: c, label: c }))}
+                                        placeholder="Select your category"
+                                        searchable
+                                        searchPlaceholder="Search categories"
+                                        required
+                                        invalid={error === CATEGORY_REQUIRED && !category}
+                                        aria-label="Main service category"
+                                        data-testid="provider-category"
+                                    />
                                     {category === 'Other' && (
                                         <input
                                             type="text"

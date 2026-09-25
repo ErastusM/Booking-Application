@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { Select, DatePicker, TimePicker, useConfirm } from '@bookplus/ui';
 import { useAuthContext } from '../context/AuthContext';
 import { teamService, providerServiceService } from '../services';
 import { useToast } from '../components/Toast';
@@ -25,7 +26,8 @@ const normWeek = (raw) => {
 
 // One editable week grid — reused for the flat schedule and each rotation week.
 // onToggle(day, checked) / onSlot(day, key, value). Keeps the phone-aligned
-// fixed-column layout the workspace tab already uses.
+// fixed-column layout the workspace tab already uses; the 24-hour time pickers
+// drop their clock icon so "09:00" fits the narrow columns.
 const HoursGrid = ({ week, onToggle, onSlot }) => (
     <div>
         <div style={{ display: 'grid', gridTemplateColumns: 'minmax(84px, 104px) minmax(0, 96px) 12px minmax(0, 96px)', alignItems: 'center', columnGap: '0.45rem', padding: '0 0 0.4rem', marginBottom: '0.3rem', borderBottom: '1px solid var(--border)' }}>
@@ -42,9 +44,9 @@ const HoursGrid = ({ week, onToggle, onSlot }) => (
                 </label>
                 {week[day]?.enabled && (
                     <>
-                        <input type="time" aria-label={`${day} starting time`} value={week[day].slots?.[0]?.start || '09:00'} onChange={e => onSlot(day, 'start', e.target.value)} className="input" style={{ width: '100%', padding: '0.35rem 0.4rem', fontSize: '0.92rem' }} />
+                        <TimePicker aria-label={`${day} starting time`} value={week[day].slots?.[0]?.start || '09:00'} onChange={e => onSlot(day, 'start', e.target.value)} sheetTitle={`${cap(day)} starting time`} hideIcon style={{ width: '100%', padding: '0.35rem 0.4rem', fontSize: '0.92rem' }} />
                         <span style={{ color: 'var(--text-muted)', textAlign: 'center' }}>–</span>
-                        <input type="time" aria-label={`${day} ending time`} value={week[day].slots?.[0]?.end || '17:00'} onChange={e => onSlot(day, 'end', e.target.value)} className="input" style={{ width: '100%', padding: '0.35rem 0.4rem', fontSize: '0.92rem' }} />
+                        <TimePicker aria-label={`${day} ending time`} value={week[day].slots?.[0]?.end || '17:00'} onChange={e => onSlot(day, 'end', e.target.value)} sheetTitle={`${cap(day)} ending time`} hideIcon style={{ width: '100%', padding: '0.35rem 0.4rem', fontSize: '0.92rem' }} />
                     </>
                 )}
             </div>
@@ -138,6 +140,42 @@ const Field = ({ label, ...rest }) => (
         <input className="input" style={{ padding: '0.5rem 0.6rem', fontWeight: 400 }} {...rest} />
     </label>
 );
+// Field's date twin: the same label layout around the app's date picker.
+const DateField = ({ label, ...rest }) => (
+    <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+        {label}
+        <DatePicker style={{ padding: '0.5rem 0.6rem', fontWeight: 400 }} {...rest} />
+    </label>
+);
+
+// Calendar colours — the same eight swatches as the dashboard's team form, in
+// place of the OS colour picker. A colour saved earlier that isn't one of them
+// (set with the old picker) is shown first, so it can be kept or picked back.
+const CALENDAR_COLOURS = [['#f03e16', 'Orange'], ['#3b82f6', 'Blue'], ['#10b981', 'Green'], ['#f59e0b', 'Amber'], ['#ef4444', 'Red'], ['#8b5cf6', 'Purple'], ['#ec4899', 'Pink'], ['#14b8a6', 'Teal']];
+const ColourSwatches = ({ value, saved, onChange, labelledBy, ...rest }) => {
+    const same = (a, b) => (a || '').toLowerCase() === (b || '').toLowerCase();
+    const extras = [saved, value]
+        .filter((c, i, all) => c && !CALENDAR_COLOURS.some(([p]) => same(p, c)) && all.findIndex(x => same(x, c)) === i)
+        .map(c => [c, `Custom colour ${c}`]);
+    return (
+        <div role="group" aria-labelledby={labelledBy} data-value={value} {...rest}
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 26px)', gap: '0.4rem' }}>
+            {[...extras, ...CALENDAR_COLOURS].map(([c, name]) => {
+                const on = same(value, c);
+                return (
+                    <button key={c} type="button" onClick={() => onChange(c)} aria-pressed={on} aria-label={name} title={name} data-value={c}
+                        style={{
+                            width: '26px', height: '26px', borderRadius: '50%', background: c, border: 'none', padding: 0, cursor: 'pointer',
+                            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                            boxShadow: on ? '0 0 0 2px var(--card-bg), 0 0 0 4px var(--charcoal)' : 'none',
+                        }}>
+                        {on && <Check size={14} color="#fff" strokeWidth={3} aria-hidden="true" />}
+                    </button>
+                );
+            })}
+        </div>
+    );
+};
 
 // Photo-or-colour circle. Falls back to the member's calendar colour with their
 // initial, so a member with no photo still reads as a distinct, colour-coded person.
@@ -164,6 +202,7 @@ const MemberAvatar = ({ member, size = 26 }) => {
 
 const MemberCard = ({ member, services, colleagues, onChanged }) => {
     const { user } = useAuthContext();
+    const confirm = useConfirm();
     const [open, setOpen] = useState(false);
     const [busy, setBusy] = useState('');
     const [msg, setMsg] = useState('');
@@ -520,7 +559,11 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
     // and cuts their login until reactivated. The safe alternative to removal.
     const toggleActive = async () => {
         const goingInactive = member.isActive !== false;
-        if (goingInactive && !window.confirm(`Deactivate ${member.name}? They stop taking bookings and can't log in, but nothing is deleted — you can reactivate them anytime.`)) return;
+        if (goingInactive && !(await confirm({
+            title: `Deactivate ${member.name}?`,
+            message: 'They stop taking bookings and can’t log in, but nothing is deleted — you can reactivate them anytime.',
+            confirmLabel: 'Deactivate',
+        }))) return;
         setBusy('active');
         try {
             if (goingInactive) await teamService.deleteMember(member._id);   // archive
@@ -567,7 +610,11 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
     const handover = async () => {
         const target = colleagues.find(c => String(c._id) === handoverTo);
         if (!target) return;
-        if (!window.confirm(`Move ALL of ${member.name}'s upcoming bookings to ${target.name}? Anything that would double-book ${target.name} stays put and is listed after.`)) return;
+        if (!(await confirm({
+            title: `Move all of ${member.name}’s upcoming bookings to ${target.name}?`,
+            message: `Anything that would double-book ${target.name} stays put and is listed after.`,
+            confirmLabel: 'Move bookings',
+        }))) return;
         setBusy('handover');
         setHandoverResult(null);
         try {
@@ -801,11 +848,11 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                     </label>
                                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Shown to clients and on the calendar.</span>
                                 </div>
-                                <label style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
-                                    Calendar colour
-                                    <input type="color" value={personal.color} onChange={e => setPersonal(p => ({ ...p, color: e.target.value }))} data-testid="personal-color"
-                                        style={{ width: '48px', height: '34px', padding: '2px', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', background: 'var(--card-bg)', cursor: 'pointer' }} />
-                                </label>
+                                <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
+                                    <span id={`personal-color-${member._id}`}>Calendar colour</span>
+                                    <ColourSwatches value={personal.color} saved={member.color} onChange={c => setPersonal(p => ({ ...p, color: c }))}
+                                        labelledBy={`personal-color-${member._id}`} data-testid="personal-color" />
+                                </div>
                             </div>
                             <div style={{ display: 'grid', gap: '0.7rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
                                 <Field label="Name" value={personal.name} onChange={e => setPersonal(p => ({ ...p, name: e.target.value }))} data-testid="personal-name" />
@@ -842,7 +889,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                 </p>
                                 <div style={{ display: 'grid', gap: '0.7rem', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))' }}>
                                     <Field label="Employment type" value={personal.employmentType} onChange={e => setPersonal(p => ({ ...p, employmentType: e.target.value }))} placeholder="e.g. Employed, Contractor" data-testid="personal-employment-type" />
-                                    <Field label="Start date" type="date" value={personal.employmentStart} onChange={e => setPersonal(p => ({ ...p, employmentStart: e.target.value }))} data-testid="personal-employment-start" />
+                                    <DateField label="Start date" value={personal.employmentStart} onChange={e => setPersonal(p => ({ ...p, employmentStart: e.target.value }))} clearable placeholder="Not set" data-testid="personal-employment-start" />
                                 </div>
                                 <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginTop: '0.7rem' }}>
                                     Internal notes <span style={{ fontWeight: 500 }}>(private)</span>
@@ -1022,11 +1069,11 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                 <Section icon={ArrowRightLeft} title="Hand over bookings" hint="(moves their upcoming bookings to a colleague)">
                                     <div style={{ padding: '0.7rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
                                         <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                                            <select className="input" value={handoverTo} onChange={e => setHandoverTo(e.target.value)}
-                                                data-testid="handover-target" style={{ maxWidth: '240px', padding: '0.5rem 0.6rem' }}>
-                                                <option value="">Who takes them?</option>
-                                                {colleagues.map(c => <option key={c._id} value={c._id}>{c.name}</option>)}
-                                            </select>
+                                            <Select value={handoverTo} onChange={e => setHandoverTo(e.target.value)}
+                                                options={colleagues.map(c => ({ value: String(c._id), label: c.name }))}
+                                                placeholder="Who takes them?" aria-label="Colleague who takes the bookings" sheetTitle="Who takes them?"
+                                                searchPlaceholder="Search your team"
+                                                data-testid="handover-target" style={{ maxWidth: '240px', padding: '0.5rem 0.6rem' }} />
                                             <button type="button" className="btn-primary" onClick={handover} disabled={!handoverTo || busy === 'handover'}
                                                 data-testid="handover-send" style={{ padding: '0.5rem 1.2rem' }}>
                                                 {busy === 'handover' ? 'Moving…' : 'Move bookings'}
@@ -1060,18 +1107,16 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                             {member.user && (
                                 <Section icon={Eye} title="Access level">
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', padding: '0.7rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                                        <select
+                                        <Select
                                             value={tier}
                                             disabled={busy === 'perms'}
                                             onChange={(e) => setTierLevel(e.target.value)}
-                                            className="input"
+                                            options={TIER_OPTIONS.map((t) => ({ value: t.value, label: t.label, description: t.desc }))}
+                                            aria-label="Access level"
+                                            popoverMinWidth={300}
                                             data-testid="member-tier"
                                             style={{ maxWidth: '220px', padding: '0.5rem 0.6rem' }}
-                                        >
-                                            {TIER_OPTIONS.map((t) => (
-                                                <option key={t.value} value={t.value}>{t.label}</option>
-                                            ))}
-                                        </select>
+                                        />
                                         <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', flex: 1, minWidth: '200px' }}>
                                             {(TIER_OPTIONS.find((t) => t.value === tier) || {}).desc}
                                         </span>
@@ -1214,9 +1259,9 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                 <div style={{ padding: '0.75rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
                                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexWrap: 'wrap', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                                         Date
-                                        <input type="date" className="input" value={shiftDate} min={todayKey} max={maxShiftKey}
-                                            onChange={e => setShiftDate(e.target.value)}
-                                            data-testid="shift-date" style={{ width: '170px', padding: '0.4rem 0.5rem', fontWeight: 400 }} />
+                                        <DatePicker value={shiftDate} min={todayKey} max={maxShiftKey}
+                                            onChange={e => setShiftDate(e.target.value)} sheetTitle="Shift date"
+                                            data-testid="shift-date" style={{ width: '200px', padding: '0.4rem 0.5rem', fontWeight: 400 }} />
                                         {!Array.isArray(shifts)
                                             ? <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>
                                                 {shifts === false ? 'Couldn’t load existing shifts' : 'Loading shifts…'}
@@ -1235,11 +1280,11 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                         )}
                                         {slots.map((sl, i) => (
                                             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
-                                                <input type="time" className="input" value={sl.start} data-testid="shift-start"
+                                                <TimePicker value={sl.start} data-testid="shift-start" aria-label="Shift starts"
                                                     onChange={e => setSlots(v => v.map((x, j) => j === i ? { ...x, start: e.target.value } : x))}
                                                     style={{ width: '108px', padding: '0.35rem 0.5rem' }} />
                                                 <span style={{ color: 'var(--text-muted)' }}>–</span>
-                                                <input type="time" className="input" value={sl.end} data-testid="shift-end"
+                                                <TimePicker value={sl.end} data-testid="shift-end" aria-label="Shift ends"
                                                     onChange={e => setSlots(v => v.map((x, j) => j === i ? { ...x, end: e.target.value } : x))}
                                                     style={{ width: '108px', padding: '0.35rem 0.5rem' }} />
                                                 <button type="button" aria-label="Remove working period" onClick={() => setSlots(v => v.filter((_, j) => j !== i))}
@@ -1262,11 +1307,11 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                         </p>
                                         {breaks.map((b, i) => (
                                             <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginBottom: '0.35rem', flexWrap: 'wrap' }}>
-                                                <input type="time" className="input" value={b.start} data-testid="break-start"
+                                                <TimePicker value={b.start} data-testid="break-start" aria-label="Break starts"
                                                     onChange={e => setBreaks(v => v.map((x, j) => j === i ? { ...x, start: e.target.value } : x))}
                                                     style={{ width: '108px', padding: '0.35rem 0.5rem' }} />
                                                 <span style={{ color: 'var(--text-muted)' }}>–</span>
-                                                <input type="time" className="input" value={b.end}
+                                                <TimePicker value={b.end} aria-label="Break ends"
                                                     onChange={e => setBreaks(v => v.map((x, j) => j === i ? { ...x, end: e.target.value } : x))}
                                                     style={{ width: '108px', padding: '0.35rem 0.5rem' }} />
                                                 <input className="input" value={b.label} placeholder="Lunch"
@@ -1310,29 +1355,28 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                             <Section icon={Palmtree} title="Time off" hint="(a leave range — closes their calendar)">
                                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', alignItems: 'flex-end' }}>
                                     <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>From
-                                        <input type="date" className="input" value={toForm.startDate}
+                                        <DatePicker value={toForm.startDate} sheetTitle="Time off from"
                                             onChange={e => setToForm(f => ({ ...f, startDate: e.target.value, endDate: f.endDate < e.target.value ? e.target.value : f.endDate }))}
-                                            style={{ display: 'block', padding: '0.4rem 0.5rem', marginTop: '0.2rem' }} data-testid="timeoff-from" />
+                                            style={{ minWidth: '11.5rem', padding: '0.4rem 0.5rem', marginTop: '0.2rem', fontWeight: 400 }} data-testid="timeoff-from" />
                                     </label>
                                     <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>To
-                                        <input type="date" className="input" value={toForm.endDate} min={toForm.startDate}
+                                        <DatePicker value={toForm.endDate} min={toForm.startDate} sheetTitle="Time off to"
                                             onChange={e => setToForm(f => ({ ...f, endDate: e.target.value }))}
-                                            style={{ display: 'block', padding: '0.4rem 0.5rem', marginTop: '0.2rem' }} data-testid="timeoff-to" />
+                                            style={{ minWidth: '11.5rem', padding: '0.4rem 0.5rem', marginTop: '0.2rem', fontWeight: 400 }} data-testid="timeoff-to" />
                                     </label>
                                     <label style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>Type
-                                        <select className="input" value={toForm.type} onChange={e => setToForm(f => ({ ...f, type: e.target.value }))}
-                                            style={{ display: 'block', padding: '0.42rem 0.5rem', marginTop: '0.2rem' }}>
-                                            {['vacation', 'sick', 'unpaid', 'training', 'other'].map(t => <option key={t} value={t}>{cap(t)}</option>)}
-                                        </select>
+                                        <Select value={toForm.type} onChange={e => setToForm(f => ({ ...f, type: e.target.value }))}
+                                            options={['vacation', 'sick', 'unpaid', 'training', 'other'].map(t => ({ value: t, label: cap(t) }))} sheetTitle="Type of time off"
+                                            style={{ minWidth: '8.5rem', padding: '0.42rem 0.5rem', marginTop: '0.2rem', fontWeight: 400 }} />
                                     </label>
                                 </div>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.8rem', flexWrap: 'wrap', marginTop: '0.65rem' }}>
                                     <Switch checked={toForm.allDay} onChange={v => setToForm(f => ({ ...f, allDay: v }))} label={toForm.allDay ? 'All day' : 'Set hours'} data-testid="timeoff-allday" />
                                     {!toForm.allDay && (
                                         <>
-                                            <input type="time" className="input" value={toForm.startTime} onChange={e => setToForm(f => ({ ...f, startTime: e.target.value }))} style={{ width: '116px', padding: '0.35rem 0.5rem' }} />
+                                            <TimePicker value={toForm.startTime} onChange={e => setToForm(f => ({ ...f, startTime: e.target.value }))} aria-label="Time off starts" style={{ width: '116px', padding: '0.35rem 0.5rem' }} />
                                             <span style={{ color: 'var(--text-muted)' }}>–</span>
-                                            <input type="time" className="input" value={toForm.endTime} onChange={e => setToForm(f => ({ ...f, endTime: e.target.value }))} style={{ width: '116px', padding: '0.35rem 0.5rem' }} />
+                                            <TimePicker value={toForm.endTime} onChange={e => setToForm(f => ({ ...f, endTime: e.target.value }))} aria-label="Time off ends" style={{ width: '116px', padding: '0.35rem 0.5rem' }} />
                                         </>
                                     )}
                                 </div>
@@ -1405,7 +1449,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                             <div data-testid="rotation-editor">
                                                 <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', maxWidth: '220px', marginBottom: '0.7rem' }}>
                                                     Week 1 starts on
-                                                    <input type="date" className="input" value={rotation.anchor} onChange={e => setRotation(r => ({ ...r, anchor: e.target.value }))} style={{ padding: '0.4rem 0.5rem' }} data-testid="rotation-anchor" />
+                                                    <DatePicker value={rotation.anchor} onChange={e => setRotation(r => ({ ...r, anchor: e.target.value }))} sheetTitle="Week 1 starts on" style={{ padding: '0.4rem 0.5rem', fontWeight: 400 }} data-testid="rotation-anchor" />
                                                 </label>
                                                 <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap', marginBottom: '0.7rem' }}>
                                                     {rotation.weeks.map((_, i) => (

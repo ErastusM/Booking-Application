@@ -2,6 +2,8 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { myServicesService } from '../../services';
 import { useToast } from '../../components/Toast';
 import { ChromeModal, CloseButton } from './primitives';
+// App-styled confirm dialog in place of window.confirm.
+import { useConfirm } from '@bookplus/ui';
 
 // A team member's own services, in the owner's "Service menu" layout: search,
 // one card per service with THEIR price and time, Edit, Remove, "+ Add Service".
@@ -12,6 +14,7 @@ const cardStyle = { background: 'var(--card-bg)', borderRadius: 'var(--radius)',
 
 const MemberServicesTab = ({ curSym = 'N$', businessName = 'your business' }) => {
     const toast = useToast();
+    const confirm = useConfirm();
     const [data, setData] = useState(null);   // { selected, offersAllServices, services, overrides }
     const [error, setError] = useState('');
     const [search, setSearch] = useState('');
@@ -73,7 +76,12 @@ const MemberServicesTab = ({ curSym = 'N$', businessName = 'your business' }) =>
     };
 
     const remove = async (s) => {
-        if (!window.confirm(`Remove ${s.name} from your services? Clients won't be able to book it with you. ${businessName} keeps it on its menu.`)) return;
+        if (!(await confirm({
+            title: `Remove ${s.name} from your services?`,
+            message: `Clients won't be able to book it with you. ${businessName} keeps it on its menu.`,
+            confirmLabel: 'Remove',
+            danger: true,
+        }))) return;
         setBusy(`rm-${s._id}`);
         try {
             await myServicesService.set(idsOf(mine).filter((id) => id !== String(s._id)), false);

@@ -3,6 +3,7 @@ import { availabilityService, appointmentService } from '../services';
 import { buildTimeSlots } from '../utils/bookingSlots';
 import { useModalChrome } from '../hooks/useModalChrome';
 import { X } from 'lucide-react';
+import { DatePicker } from '@bookplus/ui';
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const fmtDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -173,13 +174,13 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                         picks; this reaches next month / any day the chip strip doesn't. */}
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', marginTop: '0.7rem' }}>
                         <label htmlFor="reschedule-date-jump" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', whiteSpace: 'nowrap', flexShrink: 0 }}>Or pick a date</label>
-                        <input
+                        <DatePicker
                             id="reschedule-date-jump"
-                            type="date"
                             min={fmtDate(new Date())}
                             value={selectedDate || ''}
                             onChange={(e) => e.target.value && selectDate(e.target.value)}
-                            className="input"
+                            sheetTitle="Pick a date"
+                            data-testid="reschedule-date-jump"
                             style={{ flex: 1, minWidth: 0, padding: '0.5rem 0.7rem', fontSize: '0.9rem' }}
                         />
                     </div>

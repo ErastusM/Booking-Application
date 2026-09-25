@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { formService, providerServiceService } from '../services';
 import { useToast } from './Toast';
+import { Select, useConfirm } from '@bookplus/ui';
 
 const FIELD_TYPES = [
     ['text', 'Short text'],
@@ -26,6 +27,7 @@ const labelStyle = { display: 'block', fontSize: '0.72rem', fontWeight: '600', c
 
 const FormsManager = () => {
     const toast = useToast();
+    const confirm = useConfirm();
     const [templates, setTemplates] = useState([]);
     const [services, setServices] = useState([]);
     const [loading, setLoading] = useState(true);
@@ -85,7 +87,11 @@ const FormsManager = () => {
     };
 
     const remove = async (t) => {
-        if (!window.confirm(`Delete "${t.title}"?`)) return;
+        if (!(await confirm({
+            title: `Delete "${t.title}"?`,
+            message: "Clients won't be asked to fill it in any more. This can't be undone.",
+            confirmLabel: 'Delete', danger: true,
+        }))) return;
         setError('');
         try { await formService.deleteTemplate(t._id); await load(); }
         catch { setError(`Could not delete "${t.title}". Please try again.`); }
@@ -161,16 +167,13 @@ const FormsManager = () => {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                                 <div>
                                     <label style={labelStyle}>Type</label>
-                                    <select className="input" value={form.kind} onChange={e => setForm(f => ({ ...f, kind: e.target.value }))}>
-                                        {KINDS.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                                    </select>
+                                    <Select value={form.kind} onChange={e => setForm(f => ({ ...f, kind: e.target.value }))}
+                                        options={KINDS.map(([v, l]) => ({ value: v, label: l }))} aria-label="Form type" data-testid="form-kind" />
                                 </div>
                                 <div>
                                     <label style={labelStyle}>Status</label>
-                                    <select className="input" value={form.isActive ? 'active' : 'inactive'} onChange={e => setForm(f => ({ ...f, isActive: e.target.value === 'active' }))}>
-                                        <option value="active">Active</option>
-                                        <option value="inactive">Inactive</option>
-                                    </select>
+                                    <Select value={form.isActive ? 'active' : 'inactive'} onChange={e => setForm(f => ({ ...f, isActive: e.target.value === 'active' }))}
+                                        options={[{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]} aria-label="Form status" data-testid="form-status" />
                                 </div>
                             </div>
                             <div>
@@ -205,9 +208,9 @@ const FormsManager = () => {
                                                 <button type="button" onClick={() => setForm(f => ({ ...f, fields: f.fields.filter((_, i) => i !== idx) }))} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '1.1rem' }}>×</button>
                                             </div>
                                             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                                                <select className="input" value={fl.type} onChange={e => updateField(idx, { type: e.target.value })} style={{ fontSize: '0.8rem', padding: '0.4rem 0.5rem', width: 'auto' }}>
-                                                    {FIELD_TYPES.map(([v, l]) => <option key={v} value={v}>{l}</option>)}
-                                                </select>
+                                                <Select value={fl.type} onChange={e => updateField(idx, { type: e.target.value })} size="sm" style={{ width: 'auto' }}
+                                                    options={FIELD_TYPES.map(([v, l]) => ({ value: v, label: l }))} popoverMinWidth={200}
+                                                    aria-label={`Answer type for question ${idx + 1}`} sheetTitle="Answer type" data-testid={`form-field-type-${idx}`} />
                                                 <label style={{ display: 'flex', alignItems: 'center', gap: '0.3rem', fontSize: '0.8rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                                                     <input type="checkbox" checked={fl.required} onChange={e => updateField(idx, { required: e.target.checked })} style={{ accentColor: 'var(--gold)' }} /> Required
                                                 </label>
