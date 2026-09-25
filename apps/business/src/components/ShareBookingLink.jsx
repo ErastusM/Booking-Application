@@ -32,21 +32,23 @@ const ShareBookingLink = ({ url, shareTitle, testId = 'booking-link' }) => {
         if (navigator.share) { try { await navigator.share({ title: shareTitle, url }); } catch { /* cancelled */ } }
         else copy();
     };
-    const btn = { display: 'inline-flex', alignItems: 'center', gap: '0.35rem', minHeight: '40px', padding: '0 0.9rem', fontSize: '0.82rem', fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer' };
+    const btn = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.4rem', minHeight: '48px', padding: '0 1rem', fontSize: '0.9rem', fontWeight: 600, fontFamily: 'var(--font-body)', cursor: 'pointer', borderRadius: 'var(--radius-sm)' };
 
     return (
-        <div data-testid={testId}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                <span data-testid={`${testId}-url`} style={{ flex: '1 1 180px', minWidth: 0, fontSize: '0.88rem', color: 'var(--text-secondary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{url}</span>
+        <div data-testid={testId} style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
+            <span data-testid={`${testId}-url`} style={{ padding: '0.75rem 0.9rem', borderRadius: 'var(--radius-sm)', background: 'var(--surface-sunken)', border: '1px solid var(--border)', fontSize: '0.92rem', fontWeight: 600, color: 'var(--charcoal)', wordBreak: 'break-all' }}>
+                {url.replace(/^https?:\/\/(www\.)?/, '')}
+            </span>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.6rem' }}>
                 <button type="button" onClick={copy} className="btn-outline" style={{ ...btn, color: copied ? '#16a34a' : undefined }}>
-                    {copied ? <Check size={15} aria-hidden="true" /> : <Copy size={15} aria-hidden="true" />}{copied ? 'Copied' : 'Copy'}
+                    {copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}{copied ? 'Copied' : 'Copy'}
                 </button>
                 <button type="button" onClick={share} className="btn-primary" style={btn}>
-                    <Share2 size={15} aria-hidden="true" />Share
+                    <Share2 size={16} aria-hidden="true" />Share
                 </button>
             </div>
-            <details style={{ marginTop: '0.6rem' }}>
-                <summary style={{ cursor: 'pointer', listStyle: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', minHeight: '36px', fontSize: '0.82rem', fontWeight: 600, color: 'var(--gold-dark)' }}>
+            <details style={{ borderTop: '1px solid var(--border)', paddingTop: '0.2rem' }}>
+                <summary style={{ cursor: 'pointer', listStyle: 'none', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', minHeight: '44px', fontSize: '0.85rem', fontWeight: 600, color: 'var(--gold-dark)' }}>
                     Where to put it <ChevronDown size={14} aria-hidden="true" />
                 </summary>
                 <ul style={{ margin: '0.25rem 0 0', padding: 0, listStyle: 'none', display: 'grid', gap: '0.5rem' }}>

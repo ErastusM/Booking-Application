@@ -16,7 +16,7 @@ const MemberBookingLink = () => {
             .then((r) => {
                 if (!alive) return;
                 const { providerId, teamMemberId } = r.data.data;
-                setTarget(`/book-appointment?providerId=${providerId}&teamMemberId=${teamMemberId}`);
+                setTarget(`/book-appointment?providerId=${providerId}&teamMemberId=${teamMemberId}&via=link`);
             })
             .catch(() => { if (alive) setTarget(`/b/${encodeURIComponent(slug)}`); });
         return () => { alive = false; };

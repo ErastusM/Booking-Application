@@ -42,6 +42,10 @@ const BookAppointment = () => {
     const [selectedService, setSelectedService] = useState(null);
     const [staffList, setStaffList] = useState([]);
     const [selectedStaff, setSelectedStaff] = useState(null); // null = any available professional
+    // Arrived through a member's personal booking link (/b/<business>/<member>):
+    // the professional is already chosen, so show them as a compact "chosen" row
+    // with a Change link instead of the whole roster.
+    const [pickerOpen, setPickerOpen] = useState(() => searchParams.get('via') !== 'link');
     const [selectedAddOns, setSelectedAddOns] = useState([]);
     const [selectedOption, setSelectedOption] = useState(null); // sub-option (mutually exclusive variant)
     const [optionSheet, setOptionSheet] = useState(null); // service pending option selection
@@ -961,7 +965,19 @@ const BookAppointment = () => {
 
                         {/* Step 1 - Professional (person-first). The roster comes back
                             main-member-first; picking one drives the services + prices below. */}
-                        {hasRoster && (
+                        {hasRoster && !pickerOpen && selectedStaff && (
+                            <div style={{ ...cardStyle, display: 'flex', alignItems: 'center', gap: '0.8rem' }} data-testid="booking-staff-chosen">
+                                <span aria-hidden="true" style={{ width: '48px', height: '48px', borderRadius: '50%', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: selectedStaff.color || 'var(--gold)', color: 'var(--on-ink)', fontWeight: 700 }}>
+                                    {selectedStaff.photoUrl ? <img src={selectedStaff.photoUrl} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : (selectedStaff.name || '?').trim()[0]?.toUpperCase()}
+                                </span>
+                                <span style={{ flex: 1, minWidth: 0 }}>
+                                    <span style={{ display: 'block', fontWeight: 700, color: 'var(--charcoal)' }}>{selectedStaff.name}</span>
+                                    <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)' }}>{selectedStaff.role ? `${selectedStaff.role} · ` : ''}chosen from the link</span>
+                                </span>
+                                <button type="button" onClick={() => setPickerOpen(true)} style={{ background: 'none', border: 'none', color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', minHeight: '44px', padding: '0 0.4rem', fontFamily: 'var(--font-body)', textDecoration: 'underline' }}>Change</button>
+                            </div>
+                        )}
+                        {hasRoster && (pickerOpen || !selectedStaff) && (
                             <div style={cardStyle}>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.5rem' }}>
                                     {stepBadge(1)}
