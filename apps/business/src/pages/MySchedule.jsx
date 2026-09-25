@@ -4,6 +4,7 @@ import { useAuthContext } from '../context/AuthContext';
 import { CalendarClock, Palmtree, ConciergeBell, Clock, Camera, KeyRound, BarChart3, Timer } from 'lucide-react';
 import Switch from '../components/Switch';
 import { uploadToCloudinary } from '../utils/uploadImage';
+import ShareBookingLink, { bookingUrl } from '../components/ShareBookingLink';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -114,6 +115,8 @@ const MySchedule = () => {
     const [priceMsg, setPriceMsg] = useState('');
     // My profile (name, phone, photo) — my own editable identity.
     const [profile, setProfile] = useState(null);       // null = loading
+    // Personal booking link parts from /team/mine/profile ({ businessSlug, linkSlug }).
+    const [myLink, setMyLink] = useState(null);
     const [profileBusy, setProfileBusy] = useState('');  // '' | 'save' | 'photo'
     const [profileMsg, setProfileMsg] = useState('');
     // My weekly working hours. null = loading; `inherits` = no custom schedule yet.
@@ -143,6 +146,10 @@ const MySchedule = () => {
             .then(res => setAppointments(res.data.data || []))
             .catch(() => setAppointments([]));
         myProfileService.get()
+            .then(res => (setMyLink({
+                url: bookingUrl(res.data.data?.businessSlug, res.data.data?.linkSlug),
+                businessName: res.data.data?.businessName || '',
+            }), res))
             .then(res => setProfile({
                 name: res.data.data?.name || '', phone: res.data.data?.phone || '',
                 photoUrl: res.data.data?.photoUrl || '', role: res.data.data?.role || '',
@@ -442,6 +449,19 @@ const MySchedule = () => {
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', margin: '0 0 1.75rem' }}>
                 Hi {user?.name?.split(' ')[0]} — these are your upcoming appointments.
             </p>
+
+            {/* ── My booking link ──────────────────────────────────── */}
+            {myLink && (
+                <div data-testid="my-booking-link" style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.15rem 1.25rem', marginBottom: '1.5rem' }}>
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 700, color: 'var(--charcoal)', margin: '0 0 0.15rem' }}>Your booking link</h2>
+                    <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', margin: '0 0 0.8rem' }}>
+                        {myLink.url
+                            ? 'Clients who open it book with you straight away, for your own services and prices.'
+                            : `Your link appears once ${myLink.businessName || 'the business'} creates its booking link. Ask the owner to open Account → Your booking link.`}
+                    </p>
+                    <ShareBookingLink url={myLink.url} shareTitle={`Book with ${user?.name?.split(' ')[0] || 'me'}`} testId="my-link" />
+                </div>
+            )}
 
             {appointments === null ? (
                 <p style={{ color: 'var(--text-muted)' }}>Loading…</p>

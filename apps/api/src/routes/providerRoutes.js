@@ -4,6 +4,7 @@ const {
     getAllProviders,
     getProviderProfile,
     getProviderProfileBySlug,
+    getMemberBySlug,
     getMySetupStatus,
     getProviderStaff,
     getProviderStaffShiftDays,
@@ -16,6 +17,7 @@ router.get('/', getAllProviders);
 // Literal paths must precede the catch-all /:id so they aren't swallowed by it.
 router.get('/search', searchProviders);
 router.get('/by-slug/:slug', getProviderProfileBySlug);
+router.get('/by-slug/:slug/member/:memberSlug', getMemberBySlug); // personal booking link
 router.get('/me/setup-status', auth, getMySetupStatus);
 router.get('/:id/staff', getProviderStaff);
 router.get('/:id/staff/:teamMemberId/shift-days', getProviderStaffShiftDays);

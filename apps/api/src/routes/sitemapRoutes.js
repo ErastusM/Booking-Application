@@ -1,5 +1,7 @@
 const express = require('express');
 const User = require('../models/User');
+const TeamMember = require('../models/TeamMember');
+const { findMemberIdBySlug } = require('../utils/memberLink');
 const { primaryOrigin } = require('../utils/origins');
 const pino = require('pino');
 
@@ -76,10 +78,10 @@ const providerBlurb = (p) => {
     return s.length > 200 ? `${s.slice(0, 197)}…` : s;
 };
 
-const renderProviderCard = (p, canonical, base) => {
+const renderProviderCard = (p, canonical, base, descOverride = null) => {
     const name = p.businessProfile?.businessName || p.name || 'Bookplus';
     const title = `${name} — Book on Bookplus`;
-    const desc = providerBlurb(p);
+    const desc = descOverride || providerBlurb(p);
     // og:image must be absolute. Provider avatars are stored as full Cloudinary
     // URLs; fall back to the brand icon on the marketplace origin.
     const image = (typeof p.avatar === 'string' && /^https?:\/\//.test(p.avatar)) ? p.avatar : `${base}/icon-512.png`;
@@ -174,6 +176,38 @@ router.get('/prerender/b/:slug', async (req, res) => {
         return sendCard(res, renderProviderCard(p, `${base}/b/${p.businessProfile.slug}`, base));
     } catch (err) {
         logger.error({ err: err.message }, 'prerender by-slug failed');
+        return sendCard(res, renderDefaultCard(base), DEFAULT_CARD_MAXAGE);
+    }
+});
+
+// GET /api/seo/prerender/b/:slug/:member — a team member's personal link.
+// The card names the person and the business ("Book Erastus at Vido Barber")
+// and uses their photo; anything that doesn't resolve falls back to the
+// business card, then the generic one.
+router.get('/prerender/b/:slug/:member', async (req, res) => {
+    const base = siteBase();
+    try {
+        const p = await User.findOne({
+            role: 'provider',
+            'businessProfile.slug': String(req.params.slug || '').toLowerCase(),
+        }).select(PROVIDER_FIELDS).lean();
+        if (!p) return sendCard(res, renderDefaultCard(base), DEFAULT_CARD_MAXAGE);
+        const businessUrl = `${base}/b/${p.businessProfile.slug}`;
+        const memberId = await findMemberIdBySlug(p._id, req.params.member);
+        const m = memberId && await TeamMember.findOne({ _id: memberId, isActive: true }).select('name role photoUrl').lean();
+        if (!m) return sendCard(res, renderProviderCard(p, businessUrl, base));
+        const business = p.businessProfile?.businessName || p.name || 'Bookplus';
+        const first = String(m.name || '').trim().split(/\s+/)[0] || m.name;
+        const asMember = {
+            ...p,
+            // Reuse the business card layout with the member's name, blurb and photo.
+            businessProfile: { ...p.businessProfile, businessName: `Book ${first} at ${business}` },
+            avatar: m.photoUrl || p.avatar,
+        };
+        const desc = `${m.role ? `${m.role} at ${business}. ` : ''}See ${first}'s services and prices and book online on Bookplus.`;
+        return sendCard(res, renderProviderCard(asMember, `${businessUrl}/${String(req.params.member).toLowerCase()}`, base, desc));
+    } catch (err) {
+        logger.error({ err: err.message }, 'prerender member link failed');
         return sendCard(res, renderDefaultCard(base), DEFAULT_CARD_MAXAGE);
     }
 });

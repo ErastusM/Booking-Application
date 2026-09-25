@@ -8,6 +8,7 @@ const Availability = require('../models/Availability');
 const Shift = require('../models/Shift');
 const TimeOff = require('../models/TimeOff');
 const { pickRotationWeek } = require('../utils/staffBooking');
+const { memberSlugMap, findMemberIdBySlug } = require('../utils/memberLink');
 
 // The member's effective week for a given date, or null when they have no weekly
 // schedule at all (they inherit business hours, so nothing to narrow). Rotation
@@ -79,7 +80,12 @@ exports.getProviderStaff = async (req, res) => {
             ratingCount: ratingBy[key]?.ratingCount ?? 0,
         });
 
-        const data = staff.map((m) => withRating(m.toObject ? m.toObject() : m, String(m._id)));
+        // Each professional's personal booking-link handle (/b/<business>/<member>).
+        const slugs = await memberSlugMap(req.params.id);
+        const data = staff.map((m) => ({
+            ...withRating(m.toObject ? m.toObject() : m, String(m._id)),
+            linkSlug: slugs.get(String(m._id)) || null,
+        }));
 
         // When a business has a roster, the OWNER is a bookable professional too
         // ("you"), offered FIRST alongside staff. The owner has no TeamMember row —
@@ -492,6 +498,26 @@ exports.getProviderProfileBySlug = async (req, res) => {
 
         const data = await buildProviderProfilePayload(provider);
         res.status(200).json({ success: true, data });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * GET /api/providers/by-slug/:slug/member/:memberSlug
+ * Public — resolves a personal booking link (/b/<business>/<member>) to the ids
+ * the booking flow needs. Only an ACTIVE member resolves; a paused, removed or
+ * renamed member 404s so the customer app falls back to the business page.
+ */
+exports.getMemberBySlug = async (req, res) => {
+    try {
+        const slug = String(req.params.slug || '').trim().toLowerCase();
+        const provider = slug && await User.findOne({ 'businessProfile.slug': slug, role: 'provider' }).select('_id');
+        if (!provider) return res.status(404).json({ success: false, message: 'Provider not found' });
+        const memberId = await findMemberIdBySlug(provider._id, req.params.memberSlug);
+        const member = memberId && await TeamMember.findOne({ _id: memberId, provider: provider._id, isActive: true }).select('name');
+        if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
+        res.status(200).json({ success: true, data: { providerId: provider._id, teamMemberId: member._id, name: member.name } });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

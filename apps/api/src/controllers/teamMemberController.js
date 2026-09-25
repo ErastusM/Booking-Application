@@ -6,6 +6,7 @@ const StaffAvailability = require('../models/StaffAvailability');
 const Appointment = require('../models/Appointment');
 const { validate: validatePermissions, isTier } = require('../utils/permissions');
 const { memberBusyIntervals, memberInvolvedFilter, pickRotationWeek } = require('../utils/staffBooking');
+const { memberSlugMap } = require('../utils/memberLink');
 
 const dayKeyOf = (d) => new Date(d).toISOString().slice(0, 10);
 const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
@@ -141,7 +142,13 @@ exports.getMyTeam = async (req, res) => {
         const members = await TeamMember.find({ provider: providerId })
             .populate('user', 'staffPermissions staffTier lastLoginAt')
             .sort({ isPrimary: -1, createdAt: 1 }); // the primary member leads the roster
-        res.status(200).json({ success: true, data: redactHR(req, members) });
+        // Each member's personal booking-link handle, for the owner's "share" row.
+        const slugs = await memberSlugMap(providerId);
+        const data = (redactHR(req, members) || []).map((m) => {
+            const obj = typeof m.toObject === 'function' ? m.toObject() : m;
+            return { ...obj, linkSlug: slugs.get(String(obj._id)) || null };
+        });
+        res.status(200).json({ success: true, data });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -1402,9 +1409,18 @@ exports.getMyProfile = async (req, res) => {
     try {
         const member = await myMemberDoc(req);
         if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
+        // Their personal booking link: /b/<business slug>/<member slug>. The
+        // business slug is null until the owner creates the business link.
+        const [owner, slugs] = await Promise.all([
+            User.findById(member.provider).select('businessProfile.slug businessProfile.businessName').lean(),
+            memberSlugMap(member.provider),
+        ]);
         res.status(200).json({
             success: true,
             data: {
+                businessSlug: owner?.businessProfile?.slug || null,
+                businessName: owner?.businessProfile?.businessName || '',
+                linkSlug: slugs.get(String(member._id)) || null,
                 _id: member._id, name: member.name, role: member.role,
                 phone: member.phone, email: member.email,
                 photoUrl: member.photoUrl, color: member.color,
