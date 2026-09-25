@@ -7,6 +7,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const mongoSanitize = require('express-mongo-sanitize');
 const rateLimit = require('express-rate-limit');
+const { createAuthRouteLimiter } = require('./src/middleware/authRateLimit');
 const pino = require('pino');
 const pinoHttp = require('pino-http');
 const mongoose = require('mongoose');
@@ -122,14 +123,9 @@ process.on('uncaughtException', (err) => {
 });
 
 // Rate limiters — disabled in test environment to prevent 429s during test runs
-const authLimiter = rateLimit({
-    windowMs: 15 * 60 * 1000, // 15 minutes
-    max: process.env.NODE_ENV === 'test' ? 10000 : 50,
-    message: { success: false, message: 'Too many requests, please try again later.' },
-    standardHeaders: true,
-    legacyHeaders: false,
-    skip: () => process.env.NODE_ENV === 'test',
-});
+// /api/auth: strict on credential routes (per IP + account), generous on the
+// session calls the apps make on every load — see src/middleware/authRateLimit.js.
+const authLimiter = createAuthRouteLimiter({ enabled: process.env.NODE_ENV !== 'test' });
 
 const writeLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,

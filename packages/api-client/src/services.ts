@@ -170,6 +170,9 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         // and close a day they're rostered off (business open). Public.
         getProviderStaffShiftDays: (id: string, teamMemberId: string, from: string, to: string) =>
             API.get(`/providers/${id}/staff/${teamMemberId}/shift-days`, { params: { from, to } }),
+        // One professional's reviews + average (public). 'owner' = the owner's own column.
+        getProviderStaffReviews: (id: string, teamMemberId: string, page = 1) =>
+            API.get(`/providers/${id}/staff/${teamMemberId}/reviews`, { params: { page, limit: 20 } }),
         // Availability-first search: providers with a real opening on `date`
         // (optionally at/after `time`, narrowed by `q`).
         searchProviders: (params: { date: string; time?: string; q?: string }) =>
@@ -279,6 +282,10 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         handoverBookings: (id: string, to: string) => API.post(`/team/${id}/handover`, { to }),
         // offersAllServices:true → performs everything; false → only `services` (empty = none).
         // Omit to leave the flag untouched.
+        // Give ONE member a service of their own (name + their price and minutes).
+        // Reuses a same-named service on the menu rather than duplicating it.
+        addMemberService: (id: string, name: string, price?: number, duration?: number) =>
+            API.post(`/team/${id}/services`, { name, price, duration }),
         setMemberServices: (id: string, services: string[], offersAllServices?: boolean) =>
             API.put(`/team/${id}/services`, offersAllServices === undefined ? { services } : { services, offersAllServices }),
         // Per-member price/duration overrides: [{ service, price?, duration? }].

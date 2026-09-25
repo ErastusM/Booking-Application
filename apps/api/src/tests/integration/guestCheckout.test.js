@@ -68,7 +68,7 @@ describe('POST /api/appointments — guest checkout', () => {
 
         const res = await request(app)
             .post('/api/appointments')
-            .send(bookingBody(svc, { guestName: 'Jane', guestEmail: 'not-an-email' }));
+            .send(bookingBody(svc, { guestName: 'Jane Nghipandulwa', guestEmail: 'not-an-email' }));
         expect(res.status).toBe(400);
     });
 
@@ -94,7 +94,7 @@ describe('POST /api/appointments — guest checkout', () => {
 
         const created = await request(app)
             .post('/api/appointments')
-            .send(bookingBody(svc, { guestName: 'Sam', guestEmail: 'sam@example.com' }));
+            .send(bookingBody(svc, { guestName: 'Sam Nangolo', guestEmail: 'sam@example.com' }));
         const token = created.body.data.manageToken;
 
         const managed = await request(app).get(`/api/appointments/manage/${token}`);
@@ -107,7 +107,7 @@ describe('POST /api/appointments — guest checkout', () => {
 
         const res = await request(app)
             .post('/api/appointments')
-            .send(bookingBody(svc, { guestName: 'Jane', guestEmail: 'jane@example.com' }));
+            .send(bookingBody(svc, { guestName: 'Jane Shikongo', guestEmail: 'jane@example.com' }));
         expect(res.status).toBe(400);
         expect(res.body.message).toMatch(/account/i);
     });
@@ -125,7 +125,7 @@ describe('POST /api/appointments — guest checkout', () => {
         const svc = await makeService(provider._id);
         const created = await request(app)
             .post('/api/appointments')
-            .send(bookingBody(svc, { guestName: 'Cathy', guestEmail: 'cathy@example.com' }));
+            .send(bookingBody(svc, { guestName: 'Cathy Amutenya', guestEmail: 'cathy@example.com' }));
         const token = created.body.data.manageToken;
 
         const cancelled = await request(app).post(`/api/appointments/manage/${token}/cancel`);

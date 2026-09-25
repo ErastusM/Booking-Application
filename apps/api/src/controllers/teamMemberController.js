@@ -1290,6 +1290,13 @@ exports.setMyServices = async (req, res) => {
         const member = await myMemberDoc(req);
         if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
 
+        // A member may step OUT of "everything on the menu" but never INTO it.
+        // Offering the whole business's menu is inheritance, and a member's
+        // services are their own — they add the ones they do (POST /mine/services).
+        if (offersAllServices === true && member.offersAllServices !== true) {
+            return res.status(403).json({ success: false, message: 'Add the services you offer instead — only the owner can put you on the whole menu.' });
+        }
+
         if (services.length) {
             const owned = await Service.countDocuments({ _id: { $in: services }, provider: req.user.staffOf });
             if (owned !== new Set(services.map(String)).size) {
@@ -1328,6 +1335,63 @@ exports.setMyServices = async (req, res) => {
  * two "Trim" rows splits bookings across records that look identical to
  * everyone.
  */
+// Shared by the member's own screen and the owner's Team screen, so a service
+// added for someone behaves identically whoever adds it.
+//
+// The price and minutes entered become THIS member's own price and minutes (a
+// serviceOverride), not just the catalogue default. That is what makes members
+// independent: Erastus adding Car wash at N$100 and John adding Car wash at
+// N$150 leaves each on his own price, and the owner later editing the catalogue
+// row can't silently reprice either of them.
+const addServiceForMember = async ({ providerId, member, userId, body }) => {
+    const name = String(body.name || '').trim();
+    if (!name) return { status: 400, message: 'A service name is required' };
+    if (name.length > 100) return { status: 400, message: 'That service name is too long' };
+    const hasPrice = body.price !== undefined && body.price !== null && body.price !== '';
+    const hasDuration = body.duration !== undefined && body.duration !== null && body.duration !== '';
+    const price = Math.max(0, Number(body.price) || 0);
+    const duration = Math.max(5, Number(body.duration) || 30);
+
+    // Case-insensitive exact match on the business's existing menu, including
+    // retired rows — a second "Trim" row splits bookings across records that
+    // look identical to everyone.
+    const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    let service = await Service.findOne({ provider: providerId, name: new RegExp(`^${escaped}$`, 'i') });
+    const reused = !!service;
+    if (!service) {
+        service = await Service.create({
+            name,
+            // The model requires a description; the form asks only for what's needed.
+            description: String(body.description || name).trim().slice(0, 300),
+            price,
+            duration,
+            provider: providerId,
+            createdBy: userId,
+        });
+    } else if (service.isActive === false) {
+        // Reviving a retired row by name is better than a duplicate — but it has
+        // to be live, or the person it was added for still can't be booked.
+        service.isActive = true;
+        await service.save();
+    }
+
+    // Assign it to this member only, and never widen them to the whole menu.
+    const already = (member.services || []).some((id) => String(id) === String(service._id));
+    if (!already) member.services = [...(member.services || []), service._id];
+    member.offersAllServices = false;
+
+    if (hasPrice || hasDuration) {
+        const rest = (member.serviceOverrides || []).filter((o) => String(o.service) !== String(service._id));
+        member.serviceOverrides = [...rest, {
+            service: service._id,
+            price: hasPrice ? price : null,
+            duration: hasDuration ? duration : null,
+        }];
+    }
+    await member.save();
+    return { status: reused ? 200 : 201, service, reused, member };
+};
+
 exports.addMyService = async (req, res) => {
     try {
         const providerId = req.user.staffOf;
@@ -1336,40 +1400,40 @@ exports.addMyService = async (req, res) => {
         }
         const member = await myMemberDoc(req);
         if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
+        const r = await addServiceForMember({ providerId, member, userId: req.user._id, body: req.body });
+        if (r.message) return res.status(r.status).json({ success: false, message: r.message });
+        res.status(r.status).json({ success: true, data: { service: r.service, reused: r.reused, selected: (r.member.services || []).map(String) } });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
 
-        const name = String(req.body.name || '').trim();
-        if (!name) return res.status(400).json({ success: false, message: 'A service name is required' });
-        if (name.length > 100) return res.status(400).json({ success: false, message: 'That service name is too long' });
-        const price = Math.max(0, Number(req.body.price) || 0);
-        const duration = Math.max(5, Number(req.body.duration) || 30);
-
-        // Case-insensitive exact match on the business's existing menu, including
-        // retired rows — reviving one the owner turned off is still better than
-        // creating a second row with the same name.
-        const escaped = name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        let service = await Service.findOne({ provider: providerId, name: new RegExp(`^${escaped}$`, 'i') });
-        const reused = !!service;
-        if (!service) {
-            service = await Service.create({
-                name,
-                // The model requires a description; the member's form asks only for
-                // what they need, so fall back to the name rather than blocking them.
-                description: String(req.body.description || name).trim().slice(0, 300),
-                price,
-                duration,
-                provider: providerId,
-                createdBy: req.user._id,
-            });
-        }
-
-        // Assign it to them, idempotently, and keep them on "only selected" — adding
-        // one service must never be a back door to the whole menu.
-        const already = (member.services || []).some((id) => String(id) === String(service._id));
-        if (!already) member.services = [...(member.services || []), service._id];
-        member.offersAllServices = false;
-        await member.save();
-
-        res.status(reused ? 200 : 201).json({ success: true, data: { service, reused, selected: (member.services || []).map(String) } });
+/**
+ * POST /api/team/:id/services  (owner / team:manage)
+ * Body: { name, price?, duration? }
+ *
+ * The owner gives ONE member a service of their own, from that member's card on
+ * the Team screen. A washer on a barbershop's roster gets "Car wash" at their
+ * own price — without the owner detouring through the catalogue, and without
+ * the washer being offered anything from the barber's menu.
+ */
+exports.addTeamMemberService = async (req, res) => {
+    try {
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const member = await TeamMember.findOne({ _id: req.params.id, provider: providerId });
+        if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
+        const r = await addServiceForMember({ providerId, member, userId: req.user._id, body: req.body });
+        if (r.message) return res.status(r.status).json({ success: false, message: r.message });
+        res.status(r.status).json({
+            success: true,
+            data: {
+                service: r.service,
+                reused: r.reused,
+                selected: (r.member.services || []).map(String),
+                serviceOverrides: r.member.serviceOverrides || [],
+            },
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -1409,6 +1473,8 @@ exports.getMyProfile = async (req, res) => {
                 phone: member.phone, email: member.email,
                 photoUrl: member.photoUrl, color: member.color,
                 bio: member.bio, pronouns: member.pronouns, languages: member.languages,
+                // Front desk / managers who don't take bookings skip the "go live" nudge.
+                bookable: member.bookable !== false,
             },
         });
     } catch (error) {
@@ -1450,6 +1516,8 @@ exports.setMyProfile = async (req, res) => {
                 phone: member.phone, email: member.email,
                 photoUrl: member.photoUrl, color: member.color,
                 bio: member.bio, pronouns: member.pronouns, languages: member.languages,
+                // Front desk / managers who don't take bookings skip the "go live" nudge.
+                bookable: member.bookable !== false,
             },
         });
     } catch (error) {

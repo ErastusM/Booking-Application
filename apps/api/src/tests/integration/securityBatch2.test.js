@@ -44,9 +44,11 @@ describe('A — staff-role tokens are held to the customer booking guards', () =
             service: svc._id.toString(), appointmentDate: DATE, startTime: '20:00', endTime: '21:00',
         });
 
-        // Before the fix a staff token skipped the hours check and got 201.
-        expect(res.status).toBe(400);
-        expect(res.body.message).toMatch(/schedule|available/i);
+        // Before the fix a staff token skipped the hours check and got 201. A staff
+        // account is now never booked as a client at all (no walk-in name here),
+        // so it's refused before the hours check — still no bypass.
+        expect(res.status).toBe(403);
+        expect(res.body.code).toBe('staff_booking_not_allowed');
     });
 
     it('still lets the OWNING provider book their own service outside hours (override intact)', async () => {

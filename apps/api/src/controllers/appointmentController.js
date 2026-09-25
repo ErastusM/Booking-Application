@@ -1,4 +1,5 @@
 const pino = require('pino');
+const { isFullName, FULL_NAME_MESSAGE } = require('../utils/personName');
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const { randomUUID } = require('crypto');
 const Appointment = require('../models/Appointment');
@@ -954,6 +955,19 @@ exports.createAppointment = async (req, res) => {
         // caller this is exactly the body value, unchanged.
         const effectiveTeamMember = isStaffWalkIn ? staffWalkInMemberId : teamMember;
 
+        // A staff account is not a client. Anything that isn't a walk-in or (with
+        // client access) a booking for an existing client used to fall through to
+        // the customer path and record the TEAM MEMBER as the client — silently
+        // dropping the client they picked. Refuse it and say what to do instead.
+        if (req.user?.role === 'staff' && !isStaffWalkIn && !isStaffOnBehalf) {
+            const reason = !can(req.user, 'bookings:create')
+                ? 'Your access doesn’t include making bookings. Ask the owner.'
+                : customerId
+                    ? 'Your access doesn’t include booking for existing clients. Book them as a walk-in by name instead.'
+                    : 'Enter the client’s name to book them as a walk-in.';
+            return res.status(403).json({ success: false, code: 'staff_booking_not_allowed', message: reason });
+        }
+
         // Customers, guests and providers book here; admins never did (the route
         // dropped authorize() for guest checkout, so re-assert that contract).
         if (req.user?.role === 'admin') {
@@ -962,6 +976,15 @@ exports.createAppointment = async (req, res) => {
 
         if (isGuest && (!guestName?.trim() || !guestEmail?.trim())) {
             return res.status(400).json({ success: false, message: 'Please provide your name and email to book as a guest.' });
+        }
+        // A booking carries the client's full name so the business can tell apart
+        // clients who share a first name or a surname. Accounts created before this
+        // rule are asked to complete their name at their next booking.
+        if (isGuest && !isFullName(guestName)) {
+            return res.status(400).json({ success: false, code: 'full_name_required', message: FULL_NAME_MESSAGE });
+        }
+        if (req.user?.role === 'customer' && !isFullName(req.user.name)) {
+            return res.status(400).json({ success: false, code: 'full_name_required', message: 'Please add your surname to your name so the business can tell you apart.' });
         }
 
         // A provider booking from their calendar can either log a walk-in (free-text

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { isFullName, joinName } from '../utils/personName';
 import { Link, useLocation } from 'react-router-dom';
 import { authService } from '../services';
 import { API_BASE } from '../services/api';
@@ -30,7 +31,7 @@ const Register = () => {
     const prefillEmail = location.state?.email || '';
     const [step, setStep] = useState(prefillEmail ? 2 : 1);
     const [selectedRole, setSelectedRole] = useState(prefillEmail ? 'customer' : '');
-    const [formData, setFormData] = useState({ name: '', email: prefillEmail, phone: '', password: '' });
+    const [formData, setFormData] = useState({ first: '', last: '', email: prefillEmail, phone: '', password: '' });
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [passwordFocused, setPasswordFocused] = useState(false);
@@ -75,6 +76,11 @@ const Register = () => {
             setError('Please meet all password requirements');
             return;
         }
+        const name = joinName(formData.first, formData.last);
+        if (!isFullName(name)) {
+            setError('Please enter your first name and surname.');
+            return;
+        }
         if (!consented) {
             setError('Please agree to the Terms of Service and Privacy Policy to continue');
             return;
@@ -82,7 +88,8 @@ const Register = () => {
         setLoading(true);
         setError('');
         try {
-            await authService.register({ ...formData, role: 'customer' });
+            const { first, last, ...rest } = formData;
+            await authService.register({ ...rest, name, role: 'customer' });
             setStep(3); // New step — check email
         } catch (err) {
             setError(err.response?.data?.message || 'Registration failed');
@@ -92,7 +99,8 @@ const Register = () => {
     };
 
     const fields = [
-        { name: 'name', label: 'Full Name', type: 'text', placeholder: 'John Smith', autoComplete: 'name', autoCapitalize: 'words', autoCorrect: 'off' },
+        { name: 'first', label: 'First Name', type: 'text', placeholder: 'Ndapewa', autoComplete: 'given-name', autoCapitalize: 'words', autoCorrect: 'off' },
+        { name: 'last', label: 'Surname', type: 'text', placeholder: 'Shilongo', autoComplete: 'family-name', autoCapitalize: 'words', autoCorrect: 'off' },
         { name: 'email', label: 'Email Address', type: 'email', placeholder: 'you@example.com', autoComplete: 'email', autoCapitalize: 'none', autoCorrect: 'off' },
         { name: 'phone', label: 'Phone Number', type: 'tel', placeholder: '+264 81 234 5678', autoComplete: 'tel', autoCapitalize: 'none', autoCorrect: 'off' },
         { name: 'password', label: 'Password', type: 'password', placeholder: '••••••••', autoComplete: 'new-password', autoCapitalize: 'none', autoCorrect: 'off' },
