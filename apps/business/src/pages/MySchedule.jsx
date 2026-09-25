@@ -219,6 +219,18 @@ const MySchedule = () => {
             setServices(fresh.data.data?.services || []);
             setMySvc((fresh.data.data?.selected || []).map(String));
             setOffersAll(fresh.data.data?.offersAllServices === true);
+            // Re-seed My prices too. Adding a service now stores the typed price and
+            // minutes as this member's own override, and "Save my prices" replaces
+            // the whole override list — so a stale form here would silently wipe the
+            // price that was just set the next time it was saved.
+            const seeded = {};
+            (fresh.data.data?.overrides || []).forEach(o => {
+                seeded[String(o.service)] = {
+                    price: o.price == null ? '' : String(o.price),
+                    duration: o.duration == null ? '' : String(o.duration),
+                };
+            });
+            setPrices(seeded);
             setNewSvc({ name: '', price: '', duration: '' });
             setAddMsg(reused
                 ? `Your business already offers ${name} — you're now listed for it.`
