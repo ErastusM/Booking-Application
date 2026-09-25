@@ -26,7 +26,8 @@ const accountBookingLimiter = rateLimit({
     message: { success: false, message: 'Too many bookings on this account. Please try again later.' },
     standardHeaders: true,
     legacyHeaders: false,
-    keyGenerator: (req) => String(req.user?._id || req.ip),
+    // Always a signed-in account here (skip below), so key on it — never the IP.
+    keyGenerator: (req) => String(req.user._id),
     skip: (req) => process.env.NODE_ENV === 'test' || !req.user
         || req.user.role === 'provider' || req.user.role === 'admin',
 });
