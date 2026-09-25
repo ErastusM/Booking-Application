@@ -2,6 +2,7 @@ import React, { Suspense, lazy, useState } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider, useAuthContext } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
+import { ConfirmProvider } from '@bookplus/ui';
 import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -143,11 +144,15 @@ export default function App() {
             <ThemeProvider>
             <AuthProvider>
                 <ToastProvider>
-                    {/* No footer in the business tool — it's an app, not a website. */}
-                    <AppUpdater />
-                    <Navbar />
-                    <AppRoutes />
-                    <SignupSurveyGate />
+                    {/* App-styled confirm/alert dialogs: any page can `await useConfirm()(…)`
+                        instead of window.confirm. They stack at z 2500, under toasts (3000). */}
+                    <ConfirmProvider>
+                        {/* No footer in the business tool — it's an app, not a website. */}
+                        <AppUpdater />
+                        <Navbar />
+                        <AppRoutes />
+                        <SignupSurveyGate />
+                    </ConfirmProvider>
                 </ToastProvider>
             </AuthProvider>
             </ThemeProvider>

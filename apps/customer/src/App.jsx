@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
+import { ConfirmProvider } from '@bookplus/ui';
 import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
@@ -145,12 +146,16 @@ function App() {
             <ThemeProvider>
             <AuthProvider>
                 <ToastProvider>
-                    <AppUpdater />
-                    <WaitlistCelebration />
-                    <SignupSurveyModal />
-                    <Navbar />
-                    <AppRoutes />
-                    <FooterGate />
+                    {/* App-styled confirm/alert dialogs: any page can `await useConfirm()(…)`
+                        instead of window.confirm. */}
+                    <ConfirmProvider>
+                        <AppUpdater />
+                        <WaitlistCelebration />
+                        <SignupSurveyModal />
+                        <Navbar />
+                        <AppRoutes />
+                        <FooterGate />
+                    </ConfirmProvider>
                 </ToastProvider>
             </AuthProvider>
             </ThemeProvider>
