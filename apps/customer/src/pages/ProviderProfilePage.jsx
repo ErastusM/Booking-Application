@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import PhotoFrame, { ratioOf } from '../components/PhotoFrame';
 import { useParams, useNavigate } from 'react-router-dom';
 import { providerMarketService, availabilityService, authService, favoriteService } from '../services';
 import { track } from '../services/client';
@@ -356,9 +357,14 @@ const ProviderProfilePage = ({ providerId } = {}) => {
             {/* ── Hero: edge-to-edge photo carousel + floating controls (Fresha-style) ── */}
             <div id="section-photos" style={{ position: 'relative', scrollMarginTop: 'calc(var(--safe-top, 0px) + 104px)', background: 'var(--ink)' }}>
                 {photos.length > 0 ? (
-                    <div className="feed-carousel" onScroll={e => setHeroIdx(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))} style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory' }}>
+                    // The owner's post shape and framing (as on the feed). Capped in width on
+                    // big screens so a portrait post isn't taller than the window.
+                    <div className="feed-carousel" onScroll={e => setHeroIdx(Math.round(e.currentTarget.scrollLeft / Math.max(1, e.currentTarget.clientWidth)))} style={{ display: 'flex', overflowX: 'auto', scrollSnapType: 'x mandatory', maxWidth: `min(100%, ${Math.round(560 * ratioOf(provider.photoShape))}px)`, margin: '0 auto' }}>
                         {photos.map((src, i) => (
-                            <img key={i} src={cloudinaryThumb(src, 1200)} alt={`${businessName} photo ${i + 1}`} loading={i === 0 ? 'eager' : 'lazy'} decoding="async" onClick={() => setLightbox(i)} style={{ flex: '0 0 100%', width: '100%', aspectRatio: '4 / 3', maxHeight: 'min(75vw, 480px)', objectFit: 'cover', scrollSnapAlign: 'start', display: 'block', cursor: 'pointer', background: 'var(--warm-gray)' }} />
+                            <PhotoFrame key={i} src={src} width={1200} alt={`${businessName} photo ${i + 1}`}
+                                shape={provider.photoShape} edit={provider.photoEdits?.[src]}
+                                imgProps={{ loading: i === 0 ? 'eager' : 'lazy', decoding: 'async', onClick: () => setLightbox(i) }}
+                                style={{ flex: '0 0 100%', width: '100%', scrollSnapAlign: 'start', cursor: 'pointer' }} />
                         ))}
                     </div>
                 ) : (
@@ -765,7 +771,10 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                     {lightbox > 0 && (
                         <button onClick={(e) => { e.stopPropagation(); setLightbox(i => i - 1); }} aria-label="Previous photo" style={lightboxBtnStyle({ left: '0.75rem' })}><ChevronLeft size={26} /></button>
                     )}
-                    <img src={cloudinaryThumb(photos[lightbox], 1400)} alt={`${businessName} photo ${lightbox + 1}`} onClick={(e) => e.stopPropagation()} className="scale-in" style={{ maxWidth: '92vw', maxHeight: '86dvh', objectFit: 'contain', borderRadius: '8px', boxShadow: '0 12px 48px rgba(0,0,0,0.5)' }} />
+                    {/* Bigger, but still the owner's framing — never the parts they cropped out. */}
+                    <div onClick={(e) => e.stopPropagation()} className="scale-in" style={{ width: `min(92vw, calc(86dvh * ${ratioOf(provider.photoShape)}))`, borderRadius: '8px', overflow: 'hidden', boxShadow: '0 12px 48px rgba(0,0,0,0.5)' }}>
+                        <PhotoFrame src={photos[lightbox]} width={1400} shape={provider.photoShape} edit={provider.photoEdits?.[photos[lightbox]]} alt={`${businessName} photo ${lightbox + 1}`} />
+                    </div>
                     {lightbox < photos.length - 1 && (
                         <button onClick={(e) => { e.stopPropagation(); setLightbox(i => i + 1); }} aria-label="Next photo" style={lightboxBtnStyle({ right: '0.75rem' })}><ChevronRight size={26} /></button>
                     )}

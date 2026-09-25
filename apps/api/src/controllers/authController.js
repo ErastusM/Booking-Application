@@ -1,6 +1,7 @@
 const User = require('../models/User');
 const { isFullName, FULL_NAME_MESSAGE } = require('../utils/personName');
 const Category = require('../models/Category');
+const { SHAPES, cleanEdits, fitEdit } = require('../utils/photoEdits');
 const { generateToken, generateRefreshToken } = require('../utils/helpers');
 const bcrypt = require('bcryptjs');
 const crypto = require('crypto');
@@ -1258,13 +1259,26 @@ exports.getBlockedUsers = async (req, res) => {
 
 exports.updatePortfolio = async (req, res) => {
     try {
-        const { images, instagramUrl } = req.body;
+        const { images, instagramUrl, shape, edits } = req.body;
         const user = await User.findById(req.user.id);
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
+        if (shape !== undefined && !SHAPES.includes(shape)) {
+            return res.status(400).json({ success: false, message: `shape must be one of ${SHAPES.join(', ')}` });
+        }
 
         if (!user.portfolio) user.portfolio = {};
-        if (Array.isArray(images)) user.portfolio.images = images.slice(0, 30); // cap at 30 images
+        const prevShape = user.portfolio.shape || '1:1';
+        if (Array.isArray(images)) user.portfolio.images = images.filter((u) => typeof u === 'string' && u).slice(0, 30); // cap at 30 images
         if (instagramUrl !== undefined) user.portfolio.instagramUrl = instagramUrl.trim();
+        if (shape !== undefined) user.portfolio.shape = shape;
+        // Framing/adjustments: replace when sent; either way keep only edits for
+        // photos that are still in the portfolio (a removed photo drops its edit),
+        // and every crop fitted to the post shape (a shape change re-fits them).
+        const nextEdits = edits !== undefined ? edits : (user.portfolio.edits || []).map((e) => (e.toObject ? e.toObject() : e));
+        const finalShape = user.portfolio.shape || '1:1';
+        user.portfolio.edits = cleanEdits(nextEdits, user.portfolio.images || [])
+            .map((e) => fitEdit(e, finalShape, finalShape !== prevShape))
+            .filter(Boolean);
 
         user.markModified('portfolio');
         await user.save();

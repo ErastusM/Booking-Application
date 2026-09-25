@@ -27,6 +27,15 @@ export const cloudinaryThumb = (url, w = 800) => {
     return url;
 };
 
+// A portfolio photo scaled, never cropped: PhotoFrame applies the owner's own
+// framing on top, so the URL has to keep the whole picture.
+export const cloudinaryPhoto = (url, w = 1000) => {
+    if (isCloudinary(url)) {
+        return url.replace('/image/upload/', `/image/upload/c_limit,w_${w},q_auto:good,f_auto/`);
+    }
+    return url;
+};
+
 // Square avatar / profile photo. Handles Cloudinary uploads and Google OAuth photos.
 export const cloudinaryAvatar = (url, size = 256) => {
     if (isCloudinary(url)) {
