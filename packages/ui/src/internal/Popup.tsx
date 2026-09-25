@@ -1,16 +1,25 @@
 import React, { useEffect, useRef, useState } from 'react';
 import type { CSSProperties, HTMLAttributes, ReactNode, RefObject } from 'react';
 import { createPortal } from 'react-dom';
-import { canUseDOM, lockBodyScroll, useEscapeLayer, useIsoLayoutEffect, Z_LAYER } from './dom';
+import { canUseDOM, lockPageScroll, tabbables, useCloseRequest, useEscapeLayer, useIsoLayoutEffect, Z_LAYER } from './dom';
+import { X } from './icons';
 
 // The one surface every picker opens into.
 //  • Narrow screens: a bottom sheet (card background, rounded top, drag handle,
-//    safe-area padding, scrim; drag the handle down or tap the scrim to close).
+//    safe-area padding, scrim; drag the handle down, tap the scrim or the ×
+//    to close). It is a modal dialog: role="dialog", aria-modal.
 //  • Wide screens: a popover anchored under (or above) the trigger.
 // Both portal to document.body, so they escape the overflow/transform of the
 // modal, side panel or table they are opened from, and stack at Z_LAYER.
 
-export type DismissReason = 'outside' | 'escape' | 'drag' | 'blur';
+// Why it closed; the pickers hand focus back to the trigger for all of these
+// except 'blur' (focus already went somewhere else) and a popover's 'outside'
+// (the press went somewhere else).
+//   outside — press outside / tap on the scrim · escape — Escape key
+//   drag — sheet dragged down · blur — focus moved outside
+//   tab — Tab past the last control (or Shift+Tab before the first)
+//   back — Android back / a history step back · close — the sheet's × button
+export type DismissReason = 'outside' | 'escape' | 'drag' | 'blur' | 'tab' | 'back' | 'close';
 
 type PanelProps = HTMLAttributes<HTMLDivElement> & { 'data-testid'?: string };
 
@@ -44,6 +53,38 @@ interface Placement {
 
 const DRAG_CLOSE_PX = 80;
 
+// A press on one of these goes through to it even while it closes a popover, so
+// moving from field to field (or pressing Save) stays a single click.
+const INTERACTIVE = 'button, a[href], input, select, textarea, label, summary, [contenteditable="true"], [role="button"], [role="combobox"], [tabindex]:not([tabindex="-1"])';
+
+// Eat the click that follows a press which only closed a popover — a native
+// select does the same. Otherwise the click lands on whatever was under the
+// press: typically the scrim of the modal the picker sits in, which would close
+// the whole modal and drop what was typed into it. Capture on window runs before
+// React's root listeners. The guard drops itself if no click comes: the press
+// turned into a scroll (pointercancel), a new press starts, or time runs out.
+const swallowNextClick = () => {
+    let timer = 0;
+    const swallow = (e: Event) => {
+        e.preventDefault();
+        e.stopPropagation();
+        done();
+    };
+    const done = () => {
+        window.removeEventListener('click', swallow, true);
+        window.removeEventListener('pointercancel', done, true);
+        window.removeEventListener('pointerdown', done, true);
+        window.clearTimeout(timer);
+    };
+    window.addEventListener('click', swallow, true);
+    window.addEventListener('pointercancel', done, true);
+    // The press being handled is past window already, so this sees only the next one.
+    window.addEventListener('pointerdown', done, true);
+    timer = window.setTimeout(done, 1000);
+};
+
+const follows = (a: Node, b: Node) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING);
+
 export function Popup({
     open, sheet, anchorRef, panelRef, onDismiss, title, minWidth = 200, width, maxHeight = 320,
     sheetHeight, panelProps, children,
@@ -59,6 +100,7 @@ export function Popup({
     const [keyboard, setKeyboard] = useState({ inset: 0, height: 0 });
 
     useEscapeLayer(open, () => dismissRef.current('escape'));
+    useCloseRequest(open, () => dismissRef.current('back'));
 
     // Popover placement: below the trigger when there's room (or more room than
     // above), otherwise above; clamped to the viewport; follows scroll/resize.
@@ -99,17 +141,21 @@ export function Popup({
         };
     }, [open, sheet, width, minWidth, maxHeight]);
 
-    // Popover: a press anywhere outside the panel and its trigger closes it and
-    // lets the press through, like a native select. (The sheet has a scrim that
-    // closes on click instead — closing on pointerdown there would let the
-    // follow-up click land on whatever the scrim was covering.)
-    // Either way, focus moving outside (Tab away) closes it too.
+    // Popover: a press anywhere outside the panel and its trigger closes it. A
+    // press on another control goes through to it; a press on anything else
+    // (page background, a modal's scrim) only closes the popover, and the click
+    // that follows is dropped. (The sheet has a scrim that closes on click
+    // instead — closing on pointerdown there would let the follow-up click land
+    // on whatever the scrim was covering.)
+    // Either way, focus moving outside closes it too.
     useEffect(() => {
         if (!open || !canUseDOM) return undefined;
         const inside = (t: EventTarget | null) =>
             t instanceof Node && (!!panelRef.current?.contains(t) || !!anchorRef.current?.contains(t));
         const onDown = (e: Event) => {
-            if (!sheet && !inside(e.target)) dismissRef.current('outside');
+            if (sheet || inside(e.target)) return;
+            dismissRef.current('outside');
+            if (!(e.target instanceof Element && e.target.closest(INTERACTIVE))) swallowNextClick();
         };
         const onFocusIn = (e: FocusEvent) => {
             if (!inside(e.target)) dismissRef.current('blur');
@@ -125,7 +171,7 @@ export function Popup({
     // Sheet only: lock page scroll and track the on-screen keyboard.
     useEffect(() => {
         if (!open || !sheet || !canUseDOM) return undefined;
-        const release = lockBodyScroll();
+        const release = lockPageScroll();
         const vv = window.visualViewport;
         const update = () => {
             if (!vv) return;
@@ -153,6 +199,26 @@ export function Popup({
     // modal scrim that closes on click.
     const stop = (e: React.SyntheticEvent) => e.stopPropagation();
 
+    // Tab past the last control (or Shift+Tab before the first) leaves the popup
+    // the way it leaves a native picker: it closes, and focus carries on from the
+    // trigger — Tab to the field after it, Shift+Tab onto the trigger itself.
+    // The popup is portalled to the end of <body>, so without this Tab would drop
+    // focus off the end of the document and Shift+Tab onto the last control of
+    // the page, behind any open modal. (Select handles Tab itself first and
+    // leaves focus on its trigger, so it is skipped here.)
+    const onKeyDown = (e: React.KeyboardEvent) => {
+        e.stopPropagation();
+        if (e.key !== 'Tab' || e.altKey || e.ctrlKey || e.metaKey) return;
+        const panel = panelRef.current;
+        const at = document.activeElement;
+        if (!panel || !at || !panel.contains(at)) return;
+        const rest = tabbables(panel).filter((el) => el !== at && (e.shiftKey ? follows(el, at) : follows(at, el)));
+        if (rest.length) return;
+        dismissRef.current('tab');
+        anchorRef.current?.focus({ preventScroll: true });
+        if (e.shiftKey) e.preventDefault();
+    };
+
     let content: ReactNode;
     if (sheet) {
         const kbOpen = keyboard.inset > 0;
@@ -167,10 +233,21 @@ export function Popup({
         content = (
             <>
                 <div className="bp-scrim" style={{ zIndex: Z_LAYER }} aria-hidden="true" onClick={() => dismissRef.current('outside')} />
-                <div {...panelProps} ref={panelRef} className="bp-sheet" style={{ ...sheetStyle, ...panelProps?.style }}>
+                <div
+                    role="dialog"
+                    aria-modal="true"
+                    aria-label={typeof title === 'string' ? title : undefined}
+                    {...panelProps}
+                    ref={panelRef}
+                    className="bp-sheet"
+                    style={{ ...sheetStyle, ...panelProps?.style }}
+                >
                     <div
                         className="bp-sheet-grab"
                         onPointerDown={(e) => {
+                            // The × is a button, not a drag start (capturing the
+                            // pointer here would steal its click).
+                            if (e.target instanceof Element && e.target.closest('button')) return;
                             drag.current = { y: e.clientY };
                             e.currentTarget.setPointerCapture?.(e.pointerId);
                         }}
@@ -190,7 +267,14 @@ export function Popup({
                         }}
                     >
                         <div className="bp-handle" />
-                        {title ? <div className="bp-sheet-title">{title}</div> : null}
+                        <div className="bp-sheet-head">
+                            {title ? <div className="bp-sheet-title">{title}</div> : null}
+                            {/* A way out for keyboard and screen-reader users, who can't
+                                drag the handle or find the (aria-hidden) scrim. */}
+                            <button type="button" className="bp-sheet-close" aria-label="Close" onClick={() => dismissRef.current('close')}>
+                                <X size={20} />
+                            </button>
+                        </div>
                     </div>
                     {children}
                 </div>
@@ -217,7 +301,7 @@ export function Popup({
             onMouseDown={stop}
             onPointerDown={stop}
             onTouchStart={stop}
-            onKeyDown={stop}
+            onKeyDown={onKeyDown}
         >
             {content}
         </div>,

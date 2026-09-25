@@ -269,6 +269,10 @@ const ProviderDashboard = () => {
     });
     const [savingAppt, setSavingAppt] = useState(false);
     const [apptError, setApptError] = useState('');
+    // The New Appointment pickers ('service-<row>', 'client'). They have no native
+    // `required` bubble, so a failed check moves focus to the empty one, as the
+    // browser's bubble would have.
+    const apptFieldRefs = useRef({});
     // Appointment history
     const [history, setHistory] = useState([]);
     const [historyLoading, setHistoryLoading] = useState(false);
@@ -3571,14 +3575,22 @@ const ProviderDashboard = () => {
                             const selectedServices = apptForm.services
                                 .map(row => myServices.find(s => s._id === row.serviceId))
                                 .filter(Boolean);
-                            if (selectedServices.length === 0) { setApptError('Please select at least one service'); return; }
+                            if (selectedServices.length === 0) {
+                                setApptError('Please select at least one service');
+                                apptFieldRefs.current['service-0']?.focus();
+                                return;
+                            }
                             // The service pickers have no native `required` bubble, so a row
                             // still on "Select a service" stops the booking here instead.
                             if (apptForm.isGroup ? !apptForm.services[0]?.serviceId : apptForm.services.some(r => !r.serviceId)) {
-                                setApptError(apptForm.isGroup ? 'Please select a service' : 'Pick a service for every row, or remove the empty one.'); return;
+                                setApptError(apptForm.isGroup ? 'Please select a service' : 'Pick a service for every row, or remove the empty one.');
+                                apptFieldRefs.current[`service-${apptForm.isGroup ? 0 : apptForm.services.findIndex(r => !r.serviceId)}`]?.focus();
+                                return;
                             }
                             if (!apptForm.isGroup && apptForm.clientMode === 'existing' && !apptForm.customerId) {
-                                setApptError('Please choose a client, or switch to Guest.'); return;
+                                setApptError('Please choose a client, or switch to Guest.');
+                                apptFieldRefs.current.client?.focus();
+                                return;
                             }
                             if (!apptForm.date) { setApptError('Please pick a date'); return; }
                             if (!apptForm.startTime) { setApptError('Please pick a start time'); return; }
@@ -3653,6 +3665,8 @@ const ProviderDashboard = () => {
                                             aria-label="Service"
                                             required
                                             invalid={!!apptError && !apptForm.services[0]?.serviceId}
+                                            aria-describedby={apptError && !apptForm.services[0]?.serviceId ? 'appt-error' : undefined}
+                                            ref={el => { apptFieldRefs.current['service-0'] = el; }}
                                             data-testid="appt-service-0"
                                             style={{ width: '100%' }}
                                         />
@@ -3675,6 +3689,8 @@ const ProviderDashboard = () => {
                                                             aria-label={apptForm.services.length > 1 ? `Service ${i + 1}` : 'Service'}
                                                             required
                                                             invalid={!!apptError && !row.serviceId}
+                                                            aria-describedby={apptError && !row.serviceId ? 'appt-error' : undefined}
+                                                            ref={el => { apptFieldRefs.current[`service-${i}`] = el; }}
                                                             data-testid={`appt-service-${i}`}
                                                             style={{ flex: 1, minWidth: 0 }}
                                                         />
@@ -3793,6 +3809,8 @@ const ProviderDashboard = () => {
                                                             aria-label="Client"
                                                             required
                                                             invalid={!!apptError && !apptForm.customerId}
+                                                            aria-describedby={apptError && !apptForm.customerId ? 'appt-error' : undefined}
+                                                            ref={el => { apptFieldRefs.current.client = el; }}
                                                             data-testid="appt-client"
                                                             style={{ width: '100%' }}
                                                         />
@@ -3900,7 +3918,9 @@ const ProviderDashboard = () => {
                                         minDate={apptForm.date || undefined}
                                     />
                                 </div>}
-                                {apptError && <p style={{ color: '#dc2626', fontSize: '0.85rem', margin: 0 }}>{apptError}</p>}
+                                {/* role="alert": a failed check no longer raises the browser's own
+                                    (announced) bubble, so the message announces itself. */}
+                                {apptError && <p id="appt-error" role="alert" style={{ color: '#dc2626', fontSize: '0.85rem', margin: 0 }}>{apptError}</p>}
                                 <button type="submit" disabled={savingAppt} style={{ width: '100%', padding: '0.9rem', background: savingAppt ? '#9ca3af' : 'var(--ink)', color: 'var(--on-ink)', border: 'none', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.95rem', fontWeight: '600', cursor: savingAppt ? 'not-allowed' : 'pointer' }}>
                                     {savingAppt ? 'Saving...' : apptForm.isRecurring ? 'Book Recurring Series' : 'Book Appointment'}
                                 </button>

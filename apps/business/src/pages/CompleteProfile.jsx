@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { authService } from '../services';
@@ -20,8 +20,10 @@ const CompleteProfile = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     // The category picker has no native `required` bubble: once a submit has
-    // been tried, an empty category shows the red border next to the error.
+    // been tried, an empty category shows the red border next to the error, and
+    // focus goes to the picker (as the browser's bubble would have taken it).
     const [triedSubmit, setTriedSubmit] = useState(false);
+    const categoryRef = useRef(null);
     const isProvider = user?.role === 'provider';
 
     const handleSubmit = async (e) => {
@@ -33,6 +35,7 @@ const CompleteProfile = () => {
         }
         if (isProvider && !category) {
             setError('Please choose your main service category');
+            categoryRef.current?.focus();
             return;
         }
         if (isProvider && category === 'Other' && !customCategory.trim()) {
@@ -79,8 +82,10 @@ const CompleteProfile = () => {
                             </p>
                         </div>
 
+                        {/* role="alert": announced when it appears, since a failed submit no
+                            longer raises the browser's own (announced) bubble. */}
                         {error && (
-                            <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
+                            <div id="complete-profile-error" role="alert" style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
                                 {error}
                             </div>
                         )}
@@ -118,8 +123,10 @@ const CompleteProfile = () => {
                                         searchPlaceholder="Search categories"
                                         sheetTitle="Main service category"
                                         aria-labelledby="main-category-label"
+                                        aria-describedby={triedSubmit && !category ? 'complete-profile-error' : undefined}
                                         required
                                         invalid={triedSubmit && !category}
+                                        ref={categoryRef}
                                     />
                                     {category === 'Other' && (
                                         <input

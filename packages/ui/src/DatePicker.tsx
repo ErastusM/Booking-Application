@@ -71,6 +71,7 @@ export const DatePicker = forwardRef<HTMLButtonElement, DatePickerProps>(functio
     const panelRef = useRef<HTMLDivElement>(null);
     useImperativeHandle(ref, () => triggerRef.current as HTMLButtonElement);
     const baseId = useId();
+    const dialogId = `${baseId}-dialog`;
 
     const narrow = useMediaQuery(NARROW_QUERY);
     const [open, setOpen] = useState(false);
@@ -123,7 +124,8 @@ export const DatePicker = forwardRef<HTMLButtonElement, DatePickerProps>(functio
         }
     };
 
-    const onDismiss = (reason: DismissReason) => close(reason === 'escape' || reason === 'drag' || (reason === 'outside' && narrow));
+    // Hand focus back to the trigger, unless it (or a click) went elsewhere.
+    const onDismiss = (reason: DismissReason) => close(reason !== 'blur' && (reason !== 'outside' || narrow));
 
     // Roving focus: the focused day is the grid's single tab stop.
     useEffect(() => {
@@ -320,9 +322,15 @@ export const DatePicker = forwardRef<HTMLButtonElement, DatePickerProps>(functio
                 id={id}
                 className={cx('input', 'bp-trigger', size === 'sm' && 'bp-sm', className)}
                 style={style}
+                // A combobox, like Select, not a plain button: its name comes from the
+                // aria-label or a <label>, its value from the text shown, so both
+                // are read out (a labelled button would announce only the label),
+                // and it can carry aria-required.
+                role="combobox"
                 aria-haspopup="dialog"
                 aria-expanded={open}
-                aria-label={ariaLabel ? `${ariaLabel}${valid ? `: ${formatValue(valid)}` : ''}` : undefined}
+                aria-controls={open ? dialogId : undefined}
+                aria-label={ariaLabel}
                 aria-labelledby={ariaLabelledBy}
                 aria-describedby={ariaDescribedBy}
                 aria-required={required || undefined}
@@ -366,7 +374,7 @@ export const DatePicker = forwardRef<HTMLButtonElement, DatePickerProps>(functio
                     role: 'dialog',
                     'aria-modal': narrow || undefined,
                     'aria-label': typeof title === 'string' ? title : 'Choose a date',
-                    id: `${baseId}-dialog`,
+                    id: dialogId,
                     'data-testid': testId ? `${testId}-popup` : undefined,
                 }}
             >

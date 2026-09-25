@@ -177,8 +177,14 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
 
     // Searchable lists put the cursor in the search box — except on touch
     // devices, where that would cover the list with the keyboard straight away.
+    // Otherwise the phone sheet, a modal dialog, takes focus onto its list (which
+    // tracks the highlight by aria-activedescendant), so a screen reader lands on
+    // the options instead of staying on the page behind the sheet. The popover
+    // keeps focus on the trigger, like a native select.
     useEffect(() => {
-        if (open && searchOn && hasFinePointer()) searchRef.current?.focus({ preventScroll: true });
+        if (!open) return;
+        if (searchOn && hasFinePointer()) searchRef.current?.focus({ preventScroll: true });
+        else if (narrow) listRef.current?.focus({ preventScroll: true });
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [open]);
 
@@ -296,8 +302,9 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
                 commit(items[active]);
                 break;
             case 'Tab':
-                // Leave focus on the trigger so Tab carries on from there.
-                close(fromSearch);
+                // Put focus back on the trigger (from the search box or the sheet's
+                // list) so Tab carries on from there.
+                close(document.activeElement !== triggerRef.current);
                 break;
             case ' ':
                 if (fromSearch) return;
@@ -324,8 +331,8 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
     };
 
     const onDismiss = (reason: DismissReason) => {
-        // Keyboard/sheet dismissals hand focus back; a click elsewhere keeps it there.
-        close(reason === 'escape' || reason === 'drag' || (reason === 'outside' && narrow));
+        // Hand focus back to the trigger, unless it (or a click) went elsewhere.
+        close(reason !== 'blur' && (reason !== 'outside' || narrow));
     };
 
     // ── Trigger ──
@@ -478,7 +485,10 @@ export const Select = forwardRef<HTMLButtonElement, SelectProps>(function Select
                     aria-label={typeof title === 'string' ? title : ariaLabel}
                     className="bp-list"
                     tabIndex={-1}
-                    // Keep focus where it is (trigger or search box) while tapping rows,
+                    aria-activedescendant={activeId}
+                    // The highlighted row gets its focus ring once the keyboard is in use.
+                    data-keyboard={keyboardNav || undefined}
+                    // Keep focus where it is (trigger, search box or list) while tapping rows,
                     // so the phone keyboard doesn't drop and shift the list mid-tap.
                     onMouseDown={(e) => e.preventDefault()}
                     onKeyDown={(e) => onKeyDown(e, false)}

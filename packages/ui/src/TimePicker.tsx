@@ -1,4 +1,4 @@
-import React, { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react';
+import React, { forwardRef, useEffect, useId, useImperativeHandle, useRef, useState } from 'react';
 import type { CSSProperties, FocusEventHandler, KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { Popup } from './internal/Popup';
 import type { DismissReason } from './internal/Popup';
@@ -87,6 +87,7 @@ export const TimePicker = forwardRef<HTMLButtonElement, TimePickerProps>(functio
     const hourListRef = useRef<HTMLDivElement>(null);
     const minuteListRef = useRef<HTMLDivElement>(null);
     useImperativeHandle(ref, () => triggerRef.current as HTMLButtonElement);
+    const dialogId = `${useId()}-dialog`;
 
     const narrow = useMediaQuery(NARROW_QUERY);
     const [open, setOpen] = useState(false);
@@ -142,7 +143,8 @@ export const TimePicker = forwardRef<HTMLButtonElement, TimePickerProps>(functio
         if (returnFocus) triggerRef.current?.focus({ preventScroll: true });
     };
 
-    const onDismiss = (reason: DismissReason) => close(reason === 'escape' || reason === 'drag' || (reason === 'outside' && narrow));
+    // Hand focus back to the trigger, unless it (or a click) went elsewhere.
+    const onDismiss = (reason: DismissReason) => close(reason !== 'blur' && (reason !== 'outside' || narrow));
 
     // Centre the current hour/minute when the columns open.
     useEffect(() => {
@@ -280,9 +282,15 @@ export const TimePicker = forwardRef<HTMLButtonElement, TimePickerProps>(functio
                 id={id}
                 className={cx('input', 'bp-trigger', size === 'sm' && 'bp-sm', className)}
                 style={style}
+                // A combobox, like Select, not a plain button: its name comes from the
+                // aria-label or a <label>, its value from the text shown, so both
+                // are read out (a labelled button would announce only the label),
+                // and it can carry aria-required.
+                role="combobox"
                 aria-haspopup="dialog"
                 aria-expanded={open}
-                aria-label={ariaLabel ? `${ariaLabel}${empty ? '' : `: ${strValue}`}` : undefined}
+                aria-controls={open ? dialogId : undefined}
+                aria-label={ariaLabel}
                 aria-labelledby={ariaLabelledBy}
                 aria-describedby={ariaDescribedBy}
                 aria-required={required || undefined}
@@ -324,6 +332,7 @@ export const TimePicker = forwardRef<HTMLButtonElement, TimePickerProps>(functio
                     role: 'dialog',
                     'aria-modal': narrow || undefined,
                     'aria-label': typeof title === 'string' ? title : 'Choose a time',
+                    id: dialogId,
                     'data-testid': testId ? `${testId}-popup` : undefined,
                 }}
             >

@@ -46,24 +46,34 @@ export function useMediaQuery(query: string): boolean {
 export const hasFinePointer = (): boolean =>
     canUseDOM && typeof window.matchMedia === 'function' ? window.matchMedia('(pointer: fine)').matches : true;
 
-// Body scroll lock for the bottom sheet and the confirm dialog. The apps have
-// their own ref-counted lock (useModalChrome); the two must not fight. If the
-// body is already locked when we arrive, we leave it alone and never "restore"
-// it — otherwise closing a picker inside a modal would unlock the page behind
-// the still-open modal.
+// Page scroll lock for the bottom sheet and the confirm dialog. Both apps set
+// overflow-x on <html>, and once <html>'s overflow isn't `visible` the viewport
+// takes its scrolling from <html>, not <body> — so a lock on <body> alone does
+// nothing. Lock both. The apps have their own ref-counted lock (useModalChrome);
+// the two must not fight. Each element is judged on its own: one that is
+// already locked when we arrive is left alone and never "restored" — otherwise
+// closing a picker inside a modal would unlock the page behind the still-open
+// modal — while one that isn't (a modal that only locked <body>) still gets
+// locked, and released again.
 let lockDepth = 0;
-let restoreTo: string | null = null;
+let restore: Array<{ style: CSSStyleDeclaration; overflow: string; gutter: string }> = [];
 
-export function lockBodyScroll(): () => void {
+export function lockPageScroll(): () => void {
     if (!canUseDOM) return () => {};
     if (lockDepth === 0) {
-        const { style } = document.body;
-        if (style.overflow === 'hidden') {
-            restoreTo = null;
-        } else {
-            restoreTo = style.overflow;
+        const root = document.documentElement;
+        // Keep a desktop scrollbar's gutter while <html> is hidden, so the page
+        // doesn't shift sideways under a confirm dialog. (Phones overlay their
+        // scrollbars, so there it is 0.)
+        const hasScrollbar = window.innerWidth - root.clientWidth > 0;
+        restore = [];
+        [root, document.body].forEach((el) => {
+            const { style } = el;
+            if (style.overflow === 'hidden') return;
+            restore.push({ style, overflow: style.overflow, gutter: style.getPropertyValue('scrollbar-gutter') });
             style.overflow = 'hidden';
-        }
+            if (el === root && hasScrollbar) style.setProperty('scrollbar-gutter', 'stable');
+        });
     }
     lockDepth += 1;
     let released = false;
@@ -71,11 +81,27 @@ export function lockBodyScroll(): () => void {
         if (released) return;
         released = true;
         lockDepth = Math.max(0, lockDepth - 1);
-        if (lockDepth === 0 && restoreTo !== null) {
-            if (document.body.style.overflow === 'hidden') document.body.style.overflow = restoreTo;
-            restoreTo = null;
+        if (lockDepth === 0) {
+            restore.forEach(({ style, overflow, gutter }) => {
+                if (style.overflow === 'hidden') style.overflow = overflow;
+                if (gutter) style.setProperty('scrollbar-gutter', gutter);
+                else style.removeProperty('scrollbar-gutter');
+            });
+            restore = [];
         }
     };
+}
+
+// Focusable elements a Tab press would visit inside `root`, in DOM order (the
+// roving grids and columns expose one tabIndex=0 cell each).
+const TABBABLE = 'button, [href], input, select, textarea, [tabindex]';
+export function tabbables(root: HTMLElement | null): HTMLElement[] {
+    if (!root) return [];
+    return Array.from(root.querySelectorAll<HTMLElement>(TABBABLE)).filter((el) =>
+        el.tabIndex >= 0
+        && !(el as HTMLButtonElement).disabled
+        && !(el instanceof HTMLInputElement && el.type === 'hidden')
+        && !el.closest('[aria-hidden="true"], [inert]'));
 }
 
 // Inject the package stylesheet once. Inline styles cannot express :hover,
@@ -152,6 +178,49 @@ export function useEscapeLayer(active: boolean, onEscape: () => void): void {
             if (!escapeStack.length && escapeListening) {
                 window.removeEventListener('keydown', onWindowKeyDown, true);
                 escapeListening = false;
+            }
+        };
+    }, [active]);
+}
+
+// Android's back button / gesture closes the top layer instead of leaving the
+// page, as it did the native pickers and window.confirm. CloseWatcher
+// (Chromium 120+: Chrome, Samsung Internet and the other Chromium browsers on
+// Android) is the platform hook for exactly this and adds no history entry, so
+// nothing has to be unwound when the layer closes itself — and nothing can race
+// a navigation the confirmed action makes. Escape raises a close request too,
+// but useEscapeLayer cancels that keydown first, so a layer never closes twice.
+// Wherever the back step still becomes a history navigation (no CloseWatcher,
+// or iOS's swipe back), the popstate closes the layer, so a confirm can't
+// outlive the page it was asked from and run its action there.
+interface CloseWatcherLike {
+    onclose: (() => void) | null;
+    destroy(): void;
+}
+type CloseWatcherCtor = new () => CloseWatcherLike;
+
+export function useCloseRequest(active: boolean, onClose: () => void): void {
+    const latest = useRef(onClose);
+    latest.current = onClose;
+    useEffect(() => {
+        if (!active || !canUseDOM) return undefined;
+        const fire = () => latest.current();
+        let watcher: CloseWatcherLike | null = null;
+        const Ctor = (window as unknown as { CloseWatcher?: CloseWatcherCtor }).CloseWatcher;
+        if (typeof Ctor === 'function') {
+            try {
+                watcher = new Ctor();
+                watcher.onclose = fire;
+            } catch {
+                watcher = null;
+            }
+        }
+        window.addEventListener('popstate', fire);
+        return () => {
+            window.removeEventListener('popstate', fire);
+            if (watcher) {
+                watcher.onclose = null;
+                watcher.destroy();
             }
         };
     }, [active]);

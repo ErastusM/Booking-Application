@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { describe, it, expect, vi, afterEach } from 'vitest';
-import { render, screen, waitFor, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { Select, DatePicker, TimePicker, ConfirmProvider, useConfirm, useAlert } from '@bookplus/ui';
 
@@ -28,6 +28,16 @@ function Controlled({ Comp, initial = '', onChange, ...rest }) {
         />
     );
 }
+
+// Phone-width screen with a touch pointer: pickers open as bottom sheets.
+const stubPhone = () => vi.stubGlobal('matchMedia', (query) => ({
+    matches: query === '(max-width: 640px)',
+    media: query,
+    addEventListener: () => {},
+    removeEventListener: () => {},
+    addListener: () => {},
+    removeListener: () => {},
+}));
 
 describe('Select', () => {
     const options = [
@@ -159,25 +169,66 @@ describe('Select', () => {
         expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ target: expect.objectContaining({ value: 'c2' }) }));
     });
 
-    it('opens as a bottom sheet on a phone-width screen', async () => {
-        vi.stubGlobal('matchMedia', (query) => ({
-            matches: query === '(max-width: 640px)',
-            media: query,
-            addEventListener: () => {},
-            removeEventListener: () => {},
-            addListener: () => {},
-            removeListener: () => {},
-        }));
+    it('opens as a bottom sheet on a phone-width screen: a modal dialog with focus inside and a Close button', async () => {
+        stubPhone();
         try {
-            render(<Controlled Comp={Select} initial="fixed" options={options} aria-label="Price type" data-testid="price" />);
-            await userEvent.click(screen.getByTestId('price'));
+            const onChange = vi.fn();
+            render(<Controlled Comp={Select} initial="fixed" options={options} onChange={onChange} aria-label="Price type" data-testid="price" />);
+            const trigger = screen.getByTestId('price');
+            await userEvent.click(trigger);
             const panel = screen.getByTestId('price-popup');
             expect(panel).toHaveClass('bp-sheet');
             expect(panel.querySelector('.bp-handle')).toBeTruthy();
             expect(within(panel).getByText('Price type')).toBeInTheDocument();
+            // A modal dialog, so a screen reader stays in it; focus is on the options.
+            expect(panel).toHaveAttribute('role', 'dialog');
+            expect(panel).toHaveAttribute('aria-modal', 'true');
+            expect(panel).toHaveAttribute('aria-label', 'Price type');
+            expect(within(panel).getByRole('listbox')).toHaveFocus();
+            // A real way out that doesn't change the value.
+            await userEvent.click(within(panel).getByRole('button', { name: 'Close' }));
+            expect(screen.queryByTestId('price-popup')).not.toBeInTheDocument();
+            expect(onChange).not.toHaveBeenCalled();
+            expect(trigger).toHaveFocus();
         } finally {
             vi.unstubAllGlobals();
         }
+    });
+
+    it('a press outside that only closes the popover does not also click what is under it', async () => {
+        const scrimClick = vi.fn();
+        const other = vi.fn();
+        render(
+            <>
+                {/* Stand-in for an app modal's scrim, which closes the modal on click. */}
+                <div data-testid="scrim" onClick={scrimClick}>scrim</div>
+                <button type="button" onClick={other}>Save</button>
+                <Controlled Comp={Select} initial="fixed" options={options} aria-label="Price type" data-testid="price" />
+            </>,
+        );
+
+        await userEvent.click(screen.getByTestId('price'));
+        await userEvent.click(screen.getByTestId('scrim'));
+        expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+        expect(scrimClick).not.toHaveBeenCalled();
+
+        // With nothing open the scrim works as before, and a press on another
+        // control goes straight through even while the popover closes.
+        await userEvent.click(screen.getByTestId('scrim'));
+        expect(scrimClick).toHaveBeenCalledTimes(1);
+        await userEvent.click(screen.getByTestId('price'));
+        await userEvent.click(screen.getByRole('button', { name: 'Save' }));
+        expect(screen.queryByRole('listbox')).not.toBeInTheDocument();
+        expect(other).toHaveBeenCalledTimes(1);
+    });
+
+    it('marks the keyboard-highlighted row for its focus ring', async () => {
+        render(<Controlled Comp={Select} initial="fixed" options={options} aria-label="Price type" />);
+        const trigger = screen.getByRole('combobox', { name: 'Price type' });
+        await userEvent.click(trigger);
+        expect(screen.getByRole('listbox')).not.toHaveAttribute('data-keyboard');
+        await userEvent.keyboard('{ArrowDown}');
+        expect(screen.getByRole('listbox')).toHaveAttribute('data-keyboard', 'true');
     });
 });
 
@@ -208,6 +259,55 @@ describe('DatePicker', () => {
         await userEvent.keyboard('{Enter}');
 
         expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({ target: expect.objectContaining({ value: '2026-02-01' }) }));
+    });
+
+    it('is a combobox named by its label, with its value and required state readable', async () => {
+        render(
+            <>
+                <label>From <Controlled Comp={DatePicker} initial="2026-03-10" data-testid="from" /></label>
+                <Controlled Comp={DatePicker} initial="" aria-label="Block date" required data-testid="block" />
+            </>,
+        );
+        const from = screen.getByRole('combobox', { name: 'From' });
+        expect(from).toHaveTextContent('Tue, Mar 10, 2026');
+        expect(from).toHaveAttribute('aria-haspopup', 'dialog');
+        // The value is the combobox's content, not glued onto its name.
+        const block = screen.getByRole('combobox', { name: 'Block date' });
+        expect(block).toHaveAttribute('aria-required', 'true');
+        await userEvent.click(block);
+        expect(block).toHaveAttribute('aria-controls', screen.getByRole('dialog').id);
+    });
+
+    it('Tab past the last control closes it and moves on; Shift+Tab before the first returns to the trigger', async () => {
+        // fireEvent, not userEvent.tab(): user-event picks the Tab destination
+        // from the (by then removed) key target, where a browser carries on from
+        // the element focused during keydown — the trigger. So check that
+        // contract: focus is on the trigger and forward Tab is left to the
+        // browser, which moves on to the next field (checked in Chromium).
+        render(<Controlled Comp={DatePicker} initial="2026-03-10" aria-label="Date" data-testid="date" />);
+        const trigger = screen.getByTestId('date');
+
+        // Focus a control, then press Tab on it.
+        const tabFrom = (el, shiftKey = false) => {
+            el.focus();
+            return fireEvent.keyDown(el, { key: 'Tab', shiftKey });
+        };
+
+        await userEvent.click(trigger);
+        // Tab inside the popup is left alone.
+        expect(tabFrom(screen.getByRole('button', { name: 'Previous month' }))).toBe(true);
+        expect(screen.getByRole('dialog')).toBeInTheDocument();
+
+        const notPrevented = tabFrom(screen.getByRole('button', { name: 'Today' }));
+        expect(notPrevented).toBe(true);
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(trigger).toHaveFocus();
+
+        await userEvent.click(trigger);
+        const prevented = !tabFrom(screen.getByRole('button', { name: 'Previous month' }), true);
+        expect(prevented).toBe(true);
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(trigger).toHaveFocus();
     });
 
     it('honours min/max and can be cleared', async () => {
@@ -246,6 +346,13 @@ describe('TimePicker', () => {
         expect(onChange.mock.calls.map((c) => c[0].target.value)).toEqual(['21:30', '21:45']);
         expect(trigger).toHaveTextContent('21:45');
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+    });
+
+    it('is a combobox whose name stays the label and whose value is the time', () => {
+        render(<Controlled Comp={TimePicker} initial="09:30" aria-label="Start" required data-testid="t" />);
+        const trigger = screen.getByRole('combobox', { name: 'Start' });
+        expect(trigger).toHaveTextContent('09:30');
+        expect(trigger).toHaveAttribute('aria-required', 'true');
     });
 
     it('respects step, min and max', async () => {
@@ -328,6 +435,31 @@ describe('Confirm', () => {
         await waitFor(() => expect(done).toHaveBeenCalled());
     });
 
+    it('locks the page (html and body) while open', async () => {
+        const onResult = vi.fn();
+        render(<ConfirmProvider><Asker onResult={onResult} options="Sure?" /></ConfirmProvider>);
+
+        await userEvent.click(screen.getByRole('button', { name: 'Ask' }));
+        expect(document.documentElement.style.overflow).toBe('hidden');
+        expect(document.body.style.overflow).toBe('hidden');
+        await userEvent.click(screen.getByTestId('confirm-cancel'));
+        await waitFor(() => expect(onResult).toHaveBeenCalledWith(false));
+        expect(document.documentElement.style.overflow).toBe('');
+        expect(document.body.style.overflow).toBe('');
+    });
+
+    it('a history step back answers "no" and closes it, so the action never runs', async () => {
+        const onResult = vi.fn();
+        render(<ConfirmProvider><Asker onResult={onResult} options={{ title: 'Delete this service?', danger: true }} /></ConfirmProvider>);
+
+        await userEvent.click(screen.getByRole('button', { name: 'Ask' }));
+        expect(screen.getByRole('alertdialog')).toBeInTheDocument();
+        act(() => { window.dispatchEvent(new PopStateEvent('popstate')); });
+
+        await waitFor(() => expect(onResult).toHaveBeenCalledWith(false));
+        expect(screen.queryByRole('alertdialog')).not.toBeInTheDocument();
+    });
+
     it('falls back to the native dialog outside a provider', async () => {
         const native = vi.spyOn(window, 'confirm').mockReturnValue(true);
         const onResult = vi.fn();
@@ -342,4 +474,5 @@ describe('Confirm', () => {
 
 afterEach(() => {
     document.body.style.overflow = '';
+    document.documentElement.style.overflow = '';
 });

@@ -1,7 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useId, useMemo, useRef, useState } from 'react';
 import type { KeyboardEvent as ReactKeyboardEvent, ReactNode } from 'react';
 import { createPortal } from 'react-dom';
-import { canUseDOM, cx, lockBodyScroll, useEscapeLayer, useInjectStyles, Z_LAYER } from './internal/dom';
+import { canUseDOM, cx, lockPageScroll, useCloseRequest, useEscapeLayer, useInjectStyles, Z_LAYER } from './internal/dom';
 import { textOf } from './internal/text';
 
 // App-styled replacements for window.confirm / window.alert, which draw the
@@ -66,7 +66,7 @@ const nativeFallback = {
 
 const ConfirmContext = createContext<{ confirm: ConfirmFn; alert: AlertFn } | null>(null);
 
-/** Resolves true when the user confirms, false on Cancel, Escape or a tap outside. */
+/** Resolves true when the user confirms, false on Cancel, Escape, a tap outside or Android back. */
 export const useConfirm = (): ConfirmFn => (useContext(ConfirmContext) ?? nativeFallback).confirm;
 
 /** Resolves once the user has dismissed it. */
@@ -90,6 +90,22 @@ export function ConfirmProvider({ children }: { children?: ReactNode }) {
 
     const api = useMemo(() => ({ confirm, alert }), [confirm, alert]);
     const current = queue[0];
+
+    // A history step back leaves the page every queued question was asked from
+    // (the one on screen closes itself too): answer them all "no".
+    const queueRef = useRef(queue);
+    queueRef.current = queue;
+    useEffect(() => {
+        if (!canUseDOM) return undefined;
+        const onPop = () => {
+            const pending = queueRef.current;
+            if (!pending.length) return;
+            setQueue([]);
+            pending.forEach((req) => req.resolve(false));
+        };
+        window.addEventListener('popstate', onPop);
+        return () => window.removeEventListener('popstate', onPop);
+    }, []);
 
     const finish = useCallback((req: Request, ok: boolean) => {
         setQueue((q) => q.filter((r) => r !== req));
@@ -125,14 +141,17 @@ function ConfirmDialog({ request, onDone }: { request: Request; onDone: (req: Re
         settled.current = true;
         onDone(request, ok);
     };
-    // Escape, and a tap on the backdrop, mean "no" (an alert just closes).
+    // Escape, a tap on the backdrop and Android back mean "no" (an alert just
+    // closes). Back closes the dialog rather than leaving the page; where it does
+    // leave the page, the dialog goes with it and its action never runs.
     const dismiss = () => done(!isConfirm);
 
     useEscapeLayer(true, dismiss);
+    useCloseRequest(true, dismiss);
 
     useEffect(() => {
         const previous = canUseDOM ? (document.activeElement as HTMLElement | null) : null;
-        const release = lockBodyScroll();
+        const release = lockPageScroll();
         // Destructive: start on the safe button, so a stray Enter doesn't delete.
         (danger && cancelRef.current ? cancelRef.current : okRef.current)?.focus({ preventScroll: true });
         return () => {

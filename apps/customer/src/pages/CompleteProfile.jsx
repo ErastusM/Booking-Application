@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { authService } from '../services';
@@ -16,6 +16,9 @@ const CompleteProfile = () => {
     const [customCategory, setCustomCategory] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    // No native `required` bubble on the category picker: a missing category
+    // moves focus to it, as the browser's bubble would have.
+    const categoryRef = useRef(null);
     const isProvider = user?.role === 'provider';
 
     const handleSubmit = async (e) => {
@@ -26,6 +29,7 @@ const CompleteProfile = () => {
         }
         if (isProvider && !category) {
             setError(CATEGORY_REQUIRED);
+            categoryRef.current?.focus();
             return;
         }
         if (isProvider && category === 'Other' && !customCategory.trim()) {
@@ -82,8 +86,10 @@ const CompleteProfile = () => {
                             </p>
                         </div>
 
+                        {/* role="alert": announced when it appears, since a failed submit no
+                            longer raises the browser's own (announced) bubble. */}
                         {error && (
-                            <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
+                            <div id="complete-profile-error" role="alert" style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
                                 {error}
                             </div>
                         )}
@@ -122,6 +128,8 @@ const CompleteProfile = () => {
                                         searchPlaceholder="Search categories"
                                         required
                                         invalid={error === CATEGORY_REQUIRED && !category}
+                                        aria-describedby={error === CATEGORY_REQUIRED && !category ? 'complete-profile-error' : undefined}
+                                        ref={categoryRef}
                                         aria-label="Main service category"
                                         data-testid="provider-category"
                                     />

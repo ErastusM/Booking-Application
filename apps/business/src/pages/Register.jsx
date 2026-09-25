@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { authService } from '../services';
 import MAIN_CATEGORIES from '../constants/mainCategories';
@@ -31,8 +31,10 @@ const Register = () => {
     const [resendMsg, setResendMsg] = useState('');
     const [consented, setConsented] = useState(false);
     // The category picker has no native `required` bubble: once a submit has
-    // been tried, an empty category shows the red border next to the error.
+    // been tried, an empty category shows the red border next to the error, and
+    // focus goes to the picker (as the browser's bubble would have taken it).
     const [triedSubmit, setTriedSubmit] = useState(false);
+    const categoryRef = useRef(null);
 
     const handleChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
@@ -59,6 +61,7 @@ const Register = () => {
         setTriedSubmit(true);
         if (!formData.providerCategory) {
             setError('Please select your main service category');
+            categoryRef.current?.focus();
             return;
         }
         if (formData.providerCategory === 'Other' && !customCategory.trim()) {
@@ -214,8 +217,10 @@ const Register = () => {
                             </Link>
                         </p>
 
+                        {/* role="alert": announced when it appears, since a failed submit no
+                            longer raises the browser's own (announced) bubble. */}
                         {error && (
-                            <div style={{
+                            <div id="register-error" role="alert" style={{
                                 background: '#fee2e2',
                                 border: '1px solid #fca5a5',
                                 color: '#991b1b',
@@ -280,8 +285,10 @@ const Register = () => {
                                     searchPlaceholder="Search categories"
                                     sheetTitle="Main category"
                                     aria-labelledby="provider-category-label"
+                                    aria-describedby={triedSubmit && !formData.providerCategory ? 'register-error' : undefined}
                                     required
                                     invalid={triedSubmit && !formData.providerCategory}
+                                    ref={categoryRef}
                                 />
                                 {formData.providerCategory === 'Other' && (
                                     <input

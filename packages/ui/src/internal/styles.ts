@@ -65,10 +65,19 @@ body.dark-mode .bp-trigger[aria-invalid="true"] { border-color: var(--danger) !i
 }
 .bp-sheet-grab { flex: none; padding: 10px 16px 6px; touch-action: none; cursor: grab; }
 .bp-handle { width: 40px; height: 5px; margin: 0 auto; border-radius: var(--radius-pill); background: var(--border); }
+.bp-sheet-head { position: relative; display: flex; align-items: center; justify-content: center; min-height: 40px; margin-top: 4px; padding: 0 44px; }
 .bp-sheet-title {
-  margin: 10px 0 2px; text-align: center; font-family: var(--font-display);
+  margin: 0; text-align: center; font-family: var(--font-display);
   font-weight: 600; font-size: 1.05rem; color: var(--charcoal);
 }
+/* Same shape as the app's CloseButton: a small glyph in a 44px hit area. */
+.bp-sheet-close {
+  position: absolute; right: -8px; top: 50%; transform: translateY(-50%);
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; padding: 0; border: none; border-radius: var(--radius-sm);
+  background: transparent; color: var(--text-muted); cursor: pointer; touch-action: manipulation;
+}
+.bp-sheet-close:hover { color: var(--text-primary); }
 
 /* ── Option list (Select) ── */
 .bp-search-wrap { flex: none; position: relative; padding: var(--space-2) var(--space-2) var(--space-1); }
@@ -107,6 +116,10 @@ body.dark-mode .bp-search:focus { border-color: var(--gold) !important; }
 .bp-opt-label { display: block; overflow-wrap: anywhere; }
 .bp-opt-desc { display: block; margin-top: 2px; font-size: 0.78rem; color: var(--text-secondary); font-weight: 400; }
 .bp-opt[data-active="true"] { background: var(--surface-sunken); }
+/* DOM focus stays on the trigger or search box (aria-activedescendant), so the
+   highlighted row needs an indicator of its own; the grey fill alone all but
+   vanishes on the dark card. --gold holds 3:1 on both cards, selected or not. */
+.bp-list[data-keyboard="true"] .bp-opt[data-active="true"] { box-shadow: inset 0 0 0 2px var(--gold); }
 @media (hover: hover) {
   .bp-opt:not([aria-selected="true"]):not([aria-disabled="true"]):hover { background: var(--surface-sunken); }
 }
@@ -170,7 +183,7 @@ body.dark-mode .bp-search:focus { border-color: var(--gold) !important; }
 }
 .bp-sheet .bp-day { font-size: 0.95rem; min-height: 40px; }
 .bp-day:hover { background: var(--surface-sunken); }
-.bp-day[data-today="true"] { background: var(--surface-sunken); font-weight: 600; }
+.bp-day[data-today="true"] { border-color: var(--text-muted); font-weight: 600; }
 .bp-day[aria-selected="true"] { background: var(--gold); border-color: var(--gold); color: var(--ink); font-weight: 600; }
 .bp-day[aria-disabled="true"] { opacity: 0.3; cursor: not-allowed; background: transparent; color: var(--text-muted); }
 .bp-month-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; }
