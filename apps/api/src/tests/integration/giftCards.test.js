@@ -5,7 +5,12 @@
  */
 const request = require('supertest');
 
-jest.mock('../../utils/emailService', () => new Proxy({}, { get: () => jest.fn().mockResolvedValue(true) }));
+// Every email helper is a resolved mock — the SAME mock each time it's read, so
+// a test can check what the controller sent.
+jest.mock('../../utils/emailService', () => {
+    const fns = {};
+    return new Proxy({}, { get: (_, name) => (fns[name] = fns[name] || jest.fn().mockResolvedValue(true)) });
+});
 
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
