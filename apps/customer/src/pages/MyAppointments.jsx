@@ -10,6 +10,7 @@ import { useAuthContext } from '../context/AuthContext';
 import { mapsUrl } from '../utils/maps';
 import { currencySymbol } from '../utils/currency';
 import { apptLocalDate } from '../utils/date';
+import { fmtClock } from '../utils/time';
 import { cloudinaryThumb } from '../utils/cloudinary';
 import { CalendarClock, CalendarPlus, MessageSquare, ClipboardList, Star, X, RefreshCw, MapPin, Copy, Check, ChevronDown } from 'lucide-react';
 import EnablePushBanner from '../components/EnablePushBanner';
@@ -592,7 +593,7 @@ const MyAppointments = () => {
                                             {m.content}
                                         </div>
                                         <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '3px', fontFamily: 'var(--font-body)' }}>
-                                            {new Date(m.createdAt).toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}
+                                            {fmtClock(m.createdAt)}
                                         </span>
                                     </div>
                                 );

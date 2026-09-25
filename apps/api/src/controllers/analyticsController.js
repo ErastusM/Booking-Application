@@ -199,9 +199,10 @@ exports.getProviderAnalytics = async (req, res) => {
             const dow = new Date(a.appointmentDate).getDay();
             byDay[dow].count += 1;
         });
-        // Trim peak-hours to a sensible window (7am–8pm) for display
+        // Trim peak-hours to a sensible window (07:00–20:00) for display. Labels
+        // are 24-hour "HH:00", like every other time in Bookplus.
         const peakHours = byHour.slice(7, 21).map(h => ({
-            label: h.hour === 12 ? '12pm' : h.hour < 12 ? `${h.hour}am` : `${h.hour - 12}pm`,
+            label: `${String(h.hour).padStart(2, '0')}:00`,
             count: h.count,
         }));
 

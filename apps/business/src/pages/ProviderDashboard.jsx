@@ -20,6 +20,9 @@ import { cloudinaryAvatar } from '../utils/cloudinary';
 import { NAMIBIAN_TOWNS, normalizeTown } from '../utils/namibiaTowns';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import { buildTimeSlots } from '../utils/bookingSlots';
+import { fmtClock } from '../utils/time';
+import { sortClients } from '../utils/clientSort';
+import { bookingClientFields } from '../utils/bookingClient';
 import MiniCalendar from '../components/MiniCalendar';
 import RecurrenceFields from '../components/RecurrenceFields';
 import { currencySymbol } from '../utils/currency';
@@ -296,6 +299,14 @@ const ProviderDashboard = () => {
     const [clientNoteForm, setClientNoteForm] = useState({ notes: '', allergies: '', conditions: '', internalNotes: '', tags: '', birthday: '' });
     const [savingClientNote, setSavingClientNote] = useState(false);
     const [clientSearchQuery, setClientSearchQuery] = useState('');
+    // The API returns clients most-recent-visit first. Every client list the
+    // owner reads (the New Appointment picker, the Clients tab) shows them A–Z
+    // instead, from this one sorted copy, so a client sits in the same place in
+    // both. Filtering an already-sorted list keeps search results A–Z too.
+    const sortedClients = useMemo(() => sortClients(clients), [clients]);
+    // Wallet client balances: a per-client roster too (server order is
+    // last-updated, which reads as random with no date column).
+    const sortedClientWallets = useMemo(() => sortClients(walletClientWallets), [walletClientWallets]);
 
     const [conversations, setConversations] = useState([]);
     const [loadingConversations, setLoadingConversations] = useState(false);
@@ -2791,21 +2802,15 @@ const ProviderDashboard = () => {
                         </div>
                         {loadingClients ? <RowsSkeleton /> : (() => {
                             const q = clientSearchQuery.trim().toLowerCase();
-                            const matched = q
-                                ? clients.filter(c => {
+                            // Alphabetical (case- and accent-insensitive) via the shared
+                            // sortedClients, the same order the New Appointment picker uses.
+                            const filteredClients = q
+                                ? sortedClients.filter(c => {
                                     const name = (c.customer?.name || '').toLowerCase();
                                     const phone = (c.customer?.phone || '').toLowerCase();
                                     return name.includes(q) || phone.includes(q);
                                 })
-                                : clients;
-                            // Alphabetical by client name. localeCompare with sensitivity
-                            // 'base' makes it case- and accent-insensitive, so "moses" sorts
-                            // next to "Moses" rather than after every capitalised name (a
-                            // plain > comparison puts all lowercase names at the end).
-                            // Copy first — never sort the `clients` state array in place.
-                            const filteredClients = [...matched].sort((a, b) =>
-                                (a.customer?.name || '').localeCompare(b.customer?.name || '', undefined, { sensitivity: 'base', numeric: true })
-                            );
+                                : sortedClients;
                             return (
                             <div className="clients-table-wrap" style={{ overflowX: 'auto' }}>
                                 <table className="clients-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
@@ -3036,7 +3041,7 @@ const ProviderDashboard = () => {
                                                 }}>
                                                     {msg.content}
                                                     <div style={{ fontSize: '0.62rem', color: isMe ? 'rgba(4,5,5,0.55)' : 'var(--text-muted)', marginTop: '0.2rem', textAlign: 'right' }}>
-                                                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                                                        {fmtClock(msg.createdAt)}
                                                     </div>
                                                 </div>
                                             </div>
@@ -3312,7 +3317,7 @@ const ProviderDashboard = () => {
                                         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.85rem' }}>
                                             <thead><tr style={{ background: 'var(--warm-gray)', textAlign: 'left' }}>{['Client', 'Available', 'Reserved', 'Total', ''].map((h) => <th key={h} style={{ padding: '0.6rem 1rem', fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-secondary)' }}>{h}</th>)}</tr></thead>
                                             <tbody>
-                                                {walletClientWallets.map((w) => (
+                                                {sortedClientWallets.map((w) => (
                                                     <tr key={w._id} style={{ borderBottom: '1px solid var(--border)' }}>
                                                         <td style={{ padding: '0.7rem 1rem' }}><div style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{w.customer?.name || '—'}</div><div style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{w.customer?.email}</div></td>
                                                         <td style={{ padding: '0.7rem 1rem', fontWeight: '600', color: 'var(--gold-dark)' }}>{nMoney(w.availableBalance)}</td>
@@ -3542,6 +3547,10 @@ const ProviderDashboard = () => {
                             const [h, m] = apptForm.startTime.split(':').map(Number);
                             const endMins = h * 60 + m + (svc.duration || 30);
                             const endTime = `${String(Math.floor(endMins / 60)).padStart(2,'0')}:${String(endMins % 60).padStart(2,'0')}`;
+                            // Who the booking is for. The client picker also lists past walk-ins
+                            // (id "walkin:<name>", no account), which the API only accepts by
+                            // name, as Guest does (see utils/bookingClient.js).
+                            const { customerId: bookingCustomerId, walkInName: bookingWalkInName } = bookingClientFields(apptForm, clients);
                             setSavingAppt(true);
                             try {
                                 if (apptForm.isGroup) {
@@ -3563,8 +3572,8 @@ const ProviderDashboard = () => {
                                         appointmentDate: apptForm.date,
                                         startTime: apptForm.startTime,
                                         endTime,
-                                        customerId: apptForm.clientMode === 'existing' ? (apptForm.customerId || undefined) : undefined,
-                                        walkInName: apptForm.clientMode === 'walkin' ? (apptForm.clientName.trim() || undefined) : undefined,
+                                        customerId: bookingCustomerId,
+                                        walkInName: bookingWalkInName,
                                         notes: apptForm.notes,
                                         teamMember: apptForm.teamMember || undefined,
                                         isRecurring: apptForm.isRecurring,
@@ -3577,8 +3586,8 @@ const ProviderDashboard = () => {
                                     await appointmentService.createMultiAppointment({
                                         appointmentDate: apptForm.date,
                                         startTime: apptForm.startTime,
-                                        customerId: apptForm.clientMode === 'existing' ? (apptForm.customerId || undefined) : undefined,
-                                        walkInName: apptForm.clientMode === 'walkin' ? (apptForm.clientName.trim() || undefined) : undefined,
+                                        customerId: bookingCustomerId,
+                                        walkInName: bookingWalkInName,
                                         teamMember: apptForm.teamMember || undefined,
                                         services: selectedServices.map(s => ({ serviceId: s._id })),
                                     });
@@ -3717,7 +3726,8 @@ const ProviderDashboard = () => {
                                                             </div>
                                                             <select value={apptForm.customerId} onChange={e => setApptForm(f => ({ ...f, customerId: e.target.value }))} required className="input" style={{ width: '100%' }}>
                                                                 <option value="">Select a client</option>
-                                                                {clients
+                                                                {/* A–Z by name (shared sortedClients), not the API's recent-visit order. */}
+                                                                {sortedClients
                                                                     .filter(c => c.customer && c.customer._id !== user?._id)
                                                                     .filter(c => {
                                                                         const q = clientPickerSearch.trim().toLowerCase();

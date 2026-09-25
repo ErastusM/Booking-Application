@@ -1,6 +1,7 @@
 import React from 'react';
 import { Phone, Mail, MessageSquare } from 'lucide-react';
 import { useModalChrome } from '../../hooks/useModalChrome';
+import { fmtClock } from '../../utils/time';
 
 // Small, prop-driven presentational pieces shared across the provider dashboard.
 // Extracted from ProviderDashboard.jsx (which was ~3.7k lines) — none of these
@@ -130,7 +131,7 @@ export const fmtConvTime = (ts) => {
     if (!ts) return '';
     const d = new Date(ts);
     const now = new Date();
-    if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    if (d.toDateString() === now.toDateString()) return fmtClock(d); // 24-hour "14:30", whatever the device locale
     const yest = new Date(now); yest.setDate(now.getDate() - 1);
     if (d.toDateString() === yest.toDateString()) return 'Yesterday';
     return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });

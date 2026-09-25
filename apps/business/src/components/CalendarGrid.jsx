@@ -2,6 +2,7 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import useApptDrag from './calendar/useApptDrag';
 import ConflictSheet from './calendar/ConflictSheet';
+import { fmtHM, fmtHMRange } from '../utils/time';
 
 // Bookplus bespoke calendar grid — a hand-built Fresha-style time grid that
 // replaces FullCalendar for the Day / 3-Day / Week views. One column per day,
@@ -28,12 +29,9 @@ const toDateStr = (v) => {
     return dateKey(new Date(v));
 };
 const minutesOf = (t) => { const [h = 0, m = 0] = String(t || '').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
+// Data, not display: builds the "HH:mm" sent in slot-click and reschedule
+// payloads. Every label on the grid goes through the 24-hour fmtHM instead.
 const timeOf = (m) => `${pad(Math.floor(m / 60))}:${pad(m % 60)}`;
-const f12 = (mins) => {
-    let h = Math.floor(mins / 60); const mm = mins % 60; const ap = h < 12 ? 'AM' : 'PM';
-    h = h % 12; if (h === 0) h = 12;
-    return `${h}${mm ? ':' + pad(mm) : ''} ${ap}`;
-};
 const DOW_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
@@ -279,7 +277,7 @@ const CalendarGrid = ({
 
     const hourMarks = [];
     // Exclude the 24:00 boundary so the gutter doesn't print a misleading
-    // "12 PM" at the very bottom (midnight of the next day).
+    // "00:00" at the very bottom (midnight of the next day).
     for (let m = winStart; m < winEnd; m += 60) hourMarks.push(m);
 
     const nowMin = today.getHours() * 60 + today.getMinutes();
@@ -303,7 +301,7 @@ const CalendarGrid = ({
     // staff filter chips, setup cards). A scrollTop assigned while
     // clientHeight is 0 is silently ignored by the browser, so the one-shot
     // version of this effect lost the race once that late reflow became the
-    // norm — the calendar then sat at 12 AM and every open needed a manual
+    // norm — the calendar then sat at 00:00 and every open needed a manual
     // scroll down to working hours.
     useEffect(() => {
         let cancelled = false;
@@ -379,7 +377,7 @@ const CalendarGrid = ({
         hourPx: HOUR_PX,
         items: dragItems,
         columns: dayKeys,
-        fmt: f12,
+        fmt: fmtHM,
         enabled: !!onReschedule,
         onCommit: commitMoves,
         onTap: (id, why) => {
@@ -460,7 +458,7 @@ const CalendarGrid = ({
                     <div style={{ position: 'relative', height: `${bodyH}px`, borderRight: '1px solid var(--border)' }}>
                         {hourMarks.map((m) => (
                             <span key={m} className="tnum" style={{ position: 'absolute', top: `${pxOf(m) - 6}px`, right: '6px', fontSize: '0.58rem', color: 'var(--text-muted)', fontVariantNumeric: 'tabular-nums', whiteSpace: 'nowrap' }}>
-                                {m === winStart ? '' : f12(m)}
+                                {m === winStart ? '' : fmtHM(m)}
                             </span>
                         ))}
                     </div>
@@ -508,7 +506,7 @@ const CalendarGrid = ({
                                         }}
                                     >
                                         {blk.isRecurring && <span aria-hidden="true" style={{ position: 'absolute', top: '2px', right: '4px', fontSize: '0.66rem', opacity: 0.6 }}>⟳</span>}
-                                        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '10px' }}>{f12(blk.startMin)} – {f12(blk.endMin)}</span>
+                                        <span style={{ display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', paddingRight: '10px' }}>{fmtHMRange(blk.startMin, blk.endMin)}</span>
                                         <span style={{ opacity: 0.85 }}>{blk.label}</span>
                                     </div>
                                 ))}
@@ -594,7 +592,7 @@ const CalendarGrid = ({
                                                 minute cut-offs at this grid's 76px/hour. */}
                                             {h >= 48 && (
                                                 <div style={{ fontSize: '0.58rem', fontWeight: 600, opacity: 0.8, fontVariantNumeric: 'tabular-nums' }}>
-                                                    {f12(ev.startMin)} – {f12(ev.endMin)}
+                                                    {fmtHMRange(ev.startMin, ev.endMin)}
                                                 </div>
                                             )}
                                             <div style={{ fontSize: '0.74rem', fontWeight: 600, paddingRight: '12px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
@@ -649,14 +647,14 @@ const CalendarGrid = ({
                     }}
                 >
                     {dnd.status.text || (dnd.status.place
-                        ? `${f12(dnd.status.place.startMin)} – ${f12(dnd.status.place.endMin)}`
+                        ? fmtHMRange(dnd.status.place.startMin, dnd.status.place.endMin)
                         : '')}
                 </div>
             )}
 
             <ConflictSheet
                 sheet={dnd.sheet}
-                fmt={f12}
+                fmt={fmtHM}
                 busy={dnd.busy}
                 onChoose={dnd.chooseRoute}
                 onCancel={dnd.cancelSheet}
