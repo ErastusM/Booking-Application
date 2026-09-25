@@ -85,6 +85,7 @@ const Navbar = () => {
         { to: '/dashboard?tab=insights', label: 'Insights' },
         { to: '/dashboard?tab=messages', label: 'Messages' },
         { to: '/dashboard?tab=memberships', label: 'Memberships' },
+        { to: '/dashboard?tab=giftcards', label: 'Gift cards' },
         { to: '/team', label: 'Team' },
     ];
     // Config areas — grouped under the account menu / Settings.

@@ -356,6 +356,15 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         unsubscribe: (endpoint: string) => API.post('/push/unsubscribe', { endpoint }),
     },
 
+    // Gift cards: the owner sells (after being paid directly), a client redeems
+    // the code into their wallet with that business.
+    giftCardService: {
+        list: () => API.get('/giftcards'),
+        create: (data: any) => API.post('/giftcards', data),
+        void: (id: string) => API.post(`/giftcards/${id}/void`),
+        redeem: (code: string) => API.post('/giftcards/redeem', { code }),
+    },
+
     walletService: {
         // Client
         getMyWallets: () => API.get('/wallet/mine'),
