@@ -192,10 +192,15 @@ const Navbar = () => {
     // Calendar (the tab-less dashboard) stays active for any non-nav ?tab. No
     // underline indicator — active state reads from the tinted chip + gold label.
     const bottomTab = ({ to, icon, label }) => {
-        const [toPath, toQs] = to.split('?');
+        const [toPathHash, toQs] = to.split('?');
+        // A staff tab may point at a section of /my-schedule (#services / #account);
+        // bare /my-schedule opens on services, so that tab reads active there.
+        const [toPath, toHash] = toPathHash.split('#');
         const toTab = toQs ? new URLSearchParams(toQs).get('tab') : null;
         const curTab = new URLSearchParams(location.search).get('tab');
-        const active = location.pathname === toPath && (toTab ? curTab === toTab : (toPath === '/dashboard' ? !curTab : true));
+        const active = location.pathname === toPath
+            && (toHash ? (location.hash || '#services') === `#${toHash}` : true)
+            && (toTab ? curTab === toTab : (toPath === '/dashboard' ? !curTab : true));
         return (
             <Link key={to} to={to} aria-label={label} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '3px', textDecoration: 'none', minWidth: 0, WebkitTapHighlightColor: 'transparent' }}>
                 <span style={{
@@ -238,7 +243,7 @@ const Navbar = () => {
                     live in the right cluster/dropdown, so this row stays clean and
                     never has to wrap. */}
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }} className="nav-desktop">
-                    {navCan('calendar:view_all') && navLink('/dashboard', 'Calendar')}
+                    {navCan('calendar:view') && navLink('/dashboard', 'Calendar')}
                     {navCan('clients:assigned') && navLink('/dashboard?tab=clients', 'Clients')}
                     {user?.role === 'provider' && navLink('/dashboard?tab=earnings', 'Earnings')}
                     {user?.role === 'provider' && navLink('/dashboard?tab=services', 'Catalogue')}
@@ -268,7 +273,7 @@ const Navbar = () => {
                             )}
                         </div>
                     )}
-                    {user?.role === 'staff' && navLink('/my-schedule', 'My Schedule')}
+                    {user?.role === 'staff' && navLink('/my-schedule#services', 'Services & hours')}
                     {user?.role === 'admin' && navLink('/bkplus-command', 'Dashboard')}
                     {user?.role === 'admin' && navLink('/bkplus-command/insights', 'Analytics')}
                 </div>
@@ -518,7 +523,7 @@ const Navbar = () => {
 
                     <div style={{ flex: 1, padding: '0.6rem 0' }}>
                         {/* Primary — the four everyday areas (mirrors desktop + bottom nav) */}
-                        {navCan('calendar:view_all') && mobileLink('/dashboard', 'Calendar')}
+                        {navCan('calendar:view') && mobileLink('/dashboard', 'Calendar')}
                         {navCan('clients:assigned') && mobileLink('/dashboard?tab=clients', 'Clients')}
                         {user?.role === 'provider' && mobileLink('/dashboard?tab=earnings', 'Earnings')}
                         {user?.role === 'provider' && mobileLink('/dashboard?tab=services', 'Catalogue')}
@@ -532,7 +537,7 @@ const Navbar = () => {
                         {user?.role === 'provider' && SETTINGS_LINKS.map(l => <React.Fragment key={l.to}>{mobileLink(l.to, l.label)}</React.Fragment>)}
                         {user?.role === 'provider' && mobileLink('/account', 'My Account')}
 
-                        {user?.role === 'staff' && mobileLink('/my-schedule', 'My Schedule')}
+                        {user?.role === 'staff' && mobileLink('/my-schedule#services', 'Services & hours')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command/insights', 'Analytics')}
 
@@ -595,7 +600,7 @@ const Navbar = () => {
 
         {/* Mobile bottom navigation — provider: flat full-width bar flush to the
             bottom edge with a top border (matches the calendar design mock). */}
-        {user?.role === 'provider' && createPortal(
+        {(user?.role === 'provider' || user?.role === 'staff') && createPortal(
             <div className="nav-mobile" style={{
                 position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
                 display: 'flex', justifyContent: 'center',
@@ -635,6 +640,7 @@ const Navbar = () => {
                         which ProviderDashboard turns into openBlankApptModal(). The lift
                         is a transform on THIS span only (a grandchild), never on the
                         fixed bar itself — so the iOS repaint fix above is untouched. */}
+                    {user?.role === 'provider' && (
                     <Link to="/dashboard?new=1" aria-label="New booking" style={{ flexShrink: 0, alignSelf: 'center', margin: '0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', WebkitTapHighlightColor: 'transparent' }}>
                         <span style={{
                             width: '50px', height: '50px', borderRadius: '50%',
@@ -652,11 +658,14 @@ const Navbar = () => {
                             <svg width="24" height="24" fill="none" stroke="currentColor" strokeWidth="2.4" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" d="M12 5v14M5 12h14"/></svg>
                         </span>
                     </Link>
-
-                    {bottomTab({ to: '/dashboard?tab=earnings', label: 'Earnings', icon: (
+                    )}
+                    {user?.role === 'staff' && bottomTab({ to: '/my-schedule#services', label: 'Services', icon: (
+                        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M5 6h14M5 12h14M5 18h9"/></svg>
+                    ) })}
+                    {user?.role === 'provider' && bottomTab({ to: '/dashboard?tab=earnings', label: 'Earnings', icon: (
                         <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
                     ) })}
-                    {bottomTab({ to: '/account', label: 'Account', icon: (
+                    {bottomTab({ to: user?.role === 'staff' ? '/my-schedule#account' : '/account', label: 'Account', icon: (
                         <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                     ) })}
                 </div>

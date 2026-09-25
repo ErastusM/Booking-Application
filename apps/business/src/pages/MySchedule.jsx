@@ -1,7 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { appointmentService, myTimeOffService, myServicesService, myProfileService, myAvailabilityService, myStatsService, timeClockService, authService } from '../services';
+import { useLocation } from 'react-router-dom';
+import { myTimeOffService, myServicesService, myProfileService, myAvailabilityService, myStatsService, timeClockService, authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
-import { CalendarClock, Palmtree, ConciergeBell, Clock, Camera, KeyRound, BarChart3, Timer } from 'lucide-react';
+import { Palmtree, ConciergeBell, Clock, Camera, KeyRound, BarChart3, Timer } from 'lucide-react';
 import Switch from '../components/Switch';
 import { uploadToCloudinary } from '../utils/uploadImage';
 import { cloudinaryAvatar } from '../utils/cloudinary';
@@ -95,7 +96,6 @@ const StatTile = ({ label, value, suffix, note, delta, deltaText, higherIsBad })
 
 const MySchedule = () => {
     const { user, logout } = useAuthContext();
-    const [appointments, setAppointments] = useState(null);
     const todayKey = new Date().toISOString().slice(0, 10);
     const [timeOff, setTimeOff] = useState(null);       // null = loading, false = failed
     const [form, setForm] = useState({ startDate: todayKey, endDate: todayKey, type: 'vacation', note: '' });
@@ -138,10 +138,17 @@ const MySchedule = () => {
     const [pwBusy, setPwBusy] = useState(false);
     const [pwMsg, setPwMsg] = useState('');   // { ok, text }
 
+    // The bottom bar's Services / Account tabs land on a section of this page
+    // (/my-schedule#services, #account). Sections render once their data loads,
+    // so scroll after each load that could have put the target on the page.
+    const { hash } = useLocation();
+    const SECTION_FOR = { '#services': 'my-services', '#hours': 'my-hours', '#account': 'my-profile' };
     useEffect(() => {
-        appointmentService.getAllAppointments({ all: 'true' })
-            .then(res => setAppointments(res.data.data || []))
-            .catch(() => setAppointments([]));
+        const el = SECTION_FOR[hash] && document.querySelector(`[data-testid="${SECTION_FOR[hash]}"]`);
+        if (el) el.scrollIntoView({ block: 'start', behavior: 'smooth' });
+    }, [hash, profile, services, schedule]); // eslint-disable-line react-hooks/exhaustive-deps
+
+    useEffect(() => {
         myProfileService.get()
             .then(res => setProfile({
                 name: res.data.data?.name || '', phone: res.data.data?.phone || '',
@@ -428,47 +435,16 @@ const MySchedule = () => {
         setBusy('');
     };
 
-    const upcoming = (appointments || [])
-        .filter(a => new Date(a.appointmentDate) >= new Date(new Date().setHours(0, 0, 0, 0)) && a.status !== 'cancelled')
-        .sort((a, b) => new Date(a.appointmentDate) - new Date(b.appointmentDate) || a.startTime.localeCompare(b.startTime));
-
     const statusStyle = { pending: ['#a86a12', 'Awaiting approval'], approved: ['#1f8a4c', 'Approved'], declined: ['var(--text-muted)', 'Declined'] };
 
     return (
         <div className="container" style={{ paddingTop: 'calc(56px + 2rem)', paddingBottom: '4rem', maxWidth: '680px' }}>
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.35rem' }}>
-                My schedule
+                Services & hours
             </h1>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', margin: '0 0 1.75rem' }}>
-                Hi {user?.name?.split(' ')[0]} — these are your upcoming appointments.
+                Hi {user?.name?.split(' ')[0]} — your bookings are on your calendar. Set up what you offer and when you work here.
             </p>
-
-            {appointments === null ? (
-                <p style={{ color: 'var(--text-muted)' }}>Loading…</p>
-            ) : upcoming.length === 0 ? (
-                <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '2.5rem 1.5rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                    <CalendarClock size={28} style={{ marginBottom: '0.6rem', color: 'var(--gold)' }} />
-                    <p style={{ margin: 0 }}>Nothing booked yet — enjoy the quiet.</p>
-                </div>
-            ) : (
-                upcoming.map(a => (
-                    <div key={a._id} data-testid="my-schedule-appt" style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.9rem 1.15rem', marginBottom: '0.75rem', display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                        <div style={{ textAlign: 'center', minWidth: '64px' }}>
-                            <p style={{ margin: 0, fontWeight: 600, color: 'var(--gold-dark)', fontSize: '0.8rem' }}>
-                                {new Date(a.appointmentDate).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' })}
-                            </p>
-                            <p className="tnum" style={{ margin: 0, fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.95rem' }}>{a.startTime}</p>
-                        </div>
-                        <div style={{ flex: 1, minWidth: 0 }}>
-                            <p style={{ margin: 0, fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.92rem' }}>{a.service?.name || 'Service'}</p>
-                            <p style={{ margin: '2px 0 0', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                                {a.walkInName || a.customer?.name || 'Client'} · {a.startTime}–{a.endTime}
-                            </p>
-                        </div>
-                        <span style={{ fontSize: '0.72rem', fontWeight: 600, padding: '0.2rem 0.6rem', borderRadius: '99px', textTransform: 'capitalize', background: a.status === 'confirmed' ? 'var(--info-bg)' : 'var(--warning-bg)', color: a.status === 'confirmed' ? 'var(--info-fg)' : 'var(--warning-fg)' }}>{a.status}</span>
-                    </div>
-                ))
-            )}
 
             {/* ── My profile ───────────────────────────────────────── */}
             {profile && profile !== false && (

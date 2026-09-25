@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState, useRef, lazy, Suspense } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import CalendarGrid from '../components/CalendarGrid';
-import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService, waitingListService, earningsService, analyticsService, walletService, providerWalletService, authService } from '../services';
+import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService, waitingListService, earningsService, analyticsService, walletService, providerWalletService, authService, myAvailabilityService, myProfileService } from '../services';
+import StaffReadinessBanner from '../components/StaffReadinessBanner';
 import { useAuthContext } from '../context/AuthContext';
 // Lazy — pulls in the Google Maps SDK only when a new provider is onboarding,
 // keeping it out of the main dashboard bundle.
@@ -94,10 +95,13 @@ const ProviderDashboard = () => {
     // sent back to calendar — and the underlying endpoints 403 for them regardless.
     // Providers/admins hold every capability, so tabAllowed is always true for them.
     const STAFF_TAB_CAPS = {
-        calendar: 'calendar:view_all', pending: 'calendar:view_all', confirmed: 'calendar:view_all',
+        // The calendar is every team member's home: without calendar:view_all the
+        // server narrows it to the bookings they perform (buildAppointmentScope).
+        calendar: 'calendar:view', pending: 'calendar:view_all', confirmed: 'calendar:view_all',
         completed: 'calendar:view_all', cancelled: 'calendar:view_all',
         waitlist: 'waitlist:manage', clients: 'clients:assigned', forms: 'forms:manage',
     };
+    const isStaff = user?.role === 'staff';
     const tabAllowed = (t) => user?.role !== 'staff' || (!!STAFF_TAB_CAPS[t] && hasCap(STAFF_TAB_CAPS[t]));
     // Route ALL programmatic tab switches through the whitelist too — in-app
     // buttons (e.g. "View in History", "Message") must not let a staff member open
@@ -195,6 +199,19 @@ const ProviderDashboard = () => {
         };
     }, [calendarView]);
     const [blockedTimes, setBlockedTimes] = useState([]);
+    // A team member's own roster row id — their calendar shows only the blocked
+    // time that is theirs or closes the whole business, never a colleague's or
+    // the owner's personal blocks.
+    const [myMemberId, setMyMemberId] = useState(null);
+    const calendarBlockedTimes = useMemo(() => {
+        // Front desk / managers see the whole business, so they keep every block.
+        if (!isStaff || hasCap('calendar:view_all')) return blockedTimes;
+        return blockedTimes.filter((b) => {
+            const tm = String(b.teamMember?._id || b.teamMember || '');
+            if (tm) return !!myMemberId && tm === String(myMemberId);
+            return !b.ownerOnly;
+        });
+    }, [blockedTimes, isStaff, myMemberId]); // eslint-disable-line react-hooks/exhaustive-deps
     const [showBlockedTimeForm, setShowBlockedTimeForm] = useState(false);
     const [editingBlockedTime, setEditingBlockedTime] = useState(null);
     const [blockedTimeForm, setBlockedTimeForm] = useState({ blockType: 'Custom', title: '', date: '', startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', customDays: [], teamMember: 'owner' });
@@ -329,6 +346,7 @@ const ProviderDashboard = () => {
             fetchMyServices(),
             fetchCategories(),
             fetchBlockedTimes(),
+            isStaff && myProfileService.get().then((r) => setMyMemberId(r.data.data?._id || null)),
         ]);
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -445,6 +463,13 @@ const ProviderDashboard = () => {
 
     const fetchAvailability = async () => {
         try {
+            // A team member's calendar shades THEIR hours, never the business's —
+            // /availability/me is the owner's own schedule (and owner-only).
+            if (isStaff) {
+                const res = await myAvailabilityService.get();
+                setAvailability(res.data.data?.schedule || null);
+                return;
+            }
             const res = await availabilityService.getMyAvailability();
             setAvailability(res.data.data.schedule);
         } catch { }
@@ -2408,6 +2433,8 @@ const ProviderDashboard = () => {
                             new bookings come from the nav "+" or tapping a slot; tapping a slot
                             also offers "block time". */}
 
+                        {isStaff && <StaffReadinessBanner />}
+
                         {/* Staff filter — who's on the calendar. The house segmented control
                             (styles/index.css) rather than loose pills: one sunken track, the
                             active option raised white, which reads far calmer above the grid. */}
@@ -2449,7 +2476,7 @@ const ProviderDashboard = () => {
                                     teamMembers={teamMembers}
                                     staffFilter={calendarStaffFilter}
                                     appointments={appointments}
-                                    blockedTimes={blockedTimes}
+                                    blockedTimes={calendarBlockedTimes}
                                     availability={availability}
                                     statusColors={statusCalendarColors}
                                     height="100%"
@@ -2470,7 +2497,7 @@ const ProviderDashboard = () => {
                                     onDateChange={setCurrentDate}
                                     onViewChange={setCalendarView}
                                     appointments={appointments}
-                                    blockedTimes={blockedTimes}
+                                    blockedTimes={calendarBlockedTimes}
                                     teamMembers={teamMembers}
                                     ownerName={user?.name}
                                     staffFilter={calendarStaffFilter}

@@ -7,7 +7,8 @@ const { SEED, login } = require('./helpers.cjs');
  *   2. "Send invite" reports truthfully whether the email went out and flips the
  *      member to "invited, awaiting login" (the e2e API has SMTP disabled, so the
  *      honest result here is the "didn't send" branch — the account is still made),
- *   3. a staff member manages their OWN services from My schedule.
+ *   3. a staff member lands on the calendar and manages their OWN services
+ *      from Services & hours.
  */
 
 // A member card is a collapsible; its header is the first button inside it.
@@ -71,10 +72,14 @@ test.describe('Team — invite to log in', () => {
     });
 });
 
-test.describe('My schedule — staff choose their own services', () => {
+test.describe('Services & hours — staff choose their own services', () => {
     test('a staff member selects a service and it persists across a reload', async ({ page }) => {
         await login(page, SEED.staff);
-        await expect(page).toHaveURL(/\/my-schedule/);
+        // A team member's home is the same calendar the owner uses (their own
+        // bookings only); services and hours live on /my-schedule.
+        await expect(page).toHaveURL(/\/dashboard/);
+        await expect(page.getByTestId('calendar-view-menu')).toBeVisible();
+        await page.goto('/my-schedule#services');
 
         const services = page.getByTestId('my-services');
         await expect(services).toBeVisible();

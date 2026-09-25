@@ -30,7 +30,7 @@ const Login = () => {
     };
 
     const homeForRole = (role) =>
-        (role === 'admin' ? '/bkplus-command' : role === 'staff' ? '/my-schedule' : '/dashboard');
+        (role === 'admin' ? '/bkplus-command' : '/dashboard');
 
     // Authenticate the CUSTOMER account with the same credentials. The login
     // response sets the SSO refresh cookie (withCredentials), so a plain
