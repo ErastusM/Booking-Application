@@ -1,5 +1,7 @@
 const { randomUUID } = require('crypto');
 const BlockedTime = require('../models/BlockedTime');
+const TeamMember = require('../models/TeamMember');
+const { can } = require('../utils/permissions');
 
 // The business a request acts on: the owner's own id, or a Medium+ staff
 // member's employer (staffOf). Every provider-scoped query below uses this, so a
@@ -51,6 +53,17 @@ exports.getMyBlockedTimes = async (req, res) => {
         // only business-wide blocks; absent → everything (existing behavior).
         if (req.query.teamMember === 'business') query.teamMember = null;
         else if (req.query.teamMember) query.teamMember = req.query.teamMember;
+        // A team member who sees only their own calendar gets only the blocks that
+        // apply to them: their own, and business-wide closures — never a
+        // colleague's or the owner's personal (ownerOnly) blocks.
+        if (req.user.role === 'staff' && !can(req.user, 'calendar:view_all')) {
+            const member = await TeamMember.findOne({ user: req.user._id, provider: providerId }).select('_id').lean();
+            query.$or = [
+                ...(member ? [{ teamMember: member._id }] : []),
+                { teamMember: null, ownerOnly: { $ne: true } },
+            ];
+            delete query.teamMember;
+        }
         const blocked = await BlockedTime.find(query)
             .sort({ date: 1, startTime: 1 });
         res.status(200).json({ success: true, data: blocked });

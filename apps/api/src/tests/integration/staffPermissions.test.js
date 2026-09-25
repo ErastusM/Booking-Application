@@ -12,6 +12,7 @@ const request = require('supertest');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
 const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = require('../helpers/factories');
+const Appointment = require('../../models/Appointment');
 const TeamMember = require('../../models/TeamMember');
 const User = require('../../models/User');
 
@@ -388,12 +389,12 @@ describe('staff walk-in create (Phase 1c)', () => {
         expect(res.body.data.totalPrice).toBe(50);
     });
 
-    it('a Basic member cannot log a walk-in — the name is ignored and they are booked as themselves', async () => {
+    it('a Basic member cannot log a walk-in — refused, not booked as themselves', async () => {
         const { mosesLogin, service } = await setup([]); // tier null → Basic, no bookings:create
         const res = await book(mosesLogin, walkIn({ service: service._id.toString() }));
-        expect(res.status).toBe(201);
-        expect(res.body.data.walkInName).toBeNull();
-        expect(String(res.body.data.customer?._id || res.body.data.customer)).toBe(String(mosesLogin._id));
+        expect(res.status).toBe(403);
+        expect(res.body.code).toBe('staff_booking_not_allowed');
+        expect(await Appointment.countDocuments({ customer: mosesLogin._id })).toBe(0);
     });
 
     it('is held to the customer past-slot guard — no back-dating a walk-in', async () => {
@@ -409,10 +410,10 @@ describe('staff walk-in create (Phase 1c)', () => {
         await setTier(mosesLogin._id, 'low');
         const other = await makeProvider();
         const otherService = await makeService(other._id);
-        // Not their business → not a walk-in; they book it customer-like (no walkInName).
+        // Not their business → not a walk-in, and a staff account is never booked as a client.
         const res = await book(mosesLogin, walkIn({ service: otherService._id.toString() }));
-        expect(res.status).toBe(201);
-        expect(res.body.data.walkInName).toBeNull();
-        expect(String(res.body.data.customer?._id || res.body.data.customer)).toBe(String(mosesLogin._id));
+        expect(res.status).toBe(403);
+        expect(res.body.code).toBe('staff_booking_not_allowed');
+        expect(await Appointment.countDocuments({ customer: mosesLogin._id })).toBe(0);
     });
 });

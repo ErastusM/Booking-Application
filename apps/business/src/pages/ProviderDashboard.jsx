@@ -1,7 +1,8 @@
 import React, { useEffect, useMemo, useState, useRef, lazy, Suspense } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import CalendarGrid from '../components/CalendarGrid';
-import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService, waitingListService, earningsService, analyticsService, walletService, providerWalletService, authService } from '../services';
+import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService, waitingListService, earningsService, analyticsService, walletService, providerWalletService, authService, myAvailabilityService, myProfileService, myServicesService, providerMarketService } from '../services';
+import StaffReadinessBanner from '../components/StaffReadinessBanner';
 import { useAuthContext } from '../context/AuthContext';
 // Lazy — pulls in the Google Maps SDK only when a new provider is onboarding,
 // keeping it out of the main dashboard bundle.
@@ -28,6 +29,8 @@ import { statusConfig, ContactActions, ChromeModal, CloseButton, StatsSkeleton, 
 const ProviderAccountTopUpModal = lazy(() => import('./dashboard/WalletModals').then(m => ({ default: m.ProviderAccountTopUpModal })));
 const WalletAdjustmentModal = lazy(() => import('./dashboard/WalletModals').then(m => ({ default: m.WalletAdjustmentModal })));
 import StaffLanesDay from './dashboard/StaffLanesDay';
+const MemberServicesTab = lazy(() => import('./dashboard/MemberServicesTab'));
+const MemberHoursTab = lazy(() => import('./dashboard/MemberHoursTab'));
 
 // CSV cell encoding. Two problems with the previous `"${String(c)}"`:
 // a quote inside a value ended the field and corrupted the rest of the row, and a
@@ -94,10 +97,21 @@ const ProviderDashboard = () => {
     // sent back to calendar — and the underlying endpoints 403 for them regardless.
     // Providers/admins hold every capability, so tabAllowed is always true for them.
     const STAFF_TAB_CAPS = {
-        calendar: 'calendar:view_all', pending: 'calendar:view_all', confirmed: 'calendar:view_all',
+        // The calendar is every team member's home: without calendar:view_all the
+        // server narrows it to the bookings they perform (buildAppointmentScope).
+        calendar: 'calendar:view', pending: 'calendar:view_all', confirmed: 'calendar:view_all',
         completed: 'calendar:view_all', cancelled: 'calendar:view_all',
         waitlist: 'waitlist:manage', clients: 'clients:assigned', forms: 'forms:manage',
+        // Their OWN services, hours and conversations (member-scoped screens below).
+        services: 'services:self', availability: 'availability:self', messages: 'calendar:view',
     };
+    const isStaff = user?.role === 'staff';
+    // What this person may do from the calendar. Owners can do everything; a team
+    // member only what their access allows (the server enforces the same).
+    const canBook = !isStaff || hasCap('bookings:create');
+    const canBookExistingClient = !isStaff || hasCap('clients:view');
+    const canManageBlocks = !isStaff || hasCap('calendar:manage');
+    const seesWholeTeam = !isStaff || hasCap('calendar:view_all');
     const tabAllowed = (t) => user?.role !== 'staff' || (!!STAFF_TAB_CAPS[t] && hasCap(STAFF_TAB_CAPS[t]));
     // Route ALL programmatic tab switches through the whitelist too — in-app
     // buttons (e.g. "View in History", "Message") must not let a staff member open
@@ -195,6 +209,22 @@ const ProviderDashboard = () => {
         };
     }, [calendarView]);
     const [blockedTimes, setBlockedTimes] = useState([]);
+    // A team member's own roster row id — their calendar shows only the blocked
+    // time that is theirs or closes the whole business, never a colleague's or
+    // the owner's personal blocks.
+    const [myMemberId, setMyMemberId] = useState(null);
+    // The business a team member works for — their screens say "Vido Barber", not "your business".
+    const [staffBusinessName, setStaffBusinessName] = useState('');
+    const businessName = isStaff ? (staffBusinessName || 'your business') : (user?.businessProfile?.businessName || user?.name || 'your business');
+    const calendarBlockedTimes = useMemo(() => {
+        // Front desk / managers see the whole business, so they keep every block.
+        if (!isStaff || hasCap('calendar:view_all')) return blockedTimes;
+        return blockedTimes.filter((b) => {
+            const tm = String(b.teamMember?._id || b.teamMember || '');
+            if (tm) return !!myMemberId && tm === String(myMemberId);
+            return !b.ownerOnly;
+        });
+    }, [blockedTimes, isStaff, myMemberId]); // eslint-disable-line react-hooks/exhaustive-deps
     const [showBlockedTimeForm, setShowBlockedTimeForm] = useState(false);
     const [editingBlockedTime, setEditingBlockedTime] = useState(null);
     const [blockedTimeForm, setBlockedTimeForm] = useState({ blockType: 'Custom', title: '', date: '', startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', customDays: [], teamMember: 'owner' });
@@ -313,7 +343,7 @@ const ProviderDashboard = () => {
         // strip the flag (via router replace, so a subsequent "+" tap is a real
         // change to location.search and re-opens cleanly).
         if (params.get('new') === '1') {
-            openBlankApptModal();
+            if (canBook) openBlankApptModal();
             params.delete('new');
             const qs = params.toString();
             navigate(qs ? `${location.pathname}?${qs}` : location.pathname, { replace: true });
@@ -329,6 +359,10 @@ const ProviderDashboard = () => {
             fetchMyServices(),
             fetchCategories(),
             fetchBlockedTimes(),
+            isStaff && myProfileService.get().then((r) => setMyMemberId(r.data.data?._id || null)),
+            isStaff && user?.staffOf && providerMarketService.getProviderProfile(user.staffOf)
+                .then((r) => { const p = r.data.data?.provider || r.data.data; setStaffBusinessName(p?.businessProfile?.businessName || p?.name || ''); })
+                .catch(() => {}),
         ]);
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -445,6 +479,13 @@ const ProviderDashboard = () => {
 
     const fetchAvailability = async () => {
         try {
+            // A team member's calendar shades THEIR hours, never the business's —
+            // /availability/me is the owner's own schedule (and owner-only).
+            if (isStaff) {
+                const res = await myAvailabilityService.get();
+                setAvailability(res.data.data?.schedule || null);
+                return;
+            }
             const res = await availabilityService.getMyAvailability();
             setAvailability(res.data.data.schedule);
         } catch { }
@@ -830,7 +871,7 @@ const ProviderDashboard = () => {
     const blankApptFields = { services: [{ serviceId: '' }], clientMode: 'existing', customerId: '', clientName: '', isGroup: false, groupClients: [{ name: '' }], notes: '', startTime: '', teamMember: '' };
     const openBlankApptModal = (extra = {}) => {
         setApptError('');
-        setApptForm(prev => ({ ...prev, ...blankApptFields, date: toDateKey(new Date()), ...extra }));
+        setApptForm(prev => ({ ...prev, ...blankApptFields, ...(canBookExistingClient ? {} : { clientMode: 'walkin' }), date: toDateKey(new Date()), ...extra }));
         setClientPickerSearch('');
         setShowApptModal(true);
     };
@@ -935,6 +976,7 @@ const ProviderDashboard = () => {
     };
 
     const fetchTeam = async () => {
+        if (isStaff && !hasCap('team:manage')) return; // the roster is owner/manager-only
         setLoadingTeam(true);
         try {
             const res = await teamService.getMyTeam();
@@ -1015,12 +1057,26 @@ const ProviderDashboard = () => {
 
     const fetchMyServices = async () => {
         try {
+            if (isStaff) {
+                // The business catalogue is owner-only; a member books their OWN
+                // services, at their own price and time.
+                const res = await myServicesService.get();
+                const d = res.data.data || {};
+                const ids = new Set((d.selected || []).map(String));
+                const ov = (id) => (d.overrides || []).find((o) => String(o.service?._id || o.service) === String(id));
+                const all = d.offersAllServices === true || (d.offersAllServices == null && ids.size === 0);
+                setMyServices((d.services || [])
+                    .filter((svc) => all || ids.has(String(svc._id)))
+                    .map((svc) => ({ ...svc, price: ov(svc._id)?.price ?? svc.price, duration: ov(svc._id)?.duration ?? svc.duration })));
+                return;
+            }
             const res = await providerServiceService.getMyServices();
             setMyServices(res.data.data);
         } catch { }
     };
 
     const fetchCategories = async () => {
+        if (isStaff) return; // categories are the owner's catalogue structure
         try {
             const res = await categoryService.getMyCategories();
             setCategories(res.data.data);
@@ -1540,8 +1596,15 @@ const ProviderDashboard = () => {
                     </>
                 )}
 
+                {/* A team member's own services, in the same Service menu layout */}
+                {activeTab === 'services' && isStaff && (
+                    <Suspense fallback={<RowsSkeleton />}>
+                        <MemberServicesTab curSym={curSym} businessName={businessName} />
+                    </Suspense>
+                )}
+
                 {/* My Services tab */}
-                {activeTab === 'services' && (
+                {activeTab === 'services' && !isStaff && (
                     <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                             <div>
@@ -1679,8 +1742,15 @@ const ProviderDashboard = () => {
                     </div>
                 )}
 
+                {/* A team member's own working hours + time off, in the same layout */}
+                {activeTab === 'availability' && isStaff && (
+                    <Suspense fallback={<RowsSkeleton />}>
+                        <MemberHoursTab businessName={businessName} />
+                    </Suspense>
+                )}
+
                 {/* Availability tab */}
-                {activeTab === 'availability' && (
+                {activeTab === 'availability' && !isStaff && (
                     <div>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                             <div>
@@ -2408,6 +2478,8 @@ const ProviderDashboard = () => {
                             new bookings come from the nav "+" or tapping a slot; tapping a slot
                             also offers "block time". */}
 
+                        {isStaff && <StaffReadinessBanner />}
+
                         {/* Staff filter — who's on the calendar. The house segmented control
                             (styles/index.css) rather than loose pills: one sunken track, the
                             active option raised white, which reads far calmer above the grid. */}
@@ -2416,7 +2488,7 @@ const ProviderDashboard = () => {
                                 <div className="segmented">
                                     {[
                                         { id: 'all', label: 'All staff' },
-                                        { id: 'unassigned', label: `${(user?.name || 'Me').split(' ')[0]} (me)` },
+                                        { id: 'unassigned', label: isStaff ? 'Owner' : `${(user?.name || 'Me').split(' ')[0]} (me)` },
                                         ...teamMembers.filter(m => m.isActive !== false).map(m => ({ id: String(m._id), label: m.name, color: m.color })),
                                     ].map(({ id, label, color }) => {
                                         // 'All staff' is active when no subset is chosen; each other
@@ -2449,14 +2521,14 @@ const ProviderDashboard = () => {
                                     teamMembers={teamMembers}
                                     staffFilter={calendarStaffFilter}
                                     appointments={appointments}
-                                    blockedTimes={blockedTimes}
+                                    blockedTimes={calendarBlockedTimes}
                                     availability={availability}
                                     statusColors={statusCalendarColors}
                                     height="100%"
                                     headerControl={viewMenu}
                                     onApptClick={openApptDetail}
                                     onBlockClick={(block) => openBlockedTimeForm(block)}
-                                    onSlotClick={(sel) => { setApptError(''); setTimeSelectionPreview(sel); }}
+                                    onSlotClick={(canBook || canManageBlocks) ? (sel) => { setApptError(''); setTimeSelectionPreview(sel); } : undefined}
                                     onReschedule={handleCalendarReschedule}
                                     // Reassigning a booking to another performer is owner-only (the
                                     // server refuses it for staff); only wire it up for the owner so a
@@ -2470,7 +2542,7 @@ const ProviderDashboard = () => {
                                     onDateChange={setCurrentDate}
                                     onViewChange={setCalendarView}
                                     appointments={appointments}
-                                    blockedTimes={blockedTimes}
+                                    blockedTimes={calendarBlockedTimes}
                                     teamMembers={teamMembers}
                                     ownerName={user?.name}
                                     staffFilter={calendarStaffFilter}
@@ -2479,7 +2551,7 @@ const ProviderDashboard = () => {
                                     headerControl={viewMenu}
                                     onEventClick={openApptDetail}
                                     onBlockClick={(block) => openBlockedTimeForm(block)}
-                                    onSlotClick={(sel) => { setApptError(''); setTimeSelectionPreview(sel); }}
+                                    onSlotClick={(canBook || canManageBlocks) ? (sel) => { setApptError(''); setTimeSelectionPreview(sel); } : undefined}
                                     onReschedule={handleCalendarReschedule}
                                 />
                             )}
@@ -2555,18 +2627,18 @@ const ProviderDashboard = () => {
                                         </p>
                                     </div>
                                     <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                                        <button onClick={() => {
+                                        {canBook && <button onClick={() => {
                                             // Fresh booking at the picked slot — clear any client left from a
                                             // prior open. teamMember comes from the staff lane if the selection did.
                                             setApptError('');
-                                            setApptForm(prev => ({ ...prev, ...blankApptFields, date: timeSelectionPreview.date, startTime: timeSelectionPreview.startTime, teamMember: timeSelectionPreview.teamMember !== undefined ? timeSelectionPreview.teamMember : prev.teamMember }));
+                                            setApptForm(prev => ({ ...prev, ...blankApptFields, ...(canBookExistingClient ? {} : { clientMode: 'walkin' }), date: timeSelectionPreview.date, startTime: timeSelectionPreview.startTime, teamMember: timeSelectionPreview.teamMember !== undefined ? timeSelectionPreview.teamMember : prev.teamMember }));
                                             setClientPickerSearch('');
                                             setShowApptModal(true);
                                             setTimeSelectionPreview(null);
                                         }} className="btn-primary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.8rem' }}>
                                             <CalendarPlus size={18} strokeWidth={2} /> Add appointment
-                                        </button>
-                                        <button onClick={() => {
+                                        </button>}
+                                        {canManageBlocks && <button onClick={() => {
                                             openBlockedTimeForm(null);
                                             setBlockedTimeForm(prev => ({
                                                 ...prev,
@@ -2578,7 +2650,7 @@ const ProviderDashboard = () => {
                                             setTimeSelectionPreview(null);
                                         }} className="btn-outline" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.8rem' }}>
                                             <Ban size={18} strokeWidth={2} /> Block time
-                                        </button>
+                                        </button>}
                                         <button onClick={() => setTimeSelectionPreview(null)} style={{ width: '100%', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.85rem', padding: '0.4rem', marginTop: '0.1rem' }}>Cancel</button>
                                     </div>
                                 </div>
@@ -3521,7 +3593,7 @@ const ProviderDashboard = () => {
                                             <option value="">Select a service</option>
                                             {myServices.map(s => <option key={s._id} value={s._id}>{s.name} ({s.duration} min)</option>)}
                                         </select>
-                                        {myServices.length === 0 && <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.35rem' }}>No services found. Add services in the Catalogue tab first.</p>}
+                                        {myServices.length === 0 && <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.35rem' }}>{isStaff ? 'You have no services yet. Add yours under Services first.' : 'No services found. Add services in the Catalogue tab first.'}</p>}
                                     </div>
                                 ) : (
                                     <div>
@@ -3552,9 +3624,9 @@ const ProviderDashboard = () => {
                                                     </div>
                                                 );
                                             })}
-                                            <button type="button" onClick={() => setApptForm(f => ({ ...f, services: [...f.services, { serviceId: '' }] }))} style={{ alignSelf: 'flex-start', fontSize: '0.75rem', padding: '0.25rem 0.65rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(240,62,22,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add service</button>
+                                            {!isStaff && <button type="button" onClick={() => setApptForm(f => ({ ...f, services: [...f.services, { serviceId: '' }] }))} style={{ alignSelf: 'flex-start', fontSize: '0.75rem', padding: '0.25rem 0.65rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(240,62,22,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add service</button>}
                                         </div>
-                                        {myServices.length === 0 && <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.35rem' }}>No services found. Add services in the Catalogue tab first.</p>}
+                                        {myServices.length === 0 && <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.35rem' }}>{isStaff ? 'You have no services yet. Add yours under Services first.' : 'No services found. Add services in the Catalogue tab first.'}</p>}
                                         {(() => {
                                             const selected = apptForm.services.map(r => myServices.find(s => s._id === r.serviceId)).filter(Boolean);
                                             if (selected.length === 0) return null;
@@ -3569,7 +3641,7 @@ const ProviderDashboard = () => {
                                         })()}
                                     </div>
                                 )}
-                                {teamMembers.length > 0 && (
+                                {teamMembers.length > 0 && seesWholeTeam && (
                                     <div>
                                         <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Staff member</label>
                                         <select value={apptForm.teamMember} onChange={e => setApptForm(f => ({ ...f, teamMember: e.target.value }))} className="input" style={{ width: '100%' }}>
@@ -3585,9 +3657,9 @@ const ProviderDashboard = () => {
                                         </select>
                                     </div>
                                 )}
-                                {/* Group booking toggle */}
+                                {/* Group booking toggle (owner-only: group bookings are the owner's) */}
                                 <div style={{ borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', padding: '0.75rem 1rem', background: apptForm.isGroup ? 'rgba(240,62,22,0.05)' : 'transparent' }}>
-                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: apptForm.isGroup ? '0.75rem' : 0 }}>
+                                    <div style={{ display: isStaff ? 'none' : 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: apptForm.isGroup ? '0.75rem' : 0 }}>
                                         <div>
                                             <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--charcoal)' }}>Group booking</span>
                                             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>Book multiple clients at once</span>
@@ -3610,7 +3682,7 @@ const ProviderDashboard = () => {
                                         <div>
                                             {/* Choose between an existing registered client and a walk-in */}
                                             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                                                {[{ mode: 'existing', label: 'Existing client' }, { mode: 'walkin', label: 'Guest' }].map(opt => {
+                                                {[{ mode: 'existing', label: 'Existing client' }, { mode: 'walkin', label: 'Guest' }].filter(opt => opt.mode === 'walkin' || canBookExistingClient).map(opt => {
                                                     const active = apptForm.clientMode === opt.mode;
                                                     return (
                                                         <button key={opt.mode} type="button" onClick={() => setApptForm(f => ({ ...f, clientMode: opt.mode }))} style={{
@@ -3678,7 +3750,10 @@ const ProviderDashboard = () => {
                                         const duration = apptForm.isGroup
                                             ? (selectedRowServices[0]?.duration || 30)
                                             : (selectedRowServices.reduce((s, x) => s + (x.duration || 0), 0) || 30);
-                                        let blocks = [{ start: 8 * 60, end: 20 * 60 }];
+                                        // The owner may book outside hours, so their picker falls back to a
+                                        // wide 08:00–20:00. A team member is held to their OWN hours (the
+                                        // server refuses anything else): no hours or a day off = no times.
+                                        let blocks = isStaff ? [] : [{ start: 8 * 60, end: 20 * 60 }];
                                         if (availability) {
                                             const [yy, mm, dd] = apptForm.date.split('-').map(Number);
                                             const dayName = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][new Date(yy, mm - 1, dd).getDay()];
@@ -3694,8 +3769,13 @@ const ProviderDashboard = () => {
                                         // can't be booked around, but a specific member's own bookings never
                                         // conflict with a DIFFERENT member's or the owner's slot.
                                         const rosterIds = new Set(teamMembers.map(m => String(m._id)));
-                                        const laneOf = (tmId) => (tmId && rosterIds.has(String(tmId))) ? String(tmId) : '';
-                                        const selectedLane = apptForm.teamMember ? String(apptForm.teamMember) : '';
+                                        // A team member always books into their OWN column (the server forces
+                                        // it), so their lane is their member id and their own bookings and
+                                        // blocks are what the times must avoid.
+                                        const laneOf = isStaff
+                                            ? (tmId) => (tmId ? String(tmId) : '')
+                                            : (tmId) => (tmId && rosterIds.has(String(tmId))) ? String(tmId) : '';
+                                        const selectedLane = isStaff ? String(myMemberId || '') : (apptForm.teamMember ? String(apptForm.teamMember) : '');
                                         const toMinutes = (t) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m; };
                                         const bookedRanges = [
                                             ...(appointments || []).filter(a => {
@@ -3740,14 +3820,14 @@ const ProviderDashboard = () => {
                                     <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Notes <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional)</span></label>
                                     <textarea value={apptForm.notes} onChange={e => setApptForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Any notes for this appointment..." className="input" style={{ width: '100%', resize: 'vertical' }} />
                                 </div>
-                                {/* Recurring — shared controls (Custom frequency + app calendar) */}
-                                <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                                {/* Recurring — shared controls (Custom frequency + app calendar). Owner-only. */}
+                                {!isStaff && <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
                                     <RecurrenceFields
                                         value={{ isRecurring: apptForm.isRecurring, recurrenceType: apptForm.recurrenceType, recurrenceInterval: apptForm.recurrenceInterval || 1, recurrenceEndDate: apptForm.recurrenceEndDate }}
                                         onChange={(v) => setApptForm(f => ({ ...f, isRecurring: v.isRecurring, recurrenceType: v.recurrenceType, recurrenceInterval: v.recurrenceInterval, recurrenceEndDate: v.recurrenceEndDate }))}
                                         minDate={apptForm.date || undefined}
                                     />
-                                </div>
+                                </div>}
                                 {apptError && <p style={{ color: '#dc2626', fontSize: '0.85rem', margin: 0 }}>{apptError}</p>}
                                 <button type="submit" disabled={savingAppt} style={{ width: '100%', padding: '0.9rem', background: savingAppt ? '#9ca3af' : 'var(--ink)', color: 'var(--on-ink)', border: 'none', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.95rem', fontWeight: '600', cursor: savingAppt ? 'not-allowed' : 'pointer' }}>
                                     {savingAppt ? 'Saving...' : apptForm.isRecurring ? 'Book Recurring Series' : 'Book Appointment'}

@@ -1473,6 +1473,8 @@ exports.getMyProfile = async (req, res) => {
                 phone: member.phone, email: member.email,
                 photoUrl: member.photoUrl, color: member.color,
                 bio: member.bio, pronouns: member.pronouns, languages: member.languages,
+                // Front desk / managers who don't take bookings skip the "go live" nudge.
+                bookable: member.bookable !== false,
             },
         });
     } catch (error) {
@@ -1514,6 +1516,8 @@ exports.setMyProfile = async (req, res) => {
                 phone: member.phone, email: member.email,
                 photoUrl: member.photoUrl, color: member.color,
                 bio: member.bio, pronouns: member.pronouns, languages: member.languages,
+                // Front desk / managers who don't take bookings skip the "go live" nudge.
+                bookable: member.bookable !== false,
             },
         });
     } catch (error) {

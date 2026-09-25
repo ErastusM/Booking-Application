@@ -142,7 +142,10 @@ exports.joinWaitingList = async (req, res) => {
 exports.getProviderWaitingList = async (req, res) => {
     try {
         const query = { status: 'waiting' };
-        if (req.user.role !== 'admin') query.provider = req.user._id;
+        if (req.user.role === 'staff') {
+            if (!req.user.staffOf) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+            query.provider = req.user.staffOf;
+        } else if (req.user.role !== 'admin') query.provider = req.user._id;
         const entries = await WaitingList.find(query)
             .populate('service', 'name price duration')
             .populate('customer', 'name email phone')

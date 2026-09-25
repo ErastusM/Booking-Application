@@ -12,11 +12,13 @@ const { auth, allow } = require('../middleware/auth');
 // the owner path (can() short-circuits for provider/admin) and adds tiered staff.
 // The controllers scope every query to the caller's business, so a staff member
 // only reads/writes their own employer's blocks.
-router.use(auth, allow({ roles: ['provider'], capability: 'calendar:manage' }));
-
-router.get('/', getMyBlockedTimes);
-router.post('/', createBlockedTime);
-router.put('/:id', updateBlockedTime);
-router.delete('/:id', deleteBlockedTime);
+// READING is open to every staff member (calendar:view): a team member's own
+// calendar must show the time that is blocked for them. The controller narrows a
+// member without calendar:view_all to their own blocks plus business-wide ones.
+const canManage = allow({ roles: ['provider'], capability: 'calendar:manage' });
+router.get('/', auth, allow({ roles: ['provider'], capability: 'calendar:view' }), getMyBlockedTimes);
+router.post('/', auth, canManage, createBlockedTime);
+router.put('/:id', auth, canManage, updateBlockedTime);
+router.delete('/:id', auth, canManage, deleteBlockedTime);
 
 module.exports = router;
