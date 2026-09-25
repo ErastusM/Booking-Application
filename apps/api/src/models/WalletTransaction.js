@@ -21,7 +21,7 @@ const walletTransactionSchema = new mongoose.Schema(
 
         type: {
             type: String,
-            enum: ['topup', 'reservation', 'deduction', 'adjustment', 'refund'],
+            enum: ['topup', 'reservation', 'deduction', 'adjustment', 'refund', 'giftcard'],
             required: true,
         },
         status: {
@@ -42,6 +42,7 @@ const walletTransactionSchema = new mongoose.Schema(
         reason: { type: String, default: '' },      // adjustment / refund / note
 
         appointment: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment', default: null },
+        giftCard: { type: mongoose.Schema.Types.ObjectId, ref: 'GiftCard', default: null },
 
         // Audit snapshot — balances immediately before and after this event applied.
         balanceBefore: {

@@ -29,6 +29,7 @@ import { statusConfig, ContactActions, ChromeModal, CloseButton, StatsSkeleton, 
 const ProviderAccountTopUpModal = lazy(() => import('./dashboard/WalletModals').then(m => ({ default: m.ProviderAccountTopUpModal })));
 const WalletAdjustmentModal = lazy(() => import('./dashboard/WalletModals').then(m => ({ default: m.WalletAdjustmentModal })));
 import StaffLanesDay from './dashboard/StaffLanesDay';
+const GiftCards = lazy(() => import('./dashboard/GiftCards'));
 const MemberServicesTab = lazy(() => import('./dashboard/MemberServicesTab'));
 const MemberHoursTab = lazy(() => import('./dashboard/MemberHoursTab'));
 
@@ -330,7 +331,7 @@ const ProviderDashboard = () => {
     useEffect(() => {
         const params = new URLSearchParams(location.search);
         const tab = params.get('tab');
-        const validTabs = ['calendar', 'pending', 'confirmed', 'completed', 'cancelled', 'history', 'services', 'availability', 'overview', 'waitlist', 'earnings', 'insights', 'clients', 'messages', 'memberships', 'team', 'forms', 'wallet'];
+        const validTabs = ['calendar', 'pending', 'confirmed', 'completed', 'cancelled', 'history', 'services', 'availability', 'overview', 'waitlist', 'earnings', 'insights', 'clients', 'messages', 'memberships', 'team', 'forms', 'wallet', 'giftcards'];
         if (tab && validTabs.includes(tab) && tabAllowed(tab)) {
             setActiveTab(tab);
         } else if (!tab || !tabAllowed(tab)) {
@@ -3153,6 +3154,12 @@ const ProviderDashboard = () => {
             )}
 
             {/* ── WALLET TAB ── */}
+            {activeTab === 'giftcards' && (
+                <Suspense fallback={<RowsSkeleton />}>
+                    <GiftCards currency={curCode} businessName={user?.businessProfile?.businessName || user?.name || ''} />
+                </Suspense>
+            )}
+
             {activeTab === 'wallet' && (
                 <div>
                     {walletError && !walletSummary ? (

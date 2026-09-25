@@ -434,6 +434,28 @@ exports.sendRebookingPrompt = async (email, name, serviceName, providerName, pro
     });
 };
 
+// A gift card sold by a business — sent to the person it's for. The code is
+// what they redeem in their Bookplus wallet; the button pre-fills it.
+exports.sendGiftCard = async (email, { recipientName, fromName, businessName, amountLabel, code, message }) => {
+    const href = `${primaryOrigin() || '#'}/wallet?redeem=${encodeURIComponent(code)}`;
+    const from = fromName ? `${escapeHtml(fromName)} sent you` : 'You have';
+    await safeSend({
+        from: FROM, to: email, subject: `${fromName ? `${fromName} sent you` : 'You have'} a ${amountLabel} gift card for ${businessName}`,
+        html: shell({
+            heading: `${escapeHtml(recipientName)}, you've got a gift card`,
+            preheader: `${amountLabel} to spend at ${businessName}`,
+            inner: `${p(`${from} <strong>${escapeHtml(amountLabel)}</strong> to spend at <strong>${escapeHtml(businessName)}</strong>.`)}
+                ${message ? `<p style="margin:16px 0;padding:12px 14px;border:1px solid #d3d7d5;border-radius:12px;font-style:italic;">“${escapeHtml(message)}”</p>` : ''}
+                <div style="margin:18px 0;padding:14px;border:1px dashed #5b6260;border-radius:12px;text-align:center;">
+                    <div style="font-size:12px;color:#5b6260;">Your code</div>
+                    <div style="font-family:ui-monospace,Menlo,Consolas,monospace;font-size:22px;letter-spacing:2px;font-weight:700;">${escapeHtml(code)}</div>
+                </div>
+                <div style="margin:24px 0;">${primaryButton(href, 'Redeem and book')}</div>
+                ${p(`Redeeming adds ${escapeHtml(amountLabel)} to your Bookplus wallet with ${escapeHtml(businessName)}. Choose your wallet when you book with them.`)}`,
+        }),
+    });
+};
+
 exports.sendPasswordResetEmail = async (email, name, token, role) => {
     // Reset on the app the account belongs to (a business owner resets on the
     // business app, not the customer site).

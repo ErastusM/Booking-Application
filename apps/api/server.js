@@ -40,6 +40,7 @@ const suggestionRoutes = require('./src/routes/suggestionRoutes');
 const formRoutes = require('./src/routes/formRoutes');
 const pushRoutes = require('./src/routes/pushRoutes');
 const walletRoutes = require('./src/routes/walletRoutes');
+const giftCardRoutes = require('./src/routes/giftCardRoutes');
 const providerWalletRoutes = require('./src/routes/providerWalletRoutes');
 const sitemapRoutes = require('./src/routes/sitemapRoutes');
 const clientErrorRoutes = require('./src/routes/clientErrorRoutes');
@@ -234,6 +235,7 @@ app.use('/api/suggestions', readOrWrite, suggestionRoutes);
 app.use('/api/forms', readOrWrite, formRoutes);
 app.use('/api/push', readOrWrite, pushRoutes);
 app.use('/api/wallet', readOrWrite, walletRoutes);
+app.use('/api/giftcards', readOrWrite, giftCardRoutes);
 app.use('/api/provider-wallet', readOrWrite, providerWalletRoutes);
 // SEO — dynamic sitemap + robots.txt (nginx maps www.bookplus.pro/{sitemap.xml,robots.txt} here).
 app.use('/api/seo', readLimiter, sitemapRoutes);

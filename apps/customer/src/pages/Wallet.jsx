@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useCallback, useMemo } from 'react';
-import { Link } from 'react-router-dom';
-import { walletService } from '../services';
+import { Link, useSearchParams } from 'react-router-dom';
+import { walletService, giftCardService } from '../services';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { currencySymbol } from '../utils/currency';
-import { Wallet as WalletIcon, Clock, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { Wallet as WalletIcon, Clock, Check, ChevronDown, ChevronUp, Gift } from 'lucide-react';
 import WalletTopUpModal from '../components/WalletTopUpModal';
 import { useToast } from '../components/Toast';
 
@@ -24,6 +24,8 @@ const describe = (t, cur) => {
             if (t.status === 'reserved') return { label: 'Reserved for booking', amount: `${money(t.amount, cur)} held`, color: hold };
             if (t.status === 'released') return { label: 'Reservation released', amount: `${money(t.amount, cur)} freed`, color: credit };
             return { label: 'Reservation used', amount: money(t.amount, cur), color: muted };
+        case 'giftcard':
+            return { label: `Gift card redeemed${t.reference ? ` · ${t.reference}` : ''}`, amount: `+${money(t.amount, cur)}`, color: credit };
         case 'deduction':
             return { label: 'Service deduction', amount: `−${money(t.amount, cur)}`, color: debit };
         case 'refund':
@@ -53,6 +55,11 @@ const Wallet = () => {
     const [topUpFor, setTopUpFor] = useState(null); // wallet object for the top-up modal
     const [busyId, setBusyId] = useState('');
     const [loadError, setLoadError] = useState('');
+    // Redeem a gift card. A gift card email links here with ?redeem=<code>.
+    const [searchParams] = useSearchParams();
+    const [giftCode, setGiftCode] = useState(() => searchParams.get('redeem') || '');
+    const [giftBusy, setGiftBusy] = useState(false);
+    const [giftResult, setGiftResult] = useState(null); // { ok, text, providerId? }
 
     const load = useCallback(async () => {
         try {
@@ -96,6 +103,22 @@ const Wallet = () => {
         }
     };
 
+    const redeemGift = async (e) => {
+        e.preventDefault();
+        if (!giftCode.trim()) return;
+        setGiftBusy(true); setGiftResult(null);
+        try {
+            const res = await giftCardService.redeem(giftCode.trim());
+            const d = res.data.data;
+            setGiftResult({ ok: true, text: `${money(d.amount, d.provider?.currency)} added to your wallet with ${d.provider?.name}.`, providerId: d.provider?._id, providerName: d.provider?.name });
+            setGiftCode('');
+            setTxns({}); setExpanded(null);
+            await load();
+        } catch (err) {
+            setGiftResult({ ok: false, text: err.response?.data?.message || 'Could not redeem the gift card. Please try again.' });
+        } finally { setGiftBusy(false); }
+    };
+
     const resolveAdjustment = async (id, approve) => {
         setBusyId(id);
         try {
@@ -117,6 +140,28 @@ const Wallet = () => {
             <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', margin: '0 0 1.75rem' }}>
                 Prepaid balances you hold with your businesses. Top up by paying the business directly — they approve it and your balance updates.
             </p>
+
+            {/* Redeem a gift card */}
+            <form onSubmit={redeemGift} data-testid="redeem-gift" style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem 1.15rem', marginBottom: '1.75rem', display: 'flex', flexDirection: 'column', gap: '0.7rem' }}>
+                <label htmlFor="gift-code" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontFamily: 'var(--font-display)', fontWeight: 700, fontSize: '1.05rem', color: 'var(--charcoal)' }}>
+                    <Gift size={20} color="var(--gold-dark)" aria-hidden="true" />Redeem a gift card
+                </label>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                    <input id="gift-code" className="input" value={giftCode} onChange={(e) => setGiftCode(e.target.value.toUpperCase())} placeholder="GIFT-XXXX-XXXX" autoComplete="off" autoCapitalize="characters" spellCheck="false"
+                        style={{ flex: 1, minWidth: 0, fontFamily: 'ui-monospace, Menlo, Consolas, monospace', letterSpacing: '0.06em' }} />
+                    <button type="submit" className="btn-primary" disabled={giftBusy || !giftCode.trim()} style={{ minHeight: '48px', padding: '0 1.1rem', flexShrink: 0 }}>
+                        {giftBusy ? 'Redeeming…' : 'Redeem'}
+                    </button>
+                </div>
+                {giftResult && (
+                    <div role="status" style={{ padding: '0.65rem 0.8rem', borderRadius: '10px', fontSize: '0.88rem', fontWeight: 600, background: giftResult.ok ? '#dff1e7' : 'var(--danger-bg)', color: giftResult.ok ? '#1a5e3b' : 'var(--danger-fg)', display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '0.5rem' }}>
+                        <span>{giftResult.text}</span>
+                        {giftResult.ok && giftResult.providerId && (
+                            <Link to={`/providers/${giftResult.providerId}`} style={{ color: 'inherit', textDecoration: 'underline' }}>Book with {giftResult.providerName}</Link>
+                        )}
+                    </div>
+                )}
+            </form>
 
             {/* Adjustments awaiting the client's approval */}
             {pendingAdjustments.length > 0 && (
