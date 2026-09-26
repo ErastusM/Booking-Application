@@ -24,7 +24,8 @@
  * CLOUDINARY_CLOUD_NAME + CLOUDINARY_API_KEY + CLOUDINARY_API_SECRET), nothing
  * can be moved: the rows are PRINTED instead so they can be handled by hand, and
  * the links keep working exactly as before (still visible only to the payer and
- * the business through the new proof endpoint).
+ * the business through the new proof endpoint). The deploy log only ever shows
+ * row ids and counts — never a proof URL.
  *
  * Run locally:   node scripts/migrate_private_proofs.js
  * In Docker:     docker compose exec -T server node scripts/migrate_private_proofs.js
@@ -92,7 +93,26 @@ async function migratePrivateProofs({ log = () => {} } = {}) {
     return result;
 }
 
-module.exports = { migratePrivateProofs };
+// Cloudinary error text can quote the public id; keep the log to ids and counts.
+const redactReason = (reason) => String(reason || '').replace(/https?:\/\/\S+/g, '[url]').replace(/bookplus\/proofs\/\S+/g, '[file]').slice(0, 120);
+
+/** The deploy-log lines for a run: counts and row ids, never a URL. */
+function report(r) {
+    const lines = [];
+    if (!r.found) {
+        lines.push('migrate_private_proofs: no public proofs of payment left.');
+    } else if (!r.configured) {
+        lines.push(`migrate_private_proofs: ${r.found} proof(s) of payment are still public, and this server has no Cloudinary credentials (CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET), so they could not be made private. Add the credentials and redeploy. Rows:`);
+        r.pending.slice(0, 200).forEach((p) => lines.push(`  ${p.collection} ${p.id}`));
+        if (r.pending.length > 200) lines.push(`  …and ${r.pending.length - 200} more.`);
+    } else {
+        lines.push(`migrate_private_proofs: ${r.moved} made private, ${r.alreadyPrivate} already private, ${r.skipped.length} could not be moved.`);
+        r.skipped.slice(0, 200).forEach((p) => lines.push(`  NOT MOVED ${p.collection} ${p.id}  (${redactReason(p.reason)})`));
+    }
+    return lines;
+}
+
+module.exports = { migratePrivateProofs, redactReason, report };
 
 // CLI entry point (skipped when required by tests). Always exits 0: making old
 // proofs private must never block a deploy — the worst case is they stay as they
@@ -105,16 +125,7 @@ if (require.main === module) {
         if (!uri) { console.log('migrate_private_proofs: MONGODB_URI is not set — skipped.'); return; }
         await mongoose.connect(uri);
         const r = await migratePrivateProofs({ log: (l) => console.log(l) });
-        if (!r.found) {
-            console.log('migrate_private_proofs: no public proofs of payment left.');
-        } else if (!r.configured) {
-            console.log(`migrate_private_proofs: ${r.found} proof(s) of payment are still at PUBLIC Cloudinary URLs, and this server has no Cloudinary credentials (CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET), so they could not be made private. Add the credentials and redeploy, or make them private by hand:`);
-            r.pending.slice(0, 200).forEach((p) => console.log(`  ${p.collection} ${p.id}  ${p.url}`));
-            if (r.pending.length > 200) console.log(`  …and ${r.pending.length - 200} more.`);
-        } else {
-            console.log(`migrate_private_proofs: ${r.moved} made private, ${r.alreadyPrivate} already private, ${r.skipped.length} could not be moved.`);
-            r.skipped.slice(0, 200).forEach((p) => console.log(`  NOT MOVED ${p.collection} ${p.id}  ${p.url}  (${p.reason})`));
-        }
+        report(r).forEach((l) => console.log(l));
         await mongoose.disconnect();
     })()
         .catch((err) => console.log(`migrate_private_proofs: failed (${err.message}) — proofs left as they were.`))

@@ -29,6 +29,9 @@ export const uploadProof = async (file) => {
     try {
         params = (await walletService.proofUploadParams()).data.data;
     } catch (err) {
+        // 503 = the server has no private-upload keys yet. Say so plainly; the
+        // top-up still goes through with the payment reference.
+        if (err?.response?.status === 503) throw new Error('Photo proofs are temporarily unavailable — add your payment reference instead.');
         throw new Error(err?.response?.data?.message || 'Could not upload that file — try again.');
     }
     const fd = new FormData();

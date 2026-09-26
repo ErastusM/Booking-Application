@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
 const cloudinary = require('../utils/cloudinary');
+const logger = require('pino')({ level: process.env.LOG_LEVEL || 'info' });
+exports._logger = logger; // test hook
 const Wallet = require('../models/Wallet');
 const WalletTransaction = require('../models/WalletTransaction');
 const User = require('../models/User');
@@ -107,6 +109,12 @@ exports.createTopUp = async (req, res) => {
             method: ['manual', 'cash'].includes(method) ? method : 'manual',
         });
 
+        if (!txn.proof?.publicId && req.body.proofUrl) {
+            // An app version from before private proofs uploaded publicly and sent
+            // the link. It is not stored; log the row id (never the URL) so these
+            // can be followed up.
+            logger.warn({ transactionId: String(txn._id), legacyProofUrl: true }, 'Top-up sent a legacy public proofUrl — ignored');
+        }
         const note = `New ${method === 'cash' ? 'cash ' : ''}wallet top-up request: ${money(amount)} from ${req.user.name}`;
         createNotification(providerId, note, 'wallet', '/dashboard');
         // The admin can also see and allocate top-ups.
@@ -128,7 +136,7 @@ exports.proofUploadParams = async (req, res) => {
     if (!cloudinary.isConfigured()) {
         return res.status(503).json({
             success: false, code: 'proof_upload_unavailable',
-            message: 'Uploading a proof is unavailable right now. Add your payment reference instead — the business can still match your payment.',
+            message: 'Photo proofs are temporarily unavailable — add your payment reference instead.',
         });
     }
     return res.status(200).json({ success: true, data: cloudinary.proofUploadParams(req.user._id) });

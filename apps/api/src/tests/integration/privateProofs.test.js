@@ -13,7 +13,7 @@ const WalletTransaction = require('../../models/WalletTransaction');
 const ProviderWalletTransaction = require('../../models/ProviderWalletTransaction');
 const Wallet = require('../../models/Wallet');
 const cloudinary = require('../../utils/cloudinary');
-const { migratePrivateProofs } = require('../../../scripts/migrate_private_proofs');
+const { migratePrivateProofs, report } = require('../../../scripts/migrate_private_proofs');
 
 const CLOUD = 'testcloud';
 const realFetch = global.fetch;
@@ -88,6 +88,18 @@ describe('client wallet top-up proofs', () => {
         // Listings never carry it either.
         const list = await request(app).get('/api/wallet/provider/topups').set(authHeader(provider));
         expect(JSON.stringify(list.body)).not.toContain('bookplus/proofs');
+    });
+
+    it('logs the id (never the URL) when an old app sends a public proofUrl', async () => {
+        const [customer, provider] = [await makeUser(), await makeProvider()];
+        const warn = jest.spyOn(require('../../controllers/walletController')._logger, 'warn');
+        const url = 'https://res.cloudinary.com/x/image/upload/v1/secret-proof.jpg';
+        const r = await topUp(customer, provider, { proofUrl: url });
+        expect(r.status).toBe(201);
+        const call = warn.mock.calls.find(([o]) => o && o.legacyProofUrl);
+        expect(call[0].transactionId).toBe(r.body.data._id);
+        expect(JSON.stringify(call)).not.toContain('secret-proof');
+        warn.mockRestore();
     });
 
     it('ignores someone else’s proof and bare public URLs', async () => {
@@ -219,6 +231,21 @@ describe('migrate_private_proofs', () => {
         expect(r.pending).toHaveLength(3);
         expect(global.fetch).not.toHaveBeenCalled();
         expect((await WalletTransaction.findById(t1._id)).proofUrl).toContain('res.cloudinary.com');
+    });
+
+    it('the deploy log shows ids and counts only — never a proof URL', async () => {
+        const { t1 } = await seedLegacy();
+        delete process.env.CLOUDINARY_URL;
+        const unconfigured = report(await migratePrivateProofs()).join('\n');
+        process.env.CLOUDINARY_URL = `cloudinary://key123:secret456@${CLOUD}`;
+        global.fetch = jest.fn(async () => ({ ok: false, status: 400, json: async () => ({ error: { message: `bad https://res.cloudinary.com/${CLOUD}/image/upload/abc123.jpg` } }) }));
+        const failing = report(await migratePrivateProofs()).join('\n');
+        for (const out of [unconfigured, failing]) {
+            expect(out).toContain(String(t1._id));
+            expect(out).not.toMatch(/https?:\/\//);
+            expect(out).not.toContain('abc123');
+            expect(out).not.toContain('elsewhere.png');
+        }
     });
 
     it('a legacy public proof is still shown only to the payer and the business', async () => {

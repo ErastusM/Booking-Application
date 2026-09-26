@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 const cloudinary = require('../utils/cloudinary');
+const logger = require('pino')({ level: process.env.LOG_LEVEL || 'info' });
 const ProviderWallet = require('../models/ProviderWallet');
 const ProviderWalletTransaction = require('../models/ProviderWalletTransaction');
 const User = require('../models/User');
@@ -55,6 +56,12 @@ exports.submitTopUp = async (req, res) => {
             })(),
             initiatedBy: req.user._id,
         });
+        if (!txn.proof?.publicId && req.body.proofUrl) {
+            // An app version from before private proofs uploaded publicly and sent
+            // the link. It is not stored; log the row id (never the URL) so these
+            // can be followed up.
+            logger.warn({ transactionId: String(txn._id), legacyProofUrl: true }, 'Top-up sent a legacy public proofUrl — ignored');
+        }
         notifyAdmins(`Provider top-up request: ${money(amount)} from ${req.user.name}`, 'wallet', '/bkplus-command');
         res.status(201).json({ success: true, message: 'Top-up submitted for admin approval', data: { wallet, transaction: txn } });
     } catch (error) {
