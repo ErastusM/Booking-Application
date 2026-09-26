@@ -243,6 +243,9 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
 
     teamService: {
         getMyTeam: () => API.get('/team'),
+        // Who is on the calendar — names and colours only, scoped like the
+        // calendar (a Service provider gets just themselves). Owner or staff.
+        getCalendarRoster: () => API.get('/team/mine/calendar'),
         addMember: (data: any) => API.post('/team', data),
         // Add several members at once. Returns { created, failed, results[] } —
         // each row validated independently, a bad row doesn't fail the batch.

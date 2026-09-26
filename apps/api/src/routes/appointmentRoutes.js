@@ -76,10 +76,13 @@ router.post('/manage/:token/reschedule', rescheduleAppointmentByToken);
 // still gates provider-only powers (walk-ins, book-on-behalf) on req.user.role.
 router.post('/', optionalAuth, guestBookingLimiter, accountBookingLimiter, createAppointmentRules, createAppointment);
 // Provider-built multi-service booking ("Add service" flow) — provider-only.
-router.post('/multi', auth, authorize('provider'), createMultiServiceAppointment);
+// The owner, or a team member whose access includes bookings:create — the same
+// "+ Add service" and Group booking the owner has. The controllers hold a member
+// to their own column, their own clients and every customer guard.
+router.post('/multi', auth, allow({ roles: ['provider'], capability: 'bookings:create' }), createMultiServiceAppointment);
 router.get('/my-appointments', auth, getMyAppointments);
 router.get('/history', auth, authorize('provider', 'admin'), getAppointmentHistory);
-router.post('/group', auth, authorize('provider', 'admin'), createGroupBooking);
+router.post('/group', auth, allow({ roles: ['provider', 'admin'], capability: 'bookings:create' }), createGroupBooking);
 router.get('/group/:groupId', auth, getGroupBooking);
 // All-time dashboard counters (windowing-safe). Same auth as the list — the
 // controller scopes by role, so a staff/customer principal only ever summarises

@@ -10,7 +10,7 @@ const {
     getTeamMemberAvailability, updateTeamMemberAvailability,
     getMyServices, setMyServices, addMyService, addTeamMemberService, setMyPricing,
     getMyProfile, setMyProfile, getMyAvailability, setMyAvailability,
-    getMyStats,
+    getMyStats, getCalendarRoster,
 } = require('../controllers/teamMemberController');
 const {
     listTimeOff, createTimeOff, decideTimeOff, deleteTimeOff,
@@ -44,6 +44,10 @@ router.put('/mine/pricing', auth, setMyPricing);
 // so a staff member — not just the owner — can reach it, and before '/:id/stats'
 // so 'mine' isn't read as a member id.
 router.get('/mine/stats', auth, getMyStats);
+// Who is on the calendar (names + colours only), scoped like the calendar: the
+// owner and whole-calendar members see everyone, a Service provider only
+// themselves. Before '/:id/*' so 'mine' isn't read as a member id.
+router.get('/mine/calendar', auth, allow({ roles: ['provider'], capability: 'calendar:view' }), getCalendarRoster);
 
 // From here down, every route was previously gated by a single blanket
 // `authorize('provider','admin')`. Phase 3c opens the OPERATIONAL roster

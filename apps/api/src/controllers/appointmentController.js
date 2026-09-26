@@ -2,6 +2,7 @@ const pino = require('pino');
 const { isFullName, FULL_NAME_MESSAGE } = require('../utils/personName');
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const { randomUUID } = require('crypto');
+const mongoose = require('mongoose');
 const Appointment = require('../models/Appointment');
 const Availability = require('../models/Availability');
 const Service = require('../models/Service');
@@ -681,6 +682,78 @@ const staffCanActOnAppointment = async (user, appointment, { unscoped, selfScope
         return !!(m && appointmentInvolvesMember(appointment, m._id));
     }
     return false;
+};
+
+/**
+ * A team member booking from the owner's New Appointment screen — the
+ * multi-service ("+ Add service") and group paths. The same rules the single
+ * booking path (createAppointment) applies to a member, in one place:
+ *   - bookings:create, and only for the business they work for;
+ *   - whose column it lands in: their OWN, unless they see the whole calendar
+ *     (calendar:view_all) and name a colleague or the owner ('owner') for a
+ *     booking of existing clients — a walk-in always goes in their own column;
+ *   - which existing clients: any of the business's clients with clients:view
+ *     (or the owner-granted clients:view_all), otherwise ONLY the clients they
+ *     personally serve. Checked before any client record is read, so a member
+ *     can't probe other accounts.
+ * Returns { error: { status, message } } or { performer, ownMemberId } where
+ * performer is a TeamMember id, or null for the owner's own column.
+ */
+const staffBookingScope = async (req, providerId, { customerIds = [], walkIn = false, teamMember = null } = {}) => {
+    const refuse = (status, message) => ({ error: { status, message, code: 'staff_booking_not_allowed' } });
+    if (!can(req.user, 'bookings:create')) return refuse(403, 'Your access doesn’t include making bookings. Ask the owner.');
+    if (!providerId || String(providerId) !== String(req.user.staffOf)) return refuse(403, 'You can only book services of the business you work for.');
+    const mine = await staffMemberOf(req.user);
+    if (!mine) return refuse(403, 'You do not have a bookable staff profile to book under.');
+
+    let performer = mine._id;
+    if (can(req.user, 'calendar:view_all') && !walkIn && teamMember) {
+        performer = String(teamMember) === 'owner' ? null : teamMember;
+        if (performer && !mongoose.isValidObjectId(performer)) return refuse(400, 'Unknown team member');
+    }
+
+    const seesAllClients = can(req.user, 'clients:view') || can(req.user, 'clients:view_all');
+    for (const id of customerIds) {
+        if (!seesAllClients) {
+            const serves = await Appointment.exists({ provider: providerId, customer: id, ...memberInvolvedFilter(mine._id) });
+            if (!serves) return refuse(403, 'You can only book clients you serve. Book a new client as a walk-in by name instead.');
+        }
+        const client = await User.findById(id).select('role');
+        const isClient = client?.role === 'customer' && await Appointment.exists({ customer: id, provider: providerId });
+        if (!isClient) return refuse(403, 'You can only book on behalf of an existing client. Use a walk-in for a first-time client.');
+    }
+    return { performer, ownMemberId: mine._id };
+};
+
+/**
+ * Everything a team member's booking is held to for one window — exactly what
+ * createAppointment holds them to (a member never gets the owner's override):
+ * not in the past, inside the business's published hours (unless the
+ * performer's date-specific shift governs the day), the performer bookable,
+ * offering the service and free (their own hours, leave, blocks and bookings,
+ * via resolveBookingStaff's customer path), and clear of blocked time.
+ * Returns null when the window is fine, else { status, message }.
+ */
+const staffWindowError = async ({ req, svc, providerId, appointmentDate, startTime, endTime, performer }) => {
+    if (isPastSlot(appointmentDate, startTime)) {
+        return { status: 400, message: 'That time has already passed. Please pick a later slot.' };
+    }
+    const availabilityDoc = await Availability.findOne({ provider: providerId });
+    const schedule = availabilityDoc?.schedule || null;
+    const shiftGoverns = performer && await shiftGovernsHours(performer, appointmentDate);
+    if (schedule && !shiftGoverns
+        && !isTimeWithinSchedule(schedule, appointmentDate, startTime, parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime))) {
+        return { status: 400, message: 'Selected time is outside the provider availability schedule' };
+    }
+    const resolution = await resolveBookingStaff({
+        svc, providerId, appointmentDate, startTime, endTime,
+        requestedTeamMember: performer || 'owner', requester: req.user,
+    });
+    if (resolution.error) return { status: resolution.status, message: resolution.error };
+    if (await overlapsBlockedTime({ providerId, appointmentDate, startTime, endTime, teamMember: performer || null })) {
+        return { status: 400, message: BLOCKED_MESSAGE };
+    }
+    return null;
 };
 
 exports.getAllAppointments = async (req, res) => {
@@ -1569,7 +1642,10 @@ exports.createAppointment = async (req, res) => {
 // single-service createAppointment above is deliberately left untouched.
 exports.createMultiServiceAppointment = async (req, res) => {
     try {
-        if (req.user?.role !== 'provider') {
+        // The owner, or a team member whose access includes making bookings (the
+        // same "+ Add service" screen; held to every customer guard — see below).
+        const isStaffActor = req.user?.role === 'staff';
+        if (req.user?.role !== 'provider' && !isStaffActor) {
             return res.status(403).json({ success: false, message: 'Only providers can build a multi-service booking here.' });
         }
         const { appointmentDate, startTime, services: reqServices, notes, customerId, walkInName, teamMember, paymentMethod } = req.body;
@@ -1585,7 +1661,22 @@ exports.createMultiServiceAppointment = async (req, res) => {
         // Load + validate every service belongs to this provider. Price/duration/name
         // come from the catalogue, never the request body, and each service is laid
         // out back-to-back from startTime.
-        const providerId = req.user._id;
+        const providerId = isStaffActor ? req.user.staffOf : req.user._id;
+        // A member's booking lands in THEIR column (or, seeing the whole calendar,
+        // the colleague/owner they name for an existing client), for the clients
+        // they may book — resolved once, before any service is priced.
+        let staffPerformer;
+        let staffMemberDoc = null;
+        if (isStaffActor) {
+            const scope = await staffBookingScope(req, providerId, {
+                customerIds: customerId ? [customerId] : [],
+                walkIn: !customerId,
+                teamMember,
+            });
+            if (scope.error) return res.status(scope.error.status).json({ success: false, code: scope.error.code, message: scope.error.message });
+            staffPerformer = scope.performer;
+            if (staffPerformer) staffMemberDoc = await TeamMember.findOne({ _id: staffPerformer, provider: providerId }).select('serviceOverrides');
+        }
         // Multi-location (write threading): validate + record a named location,
         // same contract as the single-service path — absent → null (primary).
         const msLoc = await resolveBookingLocation(providerId, req.body.locationId);
@@ -1610,7 +1701,12 @@ exports.createMultiServiceAppointment = async (req, res) => {
             if (String(svc.provider) !== String(providerId)) {
                 return res.status(403).json({ success: false, message: 'You can only add your own services.' });
             }
-            const segMember = segMemberById.get(String(item?.teamMember || teamMember || '')) || null;
+            // Each segment is priced and timed for the person doing it (their
+            // serviceOverrides, read from the roster, never the body). A member's
+            // segments are all theirs (or the colleague they may name).
+            const segMember = isStaffActor
+                ? staffMemberDoc
+                : (segMemberById.get(String(item?.teamMember || teamMember || '')) || null);
             const ov = segMember ? overrideFor(segMember, svc._id) : null;
             const baseDuration = (ov && ov.duration != null) ? ov.duration : svc.duration;
             const duration = (typeof baseDuration === 'number' && baseDuration > 0) ? baseDuration : 30;
@@ -1621,7 +1717,8 @@ exports.createMultiServiceAppointment = async (req, res) => {
                 duration,
                 startTime: minutesToTime(cursor),
                 endTime: minutesToTime(cursor + duration),
-                teamMember: item?.teamMember || teamMember || null,
+                teamMember: isStaffActor ? (staffPerformer || null) : (item?.teamMember || teamMember || null),
+                _svc: svc,
             });
             cursor += duration;
         }
@@ -1645,8 +1742,21 @@ exports.createMultiServiceAppointment = async (req, res) => {
         if (!validBookingWindow(spanStart, spanEnd)) {
             return res.status(400).json({ success: false, message: 'These services would run past midnight. Pick an earlier start.' });
         }
+        // A member never gets the owner's override: every segment is held to the
+        // past-slot, published-hours, performer (bookable, offers it, free) and
+        // blocked-time guards the single booking path applies to them.
+        if (isStaffActor) {
+            for (const seg of built) {
+                const bad = await staffWindowError({
+                    req, svc: seg._svc, providerId, appointmentDate,
+                    startTime: seg.startTime, endTime: seg.endTime, performer: seg.teamMember,
+                });
+                if (bad) return res.status(bad.status).json({ success: false, message: bad.message });
+            }
+        }
+        built.forEach((seg) => { delete seg._svc; });
         const totalPrice = built.reduce((s, x) => s + x.price, 0);
-        const primaryTeamMember = built[0].teamMember || teamMember || null;
+        const primaryTeamMember = isStaffActor ? (staffPerformer || null) : (built[0].teamMember || teamMember || null);
 
         // Resolve the client: an existing client of THIS provider, or a walk-in
         // (matches the ownership rule the single-service create enforces).
@@ -2824,22 +2934,46 @@ exports.createGroupBooking = async (req, res) => {
         const providerId = svc.provider || null;
 
         // The service must belong to the caller — otherwise another business's
-        // service id could be booked onto this provider's calendar.
-        if (providerId && String(providerId) !== String(req.user._id)) {
+        // service id could be booked onto this provider's calendar. A team member
+        // books their employer's services (staffBookingScope checks it).
+        const isStaffActor = req.user.role === 'staff';
+        const businessId = isStaffActor ? req.user.staffOf : req.user._id;
+        if (!isStaffActor && providerId && String(providerId) !== String(req.user._id)) {
             return res.status(403).json({ success: false, message: 'That service does not belong to your business' });
+        }
+        // A member's group lands in their own column (or, seeing the whole
+        // calendar, a named colleague's for existing clients), only for the
+        // clients they may book, at their own price for the service.
+        let staffPerformer;
+        let staffPrice = null;
+        if (isStaffActor) {
+            const scope = await staffBookingScope(req, providerId, {
+                customerIds: [...new Set(clients.filter((c) => c && c.customerId).map((c) => String(c.customerId)))],
+                walkIn: clients.some((c) => !c || !c.customerId),
+                teamMember,
+            });
+            if (scope.error) return res.status(scope.error.status).json({ success: false, code: scope.error.code, message: scope.error.message });
+            staffPerformer = scope.performer;
+            const bad = await staffWindowError({ req, svc, providerId, appointmentDate, startTime, endTime, performer: staffPerformer });
+            if (bad) return res.status(bad.status).json({ success: false, message: bad.message });
+            if (staffPerformer) {
+                const m = await TeamMember.findOne({ _id: staffPerformer, provider: providerId }).select('serviceOverrides');
+                const ov = m ? overrideFor(m, svc._id) : null;
+                if (ov && ov.price != null) staffPrice = ov.price;
+            }
         }
 
         // Multi-location (write threading): validate + record a named location on
         // every participant's booking; absent → null (primary), same contract.
-        const grpLoc = await resolveBookingLocation(providerId || req.user._id, req.body.locationId);
+        const grpLoc = await resolveBookingLocation(providerId || businessId, req.body.locationId);
         if (!grpLoc.ok) {
             return res.status(400).json({ success: false, message: 'That location is not available for this business.' });
         }
 
         // Same per-staff resolution every other booking path runs: confirms the
         // requested member is on THIS provider's roster and performs the service.
-        let resolvedTeamMember = teamMember || null;
-        if (providerId) {
+        let resolvedTeamMember = isStaffActor ? (staffPerformer || null) : (teamMember || null);
+        if (providerId && !isStaffActor) {
             const resolution = await resolveBookingStaff({
                 svc, providerId, appointmentDate, startTime, endTime,
                 requestedTeamMember: teamMember || null, requester: req.user,
@@ -2864,7 +2998,7 @@ exports.createGroupBooking = async (req, res) => {
             const knownIds = new Set(known.map(u => String(u._id)));
             for (const id of namedClientIds) {
                 const isMyClient = knownIds.has(id)
-                    && await Appointment.exists({ customer: id, provider: req.user._id });
+                    && await Appointment.exists({ customer: id, provider: businessId });
                 if (!isMyClient) {
                     return res.status(403).json({
                         success: false,
@@ -2915,16 +3049,18 @@ exports.createGroupBooking = async (req, res) => {
         // `customer` is required on the model. Name-only group clients are walk-ins, so
         // they belong to the provider — exactly how a single walk-in booking resolves the
         // client to req.user. Passing null here was failing insertMany validation → 500.
+        // A member's name-only guests are walk-ins with no account (customer
+        // null), exactly like their single walk-in — never the member themself.
         const docs = clients.map(c => ({
-            customer: c.customerId || req.user._id,
+            customer: c.customerId || (isStaffActor ? null : req.user._id),
             walkInName: c.customerId ? null : (c.name || 'Group Client'),
             service,
-            provider: providerId || req.user._id,
+            provider: providerId || businessId,
             locationId: grpLoc.locationId,
             appointmentDate: new Date(appointmentDate),
             startTime,
             endTime,
-            totalPrice: svc.price,
+            totalPrice: staffPrice != null ? staffPrice : svc.price,
             status: 'confirmed',
             notes: notes || '',
             groupId: gid,

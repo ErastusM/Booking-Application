@@ -270,6 +270,10 @@ const ProviderDashboard = () => {
     // owner's personal blocks.
     // The business a team member works for — their screens say "Vido Barber", not "your business".
     const [staffBusinessName, setStaffBusinessName] = useState('');
+    // …and the owner's own name, so the owner's column and bookings are labelled
+    // with the OWNER's name on a member's calendar — never the member's.
+    const [staffOwnerName, setStaffOwnerName] = useState('');
+    const ownerName = isStaff ? staffOwnerName : user?.name;
     const businessName = isStaff ? (staffBusinessName || 'your business') : (user?.businessProfile?.businessName || user?.name || 'your business');
     const calendarBlockedTimes = useMemo(() => {
         // Front desk / managers see the whole business, so they keep every block.
@@ -1004,7 +1008,8 @@ const ProviderDashboard = () => {
     // client-detail "Book Appointment" entry point (or a prior open).
     // A walk-in row of the client list: no account behind it, keyed "walkin:<name>".
     const isWalkInEntry = (c) => !!(c?.isWalkIn || c?.customer?.isWalkIn || String(c?.customer?._id || '').startsWith('walkin:'));
-    const blankApptFields = { services: [{ serviceId: '' }], clientMode: 'existing', customerId: '', clientName: '', isGroup: false, groupClients: [{ name: '' }], notes: '', startTime: '', teamMember: '' };
+    // A team member's booking starts in their OWN column ('' is the owner's).
+    const blankApptFields = { services: [{ serviceId: '' }], clientMode: 'existing', customerId: '', clientName: '', isGroup: false, groupClients: [{ name: '' }], notes: '', startTime: '', teamMember: isStaff ? String(myMemberId || '') : '' };
     const openBlankApptModal = (extra = {}) => {
         setApptError('');
         setApptForm(prev => ({ ...prev, ...blankApptFields, ...(canBookExistingClient ? {} : { clientMode: 'walkin' }), date: toDateKey(new Date()), ...extra }));
@@ -1113,9 +1118,18 @@ const ProviderDashboard = () => {
     };
 
     const fetchTeam = async () => {
-        if (isStaff && !hasCap('team:manage')) return; // the roster is owner/manager-only
         setLoadingTeam(true);
         try {
+            if (isStaff) {
+                // A member's calendar gets the people it shows — names and colours
+                // only, scoped server-side like the calendar itself: the whole team
+                // with calendar:view_all, otherwise just themselves. Never the
+                // roster's contact details (that is the owner's Team screen).
+                const res = await teamService.getCalendarRoster();
+                setTeamMembers(res.data.data?.members || []);
+                setStaffOwnerName(res.data.data?.owner?.name || '');
+                return;
+            }
             const res = await teamService.getMyTeam();
             setTeamMembers(res.data.data);
         } catch { /* ignore */ } finally { setLoadingTeam(false); }
@@ -1384,20 +1398,33 @@ const ProviderDashboard = () => {
     // menu price, a team member theirs at their own price. It used to offer the
     // whole catalogue at the catalogue price whoever was picked — a driver's
     // N$20 000 "Long trip" as the owner's, and a member's N$170 haircut as N$120.
-    // A team member's own form is already only their services (fetchMyServices).
+    // A team member books with the same rule. Their own column offers THEIR
+    // services at their prices (myServices); a member who sees the whole
+    // calendar and picks a colleague or the owner gets what THAT person
+    // performs, at that person's price — the business's menu (from
+    // /team/mine/services) read through the colleague's roster row, exactly as
+    // the server prices and checks it.
+    const staffServicesFor = (teamMember) => {
+        if (!seesWholeTeam || !teamMember || String(teamMember) === String(myMemberId || '')) return myServices;
+        const menu = memberServicesData?.services || [];
+        if (teamMember === 'owner') return servicesFor(menu, null);
+        const member = teamMembers.find(m => String(m._id) === String(teamMember));
+        return member ? servicesFor(menu, member) : [];
+    };
     const apptPerformer = !isStaff && apptForm.teamMember
         ? teamMembers.find(m => String(m._id) === String(apptForm.teamMember)) || null
         : null;
     const apptPerformerUnknown = !isStaff && !!apptForm.teamMember && !apptPerformer; // roster not loaded yet
     // "Show every service" is for booking a TEAM MEMBER outside their own list
     // (still at their price). It never widens the owner's own list: a service
-    // only the team performs is not the owner's to sell, at any price.
+    // only the team performs is not the owner's to sell, at any price. It is the
+    // owner's override alone — a member is held to who performs what.
     const apptServices = isStaff
-        ? myServices
+        ? staffServicesFor(apptForm.teamMember)
         : servicesFor(myServices, apptPerformer, { all: (apptShowAll && !!apptForm.teamMember) || apptPerformerUnknown });
     const apptServiceById = (id) => apptServices.find(s => s._id === id);
     const apptNoServicesMsg = isStaff
-        ? 'You have no services yet. Add yours under Services first.'
+        ? (apptServices === myServices ? 'You have no services yet. Add yours in the Catalogue first.' : 'They don’t offer any services yet.')
         : myServices.length === 0
             ? 'No services found. Add services in the Catalogue tab first.'
             : apptPerformer
@@ -1405,8 +1432,13 @@ const ProviderDashboard = () => {
                 : 'You don’t offer any services yourself — pick a team member.';
     // Switching professional drops service rows the new one doesn't perform.
     const setApptPerformer = (teamMember, all = apptShowAll) => setApptForm(f => {
-        const member = teamMember ? teamMembers.find(m => String(m._id) === String(teamMember)) || null : null;
-        const offered = new Set(servicesFor(myServices, member, { all: (all && !!teamMember) || (!!teamMember && !member) }).map(s => s._id));
+        let list;
+        if (isStaff) list = staffServicesFor(teamMember);
+        else {
+            const member = teamMember ? teamMembers.find(m => String(m._id) === String(teamMember)) || null : null;
+            list = servicesFor(myServices, member, { all: (all && !!teamMember) || (!!teamMember && !member) });
+        }
+        const offered = new Set(list.map(s => s._id));
         const rows = f.services.map(r => (r.serviceId && !offered.has(r.serviceId) ? { ...r, serviceId: '' } : r));
         return { ...f, teamMember, services: rows };
     });
@@ -2714,15 +2746,16 @@ const ProviderDashboard = () => {
                         {/* Staff filter — who's on the calendar. The house segmented control
                             (styles/index.css) rather than loose pills: one sunken track, the
                             active option raised white, which reads far calmer above the grid. */}
-                        {teamMembers.length > 0 && (
+                        {teamMembers.length > 0 && seesWholeTeam && (
                             <div role="group" aria-label="Filter calendar by staff member" style={{ overflowX: 'auto', padding: '0.55rem 0.9rem', borderBottom: '1px solid var(--border)', background: 'var(--card-bg)', flexShrink: 0, WebkitOverflowScrolling: 'touch' }}>
                                 <div className="segmented">
                                     {[
                                         { id: 'all', label: 'All staff' },
-                                        // The owner's dot is the brand orange, like their bookings;
-                                        // each member's is their own calendar colour.
-                                        { id: 'unassigned', label: isStaff ? 'Owner' : `${(user?.name || 'Me').split(' ')[0]} (me)`, color: 'var(--gold)' },
-                                        ...teamMembers.filter(m => m.isActive !== false).map(m => ({ id: String(m._id), label: m.name, color: teamColors[String(m._id)] })),
+                                        // The owner's column carries the OWNER's name; "(me)" marks the
+                                        // signed-in person's own column, owner or member alike. The owner's
+                                        // dot is the brand orange; each member's is their calendar colour.
+                                        { id: 'unassigned', label: isStaff ? (ownerName || 'Owner') : `${(user?.name || 'Me').split(' ')[0]} (me)`, color: 'var(--gold)' },
+                                        ...teamMembers.filter(m => m.isActive !== false).map(m => ({ id: String(m._id), label: m.isMe ? `${m.name} (me)` : m.name, color: teamColors[String(m._id)] })),
                                     ].map(({ id, label, color }) => {
                                         // 'All staff' is active when no subset is chosen; each other
                                         // option is a toggle (membership in the selection Set).
@@ -2750,7 +2783,7 @@ const ProviderDashboard = () => {
                                     date={currentDate}
                                     onDateChange={setCurrentDate}
                                     onViewChange={setCalendarView}
-                                    ownerName={user?.name}
+                                    ownerName={ownerName}
                                     teamMembers={teamMembers}
                                     staffFilter={calendarStaffFilter}
                                     appointments={appointments}
@@ -2779,7 +2812,7 @@ const ProviderDashboard = () => {
                                     appointments={appointments}
                                     blockedTimes={calendarBlockedTimes}
                                     teamMembers={teamMembers}
-                                    ownerName={user?.name}
+                                    ownerName={ownerName}
                                     staffFilter={calendarStaffFilter}
                                     availability={availability}
                                     height="100%"
@@ -2869,7 +2902,10 @@ const ProviderDashboard = () => {
                                             // Fresh booking at the picked slot — clear any client left from a
                                             // prior open. teamMember comes from the staff lane if the selection did.
                                             setApptError('');
-                                            setApptForm(prev => ({ ...prev, ...blankApptFields, ...(canBookExistingClient ? {} : { clientMode: 'walkin' }), date: timeSelectionPreview.date, startTime: timeSelectionPreview.startTime, teamMember: timeSelectionPreview.teamMember !== undefined ? timeSelectionPreview.teamMember : prev.teamMember }));
+                                            // A lane's '' is the owner's column; for a member that is 'owner'
+                                            // ('' would mean "their own" in the booking form).
+                                            const laneTm = timeSelectionPreview.teamMember;
+                                            setApptForm(prev => ({ ...prev, ...blankApptFields, ...(canBookExistingClient ? {} : { clientMode: 'walkin' }), date: timeSelectionPreview.date, startTime: timeSelectionPreview.startTime, teamMember: laneTm !== undefined ? (isStaff && laneTm === '' ? 'owner' : laneTm) : (prev.teamMember || blankApptFields.teamMember) }));
                                             setShowApptModal(true);
                                             setTimeSelectionPreview(null);
                                         }} className="btn-primary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.8rem' }}>
@@ -3802,6 +3838,8 @@ const ProviderDashboard = () => {
                             // (id "walkin:<name>", no account), which the API only accepts by
                             // name, as Guest does (see utils/bookingClient.js).
                             const { customerId: bookingCustomerId, walkInName: bookingWalkInName } = bookingClientFields(apptForm, clients);
+                            // A member's booking goes in their own column unless they picked one.
+                            const bookTeamMember = apptForm.teamMember || (isStaff && myMemberId ? String(myMemberId) : undefined);
                             setSavingAppt(true);
                             try {
                                 if (apptForm.isGroup) {
@@ -3813,7 +3851,7 @@ const ProviderDashboard = () => {
                                         endTime,
                                         clients: validClients,
                                         notes: apptForm.notes,
-                                        teamMember: apptForm.teamMember || undefined,
+                                        teamMember: bookTeamMember,
                                     });
                                 } else if (selectedServices.length === 1) {
                                     // Exactly one service — keep hitting the original single-service
@@ -3826,7 +3864,7 @@ const ProviderDashboard = () => {
                                         customerId: bookingCustomerId,
                                         walkInName: bookingWalkInName,
                                         notes: apptForm.notes,
-                                        teamMember: apptForm.teamMember || undefined,
+                                        teamMember: bookTeamMember,
                                         isRecurring: apptForm.isRecurring,
                                         recurrenceType: apptForm.isRecurring ? apptForm.recurrenceType : undefined,
                                         recurrenceInterval: apptForm.isRecurring ? apptForm.recurrenceInterval : undefined,
@@ -3839,7 +3877,7 @@ const ProviderDashboard = () => {
                                         startTime: apptForm.startTime,
                                         customerId: bookingCustomerId,
                                         walkInName: bookingWalkInName,
-                                        teamMember: apptForm.teamMember || undefined,
+                                        teamMember: bookTeamMember,
                                         services: selectedServices.map(s => ({ serviceId: s._id })),
                                     });
                                 }
@@ -3861,11 +3899,15 @@ const ProviderDashboard = () => {
                                             value={apptForm.teamMember}
                                             onChange={e => setApptPerformer(e.target.value)}
                                             options={[
-                                                { value: '', label: 'Me / unassigned' },
-                                                ...teamMembers.filter(m => m.isActive !== false).map(m => ({ value: m._id, label: `${m.name}${m.role ? ` · ${m.role}` : ''}` })),
+                                                // The owner's column: "Me" for the owner; for a member it is
+                                                // the owner's, by name ('' is the member's own column there).
+                                                isStaff
+                                                    ? { value: 'owner', label: `${ownerName || 'Owner'} · Owner` }
+                                                    : { value: '', label: 'Me / unassigned' },
+                                                ...teamMembers.filter(m => m.isActive !== false).map(m => ({ value: String(m._id), label: `${m.name}${m.isMe ? ' (me)' : ''}${m.role ? ` · ${m.role}` : ''}` })),
                                                 // Booking from an inactive member's lane (they can still hold
                                                 // appointments) must not show a raw id
-                                                ...(apptForm.teamMember && !teamMembers.some(m => String(m._id) === String(apptForm.teamMember) && m.isActive !== false)
+                                                ...(apptForm.teamMember && apptForm.teamMember !== 'owner' && !teamMembers.some(m => String(m._id) === String(apptForm.teamMember) && m.isActive !== false)
                                                     ? [{ value: apptForm.teamMember, label: `${teamMembers.find(m => String(m._id) === String(apptForm.teamMember))?.name || 'Staff member'} · inactive` }]
                                                     : []),
                                             ]}
@@ -3927,7 +3969,7 @@ const ProviderDashboard = () => {
                                                     </div>
                                                 );
                                             })}
-                                            {!isStaff && <button type="button" onClick={() => setApptForm(f => ({ ...f, services: [...f.services, { serviceId: '' }] }))} style={{ alignSelf: 'flex-start', fontSize: '0.75rem', padding: '0.25rem 0.65rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(240,62,22,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add service</button>}
+                                            {<button type="button" onClick={() => setApptForm(f => ({ ...f, services: [...f.services, { serviceId: '' }] }))} style={{ alignSelf: 'flex-start', fontSize: '0.75rem', padding: '0.25rem 0.65rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(240,62,22,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add service</button>}
                                         </div>
                                         {apptServices.length === 0 && <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.35rem' }}>{apptNoServicesMsg}</p>}
                                         {(() => {
@@ -3954,9 +3996,9 @@ const ProviderDashboard = () => {
                                         />
                                     </div>
                                 )}
-                                {/* Group booking toggle (owner-only: group bookings are the owner's) */}
+                                {/* Group booking toggle — a member books a group into their own column */}
                                 <div style={{ borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', padding: '0.75rem 1rem', background: apptForm.isGroup ? 'rgba(240,62,22,0.05)' : 'transparent' }}>
-                                    <div style={{ display: isStaff ? 'none' : 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: apptForm.isGroup ? '0.75rem' : 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: apptForm.isGroup ? '0.75rem' : 0 }}>
                                         <div>
                                             <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--charcoal)' }}>Group booking</span>
                                             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>Book multiple clients at once</span>
@@ -4073,10 +4115,12 @@ const ProviderDashboard = () => {
                                         // A team member always books into their OWN column (the server forces
                                         // it), so their lane is their member id and their own bookings and
                                         // blocks are what the times must avoid.
-                                        const laneOf = isStaff
-                                            ? (tmId) => (tmId ? String(tmId) : '')
-                                            : (tmId) => (tmId && rosterIds.has(String(tmId))) ? String(tmId) : '';
-                                        const selectedLane = isStaff ? String(myMemberId || '') : (apptForm.teamMember ? String(apptForm.teamMember) : '');
+                                        const laneOf = (tmId) => (tmId && (rosterIds.has(String(tmId)) || (isStaff && String(tmId) === String(myMemberId)))) ? String(tmId) : '';
+                                        // A member who sees only their own column books only there; a
+                                        // whole-calendar member books the column they picked ('owner' =
+                                        // the owner's, which is '' here).
+                                        const pickedLane = apptForm.teamMember === 'owner' ? '' : String(apptForm.teamMember || '');
+                                        const selectedLane = !seesWholeTeam ? String(myMemberId || '') : pickedLane;
                                         const toMinutes = (t) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m; };
                                         const bookedRanges = [
                                             ...(appointments || []).filter(a => {
@@ -4121,8 +4165,8 @@ const ProviderDashboard = () => {
                                     <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Notes <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional)</span></label>
                                     <textarea value={apptForm.notes} onChange={e => setApptForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Any notes for this appointment..." className="input" style={{ width: '100%', resize: 'vertical' }} />
                                 </div>
-                                {/* Recurring — shared controls (Custom frequency + app calendar). Owner-only. */}
-                                {!isStaff && <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                                {/* Recurring — shared controls (Custom frequency + app calendar). */}
+                                {<div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
                                     <RecurrenceFields
                                         value={{ isRecurring: apptForm.isRecurring, recurrenceType: apptForm.recurrenceType, recurrenceInterval: apptForm.recurrenceInterval || 1, recurrenceEndDate: apptForm.recurrenceEndDate }}
                                         onChange={(v) => setApptForm(f => ({ ...f, isRecurring: v.isRecurring, recurrenceType: v.recurrenceType, recurrenceInterval: v.recurrenceInterval, recurrenceEndDate: v.recurrenceEndDate }))}

@@ -3,7 +3,7 @@ const User = require('../models/User');
 const Service = require('../models/Service');
 const StaffAvailability = require('../models/StaffAvailability');
 const Appointment = require('../models/Appointment');
-const { validate: validatePermissions, isTier, DEFAULT_TIER } = require('../utils/permissions');
+const { validate: validatePermissions, isTier, DEFAULT_TIER, can } = require('../utils/permissions');
 const { memberBusyIntervals, memberInvolvedFilter, pickRotationWeek } = require('../utils/staffBooking');
 const { memberSlugMap } = require('../utils/memberLink');
 const { isHexColor, isUnsetColor, colorForNewMember } = require('../utils/memberColors');
@@ -1333,6 +1333,52 @@ const myMemberDoc = (req) => (req.user.staffOf
     : Promise.resolve(null));
 
 /**
+ * GET /api/team/mine/calendar  (owner or staff)
+ * The people on the calendar — name, colour and job title only — so a team
+ * member's calendar shows the same staff colours, performer names, staff filter
+ * and Staff (lanes) view as the owner's. Never the roster's contact details,
+ * pay, permissions or HR fields (that is GET /api/team, team:manage).
+ *
+ * Scoped like the calendar itself (buildAppointmentScope): a member who sees the
+ * whole calendar (calendar:view_all) gets everyone they can already see bookings
+ * for; a member who sees only their own column gets only themselves.
+ * data: { members: [{ _id, name, color, role, isActive, bookable, photoUrl, isMe
+ *                     (+ services, offersAllServices, serviceOverrides for whole-calendar viewers) }],
+ *         owner: { name } }
+ */
+exports.getCalendarRoster = async (req, res) => {
+    try {
+        const providerId = businessScope(req);
+        if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
+        const fields = '_id name color role isActive bookable photoUrl user';
+        let members;
+        if (req.user.role === 'staff' && !can(req.user, 'calendar:view_all')) {
+            const me = await TeamMember.findOne({ user: req.user._id, provider: providerId }).select(fields).lean();
+            members = me ? [me] : [];
+        } else {
+            // Whoever may book any column also needs who performs what, at
+            // which price (the New Appointment screen is professional-first and
+            // prices each person's own way) — the same figures every booking
+            // with them already shows. Still no contact, HR or permission fields.
+            members = await TeamMember.find({ provider: providerId })
+                .select(`${fields} services offersAllServices serviceOverrides`)
+                .sort({ isPrimary: -1, createdAt: 1 }).lean();
+        }
+        const owner = await User.findById(providerId).select('name').lean();
+        const uid = String(req.user._id);
+        res.status(200).json({
+            success: true,
+            data: {
+                members: members.map(({ user, ...m }) => ({ ...m, isMe: !!user && String(user) === uid })),
+                owner: { name: owner?.name || '' },
+            },
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
  * GET /api/team/mine/services  (staff-self)
  * data: { selected: [serviceId], services: [{ _id, name }] } — the member's own
  * assignment plus the business's full menu to choose from.
@@ -1341,8 +1387,10 @@ exports.getMyServices = async (req, res) => {
     try {
         const member = await myMemberDoc(req);
         if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
+        // ownerPerforms rides along so a whole-calendar member booking the
+        // owner's column is offered only what the owner performs.
         const services = await Service.find({ provider: req.user.staffOf, isActive: { $ne: false } })
-            .select('name price duration').sort({ name: 1 });
+            .select('name price duration ownerPerforms').sort({ name: 1 });
         res.status(200).json({
             success: true,
             data: {
