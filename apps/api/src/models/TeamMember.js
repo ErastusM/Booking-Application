@@ -6,7 +6,12 @@ const teamMemberSchema = new mongoose.Schema({
     role:     { type: String, trim: true, default: 'Staff', maxlength: 60 },
     email:    { type: String, trim: true, lowercase: true, default: '', maxlength: 120 },
     phone:    { type: String, trim: true, default: '', maxlength: 40 },
-    color:    { type: String, default: '#f03e16' }, // for calendar colour coding
+    // Calendar colour. No default on purpose: the old one was the brand orange,
+    // which is the OWNER's colour, so every member looked like the owner. A new
+    // member is given the next free colour from utils/memberColors when created
+    // (teamMemberController), and scripts/migrate_member_colors.js recoloured
+    // the existing ones. The apps fall back to a palette colour if it is empty.
+    color:    { type: String },
     isActive: { type: Boolean, default: true },
     // Separate from isActive on purpose: a receptionist or a manager is very
     // much on the team but must never be offered as a bookable professional.

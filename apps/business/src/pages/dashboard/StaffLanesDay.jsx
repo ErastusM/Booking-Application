@@ -4,6 +4,7 @@ import { cardState } from '../../components/CalendarGrid';
 import useApptDrag from '../../components/calendar/useApptDrag';
 import ConflictSheet from '../../components/calendar/ConflictSheet';
 import { fmtHM, fmtHMRange } from '../../utils/time';
+import { memberColorMap } from '../../utils/memberColors';
 
 // Epic 2.4 — per-staff calendar lanes. One column per staff member (plus the
 // owner's "Me / unassigned" lane), a shared time axis, and the same visual
@@ -120,6 +121,9 @@ const StaffLanesDay = ({
         const memberIdsWithApptsToday = new Set(
             dayAppts.map((a) => String(a.teamMember?._id || a.teamMember || '')).filter(Boolean)
         );
+        // The owner is the brand orange; every member has their own colour (a
+        // stand-in palette colour for one with none yet — never the orange).
+        const colors = memberColorMap(teamMembers);
         const all = [
             { id: 'unassigned', name: ownerName || 'Me', sub: 'Owner · unassigned', color: 'var(--gold)' },
             ...teamMembers
@@ -128,7 +132,7 @@ const StaffLanesDay = ({
                     id: String(m._id),
                     name: m.name,
                     sub: `${m.role || 'Staff'}${m.isActive === false ? ' · inactive' : ''}`,
-                    color: m.color || 'var(--gold)',
+                    color: colors[String(m._id)],
                 })),
         ];
         // staffFilter is a Set of lane ids to show (empty = all); the legacy

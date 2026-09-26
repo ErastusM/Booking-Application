@@ -9,6 +9,7 @@ import { uploadToCloudinary } from '../utils/uploadImage';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import ShareBookingLink, { bookingUrl } from '../components/ShareBookingLink';
 import { DEFAULT_TIER } from '../utils/permissions';
+import { MEMBER_PALETTE, BRAND_ORANGE, memberColorMap, sameColor, isUnsetColor } from '../utils/memberColors';
 
 /**
  * Epic 2.4 — staff management: roster CRUD, invite-to-login, per-staff
@@ -150,24 +151,23 @@ const DateField = ({ label, ...rest }) => (
     </label>
 );
 
-// Calendar colours — the same eight swatches as the dashboard's team form, in
-// place of the OS colour picker. A colour saved earlier that isn't one of them
-// (set with the old picker) is shown first, so it can be kept or picked back.
-const CALENDAR_COLOURS = [['#f03e16', 'Orange'], ['#3b82f6', 'Blue'], ['#10b981', 'Green'], ['#f59e0b', 'Amber'], ['#ef4444', 'Red'], ['#8b5cf6', 'Purple'], ['#ec4899', 'Pink'], ['#14b8a6', 'Teal']];
-const ColourSwatches = ({ value, saved, onChange, labelledBy, ...rest }) => {
-    const same = (a, b) => (a || '').toLowerCase() === (b || '').toLowerCase();
+// Calendar colours — the member palette (utils/memberColors), in place of the
+// OS colour picker. The owner's orange is not offered: it marks the owner's own
+// bookings. A colour saved earlier that isn't in the palette (set with an older
+// picker) is shown first, so it can be kept or picked back.
+const ColourSwatches = ({ value, saved, onChange, labelledBy, disabled, ...rest }) => {
     const extras = [saved, value]
-        .filter((c, i, all) => c && !CALENDAR_COLOURS.some(([p]) => same(p, c)) && all.findIndex(x => same(x, c)) === i)
-        .map(c => [c, `Custom colour ${c}`]);
+        .filter((c, i, all) => c && !sameColor(c, BRAND_ORANGE) && !MEMBER_PALETTE.some(p => sameColor(p.hex, c)) && all.findIndex(x => sameColor(x, c)) === i)
+        .map(c => ({ hex: c, name: `Custom colour ${c}` }));
     return (
         <div role="group" aria-labelledby={labelledBy} data-value={value} {...rest}
-            style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 26px)', gap: '0.4rem' }}>
-            {[...extras, ...CALENDAR_COLOURS].map(([c, name]) => {
-                const on = same(value, c);
+            style={{ display: 'grid', gridTemplateColumns: 'repeat(5, 26px)', gap: '0.4rem', opacity: disabled ? 0.6 : 1 }}>
+            {[...extras, ...MEMBER_PALETTE].map(({ hex: c, name }) => {
+                const on = sameColor(value, c);
                 return (
-                    <button key={c} type="button" onClick={() => onChange(c)} aria-pressed={on} aria-label={name} title={name} data-value={c}
+                    <button key={c} type="button" onClick={() => !on && onChange(c)} aria-pressed={on} aria-label={name} title={name} data-value={c} disabled={disabled}
                         style={{
-                            width: '26px', height: '26px', borderRadius: '50%', background: c, border: 'none', padding: 0, cursor: 'pointer',
+                            width: '26px', height: '26px', borderRadius: '50%', background: c, border: 'none', padding: 0, cursor: disabled ? 'default' : 'pointer',
                             display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
                             boxShadow: on ? '0 0 0 2px var(--card-bg), 0 0 0 4px var(--charcoal)' : 'none',
                         }}>
@@ -202,7 +202,9 @@ const MemberAvatar = ({ member, size = 26 }) => {
     );
 };
 
-const MemberCard = ({ member, services, colleagues, onChanged }) => {
+// displayColor: the colour the calendar shows for this member — their own, or a
+// stand-in palette colour while they have none (see memberColorMap).
+const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) => {
     const { user } = useAuthContext();
     const confirm = useConfirm();
     const [open, setOpen] = useState(false);
@@ -276,7 +278,9 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
         phone: member.phone || '', country: member.country || '', address: member.address || '',
         emergencyName: member.emergencyContact?.name || '',
         emergencyPhone: member.emergencyContact?.phone || '',
-        color: member.color || '#f03e16',
+        // '' while they have no colour of their own (none, or the owner's orange
+        // from before members got their own): the card shows the stand-in.
+        color: isUnsetColor(member.color) ? '' : member.color,
         // Profile depth. bio/pronouns/languages are shown to customers; employment
         // and notes are owner-only. languages is edited as a comma-separated string.
         bio: member.bio || '', pronouns: member.pronouns || '',
@@ -484,7 +488,6 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
             const draft = {
                 name: personal.name.trim(), role: personal.role.trim(), email: personal.email.trim(),
                 phone: personal.phone.trim(), country: personal.country.trim(), address: personal.address.trim(),
-                color: personal.color,
                 bio: personal.bio.trim(), pronouns: personal.pronouns.trim(), notes: personal.notes.trim(),
             };
             const patch = {};
@@ -511,6 +514,23 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
             onChanged();
         } catch (err) {
             flash(err?.response?.data?.message || 'Could not save details');
+        } finally { setBusy(''); }
+    };
+
+    // Calendar colour → saved the moment a swatch is tapped, like the photo: it
+    // is one explicit choice, and it shows straight away on the calendar, the
+    // staff filter and the Staff lanes. Reverts the swatch if the save fails.
+    const saveColor = async (color) => {
+        const previous = personal.color;
+        setPersonal(p => ({ ...p, color }));
+        setBusy('color');
+        try {
+            await teamService.updateMember(member._id, { color });
+            flash('Calendar colour saved');
+            onChanged();
+        } catch (err) {
+            setPersonal(p => ({ ...p, color: previous }));
+            flash(err?.response?.data?.message || 'Could not change the colour');
         } finally { setBusy(''); }
     };
 
@@ -769,9 +789,11 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
     return (
         <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: '1rem', overflow: 'hidden' }} data-testid="team-member-card">
             <button type="button" onClick={() => setOpen(o => !o)} style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '0.85rem', padding: '1rem 1.25rem', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', fontFamily: 'var(--font-body)' }}>
-                <MemberAvatar member={member} size={30} />
+                <MemberAvatar member={{ ...member, color: displayColor }} size={30} />
                 <span style={{ flex: 1, minWidth: 0 }}>
                     <span style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.98rem' }}>
+                        {/* Their calendar colour, when a photo covers the avatar's. */}
+                        {member.photoUrl && <span aria-hidden="true" title="Calendar colour" data-testid="member-color-dot" style={{ width: '8px', height: '8px', borderRadius: '50%', background: displayColor, flexShrink: 0 }} />}
                         <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{member.name}</span>
                         {primary && <span style={{ flexShrink: 0, fontSize: '0.62rem', fontWeight: 700, letterSpacing: '0.06em', textTransform: 'uppercase', color: 'var(--gold-dark)', background: 'rgba(240,62,22,0.10)', borderRadius: '5px', padding: '0.1rem 0.35rem' }}>Primary</span>}
                     </span>
@@ -856,9 +878,9 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                     {tab === 'personal' && (
                         <div style={{ marginTop: '1.1rem' }} data-testid="panel-personal">
                             {/* Photo + calendar colour — the visual identity clients and the
-                                calendar use. Photo saves on upload; colour saves with details. */}
+                                calendar use. Both save straight away (upload / swatch tap). */}
                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', marginBottom: '1.1rem', flexWrap: 'wrap' }}>
-                                <MemberAvatar member={{ ...member, color: personal.color }} size={56} />
+                                <MemberAvatar member={{ ...member, color: personal.color || displayColor }} size={56} />
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                     <label className="btn-outline" style={{ padding: '0.45rem 1rem', cursor: photoBusy ? 'default' : 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.4rem', opacity: photoBusy ? 0.6 : 1 }}>
                                         <Camera size={15} /> {photoBusy ? 'Uploading…' : member.photoUrl ? 'Change photo' : 'Add photo'}
@@ -868,7 +890,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                 </div>
                                 <div style={{ marginLeft: 'auto', display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)' }}>
                                     <span id={`personal-color-${member._id}`}>Calendar colour</span>
-                                    <ColourSwatches value={personal.color} saved={member.color} onChange={c => setPersonal(p => ({ ...p, color: c }))}
+                                    <ColourSwatches value={personal.color || displayColor} saved={member.color} onChange={saveColor} disabled={busy === 'color'}
                                         labelledBy={`personal-color-${member._id}`} data-testid="personal-color" />
                                 </div>
                             </div>
@@ -1543,6 +1565,8 @@ const Team = () => {
     const { user } = useAuthContext();
     const toast = useToast();
     const [members, setMembers] = useState([]);
+    // Each member's calendar colour, the same map the calendar uses.
+    const memberColors = memberColorMap(members);
     const [services, setServices] = useState([]);
     const [loading, setLoading] = useState(true);
     const [newName, setNewName] = useState('');
@@ -1698,7 +1722,7 @@ const Team = () => {
                 </div>
             ) : (
                 members.map(m => (
-                    <MemberCard key={m._id} member={m} services={services} onChanged={load}
+                    <MemberCard key={m._id} member={m} displayColor={memberColors[String(m._id)]} services={services} onChanged={load}
                         // Handover targets: the owner first — their work is stored
                         // unassigned, no roster row — then every other active member.
                         colleagues={[

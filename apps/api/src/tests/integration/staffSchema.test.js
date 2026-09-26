@@ -57,7 +57,9 @@ describe('TeamMember — login link + service mapping (spec §3.2)', () => {
         const tm = await TeamMember.create({ provider: owner._id, name: 'Chair One' });
         expect(tm.user).toBeNull();
         expect(tm.services).toEqual([]);
-        expect(tm.color).toBe('#f03e16'); // new brand default
+        // No colour default: a member is given a palette colour when added
+        // through the team endpoints (see memberColors.test.js), never orange.
+        expect(tm.color).toBeUndefined();
     });
 
     it('links a staff User when invited', async () => {
@@ -114,7 +116,7 @@ describe('migrate_team_colors (rebrand follow-up)', () => {
         await TeamMember.create({ provider: owner._id, name: 'Old Gold', color: '#c9a84c' });
         await TeamMember.create({ provider: owner._id, name: 'Old Gold Caps', color: '#C9A84C' });
         await TeamMember.create({ provider: owner._id, name: 'Custom Teal', color: '#14b8a6' });
-        await TeamMember.create({ provider: owner._id, name: 'Already New' }); // default #f03e16
+        await TeamMember.create({ provider: owner._id, name: 'Already New', color: '#f03e16' });
 
         const n = await migrateTeamColors();
         expect(n).toBe(2);

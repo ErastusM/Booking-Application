@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import useApptDrag from './calendar/useApptDrag';
 import ConflictSheet from './calendar/ConflictSheet';
 import { fmtHM, fmtHMRange } from '../utils/time';
+import { memberColorMap, staffPalette } from '../utils/memberColors';
 
 // Bookplus bespoke calendar grid — a hand-built Fresha-style time grid that
 // replaces FullCalendar for the Day / 3-Day / Week views. One column per day,
@@ -36,20 +37,6 @@ const DOW_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
-// Soft, theme-safe tint from a staff colour hex → { bg, rail }. The tint is an
-// alpha wash so it reads on light and dark grounds; ink stays neutral for
-// contrast, letting the rail + wash carry the staff identity (like the proto).
-const hexToRgb = (hex) => {
-    // Only real hex colours parse. Non-hex values (e.g. a CSS var like
-    // 'var(--gold)', which owner appointments use) must return null so the
-    // caller falls back — otherwise parseInt('va',16) yields NaN and the card
-    // gets an invalid `rgba(NaN,…)` background that renders as light paper
-    // (invisible in dark mode).
-    const h = String(hex || '').replace('#', '').trim();
-    if (!/^([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(h)) return null;
-    if (h.length === 3) return { r: parseInt(h[0] + h[0], 16), g: parseInt(h[1] + h[1], 16), b: parseInt(h[2] + h[2], 16) };
-    return { r: parseInt(h.slice(0, 2), 16), g: parseInt(h.slice(2, 4), 16), b: parseInt(h.slice(4, 6), 16) };
-};
 /**
  * How an appointment card should read at a glance, given the clock.
  *
@@ -83,16 +70,6 @@ export const cardState = ({ status, endMin, day, today }) => {
         mark: done ? '✓' : noShow ? '✕' : pending ? '◦' : '',
         markTitle: done ? 'Completed' : noShow ? 'No-show' : pending ? 'Awaiting confirmation' : '',
     };
-};
-
-const staffPalette = (hex) => {
-    const rgb = hexToRgb(hex);
-    const { r, g, b } = rgb || { r: 240, g: 62, b: 22 };
-    const rail = rgb ? hex : 'var(--gold)';
-    // Lay the staff wash over an OPAQUE var(--card-bg) so the card is always the
-    // theme's own lightness (light in light mode, dark in dark mode) — the tint
-    // only colours it, it can never flip the card to the wrong ground.
-    return { bg: `linear-gradient(0deg, rgba(${r},${g},${b},0.20), rgba(${r},${g},${b},0.20)), var(--card-bg)`, rail };
 };
 
 // Overlap layout: side-by-side columns for events that share time (greedy),
@@ -166,7 +143,10 @@ const CalendarGrid = ({
     const rosterIds = useMemo(() => new Set(teamMembers.map((m) => String(m._id))), [teamMembers]);
     const memberById = useMemo(() => {
         const map = {};
-        teamMembers.forEach((m) => { map[String(m._id)] = m; });
+        // Each member's own calendar colour (a stand-in palette colour for one with
+        // none yet) — never the owner's orange, which marks the owner's bookings.
+        const colors = memberColorMap(teamMembers);
+        teamMembers.forEach((m) => { map[String(m._id)] = { ...m, color: colors[String(m._id)] }; });
         return map;
     }, [teamMembers]);
 

@@ -29,6 +29,7 @@ import MiniCalendar from '../components/MiniCalendar';
 import RecurrenceFields from '../components/RecurrenceFields';
 import { currencySymbol } from '../utils/currency';
 import { servicesFor, ownerPerforms, teamPerformers } from '../utils/performerServices';
+import { MEMBER_PALETTE, memberColorMap, sameColor } from '../utils/memberColors';
 import Switch from '../components/Switch';
 import { useToast } from '../components/Toast';
 // App-styled replacements for the native <select>, date/time inputs and
@@ -383,12 +384,15 @@ const ProviderDashboard = () => {
 
     // Team members
     const [teamMembers, setTeamMembers] = useState([]);
+    // Each member's calendar colour for the staff filter dots (same map the
+    // calendar and Staff lanes use, so a dot always matches its bookings).
+    const teamColors = useMemo(() => memberColorMap(teamMembers), [teamMembers]);
     const [loadingTeam, setLoadingTeam] = useState(false);
     const [showTeamForm, setShowTeamForm] = useState(false);
     const [editingMember, setEditingMember] = useState(null);
     // Job title is NOT prefilled: it's what clients see when picking a
     // professional, so it must be the owner's own words, not a default.
-    const [teamForm, setTeamForm] = useState({ name: '', role: '', email: '', phone: '', color: '#f03e16' });
+    const [teamForm, setTeamForm] = useState({ name: '', role: '', email: '', phone: '', color: '' });
     const [savingTeam, setSavingTeam] = useState(false);
 
     // Show onboarding wizard for providers who haven't completed setup
@@ -1145,7 +1149,8 @@ const ProviderDashboard = () => {
 
     const openAddMember = () => {
         setEditingMember(null);
-        setTeamForm({ name: '', role: 'Staff', email: '', phone: '', color: '#f03e16' });
+        // No colour: the server gives a new member the next free one.
+        setTeamForm({ name: '', role: 'Staff', email: '', phone: '', color: '' });
         setShowTeamForm(true);
     };
 
@@ -1161,12 +1166,15 @@ const ProviderDashboard = () => {
     const handleSaveMember = async () => {
         if (!teamFormComplete) return;
         setSavingTeam(true);
+        // An empty colour is left out: on add the server picks the next free one,
+        // on edit the member keeps the colour they have.
+        const body = { ...teamForm, color: teamForm.color || undefined };
         try {
             if (editingMember) {
-                const res = await teamService.updateMember(editingMember._id, teamForm);
+                const res = await teamService.updateMember(editingMember._id, body);
                 setTeamMembers(prev => prev.map(m => m._id === editingMember._id ? res.data.data : m));
             } else {
-                const res = await teamService.addMember(teamForm);
+                const res = await teamService.addMember(body);
                 setTeamMembers(prev => [...prev, res.data.data]);
             }
             setShowTeamForm(false);
@@ -2711,8 +2719,10 @@ const ProviderDashboard = () => {
                                 <div className="segmented">
                                     {[
                                         { id: 'all', label: 'All staff' },
-                                        { id: 'unassigned', label: isStaff ? 'Owner' : `${(user?.name || 'Me').split(' ')[0]} (me)` },
-                                        ...teamMembers.filter(m => m.isActive !== false).map(m => ({ id: String(m._id), label: m.name, color: m.color })),
+                                        // The owner's dot is the brand orange, like their bookings;
+                                        // each member's is their own calendar colour.
+                                        { id: 'unassigned', label: isStaff ? 'Owner' : `${(user?.name || 'Me').split(' ')[0]} (me)`, color: 'var(--gold)' },
+                                        ...teamMembers.filter(m => m.isActive !== false).map(m => ({ id: String(m._id), label: m.name, color: teamColors[String(m._id)] })),
                                     ].map(({ id, label, color }) => {
                                         // 'All staff' is active when no subset is chosen; each other
                                         // option is a toggle (membership in the selection Set).
@@ -3636,10 +3646,11 @@ const ProviderDashboard = () => {
                                 <div>
                                     <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Calendar colour</label>
                                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                                        {['#f03e16', '#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#ec4899', '#14b8a6'].map(c => (
-                                            <button key={c} type="button" onClick={() => setTeamForm(f => ({ ...f, color: c }))}
-                                                style={{ width: '28px', height: '28px', borderRadius: '50%', background: c, border: teamForm.color === c ? '3px solid var(--charcoal)' : '2px solid transparent', cursor: 'pointer', flexShrink: 0 }} />
+                                        {MEMBER_PALETTE.map(({ hex: c, name }) => (
+                                            <button key={c} type="button" onClick={() => setTeamForm(f => ({ ...f, color: c }))} aria-label={name} title={name} aria-pressed={sameColor(teamForm.color, c)}
+                                                style={{ width: '28px', height: '28px', borderRadius: '50%', background: c, border: sameColor(teamForm.color, c) ? '3px solid var(--charcoal)' : '2px solid transparent', cursor: 'pointer', flexShrink: 0 }} />
                                         ))}
+                                        {!editingMember && !teamForm.color && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>Or leave it — they get the next free colour.</span>}
                                     </div>
                                 </div>
                             </div>
