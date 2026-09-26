@@ -797,7 +797,7 @@ const BookAppointment = () => {
     // â"€â"€â"€ REVIEW SCREEN â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     if (step === 'review') {
         return (
-            <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+            <div style={{ background: 'var(--off-white)', minHeight: 'var(--page-min-h)' }}>
                 {/* The celebratory moment is triggered from THIS (review) screen, so it
                     must render here too — not only in the form-step return below.
                     Without it, a confirmed booking set no visible overlay and the user
@@ -812,7 +812,7 @@ const BookAppointment = () => {
                 )}
                 {authPromptEl}
                 {/* Header */}
-                <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
+                <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: 'var(--page-hero-pad-bottom)', position: 'relative', overflow: 'hidden' }}>
                     <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 20% 50%, rgba(240,62,22,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
                     <div className="container" style={{ position: 'relative', display: 'flex', alignItems: 'center', gap: '1rem' }}>
                         <button onClick={() => setStep('form')} style={{ background: 'rgba(255,255,255,0.1)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: 'var(--radius-sm)', padding: '0.5rem 1rem', color: 'white', cursor: 'pointer', fontSize: '0.85rem', fontFamily: 'var(--font-body)' }}>&larr; Back</button>
@@ -823,10 +823,12 @@ const BookAppointment = () => {
                     </div>
                 </div>
 
-                <div className="container" style={{ paddingTop: '3rem', paddingBottom: '5rem' }}>
+                {/* Bottom room for the fixed Confirm bar comes from .booking-review-body,
+                    only where that bar shows (index.css). */}
+                <div className="container booking-review-body" style={{ paddingTop: 'var(--page-body-pad-top)' }}>
                     {error && <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>{error}</div>}
 
-                    <div className="booking-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 340px', gap: '2rem', alignItems: 'start', paddingBottom: '5rem' }}>
+                    <div className="booking-grid" style={{ display: 'grid', gridTemplateColumns: 'minmax(0,1fr) 340px', gap: '2rem', alignItems: 'start' }}>
 
                         {/* Left - booking details card */}
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
@@ -1024,8 +1026,10 @@ const BookAppointment = () => {
                     </div>
                 </div>
 
-                {/* Mobile sticky bottom confirm bar */}
-                <div className="booking-confirm-mobile" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--card-bg)', borderTop: '1px solid var(--border)', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1000, boxShadow: '0 -4px 20px rgba(0,0,0,0.08)' }}>
+                {/* Mobile sticky bottom confirm bar. No inline display: index.css shows it
+                    (display: flex) only at <= 900px; an inline display: 'flex' beat the
+                    desktop display: none and put a second Confirm bar over the page. */}
+                <div className="booking-confirm-mobile" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--card-bg)', borderTop: '1px solid var(--border)', padding: '1rem 1.5rem', justifyContent: 'space-between', alignItems: 'center', zIndex: 1000, boxShadow: '0 -4px 20px rgba(0,0,0,0.08)' }}>
                     <div style={{ flexShrink: 0 }}>
                         <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '600', color: 'var(--charcoal)' }}>{curSym} {totalPrice}</div>
                         <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>Total · {curCode}</div>
@@ -1041,7 +1045,7 @@ const BookAppointment = () => {
 
     // ─── BOOKING FORM â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€â"€
     return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+        <div style={{ background: 'var(--off-white)', minHeight: 'var(--page-min-h)' }}>
             {confirmedOverlay && (
                 <StatusOverlay
                     variant="confirmed"
@@ -1052,7 +1056,7 @@ const BookAppointment = () => {
             )}
             {authPromptEl}
             {/* Header */}
-            <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: 'var(--page-hero-pad-bottom)', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 20% 50%, rgba(240,62,22,0.05) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>{rescheduleId ? 'Reschedule' : 'Schedule Your Visit'}</p>
@@ -1060,7 +1064,7 @@ const BookAppointment = () => {
                 </div>
             </div>
 
-            <div className="container" style={{ paddingTop: '3rem', paddingBottom: '5rem' }}>
+            <div className="container" style={{ paddingTop: 'var(--page-body-pad-top)', paddingBottom: '5rem' }}>
                 {error && <div role="alert" style={{ background: 'var(--danger-bg)', border: '1px solid #fca5a5', color: 'var(--danger-fg)', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>{error}</div>}
 
                 {/* Progress stepper */}

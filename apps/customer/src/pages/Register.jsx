@@ -116,9 +116,11 @@ const Register = () => {
     ];
 
     return (
-        <div style={{ minHeight: '100dvh', background: 'var(--off-white)', display: 'flex', flexDirection: 'column', paddingTop: 'calc(56px + var(--safe-top, 0px))' }}>
+        <div style={{ minHeight: 'var(--page-min-h)', background: 'var(--off-white)', display: 'flex', flexDirection: 'column', paddingTop: '56px' }}>
             {/* The global fixed navbar (56px) renders on this page and carries the logo +
-                Log in link, so the page ships no duplicate header of its own — just clear it. */}
+                Log in link, so the page ships no duplicate header of its own — just clear it.
+                Only the bar's 56px: <main> already pads the status-bar inset, and adding
+                var(--safe-top) here as well pushed the page down by it twice in the app. */}
 
             {/* Step indicator */}
             <div style={{ display: 'flex', justifyContent: 'center', gap: '0.5rem', marginTop: '1rem' }}>
@@ -133,7 +135,8 @@ const Register = () => {
                 ))}
             </div>
 
-            <div style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
+            {/* .register-step-body: top-aligned on phones (index.css), centred on desktop. */}
+            <div className="register-step-body" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
 
                 {/* Step 1 — Role selection */}
                 {step === 1 && (

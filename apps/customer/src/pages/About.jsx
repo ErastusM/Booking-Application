@@ -17,7 +17,7 @@ const About = () => {
     const { user } = useAuthContext();
     const isProvider = user?.role === 'provider';
     return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+        <div style={{ background: 'var(--off-white)', minHeight: 'var(--page-min-h)' }}>
             <Seo
                 title="About Bookplus — Book local services online"
                 description="Bookplus lets you discover and book local businesses across Namibia and beyond — real-time availability, instant confirmation and reviews from real bookings."

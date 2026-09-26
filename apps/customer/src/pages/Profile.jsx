@@ -129,7 +129,7 @@ const Profile = () => {
     );
 
     return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100dvh', paddingBottom: '5rem' }}>
+        <div style={{ background: 'var(--off-white)', minHeight: 'var(--page-min-h)', paddingBottom: 'var(--page-pad-bottom)' }}>
 
             {/* Title */}
             <div style={{ paddingTop: 'clamp(4.5rem, 7vw, 4.75rem)', paddingBottom: '1.5rem', textAlign: 'center' }}>

@@ -57,7 +57,9 @@ const BecomeProvider = () => {
     };
 
     return (
-        <div style={{ minHeight: '100dvh', background: 'var(--off-white)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '6rem 1rem 3rem' }}>
+        // Top-aligned under the navbar like every other page; centred in a
+        // full-height column the card floated mid-screen under a big empty band.
+        <div style={{ minHeight: 'var(--page-min-h)', background: 'var(--off-white)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 'var(--page-hero-pad-top) 1rem 2rem' }}>
             <div style={{ width: '100%', maxWidth: '460px' }} className="fade-up">
                 <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)', overflow: 'hidden' }}>
                     <div style={{ height: '4px', background: 'linear-gradient(to right, var(--gold-dark), var(--gold-light))' }} />

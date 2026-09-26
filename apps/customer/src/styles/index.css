@@ -427,11 +427,17 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
   .provider-service-row > div:last-child { width: 100% !important; align-items: flex-start !important; }
 
   .auth-left { display: none !important; }
+  /* One column on phones: the form starts just under the top bar, like every
+     other page. Centred in a full-height column it floated mid-screen under a
+     big empty band (Login, Forgot and Reset password). */
   .auth-right {
     grid-column: 1 / -1 !important;
-    padding: 5rem 1.25rem 2rem !important;
+    align-items: flex-start !important;
+    padding: var(--page-hero-pad-top) 1.25rem 2rem !important;
     width: 100% !important;
   }
+  /* Sign-up steps: start under the progress dots rather than centred below them. */
+  .register-step-body { align-items: flex-start !important; padding-top: 1.1rem !important; }
 
   .booking-grid { grid-template-columns: 1fr !important; }
   .booking-summary { display: none !important; }
@@ -541,6 +547,13 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
   /* On desktop the provider profile keeps its sidebar "Book Now" button, so the
      fixed bottom Book bar (a mobile pattern) is hidden. */
   .provider-book-bar { display: none !important; }
+}
+
+/* Provider profile: room under the page for the fixed mobile "Book now" bar
+   (~73px + the home-indicator inset) only where that bar shows (<= 768px). */
+.provider-profile-body { padding-bottom: 3rem; }
+@media (max-width: 768px) {
+  .provider-profile-body.has-book-bar { padding-bottom: calc(1rem + 73px + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* Mirror image: on mobile the fixed bottom Book bar is the CTA, so the profile's
@@ -680,6 +693,8 @@ body.dark-mode .bottom-nav {
 /* ── Booking review page — responsive ── */
 .booking-confirm-mobile { display: none; }
 .booking-confirm-desktop { display: block; }
+/* Room under the review for the fixed Confirm bar — only where the bar shows. */
+.booking-review-body { padding-bottom: 3rem; }
 
 /* 900px, NOT 768px: .booking-grid collapses to one column at 900px, which
    pushed the desktop confirm panel below the fold — on 769-900px viewports
@@ -693,6 +708,8 @@ body.dark-mode .bottom-nav {
   /* The bottom nav is hidden on the booking flow, so the Confirm bar owns the
      screen edge; safe-area padding keeps it clear of the home indicator. */
   .booking-confirm-mobile { display: flex !important; bottom: 0 !important; padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)) !important; }
+  /* The bar is ~86px plus the home-indicator inset; 1rem of air above it. */
+  .booking-review-body { padding-bottom: calc(86px + 1rem + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* ── Booking mobile bar — dark mode ── */
@@ -1170,6 +1187,31 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
 :root { --page-hero-pad-top: calc(56px + 2.25rem); }
 @media (max-width: 768px) { :root { --page-hero-pad-top: calc(56px + 1.1rem); } }
 
+/* Page spacing — shared by every page so they can't drift apart again.
+   --page-hero-pad-top (above) is where the first content starts under the bar.
+   --page-hero-pad-bottom / --page-body-pad-top: a dark page header's bottom
+     padding and the gap from it to the page body. Both were 3rem, so on a phone
+     ~96px of nothing sat between the title and the first card.
+   --page-pad-bottom: room under a page's last card. Where the bottom nav floats
+     over content, body.has-bottom-nav already keeps room for it, so a page adds
+     only a little more.
+   --page-min-h: a full screen less what <main> (the status-bar inset) and the
+     body (the bottom nav's room) already add. A 100dvh page inside them was
+     always taller than the screen, so even a short page scrolled into blank. */
+:root {
+  --page-hero-pad-bottom: 3rem;
+  --page-body-pad-top: 3rem;
+  --page-pad-bottom: 5rem;
+  --page-min-h: calc(100dvh - var(--safe-top, 0px));
+}
+@media (max-width: 768px) {
+  :root { --page-hero-pad-bottom: 1.75rem; --page-body-pad-top: 1.25rem; }
+  body.has-bottom-nav {
+    --page-pad-bottom: 1rem;
+    --page-min-h: calc(100dvh - var(--safe-top, 0px) - 96px - env(safe-area-inset-bottom, 0px));
+  }
+}
+
 /* Desktop nav links — pill hover/active */
 .nav-pill {
   position: relative; text-decoration: none; font-size: 0.9rem; font-weight: 500;
@@ -1215,7 +1257,6 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
 
 /* ── Home: compact Fresha-style desktop layout. Everything below 1024px is
    untouched — the mobile view keeps its social-feed design. ── */
-.home-hero { padding-top: clamp(4rem, 8vw, 9rem); padding-bottom: 1.5rem; }
 /* Soft hero wash — the brand's warm answer to Fresha's lilac gradient.
    Light mode gets a gentle peach/apricot bloom; dark mode keeps its ember glow. */
 .home-hero-wash {
@@ -1235,7 +1276,6 @@ body.dark-mode .home-hero-wash {
 .home-hero-stat { display: none; }
 .discover-feed { display: flex; flex-direction: column; gap: 1.5rem; max-width: 540px; margin: 0 auto; }
 @media (min-width: 1024px) {
-  .home-hero { padding-top: calc(56px + env(safe-area-inset-top, 0px) + 2.25rem); padding-bottom: 0.75rem; }
   .home-hero-eyebrow { display: none; }
   .home-hero h1 { font-size: 2.9rem !important; margin-bottom: 0.6rem !important; }
   .home-hero-sub { font-size: 1.05rem !important; margin-bottom: 0.8rem !important; }
