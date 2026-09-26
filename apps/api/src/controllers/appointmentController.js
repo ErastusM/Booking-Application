@@ -25,7 +25,7 @@ const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, findBusiness
 const { overrideFor } = require('../utils/memberPricing');
 const { recordBookingRejection, rejectionsSummary } = require('../utils/bookingRejections');
 const { resolveBookingLocation } = require('../utils/locationResolver');
-const { checkCancellationWindow } = require('../utils/cancellationPolicy');
+const { checkCancellationWindow, DEFAULT_WINDOW_HOURS } = require('../utils/cancellationPolicy');
 // Serialize the overlap-check + insert for one provider+member+day so two
 // concurrent bookings can't both pass the check and both write (the same-person
 // double-book). bookingLockKey/withBookingLocks are shared with the waiting-list
@@ -3239,7 +3239,9 @@ exports.getAppointmentByToken = async (req, res) => {
                 staff: appt.teamMember ? appt.teamMember.name : null,
                 clientName: appt.walkInName || appt.guestName || null,
                 schedule,
-                cancellationWindowHours: appt.provider?.bookingPolicy?.cancellationWindowHours ?? 24,
+                // Same fallback the server enforces (0 = anytime), so the page never shows a
+                // stricter policy than the one actually applied.
+                cancellationWindowHours: appt.provider?.bookingPolicy?.cancellationWindowHours ?? DEFAULT_WINDOW_HOURS,
             },
         });
     } catch (error) {

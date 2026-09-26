@@ -22,6 +22,7 @@ const pickWeekFor = (availability) => {
 };
 const { searchAvailability } = require('../utils/availabilitySearch');
 const { NAMIBIA_OFFSET_MIN } = require('../utils/appointmentTime');
+const { DEFAULT_WINDOW_HOURS } = require('../utils/cancellationPolicy');
 
 const DATE_KEY = /^\d{4}-\d{2}-\d{2}$/;
 
@@ -502,8 +503,10 @@ async function buildProviderProfilePayload(provider) {
             // — the "N services available from N$…" bar.
             serviceCount: offering.serviceCount,
             minPrice: offering.minPrice,
-            // Notice a customer must give to cancel/reschedule (0 = anytime).
-            cancellationWindowHours: provider.bookingPolicy?.cancellationWindowHours ?? 24,
+            // Notice a customer must give to cancel/reschedule (0 = anytime). The
+            // fallback is the one the server enforces, so the booking screen never
+            // shows a stricter policy than the one actually applied.
+            cancellationWindowHours: provider.bookingPolicy?.cancellationWindowHours ?? DEFAULT_WINDOW_HOURS,
         },
         categories: grouped,
         reviews: reviewDocs.slice(0, 5),

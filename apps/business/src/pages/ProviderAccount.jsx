@@ -155,7 +155,7 @@ const ProviderAccount = () => {
     }, [user]);
 
     // Profile
-    const [profileForm, setProfileForm] = useState({ name: user?.name || '', phone: user?.phone || '', ownerTitle: user?.businessProfile?.ownerTitle || '', address: user?.businessProfile?.address || '', businessName: user?.businessProfile?.businessName || '', description: user?.businessProfile?.description || '', cancellationWindowHours: user?.bookingPolicy?.cancellationWindowHours ?? 24, coordinates: user?.businessProfile?.coordinates?.lat != null ? user.businessProfile.coordinates : null });
+    const [profileForm, setProfileForm] = useState({ name: user?.name || '', phone: user?.phone || '', ownerTitle: user?.businessProfile?.ownerTitle || '', address: user?.businessProfile?.address || '', businessName: user?.businessProfile?.businessName || '', description: user?.businessProfile?.description || '', cancellationWindowHours: user?.bookingPolicy?.cancellationWindowHours ?? 0, coordinates: user?.businessProfile?.coordinates?.lat != null ? user.businessProfile.coordinates : null });
     const [avatarUploading, setAvatarUploading] = useState(false);
     const [profileSaving, setProfileSaving] = useState(false);
     const [profileMsg, setProfileMsg] = useState('');

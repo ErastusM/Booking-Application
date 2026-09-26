@@ -848,9 +848,9 @@ const BookAppointment = () => {
                             <div style={cardStyle}>
                                 <div style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.4rem' }}>Cancellation policy</div>
                                 <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>
-                                    {(providerInfo?.cancellationWindowHours ?? 24) === 0
+                                    {(providerInfo?.cancellationWindowHours ?? 0) === 0
                                         ? 'Cancel or reschedule for free anytime.'
-                                        : `Cancel or reschedule for free up to ${providerInfo?.cancellationWindowHours ?? 24} hours before your appointment.`}
+                                        : `Cancel or reschedule for free up to ${providerInfo?.cancellationWindowHours ?? 0} hours before your appointment.`}
                                 </div>
                             </div>
 
@@ -1387,9 +1387,9 @@ const BookAppointment = () => {
                             </button>
                         )}
                         <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)', textAlign: 'center', marginTop: '1rem', lineHeight: 1.5 }}>
-                            {(providerInfo?.cancellationWindowHours ?? 24) === 0
+                            {(providerInfo?.cancellationWindowHours ?? 0) === 0
                                 ? 'Free cancellation anytime before your appointment.'
-                                : `Free cancellation up to ${providerInfo?.cancellationWindowHours ?? 24} hours before your appointment.`}
+                                : `Free cancellation up to ${providerInfo?.cancellationWindowHours ?? 0} hours before your appointment.`}
                         </p>
                     </div>
                 </div>
