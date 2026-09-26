@@ -25,6 +25,8 @@ import { NAMIBIAN_TOWNS, normalizeTown } from '../utils/namibiaTowns';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import useMyMember from '../hooks/useMyMember';
 import { buildTimeSlots, periodsToBlocks, scheduleBlocksFor, dayNameOf, hoursNote, blocksLabel, laneBusyRanges, ticketBuffers } from '../utils/bookingSlots';
+import { editableWeek, sortedPeriods, sortedWeek, weekProblem } from '../utils/workingHours';
+import DayPeriods from '../components/DayPeriods';
 import { fmtClock } from '../utils/time';
 import { sortClients } from '../utils/clientSort';
 import { bookingClientFields } from '../utils/bookingClient';
@@ -613,13 +615,13 @@ const ProviderDashboard = () => {
                 // Nothing is inherited from the business: a member with no hours
                 // yet sees every day off, in the same Working Hours rows, and the
                 // note that clients can't book them — which is exactly what the
-                // booking rules do. Days switched on with no times aren't hours.
-                setMemberHadHours(!!sched && WEEK_DAYS.some((d) => sched[d]?.enabled && (sched[d].slots || []).some((sl) => sl?.start && sl?.end && sl.start < sl.end)));
+                // booking rules do. Every period is kept (a split day shows both),
+                // in time order; a day switched on with no times is closed for
+                // bookings, so it shows switched off.
+                const week = editableWeek(sched);
+                setMemberHadHours(!!sched && WEEK_DAYS.some((d) => week[d].enabled));
                 setStaffCalendarHours(sched);
-                setAvailability(Object.fromEntries(WEEK_DAYS.map((d) => [d, {
-                    enabled: !!sched?.[d]?.enabled,
-                    slots: sched?.[d]?.slots?.length ? sched[d].slots : [{ start: '09:00', end: '17:00' }],
-                }])));
+                setAvailability(week);
                 return;
             }
             const res = await availabilityService.getMyAvailability();
@@ -629,7 +631,7 @@ const ProviderDashboard = () => {
             setAvailability(Object.fromEntries(WEEK_DAYS.map((d) => [d, {
                 enabled: !!sched[d]?.enabled,
                 slots: (sched[d]?.slots || []).filter((sl) => sl?.start && sl?.end).length
-                    ? sched[d].slots.filter((sl) => sl?.start && sl?.end).map(({ start, end }) => ({ start, end }))
+                    ? sortedPeriods(sched[d].slots.filter((sl) => sl?.start && sl?.end))
                     : [{ start: '09:00', end: '17:00' }],
             }])));
         } catch { }
@@ -1321,27 +1323,33 @@ const ProviderDashboard = () => {
         setSavingAvailability(true);
         setAvailabilitySuccess('');
         try {
+            // Both kinds of hours: each period ends after it starts, a split day's
+            // periods don't overlap (a break between them), and what is saved is
+            // exactly what is shown, in time order. The server checks the same.
+            const problem = weekProblem(availability, { words: isStaff ? ['start', 'end'] : ['opening', 'closing'] });
+            if (problem) { toast(problem, 'error'); return; }
+            const week = sortedWeek(availability);
             if (isStaff) {
                 // A member saves THEIR hours (/team/mine/availability), never the business's.
-                const bad = WEEK_DAYS.find((d) => availability[d]?.enabled && !(availability[d].slots[0]?.start < availability[d].slots[0]?.end));
-                if (bad) { toast(`${bad[0].toUpperCase()}${bad.slice(1)}: the end time must be after the start time`, 'error'); return; }
-                await myAvailabilityService.set(availability);
-                setMemberHadHours(WEEK_DAYS.some((d) => availability[d]?.enabled));
-                setStaffCalendarHours(availability);
+                await myAvailabilityService.set(week);
+                setAvailability(week);
+                setMemberHadHours(WEEK_DAYS.some((d) => week[d]?.enabled));
+                setStaffCalendarHours(week);
                 setCalHoursNonce((n) => n + 1); // the calendar's shading reads the saved hours
                 setAvailabilitySuccess(WEEK_DAYS.some((d) => availability[d]?.enabled) ? 'Your hours are saved. Clients can book you in these hours.' : 'Saved. You have no working days, so clients can’t book you.');
                 setTimeout(() => setAvailabilitySuccess(''), 4000);
                 return;
             }
-            // Same rule as a member's hours (and the server): closing after opening.
-            const badDay = WEEK_DAYS.find((d) => availability[d]?.enabled && (availability[d].slots || []).some((sl) => !(sl?.start && sl?.end && sl.start < sl.end)));
-            if (badDay) { toast(`${badDay[0].toUpperCase()}${badDay.slice(1)}: the closing time must be after the opening time`, 'error'); return; }
-            await availabilityService.updateMyAvailability(availability);
+            await availabilityService.updateMyAvailability(week);
+            setAvailability(week);
             setCalHoursNonce((n) => n + 1); // the calendar's shading reads the saved hours
             setAvailabilitySuccess('Working hours saved. New Appointment and your booking page now use these hours.');
             setTimeout(() => setAvailabilitySuccess(''), 3000);
-        } catch {
-            setError('Failed to save availability');
+        } catch (err) {
+            // The server names the day when it refuses hours; say that, not a generic failure.
+            const why = err?.response?.status === 400 && err.response.data?.message;
+            if (why) toast(why, 'error');
+            else setError('Failed to save availability');
         } finally {
             setSavingAvailability(false);
         }
@@ -1351,10 +1359,10 @@ const ProviderDashboard = () => {
         setAvailability(prev => ({ ...prev, [day]: { ...prev[day], enabled: !prev[day].enabled } }));
     };
 
-    const handleTimeChange = (day, field, value) => {
-        // Only the first period is edited here; any further periods (a split day)
-        // are kept, never silently dropped on save.
-        setAvailability(prev => ({ ...prev, [day]: { ...prev[day], slots: [{ ...prev[day].slots[0], [field]: value }, ...(prev[day].slots || []).slice(1)] } }));
+    // A day's periods, as DayPeriods edits them: the opening and closing time,
+    // and a split day's second period (added, edited or removed).
+    const handleDayPeriods = (day, slots) => {
+        setAvailability(prev => ({ ...prev, [day]: { ...prev[day], slots } }));
     };
 
     const handleStatusUpdate = async (id, status) => {
@@ -2242,16 +2250,8 @@ const ProviderDashboard = () => {
                                         <div style={{ minWidth: 0, flex: 1 }}>
                                             <div style={{ fontWeight: '600', color: config.enabled ? 'var(--charcoal)' : 'var(--text-muted)', fontSize: '1rem', textTransform: 'capitalize', marginBottom: config.enabled ? '0.55rem' : 0 }}>{day}</div>
                                             {config.enabled ? (
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                                    <TimePicker value={config.slots[0]?.start || '09:00'} onChange={e => handleTimeChange(day, 'start', e.target.value)} aria-label={`${day.charAt(0).toUpperCase()}${day.slice(1)} opening time`} hideIcon style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '1rem' }} />
-                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', flexShrink: 0 }}>to</span>
-                                                    <TimePicker value={config.slots[0]?.end || '17:00'} onChange={e => handleTimeChange(day, 'end', e.target.value)} aria-label={`${day.charAt(0).toUpperCase()}${day.slice(1)} closing time`} hideIcon style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '1rem' }} />
-                                                    {(config.slots || []).length > 1 && (
-                                                        <span style={{ flexBasis: '100%', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                                                            Also open {config.slots.slice(1).map(sl => `${sl.start}–${sl.end}`).join(', ')}
-                                                        </span>
-                                                    )}
-                                                </div>
+                                                <DayPeriods day={day} periods={config.slots?.length ? config.slots : [{ start: '09:00', end: '17:00' }]}
+                                                    onChange={(slots) => handleDayPeriods(day, slots)} />
                                             ) : (
                                                 <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Not available</div>
                                             )}

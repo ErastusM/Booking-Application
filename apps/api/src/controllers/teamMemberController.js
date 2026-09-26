@@ -1787,31 +1787,12 @@ exports.getTeamMemberAvailability = async (req, res) => {
 };
 
 // Validate a weekly schedule object, returning an error string (naming the day)
-// or null. Shared by the owner and staff-self availability endpoints so both
-// enforce the same rules: no inverted ranges, no overlapping working periods.
-const scheduleError = (schedule) => {
-    const toMins = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
-    for (const [day, cfg] of Object.entries(schedule)) {
-        if (!cfg?.enabled) continue;
-        const label = day.charAt(0).toUpperCase() + day.slice(1);
-        for (const slot of cfg.slots || []) {
-            // An inverted range (start ≥ end) used to save silently and left the
-            // member bookable at no valid time — refuse it and name the day.
-            if (toMins(slot.end) <= toMins(slot.start)) {
-                return `${label}: the ending time (${slot.end}) must be after the starting time (${slot.start}). Swap them if they're reversed.`;
-            }
-        }
-        // Overlapping slots would double-count the day and make occupancy stats
-        // nonsense (scheduledMinutes sums each slot with no interval merge).
-        const sorted = [...(cfg.slots || [])].sort((a, b) => toMins(a.start) - toMins(b.start));
-        for (let i = 1; i < sorted.length; i += 1) {
-            if (toMins(sorted[i].start) < toMins(sorted[i - 1].end)) {
-                return `${label}: two working periods overlap. Please make them separate, non-overlapping times.`;
-            }
-        }
-    }
-    return null;
-};
+// or null. Shared by the owner and staff-self availability endpoints — and, via
+// utils/weeklyHours, with the business's Working Hours — so all enforce the
+// same rules: a day switched on has a period, times are HH:mm, no inverted
+// ranges, no overlapping working periods (a split day has a gap between them).
+const { weekError, sortedWeek } = require('../utils/weeklyHours');
+const scheduleError = (schedule) => weekError(schedule, { kind: 'member' });
 
 // Normalise an optional rotation from the request body.
 //   undefined            → caller omitted it: PRESERVE any existing rotation (no wipe)
@@ -1848,8 +1829,13 @@ const rotationError = (rotation) => {
 // `rotation` undefined leaves any stored rotation untouched (a legacy { schedule }
 // PUT never wipes a rotation); a normalised rotation replaces it.
 const upsertSchedule = (member, schedule, rotation) => {
-    const update = { provider: member.provider, teamMember: member._id, schedule };
-    if (rotation !== undefined) update.rotation = rotation;
+    // Each day's periods in time order, so they read back as the screen shows them.
+    const update = { provider: member.provider, teamMember: member._id, schedule: sortedWeek(schedule) };
+    if (rotation !== undefined) {
+        update.rotation = rotation && Array.isArray(rotation.weeks) && rotation.weeks.length
+            ? { ...rotation, weeks: rotation.weeks.map(sortedWeek) }
+            : rotation;
+    }
     return StaffAvailability.findOneAndUpdate(
         { teamMember: member._id },
         update,
