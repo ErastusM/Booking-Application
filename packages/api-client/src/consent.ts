@@ -11,6 +11,10 @@
 // account), which calls openConsentSettings(). Every key the apps store is
 // listed and classified in apps/<app>/src/legal/cookies.json.
 
+/** Minimum age to create an account (mirrors apps/api/src/constants/consent.js,
+ *  which the API enforces). */
+export const MIN_SIGNUP_AGE = 16;
+
 export const CONSENT_KEY = 'bp_consent';
 export const ANALYTICS_ID_KEY = 'bp_sid';
 export const CONSENT_VERSION = 1;

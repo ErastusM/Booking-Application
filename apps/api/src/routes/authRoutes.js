@@ -36,6 +36,8 @@ const {
     getBlockedUsers,
     setMarketingEmails,
     exportAccount,
+    getGoogleSignup,
+    completeGoogleSignup,
 } = require('../controllers/authController');
 const { auth } = require('../middleware/auth');
 const { createInviteRequestLimiter } = require('../middleware/authRateLimit');
@@ -46,6 +48,7 @@ const {
     exchangeCodeRules,
 } = require('../middleware/validate');
 const User = require('../models/User');
+const PendingSignup = require('../models/PendingSignup');
 
 // Registration necessarily tells a real signer-up that an email is already taken —
 // that message is good UX and stays. What we deny is SCALE: a per-IP cap makes
@@ -103,6 +106,10 @@ router.post('/staff-invite/:token/renew', inviteRequestLimiter, renewStaffInvite
 router.get('/verify-email', verifyEmail);
 router.post('/resend-verification', resendVerification);
 router.post('/exchange-code', exchangeCodeRules, exchangeOAuthCode);
+// First-time Google sign-in: read the parked profile, then create the account
+// only once Terms/Privacy and the age confirmation are accepted.
+router.post('/google/pending', exchangeCodeRules, getGoogleSignup);
+router.post('/google/complete', accountProbeLimiter, exchangeCodeRules, completeGoogleSignup);
 
 const passport = require('../config/passport');
 
@@ -140,6 +147,13 @@ router.get('/google/callback', (req, res, next) => {
         try {
             const code = crypto.randomBytes(32).toString('hex');
             const codeHash = crypto.createHash('sha256').update(code).digest('hex');
+            // First-time Google sign-in: no account yet. Send them to the app's
+            // "Finish signing up" step (Terms, Privacy Policy, age) with a one-time
+            // code for the parked Google profile.
+            if (user.pendingSignup) {
+                await PendingSignup.updateOne({ _id: user.id }, { $set: { codeHash } });
+                return res.redirect(`${originForRole(user.role)}/auth/callback?signup=${code}`);
+            }
             await User.findByIdAndUpdate(user._id, {
                 oauthCode: codeHash,
                 oauthCodeExpiry: new Date(Date.now() + 10 * 60 * 1000), // 10 minutes

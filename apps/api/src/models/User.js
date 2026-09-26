@@ -118,6 +118,8 @@ const userSchema = new mongoose.Schema(
         // isn't here is rejected (rotated-away / forged). undefined = legacy, untracked.
         refreshTokenJtis: { type: [String], default: undefined, select: false },
         consentedAt: { type: Date, default: null }, // when the user accepted Terms + Privacy Policy
+        // When they confirmed they meet the minimum sign-up age (constants/consent).
+        ageConfirmedAt: { type: Date, default: null },
         // Promotional email ("Book again" etc.). OFF unless the person ticks the
         // (unticked) box at sign-up or turns it on in account settings; every
         // marketing email carries a one-click unsubscribe. `source` records where

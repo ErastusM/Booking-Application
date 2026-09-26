@@ -35,6 +35,8 @@ describe('POST /api/auth/register', () => {
         password: 'Password1!',
         phone: '+15550001234',
         role: 'customer',
+        termsAccepted: true,
+        ageConfirmed: true,
     };
 
     it('creates a new customer and returns 201 with token', async () => {

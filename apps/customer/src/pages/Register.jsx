@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { isFullName, joinName } from '../utils/personName';
 import { Link, useLocation } from 'react-router-dom';
 import { authService } from '../services';
+import { MIN_SIGNUP_AGE } from '@bookplus/api-client';
 import ConsentCheckbox, { MARKETING_OPT_IN_TEXT } from '../components/ConsentCheckbox';
 import { API_BASE } from '../services/api';
 import { CalendarCheck, Briefcase, MailCheck, Check } from 'lucide-react';
@@ -39,6 +40,7 @@ const Register = () => {
     const [passwordFocused, setPasswordFocused] = useState(false);
     const [resendMsg, setResendMsg] = useState('');
     const [consented, setConsented] = useState(false);
+    const [ageConfirmed, setAgeConfirmed] = useState(false); // enforced by the API too
     const [marketingOptIn, setMarketingOptIn] = useState(false); // unticked: marketing is opt-in
 
     const handleChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
@@ -88,11 +90,15 @@ const Register = () => {
             setError('Please agree to the Terms of Service and Privacy Policy to continue');
             return;
         }
+        if (!ageConfirmed) {
+            setError(`Please confirm you are ${MIN_SIGNUP_AGE} or older`);
+            return;
+        }
         setLoading(true);
         setError('');
         try {
             const { first, last, ...rest } = formData;
-            await authService.register({ ...rest, name, role: 'customer', termsAccepted: true, marketingOptIn });
+            await authService.register({ ...rest, name, role: 'customer', termsAccepted: true, ageConfirmed: true, marketingOptIn });
             setStep(3); // New step — check email
         } catch (err) {
             setError(err.response?.data?.message || 'Registration failed');
@@ -252,12 +258,23 @@ const Register = () => {
                                     I have read and agree to the <Link to="/terms" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold-dark)', textDecoration: 'underline' }}>Terms of Service</Link> and <Link to="/privacy-policy" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold-dark)', textDecoration: 'underline' }}>Privacy Policy</Link>, and consent to the processing of my personal information as described.
                                 </span>
                             </label>
+                            <label htmlFor="register-age" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5, cursor: 'pointer' }}>
+                                <input
+                                    id="register-age"
+                                    type="checkbox"
+                                    checked={ageConfirmed}
+                                    onChange={e => setAgeConfirmed(e.target.checked)}
+                                    data-testid="register-age"
+                                    style={{ marginTop: '0.15rem', width: '16px', height: '16px', flexShrink: 0, accentColor: 'var(--gold)', cursor: 'pointer' }}
+                                />
+                                <span>I am {MIN_SIGNUP_AGE} or older.</span>
+                            </label>
                             <ConsentCheckbox id="register-marketing" testId="register-marketing-optin" checked={marketingOptIn} onChange={setMarketingOptIn}>
                                 {MARKETING_OPT_IN_TEXT}
                             </ConsentCheckbox>
                             <button
                                 type="submit"
-                                disabled={loading || !passwordValid || !consented}
+                                disabled={loading || !passwordValid || !consented || !ageConfirmed}
                                 className="btn-primary"
                                 style={{ width: '100%', marginTop: '0.5rem', padding: '0.875rem' }}
                             >

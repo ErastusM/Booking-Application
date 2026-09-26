@@ -76,6 +76,20 @@ const readRefreshCookie = (req) => {
     return match ? decodeURIComponent(match[1]) : null;
 };
 
+const { MIN_SIGNUP_AGE } = require('../constants/consent');
+
+// Both boxes must be ticked by the person signing up (email or Google).
+const signupConsentError = (body = {}) => {
+    if (body.termsAccepted !== true) {
+        return { code: 'terms_required', message: 'Please agree to the Terms of Service and Privacy Policy to continue.' };
+    }
+    if (body.ageConfirmed !== true) {
+        return { code: 'age_required', message: `You must be ${MIN_SIGNUP_AGE} or older to create a Bookplus account.` };
+    }
+    return null;
+};
+exports.signupConsentError = signupConsentError;
+
 /**
  * =========================
  * REGISTER (LOCAL ONLY)
@@ -144,6 +158,11 @@ exports.register = async (req, res) => {
             });
         }
 
+        // Terms + Privacy Policy and the minimum age are confirmed by the person
+        // (unticked boxes in both apps' sign-up) — enforced here, not just in the UI.
+        const consent = signupConsentError(req.body);
+        if (consent) return res.status(400).json({ success: false, ...consent });
+
         const verificationToken = crypto.randomBytes(32).toString('hex');
         const verificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000); // 24 hours
 
@@ -158,11 +177,13 @@ exports.register = async (req, res) => {
             isVerified: false,
             verificationToken,
             verificationTokenExpiry,
-            consentedAt: new Date(), // consent captured at sign-up (gated in the UI)
+            consentedAt: new Date(), // Terms + Privacy accepted (termsAccepted, enforced above)
+            ageConfirmedAt: new Date(), // ageConfirmed, enforced above
             // Promotional email only with the (unticked) sign-up box ticked.
             marketingEmails: { optIn: marketingOptIn === true, at: new Date(), source: 'register' },
             consentLog: [
                 { kind: 'terms_privacy', value: true, source: 'register', at: new Date() },
+                { kind: 'age_confirmed', value: MIN_SIGNUP_AGE, source: 'register', at: new Date() },
                 { kind: 'marketing_emails', value: marketingOptIn === true, source: 'register', at: new Date() },
             ],
             signupSurveyPending: true, // prompt the one-time friction survey for this new account
@@ -438,6 +459,54 @@ exports.login = async (req, res) => {
 };
 
 /**
+ * Start a session after a Google sign-in (code exchange, or a just-finished
+ * Google sign-up) and describe it: tokens, the user, and whether the same email
+ * holds an account on the other side (the "which side?" chooser).
+ */
+const googleSession = async (res, user) => {
+    const { token, refreshToken } = await issueAuthTokens(user);
+    setRefreshCookie(res, refreshToken);
+
+    // The same question the password login answers: does this email hold an
+    // account on the OTHER side? Without this, every Google sign-in landed
+    // on whichever side the button happened to be on and never offered the
+    // choice. Google has verified the address, so existence may be
+    // disclosed on the same footing as a verified password login.
+    // sameCredentials here means "the same Google identity also owns that
+    // account", so re-running Google against that side signs them in
+    // without a password; otherwise that account has its own credentials.
+    let otherSide = null;
+    const ownType = User.accountTypeForRole(user.role);
+    const otherType = ownType === 'business' ? 'customer' : 'business';
+    const others = await User.find({
+        email: user.email, _id: { $ne: user._id },
+        role: User.roleFilterForAccountType(otherType),
+    });
+    const reachable = others.filter((o) => !(o.isActive === false && !o.deactivatedAt));
+    if (reachable.length) {
+        const sameIdentity = !!user.googleId && reachable.some((o) => o.googleId === user.googleId);
+        otherSide = { accountType: otherType, sameCredentials: sameIdentity };
+    }
+
+    return {
+        token,
+        refreshToken,
+        user: {
+            _id: user._id,
+            id: user._id,
+            name: user.name,
+            email: user.email,
+            role: user.role,
+            avatar: user.avatar,
+            phone: user.phone,
+            providerCategory: user.providerCategory,
+            providerSetupComplete: user.providerSetupComplete,
+        },
+        otherSide,
+    };
+};
+
+/**
  * =========================
  * EXCHANGE OAUTH CODE
  * =========================
@@ -472,51 +541,89 @@ exports.exchangeOAuthCode = async (req, res) => {
         // the consumed one-time code (and any reactivation above) explicitly.
         await user.save();
 
-        const { token, refreshToken } = await issueAuthTokens(user);
-        setRefreshCookie(res, refreshToken);
-
-        // The same question the password login answers: does this email hold an
-        // account on the OTHER side? Without this, every Google sign-in landed
-        // on whichever side the button happened to be on and never offered the
-        // choice. Google has verified the address, so existence may be
-        // disclosed on the same footing as a verified password login.
-        // sameCredentials here means "the same Google identity also owns that
-        // account", so re-running Google against that side signs them in
-        // without a password; otherwise that account has its own credentials.
-        let otherSide = null;
-        const ownType = User.accountTypeForRole(user.role);
-        const otherType = ownType === 'business' ? 'customer' : 'business';
-        const others = await User.find({
-            email: user.email, _id: { $ne: user._id },
-            role: User.roleFilterForAccountType(otherType),
-        });
-        const reachable = others.filter((o) => !(o.isActive === false && !o.deactivatedAt));
-        if (reachable.length) {
-            const sameIdentity = !!user.googleId && reachable.some((o) => o.googleId === user.googleId);
-            otherSide = { accountType: otherType, sameCredentials: sameIdentity };
-        }
-
-        res.status(200).json({
-            success: true,
-            data: {
-                token,
-                refreshToken,
-                user: {
-                    _id: user._id,
-                    id: user._id,
-                    name: user.name,
-                    email: user.email,
-                    role: user.role,
-                    avatar: user.avatar,
-                    phone: user.phone,
-                    providerCategory: user.providerCategory,
-                    providerSetupComplete: user.providerSetupComplete,
-                },
-                otherSide,
-            },
-        });
+        return res.status(200).json({ success: true, data: await googleSession(res, user) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Authentication failed' });
+    }
+};
+
+/**
+ * =========================
+ * FIRST-TIME GOOGLE SIGN-UP ("Finish signing up")
+ * =========================
+ * passport.js parks a brand-new Google identity in PendingSignup instead of
+ * creating an account. The app shows the Terms, Privacy Policy and age
+ * confirmation; the account exists only after /google/complete with both boxes
+ * ticked. The code is the one-time value from the redirect.
+ */
+const PendingSignup = require('../models/PendingSignup');
+const pendingByCode = (code) => PendingSignup.findOne({
+    codeHash: crypto.createHash('sha256').update(String(code)).digest('hex'),
+    expiresAt: { $gt: new Date() },
+});
+
+// POST /api/auth/google/pending { code } — who is signing up (name, email, side).
+exports.getGoogleSignup = async (req, res) => {
+    try {
+        const p = await pendingByCode(req.body.code);
+        if (!p) return res.status(400).json({ success: false, code: 'signup_expired', message: 'This sign-up link has expired. Please continue with Google again.' });
+        return res.status(200).json({ success: true, data: { name: p.name, email: p.email, role: p.role, minAge: MIN_SIGNUP_AGE } });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+// POST /api/auth/google/complete { code, termsAccepted, ageConfirmed, marketingOptIn }
+exports.completeGoogleSignup = async (req, res) => {
+    try {
+        const consent = signupConsentError(req.body);
+        if (consent) return res.status(400).json({ success: false, ...consent });
+        const p = await pendingByCode(req.body.code);
+        if (!p) return res.status(400).json({ success: false, code: 'signup_expired', message: 'This sign-up link has expired. Please continue with Google again.' });
+
+        const accountType = User.accountTypeForRole(p.role);
+        // A double-submit (or a second tab) may already have created it.
+        let user = await User.findOne({ googleId: p.googleId, role: User.roleFilterForAccountType(accountType) }).select('+refreshTokenJtis');
+        let created = false;
+        if (!user) {
+            if (await User.exists({ email: p.email, role: User.roleFilterForAccountType(accountType) })) {
+                await PendingSignup.deleteOne({ _id: p._id });
+                return res.status(409).json({ success: false, message: 'An account with this email already exists — please sign in instead.' });
+            }
+            const now = new Date();
+            const marketing = p.role === 'customer' && req.body.marketingOptIn === true;
+            user = await User.create({
+                name: p.name || p.email.split('@')[0],
+                email: p.email,
+                googleId: p.googleId,
+                avatar: p.avatar,
+                phone: 'pending',
+                role: p.role,
+                provider: 'google',
+                isVerified: true,
+                consentedAt: now,
+                ageConfirmedAt: now,
+                marketingEmails: { optIn: marketing, at: now, source: 'google_signup' },
+                consentLog: [
+                    { kind: 'terms_privacy', value: true, source: 'google_signup', at: now },
+                    { kind: 'age_confirmed', value: MIN_SIGNUP_AGE, source: 'google_signup', at: now },
+                    { kind: 'marketing_emails', value: marketing, source: 'google_signup', at: now },
+                ],
+                signupSurveyPending: true, // new social sign-up → prompt the one-time survey
+            });
+            created = true;
+        }
+        await PendingSignup.deleteOne({ _id: p._id });
+        if (created) {
+            // Welcome email for new social sign-ups (providers and customers alike).
+            sendWelcomeEmail(user.email, user.name, user.role).catch(() => {});
+            notifyAdmins(`New ${user.role} registered with Google: ${user.name} (${user.email})`, 'system', '/bkplus-command')
+                .catch(() => {});
+        }
+        return res.status(created ? 201 : 200).json({ success: true, data: await googleSession(res, user) });
+    } catch (error) {
+        if (error.code === 11000) return res.status(409).json({ success: false, message: 'An account with this email already exists — please sign in instead.' });
+        return res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 

@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import API, { API_BASE } from '../services/api';
+import FinishGoogleSignup from '../components/FinishGoogleSignup';
 
 const BUSINESS_URL = import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003';
 
@@ -14,13 +15,50 @@ const AuthCallback = () => {
     // the button was on — the same defect the password login had.
     const [choice, setChoice] = useState(null); // { otherSide, email }
 
+    // The one-time values in this URL (?code= / ?signup=) are credentials: read
+    // them once, then drop them from the address bar and history.
+    const [params] = useState(() => new URLSearchParams(window.location.search));
+    const signupCode = params.get('signup');
+
+    // A session was started (code exchange, or a just-finished Google sign-up):
+    // store it and send the person where they belong.
+    const handleSession = ({ token, refreshToken, user, otherSide }, switched = false) => {
+        localStorage.setItem('token', token);
+        if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
+        login({ token, user });
+
+        setTimeout(() => {
+            const needsPhone = !user.phone || user.phone === 'pending';
+            if (needsPhone) {
+                navigate('/complete-profile');
+            } else if (!switched && user.role === 'customer' && otherSide?.accountType === 'business') {
+                // Ask, exactly as the password login does — unless the
+                // switcher already decided this is where they want to be.
+                setChoice({ otherSide, email: user.email });
+            } else if (user.role !== 'customer') {
+                // Business accounts (provider/staff/admin) live in the
+                // business app — hard nav; the SSO cookie set by the code
+                // exchange lets it bootstrap the session over there.
+                const businessUrl = import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003';
+                window.location.href = user.role === 'admin'
+                    ? `${businessUrl}/bkplus-command`
+                    : `${businessUrl}/dashboard`;
+            } else {
+                navigate('/');
+            }
+        }, 500);
+    };
+
     useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
         const code = params.get('code');
         // Arriving via the account switcher (or a just-created customer account):
         // the destination is already decided, so skip the "which side?" chooser
         // the Google login shows — asking again would undo the switch.
         const switched = params.get('switch') === '1';
+        try { window.history.replaceState(null, '', window.location.pathname); } catch { /* ignore */ }
+
+        // First-time Google sign-in: the FinishGoogleSignup step below takes over.
+        if (signupCode) return;
 
         if (!code) {
             navigate('/login?error=google_failed');
@@ -30,31 +68,7 @@ const AuthCallback = () => {
         API.post('/auth/exchange-code', { code })
             .then(({ data }) => {
                 if (data.success) {
-                    const { token, refreshToken, user, otherSide } = data.data;
-                    localStorage.setItem('token', token);
-                    if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
-                    login({ token, user });
-
-                    setTimeout(() => {
-                        const needsPhone = !user.phone || user.phone === 'pending';
-                        if (needsPhone) {
-                            navigate('/complete-profile');
-                        } else if (!switched && user.role === 'customer' && otherSide?.accountType === 'business') {
-                            // Ask, exactly as the password login does — unless the
-                            // switcher already decided this is where they want to be.
-                            setChoice({ otherSide, email: user.email });
-                        } else if (user.role !== 'customer') {
-                            // Business accounts (provider/staff/admin) live in the
-                            // business app — hard nav; the SSO cookie set by the code
-                            // exchange lets it bootstrap the session over there.
-                            const businessUrl = import.meta.env.VITE_BUSINESS_URL || 'http://localhost:3003';
-                            window.location.href = user.role === 'admin'
-                                ? `${businessUrl}/bkplus-command`
-                                : `${businessUrl}/dashboard`;
-                        } else {
-                            navigate('/');
-                        }
-                    }, 500);
+                    handleSession(data.data, switched);
                 } else {
                     setError(data.message || 'Authentication failed');
                     setTimeout(() => navigate('/login?error=google_failed'), 2000);
@@ -78,6 +92,17 @@ const AuthCallback = () => {
         const q = new URLSearchParams({ email: choice?.email || '', from: 'website' });
         window.location.href = `${BUSINESS_URL}/login?${q}`;
     };
+
+    if (signupCode && !choice) {
+        return (
+            <FinishGoogleSignup
+                code={signupCode}
+                showMarketing
+                onDone={(data) => handleSession(data)}
+                onCancel={() => navigate('/login')}
+            />
+        );
+    }
 
     if (choice) {
         return (

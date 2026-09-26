@@ -35,6 +35,8 @@ const registerPayload = (overrides = {}) => ({
     password: CUSTOMER_PW,
     phone: '+15550004321',
     role: 'customer',
+    termsAccepted: true,
+    ageConfirmed: true,
     ...overrides,
 });
 

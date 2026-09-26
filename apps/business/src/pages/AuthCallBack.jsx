@@ -2,15 +2,43 @@ import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import API from '../services/api';
+import FinishGoogleSignup from '../components/FinishGoogleSignup';
 
 const AuthCallback = () => {
     const { login } = useAuthContext();
     const navigate = useNavigate();
     const [error, setError] = useState('');
 
+    // The one-time values in this URL (?code= / ?signup=) are credentials: read
+    // them once, then drop them from the address bar and history.
+    const [params] = useState(() => new URLSearchParams(window.location.search));
+    const signupCode = params.get('signup');
+
+    const handleSession = ({ token, refreshToken, user }) => {
+        localStorage.setItem('token', token);
+        if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
+        login({ token, user });
+
+        setTimeout(() => {
+            const needsPhone = !user.phone || user.phone === 'pending';
+            if (needsPhone) {
+                navigate('/complete-profile');
+            } else if (user.role === 'admin') {
+                navigate('/bkplus-command');
+            } else if (user.role === 'provider') {
+                navigate('/dashboard');
+            } else {
+                navigate('/');
+            }
+        }, 500);
+    };
+
     useEffect(() => {
-        const params = new URLSearchParams(window.location.search);
         const code = params.get('code');
+        try { window.history.replaceState(null, '', window.location.pathname); } catch { /* ignore */ }
+
+        // First-time Google sign-in: the FinishGoogleSignup step below takes over.
+        if (signupCode) return;
 
         if (!code) {
             navigate('/login?error=google_failed');
@@ -20,23 +48,7 @@ const AuthCallback = () => {
         API.post('/auth/exchange-code', { code })
             .then(({ data }) => {
                 if (data.success) {
-                    const { token, refreshToken, user } = data.data;
-                    localStorage.setItem('token', token);
-                    if (refreshToken) localStorage.setItem('refreshToken', refreshToken);
-                    login({ token, user });
-
-                    setTimeout(() => {
-                        const needsPhone = !user.phone || user.phone === 'pending';
-                        if (needsPhone) {
-                            navigate('/complete-profile');
-                        } else if (user.role === 'admin') {
-                            navigate('/bkplus-command');
-                        } else if (user.role === 'provider') {
-                            navigate('/dashboard');
-                        } else {
-                            navigate('/');
-                        }
-                    }, 500);
+                    handleSession(data.data);
                 } else {
                     setError(data.message || 'Authentication failed');
                     setTimeout(() => navigate('/login?error=google_failed'), 2000);
@@ -47,6 +59,16 @@ const AuthCallback = () => {
                 setTimeout(() => navigate('/login?error=google_failed'), 2000);
             });
     }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+    if (signupCode) {
+        return (
+            <FinishGoogleSignup
+                code={signupCode}
+                onDone={(data) => handleSession(data)}
+                onCancel={() => navigate('/login')}
+            />
+        );
+    }
 
     return (
         <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--off-white)' }}>

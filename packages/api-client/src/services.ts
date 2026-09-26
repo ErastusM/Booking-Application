@@ -25,6 +25,11 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         addCustomerAccount: () => API.post('/auth/add-customer-account'),
         changePassword: (data: any) => API.put('/auth/change-password', data),
         resendVerification: (email: string) => API.post('/auth/resend-verification', { email }),
+        // First-time Google sign-in: who is signing up, then create the account
+        // once the Terms/Privacy and age boxes are ticked ("Finish signing up").
+        getGoogleSignup: (code: string) => API.post('/auth/google/pending', { code }),
+        completeGoogleSignup: (data: { code: string; termsAccepted: boolean; ageConfirmed: boolean; marketingOptIn?: boolean }) =>
+            API.post('/auth/google/complete', data),
         forgotPassword: (email: string) => API.post('/auth/forgot-password', accountType ? { email, accountType } : { email }),
         resetPassword: (data: any) => API.post('/auth/reset-password', data),
         // Staff invite acceptance (Fresha-style). getStaffInvite previews who

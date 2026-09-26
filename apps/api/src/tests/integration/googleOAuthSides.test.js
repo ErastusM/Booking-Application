@@ -84,10 +84,12 @@ describe('Google sign-in resolves existing accounts across sides', () => {
             .toBe(provider._id.toString());
     });
 
-    it('a genuinely new person is still created on the requested side', async () => {
+    it('a genuinely new person is parked on the requested side — no account until they accept the Terms and confirm their age', async () => {
         const user = await signInWithGoogle('customer', profileFor('new@example.com'));
-        expect(user.role).toBe('customer');
-        expect(user.isVerified).toBe(true);
+        expect(user).toMatchObject({ pendingSignup: true, role: 'customer' });
+        expect(await User.countDocuments({ email: 'new@example.com' })).toBe(0);
+        const PendingSignup = require('../../models/PendingSignup');
+        expect(await PendingSignup.findById(user.id)).toMatchObject({ email: 'new@example.com', role: 'customer', googleId: 'google-123' });
     });
 
     it('an unverified Google email never links to an existing account', async () => {
