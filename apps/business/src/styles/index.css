@@ -1246,6 +1246,12 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
    instead of leaving a 52px empty strip under the grid. */
 .cal-frame { bottom: calc(52px + env(safe-area-inset-bottom, 0px)); }
 @media (min-width: 1024px) { .cal-frame { bottom: 0; } }
+/* Services tab: each category group keeps 1.5rem under itself, so the last one's
+   margin stacked on the page's bottom room (61px above the "+", 24px more than
+   every other tab). A member's "From the menu" card after the grid keeps the 2rem
+   gap it had (its own 0.5rem plus that margin). */
+.catalogue-grid > :last-child > :last-child { margin-bottom: 0 !important; }
+.catalogue-grid + * { margin-top: 2rem !important; }
 /* The cross-app "Customer site" pill duplicates the dropdown's "Go to customer
    site", so it is dropped on tighter desktop widths to keep the bar breathing. */
 @media (max-width: 1120px) { .nav-cross-app { display: none !important; } }
