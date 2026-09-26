@@ -24,8 +24,9 @@
  * CLOUDINARY_CLOUD_NAME + CLOUDINARY_API_KEY + CLOUDINARY_API_SECRET), nothing
  * can be moved: the rows are PRINTED instead so they can be handled by hand, and
  * the links keep working exactly as before (still visible only to the payer and
- * the business through the new proof endpoint). The deploy log only ever shows
- * row ids and counts — never a proof URL.
+ * the business through the new proof endpoint). The deploy log never shows a
+ * proof URL: counts only when nothing could be moved, row ids for rows that
+ * failed to move.
  *
  * Run locally:   node scripts/migrate_private_proofs.js
  * In Docker:     docker compose exec -T server node scripts/migrate_private_proofs.js
@@ -102,9 +103,11 @@ function report(r) {
     if (!r.found) {
         lines.push('migrate_private_proofs: no public proofs of payment left.');
     } else if (!r.configured) {
-        lines.push(`migrate_private_proofs: ${r.found} proof(s) of payment are still public, and this server has no Cloudinary credentials (CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET), so they could not be made private. Add the credentials and redeploy. Rows:`);
-        r.pending.slice(0, 200).forEach((p) => lines.push(`  ${p.collection} ${p.id}`));
-        if (r.pending.length > 200) lines.push(`  …and ${r.pending.length - 200} more.`);
+        // Counts only: nothing was changed, so there is nothing per-row to act on.
+        const byCollection = {};
+        r.pending.forEach((p) => { byCollection[p.collection] = (byCollection[p.collection] || 0) + 1; });
+        lines.push(`migrate_private_proofs: ${r.found} proof(s) of payment are still public, and this server has no Cloudinary credentials (CLOUDINARY_URL or CLOUDINARY_CLOUD_NAME/API_KEY/API_SECRET), so nothing was changed. Add the credentials and redeploy to make them private.`);
+        Object.entries(byCollection).forEach(([c, n]) => lines.push(`  ${c}: ${n}`));
     } else {
         lines.push(`migrate_private_proofs: ${r.moved} made private, ${r.alreadyPrivate} already private, ${r.skipped.length} could not be moved.`);
         r.skipped.slice(0, 200).forEach((p) => lines.push(`  NOT MOVED ${p.collection} ${p.id}  (${redactReason(p.reason)})`));

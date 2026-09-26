@@ -240,8 +240,13 @@ describe('migrate_private_proofs', () => {
         process.env.CLOUDINARY_URL = `cloudinary://key123:secret456@${CLOUD}`;
         global.fetch = jest.fn(async () => ({ ok: false, status: 400, json: async () => ({ error: { message: `bad https://res.cloudinary.com/${CLOUD}/image/upload/abc123.jpg` } }) }));
         const failing = report(await migratePrivateProofs()).join('\n');
+        // No keys: counts only — no ids, no URLs.
+        expect(unconfigured).toContain('WalletTransaction: 2');
+        expect(unconfigured).toContain('ProviderWalletTransaction: 1');
+        expect(unconfigured).not.toContain(String(t1._id));
+        // Keys but a failed move: the row id, so it can be fixed.
+        expect(failing).toContain(String(t1._id));
         for (const out of [unconfigured, failing]) {
-            expect(out).toContain(String(t1._id));
             expect(out).not.toMatch(/https?:\/\//);
             expect(out).not.toContain('abc123');
             expect(out).not.toContain('elsewhere.png');

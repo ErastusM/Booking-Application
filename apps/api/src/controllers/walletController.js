@@ -136,7 +136,7 @@ exports.proofUploadParams = async (req, res) => {
     if (!cloudinary.isConfigured()) {
         return res.status(503).json({
             success: false, code: 'proof_upload_unavailable',
-            message: 'Photo proofs are temporarily unavailable — add your payment reference instead.',
+            message: 'Uploading a proof is unavailable right now. Add your payment reference instead — the business can still match your payment.',
         });
     }
     return res.status(200).json({ success: true, data: cloudinary.proofUploadParams(req.user._id) });
