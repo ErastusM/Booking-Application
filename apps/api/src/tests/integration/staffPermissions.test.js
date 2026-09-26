@@ -218,7 +218,10 @@ describe('permission tiers', () => {
         expect((await User.findById(mosesLogin._id)).staffTier).toBeNull();
     });
 
-    it('setting tier:null resets to the self-baseline', async () => {
+    // null = "nobody chose a level", which now resolves to the Service-provider
+    // default ('low') — see DEFAULT_TIER in utils/permissions. The stored value
+    // stays null so the owner can tell "never chosen" from an explicit choice.
+    it('setting tier:null clears the choice back to the Service-provider default', async () => {
         const { provider, moses, mosesLogin } = await setup([]);
         await request(app).put(`/api/team/${moses._id}/permissions`).set(authHeader(provider)).send({ tier: 'high' });
         const reset = await request(app).put(`/api/team/${moses._id}/permissions`).set(authHeader(provider)).send({ tier: null });
@@ -267,10 +270,22 @@ describe('tiered booking-status actions (Phase 1)', () => {
         expect(res.status).toBe(200);
     });
 
-    it('a Basic member is refused at the route — no booking capability', async () => {
-        const { mosesLogin, mine } = await setup([]); // tier null → Basic
+    // Was `tier null → Basic`; null now means the Service-provider default, so
+    // view-only is pinned with an EXPLICIT 'basic'.
+    it('an explicit Basic (view-only) member is refused at the route — no booking capability', async () => {
+        const { mosesLogin, mine } = await setup([]);
+        await setTier(mosesLogin._id, 'basic');
         const res = await setStatus(mosesLogin, mine._id, 'confirmed');
         expect(res.status).toBe(403);
+    });
+
+    it('a member nobody chose a level for (tier null) runs their own book like a Service provider', async () => {
+        const { mosesLogin, mine, hers } = await setup([]); // tier null → Service provider
+        const own = await setStatus(mosesLogin, mine._id, 'confirmed');
+        expect(own.status).toBe(200);
+        // …but only their own: a colleague's booking stays out of reach.
+        const colleague = await setStatus(mosesLogin, hers._id, 'confirmed');
+        expect(colleague.status).toBe(403);
     });
 
     it("never reaches another business's booking, even at Medium", async () => {
@@ -322,10 +337,17 @@ describe('tiered reschedule actions (Phase 1b)', () => {
         expect(res.status).toBe(200);
     });
 
-    it('a Basic member is refused at the route — no reschedule capability', async () => {
-        const { mosesLogin, mine } = await setup([]); // tier null → Basic
+    it('an explicit Basic (view-only) member is refused at the route — no reschedule capability', async () => {
+        const { mosesLogin, mine } = await setup([]);
+        await setTier(mosesLogin._id, 'basic');
         const res = await reschedule(mosesLogin, mine._id, weekday());
         expect(res.status).toBe(403);
+    });
+
+    it('a member with no level chosen (tier null) can reschedule their OWN booking', async () => {
+        const { mosesLogin, mine } = await setup([]); // tier null → Service provider
+        const res = await reschedule(mosesLogin, mine._id, weekday());
+        expect(res.status).toBe(200);
     });
 
     it("never reaches another business's booking, even at Medium", async () => {
@@ -389,12 +411,22 @@ describe('staff walk-in create (Phase 1c)', () => {
         expect(res.body.data.totalPrice).toBe(50);
     });
 
-    it('a Basic member cannot log a walk-in — refused, not booked as themselves', async () => {
-        const { mosesLogin, service } = await setup([]); // tier null → Basic, no bookings:create
+    it('an explicit Basic (view-only) member cannot log a walk-in — refused, not booked as themselves', async () => {
+        const { mosesLogin, service } = await setup([]);
+        await setTier(mosesLogin._id, 'basic'); // view-only: no bookings:create
         const res = await book(mosesLogin, walkIn({ service: service._id.toString() }));
         expect(res.status).toBe(403);
         expect(res.body.code).toBe('staff_booking_not_allowed');
+        expect(res.body.message).toMatch(/doesn.t include making bookings/i);
         expect(await Appointment.countDocuments({ customer: mosesLogin._id })).toBe(0);
+    });
+
+    it('a member with no level chosen (tier null) can log a walk-in in their own column', async () => {
+        const { moses, sarah, mosesLogin, service } = await setup([]); // tier null → Service provider
+        const res = await book(mosesLogin, walkIn({ service: service._id.toString(), teamMember: sarah._id.toString() }));
+        expect(res.status).toBe(201);
+        expect(res.body.data.walkInName).toBe('Jane Passerby');
+        expect(String(res.body.data.teamMember)).toBe(String(moses._id));
     });
 
     it('is held to the customer past-slot guard — no back-dating a walk-in', async () => {

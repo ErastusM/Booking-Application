@@ -8,6 +8,7 @@ import NotificationBell from './NotificationBell';
 import SuggestionBox from './SuggestionBox';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import Wordmark from './Wordmark';
+import useMyMember from '../hooks/useMyMember';
 
 const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'http://localhost:3002';
 
@@ -20,6 +21,11 @@ const Navbar = () => {
     // capability (a Medium receptionist gets Calendar + Clients). Kept staff-scoped
     // so admin's business-nav is unchanged. Owner-only items stay role==='provider'.
     const navCan = (cap) => user?.role === 'provider' || (user?.role === 'staff' && hasCap(cap));
+    // A team member who sees only their own calendar books only into their own
+    // column; if that column isn't open for bookings the server refuses every
+    // booking, so the "+" isn't offered (mirrors ProviderDashboard's canBook).
+    const myMember = useMyMember(user);
+    const ownColumnClosed = user?.role === 'staff' && !hasCap('calendar:view_all') && myMember?.bookable === false;
     const location = useLocation();
     const [scrolled, setScrolled] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
@@ -644,7 +650,7 @@ const Navbar = () => {
                         which ProviderDashboard turns into openBlankApptModal(). The lift
                         is a transform on THIS span only (a grandchild), never on the
                         fixed bar itself — so the iOS repaint fix above is untouched. */}
-                    {(user?.role === 'provider' || (user?.role === 'staff' && hasCap('bookings:create'))) && (
+                    {(user?.role === 'provider' || (user?.role === 'staff' && hasCap('bookings:create') && !ownColumnClosed)) && (
                     <Link to="/dashboard?new=1" aria-label="New booking" style={{ flexShrink: 0, alignSelf: 'center', margin: '0 6px', display: 'flex', alignItems: 'center', justifyContent: 'center', textDecoration: 'none', WebkitTapHighlightColor: 'transparent' }}>
                         <span style={{
                             width: '50px', height: '50px', borderRadius: '50%',

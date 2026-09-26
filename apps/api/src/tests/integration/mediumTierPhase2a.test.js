@@ -2,13 +2,14 @@
  * Permission tiers — Phase 2a: the Medium tier turns on the resource-management
  * capabilities that scope by business, via a single staffOf remap:
  *   clients:view / clients:edit  (client records, /api/crm)
- *   calendar:manage              (blocked time, /api/blocked-times)
+ *   calendar:manage              (the whole business's blocked time, /api/blocked-times)
  *   forms:manage                 (form templates, /api/forms)
  *
  * The load-bearing property is cross-tenant isolation: a Medium staff member
  * acts on THEIR EMPLOYER's records (req.user.staffOf), never their own id and
  * never another business. A Basic/Low member (lacking the capability) is refused
- * at the route.
+ * at the route — except that a Low member may block time in their OWN lane
+ * (calendar:block:self; see blockedTimeOwnLane.test.js), never business-wide.
  */
 const request = require('supertest');
 const app = require('../../../server');
@@ -142,7 +143,9 @@ describe('calendar:manage — blocked time', () => {
         expect(list.body.data.some((b) => b.reason === 'Lunch')).toBe(true);
     });
 
-    it('a Low member cannot manage blocked time', async () => {
+    // A Low member now holds calendar:block:self (their own lane only), so this
+    // pins the part of the old rule that still stands: no business-wide block.
+    it('a Low member cannot block time for the whole business', async () => {
         const { provider } = await makeBusinessWithClient();
         const low = await makeStaff(provider, 'low');
         const res = await request(app)
@@ -150,6 +153,7 @@ describe('calendar:manage — blocked time', () => {
             .set(authHeader(low))
             .send({ date: '2027-01-04', startTime: '12:00', endTime: '13:00' });
         expect(res.status).toBe(403);
+        expect(res.body.code).toBe('own_lane_only');
     });
 });
 

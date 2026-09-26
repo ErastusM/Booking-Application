@@ -908,64 +908,90 @@ exports.createAppointment = async (req, res) => {
         // with past/closed/blocked bookings (audit: staff-role bypass).
         const isCustomerLike = isGuest || !isProviderBooking;
 
-        // Staff walk-in (Phase 1c): a staff member holding `bookings:create` (Low
-        // tier and up) may log a walk-in — a free-text, no-account client — but ONLY
-        // into their OWN column, and held to every customer guard. Deliberately NOT
-        // an owner override: isCustomerLike stays true, so unlike a provider walk-in
-        // they cannot skip published hours / blocked time / past-slot, and cannot
-        // book on behalf of a registered client (customerId). It's gated on a
-        // walkInName being supplied (the intent to log a walk-in rather than book
-        // themselves as a customer) and on the service belonging to their business.
-        const isStaffWalkIn = req.user?.role === 'staff'
-            && !!walkInName?.trim()
-            && !customerId
+        // Staff bookings. A staff member holding `bookings:create` (Service
+        // provider / Low tier and up) books for their OWN business's services, and
+        // every staff booking stays customer-like (isCustomerLike): unlike the
+        // owner they cannot skip published hours / blocked time / past-slot.
+        const staffCanBookHere = req.user?.role === 'staff'
             && !!svc.provider && String(svc.provider) === String(req.user.staffOf)
             && can(req.user, 'bookings:create');
-        // Staff book-on-behalf (Phase 2b): a Medium+ staff member (holding
-        // clients:view AND bookings:create) may attach an EXISTING client of the
-        // business to a booking — the reception equivalent of the owner's
-        // book-on-behalf. Like isStaffWalkIn it is NOT an owner override:
-        // isCustomerLike stays true, so published hours / blocked time / past-slot
-        // still apply. Gated on a Medium-only client capability so Low walk-in
-        // staff don't gain it. Mutually exclusive with the walk-in path (keyed on
-        // customerId present + walkInName absent).
-        const isStaffOnBehalf = req.user?.role === 'staff'
+        // Walk-in (Phase 1c): a free-text, no-account client, keyed on a
+        // walkInName being supplied — the intent to log a walk-in rather than book
+        // themselves as a customer. Always forced into the logger's OWN column.
+        const isStaffWalkIn = staffCanBookHere
+            && !!walkInName?.trim()
+            && !customerId;
+        // Book-on-behalf: attach an EXISTING registered client (customerId).
+        // Mutually exclusive with the walk-in path (customerId present +
+        // walkInName absent). WHICH clients depends on the member's client scope:
+        //   - clients:view (Medium+) or the owner-granted clients:view_all add-on:
+        //     any existing client of the business (Phase 2b, reception);
+        //   - otherwise (Service provider): ONLY the clients they personally serve
+        //     — the same memberInvolvedFilter scope their client list
+        //     (clientCRMController buildClientScope) shows them — checked below.
+        const isStaffOnBehalf = staffCanBookHere
             && !!customerId
-            && !walkInName?.trim()
-            && !!svc.provider && String(svc.provider) === String(req.user.staffOf)
-            && can(req.user, 'bookings:create')
-            && can(req.user, 'clients:view');
-        let staffWalkInMemberId = null;
-        if (isStaffWalkIn) {
-            // The walk-in lands in the staff member's own column — resolve their
-            // roster row and force it below, so a staff member can never log a
-            // walk-in into a colleague's column.
+            && !walkInName?.trim();
+        const staffSeesAllClients = can(req.user, 'clients:view') || can(req.user, 'clients:view_all');
+        const staffOnBehalfAssignedOnly = isStaffOnBehalf && !staffSeesAllClients;
+        // Which staff bookings land in the booker's OWN column, whatever the body
+        // says: every walk-in, and any on-behalf booking by a member who only sees
+        // their own calendar (no calendar:view_all) — a Service provider books into
+        // their own book, never a colleague's. Medium+ reception keeps choosing the
+        // column for an on-behalf booking, unchanged.
+        const staffOwnColumn = isStaffWalkIn
+            || (isStaffOnBehalf && (staffOnBehalfAssignedOnly || !can(req.user, 'calendar:view_all')));
+        let staffOwnMemberId = null;
+        if (staffOwnColumn) {
+            // Resolve their roster row and force it below, so a staff member can
+            // never book into a colleague's column.
             const myMember = await staffMemberOf(req.user);
             if (!myMember) {
-                return res.status(403).json({ success: false, message: 'You do not have a bookable staff profile to log a walk-in under.' });
+                return res.status(403).json({
+                    success: false,
+                    message: isStaffWalkIn
+                        ? 'You do not have a bookable staff profile to log a walk-in under.'
+                        : 'You do not have a bookable staff profile to book under.',
+                });
             }
-            staffWalkInMemberId = myMember._id;
+            staffOwnMemberId = myMember._id;
         }
-        // A staff walk-in is forced onto the logger's OWN column, so all
-        // member-specific math — per-member price/duration overrides and whether a
-        // member's shift governs the hours — must read that same column, never the
-        // request-body `teamMember` (which is ignored for the column). Reading the
-        // body value would let a walk-in borrow a colleague's shift to skip
-        // published hours, or record a colleague's price/duration. For every other
-        // caller this is exactly the body value, unchanged.
-        const effectiveTeamMember = isStaffWalkIn ? staffWalkInMemberId : teamMember;
+        // A booking forced onto the booker's OWN column must read that same column
+        // for all member-specific math — per-member price/duration overrides and
+        // whether a member's shift governs the hours — never the request-body
+        // `teamMember` (which is ignored for the column). Reading the body value
+        // would let them borrow a colleague's shift to skip published hours, or
+        // record a colleague's price/duration. For every other caller this is
+        // exactly the body value, unchanged.
+        const effectiveTeamMember = staffOwnColumn ? staffOwnMemberId : teamMember;
 
-        // A staff account is not a client. Anything that isn't a walk-in or (with
-        // client access) a booking for an existing client used to fall through to
-        // the customer path and record the TEAM MEMBER as the client — silently
-        // dropping the client they picked. Refuse it and say what to do instead.
+        // A staff account is not a client. Anything that isn't a walk-in or a
+        // booking for an existing client used to fall through to the customer
+        // path and record the TEAM MEMBER as the client — silently dropping the
+        // client they picked. Refuse it and say what to do instead.
         if (req.user?.role === 'staff' && !isStaffWalkIn && !isStaffOnBehalf) {
             const reason = !can(req.user, 'bookings:create')
                 ? 'Your access doesn’t include making bookings. Ask the owner.'
-                : customerId
-                    ? 'Your access doesn’t include booking for existing clients. Book them as a walk-in by name instead.'
-                    : 'Enter the client’s name to book them as a walk-in.';
+                : !(svc.provider && String(svc.provider) === String(req.user.staffOf))
+                    ? 'You can only book services of the business you work for.'
+                    : customerId
+                        ? 'Choose either a saved client or a walk-in name, not both.'
+                        : 'Enter the client’s name to book them as a walk-in.';
             return res.status(403).json({ success: false, code: 'staff_booking_not_allowed', message: reason });
+        }
+        // A Service provider books only the clients they personally serve. Checked
+        // before the client is loaded, so a member can't probe other accounts.
+        if (staffOnBehalfAssignedOnly) {
+            const servesClient = await Appointment.exists({
+                provider: req.user.staffOf, customer: customerId, ...memberInvolvedFilter(staffOwnMemberId),
+            });
+            if (!servesClient) {
+                return res.status(403).json({
+                    success: false,
+                    code: 'staff_booking_not_allowed',
+                    message: 'You can only book clients you serve. Book a new client as a walk-in by name instead.',
+                });
+            }
         }
 
         // Customers, guests and providers book here; admins never did (the route
@@ -1000,7 +1026,7 @@ exports.createAppointment = async (req, res) => {
             if (!client) {
                 return res.status(404).json({ success: false, message: 'Selected client not found' });
             }
-            // A provider (or a Medium staff member of the business) may only book on
+            // A provider (or a staff member of the business) may only book on
             // behalf of a real client of the BUSINESS — a customer account that has
             // booked it before. Without this, they could attach a confirmed booking
             // to (and read the name + email of) ANY account on the platform, and
@@ -1149,11 +1175,11 @@ exports.createAppointment = async (req, res) => {
             const resolution = await resolveBookingStaff({
                 svc, providerId, appointmentDate, startTime, endTime,
                 // Guests resolve staff exactly like a customer ("any available").
-                // A staff walk-in is forced onto the logging member's own column;
-                // resolveBookingStaff still validates it (bookable, performs the
-                // service, free) via the customer path, since a staff requester
-                // never owns the business.
-                requestedTeamMember: isStaffWalkIn ? staffWalkInMemberId : (teamMember || null),
+                // A staff walk-in (or a Service provider's booking for their own
+                // client) is forced onto the booker's own column; resolveBookingStaff
+                // still validates it (bookable, performs the service, free) via the
+                // customer path, since a staff requester never owns the business.
+                requestedTeamMember: staffOwnColumn ? staffOwnMemberId : (teamMember || null),
                 requester: req.user || { role: 'customer' },
             });
             if (resolution.error) {

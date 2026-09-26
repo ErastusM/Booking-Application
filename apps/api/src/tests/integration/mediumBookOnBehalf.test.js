@@ -2,8 +2,10 @@
  * Permission tiers — Phase 2b: a Medium staff member may book on behalf of an
  * EXISTING client of their business (isStaffOnBehalf in createAppointment).
  *
- * The guarantees under test: the client-attach is gated on a Medium-only
- * capability (clients:view) so Low walk-in staff can't reach it; the "existing
+ * The guarantees under test: attaching ANY client of the business is gated on
+ * a Medium capability (clients:view) — a Low (Service provider) member may only
+ * book the clients they personally serve, into their own column (see
+ * staffBookOwnClients.test.js); the "existing
  * client" check keys on the EMPLOYER (staffOf), so a staff member can't attach —
  * or read the contact details of — an arbitrary platform account or another
  * business's client; and the booking is still held to the customer guards (no
@@ -73,18 +75,21 @@ describe('Medium staff book-on-behalf', () => {
         expect(res.body.message).toMatch(/existing client/i);
     });
 
-    it('a Low staff member cannot book on behalf — refused, and nothing is booked in their own name', async () => {
+    it("a Low staff member cannot book a business client they don't serve — refused, and nothing is booked in their own name", async () => {
         const provider = await makeProvider();
         const service = await makeService(provider._id);
-        const low = await makeStaff(provider, 'low'); // has bookings:create but NOT clients:view
+        const low = await makeStaff(provider, 'low'); // bookings:create, but NOT clients:view
+        // makeClientOf's booking has no teamMember — the owner's client, not one
+        // this member serves, so it is outside their clients:assigned scope.
         const client = await makeClientOf(provider, service);
         const before = await Appointment.countDocuments({});
 
         const res = await book(low, onBehalf({ service: service._id.toString(), customerId: client._id.toString() }));
         // It used to fall through and book the STAFF MEMBER as the client, silently
-        // dropping the client they picked. Now it says to use a walk-in instead.
+        // dropping the client they picked. Now it's refused with the reason.
         expect(res.status).toBe(403);
         expect(res.body.code).toBe('staff_booking_not_allowed');
+        expect(res.body.message).toMatch(/clients you serve/i);
         expect(await Appointment.countDocuments({})).toBe(before);
     });
 

@@ -3,10 +3,36 @@ const BlockedTime = require('../models/BlockedTime');
 const TeamMember = require('../models/TeamMember');
 const { can } = require('../utils/permissions');
 
-// The business a request acts on: the owner's own id, or a Medium+ staff
-// member's employer (staffOf). Every provider-scoped query below uses this, so a
+// The business a request acts on: the owner's own id, or a staff member's
+// employer (staffOf). Every provider-scoped query below uses this, so a
 // staff member manages only their own business's calendar. null = detached staff.
 const businessScope = (req) => (req.user.role === 'staff' ? req.user.staffOf || null : req.user._id);
+
+// The caller's own roster row id in `providerId`'s business, or null.
+const myMemberId = async (req, providerId) => {
+    const member = await TeamMember.findOne({ user: req.user._id, provider: providerId }).select('_id').lean();
+    return member ? member._id : null;
+};
+
+// A staff member who may block time ONLY in their own lane: they reached a write
+// route through calendar:block:self (Service provider), not calendar:manage.
+const ownLaneOnly = (req) => req.user.role === 'staff' && !can(req.user, 'calendar:manage');
+
+const OWN_LANE_MESSAGE = 'You can only block time in your own calendar.';
+
+// Is this (loaded) block in the member's own lane? Business-wide (teamMember
+// null), owner-only and colleagues' blocks are not.
+const isOwnLaneBlock = (blocked, memberId) =>
+    !!(memberId && blocked.teamMember && String(blocked.teamMember) === String(memberId) && !blocked.ownerOnly);
+
+// A recurring series' siblings: same business, same lane, same group. Pinning
+// provider + lane keeps a series edit/delete from ever reaching past the block
+// the caller was authorized for.
+const seriesFilter = (blocked, providerId) => ({
+    provider: providerId,
+    teamMember: blocked.teamMember || null,
+    recurrenceGroupId: blocked.recurrenceGroupId,
+});
 
 const MAX_OCCURRENCES = 365;
 
@@ -57,9 +83,9 @@ exports.getMyBlockedTimes = async (req, res) => {
         // apply to them: their own, and business-wide closures — never a
         // colleague's or the owner's personal (ownerOnly) blocks.
         if (req.user.role === 'staff' && !can(req.user, 'calendar:view_all')) {
-            const member = await TeamMember.findOne({ user: req.user._id, provider: providerId }).select('_id').lean();
+            const memberId = await myMemberId(req, providerId);
             query.$or = [
-                ...(member ? [{ teamMember: member._id }] : []),
+                ...(memberId ? [{ teamMember: memberId }] : []),
                 { teamMember: null, ownerOnly: { $ne: true } },
             ];
             delete query.teamMember;
@@ -89,8 +115,20 @@ exports.createBlockedTime = async (req, res) => {
         // when neither is set — business-wide. A member id wins over ownerOnly.
         // The member must belong to this provider.
         let teamMemberId = null;
-        if (teamMember) {
-            const TeamMember = require('../models/TeamMember');
+        if (ownLaneOnly(req)) {
+            // A Service provider blocks time in THEIR lane only: never business-wide
+            // (no teamMember), never owner-only, never a colleague's. Refused rather
+            // than silently re-scoped, so a request meaning "close the business"
+            // can't quietly become "close my column".
+            const mine = await myMemberId(req, providerId);
+            if (!mine) {
+                return res.status(403).json({ success: false, code: 'own_lane_only', message: "You're not on this business's team roster." });
+            }
+            if (!teamMember || String(teamMember) !== String(mine)) {
+                return res.status(403).json({ success: false, code: 'own_lane_only', message: OWN_LANE_MESSAGE });
+            }
+            teamMemberId = mine;
+        } else if (teamMember) {
             const member = await TeamMember.findOne({ _id: teamMember, provider: providerId });
             if (!member) {
                 return res.status(400).json({ success: false, message: 'Unknown team member' });
@@ -148,6 +186,9 @@ exports.updateBlockedTime = async (req, res) => {
         if (!blocked) {
             return res.status(404).json({ success: false, message: 'Blocked time not found' });
         }
+        if (ownLaneOnly(req) && !isOwnLaneBlock(blocked, await myMemberId(req, providerId))) {
+            return res.status(403).json({ success: false, code: 'own_lane_only', message: 'You can only change time blocked in your own calendar.' });
+        }
 
         const update = {};
         if (startTime !== undefined) update.startTime = startTime;
@@ -164,14 +205,11 @@ exports.updateBlockedTime = async (req, res) => {
             await BlockedTime.findByIdAndUpdate(blocked._id, update);
         } else if (mode === 'thisAndFuture') {
             await BlockedTime.updateMany(
-                { recurrenceGroupId: blocked.recurrenceGroupId, date: { $gte: blocked.date } },
+                { ...seriesFilter(blocked, providerId), date: { $gte: blocked.date } },
                 update
             );
         } else if (mode === 'all') {
-            await BlockedTime.updateMany(
-                { recurrenceGroupId: blocked.recurrenceGroupId },
-                update
-            );
+            await BlockedTime.updateMany(seriesFilter(blocked, providerId), update);
         }
 
         res.status(200).json({ success: true, message: 'Blocked time updated' });
@@ -193,6 +231,9 @@ exports.deleteBlockedTime = async (req, res) => {
         if (!blocked) {
             return res.status(404).json({ success: false, message: 'Blocked time not found' });
         }
+        if (ownLaneOnly(req) && !isOwnLaneBlock(blocked, await myMemberId(req, providerId))) {
+            return res.status(403).json({ success: false, code: 'own_lane_only', message: 'You can only remove time blocked in your own calendar.' });
+        }
 
         const mode = deleteMode || 'this';
 
@@ -200,11 +241,11 @@ exports.deleteBlockedTime = async (req, res) => {
             await BlockedTime.findByIdAndDelete(blocked._id);
         } else if (mode === 'thisAndFuture') {
             await BlockedTime.deleteMany({
-                recurrenceGroupId: blocked.recurrenceGroupId,
+                ...seriesFilter(blocked, providerId),
                 date: { $gte: blocked.date },
             });
         } else if (mode === 'all') {
-            await BlockedTime.deleteMany({ recurrenceGroupId: blocked.recurrenceGroupId });
+            await BlockedTime.deleteMany(seriesFilter(blocked, providerId));
         }
 
         res.status(200).json({ success: true, message: 'Blocked time deleted' });

@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { can, canAny, effectiveCapabilities } from './permissions';
+import { can, canAny, effectiveCapabilities, resolvedTier, DEFAULT_TIER } from './permissions';
 
 // UI-visibility mirror of the backend can(); real enforcement is server-side.
 describe('frontend capability resolver', () => {
@@ -27,18 +27,36 @@ describe('frontend capability resolver', () => {
         expect(can(medium, 'services:edit')).toBe(false);
     });
 
-    it('a Low staff member cannot see the whole calendar or clients', () => {
+    it('a Low (Service provider) member runs their own calendar but cannot see the whole calendar or clients', () => {
         const low = { role: 'staff', staffTier: 'low' };
         expect(can(low, 'bookings:create')).toBe(true);
+        expect(can(low, 'calendar:block:self')).toBe(true);
+        expect(can(low, 'calendar:manage')).toBe(false);
         expect(can(low, 'calendar:view_all')).toBe(false);
         expect(can(low, 'clients:view')).toBe(false);
     });
 
-    it('no tier (null) resolves to the Basic self-baseline only', () => {
-        const basic = { role: 'staff', staffTier: null };
-        expect(can(basic, 'calendar:view')).toBe(true); // baseline
-        expect(can(basic, 'calendar:view_all')).toBe(false);
-        expect(can(basic, 'clients:view')).toBe(false);
+    it('no tier (null or undefined) resolves to the Service-provider default', () => {
+        expect(DEFAULT_TIER).toBe('low');
+        for (const fresh of [{ role: 'staff', staffTier: null }, { role: 'staff' }]) {
+            expect(resolvedTier(fresh)).toBe('low');
+            expect(can(fresh, 'calendar:view')).toBe(true); // baseline
+            expect(can(fresh, 'bookings:create')).toBe(true);
+            expect(can(fresh, 'calendar:block:self')).toBe(true);
+            expect(can(fresh, 'bookings:status:self')).toBe(true);
+            expect(can(fresh, 'calendar:manage')).toBe(false);
+            expect(can(fresh, 'calendar:view_all')).toBe(false);
+            expect(can(fresh, 'clients:view')).toBe(false);
+        }
+    });
+
+    it('an explicit basic member is view-only', () => {
+        const basic = { role: 'staff', staffTier: 'basic' };
+        expect(resolvedTier(basic)).toBe('basic');
+        expect(can(basic, 'calendar:view')).toBe(true);
+        expect(can(basic, 'bookings:create')).toBe(false);
+        expect(can(basic, 'calendar:block:self')).toBe(false);
+        expect(can(basic, 'bookings:status:self')).toBe(false);
     });
 
     it('the legacy calendar:all flag maps to calendar:view_all', () => {

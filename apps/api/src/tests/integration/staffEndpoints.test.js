@@ -45,6 +45,8 @@ describe('POST /api/team/:id/invite', () => {
         expect(staffUser.role).toBe('staff');
         expect(staffUser.staffOf.toString()).toBe(owner._id.toString());
         expect(staffUser.staffPermissions).toEqual(['calendar:self', 'clients:assigned']);
+        // No level picked → Service provider: runs their own calendar from day one.
+        expect(staffUser.staffTier).toBe('low');
         expect(staffUser.passwordResetToken).toBeTruthy();
 
         const linked = await TeamMember.findById(member._id);
@@ -52,6 +54,17 @@ describe('POST /api/team/:id/invite', () => {
         expect(sendStaffInviteEmail).toHaveBeenCalledTimes(1);
         expect(res.body.data.emailSent).toBe(true);
         expect(res.body.data.email).toBe('newstaff@test.com');
+    });
+
+    it('stores the level the owner picks at invite time (view-only stays view-only)', async () => {
+        const owner = await makeProvider();
+        const member = await makeMember(owner, { email: 'viewonly@test.com' });
+        const res = await request(app)
+            .post(`/api/team/${member._id}/invite`)
+            .set(authHeader(owner))
+            .send({ tier: 'basic' });
+        expect(res.status).toBe(200);
+        expect((await User.findOne({ email: 'viewonly@test.com' })).staffTier).toBe('basic');
     });
 
     it('reports emailSent:false when the mailer skips or fails', async () => {

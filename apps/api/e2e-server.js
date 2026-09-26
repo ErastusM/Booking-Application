@@ -90,6 +90,9 @@ const PORT = process.env.PORT || 5050;
     // their own services on My schedule). Not bookable, so they never enter
     // customer "any available" resolution and can't perturb the booking specs;
     // lastLoginAt is set so they read as an active member, not a pending invite.
+    // No staffTier: nobody chose a level, so Sam is a "Service provider" (the
+    // default) — he blocks his own time, but his closed column takes no bookings
+    // (member-own-calendar.spec).
     const samUser = await User.create({
         name: 'Sam Staff', email: 'e2e-staff@bookplus.dev', password: 'Password1!',
         phone: '+264810000002', role: 'staff', staffOf: provider._id, isVerified: true,

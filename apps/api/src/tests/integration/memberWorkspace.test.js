@@ -43,13 +43,28 @@ describe('GET /api/blocked-times for a team member', () => {
         expect(res.body.data.map((b) => b.reason).sort()).toEqual(['mine', 'public holiday']);
     });
 
-    test('a Basic member can read too, but only managers can change blocks', async () => {
+    // Was `staff(owner, null)` = Basic; null now means the Service-provider
+    // default, which may block its OWN lane (see blockedTimeOwnLane.test.js), so
+    // view-only is pinned with an explicit 'basic'.
+    test('an explicit Basic (view-only) member can read too, but cannot change blocks', async () => {
         const owner = await makeProvider();
-        const { login } = await staff(owner, null);
+        const { login, member } = await staff(owner, 'basic');
         expect((await request(app).get('/api/blocked-times').set(authHeader(login))).status).toBe(200);
         const write = await request(app).post('/api/blocked-times').set(authHeader(login))
-            .send({ date: '2030-01-07', startTime: '09:00', endTime: '10:00' });
+            .send({ date: '2030-01-07', startTime: '09:00', endTime: '10:00', teamMember: member._id.toString() });
         expect(write.status).toBe(403);
+    });
+
+    test('a member with no level chosen may block their own lane, never the whole business', async () => {
+        const owner = await makeProvider();
+        const { login, member } = await staff(owner, null);
+        const wide = await request(app).post('/api/blocked-times').set(authHeader(login))
+            .send({ date: '2030-01-07', startTime: '09:00', endTime: '10:00' });
+        expect(wide.status).toBe(403);
+        const own = await request(app).post('/api/blocked-times').set(authHeader(login))
+            .send({ date: '2030-01-07', startTime: '09:00', endTime: '10:00', teamMember: member._id.toString() });
+        expect(own.status).toBe(201);
+        expect(String(own.body.data.teamMember)).toBe(String(member._id));
     });
 
     test('a Medium member (sees everyone) still gets every block of the business', async () => {
@@ -83,9 +98,9 @@ describe('GET /api/waitinglist/provider for a team member', () => {
         expect(String(res.body.data[0].provider)).toBe(String(owner._id));
     });
 
-    test('a Basic member (no waitlist access) is refused', async () => {
+    test('an explicit Basic (view-only) member (no waitlist access) is refused', async () => {
         const owner = await makeProvider();
-        const { login } = await staff(owner, null);
+        const { login } = await staff(owner, 'basic');
         expect((await request(app).get('/api/waitinglist/provider').set(authHeader(login))).status).toBe(403);
     });
 });
@@ -94,7 +109,7 @@ describe('GET /api/services/my-services for a team member', () => {
     test('any member can read the business catalogue, but not change it', async () => {
         const owner = await makeProvider();
         await makeService(owner._id, { name: 'Haircut' });
-        const { login } = await staff(owner, null); // Basic
+        const { login } = await staff(owner, null); // no level chosen → Service provider
         const res = await request(app).get('/api/services/my-services').set(authHeader(login));
         expect(res.status).toBe(200);
         expect(res.body.data.map((s) => s.name)).toContain('Haircut');

@@ -5,8 +5,8 @@
  * are never gated, and validation rejects junk.
  */
 const {
-    can, validate, isTier, effectiveCapabilities,
-    CAPABILITIES, TIERS, TIER_NAMES, CALENDAR_ALL,
+    can, validate, isTier, effectiveCapabilities, resolvedTier,
+    CAPABILITIES, TIERS, TIER_NAMES, CALENDAR_ALL, DEFAULT_TIER,
 } = require('../../utils/permissions');
 
 const staff = (over = {}) => ({ role: 'staff', staffPermissions: [], staffTier: null, ...over });
@@ -32,10 +32,11 @@ describe('legacy preservation — the byte-for-byte guarantee', () => {
         // …and still answers the legacy key, since callers may pass either.
         expect(can(legacy, 'calendar:all')).toBe(true);
     });
-    it('the default invite flags grant only the self-baseline (no whole-business view)', () => {
-        const basic = staff({ staffPermissions: ['calendar:self', 'clients:assigned'] });
-        expect(can(basic, 'calendar:view_all')).toBe(false);
-        expect(can(basic, 'calendar:view')).toBe(true); // own calendar, always
+    it('the default invite flags never grant the whole-business view', () => {
+        const fresh = staff({ staffPermissions: ['calendar:self', 'clients:assigned'] });
+        expect(can(fresh, 'calendar:view_all')).toBe(false);
+        expect(can(fresh, 'clients:view')).toBe(false);
+        expect(can(fresh, 'calendar:view')).toBe(true); // own calendar, always
     });
     it('descriptive flags map to no capability beyond the baseline', () => {
         const eff = effectiveCapabilities(staff({ staffPermissions: ['calendar:self', 'clients:assigned'] }));
@@ -89,11 +90,52 @@ describe('tiers resolve cumulatively', () => {
     });
 });
 
+describe('no level chosen → Service provider; explicit basic → view-only', () => {
+    it('the default is the Service-provider tier', () => {
+        expect(DEFAULT_TIER).toBe('low');
+        expect(resolvedTier(staff({ staffTier: null }))).toBe('low');
+        expect(resolvedTier({ role: 'staff' })).toBe('low'); // undefined, e.g. a cached user
+        expect(resolvedTier(staff({ staffTier: 'basic' }))).toBe('basic');
+        expect(resolvedTier(staff({ staffTier: 'medium' }))).toBe('medium');
+        // A value the schema should never admit fails CLOSED to view-only.
+        expect(resolvedTier(staff({ staffTier: 'superuser' }))).toBe('basic');
+    });
+    it('null / undefined tier: books and blocks their own time, nothing business-wide', () => {
+        for (const m of [staff({ staffTier: null }), { role: 'staff' }]) {
+            expect(can(m, 'bookings:create')).toBe(true);
+            expect(can(m, 'calendar:block:self')).toBe(true);
+            expect(can(m, 'bookings:status:self')).toBe(true);
+            expect(can(m, 'calendar:manage')).toBe(false);
+            expect(can(m, 'clients:view')).toBe(false);
+            expect(can(m, 'clients:view_all')).toBe(false);
+            expect(can(m, 'calendar:view_all')).toBe(false);
+        }
+    });
+    it('an explicit basic member is view-only: no booking, no blocking', () => {
+        const b = staff({ staffTier: 'basic' });
+        expect(can(b, 'calendar:view')).toBe(true);
+        expect(can(b, 'clients:assigned')).toBe(true);
+        expect(can(b, 'bookings:create')).toBe(false);
+        expect(can(b, 'calendar:block:self')).toBe(false);
+        expect(can(b, 'bookings:status:self')).toBe(false);
+    });
+    it('low blocks its own lane only; medium+ manages the whole calendar', () => {
+        expect(can(staff({ staffTier: 'low' }), 'calendar:block:self')).toBe(true);
+        expect(can(staff({ staffTier: 'low' }), 'calendar:manage')).toBe(false);
+        expect(can(staff({ staffTier: 'medium' }), 'calendar:block:self')).toBe(true);
+        expect(can(staff({ staffTier: 'medium' }), 'calendar:manage')).toBe(true);
+        expect(can(staff({ staffTier: 'high' }), 'calendar:manage')).toBe(true);
+    });
+});
+
 describe('validate() & isTier()', () => {
     it('accepts capabilities + legacy/descriptive flags, rejects junk', () => {
         const { accepted, rejected } = validate(['calendar:all', 'reports:view', 'calendar:self', 'bogus:cap']);
         expect(accepted).toEqual(expect.arrayContaining(['calendar:all', 'reports:view', 'calendar:self']));
         expect(rejected).toEqual(['bogus:cap']);
+    });
+    it('accepts the own-lane blocking capability', () => {
+        expect(validate(['calendar:block:self']).accepted).toEqual(['calendar:block:self']);
     });
     it('every tier capability is a known capability (no orphan grants)', () => {
         const known = new Set(CAPABILITIES);
