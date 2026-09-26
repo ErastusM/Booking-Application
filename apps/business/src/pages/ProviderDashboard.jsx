@@ -1080,6 +1080,41 @@ const ProviderDashboard = () => {
         }
     };
 
+    // Keyboard / screen-reader focus around an open client. On a phone the list is
+    // hidden while a client is open, so the row that opened them (focused) goes
+    // away and focus would fall back to the page: put it on the client's name
+    // instead, and back on their row when the details close (on a computer too —
+    // the Close button that had focus is gone). Where the list stays in view,
+    // focus stays on the row.
+    const clientsListRef = useRef(null);
+    const clientDetailTitleRef = useRef(null);
+    useEffect(() => {
+        if (!selectedClient || (!clientDetail && !clientDetailError)) return;
+        const list = clientsListRef.current;
+        if (list?.getClientRects().length) return; // the list is still shown
+        // Only when focus was lost with the list (or the panel it replaced) —
+        // never pull it away from somewhere the user has since moved to.
+        const ae = document.activeElement;
+        if (ae && ae !== document.body && !list?.contains(ae)) return;
+        clientDetailTitleRef.current?.focus();
+    }, [clientDetail, clientDetailError]); // eslint-disable-line react-hooks/exhaustive-deps
+    const closeClientDetail = () => {
+        const id = String(selectedClient?.customer?._id || '');
+        setSelectedClient(null);
+        setClientDetail(null);
+        setClientDetailError('');
+        // Next frame: the list is shown again by then, and ClientPicker keeps the
+        // opened (active) row rendered. A client opened from elsewhere (an
+        // appointment) may have no row in view: then the list's own tab stop.
+        requestAnimationFrame(() => {
+            const list = clientsListRef.current;
+            if (!list) return;
+            const row = (id && list.querySelector(`[data-testid="clients-row-${CSS.escape(id)}"]`))
+                || list.querySelector('.cp-row[tabindex="0"]');
+            row?.focus({ preventScroll: true });
+        });
+    };
+
     const saveClientNote = async () => {
         if (!selectedClient) return;
         setSavingClientNote(true);
@@ -3274,7 +3309,7 @@ const ProviderDashboard = () => {
             {activeTab === 'clients' && (
                 // The list keeps a sensible width on desktop, with the open client beside it.
                 <div className={`clients-grid${selectedClient ? ' has-selection' : ''}`} style={{ display: 'grid', gridTemplateColumns: selectedClient ? 'minmax(0, 720px) 380px' : 'minmax(0, 720px)', gap: '1.5rem', alignItems: 'start' }}>
-                    <div className="clients-list" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                    <div ref={clientsListRef} className="clients-list" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                         <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>My Clients</h2>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }} data-testid="clients-total">{clients.length} total</span>
@@ -3313,18 +3348,18 @@ const ProviderDashboard = () => {
                     </div>
                     {selectedClient && !clientDetail && clientDetailError && (
                         <div className="client-detail-panel" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                            <p style={{ margin: 0, color: 'var(--charcoal)', fontWeight: 600 }}>{selectedClient.customer?.name}</p>
+                            <p ref={clientDetailTitleRef} tabIndex={-1} className="client-detail-title" style={{ margin: 0, color: 'var(--charcoal)', fontWeight: 600 }}>{selectedClient.customer?.name}</p>
                             <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{clientDetailError}</p>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
                                 <button onClick={() => fetchClientDetail(selectedClient.customer._id)} className="btn-primary" style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}>Try again</button>
-                                <button onClick={() => { setSelectedClient(null); setClientDetailError(''); }} className="btn-outline" style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}>Close</button>
+                                <button onClick={closeClientDetail} className="btn-outline" style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}>Close</button>
                             </div>
                         </div>
                     )}
                     {selectedClient && clientDetail && (
                         <div className="client-detail-panel" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', position: 'sticky', top: 'calc(100px + env(safe-area-inset-top, 0px))' }}>
                             <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>{selectedClient.customer?.name}</h3>
+                                <h3 ref={clientDetailTitleRef} tabIndex={-1} className="client-detail-title" style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>{selectedClient.customer?.name}</h3>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                     <button
                                         onClick={async () => {
@@ -3335,7 +3370,7 @@ const ProviderDashboard = () => {
                                         }}
                                         style={{ background: 'none', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.72rem', padding: '0.25rem 0.6rem', borderRadius: 'var(--radius-sm)' }}
                                     >Block</button>
-                                    <button aria-label="Close" onClick={() => { setSelectedClient(null); setClientDetail(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.2rem' }}>×</button>
+                                    <button aria-label="Close" onClick={closeClientDetail} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.2rem' }}>×</button>
                                 </div>
                             </div>
                             <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '70vh', overflowY: 'auto' }}>

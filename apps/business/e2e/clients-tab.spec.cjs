@@ -74,16 +74,52 @@ test.describe('Clients tab — the contact-style list', () => {
         await expect(martha).toContainText('N$ 250');
 
         // Tapping the client opens the client detail (full width on a phone).
+        // The list (and the row that had focus) is hidden, so focus moves to
+        // the client's name rather than falling back to the page.
         await martha.tap();
         const detail = page.locator('.client-detail-panel');
-        await expect(detail.getByRole('heading', { name: 'Martha Nghidinwa' })).toBeVisible();
+        const title = detail.getByRole('heading', { name: 'Martha Nghidinwa' });
+        await expect(title).toBeVisible();
         await expect(detail).toContainText('Visit History (1)');
         await expect(detail).toContainText('+264811000005');
         await expect(page.getByTestId('clients-list')).toBeHidden();
+        await expect(title).toBeFocused();
 
-        // Closing it brings the list back where it was.
+        // Closing it brings the list back where it was, with focus on her row.
         await detail.getByRole('button', { name: 'Close' }).tap();
         await expect(martha).toBeVisible();
         expect(await page.getByTestId('clients-list').evaluate((el) => el.scrollTop)).toBeGreaterThan(0);
+        await expect(martha).toBeFocused();
+
+        // The same by keyboard: Enter opens, the Close button returns to the row.
+        await page.keyboard.press('ArrowDown');
+        const next = page.getByTestId('clients-list').locator('.cp-row:focus');
+        const nextName = (await next.locator('.cp-name').textContent()).trim();
+        expect(nextName).not.toBe('Martha Nghidinwa');
+        await page.keyboard.press('Enter');
+        await expect(detail.getByRole('heading', { name: nextName })).toBeFocused();
+        await detail.getByRole('button', { name: 'Close' }).press('Enter');
+        await expect(page.getByTestId('clients-list').getByRole('button', { name: nextName })).toBeFocused();
+    });
+});
+
+test.describe('Clients tab — on a computer', () => {
+    test.use({ viewport: { width: 1280, height: 800 } });
+
+    test('the list stays beside the open client, and focus stays in it', async ({ page }) => {
+        await login(page, SEED.provider);
+        await page.goto('/dashboard?tab=clients');
+        const list = page.getByTestId('clients-list');
+        const hilma = list.getByRole('button', { name: /Hilma Shikongo/ });
+        await hilma.click();
+        const detail = page.locator('.client-detail-panel');
+        await expect(detail.getByRole('heading', { name: 'Hilma Shikongo' })).toBeVisible();
+        await expect(list).toBeVisible();
+        await expect(hilma).toHaveAttribute('aria-current', 'true');
+        await expect(hilma).toBeFocused();
+
+        await detail.getByRole('button', { name: 'Close' }).click();
+        await expect(detail).toHaveCount(0);
+        await expect(hilma).toBeFocused();
     });
 });
