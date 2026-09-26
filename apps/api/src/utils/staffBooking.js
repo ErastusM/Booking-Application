@@ -639,7 +639,77 @@ async function anyAvailableBusy({ providerId, svc, date, appointments }) {
     return { applied: true, busy };
 }
 
+/**
+ * One person's working hours on one date, by the SAME rules the booking
+ * validator applies (staffHoursReason + the business-hours gate), so a slot
+ * picker can offer exactly the times a booking for them will be accepted in.
+ *
+ *   member null            → the owner's own column: the business hours.
+ *   approved all-day leave → closed (source 'leave').
+ *   a shift for the date   → the shift's periods, which may run past closing
+ *                            (source 'shift'); its breaks come back as `busy`.
+ *   a weekly schedule      → that week's day (rotation-aware), capped by the
+ *                            business hours (source 'weekly'). A solo owner's
+ *                            leftover weekly schedule is ignored, as on booking.
+ *   neither                → the business hours (source 'business').
+ *
+ * `slots` null means "no hours set anywhere" (the validator applies no hours
+ * check then); [] means closed that day. The weekday comes from the YYYY-MM-DD
+ * key in UTC, never the server's local clock, so a server running in UTC reads
+ * a Windhoek business's Saturday as Saturday.
+ */
+const dayOfKey = (key) => DAY_NAMES[new Date(`${key}T00:00:00.000Z`).getUTCDay()];
+const daySlotsOf = (schedule, key) => {
+    if (!schedule) return null;
+    const day = schedule[dayOfKey(key)];
+    if (!day?.enabled || !Array.isArray(day.slots)) return [];
+    return day.slots
+        .filter((s) => s?.start && s?.end && toMin(s.end) > toMin(s.start))
+        .map((s) => [toMin(s.start), toMin(s.end)])
+        .sort((a, b) => a[0] - b[0]);
+};
+const intersect = (a, b) => {
+    const out = [];
+    a.forEach(([s1, e1]) => b.forEach(([s2, e2]) => {
+        const s = Math.max(s1, s2); const e = Math.min(e1, e2);
+        if (e > s) out.push([s, e]);
+    }));
+    return out.sort((x, y) => x[0] - y[0]);
+};
+async function memberDayHours({ providerId, member, date }) {
+    const key = dateStr(date);
+    const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    const periods = (list) => (list === null ? null : list.map(([s, e]) => ({ start: hhmm(s), end: hhmm(e) })));
+    const availabilityDoc = await Availability.findOne({ provider: providerId }).select('schedule').lean();
+    const business = daySlotsOf(availabilityDoc?.schedule || null, key);
+    const base = { date, day: dayOfKey(key), business: periods(business), busy: [] };
+    if (!member) return { ...base, source: 'business', slots: periods(business) };
+
+    const leaves = await TimeOff.find({
+        teamMember: member._id, status: 'approved', startDate: { $lte: key }, endDate: { $gte: key },
+    }).select('allDay startTime endTime').lean();
+    if (leaves.some((lv) => lv.allDay || lv.startTime == null || lv.endTime == null)) {
+        return { ...base, source: 'leave', slots: [] };
+    }
+    const busy = leaves.map((lv) => ({ startTime: lv.startTime, endTime: lv.endTime, kind: 'time_off' }));
+
+    const shift = await Shift.findOne({ teamMember: member._id, date: key }).select('slots breaks').lean();
+    if (shift) {
+        const slots = (shift.slots || []).filter((s) => toMin(s.end) > toMin(s.start)).map((s) => ({ start: s.start, end: s.end }));
+        (shift.breaks || []).forEach((b) => busy.push({ startTime: b.start, endTime: b.end, kind: 'break' }));
+        return { ...base, source: 'shift', slots, busy };
+    }
+
+    const bookable = await TeamMember.countDocuments({ provider: providerId, isActive: true, bookable: { $ne: false } });
+    const staffAv = bookable === 1 ? null : await StaffAvailability.findOne({ teamMember: member._id }).select('schedule rotation').lean();
+    const week = pickRotationWeek(staffAv, key);
+    if (!week) return { ...base, source: 'business', slots: periods(business), busy };
+    const own = daySlotsOf(week, key);
+    return { ...base, source: 'weekly', own: periods(own), slots: periods(business === null ? own : intersect(own, business)), busy };
+}
+
 module.exports = {
+    memberDayHours,
     resolveBookingStaff, isMemberFree, firstFreePerformer, performsService, ownerPerforms, staffHoursReason,
     memberBusyIntervals, memberBusyIntervalsBuffered, bufferMapForAppointments,
     memberInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy,

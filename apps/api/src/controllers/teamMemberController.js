@@ -1627,6 +1627,46 @@ const canTouchStaffAvailability = (reqUser, member) =>
         && reqUser.staffOf && reqUser.staffOf.toString() === member.provider.toString());
 
 /**
+ * GET /api/team/:id/hours?date=YYYY-MM-DD  (owner/admin, or anyone on the team)
+ * One person's working hours on one date, as the booking validator reads them
+ * (leave → shift → weekly hours capped by business hours → business hours). The
+ * New Appointment time list uses it, so the times offered for a team member are
+ * that member's hours rather than the business's. :id is a member id, 'mine'
+ * (the signed-in member) or 'owner' (the owner's own column = business hours).
+ */
+exports.getMemberDayHours = async (req, res) => {
+    try {
+        const { date } = req.query;
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) {
+            return res.status(400).json({ success: false, message: 'date must be YYYY-MM-DD' });
+        }
+        const { memberDayHours } = require('../utils/staffBooking');
+        const u = req.user;
+        const businessOf = u.role === 'staff' ? u.staffOf : u._id;
+        let member = null;
+        let providerId = businessOf;
+        if (req.params.id === 'mine') {
+            member = await myMemberDoc(req);
+            if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
+            providerId = member.provider;
+        } else if (req.params.id !== 'owner') {
+            if (!require('mongoose').isValidObjectId(req.params.id)) return res.status(400).json({ success: false, message: 'Invalid member id' });
+            member = await TeamMember.findById(req.params.id).select('_id provider');
+            const sameBusiness = member && businessOf && member.provider.toString() === businessOf.toString();
+            if (!member || !(u.role === 'admin' || sameBusiness)) {
+                return res.status(404).json({ success: false, message: 'Team member not found' });
+            }
+            providerId = member.provider;
+        }
+        if (!providerId) return res.status(403).json({ success: false, message: 'Not authorized' });
+        const data = await memberDayHours({ providerId, member, date });
+        res.status(200).json({ success: true, data });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
  * GET /api/team/:id/availability  (provider/admin, or staff-self)
  * data: null means "no per-staff schedule — inherits business hours".
  */
