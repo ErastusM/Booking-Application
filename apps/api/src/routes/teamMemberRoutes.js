@@ -7,7 +7,7 @@ const {
     removeTeamMember,
     inviteTeamMember, setTeamMemberServices, setTeamMemberPricing, setTeamMemberPrimary,
     handoverUpcomingBookings,
-    getTeamMemberAvailability, updateTeamMemberAvailability,
+    getTeamMemberAvailability, updateTeamMemberAvailability, getMemberDayHours,
     getMyServices, setMyServices, addMyService, addTeamMemberService, setMyPricing,
     getMyProfile, setMyProfile, getMyAvailability, setMyAvailability,
     getMyStats, getCalendarRoster,
@@ -27,6 +27,9 @@ router.put('/mine/availability', auth, setMyAvailability);
 // Availability is auth-only: the controller allows provider/admin OR the staff
 // member themself (a role the blanket authorize below would reject).
 router.get('/:id/availability', auth, getTeamMemberAvailability);
+// One person's hours on a date ('mine' / 'owner' / member id) — the New
+// Appointment time list. Auth-only: the controller scopes it to the business.
+router.get('/:id/hours', auth, getMemberDayHours);
 router.put('/:id/availability', auth, updateTeamMemberAvailability);
 
 // Staff self-service: a member manages their OWN service list. Registered before

@@ -316,6 +316,9 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         // isPrimary:false to clear it. Setting one clears any other primary.
         setMemberPrimary: (id: string, isPrimary = true) => API.put(`/team/${id}/primary`, { isPrimary }),
         getMemberAvailability: (id: string) => API.get(`/team/${id}/availability`),
+        // One person's working hours on a date, as bookings are checked against
+        // them: id = a member id, 'mine' (the signed-in member) or 'owner'.
+        getDayHours: (id: string, date: string) => API.get(`/team/${id}/hours`, { params: { date } }),
         // `rotation` is an optional multi-week cycle { anchor, weeks[] }. Omit it to
         // leave any stored rotation untouched; pass null to clear it back to the
         // single weekly `schedule`.

@@ -93,3 +93,67 @@ describe('buildTimeSlots — waitlist pill', () => {
         expect(slots[0].isBooked).toBe(true);
     });
 });
+
+// ── Which hours the times come from (owner's report: the times in New
+// Appointment didn't match the hours they had set) ──────────────────────────
+import { periodsToBlocks, dayNameOf, scheduleBlocksFor, hoursNote } from './bookingSlots';
+
+const WEEK = {
+    monday: { enabled: true, slots: [{ start: '08:30', end: '18:00' }] },
+    saturday: { enabled: true, slots: [{ start: '09:00', end: '14:00' }] },
+    friday: { enabled: true, slots: [{ start: '08:30', end: '12:00' }, { start: '14:00', end: '18:00' }] },
+    sunday: { enabled: false, slots: [{ start: '09:00', end: '17:00' }] },
+};
+
+describe('the day\'s hours', () => {
+    it('reads the date\'s own weekday (Sunday = 0), whatever the time zone', () => {
+        expect(dayNameOf('2026-09-26')).toBe('saturday');
+        expect(dayNameOf('2026-09-27')).toBe('sunday');
+        expect(dayNameOf('2026-09-28')).toBe('monday');
+    });
+
+    it('Saturday is Saturday\'s hours, Sunday switched off is closed, no schedule is unknown', () => {
+        expect(scheduleBlocksFor(WEEK, '2026-09-26')).toEqual([{ start: 540, end: 840 }]);
+        expect(scheduleBlocksFor(WEEK, '2026-09-27')).toEqual([]);
+        expect(scheduleBlocksFor(null, '2026-09-26')).toBeNull();
+    });
+
+    it('keeps both periods of a split day, sorted, and drops inverted or half-set ones', () => {
+        expect(scheduleBlocksFor(WEEK, '2026-10-02')).toEqual([{ start: 510, end: 720 }, { start: 840, end: 1080 }]);
+        expect(periodsToBlocks([{ start: '14:00', end: '09:00' }, { start: '10:00' }, { start: '00:15', end: '00:45' }]))
+            .toEqual([{ start: 15, end: 45 }]);
+    });
+
+    it('the report: Saturday 09:00–14:00 at 12:30, 45-min service → only 13:00, and the note says why', () => {
+        const blocks = scheduleBlocksFor(WEEK, '2026-09-26');
+        const minStart = 12 * 60 + 30;
+        const slots = buildTimeSlots({ blocks, duration: 45, minStart });
+        expect(slots.map((s) => s.time)).toEqual(['13:00']);
+        const note = hoursNote({ blocks, duration: 45, slots, minStart, day: 'saturday' });
+        expect(note).toContain('Working hours on Saturday: 09:00–14:00.');
+        expect(note).toContain('the last start leaves room for the 45 min service');
+        expect(note).toContain('Earlier times today have passed.');
+    });
+
+    it('explains a :30 opening that a longer service can\'t start at (hourly by design)', () => {
+        const blocks = scheduleBlocksFor(WEEK, '2026-09-28');
+        const slots = buildTimeSlots({ blocks, duration: 45 });
+        expect(slots[0].time).toBe('09:00');
+        expect(hoursNote({ blocks, duration: 45, slots, day: 'monday' }))
+            .toContain('an opening at 08:30 is only offered when the service ends by 09:00');
+        // A service that ends by 09:00 gets the opening itself — and no such note.
+        const short = buildTimeSlots({ blocks, duration: 20 });
+        expect(short[0].time).toBe('08:30');
+        expect(hoursNote({ blocks, duration: 20, slots: short, day: 'monday' })).not.toContain('only offered');
+    });
+
+    it('names whose hours and where they come from', () => {
+        const blocks = [{ start: 510, end: 1020 }];
+        expect(hoursNote({ blocks, duration: 60, whose: 'Erastus’s', day: 'monday', source: 'weekly' }))
+            .toMatch(/^Erastus’s hours on Monday: 08:30–17:00\. /);
+        expect(hoursNote({ blocks, duration: 60, whose: 'Your', day: 'monday', source: 'business' }))
+            .toMatch(/^Your hours on Monday: 08:30–17:00 \(the business’s hours\)\. /);
+        expect(hoursNote({ blocks, duration: 90, slots: buildTimeSlots({ blocks, duration: 90 }), whose: 'John’s', day: 'monday', source: 'shift' }))
+            .toContain('(shift). Times start on the hour, and the last start leaves room for the 1h 30min service.');
+    });
+});

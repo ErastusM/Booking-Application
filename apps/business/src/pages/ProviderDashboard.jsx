@@ -24,7 +24,7 @@ import { cloudinaryAvatar } from '../utils/cloudinary';
 import { NAMIBIAN_TOWNS, normalizeTown } from '../utils/namibiaTowns';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import useMyMember from '../hooks/useMyMember';
-import { buildTimeSlots } from '../utils/bookingSlots';
+import { buildTimeSlots, periodsToBlocks, scheduleBlocksFor, dayNameOf, hoursNote, blocksLabel } from '../utils/bookingSlots';
 import { fmtClock } from '../utils/time';
 import { sortClients } from '../utils/clientSort';
 import { bookingClientFields } from '../utils/bookingClient';
@@ -323,6 +323,14 @@ const ProviderDashboard = () => {
     // The owner's override in New Appointment: offer every service, not just what
     // the chosen professional performs.
     const [apptShowAll, setApptShowAll] = useState(false);
+    // The hours New Appointment offers times in, for a team member (their shift,
+    // weekly hours or the business's — GET /team/:id/hours, the rules bookings are
+    // checked against). { key: 'who|date', data } — the owner's own column reads
+    // the Working Hours schedule directly.
+    const [apptDayHours, setApptDayHours] = useState(null);
+    // The owner may book outside the hours (walk-ins); they ask for it explicitly
+    // rather than the list quietly showing times the hours say are closed.
+    const [apptOutsideHours, setApptOutsideHours] = useState(false);
     // `services` is a list of { serviceId } rows — the "Add service" flow lets a
     // provider stack several services into one booking (POST /appointments/multi).
     // Group bookings and the legacy single-service create path only ever read
@@ -541,6 +549,19 @@ const ProviderDashboard = () => {
         if (showApptModal && !availability) fetchAvailability();
     }, [showApptModal]); // eslint-disable-line react-hooks/exhaustive-deps
 
+    // A team member's hours for the chosen date (see apptDayHours).
+    const apptHoursWho = isStaff ? 'mine' : String(apptForm.teamMember || '');
+    const apptHoursKey = `${apptHoursWho}|${apptForm.date}`;
+    useEffect(() => {
+        setApptOutsideHours(false);
+        if (!showApptModal || !apptHoursWho || !apptForm.date) return undefined;
+        let stale = false;
+        teamService.getDayHours(apptHoursWho, apptForm.date)
+            .then((r) => { if (!stale) setApptDayHours({ key: apptHoursKey, data: r.data.data }); })
+            .catch(() => { if (!stale) setApptDayHours({ key: apptHoursKey, data: null }); });
+        return () => { stale = true; };
+    }, [showApptModal, apptHoursKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
     // Guards against the 25s live refresh clobbering a move the user just made.
     // A poll serialised BEFORE a local write can land AFTER it, snapping the card
     // back while the Undo bar says it moved — and the provider then either drags
@@ -599,7 +620,15 @@ const ProviderDashboard = () => {
                 return;
             }
             const res = await availabilityService.getMyAvailability();
-            setAvailability(res.data.data.schedule);
+            // What the screen shows is what gets saved: a day with no times on
+            // file showed 09:00–17:00 but saved none (so clients saw it closed).
+            const sched = res.data.data.schedule || {};
+            setAvailability(Object.fromEntries(WEEK_DAYS.map((d) => [d, {
+                enabled: !!sched[d]?.enabled,
+                slots: (sched[d]?.slots || []).filter((sl) => sl?.start && sl?.end).length
+                    ? sched[d].slots.filter((sl) => sl?.start && sl?.end).map(({ start, end }) => ({ start, end }))
+                    : [{ start: '09:00', end: '17:00' }],
+            }])));
         } catch { }
     };
 
@@ -1300,8 +1329,11 @@ const ProviderDashboard = () => {
                 setTimeout(() => setAvailabilitySuccess(''), 4000);
                 return;
             }
+            // Same rule as a member's hours (and the server): closing after opening.
+            const badDay = WEEK_DAYS.find((d) => availability[d]?.enabled && (availability[d].slots || []).some((sl) => !(sl?.start && sl?.end && sl.start < sl.end)));
+            if (badDay) { toast(`${badDay[0].toUpperCase()}${badDay.slice(1)}: the closing time must be after the opening time`, 'error'); return; }
             await availabilityService.updateMyAvailability(availability);
-            setAvailabilitySuccess('Availability saved successfully!');
+            setAvailabilitySuccess('Working hours saved. New Appointment and your booking page now use these hours.');
             setTimeout(() => setAvailabilitySuccess(''), 3000);
         } catch {
             setError('Failed to save availability');
@@ -1315,7 +1347,9 @@ const ProviderDashboard = () => {
     };
 
     const handleTimeChange = (day, field, value) => {
-        setAvailability(prev => ({ ...prev, [day]: { ...prev[day], slots: [{ ...prev[day].slots[0], [field]: value }] } }));
+        // Only the first period is edited here; any further periods (a split day)
+        // are kept, never silently dropped on save.
+        setAvailability(prev => ({ ...prev, [day]: { ...prev[day], slots: [{ ...prev[day].slots[0], [field]: value }, ...(prev[day].slots || []).slice(1)] } }));
     };
 
     const handleStatusUpdate = async (id, status) => {
@@ -2151,6 +2185,11 @@ const ProviderDashboard = () => {
                                                     <TimePicker value={config.slots[0]?.start || '09:00'} onChange={e => handleTimeChange(day, 'start', e.target.value)} aria-label={`${day.charAt(0).toUpperCase()}${day.slice(1)} opening time`} hideIcon style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '1rem' }} />
                                                     <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', flexShrink: 0 }}>to</span>
                                                     <TimePicker value={config.slots[0]?.end || '17:00'} onChange={e => handleTimeChange(day, 'end', e.target.value)} aria-label={`${day.charAt(0).toUpperCase()}${day.slice(1)} closing time`} hideIcon style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '1rem' }} />
+                                                    {(config.slots || []).length > 1 && (
+                                                        <span style={{ flexBasis: '100%', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                                                            Also open {config.slots.slice(1).map(sl => `${sl.start}–${sl.end}`).join(', ')}
+                                                        </span>
+                                                    )}
                                                 </div>
                                             ) : (
                                                 <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Not available</div>
@@ -4212,7 +4251,7 @@ const ProviderDashboard = () => {
                                 </div>
                                 <div>
                                     <div id="appt-date-label" style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date</div>
-                                    <MiniCalendar value={apptForm.date} onChange={ds => setApptForm(f => ({ ...f, date: ds, startTime: '' }))} min={new Date().toISOString().split('T')[0]} labelledBy="appt-date-label" />
+                                    <MiniCalendar value={apptForm.date} onChange={ds => setApptForm(f => ({ ...f, date: ds, startTime: '' }))} min={ymd(new Date())} labelledBy="appt-date-label" />
                                 </div>
                                 <div>
                                     <div id="appt-time-label" style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Start Time</div>
@@ -4225,19 +4264,40 @@ const ProviderDashboard = () => {
                                         const duration = apptForm.isGroup
                                             ? (selectedRowServices[0]?.duration || 30)
                                             : (selectedRowServices.reduce((s, x) => s + (x.duration || 0), 0) || 30);
-                                        // The owner may book outside hours, so their picker falls back to a
-                                        // wide 08:00–20:00. A team member is held to their OWN hours (the
-                                        // server refuses anything else): no hours or a day off = no times.
-                                        let blocks = isStaff ? [] : [{ start: 8 * 60, end: 20 * 60 }];
-                                        if (availability) {
-                                            const [yy, mm, dd] = apptForm.date.split('-').map(Number);
-                                            const dayName = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'][new Date(yy, mm - 1, dd).getDay()];
-                                            const cfg = availability[dayName];
-                                            if (cfg?.enabled && Array.isArray(cfg.slots)) {
-                                                const b = cfg.slots.filter(s => s?.start && s?.end).map(s => { const [sh, sm] = s.start.split(':').map(Number); const [eh, em] = s.end.split(':').map(Number); return { start: sh * 60 + sm, end: eh * 60 + em }; }).filter(x => x.end > x.start);
-                                                if (b.length) blocks = b;
-                                            }
-                                        }
+                                        // Which hours the times come from — the SAME hours the Working
+                                        // Hours screen saved and bookings are checked against:
+                                        //   the owner's own column ("Me") → the business's Working Hours;
+                                        //   a team member (picked by the owner, or the member themself) →
+                                        //   that member's hours that day (shift, else their weekly hours
+                                        //   within the business's, else the business's), from the API.
+                                        // It used to read the business's hours for every column, and fall
+                                        // back to 08:00–20:00 on a day the hours say is closed — so the
+                                        // owner saw times that matched neither what they set nor what
+                                        // clients or that member could book.
+                                        const dayName = dayNameOf(apptForm.date);
+                                        const WIDE = { start: 8 * 60, end: 20 * 60 };
+                                        const forMember = !!apptHoursWho;
+                                        const dh = forMember ? (apptDayHours?.key === apptHoursKey ? apptDayHours.data : undefined) : undefined;
+                                        if (forMember && dh === undefined) return <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>Loading hours…</p>;
+                                        const memberName = isStaff ? '' : (teamMembers.find(m => String(m._id) === apptHoursWho)?.name || 'This team member').split(' ')[0];
+                                        let hoursBlocks = forMember
+                                            ? (dh && Array.isArray(dh.slots) ? periodsToBlocks(dh.slots) : null)
+                                            : scheduleBlocksFor(availability, apptForm.date);
+                                        // No hours saved anywhere: nothing to hold the owner to; a member
+                                        // gets no times (the server decides, and they have none set).
+                                        const noHours = hoursBlocks === null;
+                                        if (noHours) hoursBlocks = isStaff ? [] : [WIDE];
+                                        const closed = hoursBlocks.length === 0;
+                                        // Owner override: every hour 08:00–20:00 plus the day's own hours.
+                                        const blocks = (!isStaff && apptOutsideHours)
+                                            ? [{ start: Math.min(WIDE.start, ...hoursBlocks.map(b => b.start)), end: Math.max(WIDE.end, ...hoursBlocks.map(b => b.end)) }]
+                                            : hoursBlocks;
+                                        const outsideToggle = !isStaff && (
+                                            <button type="button" onClick={() => setApptOutsideHours(v => !v)} data-testid="appt-outside-hours"
+                                                style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', fontSize: '0.8rem', fontWeight: 700, color: 'var(--gold-dark)', fontFamily: 'var(--font-body)' }}>
+                                                {apptOutsideHours ? 'Only show times in working hours' : 'Book outside working hours'}
+                                            </button>
+                                        );
                                         // Lane matching mirrors StaffLanesDay: an appointment/block with no team
                                         // member (or one that's since left the roster) sits in the owner's
                                         // "unassigned" lane; a scoped block also blocks every other lane so it
@@ -4270,9 +4330,29 @@ const ProviderDashboard = () => {
                                         const now = new Date();
                                         const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
                                         if (apptForm.date === todayStr) minStart = now.getHours() * 60 + now.getMinutes();
+                                        // A member's break or windowed leave that day is busy too.
+                                        (dh?.busy || []).forEach(b => bookedRanges.push({ start: toMinutes(b.startTime), end: toMinutes(b.endTime) }));
                                         const slots = buildTimeSlots({ blocks, bookedRanges, duration, minStart });
-                                        if (slots.length === 0) return <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>No open times that day.</p>;
-                                        return (
+                                        const dayCap = dayName.charAt(0).toUpperCase() + dayName.slice(1);
+                                        const closedText = dh?.source === 'leave'
+                                            ? `${isStaff ? 'You are' : `${memberName} is`} on leave that day.`
+                                            : forMember
+                                                ? `${isStaff ? 'You don’t work' : `${memberName} doesn’t work`} on ${dayCap}${dh?.source === 'shift' ? ' (rostered off that day)' : ''}.`
+                                                : `Closed on ${dayCap} in your Working Hours.`;
+                                        const note = (closed && !apptOutsideHours)
+                                            ? closedText
+                                            : apptOutsideHours
+                                                ? `Showing times outside working hours${closed ? '' : ` (${blocksLabel(hoursBlocks)})`}.`
+                                                : noHours
+                                                    ? (isStaff ? 'You have no working hours set.' : 'No working hours set, so every time is shown.')
+                                                    : hoursNote({ blocks: hoursBlocks, duration, slots, minStart, whose: forMember ? (isStaff ? 'Your' : `${memberName}’s`) : '', day: dayName, source: dh?.source });
+                                        const noteEl = (
+                                            <p data-testid="appt-hours-note" style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0 0 0.5rem', lineHeight: 1.45 }}>
+                                                {note} {outsideToggle}
+                                            </p>
+                                        );
+                                        if (slots.length === 0) return <>{noteEl}{!closed || apptOutsideHours ? <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>No open times left that day.</p> : null}</>;
+                                        return (<>{noteEl}
                                             <div role="group" aria-labelledby="appt-time-label" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: '0.4rem', maxHeight: '180px', overflowY: 'auto' }}>
                                                 {slots.map((s, i) => {
                                                     const sel = apptForm.startTime === s.time;
@@ -4287,7 +4367,7 @@ const ProviderDashboard = () => {
                                                     );
                                                 })}
                                             </div>
-                                        );
+                                        </>);
                                     })()}
                                 </div>
                                 <div>
