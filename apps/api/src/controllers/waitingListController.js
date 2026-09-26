@@ -6,6 +6,7 @@ const Service = require('../models/Service');
 const TeamMember = require('../models/TeamMember');
 const { createNotification } = require('../utils/notificationhelper');
 const pushService = require('../utils/pushService');
+const { can } = require('../utils/permissions');
 
 const toMinutes = (t) => {
     const [h, m] = String(t).split(':').map(Number);
@@ -145,6 +146,13 @@ exports.getProviderWaitingList = async (req, res) => {
         if (req.user.role === 'staff') {
             if (!req.user.staffOf) return res.status(403).json({ success: false, message: 'No business context for this account.' });
             query.provider = req.user.staffOf;
+            // A member who sees only their own calendar sees only the clients
+            // waiting on them (or on "anyone") — never a colleague's waiting list
+            // with its clients' contact details.
+            if (!can(req.user, 'calendar:view_all')) {
+                const me = await TeamMember.findOne({ user: req.user._id, provider: req.user.staffOf }).select('_id').lean();
+                query.teamMember = me ? { $in: [me._id, null] } : null;
+            }
         } else if (req.user.role !== 'admin') query.provider = req.user._id;
         const entries = await WaitingList.find(query)
             .populate('service', 'name price duration')

@@ -561,7 +561,17 @@ const ProviderDashboard = () => {
 
     // Where a new block goes by default: the owner's own time for the owner, a
     // team member's own lane for them.
-    const myBlockDefaultScope = () => (isStaff ? (myMemberId ? String(myMemberId) : 'owner') : 'owner');
+    // A team member's block defaults to their own lane. Until their roster row has
+    // loaded (or if they have none) nothing is pre-picked, rather than falling
+    // back to the owner's column.
+    const MY_LANE_PENDING = 'mine-pending';
+    const myBlockDefaultScope = () => (isStaff ? (myMemberId ? String(myMemberId) : MY_LANE_PENDING) : 'owner');
+    // Resolve the placeholder to the member's own lane once their row arrives.
+    useEffect(() => {
+        if (myMemberId && blockedTimeForm.teamMember === MY_LANE_PENDING) {
+            setBlockedTimeForm(p => ({ ...p, teamMember: String(myMemberId) }));
+        }
+    }, [myMemberId, blockedTimeForm.teamMember]);
 
     const openBlockedTimeForm = (item = null) => {
         setBlockedTimeChecked(false);
@@ -645,6 +655,11 @@ const ProviderDashboard = () => {
         // an id → that member. Split into the two fields the API expects. A
         // Service provider may only block their own lane — pin it whatever the
         // form holds (the server refuses anything else).
+        if (!canBlockOwn && blockedTimeForm.teamMember === MY_LANE_PENDING) {
+            setSavingBlockedTime(false);
+            toast('Choose who this block applies to.', 'error');
+            return;
+        }
         const scopeVal = canBlockOwn ? String(myMemberId) : blockedTimeForm.teamMember;
         const scopeTeamMember = (scopeVal && scopeVal !== 'owner') ? scopeVal : undefined;
         const scopeOwnerOnly = scopeVal === 'owner';
@@ -4107,7 +4122,8 @@ const ProviderDashboard = () => {
                                 <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Applies to</label>
                                 {!editingBlockedTime && (isStaff ? canManageBlocks : activeTeamMembers.length > 0) ? (
                                     <Select
-                                        value={blockedTimeForm.teamMember}
+                                        value={blockedTimeForm.teamMember === MY_LANE_PENDING ? undefined : blockedTimeForm.teamMember}
+                                        placeholder="Choose who this applies to"
                                         onChange={e => setBlockedTimeForm(p => ({ ...p, teamMember: e.target.value }))}
                                         options={[
                                             ...(isStaff

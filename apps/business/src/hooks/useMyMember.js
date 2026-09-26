@@ -12,6 +12,10 @@ import { myProfileService } from '../services';
  */
 let cache = { userId: null, promise: null };
 
+// Forget the cached row so the next caller re-fetches it (the owner may have
+// changed it — e.g. made the member bookable — during this session).
+export const refreshMyMember = () => { cache = { userId: null, promise: null }; };
+
 export const loadMyMember = (userId) => {
     if (!userId) return Promise.resolve(null);
     if (cache.userId !== userId || !cache.promise) {
@@ -35,7 +39,7 @@ export default function useMyMember(user) {
     const [member, setMember] = useState(null);
     useEffect(() => {
         let live = true;
-        if (!uid) { setMember(null); return undefined; }
+        if (!uid) { refreshMyMember(); setMember(null); return undefined; }
         loadMyMember(uid).then((m) => { if (live) setMember(m); });
         return () => { live = false; };
     }, [uid]);
