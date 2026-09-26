@@ -121,7 +121,10 @@ StaffAvailability {
   teamMember: { ref TeamMember, required, unique }, // one schedule per staff
   schedule:   { monday..sunday: { enabled, slots:[{start,end}] } },
 }
-// Absence of a doc → staff inherits business hours (Availability).
+// Absence of a doc → the member has no weekly hours of their own: bookable only
+// on a date they have a Shift for (owner's decision, Sept 2026 — nothing is
+// inherited from the business's Availability any more).
+// Each day may hold several periods (a split day: 08:00–12:00, 14:00–18:00).
 ```
 
 ### 3.4 `BlockedTime` — optional per-staff scope
@@ -135,7 +138,7 @@ teamMember: { type: ObjectId, ref: 'TeamMember', default: null }  // null = busi
 ### 3.6 Availability resolution (the new booking math)
 For staff **S**, service **V**, date **D**, a slot is bookable iff it is:
 1. within **business hours** (`Availability` for the provider on D), **and**
-2. within **staff hours** (`StaffAvailability` for S, else inherit business hours), **and**
+2. within **staff hours** (S's `Shift` for D, else `StaffAvailability` for S; neither = S is not bookable on D — no business-hours fallback), **and**
 3. not inside a **business-wide** `BlockedTime` (`teamMember: null`) **nor** a staff `BlockedTime` (`teamMember: S`), **and**
 4. free of overlapping `Appointment`s for `(provider, teamMember: S)` including `Service.bufferBefore/After`, **and**
 5. long enough for `V.duration + buffers`.

@@ -680,7 +680,9 @@ const BookAppointment = () => {
     const providerWorksOn = (d) => {
         // A chosen member's shift is authoritative for its date: it can open a day
         // the business is closed for (covering a Sunday) or close a day it is open
-        // (rostered off). Days with no shift fall through to the business hours.
+        // (rostered off). Days they don't work by their weekly hours — every day
+        // without a shift, for someone with no hours of their own — come back as
+        // off too; the rest fall through to the business hours.
         if (selectedStaff) {
             const key = toYMD(d);
             if (staffShiftDays.working.has(key)) return true;
