@@ -96,7 +96,7 @@ describe('one member booked does not grey the hour a colleague can take', () => 
         // 10:30–11:00 now has Alice's booking AND Bob's — genuinely taken → waitlist kind.
         expect(busyAt(data, ['appointment'], mins('10:30'), mins('11:00'))).toBe(true);
         const full = await bookAny(ctx, '10:30', '11:00');
-        expect(full.status).toBe(400);
+        expect(full.status).toBe(409);
         expect(full.body.message).toMatch(/waiting list/i);
     });
 });

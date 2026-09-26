@@ -59,7 +59,7 @@ describe('Per-staff scheduling', () => {
         const r1 = await book(provider, svc, date, alice._id.toString());
         const r2 = await book(provider, svc, date, alice._id.toString());
         expect(r1.status).toBe(201);
-        expect(r2.status).toBe(400);
+        expect(r2.status).toBe(409);
         expect(r2.body.message).toMatch(/already booked/i);
     });
 });

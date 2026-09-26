@@ -53,7 +53,7 @@ const twoMemberShop = async () => {
 };
 
 describe('D1 — any-available picks the free performer, then rejects when all are busy', () => {
-    it('lands on the free member and 400s once every performer is booked', async () => {
+    it('lands on the free member and 409s once every performer is booked', async () => {
         const { provider, svc, alice, bob } = await twoMemberShop();
         const date = soon();
 
@@ -75,7 +75,7 @@ describe('D1 — any-available picks the free performer, then rejects when all a
         const c2 = await request(app).post('/api/appointments').set(authHeader(await makeUser())).send({
             service: svc._id.toString(), appointmentDate: date, startTime: '10:00', endTime: '10:30',
         });
-        expect(c2.status).toBe(400);
+        expect(c2.status).toBe(409);
     });
 });
 

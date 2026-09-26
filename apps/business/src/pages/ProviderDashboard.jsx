@@ -24,7 +24,7 @@ import { cloudinaryAvatar } from '../utils/cloudinary';
 import { NAMIBIAN_TOWNS, normalizeTown } from '../utils/namibiaTowns';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import useMyMember from '../hooks/useMyMember';
-import { buildTimeSlots, periodsToBlocks, scheduleBlocksFor, dayNameOf, hoursNote, blocksLabel } from '../utils/bookingSlots';
+import { buildTimeSlots, periodsToBlocks, scheduleBlocksFor, dayNameOf, hoursNote, blocksLabel, laneBusyRanges, ticketBuffers } from '../utils/bookingSlots';
 import { fmtClock } from '../utils/time';
 import { sortClients } from '../utils/clientSort';
 import { bookingClientFields } from '../utils/bookingClient';
@@ -4311,12 +4311,23 @@ const ProviderDashboard = () => {
                                         // A member books only their own column; the owner the one picked.
                                         const selectedLane = isStaff ? String(myMemberId || '') : String(apptForm.teamMember || '');
                                         const toMinutes = (t) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m; };
+                                        // The lane's OWN windows, as the server reads them: a member's
+                                        // segments of a colleague's multi-service ticket count, a
+                                        // colleague's segments of theirs don't; buffers on both sides.
+                                        const bufferOf = (id) => myServices.find(s => String(s._id) === String(id));
                                         const bookedRanges = [
-                                            ...(appointments || []).filter(a => {
-                                                if (a.status === 'cancelled') return false;
-                                                if (toDateString(a.appointmentDate) !== apptForm.date) return false;
-                                                return laneOf(a.teamMember?._id || a.teamMember || '') === selectedLane;
-                                            }).map(a => ({ start: toMinutes(a.startTime), end: toMinutes(a.endTime) })),
+                                            ...laneBusyRanges(
+                                                (appointments || []).filter(a => a.status !== 'cancelled' && toDateString(a.appointmentDate) === apptForm.date),
+                                                selectedLane, laneOf,
+                                                {
+                                                    bufferOf,
+                                                    // The new booking's own buffers — one service's, or (2+) the
+                                                    // ticket's envelope, each segment widened as the server does.
+                                                    incoming: apptForm.isGroup || selectedRowServices.length === 1
+                                                        ? bufferOf(selectedRowServices[0]?._id)
+                                                        : ticketBuffers(selectedRowServices, bufferOf),
+                                                },
+                                            ),
                                             // Blocked time is a hard stop too — it was being ignored entirely before.
                                             ...(blockedTimes || []).filter(b => {
                                                 if (toDateString(b.date) !== apptForm.date) return false;

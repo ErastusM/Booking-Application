@@ -105,7 +105,7 @@ describe('POST /api/appointments – booking creation', () => {
             .set(authHeader(customerB))
             .send({ service: svc._id.toString(), appointmentDate: date, startTime: '11:00', endTime: '11:30' });
 
-        expect(res.status).toBe(400);
+        expect(res.status).toBe(409);
         expect(res.body.message).toMatch(/already booked|waiting list/i);
     });
 
@@ -265,7 +265,7 @@ describe('PUT /api/appointments/:id/reschedule', () => {
             .set(authHeader(customer))
             .send({ appointmentDate: date, startTime: '11:00' });
 
-        expect(res.status).toBe(400);
+        expect(res.status).toBe(409);
         expect(res.body.message).toMatch(/already booked/i);
     });
 });

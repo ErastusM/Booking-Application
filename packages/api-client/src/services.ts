@@ -81,13 +81,21 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         // Owner-side signal: how many customer bookings this business turned
         // away in the last 7 days, and the dominant reason (provider-only).
         getRejectionsSummary: () => API.get('/appointments/rejections-summary'),
-        getBookedSlots: (providerId: string, date: string, teamMember?: string, service?: string) =>
+        // `opts.duration` (+ `opts.option`) is the length the client will book, so
+        // the "any professional" view answers per performer at their own length
+        // (it then also returns `openStarts`); `opts.exclude` leaves out the
+        // booking being rescheduled.
+        getBookedSlots: (providerId: string, date: string, teamMember?: string, service?: string,
+            opts?: { duration?: number; option?: string; exclude?: string }) =>
             API.get('/appointments/booked-slots', {
                 params: {
                     providerId,
                     date,
                     ...(teamMember ? { teamMember } : {}),
                     ...(service ? { service } : {}),
+                    ...(opts?.duration ? { duration: opts.duration } : {}),
+                    ...(opts?.option ? { option: opts.option } : {}),
+                    ...(opts?.exclude ? { exclude: opts.exclude } : {}),
                 },
             }),
         createAppointment: (data: any) => API.post('/appointments', data),

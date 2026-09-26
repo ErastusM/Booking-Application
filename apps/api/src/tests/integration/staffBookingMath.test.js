@@ -76,7 +76,7 @@ describe('Customer picks a staff member — validation', () => {
         expect((await book(customer, svc, { teamMember: a._id })).status).toBe(201);
         expect((await book(customer, svc, { teamMember: b._id })).status).toBe(201);
         const double = await book(customer, svc, { teamMember: a._id });
-        expect(double.status).toBe(400);
+        expect(double.status).toBe(409);
     });
 
     it("staff hours: a member's own schedule wins over business hours", async () => {
@@ -117,7 +117,7 @@ describe('"Any available" resolution', () => {
         expect(second.body.data.teamMember.toString()).toBe(b._id.toString());
 
         const third = await book(customer, svc);
-        expect(third.status).toBe(400);
+        expect(third.status).toBe(409);
         expect(third.body.message).toMatch(/waiting list/i);
     });
 
@@ -212,7 +212,7 @@ describe('Solo owner — business hours govern (their own weekly hours are waive
         expect((await book(customer, svc, { startTime: '18:00', endTime: '18:30' })).status).toBe(201);
         // Second booking on the same member at the same time is a real clash, not hours.
         const clash = await book(customer, svc, { teamMember: solo._id, startTime: '18:00', endTime: '18:30' });
-        expect(clash.status).toBe(400);
+        expect(clash.status).toBe(409);
         expect(clash.body.message).toMatch(/already booked|waiting list/i);
     });
 
@@ -254,6 +254,6 @@ describe('Race guard (mirrors the existing concurrent-booking test)', () => {
             book(c2, svc, { teamMember: a._id }),
         ]);
         const statuses = [r1.status, r2.status].sort();
-        expect(statuses).toEqual([201, 400]);
+        expect(statuses).toEqual([201, 409]);
     });
 });

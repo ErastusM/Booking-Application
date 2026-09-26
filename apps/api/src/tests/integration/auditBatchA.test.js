@@ -103,7 +103,7 @@ describe('A2 — group-booking overlap is segment- and buffer-aware', () => {
             startTime: '10:30', endTime: '11:00', teamMember: alice._id.toString(),
             clients: [{ name: 'Group A' }, { name: 'Group B' }],
         });
-        expect(group.status).toBe(400);
+        expect(group.status).toBe(409);
         // Alice must still be booked exactly once (the original segment).
         expect(await Appointment.countDocuments({ 'services.teamMember': alice._id })).toBe(1);
     });

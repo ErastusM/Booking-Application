@@ -77,7 +77,7 @@ describe('#7 — a cancelled booking can’t be revived into a re-sold slot', ()
         // Reviving the first booking must be refused — the slot is taken.
         const revive = await request(app).put(`/api/appointments/${a.body.data._id}/status`)
             .set(authHeader(provider)).send({ status: 'confirmed' });
-        expect(revive.status).toBe(400);
+        expect(revive.status).toBe(409);
     });
 
     it('still allows reinstating a cancelled appointment when the slot is free', async () => {
@@ -171,6 +171,6 @@ describe('#8 — conflict check is per-staff, not provider-wide', () => {
 
         const res = await request(app).put(`/api/appointments/${apptEarly._id}/reschedule`)
             .set(authHeader(customer)).send({ appointmentDate: date, startTime: '10:00' });
-        expect(res.status).toBe(400); // same staff, real conflict
+        expect(res.status).toBe(409); // same staff, real conflict
     });
 });

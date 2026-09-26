@@ -162,7 +162,7 @@ describe('#2 existing service buffers are enforced against the next booking', ()
         const ctx = await setup();
         expect((await book(ctx, '10:00', '10:30')).status).toBe(201);
         // 10:30 sits inside 10:00–10:30's 15-minute cleanup buffer.
-        expect((await book(ctx, '10:30', '11:00')).status).toBe(400);
+        expect((await book(ctx, '10:30', '11:00')).status).toBe(409);
     });
 
     it('accepts a booking that clears the buffer', async () => {

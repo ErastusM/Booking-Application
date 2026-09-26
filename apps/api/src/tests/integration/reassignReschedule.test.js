@@ -88,7 +88,7 @@ describe('provider-reschedule reassignment', () => {
             teamMember: doer._id, appointmentDate: new Date(DATE), startTime: '14:00', endTime: '14:30',
         });
         const res = await reschedule(provider, appt._id, { appointmentDate: DATE, startTime: '14:00', teamMember: String(doer._id) });
-        expect(res.status).toBe(400);
+        expect(res.status).toBe(409);
     });
 
     it('refuses reassigning a multi-service booking', async () => {
