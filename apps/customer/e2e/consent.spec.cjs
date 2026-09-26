@@ -84,3 +84,26 @@ test('"Only necessary" tracks nothing; "Cookie settings" reopens the choice and 
     await page.getByTestId('consent-necessary').click();
     expect(await sid(page)).toBeNull();
 });
+
+test.describe('on a phone', () => {
+    test.use({ viewport: { width: 390, height: 780 }, storageState: { cookies: [], origins: [] } });
+
+    test('the banner sits above the bottom navigation and below dialogs', async ({ page }) => {
+        const { SEED, login } = require('./helpers.cjs');
+        await login(page, SEED.customer);
+        await page.goto('/appointments');
+        const banner = page.getByTestId('cookie-banner');
+        await expect(banner).toBeVisible();
+        const nav = page.locator('nav[aria-label="Bottom navigation"]');
+        await expect(nav).toBeVisible();
+        // Give the banner a beat to measure the nav, then compare edges.
+        await expect.poll(async () => {
+            const [b, n] = await Promise.all([banner.boundingBox(), nav.boundingBox()]);
+            return b.y + b.height <= n.y + 1;
+        }).toBe(true);
+        // Every bottom-nav tab stays tappable.
+        await nav.getByRole('link').first().click({ trial: true });
+        const z = await banner.evaluate((el) => Number(getComputedStyle(el).zIndex));
+        expect(z).toBeLessThan(1100); // modals and dialogs are 1100+
+    });
+});

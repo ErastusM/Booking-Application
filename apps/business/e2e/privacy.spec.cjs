@@ -37,6 +37,30 @@ test.describe('first visit', () => {
     });
 });
 
+test.describe('signed-in owner without a cookie choice', () => {
+    test.use({ storageState: { cookies: [], origins: [] } });
+
+    test('is not interrupted on the dashboard, and can choose from Account → Cookie settings', async ({ page }) => {
+        const { SEED, login } = require('./helpers.cjs');
+        // Sign in with the choice already made so the public login page's banner
+        // is out of the way, then forget the choice to model an owner who never chose.
+        await page.goto('/login');
+        await page.evaluate(() => localStorage.setItem('bp_consent', JSON.stringify({ v: 1, analytics: false, at: new Date().toISOString() })));
+        await login(page, SEED.provider);
+        await page.evaluate(() => localStorage.removeItem('bp_consent'));
+        await page.goto('/dashboard');
+        await page.waitForTimeout(1500);
+        await expect(page.getByTestId('cookie-banner')).toBeHidden();
+
+        await page.goto('/account?section=settings');
+        await page.getByTestId('cookie-settings-link').click();
+        await expect(page.getByTestId('cookie-banner')).toBeVisible();
+        await page.getByTestId('consent-necessary').click();
+        await expect(page.getByTestId('cookie-banner')).toBeHidden();
+        expect(JSON.parse(await page.evaluate(() => localStorage.getItem('bp_consent'))).analytics).toBe(false);
+    });
+});
+
 test('business sign-up cannot be submitted without the age confirmation', async ({ page, request }) => {
     await page.goto('/register');
     const age = page.getByTestId('register-age');
