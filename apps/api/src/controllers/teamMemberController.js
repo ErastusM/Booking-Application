@@ -7,6 +7,7 @@ const Appointment = require('../models/Appointment');
 const { validate: validatePermissions, isTier, DEFAULT_TIER } = require('../utils/permissions');
 const { memberBusyIntervals, memberInvolvedFilter, pickRotationWeek } = require('../utils/staffBooking');
 const { memberSlugMap } = require('../utils/memberLink');
+const { isHexColor, isUnsetColor, colorForNewMember } = require('../utils/memberColors');
 
 const dayKeyOf = (d) => new Date(d).toISOString().slice(0, 10);
 const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
@@ -160,15 +161,28 @@ exports.getMyTeam = async (req, res) => {
 // adding "the cleaner" never silently makes them bookable for the barber's whole
 // menu. Validation lives in memberCreateError() so both paths refuse the same
 // things for the same reasons.
+//
+// Calendar colour: a colour the owner picked is kept as sent. Otherwise (none,
+// or the owner's own orange, which older forms sent by default) it is left
+// EMPTY here and withMemberColor() gives the member the next free palette
+// colour, so no two people on the calendar share one by accident.
 const memberCreateDoc = (providerId, { name, role, email, phone, color } = {}) => ({
     provider: providerId,
     name: String(name || '').trim(),
     role: String(role || '').trim(),
     email: String(email || '').trim().toLowerCase(),
     phone: String(phone || '').trim(),
-    color: color || '#f03e16',
+    color: isUnsetColor(color) ? undefined : String(color).trim().toLowerCase(),
     offersAllServices: false,
 });
+
+// Fill in the member's calendar colour when the owner didn't pick one: the first
+// palette colour no active member of this business has (then cycling). Bulk add
+// creates its rows one after another, so each lookup already sees the ones
+// before it.
+const withMemberColor = async (doc) => (
+    doc.color ? doc : { ...doc, color: await colorForNewMember(doc.provider) }
+);
 
 // Loose shape check only — deliverability is proven by the invite link, not here.
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
@@ -183,6 +197,7 @@ const memberCreateError = (doc) => {
     if (!doc.role) return 'Job title is required';
     if (!doc.email) return 'Email is required';
     if (!EMAIL_RE.test(doc.email)) return 'Enter a valid email address';
+    if (doc.color !== undefined && !isHexColor(doc.color)) return 'Calendar colour must be a hex colour like #1f6fe5';
     return null;
 };
 
@@ -197,7 +212,7 @@ exports.addTeamMember = async (req, res) => {
         if (problem) {
             return res.status(400).json({ success: false, message: problem });
         }
-        const member = await TeamMember.create(doc);
+        const member = await TeamMember.create(await withMemberColor(doc));
         res.status(201).json({ success: true, data: redactHR(req, member) });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
@@ -237,7 +252,7 @@ exports.bulkAddTeamMembers = async (req, res) => {
                 continue;
             }
             try {
-                const member = await TeamMember.create(doc);
+                const member = await TeamMember.create(await withMemberColor(doc));
                 created += 1;
                 results.push({ ok: true, id: member._id, name: member.name });
             } catch (e) {
@@ -289,6 +304,13 @@ exports.updateTeamMember = async (req, res) => {
             if (!e) return res.status(400).json({ success: false, message: 'Email is required' });
             if (!EMAIL_RE.test(e)) return res.status(400).json({ success: false, message: 'Enter a valid email address' });
         }
+        // Calendar colour: a hex colour only (the Team card's swatches send one).
+        // Anything else — a CSS keyword, a url(), markup — would be written into
+        // inline styles on every calendar card. Not sent = left unchanged.
+        if (color !== undefined && color !== null && !isHexColor(color)) {
+            return res.status(400).json({ success: false, message: 'Calendar colour must be a hex colour like #1f6fe5' });
+        }
+        const cleanColor = color == null ? undefined : String(color).trim().toLowerCase();
 
         // employment + notes are OWNER-ONLY HR. Writing them here was safe only
         // because this route used to be owner-gated; now a team:manage staff
@@ -301,7 +323,7 @@ exports.updateTeamMember = async (req, res) => {
             // touches the fields it actually sends. bio/pronouns/languages are
             // customer-facing and stay writable by a manager.
             {
-                name, role, email, phone, color, isActive, bookable, photoUrl, country, address, emergencyContact,
+                name, role, email, phone, color: cleanColor, isActive, bookable, photoUrl, country, address, emergencyContact,
                 bio, pronouns, languages: cleanLanguages,
                 employment: isStaffActor ? undefined : employment,
                 notes: isStaffActor ? undefined : notes,
