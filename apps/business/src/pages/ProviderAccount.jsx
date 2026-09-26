@@ -9,7 +9,7 @@ import MapPicker, { MAPS_KEY, reverseGeocode } from '../components/MapPicker';
 import LocationsManager from '../components/LocationsManager';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 // App-styled replacement for the native <select>, so the picker wears the app's colours.
-import { Select } from '@bookplus/ui';
+import { Select, Field } from '@bookplus/ui';
 import { useToast } from '../components/Toast';
 import PortfolioPhotos, { MAX_PHOTOS } from '../components/PortfolioPhotos';
 import ShareBookingLink, { bookingUrl } from '../components/ShareBookingLink';
@@ -419,7 +419,7 @@ const ProviderAccount = () => {
                                                         : <input id={`acct-${key}`} value={memberForm[key]} onChange={e => setMemberForm(f => ({ ...f, [key]: e.target.value }))} className="input" placeholder={key === 'languagesText' ? 'e.g. English, Oshiwambo' : undefined} />}
                                                 </div>
                                             ))}
-                                            {profileMsg && <p style={{ fontSize: '0.8rem', color: profileMsg.includes('fail') ? 'var(--danger)' : 'var(--success)' }}>{profileMsg}</p>}
+                                            {profileMsg && <p style={{ fontSize: '0.8rem', color: profileMsg.includes('fail') ? 'var(--danger-fg)' : 'var(--success-fg)' }}>{profileMsg}</p>}
                                             <button type="submit" disabled={profileSaving || !memberProfile} className="btn-primary" style={{ padding: '0.65rem 1.5rem', fontSize: '0.875rem' }}>
                                                 {profileSaving ? 'Saving...' : 'Save changes'}
                                             </button>
@@ -427,30 +427,35 @@ const ProviderAccount = () => {
                                         ) : (
                                         <form onSubmit={handleProfileSave} style={{ marginTop: '1.5rem', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                             <div>
-                                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Business name</label>
-                                                <input value={profileForm.businessName} onChange={e => setProfileForm(p => ({ ...p, businessName: e.target.value }))} className="input" placeholder="Your business name" />
+                                                <Field label="Business name" labelStyle={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>
+                                                    <input value={profileForm.businessName} onChange={e => setProfileForm(p => ({ ...p, businessName: e.target.value }))} className="input" placeholder="Your business name" />
+                                                </Field>
                                                 <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.3rem 0 0' }}>This is the name customers see in search and on your card.</p>
                                             </div>
                                             <div>
-                                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Description</label>
-                                                <textarea value={profileForm.description} onChange={e => setProfileForm(p => ({ ...p, description: e.target.value.slice(0, 160) }))} className="input" rows={2} placeholder="One line about your business — what you do best." style={{ resize: 'vertical' }} />
+                                                <Field label="Description" labelStyle={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>
+                                                    <textarea value={profileForm.description} onChange={e => setProfileForm(p => ({ ...p, description: e.target.value.slice(0, 160) }))} className="input" rows={2} placeholder="One line about your business — what you do best." style={{ resize: 'vertical' }} />
+                                                </Field>
                                                 <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.3rem 0 0' }}>Shown on your card and profile. {160 - (profileForm.description?.length || 0)} characters left.</p>
                                             </div>
                                             <div>
-                                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Full Name</label>
-                                                <input value={profileForm.name} onChange={e => setProfileForm(p => ({ ...p, name: e.target.value }))} className="input" />
+                                                <Field label="Full Name" labelStyle={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>
+                                                    <input value={profileForm.name} onChange={e => setProfileForm(p => ({ ...p, name: e.target.value }))} className="input" />
+                                                </Field>
                                             </div>
                                             <div>
-                                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Job title</label>
-                                                <input value={profileForm.ownerTitle} onChange={e => setProfileForm(p => ({ ...p, ownerTitle: e.target.value.slice(0, 60) }))} className="input" placeholder="e.g. Therapist, Trainer, Consultant, Technician" />
+                                                <Field label="Job title" labelStyle={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>
+                                                    <input value={profileForm.ownerTitle} onChange={e => setProfileForm(p => ({ ...p, ownerTitle: e.target.value.slice(0, 60) }))} className="input" placeholder="e.g. Therapist, Trainer, Consultant, Technician" />
+                                                </Field>
                                                 <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.3rem 0 0' }}>How you appear to clients when they pick a professional. Leave blank to show “Owner”.</p>
                                             </div>
                                             <div>
-                                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Phone</label>
-                                                <input value={profileForm.phone} onChange={e => setProfileForm(p => ({ ...p, phone: e.target.value }))} className="input" />
+                                                <Field label="Phone" labelStyle={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>
+                                                    <input value={profileForm.phone} onChange={e => setProfileForm(p => ({ ...p, phone: e.target.value }))} className="input" />
+                                                </Field>
                                             </div>
                                             <div>
-                                                <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Business Address</label>
+                                                <label htmlFor="business-address" style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Business Address</label>
                                                 {MAPS_KEY && (
                                                     <div style={{ marginBottom: '0.6rem' }}>
                                                         <MapPicker
@@ -474,11 +479,11 @@ const ProviderAccount = () => {
                                                     {geoLoading ? <span style={{ display: 'inline-block', width: '11px', height: '11px', border: '2px solid rgba(240,62,22,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite' }} /> : <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>}
                                                     {geoLoading ? 'Detecting…' : 'Use current location'}
                                                 </button>
-                                                <textarea value={profileForm.address} onChange={e => setProfileForm(p => ({ ...p, address: e.target.value }))} className="input" rows={2} placeholder="e.g. 12 Independence Ave, Windhoek" style={{ resize: 'vertical', fontSize: '1rem' }} />
+                                                <textarea id="business-address" value={profileForm.address} onChange={e => setProfileForm(p => ({ ...p, address: e.target.value }))} className="input" rows={2} placeholder="e.g. 12 Independence Ave, Windhoek" style={{ resize: 'vertical', fontSize: '1rem' }} />
                                             </div>
                                             <div>
-                                                <label id="cancellation-policy-label" style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Cancellation policy</label>
-                                                <Select
+                                                <label htmlFor="cancellation-policy" id="cancellation-policy-label" style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Cancellation policy</label>
+                                                <Select id="cancellation-policy"
                                                     value={profileForm.cancellationWindowHours}
                                                     onChange={e => setProfileForm(p => ({ ...p, cancellationWindowHours: Number(e.target.value) }))}
                                                     options={CANCELLATION_OPTIONS}
@@ -488,7 +493,7 @@ const ProviderAccount = () => {
                                                 />
                                                 <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.3rem 0 0' }}>How much notice clients must give to cancel or reschedule online. You can always cancel from your side.</p>
                                             </div>
-                                            {profileMsg && <p style={{ fontSize: '0.8rem', color: profileMsg.includes('fail') ? 'var(--danger)' : 'var(--success)' }}>{profileMsg}</p>}
+                                            {profileMsg && <p style={{ fontSize: '0.8rem', color: profileMsg.includes('fail') ? 'var(--danger-fg)' : 'var(--success-fg)' }}>{profileMsg}</p>}
                                             <button type="submit" disabled={profileSaving} className="btn-primary" style={{ padding: '0.65rem 1.5rem', fontSize: '0.875rem' }}>
                                                 {profileSaving ? 'Saving...' : 'Save changes'}
                                             </button>
@@ -528,7 +533,7 @@ const ProviderAccount = () => {
                                                 </div>
                                                 <div className="acct-detail-row">
                                                     <span className="acct-label">Verified</span>
-                                                    <span className="acct-value" style={{ color: user?.isVerified ? 'var(--success)' : 'var(--warning)', fontWeight: '600' }}>{user?.isVerified ? 'Verified' : 'Pending'}</span>
+                                                    <span className="acct-value" style={{ color: user?.isVerified ? 'var(--success-fg)' : 'var(--warning-fg)', fontWeight: '600' }}>{user?.isVerified ? 'Verified' : 'Pending'}</span>
                                                 </div>
                                                     </>
                                                 )}
@@ -577,7 +582,7 @@ const ProviderAccount = () => {
                                             <h3 style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>📷 Instagram feed</h3>
                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>Link your Instagram profile to showcase your latest work automatically.</p>
                                             <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                                <input
+                                                <input aria-label="Instagram profile URL"
                                                     value={portfolio.instagramUrl}
                                                     onChange={e => setPortfolio(p => ({ ...p, instagramUrl: e.target.value }))}
                                                     placeholder="https://instagram.com/yourusername"
@@ -693,11 +698,12 @@ const ProviderAccount = () => {
                                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem', maxWidth: '360px' }}>
                                                     {[['Current password', 'current'], ['New password', 'newPwd'], ['Confirm new password', 'confirm']].map(([label, key]) => (
                                                         <div key={key}>
-                                                            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>{label}</label>
-                                                            <input type="password" className="input" value={pwForm[key]} onChange={e => setPwForm(f => ({ ...f, [key]: e.target.value }))} />
+                                                            <Field label={label} labelStyle={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>
+                                                                <input type="password" className="input" value={pwForm[key]} onChange={e => setPwForm(f => ({ ...f, [key]: e.target.value }))} />
+                                                            </Field>
                                                         </div>
                                                     ))}
-                                                    {pwMsg.text && <p style={{ fontSize: '0.8rem', color: pwMsg.ok ? 'var(--success)' : 'var(--danger)' }}>{pwMsg.text}</p>}
+                                                    {pwMsg.text && <p style={{ fontSize: '0.8rem', color: pwMsg.ok ? 'var(--success-fg)' : 'var(--danger-fg)' }}>{pwMsg.text}</p>}
                                                     <button
                                                         onClick={async () => {
                                                             if (pwForm.newPwd !== pwForm.confirm) { setPwMsg({ text: 'Passwords do not match', ok: false }); return; }
@@ -770,7 +776,7 @@ const ProviderAccount = () => {
                                                     In Google Calendar, open <strong>Settings → Settings for my calendars → [your calendar] → Integrate calendar</strong> and copy the <em>Embed URL</em> (not the full HTML — just the URL inside <code>src="..."</code>).
                                                 </p>
                                                 <div style={{ display: 'flex', gap: '0.75rem' }}>
-                                                    <input
+                                                    <input aria-label="Google Calendar embed URL"
                                                         className="input"
                                                         value={calendarEmbed}
                                                         onChange={e => setCalendarEmbed(e.target.value)}
@@ -792,7 +798,7 @@ const ProviderAccount = () => {
                                                         style={{ padding: '0.65rem 1.25rem', fontSize: '0.875rem', whiteSpace: 'nowrap' }}
                                                     >{calendarEmbedSaving ? 'Saving...' : 'Save'}</button>
                                                 </div>
-                                                {calendarEmbedMsg && <p style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: calendarEmbedMsg === 'Saved!' ? 'var(--success)' : 'var(--danger)' }}>{calendarEmbedMsg}</p>}
+                                                {calendarEmbedMsg && <p style={{ marginTop: '0.5rem', fontSize: '0.8rem', color: calendarEmbedMsg === 'Saved!' ? 'var(--success-fg)' : 'var(--danger-fg)' }}>{calendarEmbedMsg}</p>}
                                                 {calendarEmbed && <p style={{ marginTop: '0.5rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>✓ Google Calendar is connected. Switch to the Google view in your Dashboard → Calendar tab.</p>}
                                             </div>
                                         )}

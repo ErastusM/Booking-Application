@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { useAuthContext } from '../context/AuthContext';
 import API from '../services/api';
+import { Field } from '@bookplus/ui';
 
 // Backup flag so the prompt never re-shows after submit/dismiss even if the
 // signupSurvey write on the user record hasn't round-tripped back into the
@@ -146,18 +147,17 @@ const SignupSurveyModal = () => {
                         })}
                     </div>
                     <div>
-                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
-                            Anything you'd like to add? (optional)
-                        </label>
-                        <textarea
-                            value={comment}
-                            onChange={e => setComment(e.target.value)}
-                            rows="3"
-                            maxLength={500}
-                            placeholder="Tell us what tripped you up…"
-                            className="input"
-                            style={{ resize: 'vertical', fontFamily: 'var(--font-body)', width: '100%' }}
-                        />
+                        <Field label="Anything you'd like to add? (optional)" labelStyle={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                            <textarea
+                                value={comment}
+                                onChange={e => setComment(e.target.value)}
+                                rows="3"
+                                maxLength={500}
+                                placeholder="Tell us what tripped you up…"
+                                className="input"
+                                style={{ resize: 'vertical', fontFamily: 'var(--font-body)', width: '100%' }}
+                            />
+                        </Field>
                         <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'right', margin: '0.25rem 0 0' }}>{comment.length}/500</p>
                     </div>
                     <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.25rem' }}>

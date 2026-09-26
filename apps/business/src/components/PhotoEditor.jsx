@@ -237,7 +237,7 @@ const PhotoEditor = ({ url, edit, shape: startShape, isCover, onDone, onCancel, 
                     <button type="button" onClick={() => onDone(result())} disabled={!crop} style={{ ...textBtn, color: 'var(--gold)', fontWeight: 700, opacity: crop ? 1 : 0.5 }} data-testid="photo-editor-done">Done</button>
                 </div>
 
-                <div ref={stageRef} tabIndex={0} onKeyDown={onStageKey} aria-label="Photo. Drag to move, use the zoom slider to zoom."
+                <div ref={stageRef} tabIndex={0} className="photo-stage" onKeyDown={onStageKey} aria-label="Photo. Drag to move, use the zoom slider to zoom."
                     onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp} onPointerCancel={onPointerUp}
                     style={{ position: 'relative', flex: 1, minHeight: 0, overflow: 'hidden', background: '#111', touchAction: 'none', userSelect: 'none', cursor: tab === 'crop' && crop ? 'grab' : 'default', outline: 'none' }}>
                     {adj.warmth ? <WarmthFilter id={warmthId} warmth={adj.warmth} /> : null}

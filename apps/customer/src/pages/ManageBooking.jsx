@@ -142,10 +142,10 @@ const ManageBooking = () => {
                                     {error && <p id="manage-error" role="alert" style={{ color: 'var(--danger-fg)', fontSize: '0.85rem', marginTop: '1rem' }}>{error}</p>}
                                     {showReschedule ? (
                                         <form onSubmit={reschedule} style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
-                                            <label style={{ fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>New date</label>
+                                            <label htmlFor="manage-new-date" style={{ fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>New date</label>
                                             {/* App-styled picker has no native `required` bubble — reschedule()'s !rDate check covers it (and focuses it). */}
-                                            <DatePicker ref={rDateRef} value={rDate} min={today} onChange={e => { setRDate(e.target.value); setRTime(''); }} required invalid={!!error && !rDate} aria-describedby={error && !rDate ? 'manage-error' : undefined} aria-label="New date" data-testid="manage-reschedule-date" />
-                                            <label style={{ fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>New start time</label>
+                                            <DatePicker id="manage-new-date" ref={rDateRef} value={rDate} min={today} onChange={e => { setRDate(e.target.value); setRTime(''); }} required invalid={!!error && !rDate} aria-describedby={error && !rDate ? 'manage-error' : undefined} aria-label="New date" data-testid="manage-reschedule-date" />
+                                            <div id="manage-new-time-label" style={{ fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>New start time</div>
                                             {(() => {
                                                 // Controlled hourly slots (no arbitrary minute starts), within the
                                                 // provider's hours. Half-hour starts surface server-side conflict rules.
@@ -156,11 +156,11 @@ const ManageBooking = () => {
                                                 if (!rDate) return <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>Pick a date first.</p>;
                                                 if (slots.length === 0) return <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>No available times on this day.</p>;
                                                 return (
-                                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: '0.4rem' }}>
+                                                    <div role="group" aria-labelledby="manage-new-time-label" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: '0.4rem' }}>
                                                         {slots.map((s, i) => {
                                                             const sel = rTime === s.time;
                                                             return (
-                                                                <button key={i} type="button" onClick={() => setRTime(s.time)} style={{
+                                                                <button key={i} type="button" aria-pressed={sel} onClick={() => setRTime(s.time)} style={{
                                                                     padding: '0.55rem 0.3rem', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontWeight: '600', fontSize: '0.85rem',
                                                                     border: `1.5px solid ${sel ? 'var(--gold)' : 'var(--border)'}`,
                                                                     background: sel ? 'var(--gold)' : 'var(--card-bg)', color: sel ? 'var(--ink)' : 'var(--charcoal)', cursor: 'pointer',

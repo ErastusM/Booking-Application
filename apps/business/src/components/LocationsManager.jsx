@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { locationService } from '../services';
 import { useToast } from './Toast';
+import { Field } from '@bookplus/ui';
 
 // Owner screen over the multi-location CRUD. Businesses start with one primary
 // "Main" location (created by the backfill); here the owner can add more, rename
@@ -15,7 +16,7 @@ const card = {
 };
 const label = { display: 'block', fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-secondary)', letterSpacing: '0.04em', textTransform: 'uppercase', marginBottom: '0.3rem' };
 const input = {
-    width: '100%', padding: '0.55rem 0.7rem', borderRadius: '8px', border: '1px solid var(--border)',
+    width: '100%', padding: '0.55rem 0.7rem', borderRadius: '8px', border: '1px solid var(--border-input)',
     background: 'var(--surface-sunken, var(--card-bg))', color: 'var(--charcoal)', font: 'inherit', fontSize: '0.9rem',
 };
 const pill = (color, bg, border) => ({
@@ -56,12 +57,14 @@ const LocationRow = ({ loc, busy, onSave, onSetPrimary, onToggleActive }) => {
             ) : (
                 <div style={{ display: 'grid', gap: '0.75rem' }}>
                     <div>
-                        <label style={label}>Name</label>
-                        <input style={input} value={name} disabled={busy} onChange={(e) => setName(e.target.value)} aria-label="Location name" />
+                        <Field label="Name" labelStyle={label}>
+                            <input style={input} value={name} disabled={busy} onChange={(e) => setName(e.target.value)} aria-label="Location name" />
+                        </Field>
                     </div>
                     <div>
-                        <label style={label}>Address</label>
-                        <input style={input} value={address} disabled={busy} onChange={(e) => setAddress(e.target.value)} placeholder="Optional" aria-label="Location address" />
+                        <Field label="Address" labelStyle={label}>
+                            <input style={input} value={address} disabled={busy} onChange={(e) => setAddress(e.target.value)} placeholder="Optional" aria-label="Location address" />
+                        </Field>
                     </div>
                 </div>
             )}
@@ -177,12 +180,14 @@ const LocationsManager = () => {
                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: 600, color: 'var(--charcoal)', marginBottom: '0.9rem' }}>Add a location</h2>
                 <div style={{ display: 'grid', gap: '0.75rem', marginBottom: '0.9rem' }}>
                     <div>
-                        <label style={label}>Name</label>
-                        <input style={input} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. Downtown" aria-label="New location name" />
+                        <Field label="Name" labelStyle={label}>
+                            <input style={input} value={form.name} onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))} placeholder="e.g. Downtown" aria-label="New location name" />
+                        </Field>
                     </div>
                     <div>
-                        <label style={label}>Address</label>
-                        <input style={input} value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} placeholder="Optional" aria-label="New location address" />
+                        <Field label="Address" labelStyle={label}>
+                            <input style={input} value={form.address} onChange={(e) => setForm((f) => ({ ...f, address: e.target.value }))} placeholder="Optional" aria-label="New location address" />
+                        </Field>
                     </div>
                 </div>
                 <button type="submit" className="btn-primary" disabled={busy || !form.name.trim()} style={{ opacity: (busy || !form.name.trim()) ? 0.5 : 1 }}>

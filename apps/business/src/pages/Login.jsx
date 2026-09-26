@@ -4,6 +4,7 @@ import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { API_BASE } from '../services/api';
 import { safeNext } from '../utils/safeNext';
+import { Field } from '@bookplus/ui';
 
 // ?error= codes other flows send here. session_expired comes from the
 // api-client when a session can't be refreshed; it used to be dropped
@@ -145,7 +146,7 @@ const Login = () => {
                         <span style={{ color: 'var(--gold)', fontStyle: 'italic' }}>back.</span>
                     </h2>
                     <p style={{
-                        color: 'rgba(255,255,255,0.5)',
+                        color: 'rgba(255,255,255,0.66)',
                         fontSize: '1rem',
                         lineHeight: 1.7,
                         fontWeight: '300',
@@ -228,7 +229,7 @@ const Login = () => {
 
                     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                         <div>
-                            <label style={{
+                            <Field label="Email Address" labelStyle={{
                                 display: 'block',
                                 fontSize: '0.8rem',
                                 fontWeight: '600',
@@ -237,21 +238,20 @@ const Login = () => {
                                 letterSpacing: '0.05em',
                                 textTransform: 'uppercase',
                             }}>
-                                Email Address
-                            </label>
-                            <input
-                                type="email"
-                                name="email"
-                                value={formData.email}
-                                onChange={handleChange}
-                                required
-                                placeholder="you@example.com"
-                                className="input"
-                            />
+                                <input
+                                    type="email"
+                                    name="email"
+                                    value={formData.email}
+                                    onChange={handleChange}
+                                    required
+                                    placeholder="you@example.com"
+                                    className="input"
+                                />
+                            </Field>
                         </div>
 
                         <div>
-                            <label style={{
+                            <Field label="Password" labelStyle={{
                                 display: 'block',
                                 fontSize: '0.8rem',
                                 fontWeight: '600',
@@ -260,17 +260,16 @@ const Login = () => {
                                 letterSpacing: '0.05em',
                                 textTransform: 'uppercase',
                             }}>
-                                Password
-                            </label>
-                            <input
-                                type="password"
-                                name="password"
-                                value={formData.password}
-                                onChange={handleChange}
-                                required
-                                placeholder="••••••••"
-                                className="input"
-                            />
+                                <input
+                                    type="password"
+                                    name="password"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    required
+                                    placeholder="••••••••"
+                                    className="input"
+                                />
+                            </Field>
                             <div style={{ textAlign: 'right', marginTop: '0.5rem' }}>
                                 <Link to="/forgot-password" style={{ color: 'var(--gold-dark)', fontWeight: '500', fontSize: '0.82rem', textDecoration: 'none' }}>
                                     Forgot password?
@@ -317,7 +316,7 @@ const Login = () => {
                             <img
                                 src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
                                 width="20"
-                                alt="Google"
+                                alt=""
                             />
                             Continue with Google
                         </a>

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { authService } from '../services';
+import { Field } from '@bookplus/ui';
 
 const ForgotPassword = () => {
     const [email, setEmail] = useState('');
@@ -69,7 +70,7 @@ const ForgotPassword = () => {
                         <span style={{ color: 'var(--gold)', fontStyle: 'italic' }}>password?</span>
                     </h2>
                     <p style={{
-                        color: 'rgba(255,255,255,0.5)',
+                        color: 'rgba(255,255,255,0.66)',
                         fontSize: '1rem',
                         lineHeight: 1.7,
                         fontWeight: '300',
@@ -105,7 +106,7 @@ const ForgotPassword = () => {
                                 If an account with <strong>{email}</strong> exists, you'll receive a password reset link shortly. The link expires in 1 hour.
                             </p>
                             <Link to="/login" style={{
-                                color: 'var(--gold)',
+                                color: 'var(--gold-dark)',
                                 fontWeight: '600',
                                 fontSize: '0.9rem',
                                 textDecoration: 'none',
@@ -126,7 +127,7 @@ const ForgotPassword = () => {
                             </h1>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '2rem' }}>
                                 Remember it?{' '}
-                                <Link to="/login" style={{ color: 'var(--gold)', fontWeight: '600', textDecoration: 'none' }}>
+                                <Link to="/login" style={{ color: 'var(--gold-dark)', fontWeight: '600', textDecoration: 'none' }}>
                                     Sign in here
                                 </Link>
                             </p>
@@ -147,7 +148,7 @@ const ForgotPassword = () => {
 
                             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                 <div>
-                                    <label style={{
+                                    <Field label="Email Address" labelStyle={{
                                         display: 'block',
                                         fontSize: '0.8rem',
                                         fontWeight: '600',
@@ -156,16 +157,15 @@ const ForgotPassword = () => {
                                         letterSpacing: '0.05em',
                                         textTransform: 'uppercase',
                                     }}>
-                                        Email Address
-                                    </label>
-                                    <input
-                                        type="email"
-                                        value={email}
-                                        onChange={e => setEmail(e.target.value)}
-                                        required
-                                        placeholder="you@example.com"
-                                        className="input"
-                                    />
+                                        <input
+                                            type="email"
+                                            value={email}
+                                            onChange={e => setEmail(e.target.value)}
+                                            required
+                                            placeholder="you@example.com"
+                                            className="input"
+                                        />
+                                    </Field>
                                 </div>
 
                                 <button

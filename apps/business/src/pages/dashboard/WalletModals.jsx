@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { uploadProof } from '../../utils/uploadImage';
 import { providerWalletService } from '../../services';
+import { Field } from '@bookplus/ui';
 
 // Wallet dialogs extracted from ProviderDashboard.jsx. Both are fully self-
 // contained (prop-driven, own their state) — they were only sitting in the main
@@ -47,8 +48,8 @@ export const ProviderAccountTopUpModal = ({ curSym, onClose, onDone }) => {
                     <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>Pay Bookplus, attach proof, and we’ll verify and credit your account.</p>
                 </div>
                 <form onSubmit={submit} style={{ padding: '1.25rem' }}>
-                    <label style={lbl}>Funding method</label>
-                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
+                    <div id="wallet-method-label" style={lbl}>Funding method</div>
+                    <div role="group" aria-labelledby="wallet-method-label" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem' }}>
                         {[{ v: 'manual', t: 'Bank transfer' }, { v: 'cash', t: 'Cash' }].map((o) => (
                             <button key={o.v} type="button" onClick={() => { setMethod(o.v); if (o.v === 'cash') { setProofUrl(''); setProofType(''); } }} style={{
                                 flex: 1, padding: '0.55rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600', fontSize: '0.82rem',
@@ -57,24 +58,26 @@ export const ProviderAccountTopUpModal = ({ curSym, onClose, onDone }) => {
                             }}>{o.t}</button>
                         ))}
                     </div>
-                    <label style={lbl}>Amount ({curSym})</label>
-                    <input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 500" className="input" style={{ width: '100%', marginBottom: '1rem' }} required />
-                    <label style={lbl}>Payment reference</label>
-                    <input type="text" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Your deposit / transfer reference" className="input" style={{ width: '100%', marginBottom: '1rem' }} />
+                    <Field label={<>Amount ({curSym})</>} labelStyle={lbl}>
+                        <input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 500" className="input" style={{ width: '100%', marginBottom: '1rem' }} required />
+                    </Field>
+                    <Field label="Payment reference" labelStyle={lbl}>
+                        <input type="text" value={reference} onChange={(e) => setReference(e.target.value)} placeholder="Your deposit / transfer reference" className="input" style={{ width: '100%', marginBottom: '1rem' }} />
+                    </Field>
                     {method === 'cash' ? (
                         <div style={{ background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '0.85rem 1rem', marginBottom: '1rem', fontSize: '0.82rem', color: 'var(--text-secondary)', lineHeight: 1.5 }}>
                             Paying in cash? No proof of payment needed — just submit and an admin will verify and credit your account.
                         </div>
                     ) : (
                         <>
-                            <label style={lbl}>Proof of payment (image or PDF)</label>
+                            <div id="wallet-proof-label" style={lbl}>Proof of payment (image or PDF)</div>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1rem', border: '1.5px dashed var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: proofUrl ? 'var(--gold-dark)' : 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
                                 {uploading ? 'Uploading…' : proofUrl ? `${proofType === 'pdf' ? 'PDF' : 'Proof'} uploaded — tap to replace` : 'Upload a screenshot, receipt or PDF'}
-                                <input type="file" accept="image/*,application/pdf" onChange={handleProof} style={{ display: 'none' }} />
+                                <input type="file" accept="image/*,application/pdf" onChange={handleProof} className="sr-only" aria-labelledby="wallet-proof-label" />
                             </label>
                         </>
                     )}
-                    {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
+                    {error && <p style={{ color: 'var(--danger-fg)', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
                     <button type="submit" disabled={busy || uploading} className="btn-primary" style={{ width: '100%', padding: '0.85rem' }}>{busy ? 'Submitting…' : 'Submit for approval'}</button>
                 </form>
             </div>
@@ -131,13 +134,15 @@ export const WalletAdjustmentModal = ({ wallet, refundsAllowed, curSym, onClose,
                         </label>
                     )}
 
-                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Amount ({curSym})</label>
-                    <input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 50" className="input" style={{ width: '100%', marginBottom: '1rem' }} required />
+                    <Field label={<>Amount ({curSym})</>} labelStyle={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>
+                        <input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 50" className="input" style={{ width: '100%', marginBottom: '1rem' }} required />
+                    </Field>
 
-                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>Reason</label>
-                    <input type="text" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Loyalty credit, no-show penalty" className="input" style={{ width: '100%', marginBottom: '1rem' }} maxLength={200} />
+                    <Field label="Reason" labelStyle={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>
+                        <input type="text" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="e.g. Loyalty credit, no-show penalty" className="input" style={{ width: '100%', marginBottom: '1rem' }} maxLength={200} />
+                    </Field>
 
-                    {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
+                    {error && <p style={{ color: 'var(--danger-fg)', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <button type="submit" disabled={busy} className="btn-primary" style={{ flex: 1, padding: '0.75rem' }}>{busy ? 'Sending…' : 'Propose to client'}</button>
                         <button type="button" onClick={onClose} className="btn-outline" style={{ padding: '0.75rem 1.1rem' }}>Cancel</button>

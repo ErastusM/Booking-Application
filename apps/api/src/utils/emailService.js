@@ -137,7 +137,7 @@ exports.sendRaw = safeSend;
    ============================================================================ */
 
 const C = {
-    ink: '#040505', gold: '#b32c0d', text: '#52525b', muted: '#8f9391',
+    ink: '#040505', gold: '#b32c0d', text: '#52525b', muted: '#5c615e', // muted = --text-muted (WCAG AA 4.5:1)
     border: '#d3d5d4', canvas: '#f4f4f5', card: '#ffffff', sunken: '#f7f6f4',
 };
 

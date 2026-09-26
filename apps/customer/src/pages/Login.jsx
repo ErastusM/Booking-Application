@@ -3,6 +3,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { API_BASE } from '../services/api';
+import { Field } from '@bookplus/ui';
 
 // Where to land after signing in. `?next=` lets a flow that had to interrupt the
 // visitor (e.g. joining a waiting list mid-booking) send them back where they
@@ -175,7 +176,7 @@ const Login = () => {
                         <span style={{ color: 'var(--gold)', fontStyle: 'italic' }}>back.</span>
                     </h2>
                     <p style={{
-                        color: 'rgba(255,255,255,0.5)',
+                        color: 'rgba(255,255,255,0.66)',
                         fontSize: '1rem',
                         lineHeight: 1.7,
                         fontWeight: '300',
@@ -206,7 +207,7 @@ const Login = () => {
                     </h1>
                     <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '2rem' }}>
                         Don't have an account?{' '}
-                        <Link to="/register" style={{ color: 'var(--gold)', fontWeight: '600', textDecoration: 'none' }}>
+                        <Link to="/register" style={{ color: 'var(--gold-dark)', fontWeight: '600', textDecoration: 'none' }}>
                             Sign up here
                         </Link>
                     </p>
@@ -248,7 +249,7 @@ const Login = () => {
                     ) : (
                     <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                         <div>
-                            <label style={{
+                            <Field label="Email Address" labelStyle={{
                                 display: 'block',
                                 fontSize: '0.8rem',
                                 fontWeight: '600',
@@ -257,21 +258,20 @@ const Login = () => {
                                 letterSpacing: '0.05em',
                                 textTransform: 'uppercase',
                             }}>
-                                Email Address
-                            </label>
-                            <input
-                                type="email"
-                                name="email"
-                                value={formData.email}
-                                onChange={handleChange}
-                                required
-                                placeholder="you@example.com"
-                                className="input"
-                            />
+                                <input
+                                    type="email"
+                                    name="email"
+                                    value={formData.email}
+                                    onChange={handleChange}
+                                    required
+                                    placeholder="you@example.com"
+                                    className="input"
+                                />
+                            </Field>
                         </div>
 
                         <div>
-                            <label style={{
+                            <Field label="Password" labelStyle={{
                                 display: 'block',
                                 fontSize: '0.8rem',
                                 fontWeight: '600',
@@ -280,19 +280,18 @@ const Login = () => {
                                 letterSpacing: '0.05em',
                                 textTransform: 'uppercase',
                             }}>
-                                Password
-                            </label>
-                            <input
-                                type="password"
-                                name="password"
-                                value={formData.password}
-                                onChange={handleChange}
-                                required
-                                placeholder="••••••••"
-                                className="input"
-                            />
+                                <input
+                                    type="password"
+                                    name="password"
+                                    value={formData.password}
+                                    onChange={handleChange}
+                                    required
+                                    placeholder="••••••••"
+                                    className="input"
+                                />
+                            </Field>
                             <div style={{ textAlign: 'right', marginTop: '0.5rem' }}>
-                                <Link to="/forgot-password" style={{ color: 'var(--gold)', fontWeight: '500', fontSize: '0.82rem', textDecoration: 'none' }}>
+                                <Link to="/forgot-password" style={{ color: 'var(--gold-dark)', fontWeight: '500', fontSize: '0.82rem', textDecoration: 'none' }}>
                                     Forgot password?
                                 </Link>
                             </div>
@@ -337,7 +336,7 @@ const Login = () => {
                             <img
                                 src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
                                 width="20"
-                                alt="Google"
+                                alt=""
                             />
                             Continue with Google
                         </a>

@@ -407,7 +407,7 @@ const CalendarGrid = ({
                     const sel = sameDay(d, today);
                     return (
                         <div key={dateKey(d)} style={{ padding: '0.4rem 0 0.35rem', textAlign: 'center' }}>
-                            <div style={{ margin: '0 auto', width: '28px', height: '28px', lineHeight: '28px', borderRadius: '50%', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '0.95rem', fontVariantNumeric: 'tabular-nums', background: sel ? 'var(--gold)' : 'transparent', color: sel ? '#fff' : 'var(--charcoal)' }}>
+                            <div style={{ margin: '0 auto', width: '28px', height: '28px', lineHeight: '28px', borderRadius: '50%', fontFamily: 'var(--font-display)', fontWeight: 600, fontSize: '0.95rem', fontVariantNumeric: 'tabular-nums', background: sel ? 'var(--gold)' : 'transparent', color: sel ? 'var(--ink)' : 'var(--charcoal)' }}>
                                 {d.getDate()}
                             </div>
                             <div style={{ fontSize: '0.55rem', fontWeight: 600, letterSpacing: '0.05em', textTransform: 'uppercase', color: sel ? 'var(--gold-dark)' : 'var(--text-muted)', marginTop: '0.1rem' }}>

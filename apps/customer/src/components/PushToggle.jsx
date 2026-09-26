@@ -30,11 +30,11 @@ const PushToggle = () => {
             <div>
                 <p style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Push notifications</p>
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>Get alerts for bookings, reschedules and reminders on this device.</p>
-                {error && <p style={{ fontSize: '0.75rem', color: '#dc2626', margin: '0.3rem 0 0' }}>{error}</p>}
+                {error && <p style={{ fontSize: '0.75rem', color: 'var(--danger-fg)', margin: '0.3rem 0 0' }}>{error}</p>}
             </div>
-            <button onClick={toggle} disabled={busy} aria-label="Toggle push notifications" style={{
+            <button type="button" role="switch" aria-checked={!!state.subscribed} onClick={toggle} disabled={busy} aria-label="Push notifications" style={{
                 width: '46px', height: '26px', borderRadius: '99px', border: 'none', flexShrink: 0,
-                background: state.subscribed ? 'var(--gold)' : 'var(--warm-gray)', cursor: busy ? 'wait' : 'pointer',
+                background: state.subscribed ? 'var(--gold)' : 'var(--border-input)', cursor: busy ? 'wait' : 'pointer',
                 position: 'relative', transition: 'background 0.2s',
             }}>
                 <span style={{ position: 'absolute', top: '3px', left: state.subscribed ? '23px' : '3px', width: '20px', height: '20px', borderRadius: '50%', background: '#fff', transition: 'left 0.2s', display: 'block' }} />

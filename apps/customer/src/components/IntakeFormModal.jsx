@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useId, useState } from 'react';
 import { formService } from '../services';
 import { useToast } from './Toast';
 import { useModalChrome } from '../hooks/useModalChrome';
@@ -87,28 +87,33 @@ const IntakeFormModal = ({ appointmentId, onClose, onCompleted }) => {
         }
     };
 
-    const renderField = (f) => {
+    const uid = useId();
+    const renderField = (f, idx) => {
         if (!fieldVisible(f, answers)) return null;
+        // Every question's label is tied to its control (WCAG 1.3.1); choice
+        // questions become a named group instead.
+        const fid = `${uid}-q${idx}`;
+        const isGroup = f.type === 'radio' || f.type === 'checkbox';
         const v = answers[f.label];
         const common = { className: 'input', style: { fontSize: '1rem' } };
         return (
             <div key={f.label} style={{ marginBottom: '1rem' }}>
-                <label style={{ display: 'block', fontSize: '0.82rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>
-                    {f.label}{f.required && <span style={{ color: '#dc2626' }}> *</span>}
+                <label id={`${fid}-label`} htmlFor={isGroup ? undefined : fid} style={{ display: 'block', fontSize: '0.82rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>
+                    {f.label}{f.required && <span aria-hidden="true" style={{ color: 'var(--danger-fg)' }}> *</span>}
                 </label>
-                {f.type === 'textarea' && <textarea {...common} rows={3} value={v || ''} onChange={e => setAnswer(f.label, e.target.value)} style={{ ...common.style, resize: 'vertical' }} />}
-                {f.type === 'text' && <input {...common} value={v || ''} onChange={e => setAnswer(f.label, e.target.value)} />}
-                {f.type === 'number' && <input {...common} type="number" value={v || ''} onChange={e => setAnswer(f.label, e.target.value)} />}
-                {f.type === 'date' && <DatePicker style={common.style} value={v || ''} onChange={e => setAnswer(f.label, e.target.value)} clearable aria-label={f.label} />}
+                {f.type === 'textarea' && <textarea {...common} id={fid} aria-required={!!f.required || undefined} rows={3} value={v || ''} onChange={e => setAnswer(f.label, e.target.value)} style={{ ...common.style, resize: 'vertical' }} />}
+                {f.type === 'text' && <input {...common} id={fid} aria-required={!!f.required || undefined} value={v || ''} onChange={e => setAnswer(f.label, e.target.value)} />}
+                {f.type === 'number' && <input {...common} id={fid} aria-required={!!f.required || undefined} type="number" value={v || ''} onChange={e => setAnswer(f.label, e.target.value)} />}
+                {f.type === 'date' && <DatePicker id={fid} style={common.style} value={v || ''} onChange={e => setAnswer(f.label, e.target.value)} clearable aria-label={f.label} />}
                 {/* Optional questions keep a way back to "no answer" (the old blank row). */}
                 {f.type === 'select' && (
-                    <Select style={common.style} value={v || ''} onChange={e => setAnswer(f.label, e.target.value)}
+                    <Select id={fid} style={common.style} value={v || ''} onChange={e => setAnswer(f.label, e.target.value)}
                         options={f.options.map(o => ({ value: o, label: o }))} placeholder="Select…"
                         actions={!f.required && v ? [{ label: 'Clear answer', onSelect: () => setAnswer(f.label, '') }] : undefined}
                         aria-label={f.label} />
                 )}
                 {f.type === 'radio' && (
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
+                    <div role="group" aria-labelledby={`${fid}-label`} style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                         {f.options.map(o => (
                             <label key={o} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
                                 <input type="radio" name={f.label} checked={v === o} onChange={() => setAnswer(f.label, o)} style={{ accentColor: 'var(--gold)' }} /> {o}
@@ -118,7 +123,7 @@ const IntakeFormModal = ({ appointmentId, onClose, onCompleted }) => {
                 )}
                 {f.type === 'checkbox' && (
                     <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.875rem', color: 'var(--text-secondary)', cursor: 'pointer' }}>
-                        <input type="checkbox" checked={!!v} onChange={e => setAnswer(f.label, e.target.checked)} style={{ accentColor: 'var(--gold)', width: '18px', height: '18px' }} /> I agree / confirm
+                        <input type="checkbox" aria-describedby={`${fid}-label`} checked={!!v} onChange={e => setAnswer(f.label, e.target.checked)} style={{ accentColor: 'var(--gold)', width: '18px', height: '18px' }} /> I agree / confirm
                     </label>
                 )}
             </div>
@@ -131,7 +136,7 @@ const IntakeFormModal = ({ appointmentId, onClose, onCompleted }) => {
             <div ref={panelRef} tabIndex={-1} role="dialog" aria-modal="true" className="modal-center scale-in" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '480px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto', background: 'var(--card-bg)', borderRadius: 'var(--radius)', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', zIndex: 1101, outline: 'none' }}>
                 <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0 }}>
                     <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.2rem', fontWeight: '600', margin: 0 }}>{active?.template?.title || 'Forms'}</h2>
-                    <button onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1 }}>×</button>
+                    <button aria-label="Close" onClick={onClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.66)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1 }}>×</button>
                 </div>
                 <div style={{ padding: '1.5rem' }}>
                     {loading ? (
@@ -154,9 +159,9 @@ const IntakeFormModal = ({ appointmentId, onClose, onCompleted }) => {
                                 </div>
                             )}
                             {active?.template?.description && <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginBottom: '1rem' }}>{active.template.description}</p>}
-                            {active?.completed && <p style={{ fontSize: '0.8rem', color: '#059669', marginBottom: '1rem' }}>✓ Already submitted — you can update your answers.</p>}
+                            {active?.completed && <p style={{ fontSize: '0.8rem', color: 'var(--success-fg)', marginBottom: '1rem' }}>✓ Already submitted — you can update your answers.</p>}
                             {active?.template?.fields.map(renderField)}
-                            {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', marginBottom: '0.75rem' }}>{error}</p>}
+                            {error && <p style={{ color: 'var(--danger-fg)', fontSize: '0.85rem', marginBottom: '0.75rem' }}>{error}</p>}
                             <button onClick={submit} disabled={saving} className="btn-primary" style={{ width: '100%', padding: '0.85rem', fontWeight: '600' }}>{saving ? 'Submitting…' : 'Submit form'}</button>
                         </>
                     )}

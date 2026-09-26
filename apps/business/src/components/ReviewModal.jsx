@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { reviewService } from '../services';
+import { Field } from '@bookplus/ui';
 
 const StarPicker = ({ rating, onRate }) => {
     const [hovered, setHovered] = useState(0);
@@ -96,20 +97,21 @@ const ReviewModal = ({ appointment, onClose, onSubmitted }) => {
 
                 <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem' }}>
                     <div>
-                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Your rating</label>
+                        <div id="review-rating-label" style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Your rating</div>
                         <StarPicker rating={rating} onRate={setRating} />
                     </div>
                     <div>
-                        <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>Your review</label>
-                        <textarea
-                            value={comment}
-                            onChange={e => setComment(e.target.value)}
-                            rows="4"
-                            maxLength={500}
-                            placeholder="Tell us about your experience…"
-                            className="input"
-                            style={{ resize: 'vertical', fontFamily: 'var(--font-body)', width: '100%' }}
-                        />
+                        <Field label="Your review" labelStyle={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem' }}>
+                            <textarea
+                                value={comment}
+                                onChange={e => setComment(e.target.value)}
+                                rows="4"
+                                maxLength={500}
+                                placeholder="Tell us about your experience…"
+                                className="input"
+                                style={{ resize: 'vertical', fontFamily: 'var(--font-body)', width: '100%' }}
+                            />
+                        </Field>
                         <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', textAlign: 'right', margin: '0.25rem 0 0' }}>{comment.length}/500</p>
                     </div>
                     <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.25rem' }}>

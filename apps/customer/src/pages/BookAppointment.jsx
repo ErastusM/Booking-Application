@@ -13,7 +13,7 @@ import RecurrenceFields from '../components/RecurrenceFields';
 import StatusOverlay from '../components/StatusOverlay';
 import AuthPrompt from '../components/AuthPrompt';
 import { track } from '../services/client';
-import { formatDuration } from '@bookplus/ui';
+import { formatDuration, Field } from '@bookplus/ui';
 
 // The API answers a signed-out request with "No token, authorization denied".
 // That's server-speak for "you're signed out" — never show it. Anything else
@@ -722,6 +722,8 @@ const BookAppointment = () => {
 
     const labelStyle = { display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' };
     const cardStyle = { background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '2rem', boxShadow: 'var(--shadow-sm)' };
+    // Visible field labels on the contact / name cards (sentence case, not the step captions' uppercase).
+    const contactLabelStyle = { display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.35rem', fontFamily: 'var(--font-body)' };
     const stepBadge = (num) => (
         <div style={{ width: '28px', height: '28px', borderRadius: '50%', background: 'var(--gold)', color: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.8rem', fontWeight: '600', flexShrink: 0 }}>{num}</div>
     );
@@ -857,10 +859,14 @@ const BookAppointment = () => {
                                         Add your first name and surname so the business can tell you apart from other clients. We’ll save it to your profile.
                                     </p>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.6rem' }}>
-                                        <input type="text" value={nameFix.first} onChange={e => setNameFix(n => ({ ...n, first: e.target.value }))}
-                                            placeholder="First name *" aria-label="Your first name" autoComplete="given-name" autoCapitalize="words" className="input" style={{ fontFamily: 'var(--font-body)' }} />
-                                        <input type="text" value={nameFix.last} onChange={e => setNameFix(n => ({ ...n, last: e.target.value }))}
-                                            placeholder="Surname *" aria-label="Your surname" autoComplete="family-name" autoCapitalize="words" className="input" style={{ fontFamily: 'var(--font-body)' }} />
+                                        <Field label="First name" required style={{ minWidth: 0 }} labelStyle={contactLabelStyle}>
+                                            <input type="text" value={nameFix.first} onChange={e => setNameFix(n => ({ ...n, first: e.target.value }))}
+                                                aria-required="true" autoComplete="given-name" autoCapitalize="words" className="input" style={{ fontFamily: 'var(--font-body)' }} />
+                                        </Field>
+                                        <Field label="Surname" required style={{ minWidth: 0 }} labelStyle={contactLabelStyle}>
+                                            <input type="text" value={nameFix.last} onChange={e => setNameFix(n => ({ ...n, last: e.target.value }))}
+                                                aria-required="true" autoComplete="family-name" autoCapitalize="words" className="input" style={{ fontFamily: 'var(--font-body)' }} />
+                                        </Field>
                                     </div>
                                 </div>
                             )}
@@ -874,24 +880,34 @@ const BookAppointment = () => {
                                         <Link to="/login" style={{ color: 'var(--gold-dark)', fontWeight: 600 }}>Log in</Link>.
                                     </p>
                                     <div style={{ display: 'grid', gap: '0.6rem' }}>
+                                        {/* Visible labels (WCAG 3.3.2) — placeholders vanish as soon as you type. */}
                                         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.6rem' }}>
-                                            <input type="text" value={guest.first} onChange={e => setGuest(g => ({ ...g, first: e.target.value }))}
-                                                placeholder="First name *" aria-label="Your first name" autoComplete="given-name" autoCapitalize="words" className="input" style={{ fontFamily: 'var(--font-body)' }} data-testid="guest-first-name" />
-                                            <input type="text" value={guest.last} onChange={e => setGuest(g => ({ ...g, last: e.target.value }))}
-                                                placeholder="Surname *" aria-label="Your surname" autoComplete="family-name" autoCapitalize="words" className="input" style={{ fontFamily: 'var(--font-body)' }} data-testid="guest-last-name" />
+                                            <Field label="First name" required style={{ minWidth: 0 }} labelStyle={contactLabelStyle}>
+                                                <input type="text" value={guest.first} onChange={e => setGuest(g => ({ ...g, first: e.target.value }))}
+                                                    aria-required="true" autoComplete="given-name" autoCapitalize="words" className="input" style={{ fontFamily: 'var(--font-body)' }} data-testid="guest-first-name" />
+                                            </Field>
+                                            <Field label="Surname" required style={{ minWidth: 0 }} labelStyle={contactLabelStyle}>
+                                                <input type="text" value={guest.last} onChange={e => setGuest(g => ({ ...g, last: e.target.value }))}
+                                                    aria-required="true" autoComplete="family-name" autoCapitalize="words" className="input" style={{ fontFamily: 'var(--font-body)' }} data-testid="guest-last-name" />
+                                            </Field>
                                         </div>
-                                        <input type="email" value={guest.email} onChange={e => setGuest(g => ({ ...g, email: e.target.value }))}
-                                            placeholder="Email *" aria-label="Your email" autoComplete="email" inputMode="email" className="input" style={{ fontFamily: 'var(--font-body)' }} />
-                                        <input type="tel" value={guest.phone} onChange={e => setGuest(g => ({ ...g, phone: e.target.value }))}
-                                            placeholder="Phone (optional)" aria-label="Your phone" autoComplete="tel" inputMode="tel" className="input" style={{ fontFamily: 'var(--font-body)' }} />
+                                        <Field label="Email" required style={{ minWidth: 0 }} labelStyle={contactLabelStyle}>
+                                            <input type="email" value={guest.email} onChange={e => setGuest(g => ({ ...g, email: e.target.value }))}
+                                                placeholder="you@example.com" aria-required="true" autoComplete="email" inputMode="email" className="input" style={{ fontFamily: 'var(--font-body)' }} data-testid="guest-email" />
+                                        </Field>
+                                        <Field label={<>Phone <span style={{ fontWeight: 400 }}>(optional)</span></>} style={{ minWidth: 0 }} labelStyle={contactLabelStyle}>
+                                            <input type="tel" value={guest.phone} onChange={e => setGuest(g => ({ ...g, phone: e.target.value }))}
+                                                autoComplete="tel" inputMode="tel" className="input" style={{ fontFamily: 'var(--font-body)' }} data-testid="guest-phone" />
+                                        </Field>
                                     </div>
                                 </div>
                             )}
 
                             {/* Notes */}
                             <div style={cardStyle}>
-                                <div style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>Comments or requests</div>
+                                <label htmlFor="booking-notes" style={{ display: 'block', fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>Comments or requests</label>
                                 <textarea
+                                    id="booking-notes"
                                     name="notes"
                                     value={formData.notes}
                                     onChange={handleChange}
@@ -1048,7 +1064,7 @@ const BookAppointment = () => {
                                                     {st.role && <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)' }}>{st.role}</span>}
                                                     {st.ratingCount > 0 && (
                                                         <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.1rem' }} data-testid="booking-staff-rating">
-                                                            <span style={{ color: 'var(--gold)' }}>★</span> {st.ratingAvg} <span style={{ opacity: 0.7 }}>({st.ratingCount})</span>
+                                                            <span aria-hidden="true" style={{ color: 'var(--gold)' }}>★</span> {st.ratingAvg} <span>({st.ratingCount})</span>
                                                         </span>
                                                     )}
                                                 </span>
@@ -1159,8 +1175,8 @@ const BookAppointment = () => {
 
                             {/* Month calendar — navigate up to 4 months ahead */}
                             <div style={{ marginBottom: '1.5rem' }}>
-                                <label style={labelStyle}>Select a date</label>
-                                <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem', background: 'var(--card-bg)', maxWidth: '420px' }}>
+                                <div id="booking-date-label" style={labelStyle}>Select a date</div>
+                                <div role="group" aria-labelledby="booking-date-label" style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem', background: 'var(--card-bg)', maxWidth: '420px' }}>
                                     {/* Month header + nav */}
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
                                         <button type="button" aria-label="Previous month" disabled={!canGoPrevMonth}
@@ -1220,13 +1236,13 @@ const BookAppointment = () => {
                             {/* Time slot pills */}
                             {formData.appointmentDate && (
                                 <div>
-                                    <label style={labelStyle}>Pick a time</label>
+                                    <div id="booking-time-label" style={labelStyle}>Pick a time</div>
                                     {timeSlots.length === 0 ? (
                                         <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', padding: '0.75rem 0', fontFamily: 'var(--font-body)' }}>
                                             No available slots on this day.
                                         </p>
                                     ) : (
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <div role="group" aria-labelledby="booking-time-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                             {timeSlots.map((slot, i) => {
                                                 const isSelected = formData.startTime === slot.time;
                                                 return (

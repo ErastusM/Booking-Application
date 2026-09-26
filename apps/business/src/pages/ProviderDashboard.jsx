@@ -36,7 +36,7 @@ import { useToast } from '../components/Toast';
 // App-styled replacements for the native <select>, date/time inputs and
 // window.confirm, so every picker and prompt wears the app's colours (and times
 // are always 24-hour, whatever the device's locale).
-import { Select, DatePicker, TimePicker, useConfirm, formatDuration } from '@bookplus/ui';
+import { Select, DatePicker, TimePicker, useConfirm, formatDuration, Field } from '@bookplus/ui';
 import { statusConfig, ContactActions, ChromeModal, CloseButton, StatsSkeleton, RowsSkeleton, Avatar, fmtConvTime } from './dashboard/primitives';
 // Lazy — wallet modals open only from the Wallet tab; keep them off the initial chunk.
 const ProviderAccountTopUpModal = lazy(() => import('./dashboard/WalletModals').then(m => ({ default: m.ProviderAccountTopUpModal })));
@@ -1876,7 +1876,7 @@ const ProviderDashboard = () => {
                                                 {a.status === 'pending' && (
                                                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
                                                         <button onClick={() => handleStatusUpdate(a._id, 'confirmed')} style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '0.4rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Accept</button>
-                                                        <button onClick={() => handleStatusUpdate(a._id, 'cancelled')} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.4rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Decline</button>
+                                                        <button onClick={() => handleStatusUpdate(a._id, 'cancelled')} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: 'var(--danger-fg)', padding: '0.4rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Decline</button>
                                                     </div>
                                                 )}
                                                 {a.status === 'confirmed' && (
@@ -2012,7 +2012,7 @@ const ProviderDashboard = () => {
                                             {!isStaff && <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
                                                 {showCategoryForm ? (
                                                     <form onSubmit={handleAddCategory} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                                        <input value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder="Category name" className="input" autoFocus />
+                                                        <input aria-label="Category name" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder="Category name" className="input" autoFocus />
                                                         <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                             <button type="submit" className="btn-primary" style={{ flex: 1, padding: '0.5rem', fontSize: '0.8rem' }}>Add</button>
                                                             <button type="button" onClick={() => { setShowCategoryForm(false); setNewCategoryName(''); }} style={{ flex: 1, padding: '0.5rem', fontSize: '0.8rem', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}>Cancel</button>
@@ -2065,7 +2065,7 @@ const ProviderDashboard = () => {
                                                                             <span style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem', whiteSpace: 'nowrap' }}>{curSym} {s.price}</span>
                                                                             {!isStaff && <Switch label="I offer this" checked={mine} disabled={ownerToggleBusy === s._id} onChange={(v) => handleToggleOwnerPerforms(s, v)} data-testid="catalogue-owner-performs" />}
                                                                             <button onClick={() => handleEditService(s)} style={{ background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Edit</button>
-                                                                            <button onClick={() => (isStaff ? removeMemberService(s) : handleDeleteService(s._id))} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>{isStaff ? 'Remove' : 'Delete'}</button>
+                                                                            <button onClick={() => (isStaff ? removeMemberService(s) : handleDeleteService(s._id))} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: 'var(--danger-fg)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>{isStaff ? 'Remove' : 'Delete'}</button>
                                                                         </div>
                                                                     </div>
                                                                     );
@@ -2147,7 +2147,7 @@ const ProviderDashboard = () => {
                                                 <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Not available</div>
                                             )}
                                         </div>
-                                        <button onClick={() => handleDayToggle(day)} aria-label={`Toggle ${day}`} style={{ width: '50px', height: '30px', borderRadius: '99px', border: 'none', background: config.enabled ? 'var(--gold)' : '#cbd0d8', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0, alignSelf: 'center' }}>
+                                        <button type="button" role="switch" aria-checked={!!config.enabled} onClick={() => handleDayToggle(day)} aria-label={`Open on ${day}`} style={{ width: '50px', height: '30px', borderRadius: '99px', border: 'none', background: config.enabled ? 'var(--gold)' : 'var(--border-input)', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0, alignSelf: 'center' }}>
                                             <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'white', position: 'absolute', top: '3px', left: '3px', transform: config.enabled ? 'translateX(20px)' : 'translateX(0)', transition: 'transform 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }} />
                                         </button>
                                     </div>
@@ -2193,7 +2193,7 @@ const ProviderDashboard = () => {
                                             </div>
                                             {canEditBlock(bt) && <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
                                                 <button onClick={() => openBlockedTimeForm(bt)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.3rem 0.7rem', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Edit</button>
-                                                <button onClick={() => handleDeleteBlockedTime(bt)} style={{ background: 'none', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', padding: '0.3rem 0.7rem', cursor: 'pointer', fontSize: '0.78rem', color: '#dc2626' }}>Delete</button>
+                                                <button onClick={() => handleDeleteBlockedTime(bt)} style={{ background: 'none', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', padding: '0.3rem 0.7rem', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--danger-fg)' }}>Delete</button>
                                             </div>}
                                         </div>
                                     ))}
@@ -2610,7 +2610,7 @@ const ProviderDashboard = () => {
                                                 {/* nowrap + fluid size: a money value must never break across
                                                     lines ("N$" on one line, "18,660" on the next). */}
                                                 <p className="tnum" style={{ fontFamily: 'var(--font-body)', fontSize: '1.35rem', fontWeight: '600', color: 'var(--charcoal)', lineHeight: 1.15, whiteSpace: 'nowrap' }}>{s.value}</p>
-                                                {s.sub && <p style={{ fontSize: '0.7rem', color: s.trend !== undefined ? (s.trend >= 0 ? '#059669' : '#dc2626') : 'var(--text-muted)', marginTop: '0.2rem' }}>{s.sub}</p>}
+                                                {s.sub && <p style={{ fontSize: '0.7rem', color: s.trend !== undefined ? (s.trend >= 0 ? 'var(--success-fg)' : 'var(--danger-fg)') : 'var(--text-muted)', marginTop: '0.2rem' }}>{s.sub}</p>}
                                             </div>
                                         </div>
                                     ))}
@@ -2947,7 +2947,7 @@ const ProviderDashboard = () => {
                                     style={{
                                         font: 'inherit', fontWeight: 700, fontSize: '0.76rem', border: 0, cursor: 'pointer',
                                         borderRadius: '7px', padding: '0.3rem 0.7rem',
-                                        background: 'var(--gold)', color: '#fff',
+                                        background: 'var(--gold)', color: 'var(--ink)',
                                     }}
                                 >
                                     Undo
@@ -3058,12 +3058,12 @@ const ProviderDashboard = () => {
                                         <p style={{ margin: '0.35rem 0 0', fontSize: '0.85rem', color: 'var(--text-secondary)' }}>{adjustHours.label}</p>
                                     </div>
                                     <div style={{ padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                                        <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
-                                            <span style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--charcoal)' }}>Open this day</span>
-                                            <button onClick={() => setAdjustHours(h => ({ ...h, enabled: !h.enabled }))} aria-label="Toggle open" style={{ width: '50px', height: '30px', borderRadius: '99px', border: 'none', background: adjustHours.enabled ? 'var(--gold)' : '#cbd0d8', cursor: 'pointer', position: 'relative', flexShrink: 0 }}>
+                                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
+                                            <span id="adjust-open-label" style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--charcoal)' }}>Open this day</span>
+                                            <button type="button" role="switch" aria-checked={!!adjustHours.enabled} aria-labelledby="adjust-open-label" onClick={() => setAdjustHours(h => ({ ...h, enabled: !h.enabled }))} style={{ width: '50px', height: '30px', borderRadius: '99px', border: 'none', background: adjustHours.enabled ? 'var(--gold)' : 'var(--border-input)', cursor: 'pointer', position: 'relative', flexShrink: 0 }}>
                                                 <div style={{ width: '24px', height: '24px', borderRadius: '50%', background: 'white', position: 'absolute', top: '3px', left: '3px', transform: adjustHours.enabled ? 'translateX(20px)' : 'translateX(0)', transition: 'transform 0.2s', boxShadow: '0 1px 4px rgba(0,0,0,0.25)' }} />
                                             </button>
-                                        </label>
+                                        </div>
                                         {adjustHours.enabled && (
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                                                 <TimePicker value={adjustHours.start} onChange={e => setAdjustHours(h => ({ ...h, start: e.target.value }))} aria-label="Opening time" style={{ flex: 1, minWidth: 0, padding: '0.55rem 0.6rem' }} />
@@ -3249,7 +3249,7 @@ const ProviderDashboard = () => {
                                         }}
                                         style={{ background: 'none', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.72rem', padding: '0.25rem 0.6rem', borderRadius: 'var(--radius-sm)' }}
                                     >Block</button>
-                                    <button onClick={() => { setSelectedClient(null); setClientDetail(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.2rem' }}>×</button>
+                                    <button aria-label="Close" onClick={() => { setSelectedClient(null); setClientDetail(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.2rem' }}>×</button>
                                 </div>
                             </div>
                             <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '70vh', overflowY: 'auto' }}>
@@ -3299,18 +3299,21 @@ const ProviderDashboard = () => {
                                     <p style={{ fontSize: '0.75rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', marginBottom: '0.5rem' }}>Client Notes</p>
                                     {[['Notes', 'notes'], ['Allergies', 'allergies'], ['Conditions', 'conditions'], ['Internal Notes', 'internalNotes']].map(([label, key]) => (
                                         <div key={key} style={{ marginBottom: '0.75rem' }}>
-                                            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>{label}</label>
-                                            <textarea rows={2} value={clientNoteForm[key]} onChange={e => setClientNoteForm(prev => ({ ...prev, [key]: e.target.value }))} className="input" style={{ fontSize: '1rem', resize: 'none' }} />
+                                            <Field label={label} labelStyle={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                                                <textarea rows={2} value={clientNoteForm[key]} onChange={e => setClientNoteForm(prev => ({ ...prev, [key]: e.target.value }))} className="input" style={{ fontSize: '1rem', resize: 'none' }} />
+                                            </Field>
                                         </div>
                                     ))}
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem', marginBottom: '0.75rem' }}>
                                         <div>
-                                            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Tags (comma-separated)</label>
-                                            <input value={clientNoteForm.tags} onChange={e => setClientNoteForm(prev => ({ ...prev, tags: e.target.value }))} className="input" style={{ fontSize: '1rem' }} placeholder="vip, regular" />
+                                            <Field label="Tags (comma-separated)" labelStyle={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                                                <input value={clientNoteForm.tags} onChange={e => setClientNoteForm(prev => ({ ...prev, tags: e.target.value }))} className="input" style={{ fontSize: '1rem' }} placeholder="vip, regular" />
+                                            </Field>
                                         </div>
                                         <div>
-                                            <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>Birthday (MM-DD)</label>
-                                            <input value={clientNoteForm.birthday} onChange={e => setClientNoteForm(prev => ({ ...prev, birthday: e.target.value }))} className="input" style={{ fontSize: '1rem' }} placeholder="03-15" />
+                                            <Field label="Birthday (MM-DD)" labelStyle={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.25rem' }}>
+                                                <input value={clientNoteForm.birthday} onChange={e => setClientNoteForm(prev => ({ ...prev, birthday: e.target.value }))} className="input" style={{ fontSize: '1rem' }} placeholder="03-15" />
+                                            </Field>
                                         </div>
                                     </div>
                                     <button onClick={saveClientNote} disabled={savingClientNote} className="btn-primary" style={{ width: '100%', padding: '0.65rem', fontSize: '0.85rem' }}>
@@ -3412,7 +3415,7 @@ const ProviderDashboard = () => {
                                 </div>
                                 {/* Composer */}
                                 <div style={{ padding: '0.75rem 1rem', borderTop: '1px solid var(--border)', display: 'flex', gap: '0.6rem', alignItems: 'center' }}>
-                                    <input value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && !sendingMessage && newMessage.trim() && handleSendMessage()} placeholder="Message…" className="input" style={{ flex: 1, borderRadius: '999px', padding: '0.6rem 1rem' }} />
+                                    <input aria-label="Message" value={newMessage} onChange={e => setNewMessage(e.target.value)} onKeyDown={e => e.key === 'Enter' && !e.shiftKey && !sendingMessage && newMessage.trim() && handleSendMessage()} placeholder="Message…" className="input" style={{ flex: 1, borderRadius: '999px', padding: '0.6rem 1rem' }} />
                                     <button onClick={handleSendMessage} disabled={sendingMessage || !newMessage.trim()} aria-label="Send message" style={{ flexShrink: 0, width: '42px', height: '42px', borderRadius: '50%', border: 'none', background: newMessage.trim() ? 'var(--gold)' : 'var(--border)', color: 'var(--ink)', cursor: newMessage.trim() ? 'pointer' : 'not-allowed', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', transition: 'background 0.15s' }}>
                                         <Send size={18} />
                                     </button>
@@ -3447,13 +3450,15 @@ const ProviderDashboard = () => {
                                     ['Validity (days)', 'validityDays', 'number', '365'],
                                 ].map(([label, key, type, ph]) => (
                                     <div key={key}>
-                                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</label>
-                                        <input type={type} value={packageForm[key]} onChange={e => setPackageForm(prev => ({ ...prev, [key]: e.target.value }))} placeholder={ph} className="input" />
+                                        <Field label={label} labelStyle={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                            <input type={type} value={packageForm[key]} onChange={e => setPackageForm(prev => ({ ...prev, [key]: e.target.value }))} placeholder={ph} className="input" />
+                                        </Field>
                                     </div>
                                 ))}
                                 <div style={{ gridColumn: '1 / -1' }}>
-                                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Description</label>
-                                    <textarea value={packageForm.description} onChange={e => setPackageForm(prev => ({ ...prev, description: e.target.value }))} rows={2} className="input" style={{ resize: 'none' }} placeholder="What's included in this plan..." />
+                                    <Field label="Description" labelStyle={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                        <textarea value={packageForm.description} onChange={e => setPackageForm(prev => ({ ...prev, description: e.target.value }))} rows={2} className="input" style={{ resize: 'none' }} placeholder="What's included in this plan..." />
+                                    </Field>
                                 </div>
                             </div>
                             <div style={{ display: 'flex', gap: '0.75rem' }}>
@@ -3509,7 +3514,7 @@ const ProviderDashboard = () => {
                                         </button>
                                         <button
                                             onClick={async () => { if (await confirm({ title: 'Delete this membership plan?', confirmLabel: 'Delete', danger: true })) { await packageService.deletePackage(pkg._id); setMyPackages(prev => prev.filter(p => p._id !== pkg._id)); } }}
-                                            style={{ flex: 1, background: 'none', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', padding: '0.45rem', fontSize: '0.8rem', cursor: 'pointer', color: '#dc2626', fontFamily: 'var(--font-body)' }}>
+                                            style={{ flex: 1, background: 'none', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', padding: '0.45rem', fontSize: '0.8rem', cursor: 'pointer', color: 'var(--danger-fg)', fontFamily: 'var(--font-body)' }}>
                                             Delete
                                         </button>
                                     </div>
@@ -3543,9 +3548,9 @@ const ProviderDashboard = () => {
                             {/* Your Bookplus account balance (provider ↔ platform) */}
                             <div style={{ background: 'linear-gradient(135deg, var(--ink), #1c1c1e)', borderRadius: 'var(--radius)', padding: '1.25rem 1.5rem', marginBottom: '1.5rem', display: 'flex', flexWrap: 'wrap', gap: '1rem', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div>
-                                    <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.5)', marginBottom: '0.2rem' }}>Your Bookplus account balance</div>
+                                    <div style={{ fontSize: '0.72rem', textTransform: 'uppercase', letterSpacing: '0.06em', color: 'rgba(255,255,255,0.66)', marginBottom: '0.2rem' }}>Your Bookplus account balance</div>
                                     <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: '600', color: 'var(--gold)' }}>{nMoney(providerBalance?.balance)}</div>
-                                    <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.45)', marginTop: '0.15rem' }}>Topped up by Bookplus once your payment is verified</div>
+                                    <div style={{ fontSize: '0.72rem', color: 'rgba(255,255,255,0.62)', marginTop: '0.15rem' }}>Topped up by Bookplus once your payment is verified</div>
                                 </div>
                                 <button onClick={() => setShowAccountTopUp(true)} className="btn-primary" style={{ padding: '0.6rem 1.4rem' }}>Top up account</button>
                             </div>
@@ -3561,7 +3566,7 @@ const ProviderDashboard = () => {
                                                 <span style={{ color: 'var(--text-muted)', marginLeft: '0.4rem' }}>{new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span>
                                             </span>
                                             <span style={{ display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                                                <strong style={{ color: t.type === 'debit' ? 'var(--danger)' : 'var(--success)' }}>{t.type === 'debit' ? '−' : '+'}{nMoney(t.amount)}</strong>
+                                                <strong style={{ color: t.type === 'debit' ? 'var(--danger-fg)' : 'var(--success-fg)' }}>{t.type === 'debit' ? '−' : '+'}{nMoney(t.amount)}</strong>
                                                 <span style={{ fontSize: '0.68rem', fontWeight: '600', padding: '0.1rem 0.5rem', borderRadius: '99px', textTransform: 'capitalize', background: t.status === 'approved' ? '#d1fae5' : t.status === 'pending' ? '#fef3c7' : '#fee2e2', color: t.status === 'approved' ? '#065f46' : t.status === 'pending' ? '#92400e' : '#991b1b' }}>{t.status}</span>
                                             </span>
                                         </div>
@@ -3589,20 +3594,22 @@ const ProviderDashboard = () => {
                                 <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: '600', color: 'var(--charcoal)', margin: '0 0 0.25rem' }}>Wallet settings</h3>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', margin: '0 0 1rem' }}>Let clients prepay you and hold funds for upcoming bookings. You approve every deposit.</p>
 
-                                <label style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.75rem 0', borderTop: '1px solid var(--border)' }}>
-                                    <div><div style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>Enable wallet</div><div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Turn the prepaid wallet on for your clients</div></div>
-                                    <button type="button" onClick={() => saveWalletSettings({ enabled: !walletSettings?.enabled })} disabled={walletSaving} style={{ width: '48px', height: '26px', borderRadius: '99px', border: 'none', cursor: 'pointer', background: walletSettings?.enabled ? 'var(--gold)' : '#d1d5db', position: 'relative', flexShrink: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.75rem 0', borderTop: '1px solid var(--border)' }}>
+                                    <div><div id="wallet-enable-label" style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>Enable wallet</div><div id="wallet-enable-hint" style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Turn the prepaid wallet on for your clients</div></div>
+                                    <button type="button" role="switch" aria-checked={!!walletSettings?.enabled} aria-labelledby="wallet-enable-label" aria-describedby="wallet-enable-hint" onClick={() => saveWalletSettings({ enabled: !walletSettings?.enabled })} disabled={walletSaving} style={{ width: '48px', height: '26px', borderRadius: '99px', border: 'none', cursor: 'pointer', background: walletSettings?.enabled ? 'var(--gold)' : 'var(--border-input)', position: 'relative', flexShrink: 0 }}>
                                         <span style={{ position: 'absolute', top: '3px', left: '3px', transform: walletSettings?.enabled ? 'translateX(22px)' : 'translateX(0)', width: '20px', height: '20px', borderRadius: '50%', background: 'white', transition: 'transform 0.2s' }} />
                                     </button>
-                                </label>
+                                </div>
 
                                 <div style={{ padding: '0.75rem 0', borderTop: '1px solid var(--border)', opacity: walletSettings?.enabled ? 1 : 0.5, pointerEvents: walletSettings?.enabled ? 'auto' : 'none' }}>
-                                    <div style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Booking payment</div>
+                                    <div id="wallet-payment-mode-label" style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem', marginBottom: '0.5rem' }}>Booking payment</div>
                                     {[
                                         { v: 'wallet_required', t: 'Require wallet funds to book', d: 'Clients must have enough available balance (recommended)' },
                                         { v: 'wallet_optional', t: 'Wallet optional', d: 'Clients can book without funds and pay later' },
                                     ].map((opt) => (
-                                        <label key={opt.v} onClick={() => saveWalletSettings({ bookingPaymentMode: opt.v })} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', padding: '0.5rem 0', cursor: 'pointer' }}>
+                                        <label key={opt.v} style={{ display: 'flex', alignItems: 'flex-start', gap: '0.6rem', padding: '0.5rem 0', cursor: 'pointer' }}>
+                                            {/* A real (visually hidden) radio: keyboard + screen readers; the dot below is decoration. */}
+                                            <input type="radio" className="sr-only" name="wallet-booking-payment" value={opt.v} checked={walletSettings?.bookingPaymentMode === opt.v} onChange={() => saveWalletSettings({ bookingPaymentMode: opt.v })} />
                                             <div style={{ width: '18px', height: '18px', borderRadius: '50%', border: `2px solid ${walletSettings?.bookingPaymentMode === opt.v ? 'var(--gold)' : '#cbd5e1'}`, background: walletSettings?.bookingPaymentMode === opt.v ? 'var(--gold)' : 'white', flexShrink: 0, marginTop: '2px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{walletSettings?.bookingPaymentMode === opt.v && <span style={{ width: '7px', height: '7px', borderRadius: '50%', background: 'white' }} />}</div>
                                             <div><div style={{ fontSize: '0.85rem', color: 'var(--charcoal)', fontWeight: walletSettings?.bookingPaymentMode === opt.v ? '600' : '400' }}>{opt.t}</div><div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{opt.d}</div></div>
                                         </label>
@@ -3610,32 +3617,33 @@ const ProviderDashboard = () => {
                                 </div>
 
                                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', padding: '0.75rem 0', borderTop: '1px solid var(--border)' }}>
-                                    <div><div style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>Allow refunds</div><div style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Offer wallet refunds to clients</div></div>
-                                    <button type="button" onClick={() => saveWalletSettings({ refundsAllowed: !walletSettings?.refundsAllowed })} disabled={walletSaving} style={{ width: '48px', height: '26px', borderRadius: '99px', border: 'none', cursor: 'pointer', background: walletSettings?.refundsAllowed ? 'var(--gold)' : '#d1d5db', position: 'relative', flexShrink: 0 }}>
+                                    <div><div id="wallet-refunds-label" style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>Allow refunds</div><div id="wallet-refunds-hint" style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Offer wallet refunds to clients</div></div>
+                                    <button type="button" role="switch" aria-checked={!!walletSettings?.refundsAllowed} aria-labelledby="wallet-refunds-label" aria-describedby="wallet-refunds-hint" onClick={() => saveWalletSettings({ refundsAllowed: !walletSettings?.refundsAllowed })} disabled={walletSaving} style={{ width: '48px', height: '26px', borderRadius: '99px', border: 'none', cursor: 'pointer', background: walletSettings?.refundsAllowed ? 'var(--gold)' : 'var(--border-input)', position: 'relative', flexShrink: 0 }}>
                                         <span style={{ position: 'absolute', top: '3px', left: '3px', transform: walletSettings?.refundsAllowed ? 'translateX(22px)' : 'translateX(0)', width: '20px', height: '20px', borderRadius: '50%', background: 'white', transition: 'transform 0.2s' }} />
                                     </button>
                                 </div>
 
                                 <div style={{ padding: '0.75rem 0', borderTop: '1px solid var(--border)' }}>
-                                    <label style={{ display: 'block', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem', marginBottom: '0.4rem' }}>Balance expiry</label>
-                                    <Select
-                                        value={walletSettings?.expiryMonths ?? ''}
-                                        onChange={(e) => saveWalletSettings({ expiryMonths: e.target.value === '' ? null : Number(e.target.value) })}
-                                        options={[
-                                            { value: '', label: 'Never expire' },
-                                            { value: '6', label: 'Expire after 6 months' },
-                                            { value: '12', label: 'Expire after 12 months' },
-                                            { value: '24', label: 'Expire after 24 months' },
-                                        ]}
-                                        aria-label="Balance expiry"
-                                        style={{ width: '100%', maxWidth: '260px' }}
-                                    />
+                                    <Field label="Balance expiry" labelStyle={{ display: 'block', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem', marginBottom: '0.4rem' }}>
+                                        <Select
+                                            value={walletSettings?.expiryMonths ?? ''}
+                                            onChange={(e) => saveWalletSettings({ expiryMonths: e.target.value === '' ? null : Number(e.target.value) })}
+                                            options={[
+                                                { value: '', label: 'Never expire' },
+                                                { value: '6', label: 'Expire after 6 months' },
+                                                { value: '12', label: 'Expire after 12 months' },
+                                                { value: '24', label: 'Expire after 24 months' },
+                                            ]}
+                                            aria-label="Balance expiry"
+                                            style={{ width: '100%', maxWidth: '260px' }}
+                                        />
+                                    </Field>
                                 </div>
 
                                 <div style={{ padding: '0.75rem 0 0', borderTop: '1px solid var(--border)' }}>
-                                    <label style={{ display: 'block', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem', marginBottom: '0.4rem' }}>Payment instructions for clients</label>
+                                    <label htmlFor="wallet-payment-instructions" style={{ display: 'block', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem', marginBottom: '0.4rem' }}>Payment instructions for clients</label>
                                     <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0 0 0.5rem' }}>Shown when a client tops up — your bank account, eWallet, PayToday or deposit details.</p>
-                                    <textarea defaultValue={walletSettings?.paymentInstructions || ''} key={walletSettings?.paymentInstructions} onBlur={(e) => { if (e.target.value !== (walletSettings?.paymentInstructions || '')) saveWalletSettings({ paymentInstructions: e.target.value }); }} rows={4} placeholder={'e.g.\nBank Windhoek · Acc 1234567890\nPayToday: 081 234 5678'} className="input" style={{ width: '100%', resize: 'vertical' }} />
+                                    <textarea id="wallet-payment-instructions" defaultValue={walletSettings?.paymentInstructions || ''} key={walletSettings?.paymentInstructions} onBlur={(e) => { if (e.target.value !== (walletSettings?.paymentInstructions || '')) saveWalletSettings({ paymentInstructions: e.target.value }); }} rows={4} placeholder={'e.g.\nBank Windhoek · Acc 1234567890\nPayToday: 081 234 5678'} className="input" style={{ width: '100%', resize: 'vertical' }} />
                                     <p style={{ fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.35rem 0 0' }}>Saved when you click away. Online card payment is coming soon.</p>
                                 </div>
                             </div>
@@ -3770,13 +3778,14 @@ const ProviderDashboard = () => {
                                     ['Phone (optional)', 'phone', 'tel', '+264 81 000 0000'],
                                 ].map(([label, key, type, ph]) => (
                                     <div key={key}>
-                                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{label}</label>
-                                        <input type={type} value={teamForm[key]} onChange={e => setTeamForm(f => ({ ...f, [key]: e.target.value }))} placeholder={ph} className="input" />
+                                        <Field label={label} labelStyle={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>
+                                            <input type={type} value={teamForm[key]} onChange={e => setTeamForm(f => ({ ...f, [key]: e.target.value }))} placeholder={ph} className="input" />
+                                        </Field>
                                     </div>
                                 ))}
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Calendar colour</label>
-                                    <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
+                                    <div id="team-colour-label" style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', marginBottom: '0.3rem', textTransform: 'uppercase', letterSpacing: '0.06em' }}>Calendar colour</div>
+                                    <div role="group" aria-labelledby="team-colour-label" style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }}>
                                         {MEMBER_PALETTE.map(({ hex: c, name }) => (
                                             <button key={c} type="button" onClick={() => setTeamForm(f => ({ ...f, color: c }))} aria-label={name} title={name} aria-pressed={sameColor(teamForm.color, c)}
                                                 style={{ width: '28px', height: '28px', borderRadius: '50%', background: c, border: sameColor(teamForm.color, c) ? '3px solid var(--charcoal)' : '2px solid transparent', cursor: 'pointer', flexShrink: 0 }} />
@@ -3829,7 +3838,7 @@ const ProviderDashboard = () => {
                                             Edit
                                         </button>
                                         <button onClick={async () => { if (await confirm({ title: `Remove ${m.name} from your team?`, confirmLabel: 'Remove', danger: true })) handleDeleteMember(m._id); }}
-                                            style={{ background: 'none', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.75rem', fontSize: '0.75rem', cursor: 'pointer', color: '#dc2626', fontFamily: 'var(--font-body)' }}>
+                                            style={{ background: 'none', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.75rem', fontSize: '0.75rem', cursor: 'pointer', color: 'var(--danger-fg)', fontFamily: 'var(--font-body)' }}>
                                             Remove
                                         </button>
                                     </div>
@@ -3849,7 +3858,7 @@ const ProviderDashboard = () => {
             {recurringActionModal && (
                 <div className="sheet-overlay" style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)', zIndex: 1100, display: 'flex', alignItems: 'flex-end', justifyContent: 'center' }} onClick={e => { if (e.target === e.currentTarget) setRecurringActionModal(null); }}>
                     <div className="sheet-panel" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius) var(--radius) 0 0', padding: '2rem 1.5rem calc(2.5rem + env(safe-area-inset-bottom, 0px))', width: '100%', maxWidth: '480px', position: 'relative' }}>
-                        <button onClick={() => setRecurringActionModal(null)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.4rem', color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
+                        <button aria-label="Close" onClick={() => setRecurringActionModal(null)} style={{ position: 'absolute', top: '1rem', right: '1rem', background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.4rem', color: 'var(--text-muted)', lineHeight: 1 }}>×</button>
                         <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>
                             {recurringActionModal.action === 'update' ? 'Update blocked time' : 'Delete blocked time'}
                         </h3>
@@ -3860,7 +3869,8 @@ const ProviderDashboard = () => {
                                 { value: 'thisAndFuture', label: recurringActionModal.action === 'update' ? 'Update this and future blocked times' : 'Delete this and future blocked times' },
                                 { value: 'all', label: recurringActionModal.action === 'update' ? 'Update all blocked times' : 'Delete all blocked times' },
                             ].map(opt => (
-                                <label key={opt.value} onClick={() => setRecurringMode(opt.value)} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', border: `1px solid ${recurringMode === opt.value ? 'var(--gold)' : 'var(--border)'}`, background: recurringMode === opt.value ? 'rgba(240,62,22,0.05)' : 'white', cursor: 'pointer', transition: 'all 0.15s' }}>
+                                <label key={opt.value} style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', border: `1px solid ${recurringMode === opt.value ? 'var(--gold)' : 'var(--border)'}`, background: recurringMode === opt.value ? 'rgba(240,62,22,0.05)' : 'white', cursor: 'pointer', transition: 'all 0.15s' }}>
+                                    <input type="radio" className="sr-only" name="recurring-action-mode" value={opt.value} checked={recurringMode === opt.value} onChange={() => setRecurringMode(opt.value)} />
                                     <div style={{ width: '20px', height: '20px', borderRadius: '50%', border: `2px solid ${recurringMode === opt.value ? 'var(--gold)' : '#d1d5db'}`, background: recurringMode === opt.value ? 'var(--gold)' : 'white', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 0.15s' }}>
                                         {recurringMode === opt.value && <div style={{ width: '8px', height: '8px', borderRadius: '50%', background: 'white' }} />}
                                     </div>
@@ -3893,7 +3903,7 @@ const ProviderDashboard = () => {
                         <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                             <div>
                                 <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.25rem', fontWeight: '600', margin: '0 0 0.15rem' }}>New Appointment</h2>
-                                <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', margin: 0 }}>Book a slot for a client</p>
+                                <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: '0.75rem', margin: 0 }}>Book a slot for a client</p>
                             </div>
                             <CloseButton onClick={() => setShowApptModal(false)} />
                         </div>
@@ -3989,8 +3999,8 @@ const ProviderDashboard = () => {
                                 {/* WHO first: the services below are the ones this person performs. */}
                                 {teamMembers.length > 0 && seesWholeTeam && (
                                     <div>
-                                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Staff member</label>
-                                        <Select
+                                        <label htmlFor="appt-staff-select" style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Staff member</label>
+                                        <Select id="appt-staff-select"
                                             value={apptForm.teamMember}
                                             onChange={e => setApptPerformer(e.target.value)}
                                             options={[
@@ -4010,27 +4020,28 @@ const ProviderDashboard = () => {
                                 )}
                                 {apptForm.isGroup ? (
                                     <div>
-                                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Service</label>
-                                        <Select
-                                            value={apptForm.services[0]?.serviceId || ''}
-                                            onChange={e => setApptForm(f => ({ ...f, services: [{ serviceId: e.target.value }] }))}
-                                            options={serviceOptions}
-                                            placeholder="Select a service"
-                                            searchPlaceholder="Search services"
-                                            aria-label="Service"
-                                            required
-                                            invalid={!!apptError && !apptForm.services[0]?.serviceId}
-                                            aria-describedby={apptError && !apptForm.services[0]?.serviceId ? 'appt-error' : undefined}
-                                            ref={el => { apptFieldRefs.current['service-0'] = el; }}
-                                            data-testid="appt-service-0"
-                                            style={{ width: '100%' }}
-                                        />
-                                        {apptServices.length === 0 && <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.35rem' }}>{apptNoServicesMsg}</p>}
+                                        <Field label="Service" labelStyle={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                            <Select
+                                                value={apptForm.services[0]?.serviceId || ''}
+                                                onChange={e => setApptForm(f => ({ ...f, services: [{ serviceId: e.target.value }] }))}
+                                                options={serviceOptions}
+                                                placeholder="Select a service"
+                                                searchPlaceholder="Search services"
+                                                aria-label="Service"
+                                                required
+                                                invalid={!!apptError && !apptForm.services[0]?.serviceId}
+                                                aria-describedby={apptError && !apptForm.services[0]?.serviceId ? 'appt-error' : undefined}
+                                                ref={el => { apptFieldRefs.current['service-0'] = el; }}
+                                                data-testid="appt-service-0"
+                                                style={{ width: '100%' }}
+                                            />
+                                        </Field>
+                                        {apptServices.length === 0 && <p style={{ fontSize: '0.75rem', color: 'var(--danger-fg)', marginTop: '0.35rem' }}>{apptNoServicesMsg}</p>}
                                     </div>
                                 ) : (
                                     <div>
-                                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Services</label>
-                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                                        <div id="appt-services-label" style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Services</div>
+                                        <div role="group" aria-labelledby="appt-services-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                             {apptForm.services.map((row, i) => {
                                                 const rowSvc = apptServiceById(row.serviceId);
                                                 return (
@@ -4055,14 +4066,14 @@ const ProviderDashboard = () => {
                                                             </span>
                                                         )}
                                                         {apptForm.services.length > 1 && (
-                                                            <button type="button" onClick={() => setApptForm(f => ({ ...f, services: f.services.filter((_, j) => j !== i) }))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1rem', flexShrink: 0 }}>×</button>
+                                                            <button aria-label={`Remove service ${i + 1}`} type="button" onClick={() => setApptForm(f => ({ ...f, services: f.services.filter((_, j) => j !== i) }))} style={{ background: 'none', border: 'none', color: 'var(--danger-fg)', cursor: 'pointer', fontSize: '1rem', flexShrink: 0 }}>×</button>
                                                         )}
                                                     </div>
                                                 );
                                             })}
                                             {<button type="button" onClick={() => setApptForm(f => ({ ...f, services: [...f.services, { serviceId: '' }] }))} style={{ alignSelf: 'flex-start', fontSize: '0.75rem', padding: '0.25rem 0.65rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(240,62,22,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add service</button>}
                                         </div>
-                                        {apptServices.length === 0 && <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.35rem' }}>{apptNoServicesMsg}</p>}
+                                        {apptServices.length === 0 && <p style={{ fontSize: '0.75rem', color: 'var(--danger-fg)', marginTop: '0.35rem' }}>{apptNoServicesMsg}</p>}
                                         {(() => {
                                             const selected = apptForm.services.map(r => apptServiceById(r.serviceId)).filter(Boolean);
                                             if (selected.length === 0) return null;
@@ -4091,10 +4102,10 @@ const ProviderDashboard = () => {
                                 <div style={{ borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', padding: '0.75rem 1rem', background: apptForm.isGroup ? 'rgba(240,62,22,0.05)' : 'transparent' }}>
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: apptForm.isGroup ? '0.75rem' : 0 }}>
                                         <div>
-                                            <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--charcoal)' }}>Group booking</span>
-                                            <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>Book multiple clients at once</span>
+                                            <span id="appt-group-label" style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--charcoal)' }}>Group booking</span>
+                                            <span id="appt-group-hint" style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>Book multiple clients at once</span>
                                         </div>
-                                        <button type="button" onClick={() => setApptForm(f => ({ ...f, isGroup: !f.isGroup }))} style={{ width: '36px', height: '20px', borderRadius: '99px', border: 'none', background: apptForm.isGroup ? 'var(--gold)' : '#cbd5e1', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
+                                        <button type="button" role="switch" aria-checked={!!apptForm.isGroup} aria-labelledby="appt-group-label" aria-describedby="appt-group-hint" data-testid="appt-group-toggle" onClick={() => setApptForm(f => ({ ...f, isGroup: !f.isGroup }))} style={{ width: '36px', height: '20px', borderRadius: '99px', border: 'none', background: apptForm.isGroup ? 'var(--gold)' : 'var(--border-input)', cursor: 'pointer', position: 'relative', transition: 'background 0.2s', flexShrink: 0 }}>
                                             <span style={{ position: 'absolute', top: '2px', left: '2px', transform: apptForm.isGroup ? 'translateX(16px)' : 'translateX(0)', width: '16px', height: '16px', borderRadius: '50%', background: 'white', transition: 'transform 0.2s', display: 'block' }} />
                                         </button>
                                     </div>
@@ -4102,8 +4113,8 @@ const ProviderDashboard = () => {
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                             {apptForm.groupClients.map((c, i) => (
                                                 <div key={i} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                                                    <input className="input" placeholder={`Client ${i + 1} name`} value={c.name} onChange={e => { const g = [...apptForm.groupClients]; g[i] = { ...g[i], name: e.target.value }; setApptForm(f => ({ ...f, groupClients: g })); }} style={{ flex: 1, fontSize: '0.85rem' }} />
-                                                    {apptForm.groupClients.length > 1 && <button type="button" onClick={() => setApptForm(f => ({ ...f, groupClients: f.groupClients.filter((_, j) => j !== i) }))} style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', fontSize: '1rem' }}>×</button>}
+                                                    <input aria-label={`Client ${i + 1} name`} className="input" placeholder={`Client ${i + 1} name`} value={c.name} onChange={e => { const g = [...apptForm.groupClients]; g[i] = { ...g[i], name: e.target.value }; setApptForm(f => ({ ...f, groupClients: g })); }} style={{ flex: 1, fontSize: '0.85rem' }} />
+                                                    {apptForm.groupClients.length > 1 && <button aria-label={`Remove client ${i + 1}`} type="button" onClick={() => setApptForm(f => ({ ...f, groupClients: f.groupClients.filter((_, j) => j !== i) }))} style={{ background: 'none', border: 'none', color: 'var(--danger-fg)', cursor: 'pointer', fontSize: '1rem' }}>×</button>}
                                                 </div>
                                             ))}
                                             <button type="button" onClick={() => setApptForm(f => ({ ...f, groupClients: [...f.groupClients, { name: '' }] }))} style={{ alignSelf: 'flex-start', fontSize: '0.75rem', padding: '0.25rem 0.65rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(240,62,22,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add client</button>
@@ -4127,7 +4138,7 @@ const ProviderDashboard = () => {
                                             </div>
                                             {apptForm.clientMode === 'existing' ? (
                                                 <div>
-                                                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client</label>
+                                                    <div aria-hidden="true" style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client</div>
                                                     {clients.length === 0 ? (
                                                         <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: 0 }}>
                                                             {loadingClients ? 'Loading your clients…' : 'No saved clients yet — switch to Guest to book by name.'}
@@ -4153,19 +4164,19 @@ const ProviderDashboard = () => {
                                                 </div>
                                             ) : (
                                                 <div>
-                                                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional)</span></label>
-                                                    <input type="text" value={apptForm.clientName} onChange={e => setApptForm(f => ({ ...f, clientName: e.target.value }))} placeholder="e.g. John Smith" className="input" style={{ width: '100%' }} />
+                                                    <label htmlFor="appt-guest-name" style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Client Name <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional)</span></label>
+                                                    <input id="appt-guest-name" type="text" value={apptForm.clientName} onChange={e => setApptForm(f => ({ ...f, clientName: e.target.value }))} placeholder="e.g. John Smith" className="input" style={{ width: '100%' }} />
                                                 </div>
                                             )}
                                         </div>
                                     )}
                                 </div>
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date</label>
-                                    <MiniCalendar value={apptForm.date} onChange={ds => setApptForm(f => ({ ...f, date: ds, startTime: '' }))} min={new Date().toISOString().split('T')[0]} />
+                                    <div id="appt-date-label" style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Date</div>
+                                    <MiniCalendar value={apptForm.date} onChange={ds => setApptForm(f => ({ ...f, date: ds, startTime: '' }))} min={new Date().toISOString().split('T')[0]} labelledBy="appt-date-label" />
                                 </div>
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Start Time</label>
+                                    <div id="appt-time-label" style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Start Time</div>
                                     {(() => {
                                         if (!apptForm.date) return <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>Pick a date first.</p>;
                                         // Group bookings only ever use services[0]; a multi-service booking
@@ -4223,11 +4234,11 @@ const ProviderDashboard = () => {
                                         const slots = buildTimeSlots({ blocks, bookedRanges, duration, minStart });
                                         if (slots.length === 0) return <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)', margin: 0 }}>No open times that day.</p>;
                                         return (
-                                            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: '0.4rem', maxHeight: '180px', overflowY: 'auto' }}>
+                                            <div role="group" aria-labelledby="appt-time-label" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: '0.4rem', maxHeight: '180px', overflowY: 'auto' }}>
                                                 {slots.map((s, i) => {
                                                     const sel = apptForm.startTime === s.time;
                                                     return (
-                                                        <button key={i} type="button" disabled={s.isBooked} onClick={() => setApptForm(f => ({ ...f, startTime: s.time }))} style={{
+                                                        <button key={i} type="button" aria-pressed={sel} disabled={s.isBooked} onClick={() => setApptForm(f => ({ ...f, startTime: s.time }))} style={{
                                                             padding: '0.5rem 0.3rem', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontWeight: '600', fontSize: '0.82rem',
                                                             border: `1.5px solid ${sel ? 'var(--gold)' : 'var(--border)'}`,
                                                             background: sel ? 'var(--gold)' : s.isBooked ? 'var(--surface-sunken)' : 'var(--card-bg)',
@@ -4241,8 +4252,9 @@ const ProviderDashboard = () => {
                                     })()}
                                 </div>
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Notes <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional)</span></label>
-                                    <textarea value={apptForm.notes} onChange={e => setApptForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Any notes for this appointment..." className="input" style={{ width: '100%', resize: 'vertical' }} />
+                                    <Field label={<>Notes <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional)</span></>} labelStyle={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
+                                        <textarea value={apptForm.notes} onChange={e => setApptForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Any notes for this appointment..." className="input" style={{ width: '100%', resize: 'vertical' }} />
+                                    </Field>
                                 </div>
                                 {/* Recurring — shared controls (Custom frequency + app calendar). */}
                                 {<div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
@@ -4254,7 +4266,7 @@ const ProviderDashboard = () => {
                                 </div>}
                                 {/* role="alert": a failed check no longer raises the browser's own
                                     (announced) bubble, so the message announces itself. */}
-                                {apptError && <p id="appt-error" role="alert" style={{ color: '#dc2626', fontSize: '0.85rem', margin: 0 }}>{apptError}</p>}
+                                {apptError && <p id="appt-error" role="alert" style={{ color: 'var(--danger-fg)', fontSize: '0.85rem', margin: 0 }}>{apptError}</p>}
                                 <button type="submit" disabled={savingAppt} style={{ width: '100%', padding: '0.9rem', background: savingAppt ? '#9ca3af' : 'var(--ink)', color: 'var(--on-ink)', border: 'none', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.95rem', fontWeight: '600', cursor: savingAppt ? 'not-allowed' : 'pointer' }}>
                                     {savingAppt ? 'Saving...' : apptForm.isRecurring ? 'Book Recurring Series' : 'Book Appointment'}
                                 </button>
@@ -4277,7 +4289,7 @@ const ProviderDashboard = () => {
                                 <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.25rem', fontWeight: '600', margin: '0 0 0.2rem' }}>
                                     {editingBlockedTime ? 'Edit Blocked Time' : 'Add blocked time'}
                                 </h2>
-                                <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', margin: 0 }}>Block off time when you're unavailable</p>
+                                <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: '0.75rem', margin: 0 }}>Block off time when you're unavailable</p>
                             </div>
                             <CloseButton onClick={closeBlockedTimeForm} />
                         </div>
@@ -4323,27 +4335,31 @@ const ProviderDashboard = () => {
 
                             {/* Title */}
                             <div>
-                                <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Title <span style={{ fontWeight: 400, textTransform: 'none' }}>(Optional)</span></label>
-                                <input className="input" type="text" placeholder="e.g. Lunch meeting" maxLength={80} value={blockedTimeForm.title || blockedTimeForm.reason} onChange={e => setBlockedTimeForm(p => ({ ...p, title: e.target.value, reason: e.target.value }))} style={{ width: '100%', boxSizing: 'border-box' }} />
+                                <Field label={<>Title <span style={{ fontWeight: 400, textTransform: 'none' }}>(Optional)</span></>} labelStyle={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>
+                                    <input className="input" type="text" placeholder="e.g. Lunch meeting" maxLength={80} value={blockedTimeForm.title || blockedTimeForm.reason} onChange={e => setBlockedTimeForm(p => ({ ...p, title: e.target.value, reason: e.target.value }))} style={{ width: '100%', boxSizing: 'border-box' }} />
+                                </Field>
                             </div>
 
                             {/* Date */}
                             {!editingBlockedTime && (
                                 <div>
-                                    <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Date</label>
-                                    <DatePicker value={blockedTimeForm.date} onChange={e => setBlockedTimeForm(p => ({ ...p, date: e.target.value }))} aria-label="Date" required invalid={blockedTimeChecked && !blockedTimeForm.date} data-testid="block-date" style={{ width: '100%', boxSizing: 'border-box' }} />
+                                    <Field label="Date" labelStyle={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>
+                                        <DatePicker value={blockedTimeForm.date} onChange={e => setBlockedTimeForm(p => ({ ...p, date: e.target.value }))} aria-label="Date" required invalid={blockedTimeChecked && !blockedTimeForm.date} data-testid="block-date" style={{ width: '100%', boxSizing: 'border-box' }} />
+                                    </Field>
                                 </div>
                             )}
 
                             {/* Start / End time */}
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                                 <div>
-                                    <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Start time</label>
-                                    <TimePicker value={blockedTimeForm.startTime} onChange={e => setBlockedTimeForm(p => ({ ...p, startTime: e.target.value }))} step={5} aria-label="Start time" required invalid={blockedTimeChecked && !blockedTimeForm.startTime} data-testid="block-start" style={{ width: '100%', boxSizing: 'border-box' }} />
+                                    <Field label="Start time" labelStyle={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>
+                                        <TimePicker value={blockedTimeForm.startTime} onChange={e => setBlockedTimeForm(p => ({ ...p, startTime: e.target.value }))} step={5} aria-label="Start time" required invalid={blockedTimeChecked && !blockedTimeForm.startTime} data-testid="block-start" style={{ width: '100%', boxSizing: 'border-box' }} />
+                                    </Field>
                                 </div>
                                 <div>
-                                    <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>End time</label>
-                                    <TimePicker value={blockedTimeForm.endTime} onChange={e => setBlockedTimeForm(p => ({ ...p, endTime: e.target.value }))} step={5} aria-label="End time" required invalid={blockedTimeChecked && (!blockedTimeForm.endTime || (!!blockedTimeForm.startTime && blockedTimeForm.endTime <= blockedTimeForm.startTime))} data-testid="block-end" style={{ width: '100%', boxSizing: 'border-box' }} />
+                                    <Field label="End time" labelStyle={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>
+                                        <TimePicker value={blockedTimeForm.endTime} onChange={e => setBlockedTimeForm(p => ({ ...p, endTime: e.target.value }))} step={5} aria-label="End time" required invalid={blockedTimeChecked && (!blockedTimeForm.endTime || (!!blockedTimeForm.startTime && blockedTimeForm.endTime <= blockedTimeForm.startTime))} data-testid="block-end" style={{ width: '100%', boxSizing: 'border-box' }} />
+                                    </Field>
                                     {blockedTimeForm.startTime && blockedTimeForm.endTime && blockedTimeForm.endTime > blockedTimeForm.startTime && (
                                         <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '0.25rem' }}>
                                             {Math.round((new Date(`2000-01-01T${blockedTimeForm.endTime}`) - new Date(`2000-01-01T${blockedTimeForm.startTime}`)) / 60000)} mins duration
@@ -4356,9 +4372,9 @@ const ProviderDashboard = () => {
                                 staff member. The update API can't move a block between staff, so when
                                 editing we show the scope read-only. */}
                             <div>
-                                <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Applies to</label>
+                                <label htmlFor="block-scope-select" style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Applies to</label>
                                 {!editingBlockedTime && !isStaff && activeTeamMembers.length > 0 ? (
-                                    <Select
+                                    <Select id="block-scope-select"
                                         value={blockedTimeForm.teamMember === MY_LANE_PENDING ? undefined : blockedTimeForm.teamMember}
                                         placeholder="Choose who this applies to"
                                         onChange={e => setBlockedTimeForm(p => ({ ...p, teamMember: e.target.value }))}
@@ -4408,28 +4424,29 @@ const ProviderDashboard = () => {
                             {/* Frequency */}
                             {!editingBlockedTime && (
                                 <div>
-                                    <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Frequency</label>
-                                    <Select
-                                        value={blockedTimeForm.isRecurring ? blockedTimeForm.recurrenceType : 'none'}
-                                        onChange={e => {
-                                            if (e.target.value === 'none') setBlockedTimeForm(p => ({ ...p, isRecurring: false, recurrenceType: 'weekly', customDays: [] }));
-                                            else setBlockedTimeForm(p => ({ ...p, isRecurring: true, recurrenceType: e.target.value }));
-                                        }}
-                                        options={[
-                                            { value: 'none', label: "Doesn't repeat" },
-                                            { value: 'daily', label: 'Daily' },
-                                            { value: 'weekly', label: 'Weekly' },
-                                            { value: 'monthly', label: 'Monthly' },
-                                            { value: 'custom', label: 'Custom (select days)' },
-                                        ]}
-                                        aria-label="Frequency"
-                                        data-testid="block-frequency"
-                                        style={{ width: '100%', boxSizing: 'border-box' }}
-                                    />
+                                    <Field label="Frequency" labelStyle={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>
+                                        <Select
+                                            value={blockedTimeForm.isRecurring ? blockedTimeForm.recurrenceType : 'none'}
+                                            onChange={e => {
+                                                if (e.target.value === 'none') setBlockedTimeForm(p => ({ ...p, isRecurring: false, recurrenceType: 'weekly', customDays: [] }));
+                                                else setBlockedTimeForm(p => ({ ...p, isRecurring: true, recurrenceType: e.target.value }));
+                                            }}
+                                            options={[
+                                                { value: 'none', label: "Doesn't repeat" },
+                                                { value: 'daily', label: 'Daily' },
+                                                { value: 'weekly', label: 'Weekly' },
+                                                { value: 'monthly', label: 'Monthly' },
+                                                { value: 'custom', label: 'Custom (select days)' },
+                                            ]}
+                                            aria-label="Frequency"
+                                            data-testid="block-frequency"
+                                            style={{ width: '100%', boxSizing: 'border-box' }}
+                                        />
+                                    </Field>
                                     {blockedTimeForm.isRecurring && blockedTimeForm.recurrenceType === 'custom' && (
                                         <div style={{ marginTop: '0.65rem' }}>
-                                            <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.5rem' }}>Repeat on</label>
-                                            <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
+                                            <div id="block-repeat-days-label" style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.5rem' }}>Repeat on</div>
+                                            <div role="group" aria-labelledby="block-repeat-days-label" style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                                                 {['Sun','Mon','Tue','Wed','Thu','Fri','Sat'].map((d, i) => {
                                                     const selected = (blockedTimeForm.customDays || []).includes(i);
                                                     return (
@@ -4444,8 +4461,9 @@ const ProviderDashboard = () => {
                                     )}
                                     {blockedTimeForm.isRecurring && (
                                         <div style={{ marginTop: '0.65rem' }}>
-                                            <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>End date <span style={{ fontWeight: 400, textTransform: 'none' }}>(Optional)</span></label>
-                                            <DatePicker value={blockedTimeForm.recurrenceEndDate} onChange={e => setBlockedTimeForm(p => ({ ...p, recurrenceEndDate: e.target.value }))} min={blockedTimeForm.date || undefined} placeholder="No end date" clearable aria-label="Repeat end date" data-testid="block-repeat-end" style={{ width: '100%', boxSizing: 'border-box' }} />
+                                            <Field label={<>End date <span style={{ fontWeight: 400, textTransform: 'none' }}>(Optional)</span></>} labelStyle={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>
+                                                <DatePicker value={blockedTimeForm.recurrenceEndDate} onChange={e => setBlockedTimeForm(p => ({ ...p, recurrenceEndDate: e.target.value }))} min={blockedTimeForm.date || undefined} placeholder="No end date" clearable aria-label="Repeat end date" data-testid="block-repeat-end" style={{ width: '100%', boxSizing: 'border-box' }} />
+                                            </Field>
                                         </div>
                                     )}
                                 </div>
@@ -4453,8 +4471,9 @@ const ProviderDashboard = () => {
 
                             {/* Description */}
                             <div>
-                                <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Description <span style={{ fontWeight: 400, textTransform: 'none' }}>(Optional)</span></label>
-                                <textarea className="input" rows={3} maxLength={255} placeholder="Add description or note" value={blockedTimeForm.reason} onChange={e => setBlockedTimeForm(p => ({ ...p, reason: e.target.value, title: p.title || e.target.value }))} style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'var(--font-body)' }} />
+                                <Field label={<>Description <span style={{ fontWeight: 400, textTransform: 'none' }}>(Optional)</span></>} labelStyle={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>
+                                    <textarea className="input" rows={3} maxLength={255} placeholder="Add description or note" value={blockedTimeForm.reason} onChange={e => setBlockedTimeForm(p => ({ ...p, reason: e.target.value, title: p.title || e.target.value }))} style={{ width: '100%', boxSizing: 'border-box', resize: 'vertical', fontFamily: 'var(--font-body)' }} />
+                                </Field>
                                 <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'right', marginTop: '0.25rem' }}>{(blockedTimeForm.reason || '').length}/255</p>
                             </div>
 
@@ -4470,7 +4489,7 @@ const ProviderDashboard = () => {
                                 may change. Opens the recurring "this / all" chooser for repeating
                                 blocks, otherwise removes it and closes the panel. */}
                             {editingBlockedTime && canEditBlock(editingBlockedTime) && (
-                                <button type="button" onClick={() => handleDeleteBlockedTime(editingBlockedTime)} disabled={savingBlockedTime} style={{ width: '100%', marginTop: '0.65rem', padding: '0.85rem', background: 'none', color: '#dc2626', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: '600', cursor: savingBlockedTime ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
+                                <button type="button" onClick={() => handleDeleteBlockedTime(editingBlockedTime)} disabled={savingBlockedTime} style={{ width: '100%', marginTop: '0.65rem', padding: '0.85rem', background: 'none', color: 'var(--danger-fg)', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', fontFamily: 'var(--font-body)', fontSize: '0.9rem', fontWeight: '600', cursor: savingBlockedTime ? 'not-allowed' : 'pointer', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem' }}>
                                     <Ban size={16} /> Unblock this time
                                 </button>
                             )}
@@ -4489,7 +4508,7 @@ const ProviderDashboard = () => {
                         <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
                             <div>
                                 <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.25rem', fontWeight: '600', margin: '0 0 0.2rem' }}>Appointment</h2>
-                                <p style={{ color: 'rgba(255,255,255,0.45)', fontSize: '0.75rem', margin: 0, fontFamily: 'var(--font-body)' }}>
+                                <p style={{ color: 'rgba(255,255,255,0.62)', fontSize: '0.75rem', margin: 0, fontFamily: 'var(--font-body)' }}>
                                     {apptDetailModal.services?.length > 1 ? `${apptDetailModal.services.length} services` : apptDetailModal.service?.name}
                                 </p>
                             </div>
@@ -4596,7 +4615,7 @@ const ProviderDashboard = () => {
                                                                     onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
                                                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                                                 >
-                                                                    <span aria-hidden="true" style={{ display: 'inline-flex', width: 16, justifyContent: 'center', color: '#059669', fontWeight: 600 }}>✓</span> Mark complete
+                                                                    <span aria-hidden="true" style={{ display: 'inline-flex', width: 16, justifyContent: 'center', color: 'var(--success-fg)', fontWeight: 600 }}>✓</span> Mark complete
                                                                 </button>
                                                             )}
                                                             {canFinish && (
@@ -4611,7 +4630,7 @@ const ProviderDashboard = () => {
                                                             {canCancel && (
                                                                 <>
                                                                     <div style={{ borderTop: '1px solid var(--border)', margin: '0.3rem 0' }} />
-                                                                    <button role="menuitem" type="button" style={{ ...menuItem, color: 'var(--danger)' }}
+                                                                    <button role="menuitem" type="button" style={{ ...menuItem, color: 'var(--danger-fg)' }}
                                                                         onClick={async () => {
                                                                             setShowApptActions(false);
                                                                             // Recurring bookings open the this/future/all chooser;
@@ -4714,15 +4733,17 @@ const ProviderDashboard = () => {
                                     <div style={{ padding: '0 1rem 1rem' }}>
                                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem', marginBottom: '0.85rem' }}>
                                         <div>
-                                            <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontFamily: 'var(--font-body)' }}>New date</label>
-                                            <DatePicker value={apptRescheduleForm.appointmentDate} onChange={e => setApptRescheduleForm(f => ({ ...f, appointmentDate: e.target.value }))} aria-label="New date" formatValue={d => new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} data-testid="reschedule-date" style={{ width: '100%', fontSize: '1rem', padding: '0.5rem 0.75rem' }} />
+                                            <Field label="New date" labelStyle={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontFamily: 'var(--font-body)' }}>
+                                                <DatePicker value={apptRescheduleForm.appointmentDate} onChange={e => setApptRescheduleForm(f => ({ ...f, appointmentDate: e.target.value }))} aria-label="New date" formatValue={d => new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })} data-testid="reschedule-date" style={{ width: '100%', fontSize: '1rem', padding: '0.5rem 0.75rem' }} />
+                                            </Field>
                                         </div>
                                         <div>
-                                            <label style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontFamily: 'var(--font-body)' }}>Start time</label>
-                                            <TimePicker value={apptRescheduleForm.startTime} onChange={e => setApptRescheduleForm(f => ({ ...f, startTime: e.target.value }))} step={5} aria-label="Start time" data-testid="reschedule-time" style={{ width: '100%', fontSize: '1rem', padding: '0.5rem 0.75rem' }} />
+                                            <Field label="Start time" labelStyle={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: '0.3rem', fontFamily: 'var(--font-body)' }}>
+                                                <TimePicker value={apptRescheduleForm.startTime} onChange={e => setApptRescheduleForm(f => ({ ...f, startTime: e.target.value }))} step={5} aria-label="Start time" data-testid="reschedule-time" style={{ width: '100%', fontSize: '1rem', padding: '0.5rem 0.75rem' }} />
+                                            </Field>
                                         </div>
                                     </div>
-                                    {apptDetailError && <p style={{ color: 'var(--danger)', fontSize: '0.8rem', marginBottom: '0.75rem', fontFamily: 'var(--font-body)' }}>{apptDetailError}</p>}
+                                    {apptDetailError && <p style={{ color: 'var(--danger-fg)', fontSize: '0.8rem', marginBottom: '0.75rem', fontFamily: 'var(--font-body)' }}>{apptDetailError}</p>}
                                     <button
                                         onClick={() => handleProviderReschedule(apptDetailModal._id, apptRescheduleForm.appointmentDate, apptRescheduleForm.startTime)}
                                         disabled={savingApptDetail || !apptRescheduleForm.appointmentDate || !apptRescheduleForm.startTime}
@@ -4749,7 +4770,7 @@ const ProviderDashboard = () => {
                     <div className="modal-center" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '380px', maxWidth: '95vw', background: 'var(--card-bg)', borderRadius: 'var(--radius)', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', zIndex: 1101, overflow: 'hidden' }}>
                         <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.2rem', fontWeight: '600', margin: 0 }}>Cancel recurring appointment</h2>
-                            <button onClick={() => setSeriesCancelModal(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0 }}>×</button>
+                            <button aria-label="Close" onClick={() => setSeriesCancelModal(null)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.66)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0 }}>×</button>
                         </div>
                         <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                             <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', margin: 0 }}>This appointment is part of a recurring series. What would you like to cancel?</p>
@@ -4765,7 +4786,7 @@ const ProviderDashboard = () => {
                             ))}
                             <div style={{ display: 'flex', gap: '0.75rem', marginTop: '0.5rem' }}>
                                 <button onClick={() => setSeriesCancelModal(null)} style={{ flex: 1, padding: '0.85rem', background: 'var(--warm-gray)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--text-secondary)' }}>Keep</button>
-                                <button onClick={handleSeriesCancel} disabled={cancellingSeries} style={{ flex: 1, padding: '0.85rem', background: '#ef4444', border: 'none', borderRadius: 'var(--radius-sm)', cursor: cancellingSeries ? 'default' : 'pointer', opacity: cancellingSeries ? 0.7 : 1, fontFamily: 'var(--font-body)', fontWeight: '600', color: 'white' }}>{cancellingSeries ? 'Cancelling…' : 'Cancel'}</button>
+                                <button onClick={handleSeriesCancel} disabled={cancellingSeries} style={{ flex: 1, padding: '0.85rem', background: 'var(--danger-solid)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: cancellingSeries ? 'default' : 'pointer', opacity: cancellingSeries ? 0.7 : 1, fontFamily: 'var(--font-body)', fontWeight: '600', color: 'white' }}>{cancellingSeries ? 'Cancelling…' : 'Cancel'}</button>
                             </div>
                         </div>
                     </div>

@@ -85,9 +85,9 @@ const BecomeProvider = () => {
 
                         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div>
-                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Main service category</label>
+                                <label htmlFor="main-category" style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Main service category</label>
                                 {/* No native `required` bubble on the app-styled Select — handleSubmit checks it. */}
-                                <Select
+                                <Select id="main-category"
                                     value={category}
                                     onChange={e => setCategory(e.target.value)}
                                     options={MAIN_CATEGORIES.map(c => ({ value: c, label: c }))}
@@ -100,7 +100,7 @@ const BecomeProvider = () => {
                                     data-testid="provider-category"
                                 />
                                 {category === 'Other' && (
-                                    <input type="text" value={customCategory} onChange={e => setCustomCategory(e.target.value)} required placeholder="e.g. Pet grooming, Tattoo studio…" className="input" style={{ marginTop: '0.75rem' }} />
+                                    <input aria-label="Your service category" type="text" value={customCategory} onChange={e => setCustomCategory(e.target.value)} required placeholder="e.g. Pet grooming, Tattoo studio…" className="input" style={{ marginTop: '0.75rem' }} />
                                 )}
                             </div>
                             <button type="submit" disabled={loading} className="btn-primary" style={{ width: '100%', padding: '0.875rem' }}>

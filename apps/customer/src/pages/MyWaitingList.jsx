@@ -141,7 +141,7 @@ const MyWaitingList = () => {
                                 <p style={{ fontWeight: '600', color: '#065f46', fontSize: '0.95rem' }}>
                                     You've been promoted for <strong>{n.service?.name}</strong>!
                                 </p>
-                                <p style={{ color: '#047857', fontSize: '0.85rem', marginTop: '0.35rem' }}>
+                                <p style={{ color: 'var(--success-fg)', fontSize: '0.85rem', marginTop: '0.35rem' }}>
                                     {apptLocalDate(n.appointmentDate)?.toLocaleDateString('en-US', {
                                         weekday: 'long', month: 'long', day: 'numeric'
                                     })} at {n.startTime} — your appointment has been confirmed.

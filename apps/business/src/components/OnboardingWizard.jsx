@@ -7,7 +7,7 @@ import { track } from '../services/client';
 import MapPicker, { MAPS_KEY, reverseGeocode } from './MapPicker';
 // App-styled replacements for the native <select> and time inputs, so the
 // pickers wear the app's colours (and hours are always 24-hour).
-import { Select, TimePicker } from '@bookplus/ui';
+import { Select, TimePicker, Field } from '@bookplus/ui';
 import { MapPin, Clock, ConciergeBell, Camera, LinkIcon, Check, Copy, Share2, ArrowLeft, Plus, X } from 'lucide-react';
 
 const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'https://www.bookplus.pro';
@@ -225,10 +225,12 @@ const OnboardingWizard = ({ user, onComplete }) => {
                             <p style={{ color: 'var(--text-muted)', fontSize: '1rem', lineHeight: 1.65, marginBottom: '1.75rem' }}>
                                 A few quick steps so clients can find and book you. You can skip any step and finish it later from Settings.
                             </p>
-                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Business name</label>
-                            <input className="input" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="e.g. Riverside Studio" style={{ fontSize: '1rem' }} />
-                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', margin: '1.1rem 0 0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Currency</label>
-                            <Select value={currency} onChange={(e) => setCurrency(e.target.value)} options={CURRENCY_OPTIONS} searchPlaceholder="Search currencies" style={{ fontSize: '1rem' }} aria-label="Currency" />
+                            <Field label="Business name" labelStyle={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                                <input className="input" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="e.g. Riverside Studio" style={{ fontSize: '1rem' }} />
+                            </Field>
+                            <Field label="Currency" labelStyle={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', margin: '1.1rem 0 0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                                <Select value={currency} onChange={(e) => setCurrency(e.target.value)} options={CURRENCY_OPTIONS} searchPlaceholder="Search currencies" style={{ fontSize: '1rem' }} aria-label="Currency" />
+                            </Field>
                             <p style={{ margin: '0.4rem 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Prices across your booking page and earnings show in this currency.</p>
                             <ul style={{ listStyle: 'none', padding: 0, margin: '1.75rem 0 0', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                 {['Set your location & hours', 'Add your services and prices', 'Get a shareable booking link'].map((t) => (
@@ -250,8 +252,9 @@ const OnboardingWizard = ({ user, onComplete }) => {
                                         Map isn’t configured — just type your address below.
                                     </div>
                                 )}
-                            <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', margin: '1.25rem 0 0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Business address</label>
-                            <textarea className="input" rows={2} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="e.g. 12 Sam Nujoma Dr, Swakopmund" style={{ fontSize: '0.95rem', resize: 'vertical' }} />
+                            <Field label="Business address" labelStyle={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', margin: '1.25rem 0 0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                                <textarea className="input" rows={2} value={address} onChange={(e) => setAddress(e.target.value)} placeholder="e.g. 12 Sam Nujoma Dr, Swakopmund" style={{ fontSize: '0.95rem', resize: 'vertical' }} />
+                            </Field>
                         </div>
                     )}
 
@@ -266,10 +269,10 @@ const OnboardingWizard = ({ user, onComplete }) => {
                                     const setTime = (field, value) => setSchedule((prev) => ({ ...prev, [key]: { ...prev[key], slots: [{ ...slot, [field]: value }] } }));
                                     return (
                                         <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 0.75rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
-                                            <button type="button" onClick={() => setDay({ enabled: !day.enabled })}
-                                                aria-label={`Toggle ${label}`}
+                                            <button type="button" role="switch" aria-checked={!!day.enabled} onClick={() => setDay({ enabled: !day.enabled })}
+                                                aria-label={`Open on ${label}`}
                                                 style={{ width: '44px', height: '44px', margin: '-10px -1px', padding: 0, background: 'none', border: 'none', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                                                <span style={{ width: '42px', height: '24px', borderRadius: '999px', background: day.enabled ? 'var(--gold)' : 'var(--warm-gray)', position: 'relative', display: 'block' }}>
+                                                <span style={{ width: '42px', height: '24px', borderRadius: '999px', background: day.enabled ? 'var(--gold)' : 'var(--border-input)', position: 'relative', display: 'block' }}>
                                                     <span style={{ position: 'absolute', top: '3px', left: '3px', width: '18px', height: '18px', borderRadius: '50%', background: '#fff', transform: day.enabled ? 'translateX(18px)' : 'translateX(0)', transition: 'transform 0.18s' }} />
                                                 </span>
                                             </button>
@@ -298,9 +301,9 @@ const OnboardingWizard = ({ user, onComplete }) => {
                                     const locked = i < createdCount;
                                     return (
                                         <div key={i} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', opacity: locked ? 0.6 : 1 }}>
-                                            <input className="input" disabled={locked} value={s.name} onChange={(e) => setRow({ name: e.target.value })} placeholder="Service (e.g. 60-min consultation)" style={{ flex: 2 }} />
-                                            <input className="input" disabled={locked} type="number" min="5" step="5" value={s.duration} onChange={(e) => setRow({ duration: e.target.value })} placeholder="min" style={{ flex: 1, minWidth: 0 }} title="Duration in minutes" />
-                                            <input className="input" disabled={locked} type="number" min="0" value={s.price} onChange={(e) => setRow({ price: e.target.value })} placeholder="Price" style={{ flex: 1, minWidth: 0 }} />
+                                            <input aria-label="Service name" className="input" disabled={locked} value={s.name} onChange={(e) => setRow({ name: e.target.value })} placeholder="Service (e.g. 60-min consultation)" style={{ flex: 2 }} />
+                                            <input aria-label="Duration in minutes" className="input" disabled={locked} type="number" min="5" step="5" value={s.duration} onChange={(e) => setRow({ duration: e.target.value })} placeholder="min" style={{ flex: 1, minWidth: 0 }} title="Duration in minutes" />
+                                            <input aria-label="Price" className="input" disabled={locked} type="number" min="0" value={s.price} onChange={(e) => setRow({ price: e.target.value })} placeholder="Price" style={{ flex: 1, minWidth: 0 }} />
                                             {services.length > 1 && !locked && (
                                                 <button type="button" onClick={() => setServices((prev) => prev.filter((_, idx) => idx !== i))} aria-label="Remove" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', minWidth: '44px', minHeight: '44px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}><X size={18} /></button>
                                             )}
@@ -350,7 +353,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
 
                     {current.id === 'link' && (
                         <div style={{ textAlign: 'center', paddingTop: '1rem' }}>
-                            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(34,197,94,0.14)', color: '#16a34a', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem' }}>
+                            <div style={{ width: '64px', height: '64px', borderRadius: '50%', background: 'rgba(34,197,94,0.14)', color: 'var(--success-fg)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1.25rem' }}>
                                 <Check size={34} strokeWidth={2.5} />
                             </div>
                             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(1.7rem, 5vw, 2.2rem)', fontWeight: 600, color: 'var(--charcoal)', marginBottom: '0.5rem' }}>Your link is ready</h1>
@@ -359,7 +362,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                             </p>
                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.85rem 1rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', marginBottom: '1rem' }}>
                                 <span style={{ flex: 1, textAlign: 'left', fontSize: '0.9rem', color: 'var(--charcoal)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bookingUrl || 'Generating…'}</span>
-                                <button type="button" onClick={copyLink} disabled={!slug} aria-label="Copy link" style={{ background: 'none', border: 'none', cursor: 'pointer', color: copied ? '#16a34a' : 'var(--gold-dark)', minWidth: '44px', minHeight: '44px', margin: '-0.55rem -0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                                <button type="button" onClick={copyLink} disabled={!slug} aria-label="Copy link" style={{ background: 'none', border: 'none', cursor: 'pointer', color: copied ? 'var(--success-fg)' : 'var(--gold-dark)', minWidth: '44px', minHeight: '44px', margin: '-0.55rem -0.5rem', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                                     {copied ? <Check size={18} /> : <Copy size={18} />}
                                 </button>
                             </div>

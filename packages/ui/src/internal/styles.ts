@@ -5,8 +5,8 @@
 //
 // Literal colours, kept to a minimum: the scrim and the selected-row tint each
 // have a token-based color-mix() upgrade right after them (browsers without
-// color-mix() keep the literal), and the danger button's text is white, like
-// the app's own .btn-danger. The three body.dark-mode rules exist only because
+// color-mix() keep the literal), and the danger button's text is white on --danger-solid,
+// like the app's own .btn-danger. The three body.dark-mode rules exist only because
 // the app's `body.dark-mode .input, body.dark-mode input { border-color: … !important }`
 // would otherwise hide the open/invalid/focused borders.
 export const CSS = `
@@ -16,6 +16,7 @@ export const CSS = `
 @keyframes bp-dialog-in { from { opacity: 0; transform: scale(0.96); } to { opacity: 1; transform: none; } }
 
 /* ── Trigger: a <button class="input bp-trigger">, so it inherits the app's input look ── */
+/* Its 3:1 boundary (WCAG 1.4.11) is --border-input, from the app's .input rule. */
 .bp-trigger {
   display: flex; align-items: center; gap: 0.5rem; text-align: left; cursor: pointer;
   font-family: var(--font-body); line-height: 1.25; -webkit-tap-highlight-color: transparent;
@@ -88,7 +89,7 @@ body.dark-mode .bp-trigger[aria-invalid="true"] { border-color: var(--danger) !i
   width: 100%; box-sizing: border-box; margin: 0;
   padding: 0.6rem 0.75rem 0.6rem 2.2rem;
   font-family: var(--font-body); font-size: 1rem; color: var(--text-primary);
-  background: var(--input-bg); border: 1.5px solid var(--border); border-radius: var(--radius-sm);
+  background: var(--input-bg); border: 1.5px solid var(--border-input); border-radius: var(--radius-sm);
   outline: none; -webkit-appearance: none; appearance: none;
 }
 .bp-search:focus { border-color: var(--gold); box-shadow: 0 0 0 3px color-mix(in srgb, var(--gold) 12%, transparent); }
@@ -239,11 +240,12 @@ body.dark-mode .bp-search:focus { border-color: var(--gold) !important; }
   margin: 0 0 0.5rem; font-family: var(--font-display); font-weight: 600;
   font-size: 1.15rem; line-height: 1.3; color: var(--charcoal);
 }
-.bp-dialog[data-tone="danger"] .bp-dialog-title { color: var(--danger); }
+.bp-dialog[data-tone="danger"] .bp-dialog-title { color: var(--danger-fg); }
 .bp-dialog-msg { margin: 0; font-size: 0.9rem; line-height: 1.6; color: var(--text-secondary); white-space: pre-line; overflow-wrap: anywhere; }
 .bp-dialog-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: var(--space-2); margin-top: var(--space-5); }
 .bp-dialog-actions .btn-primary, .bp-dialog-actions .btn-outline { padding: 0.6rem 1.3rem; }
-.bp-dialog-actions .bp-danger, .bp-dialog-actions .bp-danger:hover { background: var(--danger); color: #fff; }
+.bp-dialog-actions .bp-danger { background: var(--danger-solid); color: #fff; }
+.bp-dialog-actions .bp-danger:hover { background: var(--danger-solid-hover); color: #fff; }
 @media (max-width: 420px) {
   .bp-dialog { padding: var(--space-5); }
   .bp-dialog-actions > * { flex: 1 1 0; }

@@ -4,7 +4,7 @@ import { NAMIBIAN_TOWNS } from '../utils/namibiaTowns';
 import { useAuthContext } from '../context/AuthContext';
 import { useToast } from './Toast';
 import { currencySymbol } from '../utils/currency';
-import { Select, formatDuration } from '@bookplus/ui';
+import { Select, formatDuration, Field } from '@bookplus/ui';
 import { X, Plus, Trash2, Clock } from 'lucide-react';
 import Switch from './Switch';
 
@@ -170,24 +170,24 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
 
                     <div style={field}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                            <label style={label}>Service name</label>
+                            <label htmlFor="svc-name" style={label}>Service name</label>
                             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{form.name.length}/255</span>
                         </div>
-                        <input className="input" maxLength={255} value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="Add a service name, e.g. 60-min consultation" style={{ fontSize: '1rem' }} autoFocus={!(memberMode && editing)} readOnly={memberMode && !!editing} data-testid="service-name" />
+                        <input id="svc-name" className="input" maxLength={255} value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="Add a service name, e.g. 60-min consultation" style={{ fontSize: '1rem' }} autoFocus={!(memberMode && editing)} readOnly={memberMode && !!editing} data-testid="service-name" />
                         {memberMode && editing && <p style={helper}>The name is on {businessName || 'the business'}’s menu. Your price and time are yours.</p>}
                     </div>
 
                     {!memberMode && <>
                     <div style={field}>
-                        <label style={label}>Menu category</label>
+                        <label htmlFor="svc-category" style={label}>Menu category</label>
                         {addingCat ? (
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                <input className="input" value={newCat} onChange={(e) => setNewCat(e.target.value)} placeholder="New category name" onKeyDown={(e) => e.key === 'Enter' && createCategory()} autoFocus />
+                                <input id="svc-category" className="input" value={newCat} onChange={(e) => setNewCat(e.target.value)} placeholder="New category name" onKeyDown={(e) => e.key === 'Enter' && createCategory()} autoFocus />
                                 <button type="button" onClick={createCategory} disabled={catSaving} className="btn-primary" style={{ padding: '0 1rem', whiteSpace: 'nowrap' }}>{catSaving ? 'Adding…' : 'Add'}</button>
                                 <button type="button" onClick={() => { setAddingCat(false); setNewCat(''); }} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', color: 'var(--text-muted)', padding: '0 0.9rem', cursor: 'pointer' }}>Cancel</button>
                             </div>
                         ) : (
-                            <Select value={form.category} onChange={(e) => set({ category: e.target.value })} options={categoryOptions}
+                            <Select id="svc-category" value={form.category} onChange={(e) => set({ category: e.target.value })} options={categoryOptions}
                                 actions={[{ label: '+ New category…', onSelect: () => setAddingCat(true), 'data-testid': 'service-new-category' }]}
                                 searchPlaceholder="Search categories" aria-label="Menu category" data-testid="service-category" />
                         )}
@@ -196,10 +196,10 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
 
                     <div style={field}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
-                            <label style={label}>Description <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
+                            <label htmlFor="svc-description" style={label}>Description <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></label>
                             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{form.description.length}/1000</span>
                         </div>
-                        <textarea className="input" rows={3} maxLength={1000} value={form.description} onChange={(e) => set({ description: e.target.value })} placeholder="Add a short description" style={{ resize: 'vertical' }} />
+                        <textarea id="svc-description" className="input" rows={3} maxLength={1000} value={form.description} onChange={(e) => set({ description: e.target.value })} placeholder="Add a short description" style={{ resize: 'vertical' }} />
                     </div>
 
                     </>}
@@ -209,24 +209,25 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
 
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', ...field }}>
                         <div>
-                            <label style={label}>Price type</label>
-                            <Select value={form.priceType} onChange={(e) => set({ priceType: e.target.value })}
-                                options={[{ value: 'fixed', label: 'Fixed' }, { value: 'free', label: 'Free' }]}
-                                aria-label="Price type" data-testid="service-price-type" />
+                            <Field label="Price type" labelStyle={label}>
+                                <Select value={form.priceType} onChange={(e) => set({ priceType: e.target.value })}
+                                    options={[{ value: 'fixed', label: 'Fixed' }, { value: 'free', label: 'Free' }]}
+                                    aria-label="Price type" data-testid="service-price-type" />
+                            </Field>
                         </div>
                         <div>
-                            <label style={label}>Price</label>
+                            <label htmlFor="svc-price" style={label}>Price</label>
                             <div style={{ position: 'relative' }}>
                                 <span style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.9rem', pointerEvents: 'none' }}>{curSym}</span>
-                                <input className="input" type="number" min="0" step="0.01" disabled={form.priceType === 'free'} value={form.priceType === 'free' ? '' : form.price} onChange={(e) => set({ price: e.target.value })} placeholder="0.00" aria-label="Price" data-testid="service-price" style={{ paddingLeft: '2.4rem', opacity: form.priceType === 'free' ? 0.5 : 1 }} />
+                                <input id="svc-price" className="input" type="number" min="0" step="0.01" disabled={form.priceType === 'free'} value={form.priceType === 'free' ? '' : form.price} onChange={(e) => set({ price: e.target.value })} placeholder="0.00" aria-label="Price" data-testid="service-price" style={{ paddingLeft: '2.4rem', opacity: form.priceType === 'free' ? 0.5 : 1 }} />
                             </div>
                         </div>
                     </div>
 
                     <div style={field}>
-                        <label style={label}>Duration</label>
+                        <label htmlFor="svc-duration" style={label}>Duration</label>
                         {/* A fixed list of lengths: no search box, even past 8 rows. */}
-                        <Select value={form.duration} onChange={(e) => set({ duration: Number(e.target.value) })}
+                        <Select id="svc-duration" value={form.duration} onChange={(e) => set({ duration: Number(e.target.value) })}
                             options={durationOptions.map((m) => ({ value: m, label: fmtDur(m) }))} searchable={false}
                             aria-label="Duration" data-testid="service-duration" />
                     </div>
@@ -255,12 +256,14 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <div>
-                                    <label style={{ ...label, fontSize: '0.82rem' }}>Before (min)</label>
-                                    <input className="input" type="number" min="0" max="120" value={form.bufferBefore} onChange={(e) => set({ bufferBefore: e.target.value })} placeholder="0" />
+                                    <Field label="Before (min)" labelStyle={{ ...label, fontSize: '0.82rem' }}>
+                                        <input className="input" type="number" min="0" max="120" value={form.bufferBefore} onChange={(e) => set({ bufferBefore: e.target.value })} placeholder="0" />
+                                    </Field>
                                 </div>
                                 <div>
-                                    <label style={{ ...label, fontSize: '0.82rem' }}>After (min)</label>
-                                    <input className="input" type="number" min="0" max="120" value={form.bufferAfter} onChange={(e) => set({ bufferAfter: e.target.value })} placeholder="0" />
+                                    <Field label="After (min)" labelStyle={{ ...label, fontSize: '0.82rem' }}>
+                                        <input className="input" type="number" min="0" max="120" value={form.bufferAfter} onChange={(e) => set({ bufferAfter: e.target.value })} placeholder="0" />
+                                    </Field>
                                 </div>
                             </div>
                             <p style={helper}>Blocked-off prep/cleanup time around the booking — not shown to clients.</p>
@@ -274,7 +277,7 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                     {/* Options (sub-options / variants) */}
                     <div style={field}>
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.6rem' }}>
-                            <label style={{ ...label, marginBottom: 0 }}>Options <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(e.g. Adults, Students)</span></label>
+                            <div id="service-options-label" style={{ ...label, marginBottom: 0 }}>Options <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>(e.g. Adults, Students)</span></div>
                             <button type="button" onClick={() => set({ options: [...form.options, { name: '', description: '', price: '', duration: '' }] })} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', padding: '0.4rem 0.85rem', border: '1.5px solid var(--gold)', borderRadius: '999px', background: 'rgba(240,62,22,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: 600 }}><Plus size={14} /> Add option</button>
                         </div>
                         {form.options.length > 0 && (
@@ -282,12 +285,12 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                                 {form.options.map((opt, i) => (
                                     <div key={i} style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.85rem' }}>
                                         <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', marginBottom: '0.5rem' }}>
-                                            <input className="input" value={opt.name} onChange={(e) => setOption(i, { name: e.target.value })} placeholder="Option name" style={{ flex: 1 }} />
-                                            <button type="button" onClick={() => set({ options: form.options.filter((_, idx) => idx !== i) })} aria-label="Remove option" style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', padding: '0.3rem' }}><Trash2 size={16} /></button>
+                                            <input aria-label={`Option ${i + 1} name`} className="input" value={opt.name} onChange={(e) => setOption(i, { name: e.target.value })} placeholder="Option name" style={{ flex: 1 }} />
+                                            <button type="button" onClick={() => set({ options: form.options.filter((_, idx) => idx !== i) })} aria-label="Remove option" style={{ background: 'none', border: 'none', color: 'var(--danger-fg)', cursor: 'pointer', display: 'flex', padding: '0.3rem' }}><Trash2 size={16} /></button>
                                         </div>
                                         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.5rem' }}>
-                                            <input className="input" type="number" min="0" value={opt.price} onChange={(e) => setOption(i, { price: e.target.value })} placeholder={`Price (${curSym})`} />
-                                            <input className="input" type="number" min="5" step="5" value={opt.duration} onChange={(e) => setOption(i, { duration: e.target.value })} placeholder="Duration (min)" />
+                                            <input aria-label={`Option ${i + 1} price`} className="input" type="number" min="0" value={opt.price} onChange={(e) => setOption(i, { price: e.target.value })} placeholder={`Price (${curSym})`} />
+                                            <input aria-label={`Option ${i + 1} duration in minutes`} className="input" type="number" min="5" step="5" value={opt.duration} onChange={(e) => setOption(i, { duration: e.target.value })} placeholder="Duration (min)" />
                                         </div>
                                     </div>
                                 ))}
@@ -299,10 +302,10 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                     <h2 style={{ ...sectionTitle, marginTop: '2.25rem' }}>Location <span style={{ fontSize: '0.85rem', fontWeight: 400, color: 'var(--text-muted)' }}>(optional)</span></h2>
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem', ...field }}>
                         <div>
-                            <label style={label}>Town</label>
+                            <label htmlFor="svc-town" style={label}>Town</label>
                             {/* Optional field: "Clear town" stands in for the old blank row
                                 so a picked town can still be taken back to ''. */}
-                            <Select value={form.location} onChange={(e) => set({ location: e.target.value })}
+                            <Select id="svc-town" value={form.location} onChange={(e) => set({ location: e.target.value })}
                                 options={[
                                     ...(form.location && !NAMIBIAN_TOWNS.includes(form.location) ? [{ value: form.location, label: form.location }] : []),
                                     ...NAMIBIAN_TOWNS.map((t) => ({ value: t, label: t })),
@@ -312,8 +315,9 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                                 aria-label="Town" data-testid="service-town" />
                         </div>
                         <div>
-                            <label style={label}>Street address</label>
-                            <input className="input" value={form.address} onChange={(e) => set({ address: e.target.value })} placeholder="e.g. 123 Independence Ave" />
+                            <Field label="Street address" labelStyle={label}>
+                                <input className="input" value={form.address} onChange={(e) => set({ address: e.target.value })} placeholder="e.g. 123 Independence Ave" />
+                            </Field>
                         </div>
                     </div>
                     <p style={helper}>Where clients come for this service. Leave blank to use your business address.</p>

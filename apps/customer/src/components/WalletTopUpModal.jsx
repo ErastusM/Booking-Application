@@ -5,6 +5,7 @@ import { useToast } from './Toast';
 import { useModalChrome } from '../hooks/useModalChrome';
 import { currencySymbol } from '../utils/currency';
 import { X, Upload, Check } from 'lucide-react';
+import { Field } from '@bookplus/ui';
 
 const labelStyle = { display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' };
 const newRef = () => `BP-${Math.floor(10000 + Math.random() * 89999)}`;
@@ -71,8 +72,8 @@ const WalletTopUpModal = ({ providerId, providerName, currency, onClose, onDone 
                 </div>
                 <form onSubmit={submit} style={{ padding: '1.25rem' }}>
                     {/* Funding method — card via DPO is parked until the gateway is live */}
-                    <label style={labelStyle}>Funding method</label>
-                    <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
+                    <div id="topup-method-label" style={labelStyle}>Funding method</div>
+                    <div role="group" aria-labelledby="topup-method-label" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', flexWrap: 'wrap' }}>
                         {[{ v: 'manual', t: 'Bank transfer / deposit' }, { v: 'cash', t: 'Cash' }].map((o) => (
                             <button key={o.v} type="button" onClick={() => { setMethod(o.v); if (o.v === 'cash') setProofUrl(''); }} style={{
                                 flex: '1 1 40%', padding: '0.6rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600', fontSize: '0.82rem',
@@ -97,24 +98,26 @@ const WalletTopUpModal = ({ providerId, providerName, currency, onClose, onDone 
                                 : <>Pay {providerName} directly (bank transfer, eWallet, PayToday or cash deposit), then submit this request with your reference. They’ll approve it once the money arrives.</>}
                     </div>
 
-                    <label style={labelStyle}>Amount ({cur})</label>
-                    <input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 500" className="input" style={{ width: '100%', marginBottom: '1rem' }} required />
+                    <Field label={<>Amount ({cur})</>} labelStyle={labelStyle}>
+                        <input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 500" className="input" style={{ width: '100%', marginBottom: '1rem' }} required />
+                    </Field>
 
-                    <label style={labelStyle}>Payment reference</label>
-                    <input type="text" value={reference} onChange={(e) => setReference(e.target.value)} className="input" style={{ width: '100%', marginBottom: '1rem' }} />
+                    <Field label="Payment reference" labelStyle={labelStyle}>
+                        <input type="text" value={reference} onChange={(e) => setReference(e.target.value)} className="input" style={{ width: '100%', marginBottom: '1rem' }} />
+                    </Field>
 
                     {method !== 'cash' && (
                         <>
-                            <label style={labelStyle}>Proof of payment (optional — image or PDF)</label>
+                            <div id="topup-proof-label" style={labelStyle}>Proof of payment (optional — image or PDF)</div>
                             <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1rem', border: '1.5px dashed var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: proofUrl ? 'var(--gold-dark)' : 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
                                 {proofUrl ? <Check size={16} /> : <Upload size={16} />}
                                 {uploading ? 'Uploading…' : proofUrl ? (isPdf ? 'PDF uploaded — tap to replace' : 'Proof uploaded — tap to replace') : 'Upload a screenshot, receipt or PDF'}
-                                <input type="file" accept="image/*,application/pdf" onChange={handleProof} style={{ display: 'none' }} />
+                                <input type="file" accept="image/*,application/pdf" onChange={handleProof} className="sr-only" aria-labelledby="topup-proof-label" />
                             </label>
                         </>
                     )}
 
-                    {error && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
+                    {error && <p style={{ color: 'var(--danger-fg)', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
 
                     <button type="submit" disabled={busy || uploading} className="btn-primary" style={{ width: '100%', padding: '0.85rem' }}>
                         {busy ? 'Submitting…' : 'Submit top-up request'}

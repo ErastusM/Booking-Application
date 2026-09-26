@@ -5,7 +5,8 @@ import React, { useState } from 'react';
 const fmt = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 const parse = (s) => { if (!s) return null; const [y, m, dd] = s.split('-').map(Number); return new Date(y, m - 1, dd); };
 
-const MiniCalendar = ({ value, onChange, min, max }) => {
+// `labelledBy`: id of the visible caption, so the grid is announced as a named group.
+const MiniCalendar = ({ value, onChange, min, max, labelledBy }) => {
     const selected = parse(value);
     const minD = parse(min);
     const maxD = parse(max);
@@ -27,15 +28,15 @@ const MiniCalendar = ({ value, onChange, min, max }) => {
     const navBtn = { background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', width: '40px', height: '40px', cursor: 'pointer', color: 'var(--charcoal)' };
 
     return (
-        <div style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.85rem', background: 'var(--card-bg)', maxWidth: '320px' }}>
+        <div role="group" aria-labelledby={labelledBy} style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.85rem', background: 'var(--card-bg)', maxWidth: '320px' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.6rem' }}>
                 <button type="button" aria-label="Previous month" onClick={() => setMonth(m => new Date(m.getFullYear(), m.getMonth() - 1, 1))} style={navBtn}>←</button>
-                <span style={{ fontFamily: 'var(--font-display)', fontWeight: '600', fontSize: '0.95rem', color: 'var(--charcoal)' }}>{month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
+                <span aria-live="polite" style={{ fontFamily: 'var(--font-display)', fontWeight: '600', fontSize: '0.95rem', color: 'var(--charcoal)' }}>{month.toLocaleDateString('en-US', { month: 'long', year: 'numeric' })}</span>
                 <button type="button" aria-label="Next month" onClick={() => setMonth(m => new Date(m.getFullYear(), m.getMonth() + 1, 1))} style={navBtn}>→</button>
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '3px', marginBottom: '3px' }}>
                 {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((d, i) => (
-                    <div key={i} style={{ textAlign: 'center', fontSize: '0.6rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', padding: '2px 0' }}>{d.slice(0, 1)}</div>
+                    <div key={i} aria-hidden="true" style={{ textAlign: 'center', fontSize: '0.6rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', padding: '2px 0' }}>{d.slice(0, 1)}</div>
                 ))}
             </div>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: '3px' }}>
@@ -50,6 +51,9 @@ const MiniCalendar = ({ value, onChange, min, max }) => {
                             key={i}
                             type="button"
                             disabled={disabled}
+                            aria-label={d.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}
+                            aria-pressed={isSel}
+                            aria-current={isToday ? 'date' : undefined}
                             onClick={() => !disabled && onChange(ds)}
                             style={{
                                 aspectRatio: '1 / 1', display: 'flex', alignItems: 'center', justifyContent: 'center',

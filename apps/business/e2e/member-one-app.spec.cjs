@@ -109,7 +109,7 @@ test.describe('A team member gets the owner\'s app', () => {
         // Their Availability is the owner's Working Hours screen over their own hours.
         await page.goto('/dashboard?tab=availability');
         for (const day of ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']) {
-            await page.getByRole('button', { name: `Toggle ${day}` }).click();
+            await page.getByRole('switch', { name: `Open on ${day}` }).click();
         }
         const [hours] = await Promise.all([
             page.waitForResponse((r) => r.url().includes('/team/mine/availability') && r.request().method() === 'PUT'),
@@ -133,7 +133,7 @@ test.describe('A team member gets the owner\'s app', () => {
 
         const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
         if (tomorrow.getMonth() !== new Date().getMonth()) await modal.getByRole('button', { name: 'Next month' }).click();
-        await modal.getByRole('button', { name: String(tomorrow.getDate()), exact: true }).click();
+        await modal.getByRole('button', { name: tomorrow.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' }), exact: true }).click();
         await modal.getByRole('button', { name: '10:00', exact: true }).click();
 
         const [booked] = await Promise.all([

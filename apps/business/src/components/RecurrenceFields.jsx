@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useId, useState } from 'react';
 import MiniCalendar from './MiniCalendar';
 import { Select } from '@bookplus/ui';
 
@@ -19,16 +19,22 @@ const RecurrenceFields = ({ value, onChange, minDate }) => {
     const [custom, setCustom] = useState((recurrenceInterval || 1) > 1);
     const set = (patch) => onChange({ ...value, ...patch });
     const plural = recurrenceInterval > 1 ? 's' : '';
+    const uid = useId();
+    const titleId = `${uid}-title`, hintId = `${uid}-hint`, endsId = `${uid}-ends`, everyId = `${uid}-every`;
 
     return (
         <div>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem' }}>
                 <div>
-                    <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>Repeat this appointment</p>
-                    <p style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Book it as a recurring series</p>
+                    <p id={titleId} style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>Repeat this appointment</p>
+                    <p id={hintId} style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>Book it as a recurring series</p>
                 </div>
-                <button type="button" aria-pressed={isRecurring} onClick={() => set({ isRecurring: !isRecurring })} style={{ width: '46px', height: '26px', borderRadius: '99px', border: 'none', cursor: 'pointer', background: isRecurring ? 'var(--gold)' : '#d1d5db', position: 'relative', flexShrink: 0 }}>
-                    <span style={{ position: 'absolute', top: '3px', left: isRecurring ? '23px' : '3px', width: '20px', height: '20px', borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
+                {/* A real switch (WCAG 4.1.2): role, on/off state and a name. The off
+                    track is --border-input so the control holds 3:1 (1.4.11). */}
+                <button type="button" role="switch" aria-checked={!!isRecurring} aria-labelledby={titleId} aria-describedby={hintId}
+                    data-testid="recurrence-toggle"
+                    onClick={() => set({ isRecurring: !isRecurring })} style={{ width: '46px', height: '26px', borderRadius: '99px', border: 'none', cursor: 'pointer', background: isRecurring ? 'var(--gold)' : 'var(--border-input)', position: 'relative', flexShrink: 0 }}>
+                    <span aria-hidden="true" style={{ position: 'absolute', top: '3px', left: isRecurring ? '23px' : '3px', width: '20px', height: '20px', borderRadius: '50%', background: 'white', transition: 'left 0.2s' }} />
                 </button>
             </div>
 
@@ -36,15 +42,15 @@ const RecurrenceFields = ({ value, onChange, minDate }) => {
                 <div style={{ marginTop: '0.85rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
                         {[['daily', 'Daily'], ['weekly', 'Weekly'], ['monthly', 'Monthly']].map(([v, label]) => (
-                            <button key={v} type="button" onClick={() => { setCustom(false); set({ recurrenceType: v, recurrenceInterval: 1 }); }} style={pill(!custom && recurrenceType === v)}>{label}</button>
+                            <button key={v} type="button" onClick={() => { setCustom(false); set({ recurrenceType: v, recurrenceInterval: 1 }); }} aria-pressed={!custom && recurrenceType === v} style={pill(!custom && recurrenceType === v)}>{label}</button>
                         ))}
-                        <button type="button" onClick={() => { setCustom(true); set({ recurrenceInterval: Math.max(2, recurrenceInterval || 2) }); }} style={pill(custom)}>Custom</button>
+                        <button type="button" onClick={() => { setCustom(true); set({ recurrenceInterval: Math.max(2, recurrenceInterval || 2) }); }} aria-pressed={custom} style={pill(custom)}>Custom</button>
                     </div>
 
                     {custom && (
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                            <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}>Repeat every</span>
-                            <input type="number" min="1" max="52" value={recurrenceInterval}
+                            <label htmlFor={everyId} style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}>Repeat every</label>
+                            <input id={everyId} type="number" min="1" max="52" value={recurrenceInterval}
                                 onChange={(e) => set({ recurrenceInterval: Math.min(52, Math.max(1, parseInt(e.target.value, 10) || 1)) })}
                                 className="input" style={{ width: '72px', textAlign: 'center' }} />
                             <Select value={recurrenceType} onChange={(e) => set({ recurrenceType: e.target.value })} style={{ width: 'auto' }}
@@ -58,10 +64,10 @@ const RecurrenceFields = ({ value, onChange, minDate }) => {
                     )}
 
                     <div>
-                        <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>
+                        <div id={endsId} style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.05em', textTransform: 'uppercase', marginBottom: '0.4rem' }}>
                             Ends on <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional — defaults to 3 months)</span>
-                        </label>
-                        <MiniCalendar value={recurrenceEndDate} onChange={(ds) => set({ recurrenceEndDate: ds })} min={minDate} />
+                        </div>
+                        <MiniCalendar value={recurrenceEndDate} onChange={(ds) => set({ recurrenceEndDate: ds })} min={minDate} labelledBy={endsId} />
                     </div>
                 </div>
             )}

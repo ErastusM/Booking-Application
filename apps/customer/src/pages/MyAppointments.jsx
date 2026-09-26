@@ -455,12 +455,12 @@ const MyAppointments = () => {
                                                         </button>
                                                     )}
                                                     {active && (
-                                                        <a href={buildGCalUrl(a)} target="_blank" rel="noopener noreferrer" style={{ ...base, background: '#4285F4', border: '1px solid #4285F4', color: 'white' }}>
+                                                        <a href={buildGCalUrl(a)} target="_blank" rel="noopener noreferrer" style={{ ...base, background: '#1967d2', border: '1px solid #1967d2', color: 'white' }}>
                                                             <CalendarPlus size={15} strokeWidth={2} /> Google Calendar
                                                         </a>
                                                     )}
                                                     {!past && a.status !== 'cancelled' && a.status !== 'completed' && (
-                                                        <button onClick={() => handleCancel(a)} style={{ ...base, background: 'none', border: '1px solid #fca5a5', color: '#ef4444' }}>
+                                                        <button onClick={() => handleCancel(a)} style={{ ...base, background: 'none', border: '1px solid #fca5a5', color: 'var(--danger-fg)' }}>
                                                             <X size={15} strokeWidth={2} /> Cancel
                                                         </button>
                                                     )}
@@ -476,7 +476,7 @@ const MyAppointments = () => {
                                                         </button>
                                                     )}
                                                     {a.status === 'completed' && isReviewed && (
-                                                        <span style={{ fontSize: '0.8rem', color: 'var(--success)', fontWeight: '600', textAlign: 'center' }}>✓ Reviewed</span>
+                                                        <span style={{ fontSize: '0.8rem', color: 'var(--success-fg)', fontWeight: '600', textAlign: 'center' }}>✓ Reviewed</span>
                                                     )}
                                                     {a.status === 'completed' && (
                                                         <button onClick={() => navigate(`/book-appointment?providerId=${a.service?.provider?._id || a.service?.provider || ''}&serviceId=${a.service?._id || ''}`)} style={gold}>
@@ -570,7 +570,7 @@ const MyAppointments = () => {
                                     {msgModal.service?.name} · {apptLocalDate(msgModal.appointmentDate)?.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
                                 </p>
                             </div>
-                            <button onClick={() => setMsgModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.4rem', lineHeight: 1, padding: 0 }}>×</button>
+                            <button aria-label="Close" onClick={() => setMsgModal(null)} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.4rem', lineHeight: 1, padding: 0 }}>×</button>
                         </div>
 
                         {/* Thread */}
@@ -603,7 +603,7 @@ const MyAppointments = () => {
 
                         {/* Input */}
                         <form onSubmit={sendMsg} style={{ padding: '1rem 1.5rem', borderTop: '1px solid var(--border)', display: 'flex', gap: '0.75rem', flexShrink: 0 }}>
-                            <input
+                            <input aria-label="Message"
                                 value={msgText}
                                 onChange={e => setMsgText(e.target.value)}
                                 placeholder="Type a message…"
@@ -643,7 +643,7 @@ const MyAppointments = () => {
                             </button>
                             <button
                                 onClick={confirmCancel}
-                                style={{ padding: '0.9rem', background: 'none', border: '1.5px solid #fca5a5', color: '#dc2626', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: '600', fontFamily: 'var(--font-body)', transition: 'background 0.2s' }}
+                                style={{ padding: '0.9rem', background: 'none', border: '1.5px solid #fca5a5', color: 'var(--danger-fg)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.875rem', fontWeight: '600', fontFamily: 'var(--font-body)', transition: 'background 0.2s' }}
                                 onMouseEnter={e => e.currentTarget.style.background = 'rgba(239,68,68,0.12)'}
                                 onMouseLeave={e => e.currentTarget.style.background = 'none'}
                             >
