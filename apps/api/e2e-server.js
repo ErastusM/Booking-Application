@@ -20,6 +20,21 @@ delete process.env.EMAIL_USER;
 delete process.env.EMAIL_PASS;
 const PORT = process.env.PORT || 5050;
 
+// E2E outbox: record every email the API would send (name + args), so a spec
+// can open the REAL link an invite email carries. Wraps the exports before any
+// controller requires them; the original sender still runs (SMTP is off).
+const outbox = [];
+{
+    const svc = require('./src/utils/emailService');
+    for (const [name, fn] of Object.entries(svc)) {
+        if (typeof fn !== 'function' || !/^send/.test(name) || name === 'sendRaw') continue;
+        svc[name] = async (...args) => {
+            outbox.push({ at: new Date().toISOString(), fn: name, args: JSON.parse(JSON.stringify(args)) });
+            return fn(...args);
+        };
+    }
+}
+
 (async () => {
     const mem = await MongoMemoryServer.create();
     const uri = mem.getUri();
@@ -137,7 +152,32 @@ const PORT = process.env.PORT || 5050;
         customerId: customer._id.toString(),
     };
 
-    app.listen(PORT, () => {
+    // Test-only controls, on an outer app that exists ONLY in this e2e server
+    // (never in server.js): read the outbox, and move a member's invites back
+    // in time to exercise the resend throttle and 7-day expiry without waiting.
+    const express = require('express');
+    const outer = express();
+    outer.use('/__e2e', express.json());
+    outer.get('/__e2e/outbox', (req, res) => {
+        const to = String(req.query.to || '').toLowerCase();
+        res.json(outbox.filter((m) => !to || String(m.args[0] || '').toLowerCase() === to));
+    });
+    outer.post('/__e2e/invites/age', async (req, res) => {
+        const { email, ms = 0, expire = false } = req.body || {};
+        const u = await User.findOne({ email: String(email).toLowerCase(), role: 'staff' }).select('+staffInvites +inviteRequestLog');
+        if (!u) return res.status(404).json({ ok: false });
+        u.staffInvites = (u.staffInvites || []).map((e) => ({
+            ...e.toObject(),
+            sentAt: new Date(e.sentAt.getTime() - ms),
+            expiresAt: expire ? new Date(Date.now() - 1000) : e.expiresAt,
+        }));
+        if (u.inviteRequestLog) u.inviteRequestLog = u.inviteRequestLog.map((d) => new Date(d.getTime() - ms));
+        await u.save({ validateBeforeSave: false });
+        return res.json({ ok: true, count: u.staffInvites.length });
+    });
+    outer.use(app);
+
+    outer.listen(PORT, () => {
         // eslint-disable-next-line no-console
         console.log(`E2E API (in-memory Mongo) listening on ${PORT}`);
     });
