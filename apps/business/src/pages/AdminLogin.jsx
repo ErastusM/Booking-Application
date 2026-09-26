@@ -63,11 +63,17 @@ const AdminLogin = () => {
         color: 'var(--off-white)', fontSize: '0.95rem', fontFamily: 'var(--font-body)',
     };
 
+    // There is no navbar (or its dark status-bar backdrop) on this route, so the
+    // ink page runs up under the status bar itself: the negative margin takes back
+    // the safe-area inset <main> pads, and the padding keeps the content below it.
+    // Otherwise the installed app showed a light strip across the status bar.
     return (
         <div style={{
             minHeight: '100dvh', background: 'var(--ink)', color: 'var(--off-white)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             padding: '1.5rem', position: 'relative', overflow: 'hidden',
+            marginTop: 'calc(-1 * env(safe-area-inset-top, 0px))',
+            paddingTop: 'calc(1.5rem + env(safe-area-inset-top, 0px))',
         }}>
             {/* Ambient brand wash + a thin command-line grid, kept very subtle */}
             <div aria-hidden="true" style={{

@@ -30,7 +30,7 @@ const LegalPage = ({ doc, path }) => {
     }, [hash]);
 
     return (
-        <div className="container" style={{ paddingTop: 'clamp(4rem, 8vw, 7rem)', paddingBottom: '4rem', maxWidth: '820px' }}>
+        <div className="container" style={{ paddingTop: 'var(--page-pad-top)', paddingBottom: '4rem', maxWidth: '820px' }}>
             <LegalDocument
                 doc={doc}
                 company={COMPANY}

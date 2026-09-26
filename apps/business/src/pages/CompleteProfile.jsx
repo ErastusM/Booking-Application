@@ -60,7 +60,9 @@ const CompleteProfile = () => {
     const getInitials = (name) => name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?';
 
     return (
-        <div style={{ minHeight: '100dvh', background: 'var(--off-white)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
+        // Top-aligned under the navbar (index.css "Page spacing"); centred, the
+        // card floated mid-screen under a big empty band.
+        <div style={{ minHeight: 'var(--page-min-h)', background: 'var(--off-white)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 'var(--page-pad-top) 1rem 2rem' }}>
             <div style={{ width: '100%', maxWidth: '440px' }} className="fade-up">
                 <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-md)', overflow: 'hidden' }}>
                     <div style={{ height: '4px', background: 'linear-gradient(to right, var(--gold-dark), var(--gold-light))' }} />

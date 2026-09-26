@@ -41,11 +41,13 @@ const AccountDangerZone = () => {
         catch (e) { setError(e.response?.data?.message || 'Could not delete account'); setBusy(false); }
     };
 
-    const card = { background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.25rem 1.5rem', marginTop: '1.5rem' };
+    const card = { background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.25rem 1.5rem' };
     const h = { fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)', margin: '0 0 0.75rem' };
 
+    // The cards sit in the settings stack, which spaces its cards itself; a
+    // margin on each card as well doubled the gap before them.
     return (
-        <div>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-4)' }}>
             {/* Blocked users */}
             <div style={card}>
                 <h3 style={h}>Blocked users</h3>

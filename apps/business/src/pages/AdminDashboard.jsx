@@ -336,7 +336,7 @@ const AdminDashboard = () => {
     };
 
     if (loading) return (
-        <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ minHeight: 'var(--page-min-h)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ textAlign: 'center' }}>
                 <div style={{ width: '40px', height: '40px', border: '3px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 1rem' }} />
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem' }}>Loading dashboard...</p>
@@ -346,7 +346,7 @@ const AdminDashboard = () => {
     );
 
     return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+        <div style={{ background: 'var(--off-white)' }}>
 
             {/* Header */}
                 <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
@@ -360,7 +360,7 @@ const AdminDashboard = () => {
                 </div>
             </div>
 
-            <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
+            <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: 'var(--page-pad-bottom)' }}>
 
                 <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: '1.5rem' }}>
                     <a href="/bkplus-command/insights" style={{

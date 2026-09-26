@@ -436,11 +436,15 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
   /* Tighter header on mobile */
 
   .auth-left { display: none !important; }
+  /* One column on phones: the form starts just under the top bar. Centred in a
+     full-height column it floated mid-screen under a big empty band. */
   .auth-right {
     grid-column: 1 / -1 !important;
-    padding: 5rem 1.25rem 2rem !important;
+    align-items: flex-start !important;
+    padding: var(--page-pad-top) 1.25rem 2rem !important;
     width: 100% !important;
   }
+  .auth-right.auth-right-bare { padding-top: var(--space-8) !important; }
 
   .booking-grid { grid-template-columns: 1fr !important; }
   .booking-summary { display: none !important; }
@@ -467,6 +471,9 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
   .messages-grid.has-selection .messages-list { display: none !important; }
   .messages-grid.has-selection .messages-thread { display: flex !important; }
   .messages-back { display: inline-flex !important; }
+  /* Single pane: the 560px min-height is for the desktop two-pane layout; on a
+     phone it stretched a short conversation list into a mostly empty card. */
+  .messages-grid { min-height: 0 !important; }
 
   /* Appointment cards: stack to 2 cols then full width for actions */
   .appt-row { grid-template-columns: 1fr 1fr !important; gap: 0.75rem !important; padding: 1.25rem !important; }
@@ -533,8 +540,7 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
   /* Tab strip smaller text */
   .tab-strip button { padding: 0.65rem 0.85rem !important; font-size: 0.8rem !important; }
 
-  /* Extra bottom padding so content clears the bottom nav bar */
-  body { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+  /* Room for the bottom nav: body.has-bottom-nav, next to the .nav-mobile rules. */
 
   /* Booking page mobile sticky bar — sits just above the floating bottom nav
      (~88px incl. safe area) so the nav (z 999) never overlaps the Continue button. */
@@ -1179,6 +1185,27 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
 :root { --page-hero-pad-top: calc(56px + 2.25rem); }
 @media (max-width: 768px) { :root { --page-hero-pad-top: calc(56px + 1.1rem); } }
 
+/* Page spacing — ONE rule for every screen under the fixed top bar, so tabs and
+   pages can't drift apart again.
+   The bar is 56px + the status-bar inset, and <main class="route-view"> already
+   pads the inset (App.jsx), so a page's own top padding is the bar's 56px plus a
+   --space-3 gap and NEVER env(safe-area-inset-top) again: adding it twice left an
+   empty band the height of the inset (58pt on the owner's iPhone) above the first
+   card of every dashboard tab.
+   --page-sticky-top is for position: sticky panels, which are measured from the
+   viewport and so DO include the inset once.
+   --page-pad-bottom is the room under the last card; where the bottom nav floats
+   over content the body already reserves that room (body.has-bottom-nav, 0 here).
+   --page-min-h is a full screen less what <main> (and the body, with the bottom
+   nav) already add, for a page that must fill the screen: a 100dvh page inside
+   them was always taller than the screen, so even a short page scrolled. */
+:root {
+  --page-pad-top: calc(56px + var(--space-3));
+  --page-sticky-top: calc(56px + env(safe-area-inset-top, 0px) + var(--space-3));
+  --page-pad-bottom: var(--space-6);
+  --page-min-h: calc(100dvh - env(safe-area-inset-top, 0px));
+}
+
 /* Desktop nav links — pill hover/active */
 .nav-pill {
   position: relative; text-decoration: none; font-size: 0.9rem; font-weight: 500;
@@ -1200,13 +1227,25 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
   .nav-desktop { display: none !important; }
   .nav-mobile { display: flex !important; }
 }
-/* The provider bottom-nav (nav-mobile) now floats over content up to 1023.98px,
-   so the body must reserve space for it across that whole band — not just the
-   app-global ≤768px block (line ~467, which still covers phones). Disjoint ranges,
-   so no duplicate declaration. */
-@media (min-width: 769px) and (max-width: 1023.98px) {
-  body { padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px)); }
+/* The bottom nav (nav-mobile) floats over content up to 1023.98px, so the body
+   reserves room for it across that whole band. Only while it is actually shown:
+   Navbar tags <body> with .has-bottom-nav for the business suite (a class, not
+   :has(), which did not apply on iOS Safari). Admin and signed-out pages have no
+   bottom nav, so they no longer get ~96px of blank under their last card. The
+   96px is the nav plus its raised "+" (~59px) and ~37px of air above the "+", so
+   pages add no bottom padding of their own on top of it (--page-pad-bottom: 0). */
+@media (max-width: 1023.98px) {
+  body.has-bottom-nav {
+    padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
+    --page-pad-bottom: 0px;
+    --page-min-h: calc(100dvh - env(safe-area-inset-top, 0px) - 96px - env(safe-area-inset-bottom, 0px));
+  }
 }
+/* The full-screen calendar frame stops above the bottom nav — only where there is
+   one. At >= 1024px the nav is hidden, so the frame runs to the bottom edge
+   instead of leaving a 52px empty strip under the grid. */
+.cal-frame { bottom: calc(52px + env(safe-area-inset-bottom, 0px)); }
+@media (min-width: 1024px) { .cal-frame { bottom: 0; } }
 /* The cross-app "Customer site" pill duplicates the dropdown's "Go to customer
    site", so it is dropped on tighter desktop widths to keep the bar breathing. */
 @media (max-width: 1120px) { .nav-cross-app { display: none !important; } }

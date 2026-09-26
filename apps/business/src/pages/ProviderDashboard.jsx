@@ -582,11 +582,16 @@ const ProviderDashboard = () => {
     const writesInFlight = useRef(0);
     const apptEpoch = useRef(0);
 
+    // Set once the first fetch settles. "No bookings yet" is not "loading": keyed
+    // on appointments.length, every 25s live refresh of an empty calendar re-showed
+    // the loading row and the page jumped ~50px.
+    const apptsLoadedOnce = useRef(false);
+
     const fetchAppointments = async ({ force = false } = {}) => {
         if (writesInFlight.current > 0 && !force) return;
         const epoch = apptEpoch.current;
         // Don't block the whole page — only set loading on first load
-        if (appointments.length === 0) setLoading(true);
+        if (!apptsLoadedOnce.current) setLoading(true);
         try {
             // `all` = no pagination gaps within the window; `from` caps how far
             // back we pull. All future bookings are always included (no upper
@@ -599,6 +604,7 @@ const ProviderDashboard = () => {
         } catch {
             setError('Failed to load appointments');
         } finally {
+            apptsLoadedOnce.current = true;
             setLoading(false);
         }
     };
@@ -1943,7 +1949,10 @@ const ProviderDashboard = () => {
     const serviceOptions = apptServices.map(s => ({ value: s._id, label: `${s.name} (${formatDuration(s.duration)})` }));
 
     return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+        // No min-height here: html and body already paint --off-white in both themes,
+        // and a 100dvh wrapper on top of <main>'s inset and the body's bottom-nav
+        // room made every short tab scroll into empty grey.
+        <div style={{ background: 'var(--off-white)' }}>
             {showWizard && (
                 <Suspense fallback={null}>
                     <OnboardingWizard
@@ -1957,21 +1966,25 @@ const ProviderDashboard = () => {
             )}
 
             {/* Greeting hero removed — the calendar now leads. The container below is
-                the top of the page, so it carries the clearance for the fixed navbar
-                (56px + safe-area) that the hero's page-hero-pad-top used to provide.
-                The calendar tab keeps this tight so the grid starts high; other tabs
-                read fine with the same offset. */}
-            <div className="container" style={{ paddingTop: 'calc(56px + env(safe-area-inset-top, 0px) + 0.75rem)', paddingBottom: '5rem' }}>
+                the top of the page, so it clears the fixed navbar: --page-pad-top is
+                the bar's 56px plus a --space-3 gap. <main> already pads the status-bar
+                inset, so it is NOT added again here (twice left an empty band the
+                height of the inset above every tab on an iPhone). --page-pad-bottom is
+                0 where the body already keeps room for the bottom nav (index.css). */}
+            <div className="container" style={{ paddingTop: 'var(--page-pad-top)', paddingBottom: 'var(--page-pad-bottom)' }}>
 
-                <EnablePushBanner />
-                <SetupChecklistNudge />
+                {/* The calendar is a fixed full-screen frame over the page, so these
+                    would only take up hidden space underneath it. */}
+                {activeTab !== 'calendar' && <EnablePushBanner />}
+                {activeTab !== 'calendar' && <SetupChecklistNudge />}
 
                 {error && (
                     <div role="alert" style={{ background: 'var(--danger-bg)', border: '1px solid #fca5a5', color: 'var(--danger-fg)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
                         {error}
                     </div>
                 )}
-                {loading && (
+                {/* Only on the lists it is about, so it never pushes another tab down. */}
+                {loading && appointmentTabs.includes(activeTab) && (
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 0', marginBottom: '1rem' }}>
                         <div style={{ width: '16px', height: '16px', border: '2px solid var(--border)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />
                         <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Loading appointments...</span>
@@ -2994,7 +3007,7 @@ const ProviderDashboard = () => {
 
                 {/* Calendar tab */}
                 {activeTab === 'calendar' && (
-                    <div style={{ position: 'fixed', top: 'calc(56px + env(safe-area-inset-top, 0px))', left: 0, right: 0, bottom: 'calc(52px + env(safe-area-inset-bottom, 0px))', display: 'flex', flexDirection: 'column', background: 'var(--card-bg)', zIndex: 20 }}>
+                    <div className="cal-frame" style={{ position: 'fixed', top: 'calc(56px + env(safe-area-inset-top, 0px))', left: 0, right: 0, display: 'flex', flexDirection: 'column', background: 'var(--card-bg)', zIndex: 20 }}>
                         {/* Full-screen, pinned calendar: fixed between the top navbar and the
                             bottom nav so the page itself never scrolls (only the grid body does).
                             The view switcher lives in the calendar header (one control strip);
@@ -3357,7 +3370,7 @@ const ProviderDashboard = () => {
                         </div>
                     )}
                     {selectedClient && clientDetail && (
-                        <div className="client-detail-panel" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', position: 'sticky', top: 'calc(100px + env(safe-area-inset-top, 0px))' }}>
+                        <div className="client-detail-panel" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', position: 'sticky', top: 'var(--page-sticky-top)' }}>
                             <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <h3 ref={clientDetailTitleRef} tabIndex={-1} className="client-detail-title" style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>{selectedClient.customer?.name}</h3>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
