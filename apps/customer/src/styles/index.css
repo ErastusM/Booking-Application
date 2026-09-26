@@ -360,7 +360,9 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
     right: 0;
     background: white;
     border-top: 1px solid var(--border);
-    padding: 0.875rem 1.25rem;
+    /* Clear the home indicator here too (an iPad has one); the phone block
+       below repeats it. Without it the Continue button ran into the inset. */
+    padding: 0.875rem 1.25rem calc(0.875rem + env(safe-area-inset-bottom, 0px));
     justify-content: space-between;
     align-items: center;
     z-index: 100;
@@ -369,7 +371,7 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
   /* Tablet (769–900px): no bottom nav at this width, so the bar sits at bottom:0 —
      lift the "back to top" button clear of it and move it to the LEFT so it never
      overlaps the Continue/Confirm button on the right of the bar. */
-  .scroll-top-fab { bottom: 84px; left: 16px; right: auto; }
+  .scroll-top-fab { bottom: calc(84px + env(safe-area-inset-bottom, 0px)); left: 16px; right: auto; }
 }
 
 /* Appointment block visuals */
