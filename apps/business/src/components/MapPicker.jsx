@@ -1,6 +1,6 @@
 import React from 'react';
 import { GoogleMap, Marker, useJsApiLoader } from '@react-google-maps/api';
-import { Crosshair } from 'lucide-react';
+import { Crosshair, MapPin } from 'lucide-react';
 
 export const MAPS_KEY = import.meta.env.VITE_GOOGLE_MAPS_API_KEY;
 
@@ -46,7 +46,7 @@ export const reverseGeocode = async (lat, lng) => {
 
 // Draggable Google-Maps pin. Isolated so its useJsApiLoader hook only runs when a
 // key is configured (callers render a text fallback when MAPS_KEY is absent).
-const MapPicker = ({ coordinates, onPick, height = 240 }) => {
+export const MapCanvas = ({ coordinates, onPick, height = 240 }) => {
     const { isLoaded, loadError } = useJsApiLoader({ id: 'gmaps', googleMapsApiKey: MAPS_KEY });
     const hasPin = coordinates && coordinates.lat != null;
     const center = hasPin ? coordinates : DEFAULT_CENTER;
@@ -99,6 +99,23 @@ const MapPicker = ({ coordinates, onPick, height = 240 }) => {
             >
                 <Crosshair size={14} /> My location
             </button>
+        </div>
+    );
+};
+
+// Tap-to-load gate. Loading the Google Maps script sends the visitor's IP and
+// browser details to Google, so nothing is fetched from Google until the owner
+// taps "Show map" — the address field and "Use current location" work without it.
+const MapPicker = (props) => {
+    const [show, setShow] = React.useState(false);
+    const height = props.height || 240;
+    if (show) return <MapCanvas {...props} />;
+    return (
+        <div style={{ height, borderRadius: 'var(--radius)', background: 'var(--surface-sunken)', border: '1px dashed var(--border)', display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '1rem', textAlign: 'center' }}>
+            <button type="button" className="btn-outline" onClick={() => setShow(true)} data-testid="show-map" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.55rem 1rem', fontSize: '0.85rem' }}>
+                <MapPin size={15} /> {props.coordinates && props.coordinates.lat != null ? 'Show map to move your pin' : 'Show map to drop a pin'}
+            </button>
+            <p style={{ margin: 0, fontSize: '0.75rem', color: 'var(--text-muted)' }}>Loads Google Maps (Google receives your IP address).</p>
         </div>
     );
 };

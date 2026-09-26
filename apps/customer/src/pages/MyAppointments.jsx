@@ -74,6 +74,7 @@ const MyAppointments = () => {
     const [loadingMsgs, setLoadingMsgs] = useState(false);
     const [sendingMsg, setSendingMsg] = useState(false);
     const [gettingThere, setGettingThere] = useState(null); // appointment id whose map is expanded
+    const [mapShownFor, setMapShownFor] = useState(null); // Google Maps embed: tap to load
     const [copiedRef, setCopiedRef] = useState(null);        // booking ref just copied
     const msgEndRef = React.useRef(null);
 
@@ -534,13 +535,21 @@ const MyAppointments = () => {
                                                     <div style={{ marginTop: '1rem', animation: 'slideUp var(--dur) var(--ease-out)' }}>
                                                         {bizName && <p style={{ fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.9rem', margin: '0 0 0.2rem', fontFamily: 'var(--font-body)' }}>{bizName}</p>}
                                                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem', margin: '0 0 0.75rem', fontFamily: 'var(--font-body)', lineHeight: 1.5 }}>{address}</p>
-                                                        <iframe
-                                                            title={`Map to ${bizName || 'appointment location'}`}
-                                                            src={`https://maps.google.com/maps?q=${encodeURIComponent(address)}&z=15&output=embed`}
-                                                            loading="lazy"
-                                                            referrerPolicy="no-referrer-when-downgrade"
-                                                            style={{ width: '100%', height: '200px', border: 0, borderRadius: 'var(--radius-sm)', display: 'block' }}
-                                                        />
+                                                        {/* The embed loads Google Maps (Google sees the visitor's IP),
+                                                            so it appears only after an explicit tap. */}
+                                                        {mapShownFor === a._id ? (
+                                                            <iframe
+                                                                title={`Map to ${bizName || 'appointment location'}`}
+                                                                src={`https://maps.google.com/maps?q=${encodeURIComponent(address)}&z=15&output=embed`}
+                                                                loading="lazy"
+                                                                referrerPolicy="strict-origin-when-cross-origin"
+                                                                style={{ width: '100%', height: '200px', border: 0, borderRadius: 'var(--radius-sm)', display: 'block' }}
+                                                            />
+                                                        ) : (
+                                                            <button type="button" onClick={() => setMapShownFor(a._id)} className="btn-outline" data-testid="show-map" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.5rem 0.9rem', fontSize: '0.82rem' }}>
+                                                                <MapPin size={14} /> Show map <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>(loads Google Maps)</span>
+                                                            </button>
+                                                        )}
                                                         <a href={mapsUrl(address)} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', minHeight: '44px', marginTop: '0.5rem', color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.85rem', textDecoration: 'none', fontFamily: 'var(--font-body)' }}>
                                                             Get directions →
                                                         </a>

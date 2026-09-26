@@ -8,8 +8,9 @@ import { cloudinaryAvatar } from '../utils/cloudinary';
 import PushToggle from '../components/PushToggle';
 import MarketingEmailsToggle from '../components/MarketingEmailsToggle';
 import AccountDangerZone from '../components/AccountDangerZone';
-import { User, Lock, Bell, Globe, Info, Sun, Moon, Calendar, HelpCircle, ChevronRight, LogOut } from 'lucide-react';
+import { User, Lock, Bell, Globe, Info, Sun, Moon, Calendar, HelpCircle, ChevronRight, LogOut, Cookie } from 'lucide-react';
 import { Field } from '@bookplus/ui';
+import { openConsentSettings } from '@bookplus/api-client';
 
 // ── Shared bits for the settings list ──────────────────────────────────────
 const iconTileStyle = {
@@ -258,6 +259,7 @@ const Profile = () => {
                 <Card>
                     <SettingRow icon={Info} label="About Us" onClick={() => navigate('/about')} />
                     <SettingRow icon={darkMode ? Moon : Sun} label="Theme" value={darkMode ? 'Dark' : 'Light'} onClick={toggleDarkMode} />
+                    <SettingRow icon={Cookie} label="Cookie settings" onClick={openConsentSettings} />
                     <SettingRow icon={Calendar} label="Appointments" onClick={() => navigate('/appointments')} isLast />
                 </Card>
 

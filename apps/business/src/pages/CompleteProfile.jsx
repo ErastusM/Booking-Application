@@ -147,7 +147,7 @@ const CompleteProfile = () => {
                         </form>
 
                         <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
-                            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="16" alt="" />
+                            <img src="/google-g.svg" width="16" alt="" />
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Signed in as {user?.email}</span>
                         </div>
                     </div>

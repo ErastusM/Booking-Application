@@ -8,6 +8,7 @@ import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppUpdater from './components/AppUpdater';
 import SignupSurveyModal, { shouldShowSignupSurvey } from './components/SignupSurveyModal';
+import CookieBanner from './components/CookieBanner';
 import client, { track } from './services/client';
 import Login from './pages/Login';
 
@@ -175,6 +176,8 @@ export default function App() {
                         <AppChrome />
                         <AppRoutes />
                         <SignupSurveyGate />
+                        {/* Analytics runs only after "Accept analytics" here. */}
+                        <CookieBanner />
                     </ConfirmProvider>
                 </ToastProvider>
             </AuthProvider>

@@ -295,7 +295,7 @@ const Register = () => {
                                 onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
                             >
                                 <img
-                                    src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                                    src="/google-g.svg"
                                     width="20"
                                     alt=""
                                 />

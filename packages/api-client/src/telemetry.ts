@@ -1,11 +1,16 @@
 import { AxiosInstance } from 'axios';
 import { routeTemplate } from './redact';
+import { ANALYTICS_ID_KEY, hasAnalyticsConsent, onConsentChange } from './consent';
 
 // Tiny client-side product-analytics buffer. track(name, props) queues an event;
 // the queue flushes to POST /api/events on an interval, when it fills, and on tab
 // hide/close (via sendBeacon so the last events survive navigation). Anonymous
 // per-tab sessionId stitches the funnel; a logged-in flush is attributed to the
 // user server-side. Fire-and-forget everywhere — analytics must never break UX.
+//
+// CONSENT-GATED (consent.ts): nothing is queued, sent or stored — not even the
+// bp_sid id — until the visitor taps "Accept analytics". Withdrawing consent
+// drops anything queued and deletes bp_sid.
 
 type Props = Record<string, unknown>;
 interface QueuedEvent { name: string; props?: Props; path?: string; t: number }
@@ -15,13 +20,14 @@ export interface Telemetry {
     flush: () => void;
 }
 
-const SID_KEY = 'bp_sid';
+const SID_KEY = ANALYTICS_ID_KEY;
 const MAX_BATCH = 15;
 const FLUSH_MS = 12000;
 
 const noop: Telemetry = { track: () => {}, flush: () => {} };
 
 function sessionId(): string {
+    if (!hasAnalyticsConsent()) return 'anon';
     try {
         const existing = localStorage.getItem(SID_KEY);
         if (existing) return existing;
@@ -66,6 +72,7 @@ export function createTelemetry(api: AxiosInstance, apiBase: string, app: 'custo
 
     const flush = (useBeacon = false) => {
         if (!queue.length) return;
+        if (!hasAnalyticsConsent()) { queue = []; return; }
         const events = queue;
         queue = [];
         if (timer) { clearTimeout(timer); timer = null; }
@@ -81,6 +88,7 @@ export function createTelemetry(api: AxiosInstance, apiBase: string, app: 'custo
 
     const track = (name: string, props?: Props) => {
         if (!name) return;
+        if (!hasAnalyticsConsent()) return; // no consent → no event, no id
         try {
             // Route template only (/manage/:token), never the raw path or query:
             // a guest's manage link IS their booking credential.
@@ -91,6 +99,13 @@ export function createTelemetry(api: AxiosInstance, apiBase: string, app: 'custo
             /* never throw from tracking */
         }
     };
+
+    // Consent withdrawn: forget what is queued (consent.ts already deleted bp_sid).
+    onConsentChange((c) => {
+        if (c && c.analytics) return;
+        queue = [];
+        if (timer) { clearTimeout(timer); timer = null; }
+    });
 
     // Beacon-flush when the tab is hidden or unloaded so trailing events aren't lost.
     document.addEventListener('visibilitychange', () => {

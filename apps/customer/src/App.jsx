@@ -9,6 +9,7 @@ import Footer from './components/Footer';
 import AppUpdater from './components/AppUpdater';
 import WaitlistCelebration from './components/WaitlistCelebration';
 import SignupSurveyModal from './components/SignupSurveyModal';
+import CookieBanner from './components/CookieBanner';
 import ProtectedRoute from './components/ProtectedRoute';
 import { track } from './services/client';
 import Home from './pages/Home';
@@ -174,6 +175,8 @@ function App() {
                         <Navbar />
                         <AppRoutes />
                         <FooterGate />
+                        {/* Analytics runs only after "Accept analytics" here. */}
+                        <CookieBanner />
                     </ConfirmProvider>
                 </ToastProvider>
             </AuthProvider>
