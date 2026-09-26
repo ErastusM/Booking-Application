@@ -1,6 +1,7 @@
 import React, { useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { authService } from '../services';
+import { MIN_SIGNUP_AGE } from '@bookplus/api-client';
 import MAIN_CATEGORIES from '../constants/mainCategories';
 import { API_BASE } from '../services/api';
 import { MailCheck, Check } from 'lucide-react';
@@ -30,6 +31,7 @@ const Register = () => {
     const [passwordFocused, setPasswordFocused] = useState(false);
     const [resendMsg, setResendMsg] = useState('');
     const [consented, setConsented] = useState(false);
+    const [ageConfirmed, setAgeConfirmed] = useState(false); // enforced by the API too
     // The category picker has no native `required` bubble: once a submit has
     // been tried, an empty category shows the red border next to the error, and
     // focus goes to the picker (as the browser's bubble would have taken it).
@@ -76,12 +78,18 @@ const Register = () => {
             setError('Please agree to the Terms of Service and Privacy Policy to continue');
             return;
         }
+        if (!ageConfirmed) {
+            setError(`Please confirm you are ${MIN_SIGNUP_AGE} or older`);
+            return;
+        }
         setLoading(true);
         setError('');
         try {
             await authService.register({
                 ...formData,
                 role: 'provider',
+                termsAccepted: true,
+                ageConfirmed: true,
                 providerCategory: formData.providerCategory === 'Other'
                     ? customCategory.trim()
                     : formData.providerCategory,
@@ -317,9 +325,21 @@ const Register = () => {
                                 </span>
                             </label>
 
+                            <label htmlFor="register-age" style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5, cursor: 'pointer' }}>
+                                <input
+                                    id="register-age"
+                                    type="checkbox"
+                                    checked={ageConfirmed}
+                                    onChange={e => setAgeConfirmed(e.target.checked)}
+                                    data-testid="register-age"
+                                    style={{ marginTop: '0.15rem', width: '16px', height: '16px', flexShrink: 0, accentColor: 'var(--gold)', cursor: 'pointer' }}
+                                />
+                                <span>I am {MIN_SIGNUP_AGE} or older.</span>
+                            </label>
+
                             <button
                                 type="submit"
-                                disabled={loading || !passwordValid || !consented}
+                                disabled={loading || !passwordValid || !consented || !ageConfirmed}
                                 className="btn-primary"
                                 style={{ width: '100%', marginTop: '0.5rem', padding: '0.875rem' }}
                             >
@@ -358,7 +378,7 @@ const Register = () => {
                                 onMouseLeave={e => e.currentTarget.style.borderColor = 'var(--border)'}
                             >
                                 <img
-                                    src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
+                                    src="/google-g.svg"
                                     width="20"
                                     alt=""
                                 />

@@ -58,6 +58,9 @@ const sendViaResend = async (mailOptions) => {
             html: mailOptions.html,
             text: mailOptions.text,
             ...(mailOptions.replyTo ? { reply_to: mailOptions.replyTo } : {}),
+            // Custom headers (e.g. List-Unsubscribe on marketing email). nodemailer
+            // sends mailOptions.headers itself; Resend takes them in the body.
+            ...(mailOptions.headers ? { headers: mailOptions.headers } : {}),
             ...(mailOptions.attachments?.length ? {
                 attachments: mailOptions.attachments.map((a) => ({
                     filename: a.filename,
@@ -194,7 +197,15 @@ const detailsCard = (rows, totalRow) => `
 // rendered as live markup inside a Bookplus-branded confirmation mail sent to that
 // provider's own customers: a phishing vector laundered through our sending domain.
 // Escaping at the single choke point means a new template cannot reintroduce it.
-const shell = ({ heading, headingAccent, inner, preheader }) => `
+// Footer lines. Booking email keeps the long-standing line; account email
+// (verify, welcome, password, invites) says what it is about; MARKETING email
+// says why the person gets it and carries the one-click unsubscribe link.
+const FOOTER_BOOKING = 'Sent to keep you updated about your bookings.';
+const FOOTER_ACCOUNT = 'Sent about your Bookplus account.';
+const footerMarketing = (unsubscribeUrl) =>
+    `You’re getting this because you asked Bookplus for offers and rebooking reminders. <a href="${unsubscribeUrl}" style="color:${C.muted};text-decoration:underline;">Unsubscribe</a> in one click.`;
+
+const shell = ({ heading, headingAccent, inner, preheader, footer = FOOTER_BOOKING }) => `
 <!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="color-scheme" content="light"></head>
 <body style="margin:0;padding:0;background:${C.canvas};">
   ${preheader ? `<div style="display:none;max-height:0;overflow:hidden;opacity:0;">${escapeHtml(preheader)}</div>` : ''}
@@ -209,7 +220,7 @@ const shell = ({ heading, headingAccent, inner, preheader }) => `
           ${inner}
         </td></tr>
         <tr><td align="center" style="padding:22px 12px;font-family:${FONT};">
-          <p style="margin:0;color:${C.muted};font-size:12px;">© ${new Date().getFullYear()} Bookplus · Sent to keep you updated about your bookings.</p>
+          <p style="margin:0;color:${C.muted};font-size:12px;">© ${new Date().getFullYear()} Bookplus · ${footer}</p>
         </td></tr>
       </table>
     </td></tr>
@@ -239,6 +250,7 @@ exports.sendVerificationEmail = async (email, name, token, role) => {
             ? 'Verify your email to list your business on Bookplus'
             : 'Verify your Bookplus account',
         html: shell({
+            footer: FOOTER_ACCOUNT,
             heading: isProvider
                 ? `Hi ${escapeHtml(name)}, one step to go`
                 : `Hi ${escapeHtml(name)}, please verify your email`,
@@ -262,6 +274,7 @@ exports.sendWelcomeEmail = async (email, name, role) => {
         from: FROM, to: email,
         subject: isProvider ? 'Your business account is ready' : 'Welcome to Bookplus',
         html: shell({
+            footer: FOOTER_ACCOUNT,
             heading: isProvider ? "You’re verified," : "You’re all set,",
             headingAccent: escapeHtml(name),
             preheader: isProvider
@@ -421,13 +434,26 @@ exports.sendReminder1h = async (email, name, serviceName, time, extras = {}) => 
     });
 };
 
-exports.sendRebookingPrompt = async (email, name, serviceName, providerName, providerId) => {
+// PROMOTIONAL — the only marketing email Bookplus sends. Callers must pass the
+// recipient's unsubscribe token (utils/marketing.marketingRecipientFor decides
+// who may receive it at all); without one it is not sent. Carries a one-click
+// unsubscribe link in the footer plus List-Unsubscribe / List-Unsubscribe-Post
+// (RFC 8058) so mail apps show their own unsubscribe button.
+exports.sendRebookingPrompt = async (email, name, serviceName, providerName, providerId, { unsubscribeToken } = {}) => {
+    if (!unsubscribeToken) return { skipped: true };
     const href = `${primaryOrigin() || '#'}/book-appointment?providerId=${providerId || ''}`;
-    await safeSend({
+    const unsubscribeUrl = `${primaryOrigin() || ''}/unsubscribe/${unsubscribeToken}`;
+    const oneClickUrl = `${process.env.SERVER_URL || ''}/api/marketing/unsubscribe/${unsubscribeToken}`;
+    return safeSend({
         from: FROM, to: email, subject: `Time for another ${quoted(serviceName)} appointment?`,
+        headers: {
+            'List-Unsubscribe': `<${oneClickUrl}>`,
+            'List-Unsubscribe-Post': 'List-Unsubscribe=One-Click',
+        },
         html: shell({
             heading: `Hi ${escapeHtml(name)}, ready for your next visit?`,
             preheader: `Rebook ${servicePhrase(serviceName)} with ${providerName}`,
+            footer: footerMarketing(unsubscribeUrl),
             inner: `${p(`It’s been a little while since your <strong>${escapeHtml(serviceName)}</strong> with ${escapeHtml(providerName)}. Book your next appointment in a couple of taps.`)}
                 <div style="margin:24px 0;">${primaryButton(href, 'Book again')}</div>`,
         }),
@@ -442,6 +468,7 @@ exports.sendGiftCard = async (email, { recipientName, fromName, businessName, am
     await safeSend({
         from: FROM, to: email, subject: `${fromName ? `${fromName} sent you` : 'You have'} a ${amountLabel} gift card for ${businessName}`,
         html: shell({
+            footer: 'Sent because a business on Bookplus sold a gift card for you.',
             heading: `${escapeHtml(recipientName)}, you've got a gift card`,
             preheader: `${amountLabel} to spend at ${businessName}`,
             inner: `${p(`${from} <strong>${escapeHtml(amountLabel)}</strong> to spend at <strong>${escapeHtml(businessName)}</strong>.`)}
@@ -463,6 +490,7 @@ exports.sendPasswordResetEmail = async (email, name, token, role) => {
     await safeSend({
         from: FROM, to: email, subject: 'Reset your Bookplus password',
         html: shell({
+            footer: FOOTER_ACCOUNT,
             heading: `Hi ${escapeHtml(name)}, reset your password`,
             preheader: 'Reset your Bookplus password.',
             inner: `${p('We received a request to reset your password. Click below to choose a new one.')}
@@ -483,6 +511,7 @@ exports.sendStaffInviteEmail = async (email, name, businessName, token) => {
     return safeSend({
         from: FROM, to: email, subject: `You’ve been invited to join ${businessName} on Bookplus`,
         html: shell({
+            footer: FOOTER_ACCOUNT,
             heading: `Hi ${escapeHtml(name)}, you’re invited`,
             preheader: `Join ${businessName} on Bookplus.`,
             inner: `${p(`${escapeHtml(businessName)} added you to their team on Bookplus. Accept your invite to set a password and go straight to your calendar.`)}
@@ -504,6 +533,7 @@ exports.sendStaffInviteOwnerReceipt = async (ownerEmail, memberName, memberEmail
     return safeSend({
         from: FROM, to: ownerEmail, subject: `Invite sent to ${memberName}`,
         html: shell({
+            footer: FOOTER_ACCOUNT,
             heading: `Team invite sent`,
             preheader: byMember ? `${memberName} asked for a new invite link to ${businessName}.` : `You invited ${memberName} to ${businessName}.`,
             inner: `${p(byMember

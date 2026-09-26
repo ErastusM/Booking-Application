@@ -4,9 +4,21 @@ import {
 } from './http';
 import { makeServices, BookplusServices } from './services';
 import { createTelemetry, Telemetry } from './telemetry';
+import { scrubUrl, scrubText, scrubPath, routeTemplate } from './redact';
+import {
+    CONSENT_KEY, ANALYTICS_ID_KEY, CONSENT_CHANGE_EVENT, CONSENT_OPEN_EVENT, MIN_SIGNUP_AGE,
+    getConsent, setConsent, hasAnalyticsConsent, openConsentSettings, onConsentChange,
+} from './consent';
+import type { ConsentChoice } from './consent';
 
 export type { AccountType, ApiClientOptions, BookplusServices, Telemetry };
 export { inferApiBase, bootstrapSession, createTelemetry, forceLogout, isPublicTokenPath, PUBLIC_TOKEN_PATHS };
+export { scrubUrl, scrubText, scrubPath, routeTemplate };
+export {
+    CONSENT_KEY, ANALYTICS_ID_KEY, CONSENT_CHANGE_EVENT, CONSENT_OPEN_EVENT, MIN_SIGNUP_AGE,
+    getConsent, setConsent, hasAnalyticsConsent, openConsentSettings, onConsentChange,
+};
+export type { ConsentChoice };
 
 export const createBookplusClient = (options: ApiClientOptions = {}) => {
     const apiBase = inferApiBase(options.apiUrl);

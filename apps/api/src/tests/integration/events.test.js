@@ -14,6 +14,20 @@ afterEach(() => testDb.clearDatabase());
 afterAll(() => testDb.closeDatabase());
 
 describe('POST /api/events (ingestion)', () => {
+    test('never stores a guest manage token or a query string (route templates only)', async () => {
+        const res = await request(app).post('/api/events').send({
+            app: 'customer', sessionId: 'sess-tok',
+            events: [
+                { name: 'page_view', path: '/manage/0b8a3c1e-2f4d-4c6a-9e7b-1a2b3c4d5e6f' },
+                { name: 'page_view', path: '/reset-password?token=SECRETVALUE' },
+                { name: 'page_view', path: '/manage/SECRETVALUE/cancel' },
+            ],
+        });
+        expect(res.status).toBe(204);
+        const paths = (await Event.find({ sessionId: 'sess-tok' })).map((e) => e.path).sort();
+        expect(paths).toEqual(['/manage/:token', '/manage/:token/cancel', '/reset-password']);
+    });
+
     test('accepts a batch anonymously and stores the events', async () => {
         const res = await request(app).post('/api/events').send({
             app: 'customer',

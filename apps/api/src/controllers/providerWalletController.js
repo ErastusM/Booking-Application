@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
-const { safeHttpUrl } = require('../utils/helpers');
+const cloudinary = require('../utils/cloudinary');
+const logger = require('pino')({ level: process.env.LOG_LEVEL || 'info' });
 const ProviderWallet = require('../models/ProviderWallet');
 const ProviderWalletTransaction = require('../models/ProviderWalletTransaction');
 const User = require('../models/User');
@@ -38,7 +39,7 @@ exports.getMyBalance = async (req, res) => {
 // POST /api/provider-wallet/topup — provider submits a top-up with proof (image/PDF).
 exports.submitTopUp = async (req, res) => {
     try {
-        const { amount, reference, proofUrl, proofType, method } = req.body;
+        const { amount, reference, proof, method } = req.body;
         if (!isPositiveAmount(amount)) {
             return res.status(400).json({ success: false, message: 'Enter a valid amount' });
         }
@@ -47,15 +48,41 @@ exports.submitTopUp = async (req, res) => {
             provider: req.user._id, type: 'topup', status: 'pending', amount,
             method: ['manual', 'cash'].includes(method) ? method : 'manual',
             reference: (reference || '').toString().slice(0, 60),
-            // http(s) only — this link is later shown to the provider and to admins.
-            proofUrl: safeHttpUrl(proofUrl),
-            proofType: ['image', 'pdf'].includes(proofType) ? proofType : '',
+            // Private upload in this provider's own proof folder, or nothing — a
+            // public URL is never stored (see walletController.proofUploadParams).
+            ...(() => {
+                const ref = cloudinary.cleanProofRef(proof, req.user._id);
+                return ref ? { proof: ref, proofType: ref.format === 'pdf' || ref.resourceType === 'raw' ? 'pdf' : 'image' } : {};
+            })(),
             initiatedBy: req.user._id,
         });
+        if (!txn.proof?.publicId && req.body.proofUrl) {
+            // An app version from before private proofs uploaded publicly and sent
+            // the link. It is not stored; log the row id (never the URL) so these
+            // can be followed up.
+            logger.warn({ transactionId: String(txn._id), legacyProofUrl: true }, 'Top-up sent a legacy public proofUrl — ignored');
+        }
         notifyAdmins(`Provider top-up request: ${money(amount)} from ${req.user.name}`, 'wallet', '/bkplus-command');
         res.status(201).json({ success: true, message: 'Top-up submitted for admin approval', data: { wallet, transaction: txn } });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+// GET /api/provider-wallet/topups/:id/proof — the paying provider, or Bookplus
+// (an admin) who receives the payment. Short-lived signed link.
+exports.getTopUpProof = async (req, res) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ success: false, message: 'Not found' });
+        const txn = await ProviderWalletTransaction.findById(req.params.id).select('provider proof proofUrl');
+        const allowed = txn && (req.user.role === 'admin' || String(txn.provider) === String(req.user._id));
+        if (!allowed) return res.status(404).json({ success: false, message: 'Not found' });
+        const link = require('./walletController').proofLinkFor(txn);
+        if (!link) return res.status(404).json({ success: false, message: 'No proof attached' });
+        res.set('Cache-Control', 'no-store');
+        return res.status(200).json({ success: true, data: link });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 

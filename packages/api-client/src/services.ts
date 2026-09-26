@@ -25,6 +25,11 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         addCustomerAccount: () => API.post('/auth/add-customer-account'),
         changePassword: (data: any) => API.put('/auth/change-password', data),
         resendVerification: (email: string) => API.post('/auth/resend-verification', { email }),
+        // First-time Google sign-in: who is signing up, then create the account
+        // once the Terms/Privacy and age boxes are ticked ("Finish signing up").
+        getGoogleSignup: (code: string) => API.post('/auth/google/pending', { code }),
+        completeGoogleSignup: (data: { code: string; termsAccepted: boolean; ageConfirmed: boolean; marketingOptIn?: boolean }) =>
+            API.post('/auth/google/complete', data),
         forgotPassword: (email: string) => API.post('/auth/forgot-password', accountType ? { email, accountType } : { email }),
         resetPassword: (data: any) => API.post('/auth/reset-password', data),
         // Staff invite acceptance (Fresha-style). getStaffInvite previews who
@@ -37,10 +42,22 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         renewStaffInvite: (token: string) => API.post(`/auth/staff-invite/${encodeURIComponent(token)}/renew`),
         requestStaffInvite: (email: string) => API.post('/auth/staff-invite/request', { email }),
         deactivateAccount: () => API.post('/auth/deactivate'),
+        // Confirmed with the password — or, for a Google-only account, the email.
         deleteAccount: (password: string) => API.delete('/auth/account', { data: { password } }),
+        // "Download my data": the full JSON export of this account.
+        exportAccount: () => API.get('/auth/account/export', { responseType: 'blob' }),
         getBlockedUsers: () => API.get('/auth/blocked-users'),
+        // Promotional email ("Book again", offers) — opt-in, account settings switch.
+        setMarketingEmails: (optIn: boolean) => API.put('/auth/marketing', { optIn }),
         blockUser: (userId: string) => API.post('/auth/block', { userId }),
         unblockUser: (userId: string) => API.delete(`/auth/block/${userId}`),
+    },
+
+    // One-click unsubscribe from marketing email. Public: the signed token from
+    // the email is the only credential, no sign-in needed.
+    marketingService: {
+        unsubscribe: (token: string) => API.post(`/marketing/unsubscribe/${encodeURIComponent(token)}`),
+        resubscribe: (token: string) => API.post(`/marketing/resubscribe/${encodeURIComponent(token)}`),
     },
 
     serviceService: {
@@ -382,6 +399,10 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         getMyWallets: () => API.get('/wallet/mine'),
         getMyWalletWithProvider: (providerId: string) => API.get(`/wallet/mine/${providerId}`),
         topUp: (data: any) => API.post('/wallet/topup', data),
+        // Private proof of payment: signed params for one authenticated upload,
+        // and a short-lived link to view a top-up's proof (payer / business only).
+        proofUploadParams: () => API.post('/wallet/proof-upload'),
+        getTopUpProof: (id: string) => API.get(`/wallet/topups/${id}/proof`),
         getMyTransactions: (providerId?: string) => API.get('/wallet/transactions', { params: providerId ? { providerId } : {} }),
         getMyPendingAdjustments: () => API.get('/wallet/adjustments/pending'),
         approveAdjustment: (id: string) => API.post(`/wallet/adjustments/${id}/approve`),
@@ -407,6 +428,7 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         // Provider — own platform balance
         getMyBalance: () => API.get('/provider-wallet/me'),
         submitTopUp: (data: any) => API.post('/provider-wallet/topup', data),
+        getTopUpProof: (id: string) => API.get(`/provider-wallet/topups/${id}/proof`),
         // Admin
         getAdminSummary: () => API.get('/provider-wallet/admin/summary'),
         getAllWallets: () => API.get('/provider-wallet/admin/wallets'),

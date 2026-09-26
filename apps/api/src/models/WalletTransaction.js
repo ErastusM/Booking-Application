@@ -37,7 +37,17 @@ const walletTransactionSchema = new mongoose.Schema(
         amount: { type: Number, required: true, min: 0 },
 
         reference: { type: String, default: '' }, // client payment ref, e.g. BP-12345
-        proofUrl: { type: String, default: '' },   // uploaded proof of payment (image or PDF)
+        proofUrl: { type: String, default: '' },   // LEGACY public proof link (see `proof`)
+        // Private proof of payment (Cloudinary `authenticated` asset). Never a
+        // public URL: it is opened through a short-lived signed link minted by
+        // GET …/proof for the payer and the business only. proofUrl below is the
+        // LEGACY public link, emptied by scripts/migrate_private_proofs.js.
+        proof: {
+            publicId: { type: String, default: '' },
+            resourceType: { type: String, enum: ['image', 'raw', ''], default: '' },
+            format: { type: String, default: '' },
+            deliveryType: { type: String, default: '' },
+        },
         method: { type: String, enum: ['manual', 'cash', 'online'], default: 'manual' }, // how the client funded the top-up
         reason: { type: String, default: '' },      // adjustment / refund / note
 
@@ -66,5 +76,17 @@ walletTransactionSchema.index({ provider: 1, status: 1 });
 walletTransactionSchema.index({ customer: 1, createdAt: -1 });
 // Used to find the live reservation for an appointment (release / deduction).
 walletTransactionSchema.index({ appointment: 1, type: 1, status: 1 });
+
+
+// The proof itself is never serialized — not its public id, not a legacy public
+// URL. Clients learn only whether one exists and fetch a signed link on demand.
+walletTransactionSchema.set('toJSON', {
+    transform(_doc, ret) {
+        ret.hasProof = Boolean((ret.proof && ret.proof.publicId) || ret.proofUrl);
+        delete ret.proof;
+        delete ret.proofUrl;
+        return ret;
+    },
+});
 
 module.exports = mongoose.model('WalletTransaction', walletTransactionSchema);

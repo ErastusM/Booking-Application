@@ -34,7 +34,7 @@ describe('isFullName', () => {
 });
 
 describe('sign-up', () => {
-    const payload = { email: 'new@example.com', password: 'Password1!', phone: '+15550001234', role: 'customer' };
+    const payload = { email: 'new@example.com', password: 'Password1!', phone: '+15550001234', role: 'customer', termsAccepted: true, ageConfirmed: true };
 
     test('a client must give a first name and surname', async () => {
         const res = await request(app).post('/api/auth/register').send({ ...payload, name: 'Shilongo' });

@@ -6,9 +6,12 @@ import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import PushToggle from '../components/PushToggle';
+import MarketingEmailsToggle from '../components/MarketingEmailsToggle';
 import AccountDangerZone from '../components/AccountDangerZone';
-import { User, Lock, Bell, Globe, Info, Sun, Moon, Calendar, HelpCircle, ChevronRight, LogOut } from 'lucide-react';
+import YourDataCard from '../components/YourDataCard';
+import { User, Lock, Bell, Globe, Info, Sun, Moon, Calendar, HelpCircle, ChevronRight, LogOut, Cookie } from 'lucide-react';
 import { Field } from '@bookplus/ui';
+import { openConsentSettings } from '@bookplus/api-client';
 
 // ── Shared bits for the settings list ──────────────────────────────────────
 const iconTileStyle = {
@@ -245,6 +248,7 @@ const Profile = () => {
                             <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: '0.25rem 0 0' }}>
                                 Turn on push to get booking confirmations and reminders instantly on this device. We'll still email you as a backup.
                             </p>
+                            <MarketingEmailsToggle />
                         </div>
                     )}
 
@@ -256,6 +260,7 @@ const Profile = () => {
                 <Card>
                     <SettingRow icon={Info} label="About Us" onClick={() => navigate('/about')} />
                     <SettingRow icon={darkMode ? Moon : Sun} label="Theme" value={darkMode ? 'Dark' : 'Light'} onClick={toggleDarkMode} />
+                    <SettingRow icon={Cookie} label="Cookie settings" onClick={openConsentSettings} />
                     <SettingRow icon={Calendar} label="Appointments" onClick={() => navigate('/appointments')} isLast />
                 </Card>
 
@@ -270,6 +275,7 @@ const Profile = () => {
                     <SettingRow icon={LogOut} label="Log out" danger onClick={handleLogout} trailing={null} isLast />
                 </Card>
 
+                <YourDataCard />
                 <AccountDangerZone />
             </div>
         </div>

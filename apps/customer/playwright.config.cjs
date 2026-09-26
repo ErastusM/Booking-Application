@@ -22,6 +22,16 @@ module.exports = defineConfig({
         baseURL: BASE_URL,
         trace: 'on-first-retry',
         screenshot: 'only-on-failure',
+        // Every spec starts with the cookie choice already made ("Only
+        // necessary"), so the consent banner never sits over the controls a
+        // spec is driving. consent.spec.cjs clears this to test the banner itself.
+        storageState: {
+            cookies: [],
+            origins: [{
+                origin: BASE_URL,
+                localStorage: [{ name: 'bp_consent', value: JSON.stringify({ v: 1, analytics: false, at: '2026-01-01T00:00:00.000Z' }) }],
+            }],
+        },
     },
     projects: [
         { name: 'chromium', use: { ...devices['Desktop Chrome'] } },

@@ -6,6 +6,7 @@
  */
 const pino = require('pino');
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
+const { scrubText } = require('./redact');
 
 const WINDOW_MS = 5 * 60 * 1000;
 const MAX_PER_WINDOW = 5;
@@ -31,7 +32,9 @@ const sendAlert = async (title, detail = '') => {
         await fetch(url, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ text: `🔴 Bookplus API — ${title}\n${String(detail).slice(0, 600)}` }),
+            // Every alert passes through here, so this is the one place that keeps
+            // tokenized URLs (reset / invite / manage links) out of the channel.
+            body: JSON.stringify({ text: `🔴 Bookplus API — ${scrubText(String(title))}\n${scrubText(String(detail)).slice(0, 600)}` }),
             // A hung webhook must never stall the caller — the crash handler
             // awaits this before process.exit.
             signal: AbortSignal.timeout(5000),

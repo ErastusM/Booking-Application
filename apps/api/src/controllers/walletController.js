@@ -1,5 +1,7 @@
 const mongoose = require('mongoose');
-const { safeHttpUrl } = require('../utils/helpers');
+const cloudinary = require('../utils/cloudinary');
+const logger = require('pino')({ level: process.env.LOG_LEVEL || 'info' });
+exports._logger = logger; // test hook
 const Wallet = require('../models/Wallet');
 const WalletTransaction = require('../models/WalletTransaction');
 const User = require('../models/User');
@@ -87,7 +89,7 @@ exports.getMyWalletWithProvider = async (req, res) => {
 // POST /api/wallet/topup — client requests a top-up (pending until approved).
 exports.createTopUp = async (req, res) => {
     try {
-        const { providerId, amount, reference, proofUrl, method } = req.body;
+        const { providerId, amount, reference, proof, method } = req.body;
         if (!mongoose.isValidObjectId(providerId)) {
             return res.status(400).json({ success: false, message: 'Invalid provider id' });
         }
@@ -100,11 +102,19 @@ exports.createTopUp = async (req, res) => {
         const txn = await walletService.createTopUp({
             customer: req.user._id, provider: providerId, amount,
             reference: (reference || '').toString().slice(0, 60),
-            // http(s) only — this link is later shown to the provider and to admins.
-            proofUrl: safeHttpUrl(proofUrl),
+            // A private upload in this client's own proof folder, or nothing. A
+            // bare URL (old app versions uploaded proofs publicly) is ignored:
+            // proofs are never stored as public links again.
+            proof: cloudinary.cleanProofRef(proof, req.user._id) || undefined,
             method: ['manual', 'cash'].includes(method) ? method : 'manual',
         });
 
+        if (!txn.proof?.publicId && req.body.proofUrl) {
+            // An app version from before private proofs uploaded publicly and sent
+            // the link. It is not stored; log the row id (never the URL) so these
+            // can be followed up.
+            logger.warn({ transactionId: String(txn._id), legacyProofUrl: true }, 'Top-up sent a legacy public proofUrl — ignored');
+        }
         const note = `New ${method === 'cash' ? 'cash ' : ''}wallet top-up request: ${money(amount)} from ${req.user.name}`;
         createNotification(providerId, note, 'wallet', '/dashboard');
         // The admin can also see and allocate top-ups.
@@ -113,6 +123,57 @@ exports.createTopUp = async (req, res) => {
         res.status(201).json({ success: true, message: 'Top-up request submitted for approval', data: txn });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/* ───────────────────── PRIVATE PROOF OF PAYMENT ───────────────────── */
+
+// POST /api/wallet/proof-upload — signed parameters for ONE private proof upload
+// (Cloudinary `authenticated`, in the uploader's own folder). Shared by client
+// wallet top-ups and provider account top-ups. 503 when the server has no
+// Cloudinary credentials: proofs are never uploaded publicly instead.
+exports.proofUploadParams = async (req, res) => {
+    if (!cloudinary.isConfigured()) {
+        return res.status(503).json({
+            success: false, code: 'proof_upload_unavailable',
+            message: 'Uploading a proof is unavailable right now. Add your payment reference instead — the business can still match your payment.',
+        });
+    }
+    return res.status(200).json({ success: true, data: cloudinary.proofUploadParams(req.user._id) });
+};
+
+// Mint a short-lived link to a transaction's proof. Legacy rows (public link not
+// yet migrated) return that link — still only to the people allowed to see it.
+const proofLinkFor = (txn) => {
+    if (txn.proof && txn.proof.publicId) {
+        if (!cloudinary.isConfigured()) return null;
+        return {
+            url: cloudinary.privateDownloadUrl(txn.proof),
+            expiresInSeconds: cloudinary.PROOF_LINK_SECONDS,
+            kind: txn.proof.format === 'pdf' || txn.proof.resourceType === 'raw' ? 'pdf' : 'image',
+        };
+    }
+    if (txn.proofUrl) return { url: txn.proofUrl, expiresInSeconds: null, kind: /\.pdf($|\?)/i.test(txn.proofUrl) ? 'pdf' : 'image' };
+    return null;
+};
+exports.proofLinkFor = proofLinkFor;
+
+// GET /api/wallet/topups/:id/proof — only the PAYER (the client) and the business
+// OWNER the money was paid to. Not staff, not admins, not anyone holding the id.
+exports.getTopUpProof = async (req, res) => {
+    try {
+        if (!mongoose.isValidObjectId(req.params.id)) return res.status(404).json({ success: false, message: 'Not found' });
+        const txn = await WalletTransaction.findById(req.params.id).select('customer provider proof proofUrl');
+        const me = String(req.user._id);
+        if (!txn || (String(txn.customer) !== me && String(txn.provider) !== me)) {
+            return res.status(404).json({ success: false, message: 'Not found' });
+        }
+        const link = proofLinkFor(txn);
+        if (!link) return res.status(404).json({ success: false, message: 'No proof attached' });
+        res.set('Cache-Control', 'no-store');
+        return res.status(200).json({ success: true, data: link });
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
 

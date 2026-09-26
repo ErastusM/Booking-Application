@@ -5,6 +5,8 @@ import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import PushToggle from '../components/PushToggle';
 import AccountDangerZone from '../components/AccountDangerZone';
+import YourDataCard from '../components/YourDataCard';
+import { openConsentSettings } from '@bookplus/api-client';
 import MapPicker, { MAPS_KEY, reverseGeocode } from '../components/MapPicker';
 import LocationsManager from '../components/LocationsManager';
 import { cloudinaryAvatar } from '../utils/cloudinary';
@@ -816,11 +818,13 @@ const ProviderAccount = () => {
                                             <div style={{ display: 'flex', gap: '1.25rem', flexShrink: 0 }}>
                                                 <Link to="/terms" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.85rem', textDecoration: 'none' }}>Terms of Service →</Link>
                                                 <Link to="/privacy-policy" target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.85rem', textDecoration: 'none' }}>Privacy Policy →</Link>
+                                                <button type="button" onClick={openConsentSettings} data-testid="cookie-settings-link" style={{ background: 'none', border: 'none', padding: 0, cursor: 'pointer', color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.85rem', fontFamily: 'var(--font-body)' }}>Cookie settings →</button>
                                             </div>
                                         </div>
                                     </div>
 
                                     {/* Closing the business's account is the owner's; a member's login is managed by the owner. */}
+                                    <YourDataCard note={isStaff ? 'To delete your login, ask the business owner to remove you from the team.' : undefined} />
                                     {!isStaff && <AccountDangerZone />}
                                 </div>
                             </div>

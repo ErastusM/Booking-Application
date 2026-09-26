@@ -3,6 +3,7 @@ const rateLimit = require('express-rate-limit');
 const pino = require('pino');
 const { sendAlert } = require('../utils/alerts');
 const Sentry = require('../../instrument');
+const { scrubUrl, scrubText } = require('../utils/redact');
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const router = express.Router();
@@ -51,9 +52,13 @@ router.post('/', limiter, (req, res) => {
         const b = req.body || {};
         const app = clip(b.app, 20) || 'unknown';
         const type = clip(b.type, 30) || 'error';
-        const message = clip(b.message, 500) || '(no message)';
-        const stack = clip(b.stack, 2000);
-        const url = clip(b.url, 300);
+        // Scrub BEFORE anything is logged or forwarded: the page URL of a reset,
+        // invite, verify or manage-booking screen IS the credential, and error
+        // messages/stacks can quote URLs too. Clip after scrubbing so a cut can't
+        // leave half a token behind the redaction.
+        const message = clip(scrubText(clip(b.message, 2000)), 500) || '(no message)';
+        const stack = clip(scrubText(clip(b.stack, 8000)), 2000);
+        const url = clip(scrubUrl(clip(b.url, 2000)), 300);
         const userAgent = clip(b.userAgent || req.get('user-agent'), 300);
 
         logger.error({ clientError: true, app, type, message, url, userAgent, stack }, `client error [${app}]: ${message}`);

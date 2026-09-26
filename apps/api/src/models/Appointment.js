@@ -38,6 +38,16 @@ const appointmentSchema = new mongoose.Schema(
         guestName:  { type: String, default: null, trim: true },
         guestEmail: { type: String, default: null, trim: true, lowercase: true },
         guestPhone: { type: String, default: null, trim: true },
+        // A guest's marketing-email choice for THIS booking (the unticked box on
+        // the guest form). Guests without an account get promotional email only
+        // when this is true; the unsubscribe link turns it off on all their
+        // bookings. everOptedIn = they ticked it themselves at some point.
+        guestMarketing: {
+            optIn: { type: Boolean, default: false },
+            at: { type: Date, default: null },
+            source: { type: String, default: null },
+            everOptedIn: { type: Boolean, default: false },
+        },
         service: {
             type: mongoose.Schema.ObjectId,
             ref: 'Service',

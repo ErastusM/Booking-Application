@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState, useRef, lazy, Suspense } from 'react';
+import ProofLink from '../components/ProofLink';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import CalendarGrid from '../components/CalendarGrid';
@@ -57,13 +58,6 @@ const csvCell = (c) => {
     return `"${v.replace(/"/g, '""')}"`;
 };
 
-// A payment-proof URL comes from the customer's own submission. The API now
-// stores http(s) only, but rows written before that still hold whatever was sent,
-// so the link is re-checked here before it is rendered for a provider or an admin.
-const safeProofUrl = (u) => {
-    const raw = (u == null ? '' : String(u)).trim();
-    return /^https?:\/\//i.test(raw) ? raw : '';
-};
 
 // Trigger label for the custom-range date pickers ("Mar 10, 2026"). The picker's
 // default adds the weekday, which gets cut off in these half-width phone fields.
@@ -3664,7 +3658,7 @@ const ProviderDashboard = () => {
                                                     <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.9rem' }}>{t.customer?.name || 'Client'} · {nMoney(t.amount)}</p>
                                                     <p style={{ margin: '0.1rem 0 0', fontSize: '0.75rem', color: 'var(--text-muted)' }}>
                                                         {new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{t.reference ? ` · ${t.reference}` : ''}
-                                                        {safeProofUrl(t.proofUrl) && <> · <a href={safeProofUrl(t.proofUrl)} target="_blank" rel="noreferrer" style={{ color: 'var(--gold-dark)' }}>View proof</a></>}
+                                                        {t.hasProof && <> · <ProofLink fetchLink={() => walletService.getTopUpProof(t._id)} /></>}
                                                     </p>
                                                 </div>
                                                 {t.status === 'pending' ? (

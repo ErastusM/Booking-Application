@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
+import ConsentCheckbox, { MARKETING_OPT_IN_TEXT } from '../components/ConsentCheckbox';
 import { useNavigate, useSearchParams, Link } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { appointmentService, serviceService, waitingListService, providerMarketService, availabilityService, walletService, authService } from '../services';
@@ -77,6 +78,8 @@ const BookAppointment = () => {
     const [recurrence, setRecurrence] = useState({ isRecurring: false, recurrenceType: 'weekly', recurrenceInterval: 1, recurrenceEndDate: '' });
     const [paymentMethod, setPaymentMethod] = useState('cash'); // 'wallet' | 'cash' (when the provider's wallet is on)
     const [guest, setGuest] = useState({ first: '', last: '', email: '', phone: '' }); // guest checkout (no account)
+    // Guests have no settings page, so this unticked box is their only marketing consent.
+    const [guestMarketing, setGuestMarketing] = useState(false);
     const guestName = joinName(guest.first, guest.last);
     const guestReady = isFullName(guestName) && !!guest.email.trim(); // required to confirm as a guest
     // A signed-in client whose account predates full names (one word) adds their
@@ -522,7 +525,7 @@ const BookAppointment = () => {
                     ...(selectedStaff?._id ? { teamMember: selectedStaff._id } : {}),
                     ...(wallet?.settings?.enabled ? { paymentMethod } : {}),
                     // Guest checkout: send contact details instead of relying on a session.
-                    ...(!user ? { guestName, guestEmail: guest.email.trim(), guestPhone: guest.phone.trim() } : {}),
+                    ...(!user ? { guestName, guestEmail: guest.email.trim(), guestPhone: guest.phone.trim(), marketingOptIn: guestMarketing } : {}),
                     ...(recurrence.isRecurring ? {
                         isRecurring: true,
                         recurrenceType: recurrence.recurrenceType,
@@ -899,6 +902,9 @@ const BookAppointment = () => {
                                             <input type="tel" value={guest.phone} onChange={e => setGuest(g => ({ ...g, phone: e.target.value }))}
                                                 autoComplete="tel" inputMode="tel" className="input" style={{ fontFamily: 'var(--font-body)' }} data-testid="guest-phone" />
                                         </Field>
+                                        <ConsentCheckbox id="guest-marketing" testId="guest-marketing-optin" checked={guestMarketing} onChange={setGuestMarketing}>
+                                            {MARKETING_OPT_IN_TEXT}
+                                        </ConsentCheckbox>
                                     </div>
                                 </div>
                             )}

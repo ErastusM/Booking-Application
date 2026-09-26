@@ -10,6 +10,7 @@ const rateLimit = require('express-rate-limit');
 const { createAuthRouteLimiter } = require('./src/middleware/authRateLimit');
 const pino = require('pino');
 const pinoHttp = require('pino-http');
+const { scrubPath } = require('./src/utils/redact');
 const mongoose = require('mongoose');
 const connectDB = require('./src/utils/database');
 const { errorHandler, notFound } = require('./src/middleware/errorHandler');
@@ -45,9 +46,11 @@ const providerWalletRoutes = require('./src/routes/providerWalletRoutes');
 const sitemapRoutes = require('./src/routes/sitemapRoutes');
 const clientErrorRoutes = require('./src/routes/clientErrorRoutes');
 const eventRoutes = require('./src/routes/eventRoutes');
+const marketingRoutes = require('./src/routes/marketingRoutes');
 const startReminderJob = require('./src/utils/reminderService');
 const startWalletExpiryJob = require('./src/utils/walletExpiryService');
 const startAutoCompleteJob = require('./src/utils/autoCompleteService');
+const startRetentionJob = require('./src/utils/dataRetentionService');
 const passport = require('./src/config/passport');
 const User = require('./src/models/User');
 
@@ -157,7 +160,22 @@ const readOrWrite = (req, res, next) =>
     (req.method === 'GET' ? readLimiter : writeLimiter)(req, res, next);
 
 // Middleware
-app.use(helmet());
+// Content-Security-Policy, enforced (not report-only). The API serves JSON, a
+// few redirects (verify-email, Google sign-in) and bot-only prerender pages
+// with no scripts, styles, images or forms of their own — so it allows loading
+// nothing at all and can't be framed. The apps' own CSPs live in their serve.json.
+app.use(helmet({
+    contentSecurityPolicy: {
+        useDefaults: false,
+        directives: {
+            defaultSrc: ["'none'"],
+            baseUri: ["'none'"],
+            formAction: ["'none'"],
+            frameAncestors: ["'none'"],
+            objectSrc: ["'none'"],
+        },
+    },
+}));
 const allowedOrigins = new Set([
     ...(process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map(o => o.trim()).filter(Boolean) : []),
     'http://localhost:3000',
@@ -201,7 +219,8 @@ if (process.env.NODE_ENV !== 'test') {
         serializers: {
             req(req) {
                 const s = pino.stdSerializers.req(req);
-                if (s && s.url) s.url = String(s.url).split('?')[0];
+                // Path tokens too: /manage/<token>, /staff-invite/<token>.
+                if (s && s.url) s.url = scrubPath(String(s.url).split('?')[0]);
                 return s;
             },
         },
@@ -243,6 +262,8 @@ app.use('/api/seo', readLimiter, sitemapRoutes);
 app.use('/api/client-errors', clientErrorRoutes);
 // Product-analytics event pipe (own rate limit + optional auth inside the router).
 app.use('/api/events', eventRoutes);
+// Marketing-email unsubscribe (public, signed token; own rate limit inside).
+app.use('/api/marketing', marketingRoutes);
 
 
 // Health check — includes DB connectivity
@@ -327,6 +348,7 @@ if (require.main === module) {
             startReminderJob();
             startWalletExpiryJob();
             startAutoCompleteJob();
+            startRetentionJob();
         });
 
         const shutdown = async (signal) => {

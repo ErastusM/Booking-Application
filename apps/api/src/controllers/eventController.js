@@ -1,5 +1,6 @@
 const Event = require('../models/Event');
 const pino = require('pino');
+const { scrubUrl } = require('../utils/redact');
 
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 
@@ -52,7 +53,10 @@ exports.ingest = async (req, res) => {
                 app: appName,
                 sessionId: sid,
                 user: userId,
-                path: clip(e && e.path, 200),
+                // Route template, never the raw path: a guest's /manage/<token> is
+                // their booking credential and must not sit in the analytics table.
+                // The browser already normalises; this is the backstop for old clients.
+                path: clip(scrubUrl(clip(e && e.path, 400) || '').split('?')[0], 200) || undefined,
                 props,
                 ua,
                 clientTs: typeof (e && e.t) === 'number' ? e.t : undefined,

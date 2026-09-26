@@ -1,0 +1,138 @@
+{
+  "_about": "Every cookie and browser-storage key the Bookplus CUSTOMER app (www / app.bookplus.pro) uses, classified for the cookie banner and the Privacy Policy. 'necessary' items are always on; 'analytics' items exist only after 'Accept analytics'. Keep in step with apps/business/src/legal/cookies.json and the code (packages/api-client/src/consent.ts).",
+  "version": 1,
+  "updated": "2026-09-26",
+  "consentStorageKey": "bp_consent",
+  "categories": {
+    "necessary": "Needed to sign you in, keep the service secure, and remember choices you made. Always on; nothing here tracks you.",
+    "analytics": "Bookplus's own page-visit and booking-funnel counts. Off until you tap 'Accept analytics'. No advertising, no third parties."
+  },
+  "items": [
+    {
+      "key": "token",
+      "storage": "localStorage",
+      "category": "necessary",
+      "purpose": "Your sign-in (short-lived access token) so pages you open stay signed in.",
+      "duration": "Until you log out; the token inside expires after 15 minutes and is renewed automatically",
+      "sentTo": "Bookplus API only"
+    },
+    {
+      "key": "refreshToken",
+      "storage": "localStorage",
+      "category": "necessary",
+      "purpose": "Renews your sign-in without asking for your password again.",
+      "duration": "Until you log out, or it expires (30 days)",
+      "sentTo": "Bookplus API only"
+    },
+    {
+      "key": "user",
+      "storage": "localStorage",
+      "category": "necessary",
+      "purpose": "A copy of your basic profile (name, role) so the app can draw its screens before the server answers.",
+      "duration": "Until you log out",
+      "sentTo": "Nobody (stays on this device)"
+    },
+    {
+      "key": "activeRole",
+      "storage": "localStorage",
+      "category": "necessary",
+      "purpose": "Legacy key from an older version; deleted when you log out. No longer written.",
+      "duration": "Deleted at log-out",
+      "sentTo": "Nobody"
+    },
+    {
+      "key": "darkMode",
+      "storage": "localStorage",
+      "category": "necessary",
+      "purpose": "Remembers the light/dark theme you picked.",
+      "duration": "Until you clear site data",
+      "sentTo": "Nobody (stays on this device)"
+    },
+    {
+      "key": "bp_push_prompt_dismissed",
+      "storage": "localStorage",
+      "category": "necessary",
+      "purpose": "Remembers that you dismissed the 'turn on notifications' prompt.",
+      "duration": "Until you clear site data",
+      "sentTo": "Nobody (stays on this device)"
+    },
+    {
+      "key": "bp_consent",
+      "storage": "localStorage",
+      "category": "necessary",
+      "purpose": "Remembers your cookie choice ('Only necessary' or 'Accept analytics') and when you made it.",
+      "duration": "Until you change it or clear site data",
+      "sentTo": "Nobody (stays on this device)"
+    },
+    {
+      "key": "bp_sid",
+      "storage": "localStorage",
+      "category": "analytics",
+      "purpose": "A random ID that links page visits and booking steps from this device, so we can see where people drop off. Only created after you tap 'Accept analytics'; deleted when you choose 'Only necessary'.",
+      "duration": "Until you withdraw consent or clear site data",
+      "sentTo": "Bookplus API (POST /api/events) — our own analytics, no third parties"
+    },
+    {
+      "key": "bp_rt",
+      "storage": "cookie (HttpOnly, Secure, SameSite=Lax, Domain=.bookplus.pro, Path=/api/auth)",
+      "category": "necessary",
+      "purpose": "Keeps you signed in across app.bookplus.pro and business.bookplus.pro (single sign-on refresh token). Not readable by page scripts.",
+      "duration": "30 days, renewed while you use the app; removed at log-out",
+      "sentTo": "Bookplus API only"
+    },
+    {
+      "key": "bp_oauth_state",
+      "storage": "cookie (HttpOnly, SameSite=Lax, Path=/api/auth)",
+      "category": "necessary",
+      "purpose": "Security check for 'Continue with Google' — proves the sign-in was started from this browser.",
+      "duration": "10 minutes",
+      "sentTo": "Bookplus API only"
+    },
+    {
+      "key": "bp_customer_launched",
+      "storage": "localStorage",
+      "category": "necessary",
+      "purpose": "Shows the full welcome splash only on the very first open.",
+      "duration": "Until you clear site data",
+      "sentTo": "Nobody (stays on this device)"
+    },
+    {
+      "key": "bp_customer_signup_survey_done",
+      "storage": "localStorage",
+      "category": "necessary",
+      "purpose": "Stops the one-time 'how was signing up?' question from showing again.",
+      "duration": "Until you clear site data",
+      "sentTo": "Nobody (stays on this device)"
+    },
+    {
+      "key": "bp_recent_providers",
+      "storage": "localStorage",
+      "category": "necessary",
+      "purpose": "The last 12 businesses you viewed, for the 'Recently viewed' row on the home page.",
+      "duration": "Until you clear site data",
+      "sentTo": "Nobody (stays on this device)"
+    }
+  ],
+  "thirdPartyOnRequest": [
+    {
+      "service": "Google Maps embed (maps.google.com)",
+      "when": "Only after you tap 'Show map' under 'Getting there' on an appointment",
+      "note": "Google receives your IP address and may set its own cookies."
+    },
+    {
+      "service": "OpenStreetMap Nominatim (nominatim.openstreetmap.org)",
+      "when": "Only when you tap 'Near me'",
+      "note": "Your GPS position is sent to turn it into a town name. No cookies."
+    },
+    {
+      "service": "Google sign-in (accounts.google.com)",
+      "when": "Only when you tap 'Continue with Google'",
+      "note": "You leave Bookplus for Google's sign-in page."
+    },
+    {
+      "service": "Cloudinary (res.cloudinary.com / api.cloudinary.com)",
+      "when": "Business photos and avatars are shown; files you upload",
+      "note": "Image hosting. Proofs of payment are stored privately."
+    }
+  ]
+}

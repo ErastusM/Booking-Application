@@ -1,27 +1,70 @@
 {
-  "rewrites": [{ "source": "**", "destination": "/index.html" }],
+  "rewrites": [
+    {
+      "source": "**",
+      "destination": "/index.html"
+    }
+  ],
   "headers": [
     {
       "source": "**",
       "headers": [
-        { "key": "X-Content-Type-Options", "value": "nosniff" },
-        { "key": "X-Frame-Options", "value": "SAMEORIGIN" },
-        { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
-        { "key": "Permissions-Policy", "value": "geolocation=(self), camera=(), microphone=()" },
-        { "key": "Strict-Transport-Security", "value": "max-age=15552000" }
+        {
+          "key": "Content-Security-Policy",
+          "value": "default-src 'self'; script-src 'self' 'sha256-aCdAHW8ahcgGXL7OKI/n6bLmZdI6QtoIx/AaRNuaD34='; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://res.cloudinary.com https://*.googleusercontent.com; font-src 'self' data:; connect-src 'self' https://api.bookplus.pro https://api.cloudinary.com https://nominatim.openstreetmap.org; frame-src https://maps.google.com https://www.google.com; worker-src 'self'; manifest-src 'self'; media-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'self'"
+        },
+        {
+          "key": "X-Content-Type-Options",
+          "value": "nosniff"
+        },
+        {
+          "key": "X-Frame-Options",
+          "value": "SAMEORIGIN"
+        },
+        {
+          "key": "Referrer-Policy",
+          "value": "strict-origin-when-cross-origin"
+        },
+        {
+          "key": "Permissions-Policy",
+          "value": "geolocation=(self), camera=(), microphone=()"
+        },
+        {
+          "key": "Strict-Transport-Security",
+          "value": "max-age=15552000"
+        },
+        {
+          "key": "Cache-Control",
+          "value": "no-cache"
+        }
       ]
     },
     {
       "source": "index.html",
-      "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
     },
     {
       "source": "version.json",
-      "headers": [{ "key": "Cache-Control", "value": "no-cache, no-store, must-revalidate" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "no-cache, no-store, must-revalidate"
+        }
+      ]
     },
     {
       "source": "assets/**",
-      "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      "headers": [
+        {
+          "key": "Cache-Control",
+          "value": "public, max-age=31536000, immutable"
+        }
+      ]
     }
   ]
 }

@@ -13,8 +13,7 @@ export const ProviderAccountTopUpModal = ({ curSym, onClose, onDone }) => {
     const [amount, setAmount] = useState('');
     const [reference, setReference] = useState('');
     const [method, setMethod] = useState('manual');
-    const [proofUrl, setProofUrl] = useState('');
-    const [proofType, setProofType] = useState('');
+    const [proof, setProof] = useState(null); // { ref, kind } once uploaded (private)
     const [uploading, setUploading] = useState(false);
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
@@ -23,8 +22,8 @@ export const ProviderAccountTopUpModal = ({ curSym, onClose, onDone }) => {
         const file = e.target.files?.[0];
         if (!file) return;
         setUploading(true); setError('');
-        try { const { url, kind } = await uploadProof(file); setProofUrl(url); setProofType(kind); }
-        catch { setError('Could not upload that file — try again.'); }
+        try { setProof(await uploadProof(file)); }
+        catch (err) { setError(err?.message || 'Could not upload that file — try again.'); }
         finally { setUploading(false); }
     };
 
@@ -34,7 +33,7 @@ export const ProviderAccountTopUpModal = ({ curSym, onClose, onDone }) => {
         if (!(amt > 0)) { setError('Enter a valid amount'); return; }
         setBusy(true); setError('');
         try {
-            await providerWalletService.submitTopUp({ amount: amt, reference, method, proofUrl, proofType });
+            await providerWalletService.submitTopUp({ amount: amt, reference, method, proof: proof?.ref });
             onDone();
         } catch (err) { setError(err.response?.data?.message || 'Could not submit'); setBusy(false); }
     };
@@ -71,8 +70,8 @@ export const ProviderAccountTopUpModal = ({ curSym, onClose, onDone }) => {
                     ) : (
                         <>
                             <div id="wallet-proof-label" style={lbl}>Proof of payment (image or PDF)</div>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1rem', border: '1.5px dashed var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: proofUrl ? 'var(--gold-dark)' : 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
-                                {uploading ? 'Uploading…' : proofUrl ? `${proofType === 'pdf' ? 'PDF' : 'Proof'} uploaded — tap to replace` : 'Upload a screenshot, receipt or PDF'}
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1rem', border: '1.5px dashed var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: proof ? 'var(--gold-dark)' : 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                                {uploading ? 'Uploading…' : proof ? `${proof.kind === 'pdf' ? 'PDF' : 'Proof'} uploaded — tap to replace` : 'Upload a screenshot, receipt or PDF'}
                                 <input type="file" accept="image/*,application/pdf" onChange={handleProof} className="sr-only" aria-labelledby="wallet-proof-label" />
                             </label>
                         </>

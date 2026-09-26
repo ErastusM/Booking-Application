@@ -31,6 +31,10 @@ router.post('/topups/:id/reject', auth, authorize('provider', 'admin'), wallet.r
 router.get('/mine', auth, wallet.getMyWallets);
 router.get('/mine/:providerId', auth, wallet.getMyWalletWithProvider);
 router.post('/topup', auth, wallet.createTopUp);
+// Private proof of payment: signed upload parameters, and a short-lived link to
+// view one (payer or the business owner only — see the handlers).
+router.post('/proof-upload', auth, wallet.proofUploadParams);
+router.get('/topups/:id/proof', auth, wallet.getTopUpProof);
 router.get('/transactions', auth, wallet.getMyTransactions);
 router.get('/adjustments/pending', auth, wallet.getMyPendingAdjustments);
 router.post('/adjustments/:id/approve', auth, wallet.approveAdjustment);

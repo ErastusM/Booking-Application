@@ -2,7 +2,7 @@ const crypto = require('crypto');
 const passport = require('passport');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
 const User = require('../models/User');
-const { sendWelcomeEmail } = require('../utils/emailService');
+const PendingSignup = require('../models/PendingSignup');
 const { roleFromState } = require('../utils/oauthState');
 
 passport.use(new GoogleStrategy({
@@ -79,20 +79,20 @@ passport.use(new GoogleStrategy({
                 await existing.save();
                 user = existing;
             } else {
-                user = await User.create({
-                    name: profile.displayName,
-                    email: profile.emails[0].value,
+                // A brand-new person. Do NOT create the account yet: they have not
+                // seen the Terms, the Privacy Policy or the age requirement. Park
+                // the Google profile; the app shows "Finish signing up" and only
+                // POST /api/auth/google/complete (with both boxes ticked) creates
+                // the account.
+                const pending = await PendingSignup.create({
                     googleId: profile.id,
-                    avatar: profile.photos[0]?.value || null,
-                    phone: 'pending',
-                    role: requestedRole,
-                    password: undefined,
-                    isVerified: true,
-                    consentedAt: new Date(), // consent gated on the "Continue with Google" button
-                    signupSurveyPending: true, // new social sign-up → prompt the one-time survey
+                    email: profile.emails[0].value,
+                    name: profile.displayName || '',
+                    avatar: profile.photos?.[0]?.value || null,
+                    role: requestedRole === 'provider' ? 'provider' : 'customer',
+                    expiresAt: new Date(Date.now() + PendingSignup.TTL_MS),
                 });
-                // Welcome email for new social sign-ups (providers and customers alike)
-                sendWelcomeEmail(user.email, user.name, user.role).catch(() => {});
+                return done(null, { pendingSignup: true, id: pending._id, role: pending.role });
             }
         }
         return done(null, user);

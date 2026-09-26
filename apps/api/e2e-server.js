@@ -200,6 +200,21 @@ const outbox = [];
         await u.save({ validateBeforeSave: false });
         return res.json({ ok: true, count: u.staffInvites.length });
     });
+    // Stand in for Google on a FIRST-TIME "Continue with Google": park a Google
+    // profile exactly as passport.js does and hand back the one-time code the
+    // real callback would put in /auth/callback?signup=<code>.
+    outer.post('/__e2e/google-pending', async (req, res) => {
+        const crypto = require('crypto');
+        const PendingSignup = require('./src/models/PendingSignup');
+        const { email, name = 'Gina Google', role = 'customer' } = req.body || {};
+        const code = crypto.randomBytes(32).toString('hex');
+        await PendingSignup.create({
+            codeHash: crypto.createHash('sha256').update(code).digest('hex'),
+            googleId: `e2e-g-${Date.now()}`, email: String(email).toLowerCase(), name, role,
+            expiresAt: new Date(Date.now() + 10 * 60 * 1000),
+        });
+        res.json({ code });
+    });
     outer.use(app);
 
     outer.listen(PORT, () => {

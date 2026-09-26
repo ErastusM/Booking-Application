@@ -192,12 +192,12 @@ const adjustReservation = async ({ appointmentId, newAmount, resolvedBy }) => {
 };
 
 /** Client submits a top-up request (no balance change until a provider approves). */
-const createTopUp = async ({ customer, provider, amount, reference, proofUrl, method }) => {
+const createTopUp = async ({ customer, provider, amount, reference, proof, method }) => {
     const wallet = await getOrCreateWallet(customer, provider);
     return WalletTransaction.create({
         wallet: wallet._id, customer, provider,
         type: 'topup', status: 'pending', direction: 'credit', amount,
-        reference: reference || '', proofUrl: proofUrl || '', method: method || 'manual',
+        reference: reference || '', proof: proof || undefined, method: method || 'manual',
         initiatedBy: customer,
     });
 };

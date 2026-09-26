@@ -61,6 +61,7 @@ describe('CRITICAL — email validation cannot be used to stall the API', () => 
     it('still accepts a normal address and still rejects a malformed one', async () => {
         const ok = await request(app).post('/api/auth/register').send({
             name: 'Valid Email', email: 'user.name@sub.example.com', password: 'Password1!', phone: '+15550009001', role: 'customer',
+            termsAccepted: true, ageConfirmed: true,
         });
         expect([200, 201]).toContain(ok.status);
 

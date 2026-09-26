@@ -8,6 +8,7 @@ import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppUpdater from './components/AppUpdater';
 import SignupSurveyModal, { shouldShowSignupSurvey } from './components/SignupSurveyModal';
+import CookieBanner from './components/CookieBanner';
 import client, { track } from './services/client';
 import Login from './pages/Login';
 
@@ -160,6 +161,19 @@ function SkipLink() {
     );
 }
 
+// The business app is a tool, not a website: the cookie banner appears by itself
+// only to signed-out visitors on its public pages (login, sign-up, legal pages,
+// emailed-link pages). Signed-in owners and staff are never interrupted on their
+// dashboard; they choose from Account → Legal → "Cookie settings" (which opens
+// the banner anywhere). Until a choice exists, analytics stays off.
+const PUBLIC_PATHS = ['/login', '/register', '/terms', '/privacy-policy', '/forgot-password', '/reset-password', '/verify-email', '/accept-invite', '/auth/callback', '/bkplus-command/login'];
+function CookieBannerGate() {
+    const { user } = useAuthContext();
+    const { pathname } = useLocation();
+    const isPublic = PUBLIC_PATHS.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+    return <CookieBanner canAutoShow={!user && isPublic} />;
+}
+
 export default function App() {
     return (
         <Router>
@@ -175,6 +189,8 @@ export default function App() {
                         <AppChrome />
                         <AppRoutes />
                         <SignupSurveyGate />
+                        {/* Analytics runs only after "Accept analytics" here. */}
+                        <CookieBannerGate />
                     </ConfirmProvider>
                 </ToastProvider>
             </AuthProvider>

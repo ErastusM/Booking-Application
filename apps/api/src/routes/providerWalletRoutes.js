@@ -7,6 +7,7 @@ const pw = require('../controllers/providerWalletController');
 // top-up (money-movement, stays provider-only).
 router.get('/me', auth, allow({ roles: ['provider'], capability: 'wallet:view' }), pw.getMyBalance);
 router.post('/topup', auth, authorize('provider'), pw.submitTopUp);
+router.get('/topups/:id/proof', auth, authorize('provider', 'admin'), pw.getTopUpProof);
 
 // Admin — oversee and top up provider accounts
 router.get('/admin/summary', auth, authorize('admin'), pw.getAdminSummary);
