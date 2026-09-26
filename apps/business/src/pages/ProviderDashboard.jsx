@@ -3632,6 +3632,9 @@ const ProviderDashboard = () => {
                                             style={{ width: '100%', maxWidth: '260px' }}
                                         />
                                     </Field>
+                                    <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', margin: '0.5rem 0 0' }}>
+                                        Your refund and expiry rules are shown to clients before they top up and on their wallet, and clients must accept them. Clients are emailed 30 and 7 days before a balance expires.
+                                    </p>
                                 </div>
 
                                 <div style={{ padding: '0.75rem 0 0', borderTop: '1px solid var(--border)' }}>

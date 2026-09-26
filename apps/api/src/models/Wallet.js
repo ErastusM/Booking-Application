@@ -21,6 +21,16 @@ const walletSchema = new mongoose.Schema(
         totalBalance: { type: Number, default: 0, min: 0 },
         reservedBalance: { type: Number, default: 0, min: 0 },
         currency: { type: String, default: 'NAD' }, // Namibian dollar (N$)
+        // Advance-warning bookkeeping for balance expiry (walletExpiryService).
+        // `forExpiry` is the expiry date the reminders were sent for: any wallet
+        // activity moves the date, and a new date means fresh reminders. Written
+        // with timestamps disabled so recording a reminder never counts as
+        // "activity" and quietly pushes the expiry date back.
+        expiryReminder: {
+            forExpiry: { type: Date, default: null },
+            d30SentAt: { type: Date, default: null },
+            d7SentAt: { type: Date, default: null },
+        },
     },
     { timestamps: true }
 );

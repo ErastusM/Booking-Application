@@ -483,6 +483,27 @@ exports.sendGiftCard = async (email, { recipientName, fromName, businessName, am
     });
 };
 
+// Advance warning that a prepaid wallet balance will expire (the business opted
+// its wallets into expiry after 6/12/24 months without activity). Sent 30 and 7
+// days ahead by walletExpiryService. Any wallet activity resets the clock, so the
+// email says so — spending or topping up keeps the balance.
+exports.sendWalletExpiryReminder = async (email, { name, businessName, amountLabel, expiresOn, daysLeft, months }) => {
+    const href = `${primaryOrigin() || '#'}/wallet`;
+    const when = daysLeft <= 1 ? 'tomorrow' : `in ${daysLeft} days`;
+    await safeSend({
+        from: FROM, to: email, subject: `Your ${amountLabel} balance with ${businessName} expires ${when}`,
+        html: shell({
+            heading: `Hi ${escapeHtml(name || 'there')}, your wallet balance expires soon`,
+            preheader: `${amountLabel} with ${businessName} expires on ${expiresOn}`,
+            inner: `${p(`You have <strong>${escapeHtml(amountLabel)}</strong> in your Bookplus wallet with <strong>${escapeHtml(businessName)}</strong>. ${escapeHtml(businessName)} has set wallet balances to expire after ${Number(months) || 0} months without any wallet activity.`)}
+                ${detailsCard([['Business', escapeHtml(businessName)], ['Balance', escapeHtml(amountLabel)], ['Expires on', escapeHtml(expiresOn)]])}
+                ${p('<br />To keep your balance, book and use it, or make any top-up, before that date. Any wallet activity restarts the expiry period.')}
+                <div style="margin:24px 0;">${primaryButton(href, 'View my wallet')}</div>
+                ${p(`Questions about a refund? Contact ${escapeHtml(businessName)} directly — the business holds your prepaid balance and sets its own refund rules.`)}`,
+        }),
+    });
+};
+
 exports.sendPasswordResetEmail = async (email, name, token, role) => {
     // Reset on the app the account belongs to (a business owner resets on the
     // business app, not the customer site).

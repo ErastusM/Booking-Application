@@ -5,6 +5,7 @@ import { cloudinaryAvatar } from '../utils/cloudinary';
 import { currencySymbol } from '../utils/currency';
 import { Wallet as WalletIcon, Clock, Check, ChevronDown, ChevronUp, Gift } from 'lucide-react';
 import WalletTopUpModal from '../components/WalletTopUpModal';
+import WalletRules, { formatExpiryDate } from '../components/WalletRules';
 import { useToast } from '../components/Toast';
 
 // Wallet.currency (the API's own field) is never set away from its schema default —
@@ -255,6 +256,24 @@ const Wallet = () => {
                                             </div>
                                         ))}
                                     </div>
+
+                                    {/* When this balance expires (if the business set an expiry) and the
+                                        business's refund rule — the same rules shown before topping up. */}
+                                    {w.rules?.expiresAt && (
+                                        <p data-testid="wallet-expiry" style={{ margin: '0 0 0.75rem', padding: '0.55rem 0.75rem', borderRadius: 'var(--radius-sm)', background: 'var(--warning-bg)', color: 'var(--warning-fg)', fontSize: '0.82rem', fontWeight: '600' }}>
+                                            Balance expires on {formatExpiryDate(w.rules.expiresAt)} unless you use or top up this wallet before then.
+                                        </p>
+                                    )}
+                                    {w.rules && (
+                                        <details style={{ margin: '0 0 1rem' }}>
+                                            <summary style={{ cursor: 'pointer', fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-secondary)' }}>
+                                                Wallet rules: {w.rules.refundsAllowed ? 'refundable' : 'non-refundable'} · {w.rules.expiryMonths ? `expires after ${w.rules.expiryMonths} months without activity` : 'no expiry'}
+                                            </summary>
+                                            <div style={{ marginTop: '0.5rem' }}>
+                                                <WalletRules rules={w.rules} providerName={w.provider?.name || 'This business'} compact />
+                                            </div>
+                                        </details>
+                                    )}
 
                                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                                         <button onClick={() => setTopUpFor(w)} className="btn-primary" style={{ padding: '0.5rem 1.2rem', fontSize: '0.85rem' }}>Top up</button>

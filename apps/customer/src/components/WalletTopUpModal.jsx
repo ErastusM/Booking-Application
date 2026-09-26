@@ -4,8 +4,9 @@ import { uploadProof } from '../utils/uploadImage';
 import { useToast } from './Toast';
 import { useModalChrome } from '../hooks/useModalChrome';
 import { currencySymbol } from '../utils/currency';
-import { X, Upload, Check } from 'lucide-react';
+import { X, Upload, Check, Info } from 'lucide-react';
 import { Field } from '@bookplus/ui';
+import WalletRules, { walletRulesNeedAck } from './WalletRules';
 
 const labelStyle = { display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.06em', textTransform: 'uppercase', marginBottom: '0.4rem' };
 const newRef = () => `BP-${Math.floor(10000 + Math.random() * 89999)}`;
@@ -20,6 +21,12 @@ const WalletTopUpModal = ({ providerId, providerName, currency, onClose, onDone 
     const [proof, setProof] = useState(null); // { ref, kind } once uploaded (private)
     const [uploading, setUploading] = useState(false);
     const [instructions, setInstructions] = useState('');
+    // The business's wallet rules, disclosed BEFORE the client pays. null until
+    // loaded; a top-up can't be sent until they are known (and, when the money is
+    // non-refundable or can expire, acknowledged).
+    const [rules, setRules] = useState(null);
+    const [rulesError, setRulesError] = useState(false);
+    const [understood, setUnderstood] = useState(false);
     const [method, setMethod] = useState('manual');
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
@@ -33,9 +40,16 @@ const WalletTopUpModal = ({ providerId, providerName, currency, onClose, onDone 
     useEffect(() => {
         if (!providerId) return;
         walletService.getMyWalletWithProvider(providerId)
-            .then((res) => setInstructions(res.data.data?.settings?.paymentInstructions || ''))
-            .catch(() => {});
+            .then((res) => {
+                const s = res.data.data?.settings || {};
+                setInstructions(s.paymentInstructions || '');
+                setRules({ refundsAllowed: s.refundsAllowed !== false, expiryMonths: s.expiryMonths || null });
+            })
+            .catch(() => setRulesError(true));
     }, [providerId]);
+
+    const needsAck = walletRulesNeedAck(rules);
+    const rulesReady = !!rules && (!needsAck || understood);
 
     const handleProof = async (e) => {
         const file = e.target.files?.[0];
@@ -50,6 +64,8 @@ const WalletTopUpModal = ({ providerId, providerName, currency, onClose, onDone 
         e.preventDefault();
         const amt = parseFloat(amount);
         if (!(amt > 0)) { setError('Enter a valid amount'); return; }
+        if (!rules) { setError('We couldn’t load this business’s wallet rules. Close this window and try again.'); return; }
+        if (needsAck && !understood) { setError('Please confirm you understand this business’s wallet rules.'); return; }
         setBusy(true); setError('');
         try {
             await walletService.topUp({ providerId, amount: amt, reference, proof: proof?.ref, method });
@@ -98,6 +114,22 @@ const WalletTopUpModal = ({ providerId, providerName, currency, onClose, onDone 
                                 : <>Pay {providerName} directly (bank transfer, eWallet, PayToday or cash deposit), then submit this request with your reference. They’ll approve it once the money arrives.</>}
                     </div>
 
+                    {/* Wallet rules — refundable or not, and expiry — shown before paying. */}
+                    <div data-testid="wallet-rules" style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.85rem 1rem', marginBottom: '1rem' }}>
+                        <p style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', margin: '0 0 0.5rem', fontFamily: 'var(--font-display)', fontWeight: '600', fontSize: '0.92rem', color: 'var(--charcoal)' }}>
+                            <Info size={16} aria-hidden="true" /> {providerName}’s wallet rules
+                        </p>
+                        {rules
+                            ? <WalletRules rules={rules} providerName={providerName} />
+                            : <p style={{ margin: 0, fontSize: '0.82rem', color: 'var(--text-secondary)' }}>{rulesError ? 'Couldn’t load the wallet rules. Close this window and try again.' : 'Loading…'}</p>}
+                        {needsAck && (
+                            <label style={{ display: 'flex', alignItems: 'flex-start', gap: '0.55rem', marginTop: '0.75rem', fontSize: '0.84rem', color: 'var(--charcoal)', cursor: 'pointer', lineHeight: 1.45 }}>
+                                <input type="checkbox" data-testid="wallet-rules-ack" checked={understood} onChange={(e) => setUnderstood(e.target.checked)} style={{ marginTop: '0.2rem', width: '18px', height: '18px', flexShrink: 0, accentColor: 'var(--gold)' }} />
+                                <span>I understand these rules{rules && !rules.refundsAllowed ? ', including that this balance is non-refundable' : ''}{rules?.expiryMonths ? `${rules && !rules.refundsAllowed ? ' and' : ', including that'} it expires after ${rules.expiryMonths} months without wallet activity` : ''}.</span>
+                            </label>
+                        )}
+                    </div>
+
                     <Field label={<>Amount ({cur})</>} labelStyle={labelStyle}>
                         <input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="e.g. 500" className="input" style={{ width: '100%', marginBottom: '1rem' }} required />
                     </Field>
@@ -119,7 +151,7 @@ const WalletTopUpModal = ({ providerId, providerName, currency, onClose, onDone 
 
                     {error && <p style={{ color: 'var(--danger-fg)', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
 
-                    <button type="submit" disabled={busy || uploading} className="btn-primary" style={{ width: '100%', padding: '0.85rem' }}>
+                    <button type="submit" data-testid="topup-submit" disabled={busy || uploading || !rulesReady} className="btn-primary" style={{ width: '100%', padding: '0.85rem' }}>
                         {busy ? 'Submitting…' : 'Submit top-up request'}
                     </button>
                     <p style={{ textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', margin: '0.7rem 0 0' }}>

@@ -8,6 +8,7 @@ const User = require('../models/User');
 const Appointment = require('../models/Appointment');
 const walletService = require('../utils/walletService');
 const { createNotification, notifyAdmins } = require('../utils/notificationhelper');
+const { expiryDateFor } = require('../utils/walletExpiryService');
 
 const money = (n) => `N$${Number(n || 0).toFixed(2)}`;
 
@@ -34,9 +35,25 @@ const settingsOf = (user) => ({ ...DEFAULT_SETTINGS, ...(user?.walletSettings ? 
 exports.getMyWallets = async (req, res) => {
     try {
         const wallets = await Wallet.find({ customer: req.user._id })
-            .populate('provider', 'name avatar businessProfile providerCategory')
+            .populate('provider', 'name avatar businessProfile providerCategory walletSettings.refundsAllowed walletSettings.expiryMonths')
             .sort({ updatedAt: -1 });
-        res.status(200).json({ success: true, data: wallets });
+        // Each business's wallet rules travel with the balance so the client sees
+        // them on the wallet card (refundable or not, and when the balance expires).
+        // Only these two settings are exposed — never the rest of walletSettings.
+        const data = wallets.map((w) => {
+            const obj = w.toJSON();
+            const ws = w.provider?.walletSettings || {};
+            const expiryMonths = Number(ws.expiryMonths) > 0 ? Number(ws.expiryMonths) : null;
+            if (obj.provider && typeof obj.provider === 'object') delete obj.provider.walletSettings;
+            delete obj.expiryReminder;
+            obj.rules = {
+                refundsAllowed: ws.refundsAllowed !== false,
+                expiryMonths,
+                expiresAt: expiryDateFor(w, expiryMonths),
+            };
+            return obj;
+        });
+        res.status(200).json({ success: true, data });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -69,7 +86,11 @@ exports.getMyWalletWithProvider = async (req, res) => {
                 settings: {
                     enabled: s.enabled,
                     bookingPaymentMode: s.bookingPaymentMode,
-                    refundsAllowed: s.refundsAllowed,
+                    refundsAllowed: s.refundsAllowed !== false,
+                    // Disclosed BEFORE the client pays (top-up modal): balances with
+                    // this business expire after N months without activity, or never.
+                    expiryMonths: Number(s.expiryMonths) > 0 ? Number(s.expiryMonths) : null,
+                    expiresAt: existing ? expiryDateFor(existing, s.expiryMonths) : null,
                     // paymentInstructions is client-facing by design (User.js documents it
                     // as bank/eWallet/PayToday "details shown to clients"), so the booking
                     // and top-up flows must keep receiving it for first-time clients who have
