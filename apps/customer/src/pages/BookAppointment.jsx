@@ -1064,7 +1064,9 @@ const BookAppointment = () => {
                 </div>
             </div>
 
-            <div className="container" style={{ paddingTop: 'var(--page-body-pad-top)', paddingBottom: '5rem' }}>
+            {/* Bottom room comes from .booking-form-body (index.css): on phones it clears
+                the fixed Continue bar only once that bar shows (a service is picked). */}
+            <div className={`container booking-form-body${selectedService ? ' has-mobile-bar' : ''}`} style={{ paddingTop: 'var(--page-body-pad-top)' }}>
                 {error && <div role="alert" style={{ background: 'var(--danger-bg)', border: '1px solid #fca5a5', color: 'var(--danger-fg)', padding: '0.875rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>{error}</div>}
 
                 {/* Progress stepper */}

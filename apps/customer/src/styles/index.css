@@ -695,6 +695,8 @@ body.dark-mode .bottom-nav {
 .booking-confirm-desktop { display: block; }
 /* Room under the review for the fixed Confirm bar — only where the bar shows. */
 .booking-review-body { padding-bottom: 3rem; }
+/* The booking form's room under the page; phones clear the Continue bar (below). */
+.booking-form-body { padding-bottom: 5rem; }
 
 /* 900px, NOT 768px: .booking-grid collapses to one column at 900px, which
    pushed the desktop confirm panel below the fold — on 769-900px viewports
@@ -710,6 +712,11 @@ body.dark-mode .bottom-nav {
   .booking-confirm-mobile { display: flex !important; bottom: 0 !important; padding-bottom: calc(1rem + env(safe-area-inset-bottom, 0px)) !important; }
   /* The bar is ~86px plus the home-indicator inset; 1rem of air above it. */
   .booking-review-body { padding-bottom: calc(86px + 1rem + env(safe-area-inset-bottom, 0px)); }
+  /* Booking form, same idea: the Continue bar (.booking-mobile-bar) is ~75px plus
+     the home-indicator inset. A flat 5rem left the last card's bottom under the
+     bar on an iPhone, and 80px of nothing before a service is picked (no bar yet). */
+  .booking-form-body { padding-bottom: 2rem; }
+  .booking-form-body.has-mobile-bar { padding-bottom: calc(75px + 1rem + env(safe-area-inset-bottom, 0px)); }
 }
 
 /* ── Booking mobile bar — dark mode ── */
