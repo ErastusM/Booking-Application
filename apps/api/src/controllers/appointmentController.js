@@ -194,24 +194,38 @@ const hasConflictingAppointment = async (providerId, appointmentDate, startTime,
     // WHO is busy WHEN if the booking sits at [startTime, endTime]. A single
     // booking is one window for its one performer. A multi-service ticket being
     // moved is one window PER SEGMENT, each for that segment's own performer
-    // (shifted with the move) — checking the whole span against the top-level
-    // performer alone never looked at the colleague doing segment 2, and refused
-    // the primary for time only the colleague needs.
+    // (shifted with the move), plus any stretch of the span beyond its segments
+    // for the top-level performer — checking the whole span against the
+    // top-level performer alone never looked at the colleague doing segment 2,
+    // and refused the primary for time only the colleague needs.
     let windows = [{ teamMember: teamMember || null, s: parseTimeToMinutes(startTime), e: parseTimeToMinutes(endTime), before: bufferBefore || 0, after: bufferAfter || 0 }];
     const segs = appointment && Array.isArray(appointment.services) && appointment.services.length ? appointment.services : null;
     if (segs) {
+        // The ticket as it would stand: its segments shifted with the move, and
+        // the REQUESTED span — a resize stretches the span, not a segment, and
+        // the part no segment covers is the top-level performer's (see
+        // ticketRemainder). Read through the same helper that reads every
+        // existing booking, so the new ticket and the old ones are measured alike.
         const delta = parseTimeToMinutes(startTime) - parseTimeToMinutes(appointment.startTime);
-        const segBuffers = await bufferMapForAppointments([{ services: segs }]);
-        windows = segs.map((seg) => {
-            const b = segBuffers[String(seg.service?._id || seg.service)] || {};
-            return {
-                teamMember: seg.teamMember?._id || seg.teamMember || null,
-                s: parseTimeToMinutes(seg.startTime) + delta,
-                e: parseTimeToMinutes(seg.endTime) + delta,
-                before: b.bufferBefore || 0,
-                after: b.bufferAfter || 0,
-            };
-        });
+        const at = (t) => { const m = parseTimeToMinutes(t) + delta; return `${Math.floor(m / 60)}:${m - Math.floor(m / 60) * 60}`; };
+        const idOf = (x) => (x && x._id ? x._id : x) || null;
+        const moved = {
+            startTime,
+            endTime,
+            teamMember: teamMember || null,
+            service: idOf(appointment.service),
+            services: segs.map((seg) => ({
+                service: idOf(seg.service),
+                teamMember: idOf(seg.teamMember),
+                startTime: at(seg.startTime),
+                endTime: at(seg.endTime),
+            })),
+        };
+        const movedBuffers = await bufferMapForAppointments([moved]);
+        const people = [...new Map([moved.teamMember, ...moved.services.map((s) => s.teamMember)]
+            .map((p) => [String(p || ''), p || null])).values()];
+        windows = people.flatMap((p) => memberBusyIntervalsBuffered(moved, p, movedBuffers)
+            .map(([s, e]) => ({ teamMember: p, s, e, before: 0, after: 0 })));
     }
     // Per-staff: only the SAME person's bookings collide — different staff can
     // hold the same clock time, and teamMember null is the owner's own column.
@@ -219,6 +233,7 @@ const hasConflictingAppointment = async (providerId, appointmentDate, startTime,
     // performer (the owner's segments are the unassigned ones).
     const lanes = [...new Map(windows.map((w) => [String(w.teamMember || ''), w.teamMember])).values()];
     const laneOr = lanes.flatMap((l) => laneInvolvedFilter(l).$or);
+    if (!laneOr.length) return false;
     const existing = await Appointment.find({
         provider: providerId,
         appointmentDate: { $gte: start, $lte: end },
@@ -491,6 +506,17 @@ exports.getBookedSlots = async (req, res) => {
             }).select('allDay startTime endTime').lean() : [],
         ]);
 
+        // The service being booked, when the client names one (and it is this
+        // business's — otherwise the param is ignored, not an error, so a stale
+        // client link degrades to the legacy view instead of breaking). Its own
+        // setup/clean-up buffers widen every booking below, exactly as the server
+        // widens the new booking when it checks it.
+        let incomingSvc = null;
+        if (service && require('mongoose').isValidObjectId(service)) {
+            const svcDoc = await Service.findById(service).select('provider ownerPerforms duration options bufferBefore bufferAfter').lean();
+            if (svcDoc && String(svcDoc.provider) === String(providerId)) incomingSvc = svcDoc;
+        }
+
         // "Any professional" + a service: compute what the booking validator will
         // actually accept, instead of the naive business-hours-minus-all-bookings
         // view. That view had both failure modes — it advertised hours no staff
@@ -498,42 +524,40 @@ exports.getBookedSlots = async (req, res) => {
         // and it greyed out an hour where one member was booked but a colleague
         // was free. anyAvailableBusy mirrors resolveBookingStaff interval-wise;
         // it declines (applied:false) when no bookable member performs the
-        // service, because then the booking lands on the owner column and the
-        // legacy provider-wide view below is the correct one. The service must
-        // belong to this provider — otherwise the param is ignored, not an error,
-        // so a stale client link degrades to the legacy view instead of breaking.
-        if (!teamMember && service && require('mongoose').isValidObjectId(service)) {
-            const svcDoc = await Service.findById(service).select('provider ownerPerforms duration options bufferBefore bufferAfter').lean();
-            if (svcDoc && String(svcDoc.provider) === String(providerId)) {
-                // ownerPerforms travels with the id: the owner-column fallback only
-                // applies to a service the owner actually offers. `duration` (the
-                // length the client will post) and `option` make the view
-                // per-performer: only starts where ONE person can do the whole
-                // service at their own length.
-                const anyView = await anyAvailableBusy({ providerId, svc: svcDoc, date, appointments, duration, optionName: option });
-                if (anyView.applied) {
-                    // Re-emit ONLY business-wide blocks — NOT the owner's own
-                    // (ownerOnly) blocks. `blocks` above was fetched with a null
-                    // scope, which also matches owner-only blocks; re-emitting those
-                    // here greyed out slots the team can still take (the owner isn't
-                    // a performer in this view, and anyAvailableBusy already excludes
-                    // owner-only blocks from the columns for the same reason).
-                    const bizBlocks = await findBusinessWideBlocksForDate(providerId, date);
-                    return res.status(200).json({
-                        success: true,
-                        data: [
-                            ...anyView.busy,
-                            // Business-wide blocks close every column; re-emitted with
-                            // their own kind so the client can label them "Unavailable".
-                            ...bizBlocks.map(b => ({ startTime: b.startTime, endTime: b.endTime, kind: 'blocked' })),
-                        ],
-                        shiftWindow: null,
-                        // Exact start ranges (inclusive) where one performer can take
-                        // the whole booking; clients that know it test starts against it.
-                        openStarts: anyView.openStarts || null,
-                    });
-                }
+        // service, because then the booking lands on the owner's column — so the
+        // view below answers as the owner's column (ownerFallback), not with
+        // every colleague's bookings greyed.
+        let ownerFallback = false;
+        if (!teamMember && incomingSvc) {
+            // ownerPerforms travels with the service: the owner-column fallback
+            // only applies to a service the owner actually offers. `duration` (the
+            // length the client will post) and `option` make the view per
+            // performer: only starts where ONE person can do the whole service at
+            // their own length.
+            const anyView = await anyAvailableBusy({ providerId, svc: incomingSvc, date, appointments, duration, optionName: option });
+            if (anyView.applied) {
+                // Re-emit ONLY business-wide blocks — NOT the owner's own
+                // (ownerOnly) blocks. `blocks` above was fetched with a null
+                // scope, which also matches owner-only blocks; re-emitting those
+                // here greyed out slots the team can still take (the owner isn't
+                // a performer in this view, and anyAvailableBusy already excludes
+                // owner-only blocks from the columns for the same reason).
+                const bizBlocks = await findBusinessWideBlocksForDate(providerId, date);
+                return res.status(200).json({
+                    success: true,
+                    data: [
+                        ...anyView.busy,
+                        // Business-wide blocks close every column; re-emitted with
+                        // their own kind so the client can label them "Unavailable".
+                        ...bizBlocks.map(b => ({ startTime: b.startTime, endTime: b.endTime, kind: 'blocked' })),
+                    ],
+                    shiftWindow: null,
+                    // Exact start ranges (inclusive) where one performer can take
+                    // the whole booking; clients that know it test starts against it.
+                    openStarts: anyView.openStarts || null,
+                });
             }
+            ownerFallback = true;
         }
 
         // For a named member, a multi-service booking occupies only THEIR segment
@@ -548,15 +572,20 @@ exports.getBookedSlots = async (req, res) => {
             const pad = (n) => String(n).padStart(2, '0');
             return `${pad(Math.floor(clamped / 60))}:${pad(clamped % 60)}`;
         };
+        // A client testing [start, start + length) must also keep the NEW
+        // booking's buffers clear of each booking: widening a booking [x, y) to
+        // [x - bufferAfter, y + bufferBefore] makes that the same test.
+        const inBefore = incomingSvc?.bufferBefore || 0;
+        const inAfter = incomingSvc?.bufferAfter || 0;
         const apptBusy = [];
         appointments.forEach((a) => {
             // One person's own windows (a member's segments; the owner's unassigned
             // ones), or — provider-wide, no person named — the whole ticket.
-            const windows = (memberId || ownerColumn)
+            const windows = (memberId || ownerColumn || ownerFallback)
                 ? memberBusyIntervalsBuffered(a, memberId, slotBuffers)
                 : wholeSpanBuffered(a, slotBuffers);
             windows.forEach(([s, e]) =>
-                apptBusy.push({ startTime: minToHHMM(s), endTime: minToHHMM(e), teamMember: a.teamMember, kind: 'appointment' }));
+                apptBusy.push({ startTime: minToHHMM(s - inAfter), endTime: minToHHMM(e + inBefore), teamMember: a.teamMember, kind: 'appointment' }));
         });
 
         const busy = [
@@ -1267,7 +1296,7 @@ exports.createAppointment = async (req, res) => {
             if (ov && ov.price != null) memberPriceOverride = ov.price;
             if (ov && ov.duration != null) memberDurationOverride = ov.duration;
         }
-        let baseServicePrice = chosenOption
+        const baseServicePrice = chosenOption
             ? (chosenOption.price || 0)
             : (memberPriceOverride != null ? memberPriceOverride : (svc.price || 0));
 
@@ -1379,13 +1408,10 @@ exports.createAppointment = async (req, res) => {
                 return res.status(resolution.status).json({ success: false, message: resolution.error });
             }
             resolvedTeamMember = resolution.teamMember;
-            // "Any available" picked someone: book THEIR length, at THEIR price.
+            // "Any available" picked someone: book THEIR length (so the window
+            // checked and stored is the whole service for them). The price stays
+            // the business default the client was quoted — see above.
             if (resolution.endTime) bookingEnd = resolution.endTime;
-            if (resolvedTeamMember && !reqMember && !chosenOption) {
-                const picked = await TeamMember.findOne({ _id: resolvedTeamMember, provider: providerId }).select('serviceOverrides');
-                const ov = picked ? overrideFor(picked, svc._id) : null;
-                if (ov && ov.price != null) baseServicePrice = ov.price;
-            }
         }
 
         // Blocked time is a hard stop for customers and guests. resolveBookingStaff
@@ -1875,6 +1901,9 @@ exports.createMultiServiceAppointment = async (req, res) => {
                 if (bad) return res.status(bad.status).json({ success: false, message: bad.message });
             }
         }
+        // Each segment's own setup/clean-up time, kept for the overlap check
+        // below (every other booking path widens the new booking by its buffers).
+        const segBuffers = built.map((seg) => ({ before: seg._svc.bufferBefore || 0, after: seg._svc.bufferAfter || 0 }));
         built.forEach((seg) => { delete seg._svc; });
         const totalPrice = built.reduce((s, x) => s + x.price, 0);
         const primaryTeamMember = isStaffActor ? (staffPerformer || null) : (built[0].teamMember || teamMember || null);
@@ -1918,10 +1947,11 @@ exports.createMultiServiceAppointment = async (req, res) => {
                 status: { $nin: ['cancelled'] },
             }).select('startTime endTime teamMember services service');
             const sameDayBuffers = await bufferMapForAppointments(sameDay);
-            return built.some((seg) => {
+            return built.some((seg, i) => {
                 const segMember = seg.teamMember || teamMember || null;
-                const segStart = parseTimeToMinutes(seg.startTime);
-                const segEnd = parseTimeToMinutes(seg.endTime);
+                // Widened by the segment's own buffers, as a single booking is.
+                const segStart = parseTimeToMinutes(seg.startTime) - segBuffers[i].before;
+                const segEnd = parseTimeToMinutes(seg.endTime) + segBuffers[i].after;
                 // segMember null = the owner: their unassigned bookings and segments.
                 return sameDay.some(a => overlapsAny(segStart, segEnd, memberBusyIntervalsBuffered(a, segMember, sameDayBuffers)));
             });
@@ -2290,9 +2320,10 @@ exports.getAppointmentHistory = async (req, res) => {
 exports.updateAppointmentStatus = async (req, res) => {
     try {
         const { status } = req.body;
+        // The buffers ride along for the revival's conflict check (conflictScope).
         const appointment = await Appointment.findById(req.params.id)
             .populate('customer', 'name email')
-            .populate('service', 'name provider');
+            .populate('service', 'name provider bufferBefore bufferAfter');
         if (!appointment) {
             return res.status(404).json({ success: false, message: 'Appointment not found' });
         }
@@ -2516,8 +2547,12 @@ exports.providerRescheduleAppointment = async (req, res) => {
         // WHO performs it, not just when. Reassign IN MEMORY before the conflict +
         // race checks below so both scope to the destination member (via
         // conflictScope(appointment)). Owner-only, single-service only.
+        let reassigned = false;
+        let newPerformer = null; // the target's roster row (null = the owner)
         if (requestedTeamMember !== undefined) {
-            const targetMemberId = (requestedTeamMember === '' || requestedTeamMember === 'unassigned' || requestedTeamMember == null)
+            // '' / 'unassigned' / 'owner' all mean the owner's own column ('owner'
+            // is the sentinel the booking page uses; it is not a roster id).
+            const targetMemberId = (requestedTeamMember === '' || requestedTeamMember === 'unassigned' || requestedTeamMember === 'owner' || requestedTeamMember == null)
                 ? null : String(requestedTeamMember);
             if (String(targetMemberId || '') !== String(appointment.teamMember || '')) {
                 if (!isOwner) {
@@ -2542,8 +2577,31 @@ exports.providerRescheduleAppointment = async (req, res) => {
                         return res.status(400).json({ success: false, message: "That team member doesn't perform this service." });
                     }
                     appointment.teamMember = target._id;
+                    newPerformer = target;
                 } else {
                     appointment.teamMember = null; // the owner's own (unassigned) column
+                }
+                reassigned = true;
+            }
+        }
+
+        // A different person does the service at THEIR length (their duration
+        // override, else the menu; the option and add-ons as booked) — never
+        // shorter than that, the same rule a new booking follows. Keeping the old
+        // performer's length put a 2-hour job for Erastus into a 1-hour window,
+        // straight into his next booking. Longer (an owner's stretch) is kept.
+        if (reassigned && appointment.service) {
+            const option = (appointment.service.options || []).find((o) => o.name === appointment.selectedOptionName) || null;
+            const addOnMinutes = (appointment.selectedAddOns || []).reduce((sum, a) => sum + (a.duration || 0), 0);
+            const need = performerMinutes({ svc: appointment.service, member: newPerformer, option, addOnMinutes });
+            if (need > duration) {
+                if (startMinutes + need >= 24 * 60) {
+                    return res.status(400).json({ success: false, message: 'That time would run past midnight. Pick an earlier start.' });
+                }
+                duration = need;
+                endTime = minutesToTime(startMinutes + need);
+                if (!isTimeWithinSchedule(schedule, appointmentDate, startTime, duration)) {
+                    return res.status(400).json({ success: false, message: 'Selected time is outside your availability schedule' });
                 }
             }
         }
@@ -3326,6 +3384,13 @@ exports.getAppointmentByToken = async (req, res) => {
                 // booking page uses.
                 providerId: appt.provider?._id || null,
                 lane: appt.teamMember?._id ? String(appt.teamMember._id) : 'owner',
+                // A multi-service booking's parts and whose each is, so the picker
+                // checks every part in its own person's time (the server does).
+                segments: (appt.services || []).map((g) => ({
+                    lane: g.teamMember ? String(g.teamMember) : 'owner',
+                    startTime: g.startTime,
+                    endTime: g.endTime,
+                })),
                 // Same fallback the server enforces (0 = anytime), so the page never shows a
                 // stricter policy than the one actually applied.
                 cancellationWindowHours: appt.provider?.bookingPolicy?.cancellationWindowHours ?? DEFAULT_WINDOW_HOURS,
@@ -3416,8 +3481,10 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
         if (!appointmentDate || !startTime) {
             return res.status(400).json({ success: false, message: 'appointmentDate and startTime are required' });
         }
+        // The buffers ride along for the conflict check (conflictScope): a moved
+        // booking keeps its own setup/clean-up time, as on every other path.
         const appt = await Appointment.findOne({ manageToken: req.params.token })
-            .populate('service', 'name duration')
+            .populate('service', 'name duration bufferBefore bufferAfter')
             .populate('customer', 'name email');
         if (!appt) return res.status(404).json({ success: false, message: 'Booking not found' });
         if (!['pending', 'confirmed'].includes(appt.status)) {

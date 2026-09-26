@@ -78,12 +78,28 @@ const performerMinutes = ({ svc, member = null, option = null, addOnMinutes = 0 
 const memberBusyIntervals = (appt, memberId) => {
     const id = String(memberId);
     if (Array.isArray(appt.services) && appt.services.length) {
-        return appt.services
+        const out = appt.services
             .filter(s => String(s.teamMember) === id)
             .map(s => [toMin(s.startTime), toMin(s.endTime)]);
+        if (String(appt.teamMember) === id) ticketRemainder(appt).forEach(iv => out.push(iv));
+        return out;
     }
     return String(appt.teamMember) === id ? [[toMin(appt.startTime), toMin(appt.endTime)]] : [];
 };
+
+/**
+ * The part of a multi-service ticket's span that no segment covers. A resize on
+ * the calendar moves the ticket's end, not a segment's, so a ticket stretched
+ * from 12:00 to 13:30 has 12:00–13:30 that belongs to no segment — and was
+ * nobody's busy time: the next booking could land on it. It is the top-level
+ * performer's (the lane the ticket is drawn in, and the person the stretch was
+ * checked against). Empty for every ticket built by the booking paths, whose
+ * segments cover the span exactly.
+ */
+const ticketRemainder = (appt) => subtractIntervals(
+    [[toMin(appt.startTime), toMin(appt.endTime)]],
+    appt.services.map(s => [toMin(s.startTime), toMin(s.endTime)]),
+);
 // A member is involved in a booking as its top-level performer OR a segment one.
 const memberInvolvedFilter = (memberId) => ({ $or: [{ teamMember: memberId }, { 'services.teamMember': memberId }] });
 // The owner's own work is stored unassigned (teamMember null) — on a single
@@ -118,21 +134,18 @@ const memberBusyIntervalsBuffered = (appt, memberId, bufferByService = {}) => {
         const b = bufferByService[String(svcId)] || {};
         return [s - (b.bufferBefore || 0), e + (b.bufferAfter || 0)];
     };
-    if (memberId == null) {
-        if (Array.isArray(appt.services) && appt.services.length) {
-            return appt.services
-                .filter(s => !s.teamMember)
-                .map(s => widen(toMin(s.startTime), toMin(s.endTime), s.service));
-        }
-        return appt.teamMember ? [] : [widen(toMin(appt.startTime), toMin(appt.endTime), appt.service)];
-    }
-    const id = String(memberId);
+    // Whose is a window: the owner's are the unassigned ones.
+    const id = memberId == null ? null : String(memberId);
+    const mine = (tm) => (id == null ? !tm : String(tm) === id);
     if (Array.isArray(appt.services) && appt.services.length) {
-        return appt.services
-            .filter(s => String(s.teamMember) === id)
+        const out = appt.services
+            .filter(s => mine(s.teamMember))
             .map(s => widen(toMin(s.startTime), toMin(s.endTime), s.service));
+        // A stretched ticket's uncovered tail is its top-level performer's.
+        if (mine(appt.teamMember)) ticketRemainder(appt).forEach(([s, e]) => out.push(widen(s, e, appt.service)));
+        return out;
     }
-    return String(appt.teamMember) === id ? [widen(toMin(appt.startTime), toMin(appt.endTime), appt.service)] : [];
+    return mine(appt.teamMember) ? [widen(toMin(appt.startTime), toMin(appt.endTime), appt.service)] : [];
 };
 
 // The whole ticket span (buffered), whoever performs it — for the provider-wide

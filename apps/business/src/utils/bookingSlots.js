@@ -131,11 +131,49 @@ export const laneBusyRanges = (appointments, lane, laneOf, { bufferOf = () => nu
             a.services.forEach((seg) => {
                 if (laneOf(idOf(seg.teamMember)) === lane) push(seg.startTime, seg.endTime, seg.service);
             });
+            // A ticket stretched on the calendar runs past its segments; that
+            // stretch is its top-level performer's time (the server's
+            // ticketRemainder), so it is theirs here too.
+            if (laneOf(idOf(a.teamMember)) === lane) {
+                const segs = a.services.map((seg) => [toMin(seg.startTime), toMin(seg.endTime)])
+                    .filter(([x, y]) => y > x).sort((p, q) => p[0] - q[0]);
+                let cursor = toMin(a.startTime);
+                const end = toMin(a.endTime);
+                segs.forEach(([x, y]) => {
+                    if (x > cursor) push(fmt(cursor), fmt(Math.min(x, end)), a.service);
+                    cursor = Math.max(cursor, y);
+                });
+                if (cursor < end) push(fmt(cursor), fmt(end), a.service);
+            }
         } else if (laneOf(idOf(a.teamMember)) === lane) {
             push(a.startTime, a.endTime, a.service);
         }
     });
     return out;
+};
+
+const fmt = (m) => `${Math.floor(m / 60)}:${m % 60}`;
+
+/**
+ * The setup/clean-up buffers of a NEW multi-service booking, as one envelope:
+ * back-to-back services widened by their own buffers cover exactly
+ * [start - bufferBefore, end + bufferAfter] of the whole ticket (the server
+ * widens each segment by its service's buffers). `rows` are the ticket's
+ * services in order, each with the `duration` it will be booked at.
+ * @returns {{bufferBefore:number, bufferAfter:number}}
+ */
+export const ticketBuffers = (rows, bufferOf = () => null) => {
+    const total = (rows || []).reduce((sum, r) => sum + (r?.duration || 0), 0);
+    let before = 0;
+    let after = 0;
+    let offset = 0;
+    (rows || []).forEach((r) => {
+        const b = bufferOf(idOf(r?._id)) || {};
+        before = Math.max(before, (b.bufferBefore || 0) - offset);
+        offset += r?.duration || 0;
+        after = Math.max(after, (b.bufferAfter || 0) - (total - offset));
+    });
+    return { bufferBefore: before, bufferAfter: after };
 };
 
 /** "HH:mm" periods → sorted minute blocks, dropping anything empty or inverted. */

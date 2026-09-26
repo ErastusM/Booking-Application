@@ -3,7 +3,7 @@ const User = require('../models/User');
 const Service = require('../models/Service');
 const StaffAvailability = require('../models/StaffAvailability');
 const Appointment = require('../models/Appointment');
-const { memberBusyIntervals, memberInvolvedFilter, pickRotationWeek } = require('../utils/staffBooking');
+const { memberBusyIntervals, memberBusyIntervalsBuffered, memberInvolvedFilter, pickRotationWeek, performerMinutes } = require('../utils/staffBooking');
 const { memberSlugMap } = require('../utils/memberLink');
 const { isHexColor, isUnsetColor, colorForNewMember } = require('../utils/memberColors');
 const staffInvites = require('../utils/staffInvites');
@@ -39,15 +39,10 @@ const redactHR = (req, doc) => {
 };
 
 // The owner's own work is stored UNASSIGNED (teamMember null) — there is no
-// roster row for the boss. These mirror memberInvolvedFilter/memberBusyIntervals
-// for that null case so the owner can be a handover target like anyone else.
+// roster row for the boss. This mirrors memberInvolvedFilter for that null case
+// so the owner can be a handover target like anyone else.
 const ownerInvolvedFilter = { $or: [{ teamMember: null }, { services: { $elemMatch: { teamMember: null } } }] };
-const ownerBusyIntervals = (appt) => {
-    if (Array.isArray(appt.services) && appt.services.length) {
-        return appt.services.filter((s) => !s.teamMember).map((s) => [toMin(s.startTime), toMin(s.endTime)]);
-    }
-    return !appt.teamMember ? [[toMin(appt.startTime), toMin(appt.endTime)]] : [];
-};
+const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
 
 /**
  * POST /api/team/:id/handover  (provider/admin)  Body: { to: memberId }
@@ -84,7 +79,8 @@ exports.handoverUpcomingBookings = async (req, res) => {
         }
         const targetId = toOwner ? null : to._id;
         const targetInvolved = toOwner ? ownerInvolvedFilter : memberInvolvedFilter(to._id);
-        const targetBusy = (a) => (toOwner ? ownerBusyIntervals(a) : memberBusyIntervals(a, to._id));
+        // The target's own windows (null = the owner's unassigned ones), unwidened.
+        const targetBusy = (a) => memberBusyIntervalsBuffered(a, targetId);
 
         const dayStart = new Date(); dayStart.setHours(0, 0, 0, 0);
         const scope = { provider: providerId, status: { $in: ['pending', 'confirmed'] }, appointmentDate: { $gte: dayStart } };
@@ -92,6 +88,18 @@ exports.handoverUpcomingBookings = async (req, res) => {
             Appointment.find({ ...scope, ...memberInvolvedFilter(from._id) }).sort({ appointmentDate: 1, startTime: 1 }),
             Appointment.find({ ...scope, ...targetInvolved }).select('appointmentDate startTime endTime teamMember services').lean(),
         ]);
+
+        // A single booking handed over is done at the TARGET's length (their
+        // duration override, else the menu; option and add-ons as booked) — never
+        // shorter, the rule a new booking follows. Keeping the source's length
+        // put a slower target's job into a window too short for it, running into
+        // their next booking. (A multi-service ticket keeps its segment windows.)
+        const svcIds = [...new Set(sources
+            .filter((a) => !(Array.isArray(a.services) && a.services.length) && a.service)
+            .map((a) => String(a.service)))];
+        const svcById = new Map((svcIds.length
+            ? await Service.find({ _id: { $in: svcIds } }).select('duration options').lean()
+            : []).map((x) => [String(x._id), x]));
 
         // The target's busy windows per day, extended as bookings move across.
         const busyByDay = {};
@@ -104,12 +112,29 @@ exports.handoverUpcomingBookings = async (req, res) => {
         const skipped = [];
         for (const appt of sources) {
             const k = dayKeyOf(appt.appointmentDate);
-            const wanted = memberBusyIntervals(appt, from._id);
+            let wanted = memberBusyIntervals(appt, from._id);
+            let newEnd = null;
+            const svc = !(Array.isArray(appt.services) && appt.services.length) ? svcById.get(String(appt.service)) : null;
+            if (svc) {
+                const s0 = toMin(appt.startTime);
+                const option = (svc.options || []).find((o) => o.name === appt.selectedOptionName) || null;
+                const addOnMinutes = (appt.selectedAddOns || []).reduce((sum, a) => sum + (a.duration || 0), 0);
+                const need = performerMinutes({ svc, member: to, option, addOnMinutes });
+                if (s0 + need > toMin(appt.endTime)) {
+                    if (s0 + need >= 24 * 60) {
+                        skipped.push({ id: appt._id, date: k, startTime: appt.startTime, reason: 'too_long' });
+                        continue;
+                    }
+                    newEnd = hhmm(s0 + need);
+                    wanted = [[s0, s0 + need]];
+                }
+            }
             const clash = wanted.some(([s, e]) => (busyByDay[k] || []).some(([bs, be]) => s < be && e > bs));
             if (clash) {
                 skipped.push({ id: appt._id, date: k, startTime: appt.startTime, reason: 'conflict' });
                 continue;
             }
+            if (newEnd) appt.endTime = newEnd;
             if (Array.isArray(appt.services) && appt.services.length) {
                 appt.services.forEach((seg) => {
                     if (String(seg.teamMember) === String(from._id)) seg.teamMember = targetId;

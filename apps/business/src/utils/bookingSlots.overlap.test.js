@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildTimeSlots, laneBusyRanges } from './bookingSlots';
+import { buildTimeSlots, laneBusyRanges, ticketBuffers } from './bookingSlots';
 
 // The New Appointment rule, end to end: a start is offered only if the WHOLE
 // service fits in the chosen person's time — inside their hours and clear of
@@ -124,5 +124,47 @@ describe('buffers are reserved on both sides, as on the server', () => {
         // Existing 09:00–10:00 widened by its own set-up (10) and the new one's set-up (10).
         expect(busy).toEqual([{ start: H(8, 50), end: H(10, 10) }]);
         expect(free(buildTimeSlots({ blocks: [DAY], bookedRanges: busy, duration: 50 }))).not.toContain('10:00');
+    });
+});
+
+describe('a new multi-service booking reserves its own buffers, as the server does', () => {
+    const buffers = { 'svc-colour': { bufferBefore: 10, bufferAfter: 30 }, 'svc-cut': { bufferBefore: 0, bufferAfter: 15 } };
+    const bufferOf = (id) => buffers[id];
+
+    it('the envelope is the first set-up and the last clean-up (a long inner clean-up that spills past the end counts)', () => {
+        expect(ticketBuffers([{ _id: 'svc-colour', duration: 60 }, { _id: 'svc-cut', duration: 60 }], bufferOf))
+            .toEqual({ bufferBefore: 10, bufferAfter: 15 });
+        // Colour's 30-min clean-up after a 15-min last service runs 15 past the end.
+        expect(ticketBuffers([{ _id: 'svc-colour', duration: 60 }, { _id: 'svc-x', duration: 15 }], bufferOf))
+            .toEqual({ bufferBefore: 10, bufferAfter: 15 });
+        expect(ticketBuffers([{ _id: 'svc-x', duration: 30 }], bufferOf)).toEqual({ bufferBefore: 0, bufferAfter: 0 });
+    });
+
+    it('Colour + Cut (2 h) before a 15:00 booking: 13:00 ends 15:00 but its clean-up runs to 15:15 — not offered', () => {
+        const incoming = ticketBuffers([{ _id: 'svc-colour', duration: 60 }, { _id: 'svc-cut', duration: 60 }], bufferOf);
+        const busy = laneBusyRanges([appt(null, '15:00', '16:00', { service: 'svc-x' })], '', laneOf, { bufferOf, incoming });
+        const slots = free(buildTimeSlots({ blocks: [DAY], bookedRanges: busy, duration: 120 }));
+        expect(slots).not.toContain('13:00');
+        expect(slots).toContain('12:00');
+    });
+});
+
+describe('a ticket stretched on the calendar', () => {
+    // Hilda's ticket 10:00–13:30, but its segments end at 12:00: the stretch is hers.
+    const stretched = appt(HILDA, '10:00', '13:30', {
+        services: [
+            { teamMember: HILDA, startTime: '10:00', endTime: '11:00' },
+            { teamMember: ERASTUS, startTime: '11:00', endTime: '12:00' },
+        ],
+    });
+
+    it("the part past the segments is the top-level performer's time", () => {
+        expect(laneBusyRanges([stretched], HILDA, laneOf)).toEqual([{ start: H(10), end: H(11) }, { start: H(12), end: H(13, 30) }]);
+        expect(laneBusyRanges([stretched], ERASTUS, laneOf)).toEqual([{ start: H(11), end: H(12) }]);
+    });
+
+    it('an unstretched ticket adds nothing', () => {
+        const ticket = appt(HILDA, '10:00', '12:00', { services: stretched.services });
+        expect(laneBusyRanges([ticket], HILDA, laneOf)).toEqual([{ start: H(10), end: H(11) }]);
     });
 });

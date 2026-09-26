@@ -86,8 +86,13 @@ export const buildTimeSlots = ({ blocks, bookedRanges = [], duration, minStart =
             for (const start of candidates) {
                 if (!usable(start)) continue;
                 const end = start + dur;
-                const hits = bookedRanges.filter((b) => start < b.end && end > b.start);
-                const notOpen = !!openStarts && !openStarts.some((r) => start >= r.start && start <= r.end);
+                // When the server lists the exact starts, a listed start is free:
+                // it already accounts for everything busy, per person at THEIR
+                // length (a faster colleague can finish before a block that the
+                // menu length would run into), and an unlisted one is not.
+                const open = openStarts ? openStarts.some((r) => start >= r.start && start <= r.end) : null;
+                const hits = open ? [] : bookedRanges.filter((b) => start < b.end && end > b.start);
+                const notOpen = open === false;
                 if (hits.length || notOpen) {
                     occupied = true;
                     if (hits.some((h) => !NON_BOOKING_KINDS.has(h.kind)) || (notOpen && !hits.length)) hitRealBooking = true;
@@ -112,4 +117,71 @@ export const buildTimeSlots = ({ blocks, bookedRanges = [], duration, minStart =
     });
 
     return slots;
+};
+
+// ── Moving a booking whose parts are done by different people ───────────────
+// A multi-service ticket (Hilda 14:00–15:00, then Erastus 15:00–16:00) moves as
+// one: every part shifts by the same amount, and each part must be clear in ITS
+// person's time — which is how the server checks the move. Sizing the whole
+// ticket against the first person's time offered starts where Erastus's part
+// ran into his booking, and hid starts that were free for both.
+
+const toMinutes = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+const DAY_MINUTES = 24 * 60;
+
+/**
+ * The parts of a booking, each as { lane, offset, length, only? } relative to
+ * its start. `lane` is a member id or 'owner'. The whole span is always checked
+ * against the booking's own person's hours, blocks and leave (`only` = those
+ * kinds — the server checks them over the whole booking); each segment against
+ * everything in its person's time; any stretch of the span past its segments is
+ * the booking's own person's.
+ * @param {{startTime:string, endTime:string, lane:string,
+ *          segments?: {lane:string, startTime:string, endTime:string}[]}} booking
+ */
+export const bookingParts = ({ startTime, endTime, lane, segments }) => {
+    const t0 = toMinutes(startTime);
+    const t1 = toMinutes(endTime);
+    if (!Array.isArray(segments) || !segments.length) return [{ lane, offset: 0, length: t1 - t0 }];
+    const parts = [{ lane, offset: 0, length: t1 - t0, only: NON_BOOKING_KINDS }];
+    const segs = segments
+        .map((g) => ({ lane: g.lane, s: toMinutes(g.startTime), e: toMinutes(g.endTime) }))
+        .filter((g) => g.e > g.s)
+        .sort((a, b) => a.s - b.s);
+    let cursor = t0;
+    segs.forEach((g) => {
+        parts.push({ lane: g.lane, offset: g.s - t0, length: g.e - g.s });
+        if (g.s > cursor) parts.push({ lane, offset: cursor - t0, length: Math.min(g.s, t1) - cursor });
+        cursor = Math.max(cursor, g.e);
+    });
+    if (cursor < t1) parts.push({ lane, offset: cursor - t0, length: t1 - cursor });
+    return parts.filter((p) => p.length > 0);
+};
+
+/**
+ * Where the booking can START so no part touches anything busy in its person's
+ * time: inclusive minute ranges, the `openStarts` buildTimeSlots understands.
+ * A start S puts a part at [S + offset, S + offset + length), which overlaps a
+ * busy [x, y) exactly when x - offset - length < S < y - offset.
+ * @param {ReturnType<typeof bookingParts>} parts
+ * @param {Record<string, {start:number,end:number,kind?:string}[]>} busyByLane
+ */
+export const partsOpenStarts = (parts, busyByLane) => {
+    const closed = [];
+    parts.forEach(({ lane, offset, length, only }) => {
+        (busyByLane[lane] || []).forEach((b) => {
+            if (only && !only.has(b.kind)) return;
+            closed.push([b.start - offset - length + 1, b.end - offset - 1]);
+        });
+    });
+    closed.sort((a, b) => a[0] - b[0]);
+    const open = [];
+    let from = 0;
+    closed.forEach(([a, b]) => {
+        if (b < a) return;
+        if (a > from) open.push({ start: from, end: Math.min(a - 1, DAY_MINUTES - 1) });
+        from = Math.max(from, b + 1);
+    });
+    if (from <= DAY_MINUTES - 1) open.push({ start: from, end: DAY_MINUTES - 1 });
+    return open.filter((r) => r.end >= r.start);
 };

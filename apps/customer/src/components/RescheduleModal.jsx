@@ -1,6 +1,6 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { availabilityService, appointmentService } from '../services';
-import { buildTimeSlots } from '../utils/bookingSlots';
+import { buildTimeSlots, bookingParts, partsOpenStarts } from '../utils/bookingSlots';
 import { useModalChrome } from '../hooks/useModalChrome';
 import { X } from 'lucide-react';
 import { DatePicker, formatDuration } from '@bookplus/ui';
@@ -21,12 +21,23 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
     const duration = (span > 0 ? span : 0) || appointment?.service?.duration || 30;
     // Busy times are THIS booking's person's (their bookings, blocks, hours) —
     // not the whole business's — and leave out the booking being moved.
-    const lane = appointment?.teamMember?._id || appointment?.teamMember || 'owner';
+    const lane = String(appointment?.teamMember?._id || appointment?.teamMember || 'owner');
+    // A ticket whose services are done by different people moves as one: each
+    // part is checked in ITS person's time (as the server checks the move).
+    const laneOfId = (x) => String(x?._id || x || 'owner');
+    const segments = Array.isArray(appointment?.services) && appointment.services.length
+        ? appointment.services.map((g) => ({ lane: laneOfId(g.teamMember), startTime: g.startTime, endTime: g.endTime }))
+        : null;
+    const parts = useMemo(() => (segments && appointment?.startTime && appointment?.endTime
+        ? bookingParts({ startTime: appointment.startTime, endTime: appointment.endTime, lane, segments })
+        : null), [appointment?._id]); // eslint-disable-line react-hooks/exhaustive-deps
+    const lanes = parts ? [...new Set(parts.map((p) => p.lane))] : [lane];
 
     const [schedule, setSchedule] = useState(null);
     const [scheduleLoaded, setScheduleLoaded] = useState(false);
     const [selectedDate, setSelectedDate] = useState(null);
     const [bookedSlots, setBookedSlots] = useState([]);
+    const [busyByLane, setBusyByLane] = useState({});
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [pendingTime, setPendingTime] = useState(null); // slot awaiting a confirm tap
@@ -65,9 +76,15 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
         setError('');
         if (providerId) {
             const reqId = ++bookedReqRef.current;
-            appointmentService.getBookedSlots(providerId, dateStr, String(lane), undefined, { exclude: appointment?._id })
-                .then((res) => { if (reqId === bookedReqRef.current) setBookedSlots(res.data.data || []); })
-                .catch(() => { if (reqId === bookedReqRef.current) setBookedSlots([]); });
+            // One list per person the booking involves (usually just one).
+            Promise.all(lanes.map((l) => appointmentService.getBookedSlots(providerId, dateStr, l, undefined, { exclude: appointment?._id })
+                .then((res) => [l, res.data.data || []])))
+                .then((pairs) => {
+                    if (reqId !== bookedReqRef.current) return;
+                    setBusyByLane(Object.fromEntries(pairs));
+                    setBookedSlots(pairs.flatMap(([, list]) => list));
+                })
+                .catch(() => { if (reqId === bookedReqRef.current) { setBusyByLane({}); setBookedSlots([]); } });
         }
     };
 
@@ -107,8 +124,17 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
         let minStart = -1;
         const now = new Date();
         if (selectedDate === fmtDate(now)) minStart = now.getHours() * 60 + now.getMinutes();
-        return buildTimeSlots({ blocks, bookedRanges, duration, minStart });
-    }, [selectedDate, schedule, bookedSlots, duration]);
+        // Several people: a start is open only where every part fits its person.
+        const toRanges = (list) => (list || []).map((b) => {
+            const [bsH, bsM] = b.startTime.split(':').map(Number);
+            const [beH, beM] = b.endTime.split(':').map(Number);
+            return { start: bsH * 60 + bsM, end: beH * 60 + beM, kind: b.kind };
+        });
+        const openStarts = parts
+            ? partsOpenStarts(parts, Object.fromEntries(Object.entries(busyByLane).map(([l, list]) => [l, toRanges(list)])))
+            : null;
+        return buildTimeSlots({ blocks, bookedRanges, duration, minStart, openStarts });
+    }, [selectedDate, schedule, bookedSlots, busyByLane, parts, duration]);
 
     const confirm = async (time) => {
         setBusy(true); setError('');

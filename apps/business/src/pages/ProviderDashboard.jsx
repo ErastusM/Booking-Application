@@ -24,7 +24,7 @@ import { cloudinaryAvatar } from '../utils/cloudinary';
 import { NAMIBIAN_TOWNS, normalizeTown } from '../utils/namibiaTowns';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import useMyMember from '../hooks/useMyMember';
-import { buildTimeSlots, periodsToBlocks, scheduleBlocksFor, dayNameOf, hoursNote, blocksLabel, laneBusyRanges } from '../utils/bookingSlots';
+import { buildTimeSlots, periodsToBlocks, scheduleBlocksFor, dayNameOf, hoursNote, blocksLabel, laneBusyRanges, ticketBuffers } from '../utils/bookingSlots';
 import { fmtClock } from '../utils/time';
 import { sortClients } from '../utils/clientSort';
 import { bookingClientFields } from '../utils/bookingClient';
@@ -4319,7 +4319,14 @@ const ProviderDashboard = () => {
                                             ...laneBusyRanges(
                                                 (appointments || []).filter(a => a.status !== 'cancelled' && toDateString(a.appointmentDate) === apptForm.date),
                                                 selectedLane, laneOf,
-                                                { bufferOf, incoming: apptForm.isGroup || selectedRowServices.length === 1 ? bufferOf(selectedRowServices[0]?._id) : null },
+                                                {
+                                                    bufferOf,
+                                                    // The new booking's own buffers — one service's, or (2+) the
+                                                    // ticket's envelope, each segment widened as the server does.
+                                                    incoming: apptForm.isGroup || selectedRowServices.length === 1
+                                                        ? bufferOf(selectedRowServices[0]?._id)
+                                                        : ticketBuffers(selectedRowServices, bufferOf),
+                                                },
                                             ),
                                             // Blocked time is a hard stop too — it was being ignored entirely before.
                                             ...(blockedTimes || []).filter(b => {

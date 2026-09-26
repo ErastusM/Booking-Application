@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { appointmentService } from '../services';
-import { buildTimeSlots } from '../utils/bookingSlots';
+import { buildTimeSlots, bookingParts, partsOpenStarts } from '../utils/bookingSlots';
 import { currencySymbol } from '../utils/currency';
 import { apptLocalDate } from '../utils/date';
 import { Calendar, Clock, MapPin, ConciergeBell, User, CheckCircle2, XCircle } from 'lucide-react';
@@ -45,16 +45,23 @@ const ManageBooking = () => {
     const rDateRef = useRef(null);
     // This person's busy times on the picked day (their bookings, blocks, hours),
     // without this booking itself — so no start is offered that the booking can't
-    // move to in full.
-    const [rBusy, setRBusy] = useState([]);
+    // move to in full. A booking whose services are done by different people
+    // checks each part in ITS person's time (as the server checks the move).
+    const [rBusyByLane, setRBusyByLane] = useState({});
+    const rParts = appt && Array.isArray(appt.segments) && appt.segments.length
+        ? bookingParts({ startTime: appt.startTime, endTime: appt.endTime, lane: appt.lane || 'owner', segments: appt.segments })
+        : null;
+    const rLanes = rParts ? [...new Set(rParts.map((p) => p.lane))] : [appt?.lane || 'owner'];
+    const rLanesKey = rLanes.join(',');
     useEffect(() => {
-        if (!showReschedule || !rDate || !appt?.providerId) { setRBusy([]); return undefined; }
+        if (!showReschedule || !rDate || !appt?.providerId) { setRBusyByLane({}); return undefined; }
         let stale = false;
-        appointmentService.getBookedSlots(String(appt.providerId), rDate, appt.lane || 'owner', undefined, { exclude: appt._id })
-            .then((res) => { if (!stale) setRBusy(res.data.data || []); })
-            .catch(() => { if (!stale) setRBusy([]); });
+        Promise.all(rLanes.map((l) => appointmentService.getBookedSlots(String(appt.providerId), rDate, l, undefined, { exclude: appt._id })
+            .then((res) => [l, res.data.data || []])))
+            .then((pairs) => { if (!stale) setRBusyByLane(Object.fromEntries(pairs)); })
+            .catch(() => { if (!stale) setRBusyByLane({}); });
         return () => { stale = true; };
-    }, [showReschedule, rDate, appt?.providerId, appt?.lane, appt?._id]);
+    }, [showReschedule, rDate, appt?.providerId, rLanesKey, appt?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const today = new Date().toISOString().split('T')[0];
     const toInputDate = (d) => {
@@ -166,9 +173,13 @@ const ManageBooking = () => {
                                                 const duration = (span > 0 ? span : 0) || appt.service?.duration || 30;
                                                 const blocks = blocksFor(rDate, appt.schedule);
                                                 const minStart = rDate === today ? (new Date().getHours() * 60 + new Date().getMinutes()) : -1;
-                                                const bookedRanges = rBusy.map((b) => ({ start: toMin(b.startTime), end: toMin(b.endTime), kind: b.kind }));
+                                                const toRanges = (list) => (list || []).map((b) => ({ start: toMin(b.startTime), end: toMin(b.endTime), kind: b.kind }));
+                                                const bookedRanges = Object.values(rBusyByLane).flatMap(toRanges);
+                                                const openStarts = rParts
+                                                    ? partsOpenStarts(rParts, Object.fromEntries(Object.entries(rBusyByLane).map(([l, list]) => [l, toRanges(list)])))
+                                                    : null;
                                                 // Only times the whole booking fits; taken ones aren't offered here.
-                                                const slots = rDate ? buildTimeSlots({ blocks, bookedRanges, duration, minStart }).filter((s) => !s.isBooked) : [];
+                                                const slots = rDate ? buildTimeSlots({ blocks, bookedRanges, duration, minStart, openStarts }).filter((s) => !s.isBooked) : [];
                                                 if (!rDate) return <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>Pick a date first.</p>;
                                                 if (slots.length === 0) return <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>No available times on this day.</p>;
                                                 return (

@@ -189,14 +189,16 @@ describe("a member's own duration (#228) is the length every check uses", () => 
         expect(open('14:30')).toBe(true);  // Hilda, 14:30–15:30
     });
 
-    it('"any available" books the chosen person at their length and price', async () => {
+    it('"any available" books the chosen person at their length, at the menu price the client was quoted', async () => {
         const ctx = await setup({ erastusCut: 120 });
         await seed(ctx, ctx.cut, ctx.hilda._id, '13:00', '14:30');
         const res = await book(ctx.customer, { service: ctx.cut._id, startTime: '14:00', endTime: '15:00' });
         expect(res.status).toBe(201);
         expect(String(res.body.data.teamMember)).toBe(String(ctx.erastus._id));
         expect(res.body.data.endTime).toBe('16:00');
-        expect(res.body.data.totalPrice).toBe(170);
+        // The page quotes the menu price when no professional is picked; the
+        // member's own price is only for a booking made with them by name.
+        expect(res.body.data.totalPrice).toBe(100);
         // 15:00 now goes to Hilda (free from 14:30), never on top of Erastus.
         const next = await book(ctx.other, { service: ctx.cut._id, startTime: '15:00', endTime: '16:00' });
         expect(next.status).toBe(201);
@@ -418,5 +420,195 @@ describe('waiting-list promotion books the whole service for the person', () => 
         expect((await WaitingList.findById(entry._id)).status).toBe('promoted');
         const promoted = await Appointment.findOne({ customer: ctx.other._id }).lean();
         expect(promoted).toMatchObject({ startTime: '14:00', endTime: '16:00', totalPrice: 170 });
+    });
+});
+
+describe('reassigning a booking books the new person at THEIR length', () => {
+    const drag = (ctx, id, body) => request(app).put(`/api/appointments/${id}/provider-reschedule`).set(authHeader(ctx.provider))
+        .send({ appointmentDate: DATE, ...body });
+
+    it("a Cut dragged from Hilda (60) to Erastus (120) can't sit an hour before his 15:00; with room it is stored as 2 hours", async () => {
+        const ctx = await setup({ erastusCut: 120 });
+        const hilda = await seed(ctx, ctx.cut, ctx.hilda._id, '10:00', '11:00');
+        await seed(ctx, ctx.cut, ctx.erastus._id, '15:00', '17:00');
+
+        // The calendar sends the card's own end with the new lane.
+        const clash = await drag(ctx, hilda._id, { startTime: '14:00', endTime: '15:00', teamMember: String(ctx.erastus._id) });
+        expect(clash.status).toBe(409);
+        expect((await Appointment.findById(hilda._id)).teamMember.toString()).toBe(String(ctx.hilda._id));
+
+        const ok = await drag(ctx, hilda._id, { startTime: '12:00', endTime: '13:00', teamMember: String(ctx.erastus._id) });
+        expect(ok.status).toBe(200);
+        expect(ok.body.data).toMatchObject({ startTime: '12:00', endTime: '14:00' });
+        // 13:00–15:00 touches his 15:00 booking.
+        const hilda2 = await seed(ctx, ctx.cut, ctx.hilda._id, '09:00', '10:00');
+        expect((await drag(ctx, hilda2._id, { startTime: '10:00', endTime: '11:00', teamMember: String(ctx.erastus._id) })).status).toBe(200);
+
+        // Back to Hilda: her own length, and a longer stretch the owner chose is kept.
+        const back = await drag(ctx, hilda._id, { startTime: '16:00', endTime: '18:00', teamMember: String(ctx.hilda._id) });
+        expect(back.status).toBe(200);
+        expect(back.body.data.endTime).toBe('18:00');
+        // 'owner' is the owner's own column, not a roster id.
+        const toOwner = await drag(ctx, hilda2._id, { startTime: '08:00', endTime: '09:00', teamMember: 'owner' });
+        expect(toOwner.status).toBe(200);
+        expect(toOwner.body.data.teamMember).toBeNull();
+    });
+
+    it('a handover moves a single booking at the target’s length, and skips it when that runs into their next booking', async () => {
+        const ctx = await setup({ erastusCut: 120 });
+        const fits = await seed(ctx, ctx.cut, ctx.hilda._id, '10:00', '11:00');
+        const clashes = await seed(ctx, ctx.cut, ctx.hilda._id, '14:00', '15:00');
+        await seed(ctx, ctx.cut, ctx.erastus._id, '15:00', '16:00');
+        const res = await request(app).post(`/api/team/${ctx.hilda._id}/handover`).set(authHeader(ctx.provider)).send({ to: String(ctx.erastus._id) });
+        expect(res.status).toBe(200);
+        expect(res.body.data.moved).toBe(1);
+        expect(res.body.data.skipped.map((s) => String(s.id))).toEqual([String(clashes._id)]);
+        expect(await Appointment.findById(fits._id).lean()).toMatchObject({ startTime: '10:00', endTime: '12:00' });
+        expect(String((await Appointment.findById(clashes._id)).teamMember)).toBe(String(ctx.hilda._id));
+    });
+});
+
+describe('stretching a multi-service ticket on the calendar', () => {
+    const ticket = async (ctx, services) => {
+        const t = await request(app).post('/api/appointments/multi').set(authHeader(ctx.provider))
+            .send({ appointmentDate: DATE, startTime: '10:00', walkInName: 'Ticket', services });
+        expect(t.status).toBe(201);
+        return t.body.data;
+    };
+
+    it("can't be stretched over the performer's next booking — batch resize, single resize and admin edit", async () => {
+        const ctx = await setup();
+        const t = await ticket(ctx, [
+            { serviceId: String(ctx.cut._id), teamMember: String(ctx.hilda._id) },
+            { serviceId: String(ctx.cut._id), teamMember: String(ctx.hilda._id) },
+        ]);
+        await seed(ctx, ctx.cut, ctx.hilda._id, '12:30', '13:30');
+
+        const batch = await request(app).post('/api/appointments/batch-reschedule').set(authHeader(ctx.provider)).send({
+            allowOutsideHours: true,
+            moves: [{ id: t._id, appointmentDate: DATE, startTime: '10:00', endTime: '13:30' }],
+        });
+        expect(batch.status).toBe(409);
+        const single = await request(app).put(`/api/appointments/${t._id}/provider-reschedule`).set(authHeader(ctx.provider))
+            .send({ appointmentDate: DATE, startTime: '10:00', endTime: '13:30' });
+        expect(single.status).toBe(409);
+        expect(await Appointment.findById(t._id).lean()).toMatchObject({ startTime: '10:00', endTime: '12:00' });
+
+        // Up to the booking (touching) is fine…
+        const touch = await request(app).post('/api/appointments/batch-reschedule').set(authHeader(ctx.provider)).send({
+            allowOutsideHours: true,
+            moves: [{ id: t._id, appointmentDate: DATE, startTime: '10:00', endTime: '12:30' }],
+        });
+        expect(touch.status).toBe(200);
+        // …and the stretch is then Hilda's time: nothing goes on top of it.
+        expect((await book(ctx.customer, { service: ctx.cut._id, teamMember: String(ctx.hilda._id), startTime: '11:30', endTime: '12:30' })).status).toBe(409);
+        const view = await slots(ctx, { teamMember: String(ctx.hilda._id) });
+        expect(offered(view.data, '12:00', 30)).toBe(false);
+    });
+
+    it("the stretch belongs to the ticket's own person (the lane it is drawn in), not the colleague", async () => {
+        const ctx = await setup();
+        const t = await ticket(ctx, [
+            { serviceId: String(ctx.cut._id), teamMember: String(ctx.hilda._id) },
+            { serviceId: String(ctx.cut._id), teamMember: String(ctx.erastus._id) },
+        ]);
+        await seed(ctx, ctx.cut, ctx.hilda._id, '12:30', '13:30');
+        const res = await request(app).put(`/api/appointments/${t._id}/provider-reschedule`).set(authHeader(ctx.provider))
+            .send({ appointmentDate: DATE, startTime: '10:00', endTime: '13:30' });
+        expect(res.status).toBe(409);
+        // Erastus's booking at 12:30 doesn't stop Hilda's ticket growing (his part ends at 12:00).
+        await Appointment.deleteMany({ teamMember: ctx.hilda._id, walkInName: 'Existing' });
+        await seed(ctx, ctx.cut, ctx.erastus._id, '12:30', '13:30');
+        const ok = await request(app).put(`/api/appointments/${t._id}/provider-reschedule`).set(authHeader(ctx.provider))
+            .send({ appointmentDate: DATE, startTime: '10:00', endTime: '13:30' });
+        expect(ok.status).toBe(200);
+    });
+});
+
+describe("a booking's own buffers on every path", () => {
+    it("a guest moving a Colour (30 min clean-up) can't land flush against the next booking; a signed-in client can't either", async () => {
+        const ctx = await setup();
+        const colour = await makeService(ctx.provider._id, { name: 'Colour', duration: 60, bufferAfter: 30 });
+        const mine = await book(ctx.customer, { service: colour._id, teamMember: String(ctx.hilda._id), startTime: '09:00', endTime: '10:00' });
+        expect(mine.status).toBe(201);
+        await seed(ctx, ctx.cut, ctx.hilda._id, '15:00', '16:00');
+        const token = (await Appointment.findById(mine.body.data._id)).manageToken;
+        const guest = await request(app).post(`/api/appointments/manage/${token}/reschedule`).send({ appointmentDate: DATE, startTime: '14:00' });
+        expect(guest.status).toBe(409);
+        const client = await request(app).put(`/api/appointments/${mine.body.data._id}/reschedule`).set(authHeader(ctx.customer)).send({ appointmentDate: DATE, startTime: '14:00' });
+        expect(client.status).toBe(409);
+        expect((await request(app).post(`/api/appointments/manage/${token}/reschedule`).send({ appointmentDate: DATE, startTime: '13:30' })).status).toBe(200);
+    });
+
+    it('reviving a cancelled Colour keeps its clean-up time clear', async () => {
+        const ctx = await setup();
+        const colour = await makeService(ctx.provider._id, { name: 'Colour', duration: 60, bufferAfter: 30 });
+        const old = await seed(ctx, colour, ctx.hilda._id, '14:00', '15:00', { status: 'cancelled' });
+        await seed(ctx, ctx.cut, ctx.hilda._id, '15:00', '16:00');
+        const res = await request(app).put(`/api/appointments/${old._id}/status`).set(authHeader(ctx.provider)).send({ status: 'confirmed' });
+        expect(res.status).toBe(409);
+    });
+
+    it("a multi-service segment keeps its own clean-up time clear, as a single booking does", async () => {
+        const ctx = await setup();
+        const colour = await makeService(ctx.provider._id, { name: 'Colour', duration: 60, bufferAfter: 30 });
+        await seed(ctx, ctx.cut, ctx.hilda._id, '15:00', '16:00');
+        const single = await walkIn(ctx, { service: colour._id, teamMember: String(ctx.hilda._id), startTime: '14:00', endTime: '15:00' });
+        expect(single.status).toBe(409);
+        const multi = await request(app).post('/api/appointments/multi').set(authHeader(ctx.provider)).send({
+            appointmentDate: DATE, startTime: '13:00', walkInName: 'Ticket',
+            services: [
+                { serviceId: String(ctx.cut._id), teamMember: String(ctx.erastus._id) },
+                { serviceId: String(colour._id), teamMember: String(ctx.hilda._id) },
+            ],
+        });
+        expect(multi.status).toBe(409);
+        const room = await request(app).post('/api/appointments/multi').set(authHeader(ctx.provider)).send({
+            appointmentDate: DATE, startTime: '12:30', walkInName: 'Ticket',
+            services: [
+                { serviceId: String(ctx.cut._id), teamMember: String(ctx.erastus._id) },
+                { serviceId: String(colour._id), teamMember: String(ctx.hilda._id) },
+            ],
+        });
+        expect(room.status).toBe(201);
+    });
+
+    it("a named person's view keeps the NEW booking's buffers clear too — what it offers, the server takes", async () => {
+        const ctx = await setup();
+        const colour = await makeService(ctx.provider._id, { name: 'Colour', duration: 60, bufferBefore: 15, bufferAfter: 30 });
+        await seed(ctx, ctx.cut, ctx.hilda._id, '15:00', '16:00');
+        for (const lane of [String(ctx.hilda._id)]) {
+            const { data } = await slots(ctx, { teamMember: lane, service: String(colour._id) });
+            expect(offered(data, '14:00', 60)).toBe(false);  // clean-up to 15:30
+            expect(offered(data, '16:00', 60)).toBe(false);  // set-up from 15:45
+            expect(offered(data, '13:30', 60)).toBe(true);
+            expect(offered(data, '16:15', 60)).toBe(true);
+        }
+        expect((await book(ctx.customer, { service: colour._id, teamMember: String(ctx.hilda._id), startTime: '14:00', endTime: '15:00' })).status).toBe(409);
+        expect((await book(ctx.customer, { service: colour._id, teamMember: String(ctx.hilda._id), startTime: '16:00', endTime: '17:00' })).status).toBe(409);
+        expect((await book(ctx.customer, { service: colour._id, teamMember: String(ctx.hilda._id), startTime: '13:30', endTime: '14:30' })).status).toBe(201);
+        // The owner's column too.
+        await seed(ctx, ctx.cut, null, '15:00', '16:00');
+        const own = await slots(ctx, { teamMember: 'owner', service: String(colour._id) });
+        expect(offered(own.data, '14:00', 60)).toBe(false);
+        expect((await book(ctx.other, { service: colour._id, teamMember: 'owner', startTime: '14:00', endTime: '15:00' })).status).toBe(409);
+    });
+});
+
+describe('"anyone" for a service only the owner does is the owner\'s column', () => {
+    it("a colleague's booking doesn't grey the owner's free time", async () => {
+        const ctx = await setup();
+        await TeamMember.updateMany({ provider: ctx.provider._id }, { $set: { offersAllServices: false, services: [ctx.cut._id] } });
+        await seed(ctx, ctx.cut, ctx.hilda._id, '15:00', '16:00');
+        const view = await slots(ctx, { service: String(ctx.braids._id) });
+        expect(view.openStarts).toBeUndefined();
+        expect(offered(view.data, '14:00', 120)).toBe(true);
+        const res = await book(ctx.customer, { service: ctx.braids._id, startTime: '14:00', endTime: '16:00' });
+        expect(res.status).toBe(201);
+        expect(res.body.data.teamMember).toBeNull();
+        // …and the owner's own booking does grey it.
+        const after = await slots(ctx, { service: String(ctx.braids._id) });
+        expect(offered(after.data, '13:00', 120)).toBe(false);
+        expect(offered(after.data, '12:00', 120)).toBe(true);
     });
 });
