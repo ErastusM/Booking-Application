@@ -172,16 +172,17 @@ describe('the owner changes a member\'s colour', () => {
         expect((await TeamMember.findById(m._id)).color).toBe(m.color);
     });
 
-    it('a manager (team:manage) may change it; a member without it may not, not even their own', async () => {
+    it('only the owner picks colours — no team member may, not even a former Manager, not even their own', async () => {
         const owner = await makeProvider();
         const m = (await add(owner)).body.data;
         const high = await makeUser({ role: 'staff', staffOf: owner._id, email: 'high@test.com', staffTier: 'high' });
         await TeamMember.create({ provider: owner._id, name: 'High', role: 'Manager', user: high._id });
+        const before = (await TeamMember.findById(m._id)).color;
         const basicLogin = await makeUser({ role: 'staff', staffOf: owner._id, email: 'basic@test.com', staffTier: 'basic' });
         const basicRow = await TeamMember.create({ provider: owner._id, name: 'Basic', role: 'Stylist', user: basicLogin._id, color: MEMBER_COLORS[3] });
 
-        expect((await update(high, m._id, { color: MEMBER_COLORS[7] })).status).toBe(200);
-        expect((await TeamMember.findById(m._id)).color).toBe(MEMBER_COLORS[7]);
+        expect((await update(high, m._id, { color: MEMBER_COLORS[7] })).status).toBe(403);
+        expect((await TeamMember.findById(m._id)).color).toBe(before);
 
         expect((await update(basicLogin, basicRow._id, { color: MEMBER_COLORS[8] })).status).toBe(403);
         expect((await update(basicLogin, m._id, { color: MEMBER_COLORS[8] })).status).toBe(403);

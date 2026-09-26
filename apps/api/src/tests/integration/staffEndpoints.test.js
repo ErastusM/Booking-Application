@@ -511,7 +511,7 @@ describe('GET /api/appointments — staff sees ONLY their own column', () => {
 });
 
 describe('Staff principal — login + profile (spec §4.2 auth)', () => {
-    it('a staff user logs in and profile exposes staffOf + staffPermissions', async () => {
+    it('a staff user logs in and profile exposes staffOf — and no legacy access level', async () => {
         const owner = await makeProvider();
         const staffUser = await makeUser({
             role: 'staff', staffOf: owner._id, staffPermissions: ['calendar:self'],
@@ -526,7 +526,8 @@ describe('Staff principal — login + profile (spec §4.2 auth)', () => {
         expect(profile.status).toBe(200);
         expect(profile.body.data.role).toBe('staff');
         expect(profile.body.data.staffOf.toString()).toBe(owner._id.toString());
-        expect(profile.body.data.staffPermissions).toEqual(['calendar:self']);
+        expect(profile.body.data).not.toHaveProperty('staffPermissions');
+        expect(profile.body.data).not.toHaveProperty('staffTier');
     });
 });
 
