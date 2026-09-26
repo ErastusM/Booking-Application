@@ -98,7 +98,7 @@ test('the guest booking form offers the marketing box unticked, and sends the gu
     await expect(box).not.toBeChecked();
     await page.getByTestId('guest-first-name').fill('Gail');
     await page.getByTestId('guest-last-name').fill('Guest');
-    await page.getByLabel('Your email').fill(`e2e-guestform-${Date.now()}@bookplus.dev`);
+    await page.getByTestId('guest-email').fill(`e2e-guestform-${Date.now()}@bookplus.dev`);
     await box.check();
 
     const booked = page.waitForRequest((r) => /\/api\/appointments$/.test(r.url()) && r.method() === 'POST');

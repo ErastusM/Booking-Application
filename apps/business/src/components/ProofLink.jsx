@@ -28,7 +28,7 @@ const ProofLink = ({ fetchLink, label = 'View proof' }) => {
     return (
         <>
             <a href="#proof" onClick={open} style={{ color: 'var(--gold-dark)' }}>{state === 'loading' ? 'Opening…' : label}</a>
-            {state && state !== 'loading' && <span role="alert" style={{ marginLeft: '0.35rem', color: 'var(--danger, #b91c1c)' }}>{state}</span>}
+            {state && state !== 'loading' && <span role="alert" style={{ marginLeft: '0.35rem', color: 'var(--danger-fg)' }}>{state}</span>}
         </>
     );
 };

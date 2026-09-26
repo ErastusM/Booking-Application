@@ -27,7 +27,7 @@ const MarketingEmailsToggle = () => {
             <div>
                 <p id="marketing-emails-label" style={{ fontSize: '0.9rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Offers &amp; rebooking reminders by email</p>
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.2rem 0 0' }}>Occasional “Book again” reminders and offers. Emails about your bookings always arrive.</p>
-                {error && <p role="alert" style={{ fontSize: '0.75rem', color: '#dc2626', margin: '0.3rem 0 0' }}>{error}</p>}
+                {error && <p role="alert" style={{ fontSize: '0.75rem', color: 'var(--danger-fg)', margin: '0.3rem 0 0' }}>{error}</p>}
             </div>
             <button
                 type="button" role="switch" aria-checked={optIn === true} aria-labelledby="marketing-emails-label"

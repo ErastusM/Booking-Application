@@ -60,7 +60,7 @@ const FinishGoogleSignup = ({ code, onDone, onCancel, showMarketing = false }) =
                         <span>Email me rebooking reminders and offers from Bookplus (optional). Unsubscribe any time with one click.</span>
                     </label>
                 )}
-                {error && <p role="alert" style={{ color: '#991b1b', fontSize: '0.85rem', margin: 0 }}>{error}</p>}
+                {error && <p role="alert" style={{ color: 'var(--danger-fg)', fontSize: '0.85rem', margin: 0 }}>{error}</p>}
                 <button type="submit" className="btn-primary" disabled={busy || !who || !terms || !age} data-testid="finish-create" style={{ width: '100%', padding: '0.85rem' }}>
                     {busy ? 'Creating your account…' : 'Create my account'}
                 </button>
