@@ -62,10 +62,11 @@ exports.getMyClients = async (req, res) => {
         // Only the fields the per-client roll-up below reads — as lean plain
         // objects, and with the never-referenced service join dropped. This was
         // hydrating the provider's whole appointment history (two populates) just
-        // to reduce it to one row per client.
+        // to reduce it to one row per client. `avatar` feeds the New Appointment
+        // client list's picture (an additive field: older clients ignore it).
         const appointments = await Appointment.find(scope.filter)
             .select('customer walkInName status totalPrice appointmentDate')
-            .populate('customer', 'name email phone createdAt')
+            .populate('customer', 'name email phone avatar createdAt')
             .sort({ appointmentDate: -1 })
             .lean();
 
@@ -75,7 +76,7 @@ exports.getMyClients = async (req, res) => {
             if (appt.walkInName && appt.walkInName.trim()) {
                 const name = appt.walkInName.trim();
                 key = `walkin:${name.toLowerCase()}`;
-                customer = { _id: key, name, email: null, phone: null, isWalkIn: true };
+                customer = { _id: key, name, email: null, phone: null, avatar: null, isWalkIn: true };
                 isWalkIn = true;
             } else if (appt.customer && appt.customer._id.toString() !== providerIdStr) {
                 key = appt.customer._id.toString();
@@ -85,7 +86,7 @@ exports.getMyClients = async (req, res) => {
             }
 
             if (!clientMap.has(key)) {
-                clientMap.set(key, { customer, isWalkIn, visits: 0, totalSpend: 0, lastVisit: null, firstVisit: null, statuses: {} });
+                clientMap.set(key, { customer, isWalkIn, visits: 0, totalSpend: 0, lastVisit: null, firstVisit: null, statuses: {}, completedVisits: 0, lastCompletedVisit: null });
             }
             const c = clientMap.get(key);
             c.visits += 1;
@@ -93,6 +94,16 @@ exports.getMyClients = async (req, res) => {
             if (!c.lastVisit || new Date(appt.appointmentDate) > new Date(c.lastVisit)) c.lastVisit = appt.appointmentDate;
             if (!c.firstVisit || new Date(appt.appointmentDate) < new Date(c.firstVisit)) c.firstVisit = appt.appointmentDate;
             c.statuses[appt.status] = (c.statuses[appt.status] || 0) + 1;
+            // `visits` / `lastVisit` count every booking (cancelled, no-show and
+            // upcoming ones too) and the Clients tab reads them as they are. The
+            // New Appointment client list wants visits that actually happened:
+            // completed bookings only, and the latest of those. Additive fields,
+            // so nothing that reads the old ones changes. The scope filter above
+            // already narrows a team member to the bookings they performed.
+            if (appt.status === 'completed') {
+                c.completedVisits += 1;
+                if (!c.lastCompletedVisit || new Date(appt.appointmentDate) > new Date(c.lastCompletedVisit)) c.lastCompletedVisit = appt.appointmentDate;
+            }
         }
 
         // Notes only exist for registered clients (real ObjectId keys).

@@ -25,6 +25,7 @@ import { buildTimeSlots } from '../utils/bookingSlots';
 import { fmtClock } from '../utils/time';
 import { sortClients } from '../utils/clientSort';
 import { bookingClientFields } from '../utils/bookingClient';
+import ClientPicker from '../components/ClientPicker';
 import MiniCalendar from '../components/MiniCalendar';
 import RecurrenceFields from '../components/RecurrenceFields';
 import { currencySymbol } from '../utils/currency';
@@ -393,6 +394,8 @@ const ProviderDashboard = () => {
     // instead, from this one sorted copy, so a client sits in the same place in
     // both. Filtering an already-sorted list keeps search results A–Z too.
     const sortedClients = useMemo(() => sortClients(clients), [clients]);
+    // The New Appointment client list: every client but the owner's own account.
+    const clientPickerRows = useMemo(() => sortedClients.filter(c => c.customer && c.customer._id !== user?._id), [sortedClients, user?._id]);
     // Wallet client balances: a per-client roster too (server order is
     // last-updated, which reads as random with no date column).
     const sortedClientWallets = useMemo(() => sortClients(walletClientWallets), [walletClientWallets]);
@@ -4130,30 +4133,21 @@ const ProviderDashboard = () => {
                                                             {loadingClients ? 'Loading your clients…' : 'No saved clients yet — switch to Guest to book by name.'}
                                                         </p>
                                                     ) : (
-                                                        // A–Z by name (shared sortedClients; the API returns clients by last visit), with the
-                                                        // email as a second line; the picker's own search box finds a
-                                                        // client by name or email.
-                                                        <Select
+                                                        // Contact-style list (components/ClientPicker): search by name,
+                                                        // phone or email, A–Z sections with a letter rail, and each
+                                                        // client's picture, phone, visits and last visit. It keeps the
+                                                        // shared clientSort order; a picked walk-in is booked by name
+                                                        // (utils/bookingClient).
+                                                        <ClientPicker
+                                                            clients={clientPickerRows}
                                                             value={apptForm.customerId}
-                                                            onChange={e => setApptForm(f => ({ ...f, customerId: e.target.value }))}
-                                                            options={sortedClients
-                                                                .filter(c => c.customer && c.customer._id !== user?._id)
-                                                                .map(c => ({
-                                                                    value: c.customer._id,
-                                                                    label: c.customer.name || c.customer.email || 'Unnamed client',
-                                                                    description: c.isWalkIn ? 'Walk-in' : (c.customer.name ? c.customer.email : undefined),
-                                                                    searchText: `${c.customer.name || ''} ${c.customer.email || ''}`,
-                                                                }))}
-                                                            placeholder="Select a client"
-                                                            searchable
-                                                            searchPlaceholder="Search by name or email"
+                                                            onChange={id => setApptForm(f => ({ ...f, customerId: id }))}
                                                             aria-label="Client"
                                                             required
                                                             invalid={!!apptError && !apptForm.customerId}
                                                             aria-describedby={apptError && !apptForm.customerId ? 'appt-error' : undefined}
                                                             ref={el => { apptFieldRefs.current.client = el; }}
                                                             data-testid="appt-client"
-                                                            style={{ width: '100%' }}
                                                         />
                                                     )}
                                                 </div>

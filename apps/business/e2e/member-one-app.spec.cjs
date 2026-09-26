@@ -126,8 +126,10 @@ test.describe('A team member gets the owner\'s app', () => {
 
         await page.getByTestId('appt-service-0').click();
         await page.getByTestId('appt-service-0-popup').getByRole('option', { name: new RegExp(SEED.serviceName) }).click();
-        await page.getByTestId('appt-client').click();
-        await page.getByTestId('appt-client-popup').getByRole('option', { name: new RegExp(SEED.regularName) }).click();
+        // The client list: search, then pick the row (radio-style listbox).
+        await page.getByTestId('appt-client-search').fill(SEED.regularName);
+        await page.getByTestId('appt-client-list').getByRole('option', { name: new RegExp(SEED.regularName) }).click();
+        await expect(page.getByTestId('appt-client-list').getByRole('option', { name: new RegExp(SEED.regularName) })).toHaveAttribute('aria-selected', 'true');
 
         const tomorrow = new Date(); tomorrow.setDate(tomorrow.getDate() + 1);
         if (tomorrow.getMonth() !== new Date().getMonth()) await modal.getByRole('button', { name: 'Next month' }).click();
