@@ -32,10 +32,6 @@ const RETENTION = {
     // expiry so "Email me a new link" still recognises the old link, then deleted.
     EXPIRED_INVITE_GRACE_DAYS: 30,
 
-    // Accounts that never verified their email and never booked, were booked, or
-    // paid anything are deleted this long after sign-up.
-    UNVERIFIED_ACCOUNT_DAYS: 30,
-
     // Guest bookings (no account): the guest's name, email, phone and notes are
     // anonymised this long after that email's LAST booking. Date, service, price
     // and status stay for the business's totals.

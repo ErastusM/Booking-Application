@@ -23,8 +23,9 @@ const age = (Model, id, fields) => Model.collection.updateOne({ _id: id }, { $se
 it('periods are defined in one place, and the analytics TTL index uses them', () => {
     expect(RETENTION).toMatchObject({
         ANALYTICS_EVENTS_DAYS: expect.any(Number), CLIENT_ERROR_LOG_DAYS: expect.any(Number),
-        UNVERIFIED_ACCOUNT_DAYS: 30, GUEST_CONTACT_MONTHS: 24,
+        GUEST_CONTACT_MONTHS: 24,
     });
+    expect(RETENTION.UNVERIFIED_ACCOUNT_DAYS).toBeUndefined();
     const ttl = Event.schema.indexes().find(([k, o]) => k.createdAt === 1 && o.expireAfterSeconds);
     expect(ttl[1].expireAfterSeconds).toBe(RETENTION.ANALYTICS_EVENTS_DAYS * DAY / 1000);
 });
@@ -74,27 +75,23 @@ it('drops staff invite links only after the grace period', async () => {
     expect((await User.findById(staff._id).select('+staffInvites')).staffInvites.map((i) => i.hash)).toEqual(['recent']);
 });
 
-it('deletes never-verified, never-used accounts after 30 days — but not ones with bookings, recent ones, or Google accounts', async () => {
-    const staleCustomer = await makeUser({ isVerified: false });
-    const staleProvider = await makeProvider({ isVerified: false });
-    await makeService(staleProvider._id);
-    const booked = await makeUser({ isVerified: false });
-    const recent = await makeUser({ isVerified: false });
-    const google = await makeUser({ isVerified: false, googleId: 'g-9' });
-    const verified = await makeUser({ isVerified: true });
-    const p = await makeProvider();
-    const svc = await makeService(p._id);
-    await makeAppointment(booked._id, svc._id, p._id);
-    for (const u of [staleCustomer, staleProvider, booked, google, verified]) {
-        await age(User, u._id, { createdAt: ago(RETENTION.UNVERIFIED_ACCOUNT_DAYS + 1) });
+it('never deletes unverified accounts — verification gates nothing, so they can be live businesses', async () => {
+    // With activity: a provider who never clicked the email link but runs a business.
+    const activeProvider = await makeProvider({ isVerified: false });
+    const svc = await makeService(activeProvider._id);
+    const customer = await makeUser();
+    await makeAppointment(customer._id, svc._id, activeProvider._id);
+    // Without any activity at all.
+    const idle = await makeUser({ isVerified: false });
+    for (const u of [activeProvider, idle]) {
+        await age(User, u._id, { createdAt: ago(31), updatedAt: ago(31) });
     }
 
     const r = await runRetentionSweep();
-    expect(r.unverifiedAccountsDeleted).toBe(2);
-    expect(await User.exists({ _id: staleCustomer._id })).toBeNull();
-    expect(await User.exists({ _id: staleProvider._id })).toBeNull();
-    expect(await Service.countDocuments({ provider: staleProvider._id })).toBe(0);
-    for (const kept of [booked, recent, google, verified]) expect(await User.exists({ _id: kept._id })).toBeTruthy();
+    expect(r.unverifiedAccountsDeleted).toBeUndefined();
+    expect(await User.exists({ _id: activeProvider._id })).toBeTruthy();
+    expect(await User.exists({ _id: idle._id })).toBeTruthy();
+    expect(await Service.countDocuments({ provider: activeProvider._id })).toBe(1);
 });
 
 it('anonymises guest contact details 24 months after the guest’s last booking, keeping the booking', async () => {

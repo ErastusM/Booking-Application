@@ -12,10 +12,11 @@ const log = pino({ level: process.env.LOG_LEVEL || 'info' });
  *   - dead sessions (no refresh for SESSION_DAYS) and expired OAuth codes: cleared;
  *   - expired email-verification and password-reset tokens: cleared;
  *   - staff invite links expired for EXPIRED_INVITE_GRACE_DAYS: deleted;
- *   - accounts never verified after UNVERIFIED_ACCOUNT_DAYS, with no bookings,
- *     money or team: deleted (with their empty business set-up);
  *   - guest contact details GUEST_CONTACT_MONTHS after that guest's last
  *     booking: anonymised (the booking itself stays for the business's totals).
+ * Deliberately NOT here: deleting "unverified" accounts. isVerified gates
+ * nothing (login never checks it), so an unverified account can be a live
+ * business with services and bookings. Revisit only once verification is enforced.
  * Analytics events and booking-rejection logs expire through TTL indexes;
  * pending Google sign-ups through theirs.
  *
@@ -72,8 +73,6 @@ async function runRetentionSweep(now = new Date()) {
         return r.modifiedCount;
     });
 
-    await step('unverifiedAccountsDeleted', async () => deleteStaleUnverified(now));
-
     await step('guestContactsAnonymised', async () => {
         const cutoff = monthsAgo(RETENTION.GUEST_CONTACT_MONTHS, now);
         // Guests whose LAST booking is older than the cutoff (a recent booking
@@ -97,47 +96,6 @@ async function runRetentionSweep(now = new Date()) {
     });
 
     return out;
-}
-
-/** Never-verified, never-used accounts past UNVERIFIED_ACCOUNT_DAYS. */
-async function deleteStaleUnverified(now) {
-    const User = require('../models/User');
-    const Appointment = require('../models/Appointment');
-    const WalletTransaction = require('../models/WalletTransaction');
-    const ProviderWalletTransaction = require('../models/ProviderWalletTransaction');
-    const TeamMember = require('../models/TeamMember');
-
-    const candidates = await User.find({
-        isVerified: false,
-        role: { $in: ['customer', 'provider'] },
-        provider: 'local',
-        googleId: null,
-        deletedAt: null,
-        createdAt: { $lt: daysAgo(RETENTION.UNVERIFIED_ACCOUNT_DAYS, now) },
-    }).select('_id role').limit(500);
-
-    let deleted = 0;
-    for (const u of candidates) {
-        const used = await Promise.all([
-            Appointment.exists({ $or: [{ customer: u._id }, { provider: u._id }] }),
-            WalletTransaction.exists({ $or: [{ customer: u._id }, { provider: u._id }] }),
-            ProviderWalletTransaction.exists({ provider: u._id }),
-            TeamMember.exists({ provider: u._id }),
-            User.exists({ staffOf: u._id }),
-        ]);
-        if (used.some(Boolean)) continue; // has history someone else relies on — keep
-        if (u.role === 'provider') {
-            // Their empty business set-up goes with them.
-            for (const name of ['Service', 'Category', 'Availability', 'Location', 'BlockedTime', 'Package', 'FormTemplate']) {
-                try { await require(`../models/${name}`).deleteMany({ provider: u._id }); } catch { /* model shape differs — skip */ }
-            }
-        }
-        await require('../models/Notification').deleteMany({ user: u._id });
-        await require('../models/PushSubscription').deleteMany({ user: u._id });
-        await User.deleteOne({ _id: u._id, isVerified: false });
-        deleted += 1;
-    }
-    return deleted;
 }
 
 // Nightly at 03:15 (after wallet expiry at 02:30), on one instance only.
