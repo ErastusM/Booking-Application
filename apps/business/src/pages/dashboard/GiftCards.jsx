@@ -1,4 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
+import { FEATURES } from '@bookplus/config/features.mjs';
+import ComingSoon from '../../components/ComingSoon';
 import { Gift, Plus, Copy, Check, Share2, ChevronLeft } from 'lucide-react';
 import { giftCardService, walletService } from '../../services';
 import { useToast } from '../../components/Toast';
@@ -215,14 +217,17 @@ const GiftCards = ({ currency = 'NAD', businessName = '' }) => {
                     <h2 style={{ margin: 0, fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: 800 }}>Gift cards</h2>
                     <p style={{ margin: '0.2rem 0 0', fontSize: '0.88rem', color: 'var(--text-muted)' }}>{money(data.totals.sold)} sold · {money(data.totals.unused)} not yet used</p>
                 </div>
-                {data.walletEnabled && (
+                {FEATURES.walletEnabled && data.walletEnabled && (
                     <button type="button" onClick={() => setView('sell')} className="btn-primary" data-testid="giftcard-new" style={{ minHeight: '44px', padding: '0 1rem', display: 'inline-flex', alignItems: 'center', gap: '0.35rem' }}>
                         <Plus size={17} aria-hidden="true" />Sell
                     </button>
                 )}
             </div>
 
-            {!data.walletEnabled ? (
+            {!FEATURES.walletEnabled ? (
+                // Gift cards become wallet credit, so they wait for the wallet.
+                <ComingSoon testId="giftcards-coming-soon" title="Gift cards — coming soon" line="Gift cards arrive with the client wallet. Clients pay you at their appointment for now." />
+            ) : !data.walletEnabled ? (
                 <div style={{ ...card, padding: '1rem 1.1rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                     <p style={{ margin: 0, fontWeight: 700, color: 'var(--charcoal)' }}>Turn on your client wallet first</p>
                     <p style={{ margin: 0, fontSize: '0.88rem', lineHeight: 1.5, color: 'var(--text-secondary)' }}>A redeemed gift card becomes wallet credit with your business. Clients can still choose to pay cash for any booking.</p>
@@ -253,7 +258,7 @@ const GiftCards = ({ currency = 'NAD', businessName = '' }) => {
                         );
                     })}
                 </ul>
-            ) : data.walletEnabled && (
+            ) : FEATURES.walletEnabled && data.walletEnabled && (
                 <div style={{ ...card, padding: '2rem 1.25rem', textAlign: 'center', color: 'var(--text-muted)' }}>
                     <Gift size={28} color="var(--gold)" aria-hidden="true" style={{ marginBottom: '0.5rem' }} />
                     <p style={{ margin: 0 }}>No gift cards yet. Tap Sell when someone buys one.</p>

@@ -5,6 +5,7 @@ import { ToastProvider } from './components/Toast';
 import { ConfirmProvider } from '@bookplus/ui';
 import { ThemeProvider } from './context/ThemeContext';
 import Navbar from './components/Navbar';
+import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppUpdater from './components/AppUpdater';
 import SignupSurveyModal, { shouldShowSignupSurvey } from './components/SignupSurveyModal';
@@ -31,6 +32,7 @@ const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const AcceptInvite = lazy(() => import('./pages/AcceptInvite'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
+const LegalNotice = lazy(() => import('./pages/LegalNotice'));
 
 
 const RouteFallback = () => (
@@ -69,6 +71,7 @@ function AppRoutes() {
                     {/* Legal — provider-facing copies, hosted in the business app */}
                     <Route path="/terms" element={<TermsOfService />} />
                     <Route path="/privacy-policy" element={<PrivacyPolicy />} />
+                    <Route path="/legal" element={<LegalNotice />} />
 
                     {/* The business suite: the owner, and every team member (who sees
                         it through their own profile — ProviderDashboard whitelists the
@@ -133,6 +136,15 @@ function AppChrome() {
     return <Navbar />;
 }
 
+// The business tool is an app, not a website: the footer (legal links and the
+// operator's identity) appears only on the public pages — sign-in, sign-up and
+// the legal pages themselves.
+const FOOTER_PATHS = ['/login', '/register', '/terms', '/privacy-policy', '/legal'];
+function FooterGate() {
+    const { pathname } = useLocation();
+    return FOOTER_PATHS.includes(pathname) ? <Footer /> : null;
+}
+
 // Post-signup survey — a one-time "did signup go smoothly?" prompt for the
 // provider who owns the account (the person who actually went through /register).
 // Gated on the profile's `signupSurvey` field (null/undefined = not answered
@@ -183,11 +195,11 @@ export default function App() {
                     {/* App-styled confirm/alert dialogs: any page can `await useConfirm()(…)`
                         instead of window.confirm. They stack at z 2500, under toasts (3000). */}
                     <ConfirmProvider>
-                        {/* No footer in the business tool — it's an app, not a website. */}
                         <AppUpdater />
                         <SkipLink />
                         <AppChrome />
                         <AppRoutes />
+                        <FooterGate />
                         <SignupSurveyGate />
                         {/* Analytics runs only after "Accept analytics" here. */}
                         <CookieBannerGate />

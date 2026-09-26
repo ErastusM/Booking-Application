@@ -5,7 +5,9 @@ import { cloudinaryAvatar } from '../utils/cloudinary';
 import { currencySymbol } from '../utils/currency';
 import { Wallet as WalletIcon, Clock, Check, ChevronDown, ChevronUp, Gift } from 'lucide-react';
 import WalletTopUpModal from '../components/WalletTopUpModal';
+import WalletRules, { formatExpiryDate } from '../components/WalletRules';
 import { useToast } from '../components/Toast';
+import { FEATURES, WALLET_COMING_SOON_LINE } from '@bookplus/config/features.mjs';
 
 // Wallet.currency (the API's own field) is never set away from its schema default —
 // the provider's real pricing currency lives on their businessProfile, which
@@ -131,6 +133,42 @@ const Wallet = () => {
         } finally { setBusyId(''); }
     };
 
+    // Wallet "coming soon" (FEATURES.walletEnabled off): no top-ups, gift cards
+    // or wallet payments. A balance that already exists is never hidden: it is
+    // listed read-only so the client knows to settle it with the business.
+    if (!FEATURES.walletEnabled) {
+        const held = wallets.filter((w) => (w.totalBalance || 0) > 0);
+        return (
+            <div style={{ maxWidth: '860px', margin: '0 auto', padding: 'calc(56px + 1.5rem) 1rem 4rem' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '1.25rem' }}>
+                    <WalletIcon size={26} color="var(--gold)" />
+                    <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '2rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>My Wallet</h1>
+                </div>
+                <div data-testid="wallet-coming-soon" style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.5rem 1.25rem', textAlign: 'center', marginBottom: '1.5rem' }}>
+                    <WalletIcon size={36} color="var(--text-muted)" style={{ marginBottom: '0.6rem' }} />
+                    <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)', margin: '0 0 0.35rem' }}>
+                        Wallet — coming soon
+                    </h2>
+                    <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.95rem' }}>{WALLET_COMING_SOON_LINE}</p>
+                </div>
+                {loadError && wallets.length === 0 && (
+                    <p role="alert" style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', margin: '0 0 1rem' }}>
+                        {loadError} <button onClick={load} className="btn-outline" style={{ padding: '0.3rem 0.8rem', fontSize: '0.82rem', marginLeft: '0.4rem' }}>Try again</button>
+                    </p>
+                )}
+                {held.length > 0 && (
+                    <div data-testid="wallet-readonly-balances" style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                        {held.map((w) => (
+                            <div key={w._id} style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.9rem 1.1rem', fontSize: '0.92rem', color: 'var(--charcoal)' }}>
+                                Your balance with <strong>{w.provider?.name || 'this business'}</strong>: <strong>{money(w.totalBalance, w.provider?.businessProfile?.currency)}</strong> — contact the business.
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+        );
+    }
+
     return (
         <div style={{ maxWidth: '860px', margin: '0 auto', padding: 'calc(56px + 1.5rem) 1rem 4rem' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginBottom: '0.35rem' }}>
@@ -255,6 +293,24 @@ const Wallet = () => {
                                             </div>
                                         ))}
                                     </div>
+
+                                    {/* When this balance expires (if the business set an expiry) and the
+                                        business's refund rule — the same rules shown before topping up. */}
+                                    {w.rules?.expiresAt && (
+                                        <p data-testid="wallet-expiry" style={{ margin: '0 0 0.75rem', padding: '0.55rem 0.75rem', borderRadius: 'var(--radius-sm)', background: 'var(--warning-bg)', color: 'var(--warning-fg)', fontSize: '0.82rem', fontWeight: '600' }}>
+                                            Balance expires on {formatExpiryDate(w.rules.expiresAt)} unless you use or top up this wallet before then.
+                                        </p>
+                                    )}
+                                    {w.rules && (
+                                        <details style={{ margin: '0 0 1rem' }}>
+                                            <summary style={{ cursor: 'pointer', fontSize: '0.82rem', fontWeight: '600', color: 'var(--text-secondary)' }}>
+                                                Wallet rules: {w.rules.refundsAllowed ? 'refundable' : 'non-refundable'} · {w.rules.expiryMonths ? `expires after ${w.rules.expiryMonths} months without activity` : 'no expiry'}
+                                            </summary>
+                                            <div style={{ marginTop: '0.5rem' }}>
+                                                <WalletRules rules={w.rules} providerName={w.provider?.name || 'This business'} compact />
+                                            </div>
+                                        </details>
+                                    )}
 
                                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                                         <button onClick={() => setTopUpFor(w)} className="btn-primary" style={{ padding: '0.5rem 1.2rem', fontSize: '0.85rem' }}>Top up</button>

@@ -8,6 +8,10 @@ const User = require('../models/User');
 const Appointment = require('../models/Appointment');
 const walletService = require('../utils/walletService');
 const { createNotification, notifyAdmins } = require('../utils/notificationhelper');
+const { effectiveExpiryFor } = require('../utils/walletExpiryService');
+const { walletEnabled } = require('../constants/features');
+const emailService = require('../utils/emailService');
+const { CURRENCIES } = require('../constants/currencies');
 
 const money = (n) => `N$${Number(n || 0).toFixed(2)}`;
 
@@ -28,15 +32,62 @@ const DEFAULT_SETTINGS = {
 };
 const settingsOf = (user) => ({ ...DEFAULT_SETTINGS, ...(user?.walletSettings ? user.walletSettings.toObject?.() || user.walletSettings : {}) });
 
+// Email the client a receipt once a top-up is approved (by the business or an
+// admin). Best-effort and after the response: a failed email never undoes or
+// blocks the approval. Optional-chained so a partial emailService mock in a test
+// can't throw.
+const SYMBOLS = Object.fromEntries(CURRENCIES.map((c) => [c.code, c.symbol]));
+const emailTopUpReceipt = async (txn) => {
+    try {
+        if (!emailService.sendWalletTopUpReceipt) return;
+        const [customer, provider, wallet] = await Promise.all([
+            User.findById(txn.customer).select('name email'),
+            User.findById(txn.provider).select('name businessProfile.businessName businessProfile.currency walletSettings.refundsAllowed walletSettings.expiryMonths'),
+            Wallet.findOne({ customer: txn.customer, provider: txn.provider }).select('totalBalance'),
+        ]);
+        if (!customer?.email || !provider) return;
+        const sym = SYMBOLS[(provider.businessProfile?.currency || 'NAD').toUpperCase()] || 'N$';
+        const fmt = (n) => `${sym}${Number(n || 0).toFixed(2)}`;
+        await emailService.sendWalletTopUpReceipt(customer.email, {
+            name: customer.name,
+            businessName: provider.businessProfile?.businessName || provider.name,
+            amountLabel: fmt(txn.amount),
+            balanceLabel: wallet ? fmt(wallet.totalBalance) : null,
+            reference: txn.reference || '',
+            method: txn.method,
+            date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Windhoek' }),
+            refundsAllowed: provider.walletSettings?.refundsAllowed !== false,
+            expiryMonths: provider.walletSettings?.expiryMonths || null,
+        });
+    } catch { /* receipt is best-effort */ }
+};
+
 /* ─────────────────────────── CLIENT ─────────────────────────── */
 
 // GET /api/wallet/mine — all of the client's wallets, one per provider.
 exports.getMyWallets = async (req, res) => {
     try {
         const wallets = await Wallet.find({ customer: req.user._id })
-            .populate('provider', 'name avatar businessProfile providerCategory')
+            .populate('provider', 'name avatar businessProfile providerCategory walletSettings.refundsAllowed walletSettings.expiryMonths')
             .sort({ updatedAt: -1 });
-        res.status(200).json({ success: true, data: wallets });
+        // Each business's wallet rules travel with the balance so the client sees
+        // them on the wallet card (refundable or not, and when the balance expires).
+        // Only these two settings are exposed — never the rest of walletSettings.
+        const data = wallets.map((w) => {
+            const obj = w.toJSON();
+            const ws = w.provider?.walletSettings || {};
+            const expiryMonths = Number(ws.expiryMonths) > 0 ? Number(ws.expiryMonths) : null;
+            if (obj.provider && typeof obj.provider === 'object') delete obj.provider.walletSettings;
+            delete obj.expiryReminder;
+            obj.rules = {
+                refundsAllowed: ws.refundsAllowed !== false,
+                expiryMonths,
+                // Balances never expire while the wallet is "coming soon".
+                expiresAt: walletEnabled() ? effectiveExpiryFor(w, expiryMonths) : null,
+            };
+            return obj;
+        });
+        res.status(200).json({ success: true, data });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -66,10 +117,17 @@ exports.getMyWalletWithProvider = async (req, res) => {
             data: {
                 wallet,
                 provider: { _id: provider._id, name: provider.name, avatar: provider.avatar },
+                // comingSoon: the platform wallet switch is off — the business's own
+                // setting is then reported as disabled so no app offers wallet payment.
+                comingSoon: !walletEnabled(),
                 settings: {
-                    enabled: s.enabled,
+                    enabled: !!s.enabled && walletEnabled(),
                     bookingPaymentMode: s.bookingPaymentMode,
-                    refundsAllowed: s.refundsAllowed,
+                    refundsAllowed: s.refundsAllowed !== false,
+                    // Disclosed BEFORE the client pays (top-up modal): balances with
+                    // this business expire after N months without activity, or never.
+                    expiryMonths: Number(s.expiryMonths) > 0 ? Number(s.expiryMonths) : null,
+                        expiresAt: existing && walletEnabled() ? effectiveExpiryFor(existing, s.expiryMonths) : null,
                     // paymentInstructions is client-facing by design (User.js documents it
                     // as bank/eWallet/PayToday "details shown to clients"), so the booking
                     // and top-up flows must keep receiving it for first-time clients who have
@@ -77,7 +135,7 @@ exports.getMyWalletWithProvider = async (req, res) => {
                     // break those flows. But a provider who configured the wallet and then
                     // switched it OFF has withdrawn that payment offer, so don't keep leaking
                     // their free-text banking details to every authenticated caller.
-                    paymentInstructions: s.enabled ? s.paymentInstructions : '',
+                    paymentInstructions: s.enabled && walletEnabled() ? s.paymentInstructions : '',
                 },
             },
         });
@@ -89,17 +147,38 @@ exports.getMyWalletWithProvider = async (req, res) => {
 // POST /api/wallet/topup — client requests a top-up (pending until approved).
 exports.createTopUp = async (req, res) => {
     try {
-        const { providerId, amount, reference, proof, method } = req.body;
+        const { providerId, amount, reference, proof, method, rulesAcknowledged } = req.body;
         if (!mongoose.isValidObjectId(providerId)) {
             return res.status(400).json({ success: false, message: 'Invalid provider id' });
         }
         if (!isPositiveAmount(amount)) {
             return res.status(400).json({ success: false, message: 'Enter a valid amount' });
         }
-        const provider = await User.findOne({ _id: providerId, role: 'provider' }).select('name');
+        const provider = await User.findOne({ _id: providerId, role: 'provider' }).select('name walletSettings.refundsAllowed walletSettings.expiryMonths');
         if (!provider) return res.status(404).json({ success: false, message: 'Provider not found' });
 
+        // The business's wallet rules are shown before paying; when the money is
+        // non-refundable or can expire the client must confirm them, and we keep
+        // that confirmation (with the rules shown) on the top-up. The app sends
+        // rulesAcknowledged:true once "I understand" is ticked; an older app that
+        // never showed the rules gets a clear message instead of a silent top-up.
+        const rules = {
+            refundsAllowed: provider.walletSettings?.refundsAllowed !== false,
+            expiryMonths: Number(provider.walletSettings?.expiryMonths) > 0 ? Number(provider.walletSettings.expiryMonths) : null,
+        };
+        const ackRequired = !rules.refundsAllowed || !!rules.expiryMonths;
+        if (ackRequired && rulesAcknowledged !== true) {
+            return res.status(400).json({
+                success: false,
+                code: 'WALLET_RULES_NOT_ACKNOWLEDGED',
+                message: 'Please update the app and confirm the wallet rules: this business’s wallet balance is non-refundable or can expire.',
+                rules,
+            });
+        }
+
         const txn = await walletService.createTopUp({
+            rulesAcknowledgedAt: rulesAcknowledged === true ? new Date() : null,
+            rulesShown: rules,
             customer: req.user._id, provider: providerId, amount,
             reference: (reference || '').toString().slice(0, 60),
             // A private upload in this client's own proof folder, or nothing. A
@@ -316,6 +395,7 @@ exports.approveTopUp = async (req, res) => {
         const t = result.transaction;
         createNotification(t.customer, `Your ${money(t.amount)} top-up was approved — it's now in your wallet`, 'wallet', '/wallet');
         res.status(200).json({ success: true, message: 'Top-up approved', data: result.transaction });
+        emailTopUpReceipt(t);
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -496,6 +576,7 @@ exports.adminApproveTopUp = async (req, res) => {
         if (!result.ok) return res.status(result.reason === 'not_found' ? 404 : 409).json({ success: false, message: result.reason === 'already_resolved' ? 'This top-up was already resolved' : 'Top-up not found' });
         createNotification(result.transaction.customer, `Your ${money(result.transaction.amount)} top-up was approved — it's now in your wallet`, 'wallet', '/wallet');
         res.status(200).json({ success: true, message: 'Top-up approved', data: result.transaction });
+        emailTopUpReceipt(result.transaction);
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

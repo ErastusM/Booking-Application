@@ -275,29 +275,32 @@ exports.sendWelcomeEmail = async (email, name, role) => {
         subject: isProvider ? 'Your business account is ready' : 'Welcome to Bookplus',
         html: shell({
             footer: FOOTER_ACCOUNT,
-            heading: isProvider ? "You’re verified," : "You’re all set,",
+            heading: "You’re all set,",
             headingAccent: escapeHtml(name),
             preheader: isProvider
                 ? 'Your Bookplus business account is active.'
-                : 'Your Bookplus account is verified.',
+                : 'Your email address is confirmed.',
             inner: isProvider
-                ? `${p("Your account is verified. Complete your business profile, add your services, and you’ll be ready to receive bookings.")}
+                ? `${p("Your email address is confirmed. Complete your business profile, add your services, and you’ll be ready to receive bookings.")}
                    <div style="margin:24px 0;">${primaryButton(`${businessOrigin() || '#'}/dashboard`, 'Set up my business')}</div>`
-                : `${p('Your account is verified. You can now discover providers and book appointments in a few taps.')}
+                : `${p('Your email address is confirmed. You can now discover businesses and book appointments in a few taps.')}
                    <div style="margin:24px 0;">${primaryButton(`${primaryOrigin() || '#'}/providers`, 'Find providers')}</div>`,
         }),
     });
 };
 
 exports.sendAppointmentConfirmed = async (email, name, serviceName, date, time, gcalUrl, extras = {}) => {
-    const { staff, price, bookingRef, manageUrl, directionsUrl, venue, address, ics } = extras;
+    const { staff, price, currency, bookingRef, manageUrl, directionsUrl, venue, address, ics } = extras;
     const rows = [
         ['Service', escapeHtml(serviceName) + (staff ? ` · ${escapeHtml(staff)}` : '')],
         ['When', `${date}, ${time}`],
     ];
     if (venue) rows.push(['Venue', escapeHtml(venue)]);
     if (bookingRef) rows.push(['Booking ref', bookingRef]);
-    const total = price != null ? ['Total', `NAD ${price}`] : null;
+    // The business's pricing currency (ISO code) — a business can price in any of
+    // the supported currencies, so the receipt must not assume NAD.
+    const code = /^[A-Z]{3}$/.test(String(currency || '')) ? currency : 'NAD';
+    const total = price != null ? ['Total', `${code} ${price}`] : null;
     await safeSend({
         from: FROM, to: email, subject: 'Your appointment is confirmed',
         attachments: ics ? [icsAttachment(ics)] : undefined,
@@ -479,6 +482,57 @@ exports.sendGiftCard = async (email, { recipientName, fromName, businessName, am
                 </div>
                 <div style="margin:24px 0;">${primaryButton(href, 'Redeem and book')}</div>
                 ${p(`Redeeming adds ${escapeHtml(amountLabel)} to your Bookplus wallet with ${escapeHtml(businessName)}. Choose your wallet when you book with them.`)}`,
+        }),
+    });
+};
+
+// Receipt for an approved wallet top-up: the money the client paid a business
+// is now in their Bookplus wallet with that business. Repeats the business's
+// wallet rules (refundable or not, expiry) so the client has them in writing.
+exports.sendWalletTopUpReceipt = async (email, { name, businessName, amountLabel, balanceLabel, reference, method, date, refundsAllowed, expiryMonths }) => {
+    const rows = [
+        ['Business', escapeHtml(businessName)],
+        ['Date', escapeHtml(date)],
+        ['Method', method === 'cash' ? 'Cash' : 'Bank transfer / deposit'],
+    ];
+    if (reference) rows.push(['Reference', escapeHtml(reference)]);
+    if (balanceLabel) rows.push(['Wallet balance', escapeHtml(balanceLabel)]);
+    const rules = [
+        refundsAllowed === false ? 'This balance is non-refundable.' : 'You can ask the business to refund an unused balance.',
+        Number(expiryMonths) > 0
+            ? `It expires after ${Number(expiryMonths)} months without any wallet activity; we will remind you 30 and 7 days before.`
+            : 'It does not expire.',
+    ].join(' ');
+    await safeSend({
+        from: FROM, to: email, subject: `Receipt: ${amountLabel} added to your wallet with ${businessName}`,
+        html: shell({
+            heading: `Hi ${escapeHtml(name || 'there')}, your top-up is in`,
+            preheader: `${amountLabel} top-up with ${businessName} approved`,
+            inner: `${p(`${escapeHtml(businessName)} confirmed your payment, and <strong>${escapeHtml(amountLabel)}</strong> is now in your Bookplus wallet with them.`)}
+                ${detailsCard(rows, ['Amount', escapeHtml(amountLabel)])}
+                ${p(`<br />${escapeHtml(rules)} The business holds this money; you can spend it on bookings with ${escapeHtml(businessName)}.`)}
+                <div style="margin:24px 0;">${primaryButton(`${primaryOrigin() || '#'}/wallet`, 'View my wallet')}</div>`,
+        }),
+    });
+};
+
+// Advance warning that a prepaid wallet balance will expire (the business opted
+// its wallets into expiry after 6/12/24 months without activity). Sent 30 and 7
+// days ahead by walletExpiryService. Any wallet activity resets the clock, so the
+// email says so — spending or topping up keeps the balance.
+exports.sendWalletExpiryReminder = async (email, { name, businessName, amountLabel, expiresOn, daysLeft, months }) => {
+    const href = `${primaryOrigin() || '#'}/wallet`;
+    const when = daysLeft <= 1 ? 'tomorrow' : `in ${daysLeft} days`;
+    return safeSend({
+        from: FROM, to: email, subject: `Your ${amountLabel} balance with ${businessName} expires ${when}`,
+        html: shell({
+            heading: `Hi ${escapeHtml(name || 'there')}, your wallet balance expires soon`,
+            preheader: `${amountLabel} with ${businessName} expires on ${expiresOn}`,
+            inner: `${p(`You have <strong>${escapeHtml(amountLabel)}</strong> in your Bookplus wallet with <strong>${escapeHtml(businessName)}</strong>. ${escapeHtml(businessName)} has set wallet balances to expire after ${Number(months) || 0} months without any wallet activity.`)}
+                ${detailsCard([['Business', escapeHtml(businessName)], ['Balance', escapeHtml(amountLabel)], ['Expires on', escapeHtml(expiresOn)]])}
+                ${p('<br />To keep your balance, book and use it, or make any top-up, before that date. Any wallet activity restarts the expiry period.')}
+                <div style="margin:24px 0;">${primaryButton(href, 'View my wallet')}</div>
+                ${p(`Questions about a refund? Contact ${escapeHtml(businessName)} directly — the business holds your prepaid balance and sets its own refund rules.`)}`,
         }),
     });
 };

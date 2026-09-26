@@ -49,6 +49,14 @@ const walletTransactionSchema = new mongoose.Schema(
             deliveryType: { type: String, default: '' },
         },
         method: { type: String, enum: ['manual', 'cash', 'online'], default: 'manual' }, // how the client funded the top-up
+        // Top-ups only: the client confirmed the business's wallet rules before
+        // paying (required when the balance is non-refundable or can expire), and
+        // the rules they were shown at that moment.
+        rulesAcknowledgedAt: { type: Date, default: null },
+        rulesShown: {
+            refundsAllowed: { type: Boolean, default: undefined },
+            expiryMonths: { type: Number, default: undefined },
+        },
         reason: { type: String, default: '' },      // adjustment / refund / note
 
         appointment: { type: mongoose.Schema.Types.ObjectId, ref: 'Appointment', default: null },

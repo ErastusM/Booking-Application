@@ -7,14 +7,16 @@ import { isFullName, splitName, joinName } from '../utils/personName';
 import { Calendar, Clock, CalendarX2 } from 'lucide-react';
 import { buildTimeSlots } from '../utils/bookingSlots';
 import { cloudinaryAvatar } from '../utils/cloudinary';
-import { currencySymbol } from '../utils/currency';
+import { currencySymbol, CURRENCIES } from '../utils/currency';
 import { mapsUrl } from '../utils/maps';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
 import RecurrenceFields from '../components/RecurrenceFields';
 import StatusOverlay from '../components/StatusOverlay';
 import AuthPrompt from '../components/AuthPrompt';
 import { track } from '../services/client';
-import { formatDuration, Field } from '@bookplus/ui';
+import { formatDuration, Field, LegalText } from '@bookplus/ui';
+import { CONSENT_COPY } from '@bookplus/config/legal/consent.mjs';
+import { FEATURES } from '@bookplus/config/features.mjs';
 
 // The API answers a signed-out request with "No token, authorization denied".
 // That's server-speak for "you're signed out" — never show it. Anything else
@@ -139,7 +141,10 @@ const BookAppointment = () => {
     // Wallet chosen but the balance can't cover it — the summary panel already warns
     // about this, but nothing stopped the customer proceeding anyway; gate both the
     // "Review & Confirm" step-over and the final Confirm on it too.
-    const walletShort = !!(wallet?.settings?.enabled && paymentMethod === 'wallet' && selectedService && totalPrice > (wallet.wallet?.availableBalance ?? 0));
+    // Paying from the wallet is only offered while the wallet feature is on AND
+    // this business has it enabled; otherwise payment is cash at the appointment.
+    const walletOn = FEATURES.walletEnabled && !!wallet?.settings?.enabled;
+    const walletShort = !!(walletOn && paymentMethod === 'wallet' && selectedService && totalPrice > (wallet.wallet?.availableBalance ?? 0));
 
     // Which provider are we booking? Prefer the URL, but fall back to the selected
     // service's owner so availability + booked slots still load in the generic
@@ -149,6 +154,9 @@ const BookAppointment = () => {
     const effectiveProviderId = urlProviderId || selectedService?.provider?._id || selectedService?.provider || null;
     // Prices show in the booked business's currency (defaults to NAD).
     const curSym = currencySymbol(providerInfo?.currency);
+    // Named in full on the review step, so "$" or "R" is never ambiguous.
+    const curCode = (providerInfo?.currency || 'NAD').toUpperCase();
+    const curLabel = `${CURRENCIES.find((c) => c.code === curCode)?.name || curCode} (${curCode})`;
 
     // Group the service list under its categories (each service carries its
     // populated `category` = {_id, name, order}; unassigned ones fall under
@@ -226,7 +234,9 @@ const BookAppointment = () => {
     // balance and warn before a wallet-required booking that can't be covered.
     useEffect(() => {
         // Guests have no wallet — skip the (401-ing) fetch and always pay cash.
-        if (!user || !effectiveProviderId) { setWallet(null); return; }
+        // Wallet "coming soon" (FEATURES.walletEnabled off): every booking is cash
+        // at the appointment, so there is nothing to load or offer.
+        if (!FEATURES.walletEnabled || !user || !effectiveProviderId) { setWallet(null); return; }
         walletService.getMyWalletWithProvider(effectiveProviderId)
             .then(res => {
                 setWallet(res.data.data);
@@ -523,7 +533,7 @@ const BookAppointment = () => {
                     // quoted, not the base service price.
                     ...(selectedOption?.name ? { selectedOptionName: selectedOption.name } : {}),
                     ...(selectedStaff?._id ? { teamMember: selectedStaff._id } : {}),
-                    ...(wallet?.settings?.enabled ? { paymentMethod } : {}),
+                    ...(walletOn ? { paymentMethod } : {}),
                     // Guest checkout: send contact details instead of relying on a session.
                     ...(!user ? { guestName, guestEmail: guest.email.trim(), guestPhone: guest.phone.trim(), marketingOptIn: guestMarketing } : {}),
                     ...(recurrence.isRecurring ? {
@@ -840,19 +850,39 @@ const BookAppointment = () => {
                                 ))}
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingTop: '1rem', borderTop: '1px solid var(--border)', marginTop: '0.5rem' }}>
                                     <span style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)' }}>Total</span>
-                                    <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>{curSym} {totalPrice}</span>
+                                    <span data-testid="review-total" style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>{curSym} {totalPrice}</span>
+                                </div>
+                                <div data-testid="review-currency" style={{ fontSize: '0.78rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)', marginTop: '0.35rem', textAlign: 'right' }}>
+                                    Prices in {curLabel} · No Bookplus booking fee
+                                </div>
+                            </div>
+
+                            {/* How you'll pay — shown before confirming (Electronic Transactions
+                                Act order summary: price, currency, payment and any fee). */}
+                            <div style={cardStyle} data-testid="review-payment">
+                                <div style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.4rem' }}>Payment</div>
+                                <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', lineHeight: 1.55 }}>
+                                    {walletOn && paymentMethod === 'wallet'
+                                        ? <>{curSym} {totalPrice} will be held from your wallet with {providerInfo?.name || 'this business'} now and taken when your appointment is completed. If the booking is cancelled or missed, it is released back to your balance.</>
+                                        : <><strong style={{ color: 'var(--charcoal)' }}>Pay at your appointment.</strong> You pay {providerInfo?.name || 'the business'} {curSym} {totalPrice} in cash at your appointment. Nothing is charged now.</>}
+                                    {' '}Bookplus does not charge a booking fee or deposit.
                                 </div>
                             </div>
 
                             {/* Cancellation policy */}
-                            <div style={cardStyle}>
+                            <div style={cardStyle} data-testid="review-cancellation">
                                 <div style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.4rem' }}>Cancellation policy</div>
                                 <div style={{ fontSize: '0.875rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>
-                                    {(providerInfo?.cancellationWindowHours ?? 24) === 0
+                                    {(providerInfo?.cancellationWindowHours ?? 0) === 0
                                         ? 'Cancel or reschedule for free anytime.'
-                                        : `Cancel or reschedule for free up to ${providerInfo?.cancellationWindowHours ?? 24} hours before your appointment.`}
+                                        : `Cancel or reschedule for free up to ${providerInfo?.cancellationWindowHours ?? 0} hours before your appointment. After that, contact ${providerInfo?.name || 'the business'}.`}
                                 </div>
                             </div>
+
+                            {/* Correct mistakes before confirming. */}
+                            <button type="button" onClick={() => setStep('form')} data-testid="review-edit" className="btn-outline" style={{ alignSelf: 'flex-start', padding: '0.5rem 1rem', fontSize: '0.85rem' }}>
+                                Change service, date or time
+                            </button>
 
                             {/* An older account with a one-word name completes it before booking. */}
                             {!rescheduleId && accountNeedsName && (
@@ -923,6 +953,18 @@ const BookAppointment = () => {
                                     style={{ resize: 'vertical', fontFamily: 'var(--font-body)' }}
                                 />
                             </div>
+
+                            {/* What confirming means — guests have no sign-up checkbox, so this is
+                                where they see the Terms. */}
+                            {!rescheduleId && (
+                                <p data-testid="review-terms" style={{ margin: 0, fontSize: '0.8rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', lineHeight: 1.55 }}>
+                                    <LegalText
+                                        text={user ? CONSENT_COPY.booking : CONSENT_COPY.guest}
+                                        renderLink={(href, children, key) => <Link key={key} to={href} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold-dark)', textDecoration: 'underline' }}>{children}</Link>}
+                                    />
+                                    {' '}We email you a confirmation.
+                                </p>
+                            )}
                         </div>
 
                         {/* Right - sticky confirm panel (desktop only) */}
@@ -931,7 +973,7 @@ const BookAppointment = () => {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: '0.35rem' }}>
                                     <span style={{ fontFamily: 'var(--font-display)', fontSize: '1.6rem', fontWeight: '600', color: 'var(--charcoal)' }}>{curSym} {totalPrice}</span>
                                 </div>
-                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)', marginBottom: '1.25rem' }}>Estimated total</div>
+                                <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)', marginBottom: '1.25rem' }}>Total · {curCode}</div>
                                 <button
                                     data-testid="booking-confirm"
                                     onClick={handleConfirm}
@@ -950,7 +992,7 @@ const BookAppointment = () => {
                 <div className="booking-confirm-mobile" style={{ position: 'fixed', bottom: 0, left: 0, right: 0, background: 'var(--card-bg)', borderTop: '1px solid var(--border)', padding: '1rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', zIndex: 1000, boxShadow: '0 -4px 20px rgba(0,0,0,0.08)' }}>
                     <div style={{ flexShrink: 0 }}>
                         <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: '600', color: 'var(--charcoal)' }}>{curSym} {totalPrice}</div>
-                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>Estimated total</div>
+                        <div style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>Total · {curCode}</div>
                     </div>
                     <button data-testid="booking-confirm-mobile" onClick={handleConfirm} disabled={loading || !!confirmedOverlay || (!user && !guestReady) || !nameFixReady || walletShort} style={{ flex: 1, marginLeft: '0.9rem', justifyContent: 'center', padding: '0.875rem 1rem', background: 'var(--ink)', color: 'white', border: 'none', borderRadius: '99px', fontSize: '0.95rem', fontWeight: '600', fontFamily: 'var(--font-body)', cursor: (loading || (!user && !guestReady) || !nameFixReady || walletShort) ? 'not-allowed' : 'pointer', opacity: (loading || (!user && !guestReady) || !nameFixReady || walletShort) ? 0.85 : 1, display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                         {loading && <span style={{ display: 'inline-block', width: '15px', height: '15px', border: '2px solid rgba(255,255,255,0.3)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
@@ -1341,7 +1383,7 @@ const BookAppointment = () => {
                         </div>
 
                         {/* Payment method — let the client pay from their wallet or in cash */}
-                        {wallet?.settings?.enabled && (() => {
+                        {walletOn && (() => {
                             const available = wallet.wallet?.availableBalance ?? 0;
                             const short = paymentMethod === 'wallet' && selectedService && totalPrice > available;
                             return (
@@ -1386,10 +1428,15 @@ const BookAppointment = () => {
                                 {joining ? 'Joining...' : 'Join Waiting List'}
                             </button>
                         )}
+                        {!walletOn && (
+                            <p data-testid="pay-at-appointment" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', textAlign: 'center', margin: '0.25rem 0 0', fontWeight: 600 }}>
+                                Pay at your appointment
+                            </p>
+                        )}
                         <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)', textAlign: 'center', marginTop: '1rem', lineHeight: 1.5 }}>
-                            {(providerInfo?.cancellationWindowHours ?? 24) === 0
+                            {(providerInfo?.cancellationWindowHours ?? 0) === 0
                                 ? 'Free cancellation anytime before your appointment.'
-                                : `Free cancellation up to ${providerInfo?.cancellationWindowHours ?? 24} hours before your appointment.`}
+                                : `Free cancellation up to ${providerInfo?.cancellationWindowHours ?? 0} hours before your appointment.`}
                         </p>
                     </div>
                 </div>

@@ -503,8 +503,8 @@ const Home = () => {
     return (
         <div style={{ background: 'var(--off-white)', paddingTop: 'var(--page-hero-pad-top)' }}>
             <Seo
-                title="Bookplus — Book trusted local services"
-                description="Discover and book trusted local businesses — beauty, health, fitness, automotive, home services and more. Real-time availability and instant confirmation."
+                title="Bookplus — Book local services online"
+                description="Discover and book local businesses — beauty, health, fitness, automotive, home services and more. Real-time availability, instant confirmation and reviews from real bookings."
                 url={typeof window !== 'undefined' ? window.location.origin + '/' : 'https://www.bookplus.pro/'}
             />
 

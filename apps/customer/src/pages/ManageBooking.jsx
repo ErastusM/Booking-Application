@@ -182,9 +182,9 @@ const ManageBooking = () => {
                                         </div>
                                     )}
                                     <p style={{ textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.85rem' }}>
-                                        {(appt.cancellationWindowHours ?? 24) === 0
+                                        {(appt.cancellationWindowHours ?? 0) === 0
                                             ? 'Free cancellation anytime.'
-                                            : `Free cancellation up to ${appt.cancellationWindowHours ?? 24} hours before your appointment.`}
+                                            : `Free cancellation up to ${appt.cancellationWindowHours ?? 0} hours before your appointment.`}
                                     </p>
                                 </>
                             ) : (

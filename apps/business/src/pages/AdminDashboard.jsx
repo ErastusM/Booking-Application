@@ -1,4 +1,5 @@
 import React, { useEffect, useState, useRef } from 'react';
+import { FEATURES } from '@bookplus/config/features.mjs';
 import { appointmentService, serviceService, userService, providerWalletService, walletService, analyticsService } from '../services';
 import { useToast } from '../components/Toast';
 import ProofLink from '../components/ProofLink';
@@ -793,9 +794,12 @@ const AdminDashboard = () => {
                         {/* Client (consumer) wallet top-up requests — admin can allocate too */}
                         <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden', marginBottom: '1.5rem' }}>
                             <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Client wallet top-ups</h3>
+                                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Client wallet top-ups{!FEATURES.walletEnabled && <span style={{ marginLeft: '0.5rem', padding: '0.05rem 0.45rem', borderRadius: '99px', background: 'var(--warm-gray)', color: 'var(--text-secondary)', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', verticalAlign: '2px' }}>Coming soon</span>}</h3>
                                 <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{clientTopUps.filter((t) => t.status === 'pending').length} pending</span>
                             </div>
+                            {!FEATURES.walletEnabled && (
+                                <p style={{ margin: 0, padding: '0.75rem 1.5rem', borderBottom: '1px solid var(--border)', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>The client wallet is coming soon: clients pay businesses at the appointment. Existing requests are shown read-only.</p>
+                            )}
                             {clientTopUps.length === 0 ? (
                                 <div style={{ padding: '2rem', textAlign: 'center', color: 'var(--text-muted)', fontSize: '0.85rem' }}>No client top-up requests yet.</div>
                             ) : clientTopUps.slice(0, 40).map((t) => (
@@ -813,7 +817,8 @@ const AdminDashboard = () => {
                                             )}
                                         </p>
                                     </div>
-                                    {t.status === 'pending' ? (
+                                    {/* Wallet "coming soon": the list stays visible, read-only. */}
+                                    {t.status === 'pending' && FEATURES.walletEnabled ? (
                                         <div style={{ display: 'flex', gap: '0.4rem', flexShrink: 0 }}>
                                             <button onClick={() => resolveClientTopUp(t._id, true)} disabled={resolvingTopUpId === t._id} className="btn-primary" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem', opacity: resolvingTopUpId === t._id ? 0.6 : 1 }}>{resolvingTopUpId === t._id ? '…' : 'Approve'}</button>
                                             <button onClick={() => resolveClientTopUp(t._id, false)} disabled={resolvingTopUpId === t._id} className="btn-outline" style={{ padding: '0.35rem 0.9rem', fontSize: '0.8rem', opacity: resolvingTopUpId === t._id ? 0.6 : 1 }}>Reject</button>

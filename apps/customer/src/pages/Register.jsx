@@ -15,7 +15,7 @@ const roles = [
         value: 'customer',
         Icon: CalendarCheck,
         title: 'Book Services',
-        description: 'I want to browse and book services from trusted professionals.',
+        description: 'I want to browse and book services from local businesses.',
     },
     {
         value: 'provider',

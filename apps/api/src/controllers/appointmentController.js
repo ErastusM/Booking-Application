@@ -10,6 +10,7 @@ const User = require('../models/User');
 const { createNotification, notifyAdmins } = require('../utils/notificationhelper');
 const { apptPhrase, ApptPhrase, theirApptPhrase, servicePhrase } = require('../utils/apptCopy');
 const walletService = require('../utils/walletService');
+const { walletEnabled, WALLET_COMING_SOON } = require('../constants/features');
 const {
     sendAppointmentConfirmed,
     sendAppointmentCompleted,
@@ -25,7 +26,7 @@ const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, findBusiness
 const { overrideFor } = require('../utils/memberPricing');
 const { recordBookingRejection, rejectionsSummary } = require('../utils/bookingRejections');
 const { resolveBookingLocation } = require('../utils/locationResolver');
-const { checkCancellationWindow } = require('../utils/cancellationPolicy');
+const { checkCancellationWindow, DEFAULT_WINDOW_HOURS } = require('../utils/cancellationPolicy');
 // Serialize the overlap-check + insert for one provider+member+day so two
 // concurrent bookings can't both pass the check and both write (the same-person
 // double-book). bookingLockKey/withBookingLocks are shared with the waiting-list
@@ -1373,7 +1374,13 @@ exports.createAppointment = async (req, res) => {
         // otherwise it's a plain cash/pay-later booking.
         let walletCfg = null;
         let chosenMethod = 'cash';
-        if (svc.provider) {
+        // Wallet "coming soon" (WALLET_ENABLED off): every booking is cash, paid at
+        // the appointment, whatever the business's wallet settings say. Asking to
+        // pay from the wallet gets a clear 403 rather than a silent switch.
+        if (!walletEnabled() && paymentMethod === 'wallet') {
+            return res.status(403).json(WALLET_COMING_SOON);
+        }
+        if (svc.provider && walletEnabled()) {
             const provWallet = await User.findById(svc.provider).select('walletSettings');
             walletCfg = provWallet?.walletSettings || null;
             // A guest has no prepaid wallet — always cash. If the business REQUIRES
@@ -1649,6 +1656,7 @@ exports.createAppointment = async (req, res) => {
                 const clientBase = primaryOrigin() || '';
                 const extras = {
                     price: basePrice,
+                    currency: providerDoc?.businessProfile?.currency || 'NAD',
                     bookingRef: String(appointment._id).slice(-8).toUpperCase(),
                     manageUrl: appointment.manageToken ? `${clientBase}/manage/${appointment.manageToken}` : undefined,
                     directionsUrl: address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : undefined,
@@ -1859,7 +1867,10 @@ exports.createMultiServiceAppointment = async (req, res) => {
 
         // Payment: reuse the provider's wallet config. Provider bookings are never
         // blocked on insufficient funds — reserve the summed total when possible.
-        const provWallet = await User.findById(providerId).select('walletSettings');
+        if (!walletEnabled() && paymentMethod === 'wallet') {
+            return res.status(403).json(WALLET_COMING_SOON);
+        }
+        const provWallet = walletEnabled() ? await User.findById(providerId).select('walletSettings') : null;
         const walletCfg = provWallet?.walletSettings || null;
         let chosenMethod = 'cash';
         if (walletCfg?.enabled && customerId) {
@@ -3239,7 +3250,9 @@ exports.getAppointmentByToken = async (req, res) => {
                 staff: appt.teamMember ? appt.teamMember.name : null,
                 clientName: appt.walkInName || appt.guestName || null,
                 schedule,
-                cancellationWindowHours: appt.provider?.bookingPolicy?.cancellationWindowHours ?? 24,
+                // Same fallback the server enforces (0 = anytime), so the page never shows a
+                // stricter policy than the one actually applied.
+                cancellationWindowHours: appt.provider?.bookingPolicy?.cancellationWindowHours ?? DEFAULT_WINDOW_HOURS,
             },
         });
     } catch (error) {
