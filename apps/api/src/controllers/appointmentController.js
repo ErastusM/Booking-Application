@@ -21,7 +21,7 @@ const {
     sendStaffBookingAlert,
 } = require('../utils/emailService');
 const calendarHelper = require('../utils/calendarHelper');
-const { resolveBookingStaff, staffHoursReason, memberBusyIntervalsBuffered, wholeSpanBuffered, bufferMapForAppointments, memberInvolvedFilter, laneInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy, performsService, pickRotationWeek, overlapsAny, performerMinutes } = require('../utils/staffBooking');
+const { resolveBookingStaff, staffHoursReason, memberBusyIntervalsBuffered, wholeSpanBuffered, bufferMapForAppointments, memberInvolvedFilter, laneInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy, performsService, pickRotationWeek, overlapsAny, performerMinutes, scheduleDayIntervals, periodOpenings } = require('../utils/staffBooking');
 const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, findBusinessWideBlocksForDate, toDateKey, BLOCKED_MESSAGE } = require('../utils/blockedTime');
 const { overrideFor } = require('../utils/memberPricing');
 const { recordBookingRejection, rejectionsSummary } = require('../utils/bookingRejections');
@@ -549,6 +549,10 @@ exports.getBookedSlots = async (req, res) => {
                     // Exact start ranges (inclusive) where one performer can take
                     // the whole booking; clients that know it test starts against it.
                     openStarts: anyView.openStarts || null,
+                    // Each rostered performer's working-period opening times —
+                    // extra candidate starts (08:30, 14:30 after a break); open
+                    // or not is still openStarts's call.
+                    openings: anyView.openings || [],
                 });
             }
             ownerFallback = true;
@@ -603,6 +607,9 @@ exports.getBookedSlots = async (req, res) => {
         // 'weekly', 'leave', or 'none' — a member with no hours of their own that
         // day, who can't be booked then.
         let hoursSource = memberId ? null : 'business';
+        // The day's own working periods, for `openings` below: the shift's, the
+        // member's weekly ones, or (null) the business's.
+        let ownPeriods = null;
 
         // Breaks and off-shift hours have to come back as BUSY, not just be
         // enforced when the booking is submitted. Slots are computed on the
@@ -612,6 +619,7 @@ exports.getBookedSlots = async (req, res) => {
         // carry a `kind`, and clients that ignore it still treat them as busy.
         if (shift) {
             hoursSource = 'shift';
+            ownPeriods = (shift.slots || []).map((sl) => [parseTimeToMinutes(sl.start), parseTimeToMinutes(sl.end)]).filter(([a, b]) => b > a);
             (shift.breaks || []).forEach((b) => {
                 busy.push({ startTime: b.start, endTime: b.end, kind: 'break' });
             });
@@ -653,6 +661,7 @@ exports.getBookedSlots = async (req, res) => {
                 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
                 const day = daySchedule[DAY_NAMES[new Date(date).getDay()]];
                 const mins = (t) => { const [h = 0, m = 0] = String(t).split(':').map(Number); return h * 60 + m; };
+                ownPeriods = scheduleDayIntervals(daySchedule, date);
                 if (!day?.enabled || !Array.isArray(day.slots) || day.slots.length === 0) {
                     busy.push({ startTime: '00:00', endTime: '23:59', kind: 'off_shift' });
                 } else {
@@ -672,6 +681,21 @@ exports.getBookedSlots = async (req, res) => {
         // Approved all-day leave closes the day whatever the roster says.
         if (memberId && (leaves || []).some((lv) => lv.allDay || lv.startTime == null || lv.endTime == null)) hoursSource = 'leave';
 
+        // Each working period's exact opening time (08:30, or 14:30 after a split
+        // day's break) is always offered when the service fits — the owner's
+        // answer. The client only learns the day's periods from the business's
+        // hours and the busy list above, so it is told their starts explicitly:
+        // a shift's periods (which may run past closing), a member's weekly
+        // periods within the business's, or the business's own.
+        let openings = [];
+        if (hoursSource !== 'none' && hoursSource !== 'leave') {
+            const availabilityDoc = await Availability.findOne({ provider: providerId }).select('schedule').lean();
+            const businessDay = availabilityDoc?.schedule ? scheduleDayIntervals(availabilityDoc.schedule, date) : null;
+            if (hoursSource === 'shift') openings = periodOpenings(ownPeriods);
+            else if (ownPeriods) openings = periodOpenings(ownPeriods, businessDay);
+            else if (businessDay) openings = periodOpenings(businessDay);
+        }
+
         res.status(200).json({
             success: true,
             data: busy,
@@ -685,6 +709,7 @@ exports.getBookedSlots = async (req, res) => {
             // is a rostered day off (no slots), distinct from null.
             shiftWindow: shift ? (shift.slots || []).map((s) => ({ start: s.start, end: s.end })) : null,
             hoursSource,
+            openings,
         });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });

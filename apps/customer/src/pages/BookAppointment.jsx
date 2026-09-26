@@ -79,6 +79,10 @@ const BookAppointment = () => {
     // 'none' = the chosen professional has no working hours of their own that day
     // (nothing comes from the business's), 'leave' = away, else null/'weekly'/…
     const [hoursSource, setHoursSource] = useState(null);
+    // The day's working-period opening times (booked-slots `openings`, "HH:MM"):
+    // each is always offered when the service fits — 08:30 even for a 45-minute
+    // service, or 14:30 after a split day's break.
+    const [dayOpenings, setDayOpenings] = useState([]);
     // For a chosen member, the days in the visible month they WORK (open even if
     // the business is closed — covering a Sunday) and are rostered OFF (closed
     // even if the business is open), so the date picker reflects their roster.
@@ -288,15 +292,15 @@ const BookAppointment = () => {
         ? { duration: totalDuration || undefined, option: selectedOption?.name || undefined }
         : undefined;
     useEffect(() => {
-        if (!effectiveProviderId || !formData.appointmentDate) { setBookedSlots([]); setShiftWindow(null); setOpenStarts(null); setHoursSource(null); return; }
+        if (!effectiveProviderId || !formData.appointmentDate) { setBookedSlots([]); setShiftWindow(null); setOpenStarts(null); setHoursSource(null); setDayOpenings([]); return; }
         let stale = false;
         // The service id makes the "any professional" view staff-aware: the server
         // unions the availability of everyone who performs it, so the picker only
         // shows slots the booking will actually accept (and stops greying an hour
         // where one member is booked but a colleague is free).
         appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate, selectedStaff?._id || undefined, selectedService?._id || undefined, anyViewOpts)
-            .then(res => { if (!stale) { setBookedSlots(res.data.data || []); setShiftWindow(res.data.shiftWindow ?? null); setOpenStarts(res.data.openStarts ?? null); setHoursSource(res.data.hoursSource || null); } })
-            .catch(() => { if (!stale) { setBookedSlots([]); setShiftWindow(null); setOpenStarts(null); setHoursSource(null); } });
+            .then(res => { if (!stale) { setBookedSlots(res.data.data || []); setShiftWindow(res.data.shiftWindow ?? null); setOpenStarts(res.data.openStarts ?? null); setHoursSource(res.data.hoursSource || null); setDayOpenings(res.data.openings || []); } })
+            .catch(() => { if (!stale) { setBookedSlots([]); setShiftWindow(null); setOpenStarts(null); setHoursSource(null); setDayOpenings([]); } });
         return () => { stale = true; };
     }, [effectiveProviderId, formData.appointmentDate, selectedStaff, selectedService?._id, anyViewOpts?.duration, anyViewOpts?.option]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -318,6 +322,7 @@ const BookAppointment = () => {
                 setShiftWindow(res.data.shiftWindow ?? null);
                 setOpenStarts(res.data.openStarts ?? null);
                 setHoursSource(res.data.hoursSource || null);
+                setDayOpenings(res.data.openings || []);
             })
             .catch(() => {});
     }, { intervalMs: 20000, enabled: !!(effectiveProviderId && formData.appointmentDate) });
@@ -746,12 +751,15 @@ const BookAppointment = () => {
         const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
         if (dateStr === todayStr) minStart = now.getHours() * 60 + now.getMinutes();
 
-        // "Any professional": a start must suit ONE person for the whole service.
         const hm = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+        // "Any professional": a start must suit ONE person for the whole service.
         const starts = !selectedStaff && Array.isArray(openStarts)
             ? openStarts.map(r => ({ start: hm(r.start), end: hm(r.end) }))
             : null;
-        return buildTimeSlots({ blocks, bookedRanges, duration, minStart, openStarts: starts });
+        // Each working period's own opening time (the professional's, or the
+        // business's) is always a start when the service fits.
+        const openings = dayOpenings.map(hm).filter((n) => Number.isFinite(n));
+        return buildTimeSlots({ blocks, bookedRanges, duration, minStart, openings, openStarts: starts });
     };
 
     const timeSlots = generateTimeSlots(formData.appointmentDate);

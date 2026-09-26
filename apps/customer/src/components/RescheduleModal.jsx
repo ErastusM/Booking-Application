@@ -42,7 +42,7 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
     // shift's periods, if they have one that day, and whose hours it is — 'none'
     // (no working hours of their own that day, so the booking can't move there)
     // or 'leave'. The owner's column is the business's hours.
-    const [dayInfo, setDayInfo] = useState({ shiftWindow: null, hoursSource: null });
+    const [dayInfo, setDayInfo] = useState({ shiftWindow: null, hoursSource: null, openings: [] });
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [pendingTime, setPendingTime] = useState(null); // slot awaiting a confirm tap
@@ -90,9 +90,9 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                     setBusyByLane(Object.fromEntries(pairs.map(([l, body]) => [l, body?.data || []])));
                     setBookedSlots(pairs.flatMap(([, body]) => body?.data || []));
                     const own = (pairs.find(([l]) => l === lane) || [])[1] || {};
-                    setDayInfo({ shiftWindow: own.shiftWindow ?? null, hoursSource: own.hoursSource || null });
+                    setDayInfo({ shiftWindow: own.shiftWindow ?? null, hoursSource: own.hoursSource || null, openings: own.openings || [] });
                 })
-                .catch(() => { if (reqId === bookedReqRef.current) { setBusyByLane({}); setBookedSlots([]); setDayInfo({ shiftWindow: null, hoursSource: null }); } });
+                .catch(() => { if (reqId === bookedReqRef.current) { setBusyByLane({}); setBookedSlots([]); setDayInfo({ shiftWindow: null, hoursSource: null, openings: [] }); } });
         }
     };
 
@@ -150,8 +150,10 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
         const openStarts = parts
             ? partsOpenStarts(parts, Object.fromEntries(Object.entries(busyByLane).map(([l, list]) => [l, toRanges(list)])))
             : null;
-        return buildTimeSlots({ blocks, bookedRanges, duration, minStart, openStarts });
-    }, [selectedDate, schedule, bookedSlots, busyByLane, parts, duration, dayInfo]);
+        // Each working period's own opening time is always a start when it fits.
+        const openings = (dayInfo.openings || []).map(toMin);
+        return buildTimeSlots({ blocks, bookedRanges, duration, minStart, openings, openStarts });
+    }, [selectedDate, schedule, bookedSlots, busyByLane, parts, duration, dayInfo]); // eslint-disable-line react-hooks/exhaustive-deps
 
     const confirm = async (time) => {
         setBusy(true); setError('');

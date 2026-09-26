@@ -4349,7 +4349,9 @@ const ProviderDashboard = () => {
                                         if (apptForm.date === todayStr) minStart = now.getHours() * 60 + now.getMinutes();
                                         // A member's break or windowed leave that day is busy too.
                                         (dh?.busy || []).forEach(b => bookedRanges.push({ start: toMinutes(b.startTime), end: toMinutes(b.endTime) }));
-                                        const slots = buildTimeSlots({ blocks, bookedRanges, duration, minStart });
+                                        // The day's own opening times stay offered even while booking
+                                        // outside hours over the wider 08:00–20:00 block.
+                                        const slots = buildTimeSlots({ blocks, bookedRanges, duration, minStart, openings: hoursBlocks.map(b => b.start) });
                                         const dayCap = dayName.charAt(0).toUpperCase() + dayName.slice(1);
                                         const closedText = dh?.source === 'leave'
                                             ? `${isStaff ? 'You are' : `${memberName} is`} on leave that day.`

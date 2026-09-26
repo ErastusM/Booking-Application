@@ -21,7 +21,7 @@ const { pickRotationWeek, memberBusyIntervalsBuffered, ownerPerforms } = require
 const { bookableMembersByProvider, hasPerformer } = require('./serviceOffering');
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-const GRID_STEP = 30; // minutes between offered start times
+const GRID_STEP = 30; // minutes between offered start times (plus each period's own opening time)
 // Mirrors the booking page's fallback for providers who never published hours.
 const DEFAULT_BLOCKS = [{ start: 8 * 60, end: 20 * 60 }];
 
@@ -206,14 +206,25 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
 
         const openings = [];
         for (const block of businessBlocks) {
+            // Candidate starts: the grid, plus every working period's exact opening
+            // time inside this block — the business's own (08:30) and each
+            // column's (a member starting 08:15, or 14:30 after a split day's
+            // break). The owner's answer: an opening time is always offered when
+            // the service fits, even off the grid.
+            const fits = (t) => t >= block.start && t >= minStart && t + duration <= block.end;
+            const candidates = new Set();
             let t = Math.max(block.start, Math.ceil(minStart / GRID_STEP) * GRID_STEP);
             t = Math.ceil(t / GRID_STEP) * GRID_STEP;
-            for (; t + duration <= block.end; t += GRID_STEP) {
+            for (; t + duration <= block.end; t += GRID_STEP) candidates.add(t);
+            [block.start, ...columns.flatMap(col => col.blocks.map(b => b.start))]
+                .filter(fits)
+                .forEach(s => candidates.add(s));
+            for (const start of [...candidates].sort((a, b) => a - b)) {
                 const open = columns.some(col =>
-                    col.blocks.some(b => t >= b.start && t + duration <= b.end)
-                    && !col.busy.some(r => overlaps(t, t + duration, r.start, r.end)));
+                    col.blocks.some(b => start >= b.start && start + duration <= b.end)
+                    && !col.busy.some(r => overlaps(start, start + duration, r.start, r.end)));
                 if (open) {
-                    openings.push(fmt(t));
+                    openings.push(fmt(start));
                     if (openings.length >= maxOpenings) break;
                 }
             }

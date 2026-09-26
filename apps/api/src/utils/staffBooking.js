@@ -223,6 +223,20 @@ const scheduleDayIntervals = (schedule, date) => {
     return day.slots.map((s) => [toMin(s.start), toMin(s.end)]).filter(([a, b]) => b > a);
 };
 
+/**
+ * The opening times of a day's working periods, as "HH:MM": each period's start,
+ * after capping by the business's periods when given (null = no business hours
+ * to cap by). Periods that touch or overlap read as one. Every one of these is
+ * offered as a start time when the service fits before that period closes — the
+ * owner's answer ("your exact opening time is always offered") — where the time
+ * lists would otherwise only offer whole hours.
+ */
+const periodOpenings = (periods, businessPeriods = null) => {
+    const own = mergeIntervals(periods || []);
+    const capped = businessPeriods ? intersectIntervals(own, businessPeriods) : own;
+    return capped.map(([s]) => hhmmOf(s));
+};
+
 const withinSchedule = (schedule, date, startMin, endMin) => {
     const day = schedule?.[DAY_NAMES[new Date(date).getDay()]];
     if (!day?.enabled || !Array.isArray(day.slots) || day.slots.length === 0) return false;
@@ -629,9 +643,15 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
  *
  * Returns { applied: false } when no bookable member performs the service (the
  * owner-fallback books on the owner column — legacy view applies) so the caller
- * keeps today's behaviour. Otherwise { applied: true, busy: [...] } where busy
- * windows carry kind 'off_shift' (nobody rostered → "Unavailable") or
- * 'appointment' (rostered but everyone busy → "Taken", waitlist applies).
+ * keeps today's behaviour. Otherwise { applied: true, busy, openStarts,
+ * openings } where busy windows carry kind 'off_shift' (nobody rostered →
+ * "Unavailable") or 'appointment' (rostered but everyone busy → "Taken",
+ * waitlist applies), `openStarts` are described below, and `openings` are the
+ * "HH:MM" starts of the working periods (within the business hours) of every
+ * performer rostered that day — each period's exact opening time (08:30, or
+ * 14:30 after a split day's break) is always a CANDIDATE start (the owner's
+ * answer), where the picker would otherwise only offer whole hours; whether it
+ * is open is still `openStarts`'s call.
  *
  * `appointments` is the day's already-fetched non-cancelled list, passed in so
  * the picker and this computation can never disagree about the day's bookings.
@@ -705,19 +725,20 @@ async function anyAvailableBusy({ providerId, svc, date, appointments, duration,
     const freeAll = [];
     const fitAll = [];    // [a, lastStart + clientMinutes): a client window inside it is one performer's whole booking
     const startsAll = []; // [firstStart, lastStart], inclusive
+    const openings = new Set();
     for (const m of performers) {
         const k = String(m._id);
         const shift = shiftBy[k];
         let working;
+        let periods; // the working periods themselves (a break is busy, not a new period)
         if (shift) {
-            working = subtractIntervals(
-                (shift.slots || []).map(sl => [toMin(sl.start), toMin(sl.end)]),
-                (shift.breaks || []).map(b => [toMin(b.start), toMin(b.end)])
-            );
+            periods = (shift.slots || []).map(sl => [toMin(sl.start), toMin(sl.end)]);
+            working = subtractIntervals(periods, (shift.breaks || []).map(b => [toMin(b.start), toMin(b.end)]));
         } else {
             // Their own weekly hours; none of their own = not rostered at all.
             const schedule = pickRotationWeek(avBy[k], date);
             working = schedule ? scheduleDayIntervals(schedule, date) : [];
+            periods = working;
         }
         const leaveCuts = (leavesBy[k] || []).map(lv => (
             // A windowed leave with missing times is all-day, matching staffHoursReason.
@@ -728,6 +749,11 @@ async function anyAvailableBusy({ providerId, svc, date, appointments, duration,
             subtractIntervals(intersectIntervals(working, businessDay), leaveCuts),
             businessBlocks
         );
+        // Each working period's opening time, when this performer is actually
+        // rostered then (not on leave, not closed by a business-wide block).
+        intersectIntervals(periods, businessDay).forEach(([s]) => {
+            if (rostered.some(([a, b]) => s >= a && s < b)) openings.add(s);
+        });
         const ownBlocks = (memberBlocksBy[k] || []).map(b => [toMin(b.startTime), toMin(b.endTime)]);
         const apptBusy = [];
         (appointments || []).forEach((a) => memberBusyIntervalsBuffered(a, m._id, bufferByService).forEach((iv) => apptBusy.push(iv)));
@@ -779,6 +805,7 @@ async function anyAvailableBusy({ providerId, svc, date, appointments, duration,
         applied: true,
         busy,
         openStarts: openStarts.map(([s, e]) => ({ start: hhmm(s), end: hhmm(Math.min(e, DAY_END - 1)) })),
+        openings: [...openings].sort((a, b) => a - b).map(hhmmOf),
     };
 }
 
@@ -917,6 +944,6 @@ module.exports = {
     resolveBookingStaff, isMemberFree, firstFreePerformer, performsService, ownerPerforms, staffHoursReason,
     memberBusyIntervals, memberBusyIntervalsBuffered, wholeSpanBuffered, bufferMapForAppointments,
     memberInvolvedFilter, ownerInvolvedFilter, laneInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy,
-    pickRotationWeek, scheduleDayIntervals, withinSchedule,
+    pickRotationWeek, scheduleDayIntervals, withinSchedule, periodOpenings,
     overlapsAny, windowFits, performerMinutes,
 };

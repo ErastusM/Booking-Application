@@ -135,16 +135,17 @@ describe('the day\'s hours', () => {
         expect(note).toContain('Earlier times today have passed.');
     });
 
-    it('explains a :30 opening that a longer service can\'t start at (hourly by design)', () => {
+    // The owner's answer (Q1): "Yes" — the exact opening time is always offered.
+    it('offers an 08:30 opening even for a 45-min service, then hourly — and the note says so', () => {
         const blocks = scheduleBlocksFor(WEEK, '2026-09-28');
         const slots = buildTimeSlots({ blocks, duration: 45 });
-        expect(slots[0].time).toBe('09:00');
-        expect(hoursNote({ blocks, duration: 45, slots, day: 'monday' }))
-            .toContain('an opening at 08:30 is only offered when the service ends by 09:00');
-        // A service that ends by 09:00 gets the opening itself — and no such note.
-        const short = buildTimeSlots({ blocks, duration: 20 });
-        expect(short[0].time).toBe('08:30');
-        expect(hoursNote({ blocks, duration: 20, slots: short, day: 'monday' })).not.toContain('only offered');
+        expect(slots.slice(0, 3).map((s) => s.time)).toEqual(['08:30', '09:00', '10:00']);
+        expect(slots.filter((s) => !s.time.endsWith(':00')).map((s) => s.time)).toEqual(['08:30']);
+        const note = hoursNote({ blocks, duration: 45, slots, day: 'monday' });
+        expect(note).toContain('Times start at each opening time and on the hour');
+        expect(note).not.toContain('only offered');
+        // A day opening on the hour just says "on the hour".
+        expect(hoursNote({ blocks: [{ start: 540, end: 1020 }], duration: 45, day: 'monday' })).toContain('Times start on the hour,');
     });
 
     it('names whose hours and where they come from', () => {
@@ -154,6 +155,68 @@ describe('the day\'s hours', () => {
         expect(hoursNote({ blocks, duration: 60, whose: 'Your', day: 'monday', source: 'business' }))
             .toMatch(/^Your hours on Monday: 08:30–17:00 \(the business’s hours\)\. /);
         expect(hoursNote({ blocks, duration: 90, slots: buildTimeSlots({ blocks, duration: 90 }), whose: 'John’s', day: 'monday', source: 'shift' }))
-            .toContain('(shift). Times start on the hour, and the last start leaves room for the 1h 30min service.');
+            .toContain('(shift). Times start at each opening time and on the hour, and the last start leaves room for the 1h 30min service.');
+    });
+});
+
+// ── Every period's exact opening time is offered (owner's answer, Q1) ───────
+describe('buildTimeSlots — opening times', () => {
+    it('an 08:30 opening is offered for any service that fits before closing', () => {
+        [15, 30, 45, 60, 90].forEach((duration) => {
+            const slots = free(buildTimeSlots({ blocks: [{ start: H(8, 30), end: H(18) }], duration }));
+            expect(slots[0]).toBe('08:30');
+            expect(slots[1]).toBe('09:00');
+            // …and the rest of the day is unchanged: whole hours only.
+            expect(slots.slice(1).every((t) => t.endsWith(':00'))).toBe(true);
+        });
+    });
+
+    it('not when the service doesn\'t fit before that period closes', () => {
+        expect(free(buildTimeSlots({ blocks: [{ start: H(8, 30), end: H(9, 15) }], duration: 60 }))).toEqual([]);
+        expect(free(buildTimeSlots({ blocks: [{ start: H(8, 30), end: H(9, 30) }], duration: 60 }))).toEqual(['08:30']);
+    });
+
+    it('a split day offers each period\'s own opening, and nothing in the gap', () => {
+        const blocks = scheduleBlocksFor({
+            monday: { enabled: true, slots: [{ start: '08:30', end: '12:00' }, { start: '14:30', end: '18:00' }] },
+        }, '2026-09-28');
+        const slots = free(buildTimeSlots({ blocks, duration: 45 }));
+        expect(slots).toEqual(['08:30', '09:00', '10:00', '11:00', '14:30', '15:00', '16:00', '17:00']);
+        // 11:00 + 45 min ends 11:45 (fits before 12:00); nothing from 12:00 to 14:30.
+        expect(slots.some((t) => t >= '12:00' && t < '14:30')).toBe(false);
+    });
+
+    it('a period that ends before its first whole hour still offers its opening', () => {
+        expect(free(buildTimeSlots({ blocks: [{ start: H(13, 15), end: H(13, 55) }], duration: 30 }))).toEqual(['13:15']);
+    });
+
+    it('a booked opening keeps a waitlist pill at the opening time', () => {
+        const slots = buildTimeSlots({
+            blocks: [{ start: H(8, 30), end: H(12) }],
+            bookedRanges: [{ start: H(8, 30), end: H(9, 15) }],
+            duration: 45,
+        });
+        expect(slots[0]).toEqual({ time: '08:30', isBooked: true });
+        // The booking's end, 09:15, ends a 45-min service on the hour → offered (unchanged rule).
+        expect(free(slots).slice(0, 2)).toEqual(['09:15', '10:00']);
+    });
+
+    it('extra `openings` stay offered inside a wider block (booking outside working hours)', () => {
+        const wide = [{ start: H(8), end: H(20) }];
+        const slots = free(buildTimeSlots({ blocks: wide, duration: 45, openings: [H(8, 30), H(14, 30)] }));
+        expect(slots).toContain('08:30');
+        expect(slots).toContain('14:30');
+        expect(slots).toContain('08:00');
+        expect(slots).not.toContain('09:30');
+    });
+
+    it('an opening already taken by a booking is not offered as free', () => {
+        const slots = free(buildTimeSlots({
+            blocks: [{ start: H(14, 30), end: H(18) }],
+            bookedRanges: [{ start: H(14, 30), end: H(15) }],
+            duration: 30,
+        }));
+        expect(slots).not.toContain('14:30');
+        expect(slots[0]).toBe('15:00');
     });
 });
