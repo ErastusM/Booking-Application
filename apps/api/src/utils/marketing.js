@@ -76,8 +76,19 @@ const setMarketingFromToken = async (subject, optIn, source = 'unsubscribe_link'
     const Appointment = require('../models/Appointment');
     const at = new Date();
     if (subject.userId) {
+        // Undo ("I clicked by mistake") may only restore an opt-in the person gave
+        // themselves — the account's consent log must show one. Mirrors the guest
+        // everOptedIn rule: a link can never opt someone IN who never opted in.
+        const filter = { _id: subject.userId, deletedAt: null };
+        if (optIn) filter.$or = [
+            { consentLog: { $elemMatch: { kind: 'marketing_emails', value: true } } },
+            { 'marketingEmails.optIn': true },
+        ];
+        if (optIn && !(await User.exists(filter))) {
+            return { ok: false, reason: 'never_opted_in', kind: 'account' };
+        }
         const r = await User.updateOne(
-            { _id: subject.userId, deletedAt: null },
+            filter,
             {
                 $set: { marketingEmails: { optIn, at, source } },
                 $push: { consentLog: { $each: [consentLogEntry('marketing_emails', optIn, source)], $slice: -50 } },
@@ -93,6 +104,9 @@ const setMarketingFromToken = async (subject, optIn, source = 'unsubscribe_link'
         const filter = optIn
             ? { guestEmail: subject.email, 'guestMarketing.everOptedIn': true }
             : { guestEmail: subject.email };
+        if (optIn && !(await Appointment.exists(filter))) {
+            return { ok: false, reason: 'never_opted_in', kind: 'guest' };
+        }
         await Appointment.updateMany(filter, {
             $set: { 'guestMarketing.optIn': optIn, 'guestMarketing.at': at, 'guestMarketing.source': source },
         });

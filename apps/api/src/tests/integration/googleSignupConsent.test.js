@@ -41,6 +41,13 @@ describe('email sign-up', () => {
         expect(await User.countDocuments({})).toBe(0);
     });
 
+    it('an app cached from before these boxes existed gets a "refresh the page" message, same code', async () => {
+        const res = await request(app).post('/api/auth/register').send(body({}));
+        expect(res.status).toBe(400);
+        expect(res.body.code).toBe('terms_required');
+        expect(res.body.message).toMatch(/refresh the page/i);
+    });
+
     it('records when Terms and age were accepted', async () => {
         const res = await request(app).post('/api/auth/register').send(body({ termsAccepted: true, ageConfirmed: true }));
         expect(res.status).toBe(201);

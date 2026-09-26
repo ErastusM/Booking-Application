@@ -21,6 +21,9 @@ const handle = (optIn) => async (req, res) => {
     if (!subject) return res.status(400).json({ success: false, message: 'This unsubscribe link is not valid.' });
     try {
         const r = await setMarketingFromToken(subject, optIn, optIn ? 'unsubscribe_link_undo' : 'unsubscribe_link');
+        if (!r.ok && r.reason === 'never_opted_in') {
+            return res.status(403).json({ success: false, code: 'never_opted_in', message: 'This link can only switch these emails back on if you turned them on yourself. You can opt in from your account settings.' });
+        }
         if (!r.ok) return res.status(404).json({ success: false, message: 'This unsubscribe link is no longer valid.' });
         res.set('Cache-Control', 'no-store');
         return res.status(200).json({

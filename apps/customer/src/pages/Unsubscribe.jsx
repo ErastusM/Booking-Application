@@ -25,7 +25,11 @@ const Unsubscribe = () => {
     const undo = async () => {
         setState('working');
         try { await marketingService.resubscribe(token); setState('subscribed'); }
-        catch (err) { setState('error'); setMessage(err.response?.data?.message || 'Could not update your preference.'); }
+        catch (err) {
+            // Never opted in: they stay unsubscribed; explain rather than erroring.
+            if (err.response?.data?.code === 'never_opted_in') { setState('unsubscribed'); setMessage(err.response.data.message); return; }
+            setState('error'); setMessage(err.response?.data?.message || 'Could not update your preference.');
+        }
     };
 
     const card = { width: '100%', maxWidth: '440px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '2rem', textAlign: 'center' };
@@ -41,7 +45,9 @@ const Unsubscribe = () => {
                         <MailX size={44} strokeWidth={1.5} style={{ color: 'var(--gold)' }} />
                         <h1 style={h}>You’re unsubscribed</h1>
                         <p style={p}>You won’t get Bookplus offers or “Book again” reminders any more. Emails about your bookings — confirmations, reminders and changes — still arrive as normal.</p>
-                        <button type="button" className="btn-outline" onClick={undo} data-testid="unsubscribe-undo" style={{ padding: '0.6rem 1.2rem' }}>Undo — keep me subscribed</button>
+                        {message
+                            ? <p role="status" style={p}>{message}</p>
+                            : <button type="button" className="btn-outline" onClick={undo} data-testid="unsubscribe-undo" style={{ padding: '0.6rem 1.2rem' }}>Undo — keep me subscribed</button>}
                     </>
                 )}
                 {state === 'subscribed' && (

@@ -129,7 +129,10 @@ describe('who gets "Book again"', () => {
 
 describe('one-click unsubscribe', () => {
     it('turns an account holder’s marketing off without signing in, and can be undone', async () => {
-        const customer = await makeUser({ marketingEmails: { optIn: true } });
+        const customer = await makeUser({
+            marketingEmails: { optIn: true, source: 'register' },
+            consentLog: [{ kind: 'marketing_emails', value: true, source: 'register', at: new Date() }],
+        });
         const token = makeUnsubscribeToken({ userId: customer._id });
         const res = await request(app).post(`/api/marketing/unsubscribe/${token}`).type('form').send('List-Unsubscribe=One-Click');
         expect(res.status).toBe(200);
@@ -140,6 +143,40 @@ describe('one-click unsubscribe', () => {
         await request(app).post(`/api/marketing/resubscribe/${token}`).expect(200);
         u = await User.findById(customer._id);
         expect(u.marketingEmails.optIn).toBe(true);
+    });
+
+    it('an account that never opted in cannot be subscribed through the link', async () => {
+        const never = await makeUser(); // marketing off, empty consent log
+        const token = makeUnsubscribeToken({ userId: never._id });
+        await request(app).post(`/api/marketing/unsubscribe/${token}`).expect(200);
+        const res = await request(app).post(`/api/marketing/resubscribe/${token}`);
+        expect(res.status).toBe(403);
+        expect(res.body.code).toBe('never_opted_in');
+        expect((await User.findById(never._id)).marketingEmails.optIn).toBe(false);
+
+        // Opted out at sign-up (the log holds only "false"): still no.
+        const declined = await makeUser({ consentLog: [{ kind: 'marketing_emails', value: false, source: 'register', at: new Date() }] });
+        const t2 = makeUnsubscribeToken({ userId: declined._id });
+        expect((await request(app).post(`/api/marketing/resubscribe/${t2}`)).status).toBe(403);
+    });
+
+    it('an account that opted in via settings, then unsubscribed, can undo', async () => {
+        const user = await makeUser();
+        await request(app).put('/api/auth/marketing').set(authHeader(user)).send({ optIn: true }).expect(200);
+        const token = makeUnsubscribeToken({ userId: user._id });
+        await request(app).post(`/api/marketing/unsubscribe/${token}`).expect(200);
+        await request(app).post(`/api/marketing/resubscribe/${token}`).expect(200);
+        expect((await User.findById(user._id)).marketingEmails.optIn).toBe(true);
+    });
+
+    it('a guest who never ticked the box cannot be subscribed through the link', async () => {
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id);
+        await makeAppointment(null, svc._id, provider._id, { customer: null, guestName: 'No Tick', guestEmail: 'notick@example.com' });
+        const token = makeUnsubscribeToken({ email: 'notick@example.com' });
+        const res = await request(app).post(`/api/marketing/resubscribe/${token}`);
+        expect(res.status).toBe(403);
+        expect(res.body.code).toBe('never_opted_in');
     });
 
     it('turns a guest off on every booking; undo only restores bookings they had opted in on', async () => {

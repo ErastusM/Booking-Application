@@ -79,7 +79,13 @@ const readRefreshCookie = (req) => {
 const { MIN_SIGNUP_AGE } = require('../constants/consent');
 
 // Both boxes must be ticked by the person signing up (email or Google).
+const OUTDATED_APP_MESSAGE = 'Please refresh the page to accept the updated Terms and confirm your age, then try again.';
 const signupConsentError = (body = {}) => {
+    // An app loaded before these boxes existed sends neither field. Its sign-up
+    // form shows the server's message verbatim, so tell the person what to do.
+    if (body.termsAccepted === undefined && body.ageConfirmed === undefined) {
+        return { code: 'terms_required', message: OUTDATED_APP_MESSAGE };
+    }
     if (body.termsAccepted !== true) {
         return { code: 'terms_required', message: 'Please agree to the Terms of Service and Privacy Policy to continue.' };
     }
