@@ -458,6 +458,14 @@ jobs:
             # NEVER fail the deploy: the script always exits 0, and the `|| echo`
             # covers exec itself failing.
             docker compose exec -T server node scripts/report_overlapping_bookings.js || echo "WARNING: report_overlapping_bookings.js did not run — no double-booking report this deploy (non-fatal)"
+            # Who stops being bookable: a team member with no working hours of
+            # their own (no weekly hours, no shift from today on) no longer falls
+            # back to the business's hours, so clients can't book them. READ-ONLY
+            # report — per business, a business id and counts, never a name,
+            # email or phone — so the owner can be told to set those hours. Like
+            # the one above it must NEVER fail the deploy: the script always
+            # exits 0, and the `|| echo` covers exec itself failing.
+            docker compose exec -T server node scripts/report_members_without_hours.js || echo "WARNING: report_members_without_hours.js did not run — nothing was changed (non-fatal)"
 
             # Only now — a fully verified, migrated rollout — move the droplet's
             # LOCAL `:latest` onto it. Nothing in the deploy path reads `:latest`

@@ -266,7 +266,9 @@ const OnboardingWizard = ({ user, onComplete }) => {
                                     const day = schedule[key] || { enabled: false, slots: [{ start: '09:00', end: '17:00' }] };
                                     const slot = day.slots?.[0] || { start: '09:00', end: '17:00' };
                                     const setDay = (patch) => setSchedule((prev) => ({ ...prev, [key]: { ...prev[key], ...patch } }));
-                                    const setTime = (field, value) => setSchedule((prev) => ({ ...prev, [key]: { ...prev[key], slots: [{ ...slot, [field]: value }] } }));
+                                    // Edits the first period only; a split day's second period (set on
+                                    // the Working Hours screen) is kept, never dropped on save.
+                                    const setTime = (field, value) => setSchedule((prev) => ({ ...prev, [key]: { ...prev[key], slots: [{ ...slot, [field]: value }, ...((prev[key]?.slots) || []).slice(1)] } }));
                                     return (
                                         <div key={key} style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.6rem 0.75rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)' }}>
                                             <button type="button" role="switch" aria-checked={!!day.enabled} onClick={() => setDay({ enabled: !day.enabled })}

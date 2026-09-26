@@ -44,6 +44,7 @@ const outbox = [];
     const Service = require('./src/models/Service');
     const Availability = require('./src/models/Availability');
     const TeamMember = require('./src/models/TeamMember');
+    const StaffAvailability = require('./src/models/StaffAvailability');
     const Appointment = require('./src/models/Appointment');
 
     // Seed a verified provider with a bookable service + full weekday availability
@@ -77,15 +78,24 @@ const outbox = [];
     // Seed a two-person roster + one walk-in booked on Alex today, so the
     // dashboard's staff filter and Staff (per-staff lanes) view have real
     // content to assert against.
-    const [alex] = await TeamMember.create([
+    const [alex, billie] = await TeamMember.create([
         { provider: provider._id, name: 'Alex Rivera', role: 'Specialist', color: '#3B82F6' },
         { provider: provider._id, name: 'Billie Chen', role: 'Technician', color: '#10B981' },
     ]);
-    // Both members are left WITHOUT an explicit StaffAvailability on purpose: a
-    // member with none inherits the business hours (staffHoursReason falls back to
-    // businessSchedule), so the person-first customer flow can still book them —
-    // while the business team-management spec relies on Alex inheriting to exercise
-    // its "Set custom hours" toggle.
+    // Nothing is inherited from the business's hours: a member with no hours of
+    // their own can't be booked. Billie works the business's 08:00–18:00 every
+    // day, so "any available" customer bookings (unsubscribe.spec's guest
+    // bookings) and search have a real team member to land on. Alex is left
+    // WITHOUT hours on purpose: the team-management spec opens his "no working
+    // hours" Team card and sets them, and the Team card shows him as not
+    // bookable. (Pat, below, sets his own hours in member-one-app.spec.)
+    await StaffAvailability.create({
+        provider: provider._id, teamMember: billie._id,
+        schedule: {
+            monday: everyDay, tuesday: everyDay, wednesday: everyDay, thursday: everyDay,
+            friday: everyDay, saturday: everyDay, sunday: everyDay,
+        },
+    });
     // Wanda exists on today AND tomorrow: the suite seeds at server boot but
     // asserts against the browser's "today", and a run that starts at 23:59
     // crosses midnight between the two — the calendar then shows the next day
@@ -217,8 +227,8 @@ const outbox = [];
     });
     // A fresh business for the slot-overlap spec (customer e2e), built on demand
     // for the day the spec will pick, so it never touches the seeded business
-    // the other specs book. A 2-hour Braids service; Tino works the business's
-    // 08:00–18:00 and already has a 15:00–16:00 booking that day; Selma works
+    // the other specs book. A 2-hour Braids service; Tino works 08:00–18:00 (the
+    // business's hours, as hours of his own) and already has a 15:00–16:00 booking that day; Selma works
     // only 13:00–16:00 (the owner's screenshot).
     let overlapSeq = 0;
     outer.post('/__e2e/overlap-fixture', async (req, res) => {
@@ -249,10 +259,17 @@ const outbox = [];
             { provider: owner._id, name: 'Selma Afternoons', role: 'Braider', offersAllServices: true },
         ]);
         const afternoon = { enabled: true, slots: [{ start: '13:00', end: '16:00' }] };
-        await StaffAvailability.create({
-            provider: owner._id, teamMember: selma._id,
-            schedule: { monday: afternoon, tuesday: afternoon, wednesday: afternoon, thursday: afternoon, friday: afternoon, saturday: afternoon, sunday: afternoon },
-        });
+        // Hours of their own for both — a member with none can't be booked.
+        await StaffAvailability.create([
+            {
+                provider: owner._id, teamMember: tino._id,
+                schedule: { monday: open, tuesday: open, wednesday: open, thursday: open, friday: open, saturday: open, sunday: open },
+            },
+            {
+                provider: owner._id, teamMember: selma._id,
+                schedule: { monday: afternoon, tuesday: afternoon, wednesday: afternoon, thursday: afternoon, friday: afternoon, saturday: afternoon, sunday: afternoon },
+            },
+        ]);
         await Appointment.create({
             service: trim._id, provider: owner._id, teamMember: tino._id, walkInName: 'Existing Client',
             appointmentDate: new Date(`${date}T00:00:00.000Z`), startTime: '15:00', endTime: '16:00',

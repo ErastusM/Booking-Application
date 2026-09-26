@@ -21,7 +21,7 @@ const {
     sendStaffBookingAlert,
 } = require('../utils/emailService');
 const calendarHelper = require('../utils/calendarHelper');
-const { resolveBookingStaff, staffHoursReason, memberBusyIntervalsBuffered, wholeSpanBuffered, bufferMapForAppointments, memberInvolvedFilter, laneInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy, performsService, pickRotationWeek, overlapsAny, performerMinutes } = require('../utils/staffBooking');
+const { resolveBookingStaff, staffHoursReason, memberBusyIntervalsBuffered, wholeSpanBuffered, bufferMapForAppointments, memberInvolvedFilter, laneInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy, performsService, pickRotationWeek, overlapsAny, performerMinutes, scheduleDayIntervals, periodOpenings, isLoneBookable, availabilityHasHours, withinPeriods, membersHoursReadiness } = require('../utils/staffBooking');
 const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, findBusinessWideBlocksForDate, toDateKey, BLOCKED_MESSAGE } = require('../utils/blockedTime');
 const { overrideFor } = require('../utils/memberPricing');
 const { recordBookingRejection, rejectionsSummary } = require('../utils/bookingRejections');
@@ -176,11 +176,8 @@ const isTimeWithinSchedule = (schedule, appointmentDate, startTime, durationMinu
     }
     const start = parseTimeToMinutes(startTime);
     const end = start + durationMinutes;
-    return daySchedule.slots.some(slot => {
-        const slotStart = parseTimeToMinutes(slot.start);
-        const slotEnd = parseTimeToMinutes(slot.end);
-        return start >= slotStart && end <= slotEnd;
-    });
+    // Inside ONE period, touching periods reading as one (staffBooking.withinPeriods).
+    return withinPeriods(daySchedule.slots, start, end);
 };
 
 const hasConflictingAppointment = async (providerId, appointmentDate, startTime, endTime, excludeId, opts = {}) => {
@@ -381,13 +378,6 @@ const filterBookableOccurrences = async ({
         }).select('appointmentDate startTime endTime services teamMember service').lean(),
     ]);
 
-    // A solo owner (their own single bookable member) inherits business hours for
-    // the weekly-hours check, exactly as resolveBookingStaff does on create — so a
-    // recurring series doesn't skip evening occurrences a one-off booking accepts.
-    const soloOwner = teamMember
-        ? (await TeamMember.countDocuments({ provider: providerId, isActive: true, bookable: { $ne: false } })) === 1
-        : false;
-
     const bucket = (arr, keyOf) => arr.reduce((m, x) => {
         const k = keyOf(x);
         (m[k] = m[k] || []).push(x);
@@ -395,6 +385,10 @@ const filterBookableOccurrences = async ({
     }, {});
     const blocksByDate = bucket(blocks, b => b.date);
     const apptsByDate = bucket(appts, a => toDateKey(a.appointmentDate));
+    // The business's only bookable member works the business's hours when they
+    // have weekly hours of their own (staffBooking.weeklyHoursFor), exactly as a
+    // one-off booking — so a series doesn't skip evenings a single booking takes.
+    const lone = enforceHoursAndBlocks && teamMember ? await isLoneBookable(providerId) : false;
 
     const start = parseTimeToMinutes(startTime);
     const end = parseTimeToMinutes(endTime);
@@ -430,7 +424,7 @@ const filterBookableOccurrences = async ({
             // the two can't drift. Only for a specific member — null is the
             // owner's own column, which staff hours don't govern.
             const offForStaff = enforceHoursAndBlocks && teamMember
-                ? await staffHoursReason({ member: { _id: teamMember }, date: d, startTime, endTime, businessSchedule: schedule, ignoreWeeklyHours: soloOwner })
+                ? await staffHoursReason({ member: { _id: teamMember }, date: d, startTime, endTime, providerId, lone, businessSchedule: schedule || null })
                 : null;
             if (closedThatDay || offForStaff || clashes(blocksByDate[key]) || apptClashes(apptsByDate[key])) {
                 skipped.push(key);
@@ -552,9 +546,14 @@ exports.getBookedSlots = async (req, res) => {
                         ...bizBlocks.map(b => ({ startTime: b.startTime, endTime: b.endTime, kind: 'blocked' })),
                     ],
                     shiftWindow: null,
+                    hoursSource: 'any',
                     // Exact start ranges (inclusive) where one performer can take
                     // the whole booking; clients that know it test starts against it.
                     openStarts: anyView.openStarts || null,
+                    // Each rostered performer's working-period opening times —
+                    // extra candidate starts (08:30, 14:30 after a break); open
+                    // or not is still openStarts's call.
+                    openings: anyView.openings || [],
                 });
             }
             ownerFallback = true;
@@ -604,6 +603,20 @@ exports.getBookedSlots = async (req, res) => {
             else busy.push({ startTime: lv.startTime, endTime: lv.endTime, kind: 'time_off' });
         });
 
+        // Whose hours this day is read from, so the client can say WHY a day has no
+        // times: 'business' (the owner's column, no one named, or a business's
+        // only bookable member — staffBooking.weeklyHoursFor), 'shift', 'weekly',
+        // 'leave', or 'none' — a member with no hours of their own that day, who
+        // can't be booked then.
+        let hoursSource = memberId ? null : 'business';
+        // For a named member: do they have ANY hours of their own (weekly, or a
+        // shift from today on)? false = nobody can book them on any day, so a
+        // reschedule screen says so instead of "try another day".
+        let memberHasHours = memberId ? true : undefined;
+        // The day's own working periods, for `openings` below: the shift's, the
+        // member's weekly ones, or (null) the business's.
+        let ownPeriods = null;
+
         // Breaks and off-shift hours have to come back as BUSY, not just be
         // enforced when the booking is submitted. Slots are computed on the
         // client from opening hours minus this list, so a break the client
@@ -611,6 +624,8 @@ exports.getBookedSlots = async (req, res) => {
         // the rejection is correct and the experience is terrible. Entries
         // carry a `kind`, and clients that ignore it still treat them as busy.
         if (shift) {
+            hoursSource = 'shift';
+            ownPeriods = (shift.slots || []).map((sl) => [parseTimeToMinutes(sl.start), parseTimeToMinutes(sl.end)]).filter(([a, b]) => b > a);
             (shift.breaks || []).forEach((b) => {
                 busy.push({ startTime: b.start, endTime: b.end, kind: 'break' });
             });
@@ -635,38 +650,61 @@ exports.getBookedSlots = async (req, res) => {
             // the complement of that day's weekly slots as off_shift, or the whole day
             // if the weekday is disabled — otherwise the picker advertises the full
             // business day on a day the member doesn't work and the booking is then
-            // refused ("outside working hours"). A SOLO owner is skipped: the validator
-            // ignores their weekly hours (falls back to business hours), so the base
-            // business-hours window the client already uses is correct. A member with
-            // no StaffAvailability inherits business hours too — nothing to add.
+            // refused ("outside working hours"). A member with NO weekly hours of their
+            // own has no hours at all: nothing is inherited from the business, so the
+            // whole day is off (the validator refuses them with 'no_hours'). The
+            // business's only bookable member, when they do have weekly hours, works
+            // the business's hours — the base window the client already uses.
             const StaffAvailability = require('../models/StaffAvailability');
-            const bookableCount = await TeamMember.countDocuments({ provider: providerId, isActive: true, bookable: { $ne: false } });
-            if (bookableCount !== 1) {
-                const av = await StaffAvailability.findOne({ teamMember: memberId }).select('schedule rotation').lean();
-                // Rotation-aware: the week that applies on THIS date (or the flat
-                // schedule when the member has no rotation) — same helper the
-                // validator and any-professional picker use, so they stay in lockstep.
-                const daySchedule = pickRotationWeek(av, date);
-                if (daySchedule) {
-                    const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-                    const day = daySchedule[DAY_NAMES[new Date(date).getDay()]];
-                    const mins = (t) => { const [h = 0, m = 0] = String(t).split(':').map(Number); return h * 60 + m; };
-                    if (!day?.enabled || !Array.isArray(day.slots) || day.slots.length === 0) {
-                        busy.push({ startTime: '00:00', endTime: '23:59', kind: 'off_shift' });
-                    } else {
-                        const ordered = day.slots
-                            .map((sl) => [mins(sl.start), mins(sl.end)])
-                            .filter(([a, b]) => b > a)
-                            .sort((a, b) => a[0] - b[0]);
-                        let cursor = 0;
-                        ordered.forEach(([a, b]) => {
-                            if (a > cursor) busy.push({ startTime: minToHHMM(cursor), endTime: minToHHMM(a), kind: 'off_shift' });
-                            cursor = Math.max(cursor, b);
-                        });
-                        if (cursor < 24 * 60) busy.push({ startTime: minToHHMM(cursor), endTime: '23:59', kind: 'off_shift' });
-                    }
+            const av = await StaffAvailability.findOne({ teamMember: memberId }).select('schedule rotation').lean();
+            // Rotation-aware: the week that applies on THIS date (or the flat
+            // schedule when the member has no rotation) — same helper the
+            // validator and any-professional picker use, so they stay in lockstep.
+            const daySchedule = pickRotationWeek(av, date);
+            if (!availabilityHasHours(av)) {
+                hoursSource = 'none';
+                busy.push({ startTime: '00:00', endTime: '23:59', kind: 'off_shift' });
+                memberHasHours = (await membersHoursReadiness([memberId])).get(String(memberId)) === true;
+            } else if (await isLoneBookable(providerId)) {
+                hoursSource = 'business';
+            } else {
+                hoursSource = 'weekly';
+                const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+                const day = daySchedule[DAY_NAMES[new Date(date).getDay()]];
+                const mins = (t) => { const [h = 0, m = 0] = String(t).split(':').map(Number); return h * 60 + m; };
+                ownPeriods = scheduleDayIntervals(daySchedule, date);
+                if (!day?.enabled || !Array.isArray(day.slots) || day.slots.length === 0) {
+                    busy.push({ startTime: '00:00', endTime: '23:59', kind: 'off_shift' });
+                } else {
+                    const ordered = day.slots
+                        .map((sl) => [mins(sl.start), mins(sl.end)])
+                        .filter(([a, b]) => b > a)
+                        .sort((a, b) => a[0] - b[0]);
+                    let cursor = 0;
+                    ordered.forEach(([a, b]) => {
+                        if (a > cursor) busy.push({ startTime: minToHHMM(cursor), endTime: minToHHMM(a), kind: 'off_shift' });
+                        cursor = Math.max(cursor, b);
+                    });
+                    if (cursor < 24 * 60) busy.push({ startTime: minToHHMM(cursor), endTime: '23:59', kind: 'off_shift' });
                 }
             }
+        }
+        // Approved all-day leave closes the day whatever the roster says.
+        if (memberId && (leaves || []).some((lv) => lv.allDay || lv.startTime == null || lv.endTime == null)) hoursSource = 'leave';
+
+        // Each working period's exact opening time (08:30, or 14:30 after a split
+        // day's break) is always offered when the service fits — the owner's
+        // answer. The client only learns the day's periods from the business's
+        // hours and the busy list above, so it is told their starts explicitly:
+        // a shift's periods (which may run past closing), a member's weekly
+        // periods within the business's, or the business's own.
+        let openings = [];
+        if (hoursSource !== 'none' && hoursSource !== 'leave') {
+            const availabilityDoc = await Availability.findOne({ provider: providerId }).select('schedule').lean();
+            const businessDay = availabilityDoc?.schedule ? scheduleDayIntervals(availabilityDoc.schedule, date) : null;
+            if (hoursSource === 'shift') openings = periodOpenings(ownPeriods);
+            else if (ownPeriods) openings = periodOpenings(ownPeriods, businessDay);
+            else if (businessDay) openings = periodOpenings(businessDay);
         }
 
         res.status(200).json({
@@ -681,6 +719,9 @@ exports.getBookedSlots = async (req, res) => {
             // null means "no shift, use business hours as before". An empty array
             // is a rostered day off (no slots), distinct from null.
             shiftWindow: shift ? (shift.slots || []).map((s) => ({ start: s.start, end: s.end })) : null,
+            hoursSource,
+            openings,
+            ...(memberId ? { memberHasHours } : {}),
         });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
@@ -2606,6 +2647,18 @@ exports.providerRescheduleAppointment = async (req, res) => {
             }
         }
 
+        // A team member moving a booking in a member's column: a member with no
+        // working hours of their own can't be booked (the owner's answer), and a
+        // move is a new time — refused here as it is on create (staffWindowError)
+        // and on a client's reschedule. Only that: a member WITH hours keeps
+        // moving their own bookings as before, and the owner keeps the override.
+        if (!isOwner && appointment.teamMember) {
+            const reason = await staffHoursReason({
+                member: { _id: appointment.teamMember }, date: appointmentDate, startTime, endTime, providerId,
+            });
+            if (reason === 'no_hours') return res.status(400).json({ success: false, message: UNAVAILABLE_MESSAGES.no_hours });
+        }
+
         const conflict = await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appointment._id, conflictScope(appointment));
         if (conflict) {
             return res.status(409).json({ success: false, code: 'slot_taken', message: 'This time slot is already booked' });
@@ -2973,16 +3026,12 @@ const staffUnavailableMessage = async (appointment, appointmentDate, startTime, 
     if (!tmId) return null;                      // owner's own column
     const member = await TeamMember.findById(tmId).select('_id');
     if (!member) return null;
-    const providerId = appointment.provider || appointment.service?.provider;
-    const businessSchedule = providerId ? await getProviderSchedule(providerId) : null;
-    // A solo owner (their own single bookable member) inherits business hours,
-    // exactly as resolveBookingStaff does on create — otherwise a slot bookable on
-    // create is refused on reschedule because a leftover 9–5 custom schedule shrank
-    // their day below business hours.
-    const soloOwner = providerId
-        ? (await TeamMember.countDocuments({ provider: providerId, isActive: true, bookable: { $ne: false } })) === 1
-        : false;
-    const reason = await staffHoursReason({ member, date: appointmentDate, startTime, endTime, businessSchedule, ignoreWeeklyHours: soloOwner });
+    // Their own hours (shift, else weekly — a business's only bookable member
+    // works the business's hours) — the same rule as on create, so a member with
+    // no hours of their own can't take a moved booking either. The booking itself
+    // is never touched; only the move is refused.
+    const providerId = appointment.provider?._id || appointment.provider || appointment.service?.provider || null;
+    const reason = await staffHoursReason({ member, date: appointmentDate, startTime, endTime, providerId });
     return reason ? (UNAVAILABLE_MESSAGES[reason] || 'That staff member is not available then.') : null;
 };
 

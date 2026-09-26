@@ -10,49 +10,79 @@ import { cloudinaryAvatar } from '../utils/cloudinary';
 import ShareBookingLink, { bookingUrl } from '../components/ShareBookingLink';
 import { MEMBER_PALETTE, BRAND_ORANGE, memberColorMap, sameColor, isUnsetColor } from '../utils/memberColors';
 import { inviteStatus, resendCooldownLeft } from '../utils/inviteStatus';
+import { editableWeek, sortedWeek, weekProblem, secondPeriodFor, MAX_PERIODS, DEFAULT_PERIOD } from '../utils/workingHours';
 
 /**
  * Epic 2.4 — staff management: roster CRUD, invite-to-login, per-staff
- * weekly hours (absence = inherit business hours), and service assignment
+ * weekly hours (none = not bookable: nothing is inherited from the business's
+ * hours), and service assignment
  * ([] = performs every service). Backend: /api/team/* (already live).
  */
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 const DEFAULT_DAY = { enabled: false, slots: [{ start: '09:00', end: '17:00' }] };
 const DEFAULT_SCHED = () => Object.fromEntries(DAYS.map(d => [d, { ...DEFAULT_DAY, slots: [{ start: '09:00', end: '17:00' }] }]));
-// Normalise a raw week (from the API or a fresh add) to the single-slot editor shape.
-const normWeek = (raw) => {
-    const w = DEFAULT_SCHED();
-    DAYS.forEach(d => { if (raw?.[d]) w[d] = { enabled: !!raw[d].enabled, slots: [{ start: raw[d].slots?.[0]?.start || '09:00', end: raw[d].slots?.[0]?.end || '17:00' }] }; });
-    return w;
-};
+// A stored week (from the API, or a fresh add) in the editor's shape: every day,
+// EVERY period kept (a split day's second period too), in time order. A day
+// switched on with no times is closed for bookings, so it shows switched off.
+const normWeek = (raw) => editableWeek(raw);
 
 // One editable week grid — reused for the flat schedule and each rotation week.
-// onToggle(day, checked) / onSlot(day, key, value). Keeps the phone-aligned
+// onToggle(day, checked) / onPeriods(day, slots). Keeps the phone-aligned
 // fixed-column layout the workspace tab already uses; the 24-hour time pickers
-// drop their clock icon so "09:00" fits the narrow columns.
-const HoursGrid = ({ week, onToggle, onSlot }) => (
+// drop their clock icon so "09:00" fits the narrow columns. A split day's
+// second period sits on its own row under the first, with a remove button, and
+// "+ Add a break / second period" adds one.
+const GRID_COLS = 'minmax(84px, 104px) minmax(0, 96px) 12px minmax(0, 96px) 28px';
+const HoursGrid = ({ week, onToggle, onPeriods }) => (
     <div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'minmax(84px, 104px) minmax(0, 96px) 12px minmax(0, 96px)', alignItems: 'center', columnGap: '0.45rem', padding: '0 0 0.4rem', marginBottom: '0.3rem', borderBottom: '1px solid var(--border)' }}>
+        <div style={{ display: 'grid', gridTemplateColumns: GRID_COLS, alignItems: 'center', columnGap: '0.45rem', padding: '0 0 0.4rem', marginBottom: '0.3rem', borderBottom: '1px solid var(--border)' }}>
             <span aria-hidden="true" />
             <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Starting time</span>
             <span aria-hidden="true" />
             <span style={{ fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.05em', textTransform: 'uppercase', color: 'var(--text-secondary)' }}>Ending time</span>
+            <span aria-hidden="true" />
         </div>
-        {DAYS.map(day => (
-            <div key={day} style={{ display: 'grid', gridTemplateColumns: 'minmax(84px, 104px) minmax(0, 96px) 12px minmax(0, 96px)', alignItems: 'center', columnGap: '0.45rem', padding: '0.3rem 0', fontSize: '0.87rem' }}>
-                <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: 'var(--charcoal)', textTransform: 'capitalize', cursor: 'pointer' }}>
-                    <input type="checkbox" checked={!!week[day]?.enabled} onChange={e => onToggle(day, e.target.checked)} />
-                    {day}
-                </label>
-                {week[day]?.enabled && (
-                    <>
-                        <TimePicker aria-label={`${day} starting time`} value={week[day].slots?.[0]?.start || '09:00'} onChange={e => onSlot(day, 'start', e.target.value)} sheetTitle={`${cap(day)} starting time`} hideIcon style={{ width: '100%', padding: '0.35rem 0.4rem', fontSize: '0.92rem' }} />
-                        <span style={{ color: 'var(--text-muted)', textAlign: 'center' }}>–</span>
-                        <TimePicker aria-label={`${day} ending time`} value={week[day].slots?.[0]?.end || '17:00'} onChange={e => onSlot(day, 'end', e.target.value)} sheetTitle={`${cap(day)} ending time`} hideIcon style={{ width: '100%', padding: '0.35rem 0.4rem', fontSize: '0.92rem' }} />
-                    </>
-                )}
-            </div>
-        ))}
+        {DAYS.map(day => {
+            const cfg = week[day] || {};
+            const periods = cfg.slots?.length ? cfg.slots : [{ ...DEFAULT_PERIOD }];
+            const setPeriod = (i, key, value) => onPeriods(day, periods.map((p, j) => (j === i ? { ...p, [key]: value } : p)));
+            const plan = periods.length === 1 ? secondPeriodFor(periods[0]) : null;
+            const pickerStyle = { width: '100%', padding: '0.35rem 0.4rem', fontSize: '0.92rem' };
+            return (
+                <div key={day} data-testid={`hours-day-${day}`} style={{ display: 'grid', gridTemplateColumns: GRID_COLS, alignItems: 'center', columnGap: '0.45rem', rowGap: '0.35rem', padding: '0.3rem 0', fontSize: '0.87rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', color: 'var(--charcoal)', textTransform: 'capitalize', cursor: 'pointer' }}>
+                        <input type="checkbox" checked={!!cfg.enabled} onChange={e => onToggle(day, e.target.checked)} />
+                        {day}
+                    </label>
+                    {cfg.enabled && periods.map((p, i) => (
+                        <React.Fragment key={i}>
+                            {i > 0 && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', paddingLeft: '1.6rem' }}>then</span>}
+                            <TimePicker aria-label={`${day} ${i ? 'second period ' : ''}starting time`} value={p.start || ''} onChange={e => setPeriod(i, 'start', e.target.value)} sheetTitle={`${cap(day)} ${i ? 'second period ' : ''}starting time`} hideIcon style={pickerStyle} />
+                            <span style={{ color: 'var(--text-muted)', textAlign: 'center' }}>–</span>
+                            <TimePicker aria-label={`${day} ${i ? 'second period ' : ''}ending time`} value={p.end || ''} onChange={e => setPeriod(i, 'end', e.target.value)} sheetTitle={`${cap(day)} ${i ? 'second period ' : ''}ending time`} hideIcon style={pickerStyle} />
+                            {i > 0
+                                ? (
+                                    <button type="button" aria-label={`Remove ${cap(day)}’s second period`} data-testid="remove-period" onClick={() => onPeriods(day, periods.filter((_, j) => j !== i))}
+                                        style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.2rem', display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
+                                        <X size={15} />
+                                    </button>
+                                )
+                                : <span aria-hidden="true" />}
+                        </React.Fragment>
+                    ))}
+                    {cfg.enabled && periods.length < MAX_PERIODS && plan && (
+                        <>
+                            <span aria-hidden="true" />
+                            <button type="button" className="btn-outline" data-testid="add-period" aria-label={`Add a break / second period on ${cap(day)}`}
+                                onClick={() => onPeriods(day, [plan.first, plan.second])}
+                                style={{ gridColumn: '2 / -1', justifySelf: 'start', padding: '0.25rem 0.6rem', fontSize: '0.74rem', display: 'inline-flex', alignItems: 'center', gap: '0.25rem', whiteSpace: 'nowrap' }}>
+                                <Plus size={12} aria-hidden="true" /> Add a break / second period
+                            </button>
+                        </>
+                    )}
+                </div>
+            );
+        })}
     </div>
 );
 
@@ -213,7 +243,9 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
             price: o.price ?? '', duration: o.duration ?? '',
         }])
     ));
-    const [schedule, setSchedule] = useState(null); // null = inherits business hours
+    // null = loading; 'none' = no weekly hours of their own, so clients can't book
+    // them (nothing is inherited from the business's hours); else their week.
+    const [schedule, setSchedule] = useState(null);
     // Optional rotating (multi-week) schedule, mirroring the staff self-editor.
     const [rotationOn, setRotationOn] = useState(false);
     const [rotation, setRotation] = useState({ anchor: new Date().toISOString().slice(0, 10), weeks: [] });
@@ -296,14 +328,14 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
         if (!open || tab !== 'workspace' || schedule !== null) return;
         teamService.getMemberAvailability(member._id)
             .then(res => {
-                setSchedule(res.data.data?.schedule || 'inherit');
+                setSchedule(res.data.data?.schedule ? normWeek(res.data.data.schedule) : 'none');
                 const rot = res.data.data?.rotation;
                 if (rot && Array.isArray(rot.weeks) && rot.weeks.length > 0) {
                     setRotationOn(true);
                     setRotation({ anchor: rot.anchor || new Date().toISOString().slice(0, 10), weeks: rot.weeks.map(normWeek) });
                 }
             })
-            .catch(() => setSchedule('inherit'));
+            .catch(() => setSchedule('none'));
     }, [open, tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
@@ -355,6 +387,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
             await teamService.setMemberShift(member._id, { date: shiftDate, slots, breaks: slots.length ? breaks : [] });
             await refreshShifts();
             flash(slots.length ? `Shift saved for ${shiftDate}.` : `${member.name} is off on ${shiftDate}.`);
+            onChanged?.(); // a shift is hours of their own — the card's "Not bookable" may clear
         } catch (err) {
             setShiftErr(err?.response?.data?.message || 'Could not save that shift.');
         } finally { setBusy(''); }
@@ -366,6 +399,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
             await teamService.clearMemberShift(member._id, shiftDate);
             await refreshShifts();
             flash('Back to their usual hours for that day.');
+            onChanged?.();
         } catch {
             setShiftErr('Could not clear that shift.');
         } finally { setBusy(''); }
@@ -694,17 +728,28 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
     };
 
     const saveHours = async () => {
-        if (schedule === 'inherit' || !schedule) return;
+        if (schedule === 'none' || !schedule) return;
+        // The same rules as the Working Hours screen and the server: each period
+        // ends after it starts, a split day's two periods don't overlap. Saved in
+        // time order, exactly as shown.
+        const words = { words: ['starting', 'ending'] };
+        const rotating = rotationOn && rotation.weeks.length >= 2;
+        const problem = rotating
+            ? rotation.weeks.map((w, i) => { const p = weekProblem(w, words); return p ? `Week ${i + 1} — ${p}` : null; }).find(Boolean)
+            : weekProblem(schedule, words);
+        if (problem) { flash(problem); return; }
         setBusy('hours');
         try {
             // With rotation on, week 1 doubles as the flat schedule legacy readers
             // show; pass null when off so any stored rotation is cleared.
-            if (rotationOn && rotation.weeks.length >= 2) {
-                await teamService.updateMemberAvailability(member._id, rotation.weeks[0], { anchor: rotation.anchor, weeks: rotation.weeks });
+            if (rotating) {
+                const weeks = rotation.weeks.map(sortedWeek);
+                await teamService.updateMemberAvailability(member._id, weeks[0], { anchor: rotation.anchor, weeks });
             } else {
-                await teamService.updateMemberAvailability(member._id, schedule, null);
+                await teamService.updateMemberAvailability(member._id, sortedWeek(schedule), null);
             }
             flash('Hours saved');
+            onChanged?.(); // the card's "Not bookable — no working hours set" reads the roster
         } catch (err) { flash(err?.response?.data?.message || 'Could not save hours'); }
         finally { setBusy(''); }
     };
@@ -716,16 +761,15 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
     };
     // Edit one day of the active rotation week.
     const setWkDay = (day, enabled) => setRotation(r => ({ ...r, weeks: r.weeks.map((w, i) => (i === activeWk ? { ...w, [day]: { ...w[day], enabled } } : w)) }));
-    const setWkSlot = (day, key, value) => setRotation(r => ({
+    // A day's periods in the active rotation week (every period kept).
+    const setWkPeriods = (day, slots) => setRotation(r => ({
         ...r,
-        weeks: r.weeks.map((w, i) => (i === activeWk
-            ? { ...w, [day]: { ...w[day], slots: [{ ...(w[day].slots?.[0] || DEFAULT_DAY.slots[0]), [key]: value }] } }
-            : w)),
+        weeks: r.weeks.map((w, i) => (i === activeWk ? { ...w, [day]: { ...w[day], slots } } : w)),
     }));
     const toggleRotation = (on) => {
         setRotationOn(on);
         if (on && rotation.weeks.length === 0) {
-            setRotation({ anchor: new Date().toISOString().slice(0, 10), weeks: [normWeek(schedule && schedule !== 'inherit' ? schedule : DEFAULT_SCHED()), DEFAULT_SCHED()] });
+            setRotation({ anchor: new Date().toISOString().slice(0, 10), weeks: [normWeek(schedule && schedule !== 'none' ? schedule : DEFAULT_SCHED()), DEFAULT_SCHED()] });
             setActiveWk(0);
         }
     };
@@ -738,9 +782,8 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
     });
 
     const setDay = (day, patch) => setSchedule(s => ({ ...s, [day]: { ...s[day], ...patch } }));
-    const setSlot = (day, key, value) => setSchedule(s => ({
-        ...s, [day]: { ...s[day], slots: [{ ...(s[day].slots?.[0] || DEFAULT_DAY.slots[0]), [key]: value }] },
-    }));
+    // A day's periods (the first, and a split day's second) — every period kept.
+    const setPeriods = (day, slots) => setSchedule(s => ({ ...s, [day]: { ...s[day], slots } }));
 
     return (
         <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', marginBottom: '1rem', overflow: 'hidden' }} data-testid="team-member-card">
@@ -757,6 +800,11 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                         {member.role || 'Staff'}
                         {!hasLogin ? ' · roster only' : loggedIn ? ' · active' : ' · invited, awaiting login'}
                         {offersAll ? ' · all services' : assigned.length ? ` · ${assigned.length} service${assigned.length > 1 ? 's' : ''}` : ' · no services'}
+                        {/* Nothing is inherited from the business's hours: a member
+                            with none of their own can't be booked, so say so here. */}
+                        {bookable && member.hasHours === false && (
+                            <span data-testid="member-not-bookable" style={{ color: 'var(--gold-dark)', fontWeight: 600 }}> · Not bookable — no working hours set</span>
+                        )}
                     </span>
                 </span>
                 {loggedIn
@@ -1404,13 +1452,15 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
 
                             <Section icon={Clock} title="Working hours">
                                 {schedule === null && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading…</p>}
-                                {schedule === 'inherit' && (
+                                {schedule === 'none' && (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.88rem' }}>Inherits the business hours.</p>
-                                        <button type="button" className="btn-outline" style={{ padding: '0.45rem 1rem', fontSize: '0.82rem' }} onClick={startCustomHours} data-testid="custom-hours">Set custom hours</button>
+                                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.88rem' }} data-testid="no-hours-note">
+                                            No working hours set — {(member.name || 'they').split(' ')[0]} can’t be booked until you set them{member.user ? ' (or they set their own in Availability)' : ''}.
+                                        </p>
+                                        <button type="button" className="btn-outline" style={{ padding: '0.45rem 1rem', fontSize: '0.82rem' }} onClick={startCustomHours} data-testid="custom-hours">Set working hours</button>
                                     </div>
                                 )}
-                                {schedule && schedule !== 'inherit' && (
+                                {schedule && schedule !== 'none' && (
                                     <div>
                                         {/* Single week vs a rotating multi-week cycle. The grid below keeps
                                             the day, both time fields and the column labels aligned in fixed
@@ -1421,7 +1471,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                                         </div>
 
                                         {!rotationOn ? (
-                                            <HoursGrid week={schedule} onToggle={(d, c) => setDay(d, { enabled: c })} onSlot={setSlot} />
+                                            <HoursGrid week={schedule} onToggle={(d, c) => setDay(d, { enabled: c })} onPeriods={setPeriods} />
                                         ) : (
                                             <div data-testid="rotation-editor">
                                                 <label style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', maxWidth: '220px', marginBottom: '0.7rem' }}>
@@ -1450,7 +1500,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0 0 0.5rem' }}>
                                                     Editing <strong>Week {activeWk + 1}</strong> of {rotation.weeks.length}. The cycle repeats from Week 1’s start date.
                                                 </p>
-                                                <HoursGrid week={rotation.weeks[activeWk] || DEFAULT_SCHED()} onToggle={setWkDay} onSlot={setWkSlot} />
+                                                <HoursGrid week={rotation.weeks[activeWk] || DEFAULT_SCHED()} onToggle={setWkDay} onPeriods={setWkPeriods} />
                                             </div>
                                         )}
 

@@ -8,7 +8,7 @@ const { createNotification } = require('../utils/notificationhelper');
 const pushService = require('../utils/pushService');
 const { can } = require('../utils/permissions');
 const mongoose = require('mongoose');
-const { performsService, ownerPerforms } = require('../utils/staffBooking');
+const { performsService, ownerPerforms, staffHoursReason } = require('../utils/staffBooking');
 
 const toMinutes = (t) => {
     const [h, m] = String(t).split(':').map(Number);
@@ -52,6 +52,13 @@ exports.joinWaitingList = async (req, res) => {
             }
             if (!performsService(member, svc._id)) {
                 return res.status(400).json({ success: false, message: 'That professional does not offer this service' });
+            }
+            // Someone with no working hours of their own that day can never be
+            // booked then, so a place in line for them would never turn into a
+            // booking — say so now rather than leave the client waiting.
+            // (Only 'no_hours' matters here, so the lone-member lookup is skipped.)
+            if (await staffHoursReason({ member, date: appointmentDate, startTime, endTime: endTime || startTime, providerId: provider, lone: false }) === 'no_hours') {
+                return res.status(400).json({ success: false, message: 'That professional has no working hours set for that day.' });
             }
             waitingFor = member._id;
         } else if (provider && !ownerPerforms(svc)) {

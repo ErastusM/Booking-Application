@@ -40,11 +40,13 @@ const ymd = (d) => {
 const soon = () => { const d = new Date(); d.setDate(d.getDate() + 21); return ymd(d); };
 
 // A provider with business hours, one roster member (Alice) on a full weekly
-// schedule, and a service. Alice performs all services (no `services` filter).
+// schedule, and a service. Alice performs all services (no `services` filter);
+// the owner doesn't perform this one, so search's owner column (offered next to
+// the team whenever the owner performs something) can't cover for her.
 const shopWithAlice = async () => {
     const provider = await makeProvider();
     await Availability.create({ provider: provider._id, schedule: everyDay('08:00', '19:00') });
-    const svc = await makeService(provider._id, { duration: 30 });
+    const svc = await makeService(provider._id, { duration: 30, ownerPerforms: false });
     const alice = await TeamMember.create({ provider: provider._id, name: 'Alice', isActive: true });
     await StaffAvailability.create({ provider: provider._id, teamMember: alice._id, schedule: everyDay('08:00', '19:00') });
     return { provider, svc, alice };

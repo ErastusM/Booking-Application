@@ -13,7 +13,7 @@
 const request = require('supertest');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
-const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = require('../helpers/factories');
+const { makeUser, makeProvider, makeService, makeAppointment, authHeader, giveHours } = require('../helpers/factories');
 const Appointment = require('../../models/Appointment');
 const TeamMember = require('../../models/TeamMember');
 const BlockedTime = require('../../models/BlockedTime');
@@ -32,6 +32,8 @@ const makeStaff = async (provider, tier, member = {}) => {
         provider: provider._id, name: `Member ${seq}`, user: login._id, offersAllServices: true,
         email: `member-${seq}@private.test`, phone: `+2648100${seq}`, ...member,
     });
+    // Hours of their own: a member with none can't be booked at all.
+    await giveHours(row);
     return { login, member: row };
 };
 

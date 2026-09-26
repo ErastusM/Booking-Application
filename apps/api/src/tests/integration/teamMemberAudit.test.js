@@ -7,7 +7,7 @@
  *
  *   #1  a staff member's self-calendar shows segments they perform
  *   #2  an existing booking's service buffers block an adjacent booking
- *   #4  a solo owner's reschedule inherits business hours like create does
+ *   #4  a lone member's reschedule gets the business hours, like create does
  *   #5  a named member's slot feed reflects their weekly days off
  *   #6  inviting staff isn't blocked by a same-email CUSTOMER account
  *   #7  one login can't back two rows; archiving one keeps the other's access
@@ -17,7 +17,7 @@
 const request = require('supertest');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
-const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = require('../helpers/factories');
+const { makeUser, makeProvider, makeService, makeAppointment, authHeader, giveHours } = require('../helpers/factories');
 const TeamMember = require('../../models/TeamMember');
 const StaffAvailability = require('../../models/StaffAvailability');
 const Availability = require('../../models/Availability');
@@ -152,6 +152,7 @@ describe('#2 existing service buffers are enforced against the next booking', ()
         const svc = await makeService(provider._id, { duration: 30, bufferBefore: 0, bufferAfter: 15 });
         const member = await TeamMember.create({ provider: provider._id, name: 'Pat' });
         await Availability.create({ provider: provider._id, schedule: everyDay('08:00', '20:00') });
+        await giveHours(member, everyDay('08:00', '20:00'));
         return { provider, customer, svc, member };
     };
     const book = (ctx, startTime, endTime) => request(app)
@@ -172,8 +173,11 @@ describe('#2 existing service buffers are enforced against the next booking', ()
     });
 });
 
-// ── #4 a solo owner's reschedule inherits business hours like create ─────────
-describe('#4 solo owner: reschedule matches create for after-hours slots', () => {
+// ── #4 a lone member's reschedule gets the business hours, like create ──────
+// A business's only bookable member who has weekly hours of their own is booked
+// over the business's hours (staffBooking.weeklyHoursFor, #121) — on create and on
+// reschedule alike. (With no hours of their own they aren't bookable at all.)
+describe('#4 a lone member: reschedule matches create for after-hours slots', () => {
     const setupSolo = async () => {
         const provider = await makeProvider();
         const customer = await makeUser();
@@ -202,7 +206,7 @@ describe('#5 named-member booked-slots honors weekly StaffAvailability', () => {
     it('marks the whole day off_shift on a weekday the member does not work', async () => {
         const provider = await makeProvider();
         const svc = await makeService(provider._id, { duration: 30 });
-        // Two bookable members so this is NOT a solo owner (whose weekly hours are ignored).
+        // Two bookable members, so each works their own weekly hours.
         const member = await TeamMember.create({ provider: provider._id, name: 'Rae' });
         await TeamMember.create({ provider: provider._id, name: 'Roy' });
         await Availability.create({ provider: provider._id, schedule: everyDay('08:00', '20:00') });

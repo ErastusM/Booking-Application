@@ -27,6 +27,7 @@ const REASON_LABELS = {
     off_shift: 'staff not rostered on',
     on_break: 'a staff break',
     time_off: 'staff on leave',
+    no_hours: 'the staff member having no working hours set',
     booked: 'the staff member already booked',
     no_staff_available: 'no staff member available',
     not_bookable: 'the staff member not taking online bookings',

@@ -3,18 +3,22 @@
 // Rule: full 1-hour blocks are the anchor, for EVERY booking surface — the
 // provider's manual walk-in / book-a-client flow and reschedule (matches the
 // customer app). A completely free hour offers only its :00 (a free 5:00–6:00
-// shows 5:00, not 5:30), whatever the service length. A partial-hour start is
-// created ONLY by a real boundary — the shift start or a booking's END — never an
-// arbitrary mid-hour offset just because a short service could fit. A boundary is
-// offered when the service fits there AND either it stays inside the leftover up to
-// the next hour, or it ends exactly on an hour — so leftover minutes get used
-// without a whole-hour booking sliding off the hour:
-//   booking 9:00–9:15, 15-min service → 9:15 (fills the 9:15–10:00 leftover)
-//   booking 4:00–4:30: 30-min → 4:30 (ends 5:00); 60-min → none (would end 5:30);
-//                      1h30 → 4:30 (4:30–6:00)
+// shows 5:00, not 5:30), whatever the service length. Partial-hour starts come
+// only from real boundaries, never an arbitrary mid-hour offset:
+//   - every working period's OPENING time (the block's start — 08:30, or 14:30
+//     after a split day's break — and any `openings` passed in) is ALWAYS
+//     offered when the service fits before that period closes (the owner's
+//     answer: "your exact opening time is always offered");
+//   - a booking's END is offered when the service either stays inside the
+//     leftover up to the next hour, or ends exactly on an hour — so leftover
+//     minutes get used without a whole-hour booking sliding off the hour:
+//       booking 9:00–9:15, 15-min service → 9:15 (fills the 9:15–10:00 leftover)
+//       booking 4:00–4:30: 30-min → 4:30 (ends 5:00); 60-min → none (would end 5:30);
+//                          1h30 → 4:30 (4:30–6:00)
 // Starts must fit inside the working block, not be in the past, and not overlap a
 // booking. A genuinely-bookable hour that is fully taken keeps a single greyed pill
-// so the waitlist still works.
+// so the waitlist still works (at the hour, or at the opening time when the
+// period opens mid-hour).
 //
 // All times are in minutes-from-midnight.
 
@@ -25,56 +29,89 @@ export const fmtMinutes = (mins) =>
     `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
 
 /**
+ * Blocks in time order, with blocks that touch or overlap read as one
+ * (08:00–12:30 + 12:30–18:00 is 08:00–18:00) — exactly how the server reads a
+ * day's periods when it checks a booking (staffBooking.withinPeriods).
+ */
+export const mergeBlocks = (blocks) => (blocks || [])
+    .filter((b) => Number.isFinite(b?.start) && Number.isFinite(b?.end) && b.end > b.start)
+    .sort((a, b) => a.start - b.start)
+    .reduce((out, b) => {
+        const last = out[out.length - 1];
+        if (last && b.start <= last.end) last.end = Math.max(last.end, b.end);
+        else out.push({ start: b.start, end: b.end });
+        return out;
+    }, []);
+
+/**
  * @param {Object}   args
  * @param {{start:number,end:number}[]} args.blocks       working blocks for the day
  * @param {{start:number,end:number}[]} args.bookedRanges  already-booked ranges
  * @param {number}   args.duration  service length in minutes
  * @param {number}   [args.minStart] earliest allowed start (e.g. "now" for today); -1 = none
+ * @param {number[]} [args.openings] extra period opening times (minutes) that are
+ *        always offered when usable — e.g. the day's own hours while the owner
+ *        books outside them over a wider block
  * @returns {{time:string, isBooked:boolean}[]}
  */
-export const buildTimeSlots = ({ blocks, bookedRanges = [], duration, minStart = -1 }) => {
+export const buildTimeSlots = ({ blocks, bookedRanges = [], duration, minStart = -1, openings = [] }) => {
     const slots = [];
     const dur = duration || 60;
 
-    blocks.forEach((block) => {
+    mergeBlocks(blocks).forEach((block) => {
         // A start is usable when it's inside the block, the whole service fits,
         // and it isn't in the past.
         const usable = (start) =>
             start >= block.start && start + dur <= block.end && start >= minStart;
 
-        // Partial-hour starts come from real boundaries only — the shift start and
-        // every booked-range END. A boundary is kept when the service either fits
-        // inside the leftover up to the next hour (a 15-min service in a 9:15–10:00
-        // gap), or ends exactly on an hour (a 1h30 that runs 4:30–6:00). A whole-
-        // hour service that would end mid-hour (4:30 → 5:30) is dropped, so it stays
-        // on the hour. No arbitrary mid-hour offsets are invented.
+        // Partial-hour starts come from real boundaries only. A period's opening
+        // time is always a candidate; a booked-range END is kept when the service
+        // either fits inside the leftover up to the next hour (a 15-min service in
+        // a 9:15–10:00 gap), or ends exactly on an hour (a 1h30 that runs
+        // 4:30–6:00). A whole-hour service that would end mid-hour (4:30 → 5:30)
+        // is dropped there, so it stays on the hour.
         const partialStarts = new Set();
+        const openingStarts = new Set();
+        const addOpening = (t) => {
+            if (t % 60 === 0 || t < block.start || t >= block.end) return;
+            partialStarts.add(t);
+            openingStarts.add(t);
+        };
+        addOpening(block.start);
+        (openings || []).forEach(addOpening);
         const consider = (t) => {
             if (t % 60 === 0) return;
             const gapEnd = (Math.floor(t / 60) + 1) * 60; // next hour boundary after t
             if (t + dur <= gapEnd || (t + dur) % 60 === 0) partialStarts.add(t);
         };
-        consider(block.start);
         bookedRanges.forEach((b) => consider(b.end));
 
         const firstHour = Math.floor(block.start / 60) * 60;
         for (let hourStart = firstHour; hourStart < block.end; hourStart += 60) {
             let anyFree = false;
             let occupied = false;
+            let takenOpening = null;
             // Candidate starts in this hour: the :00, plus any aligned leftover
             // starts that fall inside it — sorted so the list stays chronological.
             const candidates = [hourStart, ...[...partialStarts].filter((t) => t >= hourStart && t < hourStart + 60)]
                 .sort((a, b) => a - b);
             for (const start of candidates) {
                 if (!usable(start)) continue;
-                if (overlapsRange(bookedRanges, start, start + dur)) { occupied = true; continue; }
+                if (overlapsRange(bookedRanges, start, start + dur)) {
+                    occupied = true;
+                    if (takenOpening === null && openingStarts.has(start)) takenOpening = start;
+                    continue;
+                }
                 slots.push({ time: fmtMinutes(start), isBooked: false });
                 anyFree = true;
             }
             // Fully-taken but genuinely-bookable hour → one greyed pill so the
-            // waitlist still works. Never show a pill for a past/unusable hour.
-            if (!anyFree && occupied && usable(hourStart)) {
-                slots.push({ time: fmtMinutes(hourStart), isBooked: true });
+            // waitlist still works: at the hour, or — when the hour itself is
+            // before the period opens (08:00 for an 08:30 opening) — at the
+            // taken opening time. Never a pill for a past/unusable hour.
+            if (!anyFree && occupied) {
+                if (usable(hourStart)) slots.push({ time: fmtMinutes(hourStart), isBooked: true });
+                else if (takenOpening !== null) slots.push({ time: fmtMinutes(takenOpening), isBooked: true });
             }
         }
     });
@@ -176,12 +213,14 @@ export const ticketBuffers = (rows, bufferOf = () => null) => {
     return { bufferBefore: before, bufferAfter: after };
 };
 
-/** "HH:mm" periods → sorted minute blocks, dropping anything empty or inverted. */
-export const periodsToBlocks = (periods) => (periods || [])
+/**
+ * "HH:mm" periods → sorted minute blocks, dropping anything empty or inverted.
+ * Periods that touch or overlap read as one (08:00–12:30 + 12:30–18:00 is
+ * 08:00–18:00), exactly as the server reads them when it checks a booking.
+ */
+export const periodsToBlocks = (periods) => mergeBlocks((periods || [])
     .filter((s) => s?.start && s?.end)
-    .map((s) => ({ start: toMin(s.start), end: toMin(s.end) }))
-    .filter((b) => Number.isFinite(b.start) && Number.isFinite(b.end) && b.end > b.start)
-    .sort((a, b) => a.start - b.start);
+    .map((s) => ({ start: toMin(s.start), end: toMin(s.end) })));
 
 /** The weekday name of a 'YYYY-MM-DD' date (calendar date, no timezone shift). */
 export const dayNameOf = (ymd) => {
@@ -209,21 +248,20 @@ const durLabel = (mins) => {
 
 /**
  * The line under "Start time" that says which hours the times come from and why
- * a time the owner might expect isn't there. The list itself is unchanged by
- * design (hourly starts, the whole service must end by closing, nothing in the
- * past); this makes each of those visible instead of looking like wrong hours.
- * `whose` is the possessive ('Your', 'Erastus’s'); empty = the business's own.
+ * a time the owner might expect isn't there. The list itself follows fixed rules
+ * (hourly starts plus each period's exact opening time, the whole service must
+ * end by closing, nothing in the past); this makes each of those visible instead
+ * of looking like wrong hours. `whose` is the possessive ('Your', 'Erastus’s');
+ * empty = the business's own.
  */
 const SOURCE_LABEL = { shift: ' (shift)', business: ' (the business’s hours)', weekly: '' };
-export const hoursNote = ({ blocks, duration, slots = [], minStart = -1, whose = '', day = '', source = '' }) => {
+export const hoursNote = ({ blocks, duration, minStart = -1, whose = '', day = '', source = '' }) => {
     const who = whose ? `${whose} hours` : 'Working hours';
     const dayLabel = day ? ` on ${day.charAt(0).toUpperCase()}${day.slice(1)}` : '';
     const parts = [`${who}${dayLabel}: ${blocksLabel(blocks)}${whose ? SOURCE_LABEL[source] || '' : ''}.`];
     const dur = duration || 60;
-    const hidden = blocks.filter((b) => b.start % 60 !== 0 && b.start >= minStart && b.start + dur <= b.end
-        && !slots.some((s) => toMin(s.time) === b.start));
-    parts.push(`Times start on the hour${hidden.length ? ` (an opening at ${fmtMinutes(hidden[0].start)} is only offered when the service ends by ${fmtMinutes((Math.floor(hidden[0].start / 60) + 1) * 60)})` : ''}`
-        + `, and the last start leaves room for the ${durLabel(dur)} service.`);
+    const offHour = blocks.some((b) => b.start % 60 !== 0);
+    parts.push(`Times start ${offHour ? 'at each opening time and ' : ''}on the hour, and the last start leaves room for the ${durLabel(dur)} service.`);
     if (minStart >= 0 && blocks.some((b) => b.start < minStart)) parts.push('Earlier times today have passed.');
     return parts.join(' ');
 };

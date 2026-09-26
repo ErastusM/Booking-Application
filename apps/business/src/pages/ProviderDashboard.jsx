@@ -4,9 +4,10 @@ import { FEATURES } from '@bookplus/config/features.mjs';
 import ComingSoon from '../components/ComingSoon';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import CalendarGrid from '../components/CalendarGrid';
+import CalendarGrid, { visibleDateKeys } from '../components/CalendarGrid';
 import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService, waitingListService, earningsService, analyticsService, walletService, providerWalletService, authService, myAvailabilityService, myServicesService, providerMarketService } from '../services';
 import StaffReadinessBanner from '../components/StaffReadinessBanner';
+import TeamHoursBanner from '../components/TeamHoursBanner';
 import { useAuthContext } from '../context/AuthContext';
 // Lazy — pulls in the Google Maps SDK only when a new provider is onboarding,
 // keeping it out of the main dashboard bundle.
@@ -23,8 +24,10 @@ import { Calendar, History, CalendarClock, Clock, LayoutDashboard, TrendingUp, B
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { NAMIBIAN_TOWNS, normalizeTown } from '../utils/namibiaTowns';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
-import useMyMember from '../hooks/useMyMember';
+import useMyMember, { refreshMyMember, loadMyMember } from '../hooks/useMyMember';
 import { buildTimeSlots, periodsToBlocks, scheduleBlocksFor, dayNameOf, hoursNote, blocksLabel, laneBusyRanges, ticketBuffers } from '../utils/bookingSlots';
+import { editableWeek, sortedPeriods, sortedWeek, weekProblem } from '../utils/workingHours';
+import DayPeriods from '../components/DayPeriods';
 import { fmtClock } from '../utils/time';
 import { sortClients } from '../utils/clientSort';
 import { bookingClientFields } from '../utils/bookingClient';
@@ -213,8 +216,16 @@ const ProviderDashboard = () => {
     const [availability, setAvailability] = useState(null);
     const [savingAvailability, setSavingAvailability] = useState(false);
     const [availabilitySuccess, setAvailabilitySuccess] = useState('');
-    // A member with no hours of their own yet starts from a week of days off.
+    // A member with no hours of their own yet starts from a week of days off —
+    // and can't be booked until they set some (nothing comes from the business's).
+    // Whether they CAN be booked is the server's answer (myMember.hasHours:
+    // weekly hours in any rotation week, or a shift from today on — what the Team
+    // card and the client's tiles say); the weekly-only read is a fallback for an
+    // older API. memberHoursNow is that answer refreshed after a save.
     const [memberHadHours, setMemberHadHours] = useState(true);
+    const [memberHoursNow, setMemberHoursNow] = useState(null);
+    const memberServerHours = memberHoursNow ?? myMember?.hasHours;
+    const memberNotBookable = isStaff && (typeof memberServerHours === 'boolean' ? !memberServerHours : !memberHadHours);
     // What a member's CALENDAR shades as working time: their own saved hours
     // (none saved = no shading). The Availability form edits `availability` (a
     // full week) separately.
@@ -610,13 +621,15 @@ const ProviderDashboard = () => {
                 const res = await myAvailabilityService.get();
                 const sched = res.data.data?.schedule || null;
                 // Nothing is inherited from the business: a member with no hours
-                // yet sees every day off, in the same Working Hours rows.
-                setMemberHadHours(!!sched);
+                // yet sees every day off, in the same Working Hours rows, and the
+                // note that clients can't book them — which is exactly what the
+                // booking rules do. Every period is kept (a split day shows both),
+                // in time order; a day switched on with no times is closed for
+                // bookings, so it shows switched off.
+                const week = editableWeek(sched);
+                setMemberHadHours(!!sched && WEEK_DAYS.some((d) => week[d].enabled));
                 setStaffCalendarHours(sched);
-                setAvailability(Object.fromEntries(WEEK_DAYS.map((d) => [d, {
-                    enabled: !!sched?.[d]?.enabled,
-                    slots: sched?.[d]?.slots?.length ? sched[d].slots : [{ start: '09:00', end: '17:00' }],
-                }])));
+                setAvailability(week);
                 return;
             }
             const res = await availabilityService.getMyAvailability();
@@ -626,7 +639,7 @@ const ProviderDashboard = () => {
             setAvailability(Object.fromEntries(WEEK_DAYS.map((d) => [d, {
                 enabled: !!sched[d]?.enabled,
                 slots: (sched[d]?.slots || []).filter((sl) => sl?.start && sl?.end).length
-                    ? sched[d].slots.filter((sl) => sl?.start && sl?.end).map(({ start, end }) => ({ start, end }))
+                    ? sortedPeriods(sched[d].slots.filter((sl) => sl?.start && sl?.end))
                     : [{ start: '09:00', end: '17:00' }],
             }])));
         } catch { }
@@ -1318,25 +1331,44 @@ const ProviderDashboard = () => {
         setSavingAvailability(true);
         setAvailabilitySuccess('');
         try {
+            // Both kinds of hours: each period ends after it starts, a split day's
+            // periods don't overlap (a break between them), and what is saved is
+            // exactly what is shown, in time order. The server checks the same.
+            const problem = weekProblem(availability, { words: isStaff ? ['start', 'end'] : ['opening', 'closing'] });
+            if (problem) { toast(problem, 'error'); return; }
+            const week = sortedWeek(availability);
             if (isStaff) {
                 // A member saves THEIR hours (/team/mine/availability), never the business's.
-                const bad = WEEK_DAYS.find((d) => availability[d]?.enabled && !(availability[d].slots[0]?.start < availability[d].slots[0]?.end));
-                if (bad) { toast(`${bad[0].toUpperCase()}${bad.slice(1)}: the end time must be after the start time`, 'error'); return; }
-                await myAvailabilityService.set(availability);
-                setMemberHadHours(true);
-                setStaffCalendarHours(availability);
-                setAvailabilitySuccess(WEEK_DAYS.some((d) => availability[d]?.enabled) ? 'Your hours are saved. Clients can book you in these hours.' : 'Saved. You have no working days, so clients can’t book you.');
+                await myAvailabilityService.set(week);
+                setAvailability(week);
+                const weeklyOn = WEEK_DAYS.some((d) => week[d]?.enabled);
+                setMemberHadHours(weeklyOn);
+                setStaffCalendarHours(week);
+                setCalHoursNonce((n) => n + 1); // the calendar's shading reads the saved hours
+                // Ask the server again whether clients can book them now (a shift
+                // from today on counts too), so this screen and the Team card agree.
+                refreshMyMember();
+                const me = await loadMyMember(String(user?._id || user?.id || '')).catch(() => null);
+                const serverSays = typeof me?.hasHours === 'boolean' ? me.hasHours : null;
+                setMemberHoursNow(serverSays);
+                setAvailabilitySuccess(weeklyOn
+                    ? 'Your hours are saved. Clients can book you in these hours.'
+                    : serverSays
+                        ? 'Saved. You have no weekly working days — clients can book you on your shifts only.'
+                        : 'Saved. You have no working days, so clients can’t book you.');
                 setTimeout(() => setAvailabilitySuccess(''), 4000);
                 return;
             }
-            // Same rule as a member's hours (and the server): closing after opening.
-            const badDay = WEEK_DAYS.find((d) => availability[d]?.enabled && (availability[d].slots || []).some((sl) => !(sl?.start && sl?.end && sl.start < sl.end)));
-            if (badDay) { toast(`${badDay[0].toUpperCase()}${badDay.slice(1)}: the closing time must be after the opening time`, 'error'); return; }
-            await availabilityService.updateMyAvailability(availability);
+            await availabilityService.updateMyAvailability(week);
+            setAvailability(week);
+            setCalHoursNonce((n) => n + 1); // the calendar's shading reads the saved hours
             setAvailabilitySuccess('Working hours saved. New Appointment and your booking page now use these hours.');
             setTimeout(() => setAvailabilitySuccess(''), 3000);
-        } catch {
-            setError('Failed to save availability');
+        } catch (err) {
+            // The server names the day when it refuses hours; say that, not a generic failure.
+            const why = err?.response?.status === 400 && err.response.data?.message;
+            if (why) toast(why, 'error');
+            else setError('Failed to save availability');
         } finally {
             setSavingAvailability(false);
         }
@@ -1346,10 +1378,10 @@ const ProviderDashboard = () => {
         setAvailability(prev => ({ ...prev, [day]: { ...prev[day], enabled: !prev[day].enabled } }));
     };
 
-    const handleTimeChange = (day, field, value) => {
-        // Only the first period is edited here; any further periods (a split day)
-        // are kept, never silently dropped on save.
-        setAvailability(prev => ({ ...prev, [day]: { ...prev[day], slots: [{ ...prev[day].slots[0], [field]: value }, ...(prev[day].slots || []).slice(1)] } }));
+    // A day's periods, as DayPeriods edits them: the opening and closing time,
+    // and a split day's second period (added, edited or removed).
+    const handleDayPeriods = (day, slots) => {
+        setAvailability(prev => ({ ...prev, [day]: { ...prev[day], slots } }));
     };
 
     const handleStatusUpdate = async (id, status) => {
@@ -1776,6 +1808,62 @@ const ProviderDashboard = () => {
     // nothing over the normal calendar, so hide the option (and fall back to the
     // normal grid below if 'staff' was somehow still selected).
     const showStaffView = !isStaff && activeTeamMembers.length > 1;
+
+    // ── Each person's own hours, for the calendar's shading ─────────────────
+    // (the owner's answer: "Own hours"). ONE request for the day or days on
+    // screen — never one per lane, and never on the 25-second live refresh:
+    //   Staff view → everyone's hours that day (the owner's lane = the
+    //   business's Working Hours); a member's own calendar → their hours for the
+    //   days shown; the owner's calendar filtered to exactly one member → that
+    //   member's. Anything else keeps the business's Working Hours. Until the
+    //   hours arrive the calendar keeps the shading it had, so nothing flashes
+    //   "closed" while loading.
+    const [calHours, setCalHours] = useState(null); // { key, data }
+    const [calHoursNonce, setCalHoursNonce] = useState(0);
+    const calHoursFetchedAt = useRef(0);
+    const onlyLane = calendarStaffFilter.size === 1 ? [...calendarStaffFilter][0] : null;
+    const calHoursReq = (() => {
+        if (activeTab !== 'calendar' || calendarView === 'month') return null;
+        if (calendarView === 'staff' && showStaffView) { const k = ymd(currentDate); return { from: k, to: k }; }
+        const keys = visibleDateKeys(calendarView, currentDate);
+        const range = { from: keys[0], to: keys[keys.length - 1] };
+        if (isStaff) return { ...range, ids: ['mine'] };
+        if (onlyLane && onlyLane !== 'unassigned') return { ...range, ids: [onlyLane] };
+        return null;
+    })();
+    const calHoursKey = calHoursReq ? `${calHoursReq.from}|${calHoursReq.to}|${(calHoursReq.ids || ['*']).join(',')}` : '';
+    useEffect(() => {
+        if (!calHoursReq) return undefined;
+        let stale = false;
+        calHoursFetchedAt.current = Date.now();
+        teamService.getTeamHours(calHoursReq.from, calHoursReq.to, calHoursReq.ids)
+            .then((r) => { if (!stale) setCalHours({ key: calHoursKey, data: r.data.data }); })
+            .catch(() => { /* shading is best-effort: the business's hours stay shown */ });
+        return () => { stale = true; };
+    }, [calHoursKey, calHoursNonce]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Hours also change elsewhere (a Team card, a member's own screen, another
+    // device), so look again when the app comes back to the foreground.
+    useEffect(() => {
+        const again = () => {
+            if (document.visibilityState === 'hidden' || Date.now() - calHoursFetchedAt.current < 15000) return;
+            setCalHoursNonce((n) => n + 1);
+        };
+        window.addEventListener('focus', again);
+        document.addEventListener('visibilitychange', again);
+        return () => { window.removeEventListener('focus', again); document.removeEventListener('visibilitychange', again); };
+    }, []);
+    const calHoursData = calHours && calHours.key === calHoursKey ? calHours.data : null;
+    // Staff view: { laneId: dayHours } for the day shown ('unassigned' = the owner).
+    const laneHours = calHoursData && calendarView === 'staff' ? (() => {
+        const k = ymd(currentDate);
+        const out = { unassigned: calHoursData.owner?.[k] };
+        Object.entries(calHoursData.members || {}).forEach(([id, byDate]) => { out[id] = byDate?.[k]; });
+        return out;
+    })() : null;
+    // One person's calendar: { date: dayHours }.
+    const hoursByDate = calHoursData && calendarView !== 'staff'
+        ? (isStaff ? calHoursData.members?.[calHoursData.mine] : calHoursData.members?.[onlyLane]) || null
+        : null;
     const calendarViewOptions = [['day', 'Day'], ['3day', '3 Day'], ['week', 'Week'], ...(showStaffView ? [['staff', 'Staff']] : [])];
     const calendarViewLabel = (calendarViewOptions.find(([v]) => v === calendarView) || ['', calendarView])[1];
     const viewMenu = (
@@ -2162,7 +2250,7 @@ const ProviderDashboard = () => {
                             </button>
                         </div>
 
-                        {isStaff && !memberHadHours && (
+                        {memberNotBookable && (
                             <div style={{ background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--charcoal)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.25rem', fontSize: '0.875rem' }}>
                                 Turn on the days you work and set your times. Clients can’t book you until you do.
                             </div>
@@ -2181,16 +2269,8 @@ const ProviderDashboard = () => {
                                         <div style={{ minWidth: 0, flex: 1 }}>
                                             <div style={{ fontWeight: '600', color: config.enabled ? 'var(--charcoal)' : 'var(--text-muted)', fontSize: '1rem', textTransform: 'capitalize', marginBottom: config.enabled ? '0.55rem' : 0 }}>{day}</div>
                                             {config.enabled ? (
-                                                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                                    <TimePicker value={config.slots[0]?.start || '09:00'} onChange={e => handleTimeChange(day, 'start', e.target.value)} aria-label={`${day.charAt(0).toUpperCase()}${day.slice(1)} opening time`} hideIcon style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '1rem' }} />
-                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.85rem', flexShrink: 0 }}>to</span>
-                                                    <TimePicker value={config.slots[0]?.end || '17:00'} onChange={e => handleTimeChange(day, 'end', e.target.value)} aria-label={`${day.charAt(0).toUpperCase()}${day.slice(1)} closing time`} hideIcon style={{ width: '112px', maxWidth: '42vw', padding: '0.45rem 0.6rem', fontSize: '1rem' }} />
-                                                    {(config.slots || []).length > 1 && (
-                                                        <span style={{ flexBasis: '100%', color: 'var(--text-muted)', fontSize: '0.82rem' }}>
-                                                            Also open {config.slots.slice(1).map(sl => `${sl.start}–${sl.end}`).join(', ')}
-                                                        </span>
-                                                    )}
-                                                </div>
+                                                <DayPeriods day={day} periods={config.slots?.length ? config.slots : [{ start: '09:00', end: '17:00' }]}
+                                                    onChange={(slots) => handleDayPeriods(day, slots)} />
                                             ) : (
                                                 <div style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>Not available</div>
                                             )}
@@ -2887,6 +2967,8 @@ const ProviderDashboard = () => {
                             also offers "block time". */}
 
                         {isStaff && <StaffReadinessBanner />}
+                        {/* The owner: which team members clients can't book (no hours). */}
+                        {!isStaff && <TeamHoursBanner members={teamMembers} />}
 
                         {/* Staff filter — who's on the calendar. The house segmented control
                             (styles/index.css) rather than loose pills: one sunken track, the
@@ -2933,6 +3015,7 @@ const ProviderDashboard = () => {
                                     appointments={appointments}
                                     blockedTimes={calendarBlockedTimes}
                                     availability={isStaff ? staffCalendarHours : availability}
+                                    laneHours={laneHours}
                                     statusColors={statusCalendarColors}
                                     height="100%"
                                     headerControl={viewMenu}
@@ -2959,6 +3042,7 @@ const ProviderDashboard = () => {
                                     ownerName={ownerName}
                                     staffFilter={calendarStaffFilter}
                                     availability={isStaff ? staffCalendarHours : availability}
+                                    hoursByDate={hoursByDate}
                                     height="100%"
                                     headerControl={viewMenu}
                                     onEventClick={openApptDetail}
@@ -4269,7 +4353,10 @@ const ProviderDashboard = () => {
                                         //   the owner's own column ("Me") → the business's Working Hours;
                                         //   a team member (picked by the owner, or the member themself) →
                                         //   that member's hours that day (shift, else their weekly hours
-                                        //   within the business's, else the business's), from the API.
+                                        //   within the business's), from the API. A member with neither
+                                        //   has NO hours (source 'none'): nothing comes from the
+                                        //   business's, so they can't be booked — only the owner's
+                                        //   "Book outside working hours" override offers times.
                                         // It used to read the business's hours for every column, and fall
                                         // back to 08:00–20:00 on a day the hours say is closed — so the
                                         // owner saw times that matched neither what they set nor what
@@ -4343,10 +4430,21 @@ const ProviderDashboard = () => {
                                         if (apptForm.date === todayStr) minStart = now.getHours() * 60 + now.getMinutes();
                                         // A member's break or windowed leave that day is busy too.
                                         (dh?.busy || []).forEach(b => bookedRanges.push({ start: toMinutes(b.startTime), end: toMinutes(b.endTime) }));
-                                        const slots = buildTimeSlots({ blocks, bookedRanges, duration, minStart });
+                                        // The day's own opening times stay offered even while booking
+                                        // outside hours over the wider 08:00–20:00 block.
+                                        const slots = buildTimeSlots({ blocks, bookedRanges, duration, minStart, openings: hoursBlocks.map(b => b.start) });
                                         const dayCap = dayName.charAt(0).toUpperCase() + dayName.slice(1);
                                         const closedText = dh?.source === 'leave'
                                             ? `${isStaff ? 'You are' : `${memberName} is`} on leave that day.`
+                                            : dh?.source === 'none'
+                                                // No shift that day and no weekly hours of their own. A member
+                                                // sets them in Availability; the owner, on the member's Team card.
+                                                // (Someone with only shifts on OTHER days has hours — just not this one.)
+                                                ? (isStaff
+                                                    ? (myMember?.hasHours ? `You have no working hours on ${dayCap}.` : 'You have no working hours set — set them in Availability.')
+                                                    : teamMembers.find(m => String(m._id) === apptHoursWho)?.hasHours
+                                                        ? `${memberName} has no working hours on ${dayCap}.`
+                                                        : `${memberName} has no working hours set — they can set them in Availability, or you can on their Team card.`)
                                             : forMember
                                                 ? `${isStaff ? 'You don’t work' : `${memberName} doesn’t work`} on ${dayCap}${dh?.source === 'shift' ? ' (rostered off that day)' : ''}.`
                                                 : `Closed on ${dayCap} in your Working Hours.`;

@@ -24,6 +24,18 @@ const dateKey = (d) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getD
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
 const sameDay = (a, b) => dateKey(a) === dateKey(b);
 const startOfWeek = (d) => { const x = new Date(d); const wd = (x.getDay() + 6) % 7; x.setDate(x.getDate() - wd); return x; };
+
+/**
+ * The 'YYYY-MM-DD' days a view shows — the same days the grid draws, so a
+ * caller can fetch those days' hours (day = the date; 3 Day = it and the next
+ * two; Week = Monday to Sunday).
+ */
+export const visibleDateKeys = (view, date) => {
+    const anchor = date instanceof Date ? date : new Date();
+    const cols = view === 'day' ? 1 : view === 'week' ? 7 : 3;
+    const first = view === 'week' ? startOfWeek(anchor) : new Date(anchor.getFullYear(), anchor.getMonth(), anchor.getDate());
+    return Array.from({ length: cols }, (_, i) => dateKey(addDays(first, i)));
+};
 const toDateStr = (v) => {
     if (!v) return null;
     if (typeof v === 'string' && v.length >= 10) return v.slice(0, 10);
@@ -118,6 +130,9 @@ const CalendarGrid = ({
     ownerName,               // labels the owner/unassigned staff
     staffFilter = 'all',     // 'all' | 'unassigned' | teamMember _id
     availability,            // business hours { monday: {enabled, slots:[{start,end}]}, … }
+    hoursByDate,             // optional { 'YYYY-MM-DD': { slots, busy, source } } — ONE person's own
+                             // hours (a member's own calendar, or the owner's filtered to one
+                             // member). A day that has it is shaded by it; otherwise by availability.
     height,                  // px — measured fill height from the dashboard
     headerControl,           // optional node rendered in the header row (e.g. the view switcher)
     onEventClick,            // (rawAppointment) => void
@@ -220,8 +235,9 @@ const CalendarGrid = ({
         let first = null;
         const consider = (v) => { first = first == null ? v : Math.min(first, v); };
         days.forEach((d) => {
+            const own = hoursByDate?.[dateKey(d)];
             const cfg = availability?.[DAY_NAMES[d.getDay()]];
-            (cfg?.enabled && Array.isArray(cfg.slots) ? cfg.slots : [])
+            (own ? (own.slots || []) : (cfg?.enabled && Array.isArray(cfg.slots) ? cfg.slots : []))
                 .filter((s) => s?.start && s?.end)
                 .forEach((s) => consider(minutesOf(s.start)));
         });
@@ -231,7 +247,7 @@ const CalendarGrid = ({
         });
         return first == null ? 8 * 60 : Math.max(0, Math.floor(first / 60) * 60);
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [dayKeys.join(','), perDay, availability]);
+    }, [dayKeys.join(','), perDay, availability, hoursByDate]);
 
     const bodyH = ((winEnd - winStart) / 60) * HOUR_PX;
     const pxOf = (mins) => ((mins - winStart) / 60) * HOUR_PX;
@@ -244,15 +260,29 @@ const CalendarGrid = ({
         // grid came up solid hatching and sat there looking shut until the
         // request landed, which is why the calendar felt slow to open even
         // though it had already drawn.
-        if (!availability) return [];
-        const cfg = availability[DAY_NAMES[d.getDay()]];
-        const slots = (cfg?.enabled && Array.isArray(cfg.slots) ? cfg.slots : []).filter((s) => s?.start && s?.end);
+        //
+        // One person's own hours for the day (hoursByDate) win when present: their
+        // shift, else their weekly hours, else none — the whole day shaded,
+        // since nothing comes from the business's hours — plus their breaks and
+        // part-day leave. `slots` null = no hours known (nothing shaded).
+        const own = hoursByDate?.[dateKey(d)];
+        let slots;
+        let busy = [];
+        if (own) {
+            if (!Array.isArray(own.slots)) return [];
+            slots = own.slots.filter((s) => s?.start && s?.end);
+            busy = (own.busy || []).map((b) => [minutesOf(b.startTime), minutesOf(b.endTime)]);
+        } else {
+            if (!availability) return [];
+            const cfg = availability[DAY_NAMES[d.getDay()]];
+            slots = (cfg?.enabled && Array.isArray(cfg.slots) ? cfg.slots : []).filter((s) => s?.start && s?.end);
+        }
         if (!slots.length) return [[winStart, winEnd]];
         const sorted = slots.map((s) => [minutesOf(s.start), minutesOf(s.end)]).sort((a, b) => a[0] - b[0]);
         const out = []; let cursor = winStart;
         sorted.forEach(([s, e]) => { if (s > cursor) out.push([cursor, Math.min(s, winEnd)]); cursor = Math.max(cursor, e); });
         if (cursor < winEnd) out.push([cursor, winEnd]);
-        return out.filter(([s, e]) => e > s);
+        return [...out, ...busy].filter(([s, e]) => e > s);
     };
 
     const hourMarks = [];
@@ -452,6 +482,7 @@ const CalendarGrid = ({
                             <div
                                 key={k}
                                 ref={(el) => { colRefs.current[k] = el; }}
+                                data-day={k}
                                 // One column carries the marker the drag uses to measure a
                                 // column's width; the grid itself can't, because it also
                                 // contains the time gutter.

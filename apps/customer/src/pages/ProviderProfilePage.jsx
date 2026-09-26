@@ -238,10 +238,19 @@ const ProviderProfilePage = ({ providerId } = {}) => {
 
     const getInitials = (name) => name ? name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2) : '?';
 
+    // A day's periods in time order — a split day has two ("08:00–12:00, 14:00–18:00").
+    const dayPeriods = (d) => (d?.slots || [])
+        .filter(s => s?.start && s?.end)
+        .slice()
+        .sort((a, b) => String(a.start).localeCompare(String(b.start)));
+
+    // Consecutive days with the same hours (every period, not just the first)
+    // share a line: "Mon–Fri 08:00–12:00, 14:00–18:00".
     const formatSchedule = (sch) => {
         const ordered = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
         const short = { monday: 'Mon', tuesday: 'Tue', wednesday: 'Wed', thursday: 'Thu', friday: 'Fri', saturday: 'Sat', sunday: 'Sun' };
-        const enabled = ordered.filter(d => sch[d]?.enabled);
+        const hoursOf = (day) => dayPeriods(sch[day]).map(s => `${s.start}–${s.end}`).join(', ');
+        const enabled = ordered.filter(d => sch[d]?.enabled && hoursOf(d));
         if (!enabled.length) return [];
         const groups = [];
         let start = 0;
@@ -249,15 +258,12 @@ const ProviderProfilePage = ({ providerId } = {}) => {
             const prev = enabled[i - 1];
             const curr = enabled[i];
             const consecutive = curr && ordered.indexOf(curr) === ordered.indexOf(prev) + 1;
-            const sameHours = curr &&
-                sch[prev].slots[0]?.start === sch[curr].slots[0]?.start &&
-                sch[prev].slots[0]?.end === sch[curr].slots[0]?.end;
+            const sameHours = curr && hoursOf(prev) === hoursOf(curr);
             if (!consecutive || !sameHours) {
                 const group = enabled.slice(start, i);
-                const slot = sch[group[0]].slots[0];
                 groups.push({
                     label: group.length === 1 ? short[group[0]] : `${short[group[0]]}–${short[group[group.length - 1]]}`,
-                    hours: slot ? `${slot.start}–${slot.end}` : '',
+                    hours: hoursOf(group[0]),
                 });
                 start = i;
             }
@@ -344,22 +350,26 @@ const ProviderProfilePage = ({ providerId } = {}) => {
         const days = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
         const dayLabels = { sunday: 'Sunday', monday: 'Monday', tuesday: 'Tuesday', wednesday: 'Wednesday', thursday: 'Thursday', friday: 'Friday', saturday: 'Saturday' };
         const now = new Date(); const nowMin = now.getHours() * 60 + now.getMinutes();
+        // Periods in time order, so "opens today at 14:00" is right during a split
+        // day's break however the periods were saved.
         const today = schedule[days[now.getDay()]];
-        if (today?.enabled && (today.slots || []).length) {
-            for (const s of today.slots) {
+        const todays = dayPeriods(today);
+        if (today?.enabled && todays.length) {
+            for (const s of todays) {
                 const [sH, sM] = String(s.start).split(':').map(Number);
                 const [eH, eM] = String(s.end).split(':').map(Number);
                 if (nowMin >= sH * 60 + sM && nowMin < eH * 60 + eM) return { open: true, headline: 'Open', detail: `until ${s.end}` };
             }
-            const next = today.slots.find(s => { const [h, m] = String(s.start).split(':').map(Number); return h * 60 + m > nowMin; });
+            const next = todays.find(s => { const [h, m] = String(s.start).split(':').map(Number); return h * 60 + m > nowMin; });
             if (next) return { open: false, headline: 'Closed', detail: `opens today at ${next.start}` };
         }
         for (let i = 1; i <= 7; i++) {
             const key = days[(now.getDay() + i) % 7];
             const d = schedule[key];
-            if (d?.enabled && (d.slots || []).length) {
+            const periodsOfDay = dayPeriods(d);
+            if (d?.enabled && periodsOfDay.length) {
                 const when = i === 1 ? 'tomorrow' : `on ${dayLabels[key]}`;
-                return { open: false, headline: 'Closed', detail: `opens ${when} at ${d.slots[0].start}` };
+                return { open: false, headline: 'Closed', detail: `opens ${when} at ${periodsOfDay[0].start}` };
             }
         }
         return { open: false, headline: 'Closed', detail: '' };
@@ -553,10 +563,13 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '0.85rem' }}>
                                     {staff.map(member => {
                                         const hex = /^#[0-9a-f]{6}$/i.test(member.color || '') ? member.color : null;
-                                        const canBook = user?._id !== provider._id;
+                                        // No working hours of their own = nobody can book them yet
+                                        // (nothing comes from the business's hours).
+                                        const notTaking = member.hasHours === false;
+                                        const canBook = user?._id !== provider._id && !notTaking;
                                         const go = () => { if (canBook) navigate(`/book-appointment?providerId=${provider._id}&teamMemberId=${member._id}`); };
                                         return (
-                                            <button key={member._id} type="button" onClick={go} className="pressable" style={{
+                                            <button key={member._id} type="button" onClick={go} className="pressable" data-testid="profile-team-member" aria-disabled={notTaking || undefined} style={{
                                                 background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)',
                                                 padding: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', cursor: canBook ? 'pointer' : 'default', textAlign: 'center', fontFamily: 'var(--font-body)',
                                             }}>
@@ -566,6 +579,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                                 <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--charcoal)' }}>{member.name}</span>
                                                 {member.role && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{member.role}</span>}
                                                 {canBook && <span className="btn-primary" style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', marginTop: '0.15rem' }}>Book</span>}
+                                                {notTaking && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '0.15rem' }}>Not taking bookings yet</span>}
                                             </button>
                                         );
                                     })}

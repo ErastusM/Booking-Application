@@ -132,7 +132,7 @@ describe('leave and blocked time', () => {
     });
 });
 
-describe('fallbacks stay exactly as before', () => {
+describe('fallbacks', () => {
     it('owner-fallback (nobody performs the service) keeps the legacy provider-wide view', async () => {
         const ctx = await setup();
         const otherSvc = await makeService(ctx.provider._id, { name: 'Other' });
@@ -146,17 +146,33 @@ describe('fallbacks stay exactly as before', () => {
         expect(data.some((b) => b.kind === 'off_shift')).toBe(false); // legacy view has no union entries
     });
 
-    it("solo owner: business hours govern — their narrow weekly pattern doesn't close the evening (#121 parity)", async () => {
+    // The business's ONLY bookable member, with weekly hours of their own, works
+    // the business's hours (#121 — staffBooking.weeklyHoursFor): the view and
+    // the validator agree on it. With NO hours of their own: see the next test.
+    it("the only bookable member: business hours govern — their narrow weekly pattern doesn't close the evening (#121 parity)", async () => {
         const provider = await makeProvider();
         const customer = await makeUser();
         const svc = await makeService(provider._id, { duration: 30 });
         await Availability.create({ provider: provider._id, schedule: everyDay('08:00', '19:00') });
-        const solo = await TeamMember.create({ provider: provider._id, name: 'Owner Themself' });
+        const solo = await TeamMember.create({ provider: provider._id, name: 'Only Member' });
         await StaffAvailability.create({ provider: provider._id, teamMember: solo._id, schedule: everyDay('09:00', '17:00') });
 
         const data = await slots({ provider, svc });
         expect(busyAt(data, ['off_shift', 'appointment'], mins('08:00'), mins('19:00'))).toBe(false);
         expect((await bookAny({ customer, svc }, '18:00', '18:30')).status).toBe(201);
+    });
+
+    it('performers with no hours of their own leave the whole day unavailable — and booking is refused', async () => {
+        const provider = await makeProvider();
+        const customer = await makeUser();
+        const svc = await makeService(provider._id, { duration: 30 });
+        await Availability.create({ provider: provider._id, schedule: everyDay('08:00', '19:00') });
+        await TeamMember.create({ provider: provider._id, name: 'No Hours Yet' });
+
+        const data = await slots({ provider, svc });
+        expect(busyAt(data, ['off_shift'], mins('08:00'), mins('19:00'))).toBe(true);
+        expect(busyAt(data, ['appointment'], mins('08:00'), mins('19:00'))).toBe(false); // no waitlist bait
+        expect((await bookAny({ customer, svc }, '10:00', '10:30')).status).toBe(400);
     });
 });
 

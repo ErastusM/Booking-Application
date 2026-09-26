@@ -21,8 +21,13 @@ const StaffReadinessBanner = () => {
                 const hasServices = d.offersAllServices
                     ? (d.services || []).length > 0
                     : (d.selected || []).length > 0;
+                // The server's own answer (the rule bookings use: weekly hours in
+                // any rotation week, or a shift from today on); the local read of
+                // the flat weekly schedule is only a fallback for an older API.
                 const schedule = hrs.data.data?.schedule;
-                const hasHours = !!schedule && Object.values(schedule).some((day) => day?.enabled && (day.slots || []).length > 0);
+                const hasHours = typeof me.data.data?.hasHours === 'boolean'
+                    ? me.data.data.hasHours
+                    : !!schedule && Object.values(schedule).some((day) => day?.enabled && (day.slots || []).some((sl) => sl?.start && sl?.end));
                 const todo = [];
                 if (!hasServices) todo.push({ label: 'add your services and prices', to: '/dashboard?tab=services' });
                 if (!hasHours) todo.push({ label: 'set your working hours', to: '/dashboard?tab=availability' });

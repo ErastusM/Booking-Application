@@ -84,7 +84,11 @@ const StaffLanesDay = ({
     staffFilter,             // 'all' | 'unassigned' | teamMember _id — narrows the lanes shown
     appointments,            // ALL appointments (any day); filtered here
     blockedTimes,            // ALL blocked times (any day); business-wide ones span every lane
-    availability,            // business hours { monday: { enabled, slots: [{start,end}] }, … }
+    availability,            // business hours { monday: { enabled, slots: [{start,end}] }, … } —
+                             // the shading until laneHours arrives
+    laneHours,               // { [laneId]: { slots, busy, source } } for this day — each person's
+                             // OWN hours ('unassigned' = the owner's = the business's), from
+                             // GET /team/hours; null/undefined while loading
     statusColors,            // same status → {bg,text,borderColor} map the FullCalendar views use
     height,                  // px — measured fill height from the dashboard
     onApptClick,             // (rawAppointment) => void
@@ -115,7 +119,7 @@ const StaffLanesDay = ({
         [blockedTimes, dayKey]
     );
 
-    // Lanes: the owner ("Me / unassigned") plus active members — and any inactive
+    // Lanes: the owner ("Me") plus active members — and any inactive
     // member who still has an appointment today, so nothing booked can go invisible.
     const lanes = useMemo(() => {
         const memberIdsWithApptsToday = new Set(
@@ -125,7 +129,7 @@ const StaffLanesDay = ({
         // stand-in palette colour for one with none yet — never the orange).
         const colors = memberColorMap(teamMembers);
         const all = [
-            { id: 'unassigned', name: ownerName || 'Me', sub: 'Owner · unassigned', color: 'var(--gold)' },
+            { id: 'unassigned', name: ownerName || 'Me', sub: 'Owner', color: 'var(--gold)' },
             ...teamMembers
                 .filter((m) => m.isActive !== false || memberIdsWithApptsToday.has(String(m._id)))
                 .map((m) => ({
@@ -147,12 +151,29 @@ const StaffLanesDay = ({
     const daySlots = (dayCfg?.enabled && Array.isArray(dayCfg.slots) ? dayCfg.slots : [])
         .filter((s) => s?.start && s?.end);
 
+    // Each lane's own hours for the day, once they have loaded: a member's shift,
+    // else their weekly hours (within the business's), else none — closed, since
+    // nothing comes from the business's hours; the owner's lane is the business's
+    // Working Hours. `slots` null = no hours known to hold them to (no shading).
+    // Until the hours arrive every lane keeps the business-hours shading it has
+    // always had, so nothing ever flashes "closed" while loading.
+    const hoursOf = useCallback((laneId) => (laneHours && laneHours[laneId]) || null, [laneHours]);
+    const laneSlots = useCallback((laneId) => {
+        const h = hoursOf(laneId);
+        if (!h) return daySlots;
+        return Array.isArray(h.slots) ? h.slots.filter((s) => s?.start && s?.end) : null;
+    }, [hoursOf, daySlots]);
+
     // Time window: working hours ∪ anything already on the calendar, padded an
     // hour each side and snapped to whole hours (same spirit as the FC views'
-    // "never hide something booked off-grid" rule).
+    // "never hide something booked off-grid" rule). With per-person hours it is
+    // every visible lane's hours — a shift may run past the business's closing.
     const { windowStart, windowEnd } = useMemo(() => {
-        let start = daySlots.length ? Math.min(...daySlots.map((s) => minutesOf(s.start))) : 8 * 60;
-        let end = daySlots.length ? Math.max(...daySlots.map((s) => minutesOf(s.end))) : 18 * 60;
+        const allSlots = laneHours
+            ? lanes.flatMap((l) => laneSlots(l.id) || [])
+            : daySlots;
+        let start = allSlots.length ? Math.min(...allSlots.map((s) => minutesOf(s.start))) : 8 * 60;
+        let end = allSlots.length ? Math.max(...allSlots.map((s) => minutesOf(s.end))) : 18 * 60;
         dayAppts.forEach((a) => {
             const s = minutesOf(a.startTime);
             const e = minutesOf(a.endTime || '');
@@ -167,25 +188,45 @@ const StaffLanesDay = ({
         start = Math.max(0, Math.floor(start / 60) * 60 - 60);
         end = Math.min(24 * 60, Math.ceil(end / 60) * 60 + 60);
         return { windowStart: start, windowEnd: Math.max(end, start + 60) };
-    }, [daySlots, dayAppts, dayBlocks]);
+    }, [daySlots, dayAppts, dayBlocks, laneHours, lanes, laneSlots]);
 
     const bodyH = pxOf(windowEnd - windowStart);
 
-    // Non-working intervals = the complement of business hours inside the window.
-    // (Business hours only for now — per-staff hours shading needs StaffAvailability
-    // fetched per member; the booking API already enforces those server-side.)
-    const offIntervals = useMemo(() => {
-        if (!daySlots.length) return [[windowStart, windowEnd]];
-        const sorted = daySlots.map((s) => [minutesOf(s.start), minutesOf(s.end)]).sort((a, b) => a[0] - b[0]);
-        const out = [];
-        let cursor = windowStart;
-        sorted.forEach(([s, e]) => {
-            if (s > cursor) out.push([cursor, Math.min(s, windowEnd)]);
-            cursor = Math.max(cursor, e);
+    // Non-working intervals per lane = the complement of that person's hours
+    // inside the window, plus their breaks and part-day leave. No hours that day
+    // shades the whole lane; hours unknown (null) shade nothing.
+    const offIntervalsByLane = useMemo(() => {
+        const complement = (slots) => {
+            if (slots === null) return [];
+            if (!slots.length) return [[windowStart, windowEnd]];
+            const sorted = slots.map((s) => [minutesOf(s.start), minutesOf(s.end)]).sort((a, b) => a[0] - b[0]);
+            const out = [];
+            let cursor = windowStart;
+            sorted.forEach(([s, e]) => {
+                if (s > cursor) out.push([cursor, Math.min(s, windowEnd)]);
+                cursor = Math.max(cursor, e);
+            });
+            if (cursor < windowEnd) out.push([cursor, windowEnd]);
+            return out;
+        };
+        const byLane = {};
+        lanes.forEach((l) => {
+            const busy = (hoursOf(l.id)?.busy || [])
+                .map((b) => [Math.max(windowStart, minutesOf(b.startTime)), Math.min(windowEnd, minutesOf(b.endTime))]);
+            byLane[l.id] = [...complement(laneSlots(l.id)), ...busy].filter(([s, e]) => e > s);
         });
-        if (cursor < windowEnd) out.push([cursor, windowEnd]);
-        return out.filter(([s, e]) => e > s);
-    }, [daySlots, windowStart, windowEnd]);
+        return byLane;
+    }, [lanes, hoursOf, laneSlots, windowStart, windowEnd]);
+
+    // Why a lane is shaded all day, for its header.
+    const laneStatus = (laneId) => {
+        const h = hoursOf(laneId);
+        if (!h || laneId === 'unassigned') return '';
+        if (h.source === 'none') return 'No working hours';
+        if (h.source === 'leave') return 'On leave';
+        if (Array.isArray(h.slots) && h.slots.length === 0) return 'Day off';
+        return '';
+    };
 
     // Bucket the day's appointments/blocks per lane. The deleted-member fallback
     // is decided against the FULL roster (not the visible lanes) so that
@@ -381,7 +422,7 @@ const StaffLanesDay = ({
                                 <span style={{ fontSize: '0.83rem', fontWeight: 600, color: 'var(--charcoal)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lane.name}</span>
                             </div>
                             <div style={{ fontSize: '0.68rem', color: 'var(--text-muted)', marginTop: '2px', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                                {lane.sub}{perLane[lane.id]?.appts.length ? ` · ${perLane[lane.id].appts.length} booked` : ''}
+                                {lane.sub}{laneStatus(lane.id) ? ` · ${laneStatus(lane.id)}` : ''}{perLane[lane.id]?.appts.length ? ` · ${perLane[lane.id].appts.length} booked` : ''}
                             </div>
                         </div>
                     ))}
@@ -404,6 +445,7 @@ const StaffLanesDay = ({
                             <div
                                 key={`b_${lane.id}`}
                                 ref={(el) => { laneRefs.current[lane.id] = el; }}
+                                data-lane-id={lane.id}
                                 // One lane body is marked so the drag hook can measure a single
                                 // lane's width for the sideways (reassign) hit-test — same trick
                                 // the day grid uses for its columns.
@@ -418,10 +460,11 @@ const StaffLanesDay = ({
                                     backgroundImage: `repeating-linear-gradient(to bottom, var(--border) 0 1px, transparent 1px ${HOUR_PX}px)`,
                                 }}
                             >
-                                {/* Non-working hours (business hours) — hatching + dark-mode
-                                    variant live in index.css, shared rules with the FC views */}
-                                {offIntervals.map(([s, e], i) => (
-                                    <div key={`off_${i}`} aria-hidden="true" className="staff-lane-offhours" style={{ position: 'absolute', top: `${pxOf(s - windowStart)}px`, height: `${pxOf(e - s)}px`, left: 0, right: 0, pointerEvents: 'none' }} />
+                                {/* Non-working hours — this person's own (the owner's lane: the
+                                    business's). Hatching + dark-mode variant live in index.css,
+                                    shared rules with the FC views */}
+                                {(offIntervalsByLane[lane.id] || []).map(([s, e], i) => (
+                                    <div key={`off_${i}`} aria-hidden="true" data-testid="staff-lane-off" className="staff-lane-offhours" style={{ position: 'absolute', top: `${pxOf(s - windowStart)}px`, height: `${pxOf(e - s)}px`, left: 0, right: 0, pointerEvents: 'none' }} />
                                 ))}
 
                                 {/* Blocked time — grey overlay behind appointments; tap to edit */}

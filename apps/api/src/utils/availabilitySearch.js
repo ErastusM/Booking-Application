@@ -1,8 +1,9 @@
 /**
  * Availability-first provider search — "who can actually take me on <date>
  * (around <time>)?". For each candidate provider the day is computed as:
- * business hours ∩ (union of staff columns, or the owner column when there is
- * no roster) − blocked time (business-wide + per-staff) − existing bookings.
+ * business hours ∩ (union of the bookable staff columns — each over their OWN
+ * hours, none of their own = closed — plus the owner column when the owner
+ * offers anything) − blocked time (business-wide + per-staff) − existing bookings.
  * Buffers are intentionally ignored here: search promises an OPENING; the
  * booking flow re-validates the exact slot (incl. buffers + races) on create.
  */
@@ -16,11 +17,11 @@ const Appointment = require('../models/Appointment');
 const Shift = require('../models/Shift');
 const TimeOff = require('../models/TimeOff');
 const { NAMIBIA_OFFSET_MIN } = require('./appointmentTime');
-const { pickRotationWeek, memberBusyIntervalsBuffered } = require('./staffBooking');
+const { pickRotationWeek, memberBusyIntervalsBuffered, ownerPerforms, availabilityHasHours } = require('./staffBooking');
 const { bookableMembersByProvider, hasPerformer } = require('./serviceOffering');
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
-const GRID_STEP = 30; // minutes between offered start times
+const GRID_STEP = 30; // minutes between offered start times (plus each period's own opening time)
 // Mirrors the booking page's fallback for providers who never published hours.
 const DEFAULT_BLOCKS = [{ start: 8 * 60, end: 20 * 60 }];
 
@@ -31,15 +32,26 @@ const toMin = (t) => {
 const fmt = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 const overlaps = (aS, aE, bS, bE) => aS < bE && aE > bS;
 
+// Periods that touch or overlap read as one, as the booking validator reads them
+// (staffBooking.withinPeriods).
+const mergeBlocks = (blocks) => blocks
+    .filter(b => b.end > b.start)
+    .sort((a, b) => a.start - b.start)
+    .reduce((out, b) => {
+        const last = out[out.length - 1];
+        if (last && b.start <= last.end) last.end = Math.max(last.end, b.end);
+        else out.push({ ...b });
+        return out;
+    }, []);
+
 const blocksFor = (schedule, dateStr) => {
     if (!schedule) return DEFAULT_BLOCKS;
     const [y, m, d] = dateStr.split('-').map(Number);
     const day = schedule[DAY_NAMES[new Date(y, m - 1, d).getDay()]];
     if (!day?.enabled || !Array.isArray(day.slots) || day.slots.length === 0) return [];
-    return day.slots
+    return mergeBlocks(day.slots
         .filter(s => s?.start && s?.end)
-        .map(s => ({ start: toMin(s.start), end: toMin(s.end) }))
-        .filter(b => b.end > b.start);
+        .map(s => ({ start: toMin(s.start), end: toMin(s.end) })));
 };
 
 /**
@@ -81,7 +93,9 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
     const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999);
     const [availabilities, members, blocked, appts] = await Promise.all([
         Availability.find({ provider: { $in: candidateIds } }).select('provider schedule'),
-        TeamMember.find({ provider: { $in: candidateIds }, isActive: true }).select('provider'),
+        // Only people clients can be sent to: a front-desk member (bookable:false)
+        // with hours would otherwise advertise openings nobody can take.
+        TeamMember.find({ provider: { $in: candidateIds }, isActive: true, bookable: { $ne: false } }).select('provider'),
         BlockedTime.find({ provider: { $in: candidateIds }, date }).select('provider teamMember ownerOnly startTime endTime'),
         Appointment.find({
             provider: { $in: candidateIds },
@@ -138,8 +152,13 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
         if (businessBlocks.length === 0) continue; // closed that day
 
         const roster = membersByProvider.get(pid) || [];
-        // Columns: each staff member, or the owner when there's no roster.
-        const columns = (roster.length ? roster : [null]).map(memberId => {
+        // Columns: each bookable staff member, plus the owner's own column when
+        // the owner offers any of these services (always, with no roster). The
+        // owner is a bookable professional next to the team (getProviderStaff),
+        // so a business whose members have no hours of their own still shows the
+        // owner's openings instead of vanishing from search.
+        const ownerColumn = !roster.length || (byProvider.get(pid) || []).some(ownerPerforms);
+        const columns = [...roster, ...(ownerColumn ? [null] : [])].map(memberId => {
             const busy = [];
             appts.forEach(a => {
                 if (a.provider.toString() !== pid) return;
@@ -163,8 +182,9 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
 
             // Working windows, honouring the booking validator's precedence for a
             // real member: approved leave → a date-specific Shift (which REPLACES
-            // the weekly pattern, its breaks becoming busy) → weekly pattern →
-            // business hours. The owner column (no roster) has no Shift/TimeOff.
+            // the weekly pattern, its breaks becoming busy) → their own weekly
+            // pattern → nothing (no hours of their own = not bookable). The owner
+            // column works the business hours and has no Shift/TimeOff.
             let blocks;
             if (memberId) {
                 const memberLeaves = leavesByMember.get(memberId) || [];
@@ -177,16 +197,22 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
                     memberLeaves.forEach(lv => busy.push({ start: toMin(lv.startTime), end: toMin(lv.endTime) }));
                     const shift = shiftByMember.get(memberId);
                     if (shift) {
-                        blocks = (shift.slots || [])
-                            .map(sl => ({ start: toMin(sl.start), end: toMin(sl.end) }))
-                            .filter(b => b.end > b.start);
+                        blocks = mergeBlocks((shift.slots || [])
+                            .map(sl => ({ start: toMin(sl.start), end: toMin(sl.end) })));
                         (shift.breaks || []).forEach(b => busy.push({ start: toMin(b.start), end: toMin(b.end) }));
                     } else {
                         const ownDoc = staffAvailByMember.get(memberId);
-                        // Rotation-aware: the week that applies on THIS date (or the
-                        // flat schedule when the member has no rotation).
-                        const ownSchedule = ownDoc ? pickRotationWeek(ownDoc, date) : null;
-                        blocks = ownSchedule ? blocksFor(ownSchedule, date) : businessBlocks;
+                        if (!availabilityHasHours(ownDoc)) {
+                            blocks = [];                    // no hours of their own: not bookable
+                        } else if (roster.length === 1) {
+                            // The business's only bookable member works the
+                            // business's hours (staffBooking.weeklyHoursFor).
+                            blocks = businessBlocks;
+                        } else {
+                            // Rotation-aware: the week that applies on THIS date (or
+                            // the flat schedule when the member has no rotation).
+                            blocks = blocksFor(pickRotationWeek(ownDoc, date), date);
+                        }
                     }
                 }
             } else {
@@ -197,14 +223,25 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
 
         const openings = [];
         for (const block of businessBlocks) {
+            // Candidate starts: the grid, plus every working period's exact opening
+            // time inside this block — the business's own (08:30) and each
+            // column's (a member starting 08:15, or 14:30 after a split day's
+            // break). The owner's answer: an opening time is always offered when
+            // the service fits, even off the grid.
+            const fits = (t) => t >= block.start && t >= minStart && t + duration <= block.end;
+            const candidates = new Set();
             let t = Math.max(block.start, Math.ceil(minStart / GRID_STEP) * GRID_STEP);
             t = Math.ceil(t / GRID_STEP) * GRID_STEP;
-            for (; t + duration <= block.end; t += GRID_STEP) {
+            for (; t + duration <= block.end; t += GRID_STEP) candidates.add(t);
+            [block.start, ...columns.flatMap(col => col.blocks.map(b => b.start))]
+                .filter(fits)
+                .forEach(s => candidates.add(s));
+            for (const start of [...candidates].sort((a, b) => a - b)) {
                 const open = columns.some(col =>
-                    col.blocks.some(b => t >= b.start && t + duration <= b.end)
-                    && !col.busy.some(r => overlaps(t, t + duration, r.start, r.end)));
+                    col.blocks.some(b => start >= b.start && start + duration <= b.end)
+                    && !col.busy.some(r => overlaps(start, start + duration, r.start, r.end)));
                 if (open) {
-                    openings.push(fmt(t));
+                    openings.push(fmt(start));
                     if (openings.length >= maxOpenings) break;
                 }
             }

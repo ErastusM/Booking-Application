@@ -37,8 +37,9 @@ const rotationSchema = new mongoose.Schema({
 }, { _id: false });
 
 // Per-staff working hours, mirroring Availability's shape. ABSENCE of a doc
-// means the staff member inherits the business hours (Availability) — only
-// create one when their schedule differs.
+// means the member has NO weekly hours of their own: nothing is inherited from
+// the business's hours (Availability), so they can only be booked on a date
+// they have a Shift for — with neither, they are not bookable at all.
 const staffAvailabilitySchema = new mongoose.Schema({
     // Business owner — denormalized for cheap provider-scoped queries.
     provider: {

@@ -327,6 +327,12 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         // One person's working hours on a date, as bookings are checked against
         // them: id = a member id, 'mine' (the signed-in member) or 'owner'.
         getDayHours: (id: string, date: string) => API.get(`/team/${id}/hours`, { params: { date } }),
+        // Several people's hours over up to 7 days in one request (what the
+        // calendar shades each lane with). ids: 'owner', 'mine' or member ids;
+        // omit for the owner plus every member (a team member gets only
+        // themselves and the owner's column).
+        getTeamHours: (from: string, to: string, ids?: string[]) =>
+            API.get('/team/hours', { params: ids ? { from, to, ids: ids.join(',') } : { from, to } }),
         // `rotation` is an optional multi-week cycle { anchor, weeks[] }. Omit it to
         // leave any stored rotation untouched; pass null to clear it back to the
         // single weekly `schedule`.

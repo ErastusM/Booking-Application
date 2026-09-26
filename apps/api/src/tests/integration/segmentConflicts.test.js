@@ -14,7 +14,7 @@ const request = require('supertest');
 const { futureDate } = require('../helpers/dates');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
-const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = require('../helpers/factories');
+const { makeUser, makeProvider, makeService, makeAppointment, authHeader, giveHours } = require('../helpers/factories');
 const TeamMember = require('../../models/TeamMember');
 const Availability = require('../../models/Availability');
 const { resolveBookingStaff } = require('../../utils/staffBooking');
@@ -41,6 +41,9 @@ const setup = async () => {
     const alice = await TeamMember.create({ provider: provider._id, name: 'Alice' });
     const bob = await TeamMember.create({ provider: provider._id, name: 'Bob' });
     await Availability.create({ provider: provider._id, schedule: everyDay('08:00', '20:00') });
+    // Both work the business's hours as their own (nothing is inherited).
+    await giveHours(alice, everyDay('08:00', '20:00'));
+    await giveHours(bob, everyDay('08:00', '20:00'));
     return { provider, customer, svc, alice, bob };
 };
 

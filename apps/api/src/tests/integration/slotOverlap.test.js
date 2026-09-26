@@ -14,7 +14,7 @@ const request = require('supertest');
 const { futureDate } = require('../helpers/dates');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
-const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = require('../helpers/factories');
+const { makeUser, makeProvider, makeService, makeAppointment, authHeader, giveHours } = require('../helpers/factories');
 const TeamMember = require('../../models/TeamMember');
 const StaffAvailability = require('../../models/StaffAvailability');
 const Availability = require('../../models/Availability');
@@ -56,6 +56,10 @@ const setup = async ({ erastusCut } = {}) => {
         provider: provider._id, name: 'Erastus', offersAllServices: true, user: erastusUser._id,
         serviceOverrides: erastusCut ? [{ service: cut._id, duration: erastusCut, price: 170 }] : [],
     });
+    // Hours of their own (all day, so the business's 08:00–18:00 is the limit):
+    // a member with none can't be booked.
+    await giveHours(hilda);
+    await giveHours(erastus);
     return { provider, customer, other, cut, braids, hilda, erastus, erastusUser };
 };
 
@@ -107,7 +111,7 @@ describe("the owner's report — a 2-hour service next to a 15:00 booking", () =
 
     it('the screenshot: a day that ends at 16:00 — 14:00 is genuinely free, 15:00 cannot START a 2-hour service', async () => {
         const ctx = await setup();
-        await StaffAvailability.create({ provider: ctx.provider._id, teamMember: ctx.erastus._id, schedule: everyDay('13:00', '16:00') });
+        await StaffAvailability.updateOne({ teamMember: ctx.erastus._id }, { $set: { schedule: everyDay('13:00', '16:00') } });
         const { data } = await slots(ctx, { teamMember: String(ctx.erastus._id), service: String(ctx.braids._id) });
         expect(offered(data, '13:00', 120)).toBe(true);
         expect(offered(data, '14:00', 120)).toBe(true);
