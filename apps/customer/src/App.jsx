@@ -70,7 +70,7 @@ function AppRoutes() {
             {/* --safe-top, not raw env(): in the installed PWA the navbar's clearance is
                 floored at 50px, so page content must derive from the same value or it
                 slides under the fixed bar on devices where env() reports 0. */}
-            <div key={location.pathname} className="route-view" style={{ paddingTop: 'var(--safe-top, 0px)' }}>
+            <main id="main-content" tabIndex={-1} key={location.pathname} className="route-view" style={{ paddingTop: 'var(--safe-top, 0px)' }}>
                 <Routes location={location}>
                     {/* Public routes */}
                     <Route path="/" element={<Home />} />
@@ -135,8 +135,23 @@ function AppRoutes() {
 
                     <Route path="*" element={<Navigate to="/" replace />} />
                 </Routes>
-            </div>
+            </main>
         </Suspense>
+    );
+}
+
+// WCAG 2.4.1 bypass blocks: the first Tab stop on every page jumps past the
+// navigation to the page's <main>. Focus is moved in code (not a #hash link) so
+// the router never sees a URL change.
+function SkipLink() {
+    return (
+        <a href="#main-content" className="skip-link" onClick={(e) => {
+            const main = document.getElementById('main-content');
+            if (!main) return;
+            e.preventDefault();
+            main.focus();
+            main.scrollIntoView({ block: 'start' });
+        }}>Skip to content</a>
     );
 }
 
@@ -152,6 +167,7 @@ function App() {
                         <AppUpdater />
                         <WaitlistCelebration />
                         <SignupSurveyModal />
+                        <SkipLink />
                         <Navbar />
                         <AppRoutes />
                         <FooterGate />

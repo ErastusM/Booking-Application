@@ -520,7 +520,7 @@ const Home = () => {
                 transition: 'box-shadow 0.25s ease, border-color 0.25s ease',
             }}>
                 <div className="container home-search-inner" style={{ marginLeft: 'auto', marginRight: 'auto' }}>
-                    <form onSubmit={handleSearch} style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '999px', padding: '0.4rem 0.4rem 0.4rem 1.25rem', boxShadow: '0 6px 22px rgba(4,5,5,0.10)' }}>
+                    <form onSubmit={handleSearch} className="home-search-form" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '999px', padding: '0.4rem 0.4rem 0.4rem 1.25rem', boxShadow: '0 6px 22px rgba(4,5,5,0.10)' }}>
                         <Search size={19} strokeWidth={2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
                         <input
                             value={query}

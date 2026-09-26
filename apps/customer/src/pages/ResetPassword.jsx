@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { authService } from '../services';
+import { Field } from '@bookplus/ui';
 
 const ResetPassword = () => {
     const [searchParams] = useSearchParams();
@@ -100,7 +101,7 @@ const ResetPassword = () => {
                         <span style={{ color: 'var(--gold)', fontStyle: 'italic' }}>password.</span>
                     </h2>
                     <p style={{
-                        color: 'rgba(255,255,255,0.5)',
+                        color: 'rgba(255,255,255,0.66)',
                         fontSize: '1rem',
                         lineHeight: 1.7,
                         fontWeight: '300',
@@ -136,7 +137,7 @@ const ResetPassword = () => {
                                 Your password has been reset successfully. Redirecting you to sign in…
                             </p>
                             <Link to="/login" style={{
-                                color: 'var(--gold)',
+                                color: 'var(--gold-dark)',
                                 fontWeight: '600',
                                 fontSize: '0.9rem',
                                 textDecoration: 'none',
@@ -175,7 +176,7 @@ const ResetPassword = () => {
 
                             <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                                 <div>
-                                    <label style={{
+                                    <Field label="New Password" labelStyle={{
                                         display: 'block',
                                         fontSize: '0.8rem',
                                         fontWeight: '600',
@@ -184,20 +185,19 @@ const ResetPassword = () => {
                                         letterSpacing: '0.05em',
                                         textTransform: 'uppercase',
                                     }}>
-                                        New Password
-                                    </label>
-                                    <input
-                                        type="password"
-                                        value={password}
-                                        onChange={e => setPassword(e.target.value)}
-                                        required
-                                        placeholder="••••••••"
-                                        className="input"
-                                    />
+                                        <input
+                                            type="password"
+                                            value={password}
+                                            onChange={e => setPassword(e.target.value)}
+                                            required
+                                            placeholder="••••••••"
+                                            className="input"
+                                        />
+                                    </Field>
                                 </div>
 
                                 <div>
-                                    <label style={{
+                                    <Field label="Confirm Password" labelStyle={{
                                         display: 'block',
                                         fontSize: '0.8rem',
                                         fontWeight: '600',
@@ -206,16 +206,15 @@ const ResetPassword = () => {
                                         letterSpacing: '0.05em',
                                         textTransform: 'uppercase',
                                     }}>
-                                        Confirm Password
-                                    </label>
-                                    <input
-                                        type="password"
-                                        value={confirm}
-                                        onChange={e => setConfirm(e.target.value)}
-                                        required
-                                        placeholder="••••••••"
-                                        className="input"
-                                    />
+                                        <input
+                                            type="password"
+                                            value={confirm}
+                                            onChange={e => setConfirm(e.target.value)}
+                                            required
+                                            placeholder="••••••••"
+                                            className="input"
+                                        />
+                                    </Field>
                                 </div>
 
                                 <button

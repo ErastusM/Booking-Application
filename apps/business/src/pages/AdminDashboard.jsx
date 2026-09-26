@@ -3,7 +3,7 @@ import { appointmentService, serviceService, userService, providerWalletService,
 import { useToast } from '../components/Toast';
 // App-styled replacements for the native <select> and window.confirm, so the
 // admin's pickers and prompts wear the app's colours.
-import { Select, useConfirm, formatDuration } from '@bookplus/ui';
+import { Select, useConfirm, formatDuration, Field } from '@bookplus/ui';
 import { CalendarDays, ConciergeBell, Users, Clock } from 'lucide-react';
 
 // A payment-proof URL comes from the customer's own submission. The API now
@@ -317,9 +317,9 @@ const AdminDashboard = () => {
 
     const inputStyle = {
         width: '100%', padding: '0.65rem 0.875rem',
-        border: '1.5px solid var(--border)', borderRadius: 'var(--radius-sm)',
+        border: '1.5px solid var(--border-input)', borderRadius: 'var(--radius-sm)',
         fontFamily: 'var(--font-body)', fontSize: '0.875rem',
-        color: 'var(--text-primary)', outline: 'none',
+        color: 'var(--text-primary)',
     };
 
     const labelStyle = {
@@ -491,20 +491,24 @@ const AdminDashboard = () => {
                         {showServiceForm && (
                             <form onSubmit={handleServiceSubmit} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem', marginBottom: '1rem', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
                                 <div style={{ gridColumn: '1 / -1' }}>
-                                    <label style={labelStyle}>Service Name</label>
-                                    <input required value={serviceForm.name} onChange={e => setServiceForm({ ...serviceForm, name: e.target.value })} style={inputStyle} />
+                                    <Field label="Service Name" labelStyle={labelStyle}>
+                                        <input required value={serviceForm.name} onChange={e => setServiceForm({ ...serviceForm, name: e.target.value })} style={inputStyle} />
+                                    </Field>
                                 </div>
                                 <div style={{ gridColumn: '1 / -1' }}>
-                                    <label style={labelStyle}>Description</label>
-                                    <textarea required value={serviceForm.description} onChange={e => setServiceForm({ ...serviceForm, description: e.target.value })} rows="2" style={{ ...inputStyle, resize: 'vertical' }} />
+                                    <Field label="Description" labelStyle={labelStyle}>
+                                        <textarea required value={serviceForm.description} onChange={e => setServiceForm({ ...serviceForm, description: e.target.value })} rows="2" style={{ ...inputStyle, resize: 'vertical' }} />
+                                    </Field>
                                 </div>
                                 <div>
-                                    <label style={labelStyle}>Price ($)</label>
-                                    <input required type="number" value={serviceForm.price} onChange={e => setServiceForm({ ...serviceForm, price: e.target.value })} style={inputStyle} />
+                                    <Field label="Price ($)" labelStyle={labelStyle}>
+                                        <input required type="number" value={serviceForm.price} onChange={e => setServiceForm({ ...serviceForm, price: e.target.value })} style={inputStyle} />
+                                    </Field>
                                 </div>
                                 <div>
-                                    <label style={labelStyle}>Duration (min)</label>
-                                    <input required type="number" value={serviceForm.duration} onChange={e => setServiceForm({ ...serviceForm, duration: e.target.value })} style={inputStyle} />
+                                    <Field label="Duration (min)" labelStyle={labelStyle}>
+                                        <input required type="number" value={serviceForm.duration} onChange={e => setServiceForm({ ...serviceForm, duration: e.target.value })} style={inputStyle} />
+                                    </Field>
                                 </div>
                                 <div style={{ gridColumn: '1 / -1' }}>
                                     <button type="submit" className="btn-primary" style={{ padding: '0.65rem 1.5rem', fontSize: '0.875rem' }}>
@@ -533,7 +537,7 @@ const AdminDashboard = () => {
                                             <td style={{ padding: '0.875rem 1rem' }}>
                                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                     <button onClick={() => handleEditService(s)} style={{ background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--gold-dark)', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Edit</button>
-                                                    <button onClick={() => handleDeleteService(s._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Delete</button>
+                                                    <button onClick={() => handleDeleteService(s._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: 'var(--danger-fg)', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Delete</button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -550,7 +554,7 @@ const AdminDashboard = () => {
                         {/* Filter toolbar */}
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', flexWrap: 'wrap', gap: '0.75rem' }}>
                             <div style={{ display: 'flex', gap: '0.6rem', flexWrap: 'wrap', alignItems: 'center' }}>
-                                <input
+                                <input aria-label="Search users by name or email"
                                     value={userSearch}
                                     onChange={e => { setUserSearch(e.target.value); setUserPage(1); }}
                                     placeholder="Search name or email…"
@@ -655,7 +659,7 @@ const AdminDashboard = () => {
                                                             {u.isActive === false ? 'Activate' : 'Suspend'}
                                                         </button>
                                                     )}
-                                                    <button onClick={() => handleDeleteUser(u._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Delete</button>
+                                                    <button onClick={() => handleDeleteUser(u._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: 'var(--danger-fg)', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Delete</button>
                                                 </div>
                                             </td>
                                         </tr>
@@ -901,9 +905,9 @@ const AdminAdjustModal = ({ wallet, onClose, onDone }) => {
                             }}>{o.t}</button>
                         ))}
                     </div>
-                    <input type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Amount (N$)" className="input" style={{ width: '100%', marginBottom: '0.75rem' }} required />
-                    <input type="text" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (e.g. manual deposit, correction)" className="input" style={{ width: '100%', marginBottom: '1rem' }} maxLength={200} />
-                    {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
+                    <input aria-label="Amount (N$)" type="number" min="1" step="0.01" value={amount} onChange={(e) => setAmount(e.target.value)} placeholder="Amount (N$)" className="input" style={{ width: '100%', marginBottom: '0.75rem' }} required />
+                    <input aria-label="Reason" type="text" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="Reason (e.g. manual deposit, correction)" className="input" style={{ width: '100%', marginBottom: '1rem' }} maxLength={200} />
+                    {error && <p style={{ color: 'var(--danger-fg)', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
                     <div style={{ display: 'flex', gap: '0.5rem' }}>
                         <button type="submit" disabled={busy} className="btn-primary" style={{ flex: 1, padding: '0.75rem' }}>{busy ? 'Saving…' : 'Apply'}</button>
                         <button type="button" onClick={onClose} className="btn-outline" style={{ padding: '0.75rem 1.1rem' }}>Cancel</button>
@@ -960,7 +964,7 @@ const ProviderRevenueModal = ({ providerId, onClose }) => {
                                     {data.provider.isActive ? '' : ' · suspended'}
                                 </p>
                             </div>
-                            <button onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', lineHeight: 1, cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0 }}>×</button>
+                            <button aria-label="Close" onClick={onClose} style={{ background: 'none', border: 'none', fontSize: '1.5rem', lineHeight: 1, cursor: 'pointer', color: 'var(--text-muted)', flexShrink: 0 }}>×</button>
                         </div>
 
                         <div style={{ padding: '1.5rem' }}>

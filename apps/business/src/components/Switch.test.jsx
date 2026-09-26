@@ -72,4 +72,13 @@ describe('Switch', () => {
         render(<Switch checked onChange={() => {}} label="Everyone" data-testid="s" />);
         expect(screen.getByText('Everyone')).toBeInTheDocument();
     });
+
+    // WCAG 4.1.2: the visible text is the switch's accessible name, and the
+    // role/state are exposed, so a screen reader hears "Bookable, switch, off".
+    it('is named by its visible label and exposes switch state', () => {
+        render(<Switch checked={false} onChange={() => {}} label="Bookable" data-testid="s" />);
+        const sw = screen.getByRole('switch', { name: 'Bookable' });
+        expect(sw).toBe(screen.getByTestId('s'));
+        expect(sw.checked).toBe(false);
+    });
 });

@@ -12,8 +12,13 @@ import React from 'react';
  * normal while doing nothing, which is why `Switch.test.jsx` pins the property
  * rather than trusting the style to survive the next edit.
  */
+//
+// The outer element is a <label>, so the visible text is the switch's
+// accessible name (WCAG 4.1.2) and clicking the text toggles it too. The input
+// is invisible, so its keyboard focus ring is drawn on the track instead
+// (.bp-switch-input:focus-visible + [data-track] in index.css).
 const Switch = ({ checked, onChange, disabled, label, 'data-testid': testId }) => (
-    <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem' }}>
+    <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', cursor: disabled ? 'not-allowed' : 'pointer' }}>
         <span style={{
             fontSize: '0.78rem', fontWeight: 650, whiteSpace: 'nowrap',
             color: checked ? 'var(--gold-dark)' : 'var(--text-muted)',
@@ -22,6 +27,7 @@ const Switch = ({ checked, onChange, disabled, label, 'data-testid': testId }) =
             <input
                 type="checkbox"
                 role="switch"
+                className="bp-switch-input"
                 checked={checked}
                 disabled={disabled}
                 onChange={(e) => onChange(e.target.checked)}
@@ -33,7 +39,7 @@ const Switch = ({ checked, onChange, disabled, label, 'data-testid': testId }) =
             />
             <span aria-hidden="true" data-track="1" style={{
                 width: '42px', height: '24px', borderRadius: '999px', position: 'relative',
-                background: checked ? 'var(--gold)' : 'var(--border)',
+                background: checked ? 'var(--gold)' : 'var(--border-input)',
                 transition: 'background 0.16s ease', opacity: disabled ? 0.5 : 1,
                 // The real checkbox sits invisibly underneath this track. Without
                 // this the track swallows every click and the switch is inert —
@@ -48,7 +54,7 @@ const Switch = ({ checked, onChange, disabled, label, 'data-testid': testId }) =
                 }} />
             </span>
         </span>
-    </span>
+    </label>
 );
 
 export default Switch;

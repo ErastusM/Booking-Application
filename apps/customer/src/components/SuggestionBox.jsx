@@ -102,9 +102,9 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                 <div style={{ background: 'var(--ink)', padding: '1.5rem 1.75rem', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexShrink: 0 }}>
                     <div>
                         <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.4rem', fontWeight: '600', margin: '0 0 0.25rem' }}>Suggestion Box</h2>
-                        <p style={{ color: 'rgba(255,255,255,0.55)', fontSize: '0.8rem', margin: 0 }}>Help us make Bookplus better</p>
+                        <p style={{ color: 'rgba(255,255,255,0.66)', fontSize: '0.8rem', margin: 0 }}>Help us make Bookplus better</p>
                     </div>
-                    <button onClick={doClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0, marginTop: '2px' }}>×</button>
+                    <button aria-label="Close" onClick={doClose} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.66)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1, padding: 0, marginTop: '2px' }}>×</button>
                 </div>
 
                 <div style={{ padding: '1.75rem', flex: 1, paddingBottom: 'calc(1.75rem + env(safe-area-inset-bottom, 0px))' }}>
@@ -131,7 +131,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                                                 padding: '0.4rem 0.85rem', borderRadius: '99px',
                                                 border: `1.5px solid ${active ? meta.color : 'var(--border)'}`,
                                                 background: active ? `${meta.color}14` : 'white',
-                                                color: active ? meta.color : 'var(--text-secondary)',
+                                                color: active ? 'var(--charcoal)' : 'var(--text-secondary)',
                                                 fontSize: '0.8rem', fontWeight: active ? '600' : '400',
                                                 cursor: 'pointer', fontFamily: 'var(--font-body)',
                                                 display: 'flex', alignItems: 'center', gap: '0.3rem',
@@ -146,7 +146,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
 
                             {/* Message */}
                             <p style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.5rem' }}>Your message</p>
-                            <textarea
+                            <textarea aria-label="Your message"
                                 value={message}
                                 onChange={e => setMessage(e.target.value)}
                                 placeholder={
@@ -158,10 +158,10 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                                 }
                                 rows={6}
                                 maxLength={2000}
-                                style={{ width: '100%', boxSizing: 'border-box', padding: '0.875rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: 'var(--charcoal)', resize: 'vertical', outline: 'none', lineHeight: 1.65 }}
+                                style={{ width: '100%', boxSizing: 'border-box', padding: '0.875rem', borderRadius: 'var(--radius-sm)', border: '1px solid var(--border-input)', fontFamily: 'var(--font-body)', fontSize: '0.875rem', color: 'var(--charcoal)', resize: 'vertical', lineHeight: 1.65 }}
                             />
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.35rem', marginBottom: '1.25rem' }}>
-                                {error ? <span style={{ color: '#dc2626', fontSize: '0.78rem' }}>{error}</span> : <span />}
+                                {error ? <span style={{ color: 'var(--danger-fg)', fontSize: '0.78rem' }}>{error}</span> : <span />}
                                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{message.length}/2000</span>
                             </div>
 

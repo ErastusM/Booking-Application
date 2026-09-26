@@ -40,7 +40,7 @@ const ShareBookingLink = ({ url, shareTitle, testId = 'booking-link' }) => {
                 {url.replace(/^https?:\/\/(www\.)?/, '')}
             </span>
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: '0.6rem' }}>
-                <button type="button" onClick={copy} className="btn-outline" style={{ ...btn, color: copied ? '#16a34a' : undefined }}>
+                <button type="button" onClick={copy} className="btn-outline" style={{ ...btn, color: copied ? 'var(--success-fg)' : undefined }}>
                     {copied ? <Check size={16} aria-hidden="true" /> : <Copy size={16} aria-hidden="true" />}{copied ? 'Copied' : 'Copy'}
                 </button>
                 <button type="button" onClick={share} className="btn-primary" style={btn}>

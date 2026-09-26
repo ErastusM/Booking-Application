@@ -52,7 +52,7 @@ export const AuthSplit = ({ side, sideBody, children, testId }) => (
                 </h2>
                 {sideBody && (
                     <p style={{
-                        color: 'rgba(255,255,255,0.5)',
+                        color: 'rgba(255,255,255,0.66)',
                         fontSize: '1rem',
                         lineHeight: 1.7,
                         fontWeight: 300,

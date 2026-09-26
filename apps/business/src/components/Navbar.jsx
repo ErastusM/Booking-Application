@@ -243,7 +243,7 @@ const Navbar = () => {
         {/* Dark backdrop behind the status bar so its white text stays legible in light mode too (installed PWA).
             Height is the safe-area inset, so it collapses to nothing in a normal browser. */}
         <div aria-hidden="true" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'env(safe-area-inset-top, 0px)', background: darkMode ? '#0a0a0b' : '#040505', zIndex: 1300, pointerEvents: 'none' }} />
-        <nav style={navStyles}>
+        <nav aria-label="Main" style={navStyles}>
             <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px' }}>
 
                 {/* Logo */}
@@ -369,7 +369,7 @@ const Navbar = () => {
                                                 when the owner had no customer account. */}
                                             <p style={{ margin: '0.35rem 0 0.15rem', padding: '0 0.85rem', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Your accounts</p>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', padding: '0.5rem 0.6rem', borderRadius: '10px', background: 'rgba(240,62,22,0.08)' }} data-testid="acct-current">
-                                                <span style={{ width: '30px', height: '30px', borderRadius: '9px', background: 'var(--gold)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0 }}>{user.name?.charAt(0).toUpperCase()}</span>
+                                                <span style={{ width: '30px', height: '30px', borderRadius: '9px', background: 'var(--gold)', color: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0 }}>{user.name?.charAt(0).toUpperCase()}</span>
                                                 <span style={{ flex: 1, minWidth: 0 }}>
                                                     <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--charcoal)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</span>
                                                     <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)' }}>Business · you’re here</span>
@@ -424,7 +424,7 @@ const Navbar = () => {
                                                 Suggest a feature
                                             </button>
                                             <div style={{ borderTop: '1px solid var(--border)', margin: '0.35rem 0' }} />
-                                            <button onClick={() => { setProfileOpen(false); handleLogout(); }} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', width: '100%', textAlign: 'left', padding: '0.6rem 0.85rem', borderRadius: '10px', background: 'none', border: 'none', cursor: 'pointer', color: '#dc2626', fontSize: '0.88rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}
+                                            <button onClick={() => { setProfileOpen(false); handleLogout(); }} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', width: '100%', textAlign: 'left', padding: '0.6rem 0.85rem', borderRadius: '10px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger-fg)', fontSize: '0.88rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}
                                                 onMouseEnter={e => e.currentTarget.style.background = '#fee2e2'}
                                                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                             >
@@ -586,12 +586,12 @@ const Navbar = () => {
                                 {darkMode ? 'Light mode' : 'Dark mode'}
                             </span>
                         </div>
-                        <button
+                        <button type="button" role="switch" aria-checked={!!darkMode}
                             onClick={toggleDarkMode}
-                            aria-label="Toggle dark mode"
+                            aria-label="Dark mode"
                             style={{
                                 width: '48px', height: '26px', borderRadius: '99px', border: 'none', cursor: 'pointer',
-                                background: darkMode ? 'var(--gold)' : 'var(--warm-gray)',
+                                background: darkMode ? 'var(--gold)' : 'var(--border-input)',
                                 position: 'relative', transition: 'background 0.2s', flexShrink: 0,
                             }}
                         >
@@ -601,7 +601,7 @@ const Navbar = () => {
 
                     {user && (
                         <div style={{ padding: '1rem 1.2rem' }}>
-                            <button onClick={handleLogout} style={{ width: '100%', padding: '0.78rem', background: '#fee2e2', border: 'none', borderRadius: 'var(--radius-sm)', color: '#dc2626', fontWeight: '600', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.9rem' }}>
+                            <button onClick={handleLogout} style={{ width: '100%', padding: '0.78rem', background: '#fee2e2', border: 'none', borderRadius: 'var(--radius-sm)', color: 'var(--danger-fg)', fontWeight: '600', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.9rem' }}>
                                 Logout
                             </button>
                         </div>
@@ -613,7 +613,7 @@ const Navbar = () => {
         {/* Mobile bottom navigation — provider: flat full-width bar flush to the
             bottom edge with a top border (matches the calendar design mock). */}
         {inSuite && createPortal(
-            <div className="nav-mobile" style={{
+            <nav aria-label="Bottom navigation" className="nav-mobile" style={{
                 position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
                 display: 'flex', justifyContent: 'center',
                 pointerEvents: 'none',
@@ -678,7 +678,7 @@ const Navbar = () => {
                         <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>
                     ) })}
                 </div>
-            </div>,
+            </nav>,
             document.body
         )}
 

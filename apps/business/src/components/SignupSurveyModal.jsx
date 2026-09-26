@@ -113,7 +113,7 @@ const SignupSurveyModal = ({ onDone }) => {
                     </div>
 
                     {hadDifficulty !== null && (
-                        <textarea
+                        <textarea aria-label="Tell us what happened (optional)"
                             value={comment}
                             onChange={e => setComment(e.target.value)}
                             placeholder="Optional — tell us what happened…"

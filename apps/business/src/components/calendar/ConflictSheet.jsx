@@ -122,7 +122,7 @@ const ConflictSheet = ({ sheet, fmt, onChoose, onCancel, busy }) => {
                                 <span style={{
                                     fontFamily: 'var(--font-display)', fontSize: '0.58rem', fontWeight: 700,
                                     letterSpacing: '0.06em', textTransform: 'uppercase', whiteSpace: 'nowrap',
-                                    color: r.primary && r.plan ? 'var(--gold)' : 'var(--text-muted)',
+                                    color: r.primary && r.plan ? 'var(--gold-dark)' : 'var(--text-muted)',
                                 }}>
                                     {r.tag}
                                 </span>

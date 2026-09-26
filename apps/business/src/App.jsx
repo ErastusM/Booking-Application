@@ -53,7 +53,7 @@ function AppRoutes() {
 
     return (
         <Suspense fallback={<RouteFallback />}>
-            <div key={location.pathname} className="route-view" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+            <main id="main-content" tabIndex={-1} key={location.pathname} className="route-view" style={{ paddingTop: 'env(safe-area-inset-top, 0px)' }}>
                 <Routes location={location}>
                     {/* Auth */}
                     <Route path="/login" element={<Login />} />
@@ -115,7 +115,7 @@ function AppRoutes() {
                     <Route path="/" element={<Navigate to="/dashboard" replace />} />
                     <Route path="*" element={<Navigate to="/dashboard" replace />} />
                 </Routes>
-            </div>
+            </main>
         </Suspense>
     );
 }
@@ -145,6 +145,21 @@ function SignupSurveyGate() {
     return <SignupSurveyModal onDone={() => setDismissed(true)} />;
 }
 
+// WCAG 2.4.1 bypass blocks: the first Tab stop on every page jumps past the
+// navigation to the page's <main>. Focus is moved in code (not a #hash link) so
+// the router never sees a URL change.
+function SkipLink() {
+    return (
+        <a href="#main-content" className="skip-link" onClick={(e) => {
+            const main = document.getElementById('main-content');
+            if (!main) return;
+            e.preventDefault();
+            main.focus();
+            main.scrollIntoView({ block: 'start' });
+        }}>Skip to content</a>
+    );
+}
+
 export default function App() {
     return (
         <Router>
@@ -156,6 +171,7 @@ export default function App() {
                     <ConfirmProvider>
                         {/* No footer in the business tool — it's an app, not a website. */}
                         <AppUpdater />
+                        <SkipLink />
                         <AppChrome />
                         <AppRoutes />
                         <SignupSurveyGate />

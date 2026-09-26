@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Select, DatePicker, TimePicker, useConfirm } from '@bookplus/ui';
+import { Select, DatePicker, TimePicker, useConfirm, Field as LabelledField } from '@bookplus/ui';
 import { useAuthContext } from '../context/AuthContext';
 import { teamService, providerServiceService } from '../services';
 import { useToast } from '../components/Toast';
@@ -760,7 +760,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                     </span>
                 </span>
                 {loggedIn
-                    ? <Check size={16} style={{ color: 'var(--success)', flexShrink: 0 }} aria-label="Active" />
+                    ? <Check size={16} style={{ color: 'var(--success-fg)', flexShrink: 0 }} aria-label="Active" />
                     : invitedPending
                         ? <Mail size={15} style={{ color: 'var(--gold-dark)', flexShrink: 0 }} aria-label="Invited, awaiting login" />
                         : null}
@@ -840,7 +840,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                                 <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                     <label className="btn-outline" style={{ padding: '0.45rem 1rem', cursor: photoBusy ? 'default' : 'pointer', fontSize: '0.8rem', fontWeight: 600, display: 'inline-flex', alignItems: 'center', gap: '0.4rem', opacity: photoBusy ? 0.6 : 1 }}>
                                         <Camera size={15} /> {photoBusy ? 'Uploading…' : member.photoUrl ? 'Change photo' : 'Add photo'}
-                                        <input type="file" accept="image/*" onChange={uploadPhoto} disabled={photoBusy} style={{ display: 'none' }} data-testid="personal-photo" />
+                                        <input type="file" accept="image/*" onChange={uploadPhoto} disabled={photoBusy} className="sr-only" data-testid="personal-photo" />
                                     </label>
                                     <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Shown to clients and on the calendar.</span>
                                 </div>
@@ -930,7 +930,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                                             display: 'inline-flex', alignItems: 'center', gap: '0.4rem',
                                             padding: '0.5rem 1.1rem', borderRadius: 'var(--radius)',
                                             border: '1px solid var(--danger)', background: 'transparent',
-                                            color: 'var(--danger)', fontWeight: 600, fontSize: '0.85rem',
+                                            color: 'var(--danger-fg)', fontWeight: 600, fontSize: '0.85rem',
                                             fontFamily: 'var(--font-body)', cursor: busy === 'remove' ? 'default' : 'pointer',
                                         }}
                                     >
@@ -956,24 +956,23 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                                         aria-modal="true"
                                         style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', width: '100%', maxWidth: '440px', padding: '1.5rem', boxShadow: '0 20px 60px rgba(4,5,5,0.35)', border: '1px solid var(--border)' }}
                                     >
-                                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 600, color: 'var(--danger)', margin: '0 0 0.6rem', display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
+                                        <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 600, color: 'var(--danger-fg)', margin: '0 0 0.6rem', display: 'inline-flex', alignItems: 'center', gap: '0.45rem' }}>
                                             <Trash2 size={17} /> Remove {member.name}?
                                         </h3>
                                         <p style={{ color: 'var(--text-secondary)', fontSize: '0.88rem', lineHeight: 1.6, margin: '0 0 1rem' }}>
                                             This permanently removes {member.name} and everything involving them — upcoming bookings, working hours, shifts, time off, blocks and their login. Only completed/paid appointments are kept (as “former staff”) so your earnings stay intact. <strong>This cannot be undone.</strong>
                                         </p>
-                                        <label style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 0.4rem' }}>
-                                            Type <strong style={{ color: 'var(--charcoal)' }}>{member.name}</strong> to confirm
-                                        </label>
-                                        <input
-                                            value={removeTyped}
-                                            onChange={(e) => setRemoveTyped(e.target.value)}
-                                            placeholder={member.name}
-                                            className="input"
-                                            data-testid="remove-confirm-name"
-                                            autoFocus
-                                            style={{ width: '100%', marginBottom: '1.1rem' }}
-                                        />
+                                        <LabelledField label={<>Type <strong style={{ color: 'var(--charcoal)' }}>{member.name}</strong> to confirm</>} labelStyle={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)', margin: '0 0 0.4rem' }}>
+                                            <input
+                                                value={removeTyped}
+                                                onChange={(e) => setRemoveTyped(e.target.value)}
+                                                placeholder={member.name}
+                                                className="input"
+                                                data-testid="remove-confirm-name"
+                                                autoFocus
+                                                style={{ width: '100%', marginBottom: '1.1rem' }}
+                                            />
+                                        </LabelledField>
                                         <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                                             <button type="button" onClick={() => setShowRemove(false)} disabled={busy === 'remove'} className="btn-outline" style={{ padding: '0.6rem 1.2rem' }}>Cancel</button>
                                             <button
@@ -981,7 +980,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                                                 onClick={confirmRemove}
                                                 disabled={busy === 'remove' || removeTyped.trim() !== (member.name || '').trim()}
                                                 data-testid="remove-confirm"
-                                                style={{ padding: '0.6rem 1.3rem', borderRadius: 'var(--radius-sm)', border: 'none', background: 'var(--danger)', color: '#fff', fontFamily: 'var(--font-body)', fontWeight: 600, cursor: 'pointer', opacity: (busy === 'remove' || removeTyped.trim() !== (member.name || '').trim()) ? 0.55 : 1 }}
+                                                style={{ padding: '0.6rem 1.3rem', borderRadius: 'var(--radius-sm)', border: 'none', background: 'var(--danger-solid)', color: '#fff', fontFamily: 'var(--font-body)', fontWeight: 600, cursor: 'pointer', opacity: (busy === 'remove' || removeTyped.trim() !== (member.name || '').trim()) ? 0.55 : 1 }}
                                             >
                                                 {busy === 'remove' ? 'Removing…' : 'Remove permanently'}
                                             </button>
@@ -1045,7 +1044,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                                         )
                                     )}
                                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
-                                        <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="their@email.com" className="input" style={{ maxWidth: '260px' }} data-testid="invite-email" />
+                                        <input aria-label="Invite email" value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="their@email.com" className="input" style={{ maxWidth: '260px' }} data-testid="invite-email" />
                                         <button type="button" className="btn-primary" onClick={invite} disabled={busy === 'invite' || (invitedPending && cooldown > 0)} data-testid="invite-send" style={{ padding: '0.6rem 1.3rem' }}>
                                             {busy === 'invite' ? 'Sending…' : invitedPending ? (cooldown > 0 ? `Sent · resend in ${cooldown}s` : 'Resend invite') : 'Send invite'}
                                         </button>
@@ -1155,12 +1154,12 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                                                         return (
                                                             <div key={svc._id} style={{ display: 'grid', gridTemplateColumns: offersAll ? '1fr 6.5rem 6.5rem' : '1fr 6.5rem 6.5rem 2rem', gap: '0.5rem', alignItems: 'center' }}>
                                                                 <span style={{ fontSize: '0.85rem', color: 'var(--charcoal)' }}>{svc.name}</span>
-                                                                <input className="input" type="number" min="0" inputMode="decimal"
+                                                                <input aria-label={`${svc.name} price`} className="input" type="number" min="0" inputMode="decimal"
                                                                     placeholder={svc.price != null ? String(svc.price) : '—'}
                                                                     value={ov.price}
                                                                     onChange={e => setOverride(String(svc._id), 'price', e.target.value)}
                                                                     data-testid="member-price" style={{ padding: '0.4rem 0.5rem' }} />
-                                                                <input className="input" type="number" min="1" inputMode="numeric"
+                                                                <input aria-label={`${svc.name} duration in minutes`} className="input" type="number" min="1" inputMode="numeric"
                                                                     placeholder={svc.duration != null ? String(svc.duration) : '—'}
                                                                     value={ov.duration}
                                                                     onChange={e => setOverride(String(svc._id), 'duration', e.target.value)}
@@ -1186,14 +1185,14 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                                                 <>
                                                     <p style={{ margin: '0 0 0.45rem', fontSize: '0.8rem', fontWeight: 650, color: 'var(--charcoal)' }}>Add a service {first} offers</p>
                                                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap', alignItems: 'center' }} data-testid="member-add-service">
-                                                        <input className="input" value={newSvc.name} placeholder="e.g. Car wash"
+                                                        <input aria-label="New service name" className="input" value={newSvc.name} placeholder="e.g. Car wash"
                                                             onChange={e => setNewSvc(v => ({ ...v, name: e.target.value }))}
                                                             onKeyDown={e => { if (e.key === 'Enter') addOwnService(); }}
                                                             data-testid="member-add-service-name" style={{ flex: '1 1 11rem', minWidth: '9rem', padding: '0.45rem 0.6rem' }} />
-                                                        <input className="input" type="number" min="0" inputMode="decimal" value={newSvc.price} placeholder="Price"
+                                                        <input aria-label="New service price" className="input" type="number" min="0" inputMode="decimal" value={newSvc.price} placeholder="Price"
                                                             onChange={e => setNewSvc(v => ({ ...v, price: e.target.value }))}
                                                             data-testid="member-add-service-price" style={{ width: '6rem', padding: '0.45rem 0.6rem' }} />
-                                                        <input className="input" type="number" min="5" inputMode="numeric" value={newSvc.duration} placeholder="Minutes"
+                                                        <input aria-label="New service duration in minutes" className="input" type="number" min="5" inputMode="numeric" value={newSvc.duration} placeholder="Minutes"
                                                             onChange={e => setNewSvc(v => ({ ...v, duration: e.target.value }))}
                                                             data-testid="member-add-service-duration" style={{ width: '6rem', padding: '0.45rem 0.6rem' }} />
                                                         <button type="button" className="btn-primary" disabled={!newSvc.name.trim() || busy === 'add-service'}
@@ -1292,7 +1291,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                                                 <TimePicker value={b.end} aria-label="Break ends"
                                                     onChange={e => setBreaks(v => v.map((x, j) => j === i ? { ...x, end: e.target.value } : x))}
                                                     style={{ width: '108px', padding: '0.35rem 0.5rem' }} />
-                                                <input className="input" value={b.label} placeholder="Lunch"
+                                                <input aria-label="Break label" className="input" value={b.label} placeholder="Lunch"
                                                     onChange={e => setBreaks(v => v.map((x, j) => j === i ? { ...x, label: e.target.value } : x))}
                                                     style={{ width: '110px', padding: '0.35rem 0.5rem' }} />
                                                 <button type="button" aria-label="Remove break" onClick={() => setBreaks(v => v.filter((_, j) => j !== i))}
@@ -1358,7 +1357,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                                         </>
                                     )}
                                 </div>
-                                <input className="input" placeholder="Note (optional) — e.g. Family visit" value={toForm.note} maxLength={200}
+                                <input aria-label="Time off note (optional)" className="input" placeholder="Note (optional) — e.g. Family visit" value={toForm.note} maxLength={200}
                                     onChange={e => setToForm(f => ({ ...f, note: e.target.value }))}
                                     style={{ marginTop: '0.6rem', padding: '0.45rem 0.6rem', width: '100%', maxWidth: '340px' }} />
                                 <div>
@@ -1595,14 +1594,14 @@ const Team = () => {
             </p>
 
             <form onSubmit={addMember} style={{ display: 'flex', gap: '0.5rem', marginBottom: '1.75rem', flexWrap: 'wrap', alignItems: 'flex-start' }}>
-                <input value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name" className="input" style={{ flex: '1 1 180px', maxWidth: '260px' }} data-testid="new-member-name" />
-                <input value={newRole} onChange={e => setNewRole(e.target.value)} placeholder="Job title" required className="input" style={{ flex: '1 1 150px', maxWidth: '220px' }} data-testid="new-member-role" />
-                <input type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="Email" required className="input" style={{ flex: '1 1 180px', maxWidth: '240px' }} data-testid="new-member-email" />
+                <input aria-label="Name" value={newName} onChange={e => setNewName(e.target.value)} placeholder="Name" className="input" style={{ flex: '1 1 180px', maxWidth: '260px' }} data-testid="new-member-name" />
+                <input aria-label="Job title" value={newRole} onChange={e => setNewRole(e.target.value)} placeholder="Job title" required className="input" style={{ flex: '1 1 150px', maxWidth: '220px' }} data-testid="new-member-role" />
+                <input aria-label="Email" type="email" value={newEmail} onChange={e => setNewEmail(e.target.value)} placeholder="Email" required className="input" style={{ flex: '1 1 180px', maxWidth: '240px' }} data-testid="new-member-email" />
                 <button type="submit" className="btn-primary" data-testid="new-member-add" disabled={!canAdd || adding} style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', padding: '0.6rem 1.4rem' }}>
                     <UserPlus size={16} /> {adding ? 'Adding…' : 'Add'}
                 </button>
             </form>
-            {error && <p style={{ color: 'var(--danger)', fontSize: '0.85rem', margin: '0 0 1rem' }}>{error}</p>}
+            {error && <p style={{ color: 'var(--danger-fg)', fontSize: '0.85rem', margin: '0 0 1rem' }}>{error}</p>}
 
             {/* ── Add several at once ──────────────────────────────── */}
             <div style={{ marginBottom: '1.75rem' }}>
@@ -1615,7 +1614,7 @@ const Team = () => {
                         <p style={{ margin: '0 0 0.5rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
                             One person per line — <strong>Name, Job title, email</strong> (all three required). Up to 50.
                         </p>
-                        <textarea value={bulkText} onChange={e => setBulkText(e.target.value)} rows={5} className="input" data-testid="bulk-text"
+                        <textarea aria-label="Team members to add, one per line" value={bulkText} onChange={e => setBulkText(e.target.value)} rows={5} className="input" data-testid="bulk-text"
                             placeholder={'Alice Johnson, Manager, alice@example.com\nBob Smith, Specialist\nCarol Ndapewa'}
                             style={{ width: '100%', fontFamily: 'var(--font-body)', resize: 'vertical', padding: '0.6rem 0.7rem' }} />
                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '0.6rem' }}>

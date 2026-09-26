@@ -431,7 +431,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                                 <svg width="16" height="16" fill="none" stroke="var(--gold-dark)" strokeWidth="2" viewBox="0 0 24 24"><rect x="2" y="6" width="20" height="13" rx="2"/><path d="M2 10h20M16 15h2"/></svg>
                                                 Top up wallet
                                             </button>
-                                            <button onClick={() => { setShowSettings(false); toggleBlock(); }} style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: '0.7rem 0.85rem', borderRadius: '10px', fontSize: '0.88rem', fontWeight: 600, fontFamily: 'var(--font-body)', color: blocked ? 'var(--charcoal)' : 'var(--danger)', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                                            <button onClick={() => { setShowSettings(false); toggleBlock(); }} style={{ width: '100%', textAlign: 'left', background: 'none', border: 'none', cursor: 'pointer', padding: '0.7rem 0.85rem', borderRadius: '10px', fontSize: '0.88rem', fontWeight: 600, fontFamily: 'var(--font-body)', color: blocked ? 'var(--charcoal)' : 'var(--danger-fg)', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                                                 <svg width="16" height="16" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><path d="M4.9 4.9l14.2 14.2"/></svg>
                                                 {blocked ? 'Unblock business' : 'Block business'}
                                             </button>

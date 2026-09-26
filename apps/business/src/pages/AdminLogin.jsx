@@ -55,12 +55,12 @@ const AdminLogin = () => {
 
     const label = {
         display: 'block', fontSize: '0.72rem', fontWeight: 600, letterSpacing: '0.08em',
-        textTransform: 'uppercase', color: 'rgba(230,232,231,0.55)', marginBottom: '0.5rem',
+        textTransform: 'uppercase', color: 'rgba(230,232,231,0.66)', marginBottom: '0.5rem',
     };
     const field = {
         width: '100%', padding: '0.85rem 1rem', borderRadius: '10px',
-        border: '1.5px solid rgba(230,232,231,0.14)', background: 'rgba(255,255,255,0.04)',
-        color: 'var(--off-white)', fontSize: '0.95rem', fontFamily: 'var(--font-body)', outline: 'none',
+        border: '1.5px solid rgba(230,232,231,0.45)', background: 'rgba(255,255,255,0.04)',
+        color: 'var(--off-white)', fontSize: '0.95rem', fontFamily: 'var(--font-body)',
     };
 
     return (
@@ -97,7 +97,7 @@ const AdminLogin = () => {
                         Book<span style={{ color: 'var(--gold)' }}>plus</span> Command
                     </div>
                 </div>
-                <p style={{ margin: 0, color: 'rgba(230,232,231,0.55)', fontSize: '0.9rem', lineHeight: 1.6 }}>
+                <p style={{ margin: 0, color: 'rgba(230,232,231,0.66)', fontSize: '0.9rem', lineHeight: 1.6 }}>
                     Administrator sign-in. This console manages every business, booking and wallet on the platform.
                 </p>
 
@@ -136,7 +136,7 @@ const AdminLogin = () => {
                     </div>
                     <button type="submit" disabled={loading} style={{
                         marginTop: '0.35rem', width: '100%', padding: '0.9rem', borderRadius: '10px', border: 'none',
-                        background: 'var(--gold)', color: '#fff', fontFamily: 'var(--font-body)', fontWeight: 600,
+                        background: 'var(--gold)', color: 'var(--ink)', fontFamily: 'var(--font-body)', fontWeight: 600,
                         fontSize: '0.95rem', cursor: loading ? 'wait' : 'pointer', opacity: loading ? 0.7 : 1,
                         display: 'inline-flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem',
                     }}>
@@ -144,7 +144,7 @@ const AdminLogin = () => {
                     </button>
                 </form>
 
-                <p style={{ marginTop: '1.6rem', fontSize: '0.75rem', color: 'rgba(230,232,231,0.4)', lineHeight: 1.6 }}>
+                <p style={{ marginTop: '1.6rem', fontSize: '0.75rem', color: 'rgba(230,232,231,0.66)', lineHeight: 1.6 }}>
                     Not an administrator? Business owners and staff sign in at{' '}
                     <a href="/login" style={{ color: 'rgba(230,232,231,0.7)', textDecoration: 'underline' }}>the standard login</a>.
                 </p>

@@ -21,3 +21,7 @@ export type { PickerChangeEvent } from './internal/event';
 
 // Durations read the same in both apps: "45 min", "1 hr", "2 hr 30 min".
 export { formatDuration } from './formatDuration';
+
+// A <label htmlFor> tied to its control by useId (plus hint/error wiring).
+export { Field } from './Field';
+export type { FieldProps } from './Field';

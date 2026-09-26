@@ -42,7 +42,7 @@ const StaffReadinessBanner = () => {
             data-testid="staff-readiness"
             style={{ flexShrink: 0, display: 'flex', alignItems: 'center', gap: '0.75rem', padding: '0.7rem 0.9rem', background: 'rgba(240,62,22,0.12)', borderBottom: '1px solid var(--border)', color: 'var(--charcoal)', textDecoration: 'none' }}
         >
-            <span aria-hidden="true" style={{ width: '34px', height: '34px', flexShrink: 0, borderRadius: '50%', background: 'var(--gold)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem' }}>
+            <span aria-hidden="true" style={{ width: '34px', height: '34px', flexShrink: 0, borderRadius: '50%', background: 'var(--gold)', color: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem' }}>
                 {done}/2
             </span>
             <span style={{ flex: 1, minWidth: 0 }}>

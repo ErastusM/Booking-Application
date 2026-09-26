@@ -138,7 +138,7 @@ const Navbar = () => {
         {/* Dark backdrop behind the status bar so its white text stays legible in light mode too (installed PWA).
             Height is the safe-area inset, so it collapses to nothing in a normal browser. */}
         <div aria-hidden="true" className="app-statusbar-bg" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'env(safe-area-inset-top, 0px)', background: darkMode ? '#0a0a0b' : '#040505', zIndex: 1300, pointerEvents: 'none', display: hideTopNav ? 'none' : 'block' }} />
-        <nav className="app-topnav" style={{ ...navStyles, display: hideTopNav ? 'none' : 'block' }}>
+        <nav aria-label="Main" className="app-topnav" style={{ ...navStyles, display: hideTopNav ? 'none' : 'block' }}>
             <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px' }}>
 
                 {/* Logo */}
@@ -215,7 +215,7 @@ const Navbar = () => {
                                                         style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', width: '100%', textAlign: 'left', padding: '0.5rem 0.6rem', borderRadius: '10px', background: 'none', border: 'none', cursor: 'pointer', fontFamily: 'var(--font-body)' }}
                                                         onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
                                                         onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                                        <span style={{ width: '30px', height: '30px', borderRadius: '9px', background: 'var(--gold)', color: '#fff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0 }}>{(sibling.name || 'B').charAt(0).toUpperCase()}</span>
+                                                        <span style={{ width: '30px', height: '30px', borderRadius: '9px', background: 'var(--gold)', color: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '0.8rem', flexShrink: 0 }}>{(sibling.name || 'B').charAt(0).toUpperCase()}</span>
                                                         <span style={{ flex: 1, minWidth: 0 }}>
                                                             <span style={{ display: 'block', fontSize: '0.85rem', fontWeight: 600, color: 'var(--charcoal)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{sibling.name || 'Your business'}</span>
                                                             <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)' }}>{switching ? 'Opening…' : (sibling.sameCredentials ? 'Open business dashboard' : 'Sign in to your business account')}</span>
@@ -273,7 +273,7 @@ const Navbar = () => {
                                             Suggest a feature
                                         </button>
                                         <div style={{ borderTop: '1px solid var(--border)', margin: '0.35rem 0' }} />
-                                        <button onClick={() => { setProfileOpen(false); handleLogout(); }} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', width: '100%', textAlign: 'left', padding: '0.6rem 0.85rem', borderRadius: '10px', background: 'none', border: 'none', cursor: 'pointer', color: darkMode ? '#f87171' : '#dc2626', fontSize: '0.88rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}
+                                        <button onClick={() => { setProfileOpen(false); handleLogout(); }} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', width: '100%', textAlign: 'left', padding: '0.6rem 0.85rem', borderRadius: '10px', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--danger-fg)', fontSize: '0.88rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}
                                             onMouseEnter={e => e.currentTarget.style.background = darkMode ? 'rgba(239,68,68,0.16)' : '#fee2e2'}
                                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
                                         >
@@ -430,12 +430,12 @@ const Navbar = () => {
                                 {darkMode ? 'Light mode' : 'Dark mode'}
                             </span>
                         </div>
-                        <button
+                        <button type="button" role="switch" aria-checked={!!darkMode}
                             onClick={toggleDarkMode}
-                            aria-label="Toggle dark mode"
+                            aria-label="Dark mode"
                             style={{
                                 width: '48px', height: '26px', borderRadius: '99px', border: 'none', cursor: 'pointer',
-                                background: darkMode ? 'var(--gold)' : 'var(--warm-gray)',
+                                background: darkMode ? 'var(--gold)' : 'var(--border-input)',
                                 position: 'relative', transition: 'background 0.2s', flexShrink: 0,
                             }}
                         >
@@ -445,7 +445,7 @@ const Navbar = () => {
 
                     {user && (
                         <div style={{ padding: '1rem 1.2rem' }}>
-                            <button onClick={handleLogout} style={{ width: '100%', padding: '0.78rem', background: darkMode ? 'rgba(239,68,68,0.16)' : '#fee2e2', border: 'none', borderRadius: 'var(--radius-sm)', color: darkMode ? '#f87171' : '#dc2626', fontWeight: '600', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.9rem' }}>
+                            <button onClick={handleLogout} style={{ width: '100%', padding: '0.78rem', background: darkMode ? 'rgba(239,68,68,0.16)' : '#fee2e2', border: 'none', borderRadius: 'var(--radius-sm)', color: 'var(--danger-fg)', fontWeight: '600', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.9rem' }}>
                                 Logout
                             </button>
                         </div>
@@ -457,7 +457,7 @@ const Navbar = () => {
         {/* Mobile bottom navigation — one customer nav for every signed-in user
             (hidden on the booking flow, which has its own bottom CTA bar) */}
         {showBottomNav && createPortal(
-            <div className="show-mobile" style={{
+            <nav aria-label="Bottom navigation" className="show-mobile" style={{
                 position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
                 display: 'flex', justifyContent: 'center',
                 padding: '0 12px calc(3px + env(safe-area-inset-bottom, 0))',
@@ -520,7 +520,7 @@ const Navbar = () => {
                             : <Link key={to} to={to} aria-label={label} style={itemStyle}>{inner}</Link>;
                     })}
                 </div>
-            </div>,
+            </nav>,
             document.body
         )}
         {user && <SuggestionBox user={user} open={showSuggestion} onClose={() => setShowSuggestion(false)} />}

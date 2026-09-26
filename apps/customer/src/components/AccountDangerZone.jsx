@@ -62,15 +62,15 @@ const AccountDangerZone = () => {
                         ))}
                     </div>
                 )}
-                {blockError && <p style={{ color: '#dc2626', fontSize: '0.82rem', margin: '0.6rem 0 0' }}>{blockError}</p>}
+                {blockError && <p style={{ color: 'var(--danger-fg)', fontSize: '0.82rem', margin: '0.6rem 0 0' }}>{blockError}</p>}
             </div>
 
             {/* Danger zone */}
             <div style={{ ...card, borderColor: '#f3c2c2' }}>
-                <h3 style={{ ...h, color: '#b91c1c' }}>Account</h3>
+                <h3 style={{ ...h, color: 'var(--danger-fg)' }}>Account</h3>
                 <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem' }}>
                     <button onClick={() => { setConfirm('deactivate'); setError(''); }} className="btn-outline" style={{ padding: '0.55rem 1.1rem', fontSize: '0.85rem' }}>Deactivate account</button>
-                    <button onClick={() => { setConfirm('delete'); setError(''); }} style={{ padding: '0.55rem 1.1rem', fontSize: '0.85rem', borderRadius: 'var(--radius-sm)', border: '1px solid #dc2626', background: 'var(--card-bg)', color: '#dc2626', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600' }}>Delete account</button>
+                    <button onClick={() => { setConfirm('delete'); setError(''); }} style={{ padding: '0.55rem 1.1rem', fontSize: '0.85rem', borderRadius: 'var(--radius-sm)', border: '1px solid #dc2626', background: 'var(--card-bg)', color: 'var(--danger-fg)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600' }}>Delete account</button>
                 </div>
                 <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', margin: '0.75rem 0 0' }}>
                     Deactivating hides your account and signs you out — sign in again any time to reactivate. Deleting is permanent: your personal details are removed and you can’t sign back in.
@@ -109,12 +109,12 @@ const ConfirmModal = ({ confirm, busy, error, password, setPassword, onCancel, o
                         : 'You’ll be signed out. Sign in again whenever you like to reactivate your account.'}
                 </p>
                 {confirm === 'delete' && (
-                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Confirm your password (if you have one)" className="input" style={{ width: '100%', marginBottom: '1rem' }} autoComplete="current-password" />
+                    <input aria-label="Confirm your password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Confirm your password (if you have one)" className="input" style={{ width: '100%', marginBottom: '1rem' }} autoComplete="current-password" />
                 )}
-                {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
+                {error && <p style={{ color: 'var(--danger-fg)', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
                 <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>
                     <button onClick={onCancel} disabled={busy} className="btn-outline" style={{ padding: '0.6rem 1.1rem' }}>Cancel</button>
-                    <button onClick={onConfirm} disabled={busy} style={{ padding: '0.6rem 1.3rem', borderRadius: 'var(--radius-sm)', border: 'none', background: confirm === 'delete' ? '#dc2626' : 'var(--ink)', color: 'var(--on-ink)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600' }}>
+                    <button onClick={onConfirm} disabled={busy} style={{ padding: '0.6rem 1.3rem', borderRadius: 'var(--radius-sm)', border: 'none', background: confirm === 'delete' ? 'var(--danger-solid)' : 'var(--ink)', color: 'var(--on-ink)', cursor: 'pointer', fontFamily: 'var(--font-body)', fontWeight: '600' }}>
                         {busy ? 'Please wait…' : confirm === 'delete' ? 'Delete forever' : 'Deactivate'}
                     </button>
                 </div>

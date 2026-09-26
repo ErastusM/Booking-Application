@@ -12,7 +12,7 @@ const Footer = () => {
                 <div style={{ color: 'var(--text-muted)', fontSize: '0.82rem', fontFamily: 'var(--font-body)' }}>
                     © {new Date().getFullYear()} Bookplus
                 </div>
-                <nav style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', alignItems: 'center' }}>
+                <nav aria-label="Footer" style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', alignItems: 'center' }}>
                     <Link to="/about" style={linkStyle}>About us</Link>
                     <Link to="/privacy-policy" style={linkStyle}>Privacy Policy</Link>
                     <Link to="/terms" style={linkStyle}>Terms of Service</Link>

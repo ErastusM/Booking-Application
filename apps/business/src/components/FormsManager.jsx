@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { formService, providerServiceService } from '../services';
 import { useToast } from './Toast';
-import { Select, useConfirm } from '@bookplus/ui';
+import { Select, useConfirm, Field } from '@bookplus/ui';
 
 const FIELD_TYPES = [
     ['text', 'Short text'],
@@ -117,7 +117,7 @@ const FormsManager = () => {
                 <button onClick={openCreate} className="btn-primary" style={{ padding: '0.65rem 1.25rem', fontSize: '0.875rem' }}>+ New form</button>
             </div>
 
-            {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', marginBottom: '1rem' }}>{error}</p>}
+            {error && <p style={{ color: 'var(--danger-fg)', fontSize: '0.85rem', marginBottom: '1rem' }}>{error}</p>}
 
             {templates.length === 0 ? (
                 <div style={{ textAlign: 'center', padding: '4rem 2rem', background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)' }}>
@@ -143,7 +143,7 @@ const FormsManager = () => {
                             </p>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
                                 <button onClick={() => openEdit(t)} style={{ flex: 1, padding: '0.5rem', background: 'var(--warm-gray)', border: 'none', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}>Edit</button>
-                                <button onClick={() => remove(t)} style={{ padding: '0.5rem 0.85rem', background: 'none', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', color: '#dc2626', fontFamily: 'var(--font-body)' }}>Delete</button>
+                                <button onClick={() => remove(t)} style={{ padding: '0.5rem 0.85rem', background: 'none', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', color: 'var(--danger-fg)', fontFamily: 'var(--font-body)' }}>Delete</button>
                             </div>
                         </div>
                     ))}
@@ -157,32 +157,36 @@ const FormsManager = () => {
                     <div className="modal-center" style={{ position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)', width: '560px', maxWidth: '95vw', maxHeight: '90vh', overflowY: 'auto', background: 'var(--card-bg)', borderRadius: 'var(--radius)', boxShadow: '0 20px 60px rgba(0,0,0,0.3)', zIndex: 1101 }}>
                         <div style={{ background: 'var(--ink)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', position: 'sticky', top: 0, zIndex: 1 }}>
                             <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--gold)', fontSize: '1.2rem', fontWeight: '600', margin: 0 }}>{editing ? 'Edit form' : 'New form'}</h2>
-                            <button onClick={() => setShowForm(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.5)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1 }}>×</button>
+                            <button aria-label="Close" onClick={() => setShowForm(false)} style={{ background: 'none', border: 'none', color: 'rgba(255,255,255,0.66)', cursor: 'pointer', fontSize: '1.5rem', lineHeight: 1 }}>×</button>
                         </div>
                         <form onSubmit={save} style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div>
-                                <label style={labelStyle}>Title</label>
-                                <input className="input" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. New client intake" />
+                                <Field label="Title" labelStyle={labelStyle}>
+                                    <input className="input" value={form.title} onChange={e => setForm(f => ({ ...f, title: e.target.value }))} placeholder="e.g. New client intake" />
+                                </Field>
                             </div>
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0.75rem' }}>
                                 <div>
-                                    <label style={labelStyle}>Type</label>
-                                    <Select value={form.kind} onChange={e => setForm(f => ({ ...f, kind: e.target.value }))}
-                                        options={KINDS.map(([v, l]) => ({ value: v, label: l }))} aria-label="Form type" data-testid="form-kind" />
+                                    <Field label="Type" labelStyle={labelStyle}>
+                                        <Select value={form.kind} onChange={e => setForm(f => ({ ...f, kind: e.target.value }))}
+                                            options={KINDS.map(([v, l]) => ({ value: v, label: l }))} aria-label="Form type" data-testid="form-kind" />
+                                    </Field>
                                 </div>
                                 <div>
-                                    <label style={labelStyle}>Status</label>
-                                    <Select value={form.isActive ? 'active' : 'inactive'} onChange={e => setForm(f => ({ ...f, isActive: e.target.value === 'active' }))}
-                                        options={[{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]} aria-label="Form status" data-testid="form-status" />
+                                    <Field label="Status" labelStyle={labelStyle}>
+                                        <Select value={form.isActive ? 'active' : 'inactive'} onChange={e => setForm(f => ({ ...f, isActive: e.target.value === 'active' }))}
+                                            options={[{ value: 'active', label: 'Active' }, { value: 'inactive', label: 'Inactive' }]} aria-label="Form status" data-testid="form-status" />
+                                    </Field>
                                 </div>
                             </div>
                             <div>
-                                <label style={labelStyle}>Description (optional)</label>
-                                <textarea className="input" rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} style={{ resize: 'vertical' }} />
+                                <Field label="Description (optional)" labelStyle={labelStyle}>
+                                    <textarea className="input" rows={2} value={form.description} onChange={e => setForm(f => ({ ...f, description: e.target.value }))} style={{ resize: 'vertical' }} />
+                                </Field>
                             </div>
                             <div>
-                                <label style={labelStyle}>Attach to services <span style={{ textTransform: 'none', fontWeight: '400' }}>(none = all bookings)</span></label>
-                                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                                <div id="form-services-label" style={labelStyle}>Attach to services <span style={{ textTransform: 'none', fontWeight: '400' }}>(none = all bookings)</span></div>
+                                <div role="group" aria-labelledby="form-services-label" style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
                                     {services.length === 0 && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>No services yet</span>}
                                     {services.map(s => {
                                         const on = form.services.includes(s._id);
@@ -199,13 +203,13 @@ const FormsManager = () => {
 
                             {/* Field builder */}
                             <div>
-                                <label style={labelStyle}>Questions</label>
-                                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                <div id="form-questions-label" style={labelStyle}>Questions</div>
+                                <div role="group" aria-labelledby="form-questions-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                     {form.fields.map((fl, idx) => (
                                         <div key={idx} style={{ background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '0.85rem' }}>
                                             <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.5rem' }}>
-                                                <input className="input" placeholder="Question label" value={fl.label} onChange={e => updateField(idx, { label: e.target.value })} style={{ flex: 1, fontSize: '1rem' }} />
-                                                <button type="button" onClick={() => setForm(f => ({ ...f, fields: f.fields.filter((_, i) => i !== idx) }))} style={{ background: 'none', border: 'none', color: '#dc2626', cursor: 'pointer', fontSize: '1.1rem' }}>×</button>
+                                                <input aria-label={`Question ${idx + 1} label`} className="input" placeholder="Question label" value={fl.label} onChange={e => updateField(idx, { label: e.target.value })} style={{ flex: 1, fontSize: '1rem' }} />
+                                                <button aria-label={`Remove question ${idx + 1}`} type="button" onClick={() => setForm(f => ({ ...f, fields: f.fields.filter((_, i) => i !== idx) }))} style={{ background: 'none', border: 'none', color: 'var(--danger-fg)', cursor: 'pointer', fontSize: '1.1rem' }}>×</button>
                                             </div>
                                             <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexWrap: 'wrap' }}>
                                                 <Select value={fl.type} onChange={e => updateField(idx, { type: e.target.value })} size="sm" style={{ width: 'auto' }}
@@ -216,7 +220,7 @@ const FormsManager = () => {
                                                 </label>
                                             </div>
                                             {(fl.type === 'select' || fl.type === 'radio') && (
-                                                <input className="input" placeholder="Options, comma-separated" value={(fl.options || []).join(', ')} onChange={e => updateField(idx, { options: e.target.value.split(',').map(o => o.trim()).filter(Boolean) })} style={{ marginTop: '0.5rem', fontSize: '1rem' }} />
+                                                <input aria-label={`Question ${idx + 1} options, comma-separated`} className="input" placeholder="Options, comma-separated" value={(fl.options || []).join(', ')} onChange={e => updateField(idx, { options: e.target.value.split(',').map(o => o.trim()).filter(Boolean) })} style={{ marginTop: '0.5rem', fontSize: '1rem' }} />
                                             )}
                                         </div>
                                     ))}

@@ -4,7 +4,7 @@ import { useAuthContext } from '../context/AuthContext';
 import { authService } from '../services';
 import MAIN_CATEGORIES from '../constants/mainCategories';
 import { cloudinaryAvatar } from '../utils/cloudinary';
-import { Select } from '@bookplus/ui';
+import { Select, Field } from '@bookplus/ui';
 
 const CATEGORY_REQUIRED = 'Please choose your main service category';
 
@@ -96,18 +96,17 @@ const CompleteProfile = () => {
 
                         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                             <div>
-                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                                    Phone Number
-                                </label>
-                                <input
-                                    type="tel"
-                                    value={phone}
-                                    onChange={e => setPhone(e.target.value)}
-                                    placeholder="+1 234 567 8900"
-                                    required
-                                    className="input"
-                                    autoFocus
-                                />
+                                <Field label="Phone Number" labelStyle={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                                    <input
+                                        type="tel"
+                                        value={phone}
+                                        onChange={e => setPhone(e.target.value)}
+                                        placeholder="+1 234 567 8900"
+                                        required
+                                        className="input"
+                                        autoFocus
+                                    />
+                                </Field>
                                 <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '0.35rem' }}>
                                     Used for appointment reminders and provider contact.
                                 </p>
@@ -115,11 +114,11 @@ const CompleteProfile = () => {
 
                             {isProvider && (
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                                    <label htmlFor="main-category" style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                                         Main service category
                                     </label>
                                     {/* No native `required` bubble on the app-styled Select — handleSubmit checks it. */}
-                                    <Select
+                                    <Select id="main-category"
                                         value={category}
                                         onChange={e => setCategory(e.target.value)}
                                         options={MAIN_CATEGORIES.map(c => ({ value: c, label: c }))}
@@ -134,7 +133,7 @@ const CompleteProfile = () => {
                                         data-testid="provider-category"
                                     />
                                     {category === 'Other' && (
-                                        <input
+                                        <input aria-label="Your service category"
                                             type="text"
                                             value={customCategory}
                                             onChange={e => setCustomCategory(e.target.value)}
@@ -153,7 +152,7 @@ const CompleteProfile = () => {
                         </form>
 
                         <div style={{ marginTop: '1.5rem', paddingTop: '1.5rem', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', gap: '0.5rem', justifyContent: 'center' }}>
-                            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="16" alt="Google" />
+                            <img src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg" width="16" alt="" />
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Signed in as {user?.email}</span>
                         </div>
                     </div>

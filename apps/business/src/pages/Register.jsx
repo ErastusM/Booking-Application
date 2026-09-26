@@ -5,7 +5,7 @@ import MAIN_CATEGORIES from '../constants/mainCategories';
 import { API_BASE } from '../services/api';
 import { MailCheck, Check } from 'lucide-react';
 // App-styled replacement for the native <select>, so the picker wears the app's colours.
-import { Select } from '@bookplus/ui';
+import { Select, Field } from '@bookplus/ui';
 
 /**
  * "List your business" — the business side's own signup (Fresha model: the
@@ -156,7 +156,7 @@ const Register = () => {
                         <span style={{ color: 'var(--gold)', fontStyle: 'italic' }}>business.</span>
                     </h2>
                     <p style={{
-                        color: 'rgba(255,255,255,0.5)',
+                        color: 'rgba(255,255,255,0.66)',
                         fontSize: '1rem',
                         lineHeight: 1.7,
                         fontWeight: '300',
@@ -189,14 +189,14 @@ const Register = () => {
                         <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '1.5rem', boxShadow: 'var(--shadow-sm)', marginBottom: '1.5rem' }}>
                             <p style={{ fontSize: '0.85rem', color: 'var(--text-muted)', lineHeight: 1.7 }}>
                                 Didn't get the email? Check your spam folder or{' '}
-                                <button onClick={handleResend} style={{ background: 'none', border: 'none', color: 'var(--gold)', fontWeight: '600', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.85rem', padding: 0 }}>
+                                <button onClick={handleResend} style={{ background: 'none', border: 'none', color: 'var(--gold-dark)', fontWeight: '600', cursor: 'pointer', fontFamily: 'var(--font-body)', fontSize: '0.85rem', padding: 0 }}>
                                     resend the link
                                 </button>
                             </p>
                             {resendMsg && <p style={{ fontSize: '0.8rem', color: 'var(--gold-dark)', marginTop: '0.5rem' }}>{resendMsg}</p>}
                         </div>
                         <Link to="/login" style={{ color: 'var(--text-muted)', fontSize: '0.875rem', textDecoration: 'none' }}>
-                            Already verified? <span style={{ color: 'var(--gold)', fontWeight: '600' }}>Sign in →</span>
+                            Already verified? <span style={{ color: 'var(--gold-dark)', fontWeight: '600' }}>Sign in →</span>
                         </Link>
                     </div>
                 ) : (
@@ -236,32 +236,31 @@ const Register = () => {
                         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                             {fields.map(field => (
                                 <div key={field.name}>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
-                                        {field.label}
-                                    </label>
-                                    <input
-                                        type={field.type}
-                                        name={field.name}
-                                        value={formData[field.name]}
-                                        onChange={handleChange}
-                                        required
-                                        placeholder={field.placeholder}
-                                        className="input"
-                                        autoComplete={field.autoComplete}
-                                        autoCapitalize={field.autoCapitalize}
-                                        autoCorrect={field.autoCorrect}
-                                        onFocus={() => field.name === 'password' && setPasswordFocused(true)}
-                                        onBlur={() => field.name === 'password' && setPasswordFocused(false)}
-                                        style={field.name === 'password' && formData.password ? {
-                                            borderColor: passwordValid ? '#10b981' : 'var(--border)',
-                                            boxShadow: passwordValid ? '0 0 0 3px rgba(16,185,129,0.1)' : 'none',
-                                        } : {}}
-                                    />
+                                    <Field label={field.label} labelStyle={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                                        <input
+                                            type={field.type}
+                                            name={field.name}
+                                            value={formData[field.name]}
+                                            onChange={handleChange}
+                                            required
+                                            placeholder={field.placeholder}
+                                            className="input"
+                                            autoComplete={field.autoComplete}
+                                            autoCapitalize={field.autoCapitalize}
+                                            autoCorrect={field.autoCorrect}
+                                            onFocus={() => field.name === 'password' && setPasswordFocused(true)}
+                                            onBlur={() => field.name === 'password' && setPasswordFocused(false)}
+                                            style={field.name === 'password' && formData.password ? {
+                                                borderColor: passwordValid ? 'var(--success)' : 'var(--border-input)',
+                                                boxShadow: passwordValid ? '0 0 0 3px rgba(16,185,129,0.1)' : 'none',
+                                            } : {}}
+                                        />
+                                    </Field>
                                     {field.name === 'password' && (passwordFocused || formData.password) && (
                                         <div style={{ marginTop: '0.75rem', padding: '0.75rem 1rem', background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>
                                             {passwordChecks.map((check, i) => (
-                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: check.valid ? 'var(--success)' : 'var(--text-muted)', transition: 'color 0.2s' }}>
-                                                    {check.valid ? <Check size={14} strokeWidth={3} style={{ color: '#10b981', flexShrink: 0 }} /> : <span style={{ display: 'inline-block', width: '14px', textAlign: 'center' }}>○</span>}
+                                                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', fontSize: '0.8rem', color: check.valid ? 'var(--success-fg)' : 'var(--text-muted)', transition: 'color 0.2s' }}>
+                                                    {check.valid ? <Check size={14} strokeWidth={3} style={{ color: 'var(--success-fg)', flexShrink: 0 }} /> : <span style={{ display: 'inline-block', width: '14px', textAlign: 'center' }}>○</span>}
                                                     {check.label}
                                                 </div>
                                             ))}
@@ -271,11 +270,11 @@ const Register = () => {
                             ))}
 
                             <div>
-                                <label id="provider-category-label" style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                                <label htmlFor="provider-category" id="provider-category-label" style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                                     Main Category
                                 </label>
                                 {/* The picker's change event carries `name`, so handleChange still works. */}
-                                <Select
+                                <Select id="provider-category"
                                     name="providerCategory"
                                     value={formData.providerCategory}
                                     onChange={handleChange}
@@ -291,7 +290,7 @@ const Register = () => {
                                     ref={categoryRef}
                                 />
                                 {formData.providerCategory === 'Other' && (
-                                    <input
+                                    <input aria-label="Your service category"
                                         type="text"
                                         value={customCategory}
                                         onChange={e => setCustomCategory(e.target.value)}
@@ -361,7 +360,7 @@ const Register = () => {
                                 <img
                                     src="https://www.gstatic.com/firebasejs/ui/2.0.0/images/auth/google.svg"
                                     width="20"
-                                    alt="Google"
+                                    alt=""
                                 />
                                 Continue with Google
                             </a>

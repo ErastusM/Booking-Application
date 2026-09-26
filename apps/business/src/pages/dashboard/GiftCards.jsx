@@ -144,7 +144,7 @@ const GiftCards = ({ currency = 'NAD', businessName = '' }) => {
                 </div>
                 {current.status === 'active' && (
                     <>
-                        <button type="button" onClick={() => cancelCard(current)} disabled={busy === 'void'} data-testid="giftcard-void" className="btn-outline" style={{ minHeight: '48px', borderColor: 'var(--danger)', color: 'var(--danger)' }}>
+                        <button type="button" onClick={() => cancelCard(current)} disabled={busy === 'void'} data-testid="giftcard-void" className="btn-outline" style={{ minHeight: '48px', borderColor: 'var(--danger)', color: 'var(--danger-fg)' }}>
                             Cancel this gift card
                         </button>
                         <p style={{ margin: 0, textAlign: 'center', fontSize: '0.78rem', color: 'var(--text-muted)' }}>You can cancel it until it’s redeemed.</p>

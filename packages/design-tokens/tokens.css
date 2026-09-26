@@ -18,11 +18,19 @@
   --off-white: #e6e8e7;
   --warm-gray: #dcdedd;
   --text-primary: #040505;
-  /* Neutralized (old value had the navy palette's violet cast) and darkened a
-     step: #6b6b80 fell to 4.22:1 on the new #e6e8e7 page bg; this passes 4.5. */
-  --text-secondary: #606663;
-  --text-muted: #8f9391;
+  /* WCAG 2.1 AA (1.4.3): every text token must reach 4.5:1 on white cards,
+     the #e6e8e7 page AND --surface-sunken. tokens.contrast.test.js (business
+     app) recomputes these from this file and fails the build below AA.
+     --text-secondary 7.7 / 6.3 / 5.7:1 · --text-muted 6.3 / 5.1 / 4.7:1.
+     Secondary stays a step darker than muted so the hierarchy holds. */
+  --text-secondary: #4f5451;
+  --text-muted: #5c615e;
+  /* --border is for decorative dividers and card edges (no contrast minimum).
+     Form-control boundaries must be visible (1.4.11, 3:1), so inputs, select
+     and picker triggers, textareas and switch tracks use --border-input:
+     4.1:1 on the white input, 3.3:1 on the page, 3.0:1 on sunken panels. */
   --border: #d3d5d4;
+  --border-input: #7a7e7c;
   /* Layered, soft elevation scale (tight ambient + soft spread) */
   --shadow-xs: 0 1px 2px rgba(4,5,5,0.05);
   --shadow-sm: 0 1px 2px rgba(4,5,5,0.04), 0 2px 8px rgba(4,5,5,0.05);
@@ -65,6 +73,9 @@
   --info: #3b82f6;    --info-bg: #dbeafe;    --info-fg: #1e40af;
   --warning: #f59e0b; --warning-bg: #fef3c7; --warning-fg: #92400e;
   --danger: #ef4444;  --danger-bg: #fee2e2;  --danger-fg: #991b1b;
+  /* Solid fills that carry WHITE text (danger buttons). --danger itself is only
+     3.8:1 under white; these are 6.5:1 and 8.3:1 and do not flip in dark mode. */
+  --danger-solid: #b91c1c; --danger-solid-hover: #991b1b;
 }
 
 body.dark-mode {
@@ -75,6 +86,8 @@ body.dark-mode {
      #ff6a45 (= --gold-light) reads ~6:1 on the dark cards. */
   --gold-dark: #ff6a45;
   --border: #2a2c2b;
+  /* 3.7:1 on the dark input, 3.9:1 on dark cards, 4.2:1 on the dark page. */
+  --border-input: #707472;
   --warm-gray: #161618;
   --text-primary: #e6e8e7;
   /* Dark-mode grays follow the surface hue shift (navy -> neutral black);

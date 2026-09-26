@@ -211,7 +211,7 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                     </>
                     )}
 
-                    {error && <p style={{ color: '#dc2626', fontSize: '0.85rem', marginTop: '0.85rem' }}>{error}</p>}
+                    {error && <p style={{ color: 'var(--danger-fg)', fontSize: '0.85rem', marginTop: '0.85rem' }}>{error}</p>}
                 </div>
             </div>
         </div>

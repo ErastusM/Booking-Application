@@ -8,6 +8,7 @@ import { cloudinaryAvatar } from '../utils/cloudinary';
 import PushToggle from '../components/PushToggle';
 import AccountDangerZone from '../components/AccountDangerZone';
 import { User, Lock, Bell, Globe, Info, Sun, Moon, Calendar, HelpCircle, ChevronRight, LogOut } from 'lucide-react';
+import { Field } from '@bookplus/ui';
 
 // ── Shared bits for the settings list ──────────────────────────────────────
 const iconTileStyle = {
@@ -32,7 +33,7 @@ const SettingRow = ({ icon: Icon, label, value, onClick, trailing, isLast, dange
     const content = (
         <>
             <span style={iconTileStyle}><Icon size={17} strokeWidth={2} /></span>
-            <span style={{ flex: 1, textAlign: 'left', fontSize: '0.92rem', fontWeight: '500', color: danger ? 'var(--danger)' : 'var(--charcoal)' }}>{label}</span>
+            <span style={{ flex: 1, textAlign: 'left', fontSize: '0.92rem', fontWeight: '500', color: danger ? 'var(--danger-fg)' : 'var(--charcoal)' }}>{label}</span>
             {value != null && <span style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{value}</span>}
             {trailing === undefined ? (onClick ? <ChevronRight size={18} style={{ color: 'var(--text-muted)', flexShrink: 0 }} /> : null) : trailing}
         </>
@@ -190,17 +191,20 @@ const Profile = () => {
                                     </div>
                                 </div>
                                 <div>
-                                    <label style={fieldLabelStyle}>Email</label>
-                                    <input className="input" type="email" value={user?.email || ''} disabled style={{ background: 'var(--warm-gray)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
+                                    <Field label="Email" labelStyle={fieldLabelStyle}>
+                                        <input className="input" type="email" value={user?.email || ''} disabled style={{ background: 'var(--warm-gray)', color: 'var(--text-muted)', cursor: 'not-allowed' }} />
+                                    </Field>
                                     <p style={hintStyle}>Email address can't be changed.</p>
                                 </div>
                                 <div>
-                                    <label style={fieldLabelStyle}>Phone number</label>
-                                    <input className="input" type="tel" name="phone" value={formData.phone} onChange={handleChange} />
+                                    <Field label="Phone number" labelStyle={fieldLabelStyle}>
+                                        <input className="input" type="tel" name="phone" value={formData.phone} onChange={handleChange} />
+                                    </Field>
                                 </div>
                                 <div>
-                                    <label style={fieldLabelStyle}>Avatar URL</label>
-                                    <input className="input" type="url" name="avatar" value={formData.avatar} onChange={handleChange} placeholder="https://example.com/photo.jpg" />
+                                    <Field label="Avatar URL" labelStyle={fieldLabelStyle}>
+                                        <input className="input" type="url" name="avatar" value={formData.avatar} onChange={handleChange} placeholder="https://example.com/photo.jpg" />
+                                    </Field>
                                     <p style={hintStyle}>Paste a link to your profile photo.</p>
                                 </div>
                                 <button type="submit" disabled={loading} className="btn-primary" style={{ padding: '0.7rem 1.5rem', alignSelf: 'flex-start' }}>{loading ? 'Saving…' : 'Save changes'}</button>
@@ -214,17 +218,20 @@ const Profile = () => {
                             {pwMsg.text && <div style={pwMsg.type === 'success' ? okMsg : errMsg}>{pwMsg.text}</div>}
                             <form onSubmit={submitPassword} style={{ display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
                                 <div>
-                                    <label style={fieldLabelStyle}>Current password</label>
-                                    <input className="input" type="password" autoComplete="current-password" value={pw.currentPassword} onChange={e => setPw(p => ({ ...p, currentPassword: e.target.value }))} required />
+                                    <Field label="Current password" labelStyle={fieldLabelStyle}>
+                                        <input className="input" type="password" autoComplete="current-password" value={pw.currentPassword} onChange={e => setPw(p => ({ ...p, currentPassword: e.target.value }))} required />
+                                    </Field>
                                 </div>
                                 <div>
-                                    <label style={fieldLabelStyle}>New password</label>
-                                    <input className="input" type="password" autoComplete="new-password" value={pw.newPassword} onChange={e => setPw(p => ({ ...p, newPassword: e.target.value }))} required />
+                                    <Field label="New password" labelStyle={fieldLabelStyle}>
+                                        <input className="input" type="password" autoComplete="new-password" value={pw.newPassword} onChange={e => setPw(p => ({ ...p, newPassword: e.target.value }))} required />
+                                    </Field>
                                     <p style={hintStyle}>At least 8 characters, with an uppercase letter, a number and a special character.</p>
                                 </div>
                                 <div>
-                                    <label style={fieldLabelStyle}>Confirm new password</label>
-                                    <input className="input" type="password" autoComplete="new-password" value={pw.confirm} onChange={e => setPw(p => ({ ...p, confirm: e.target.value }))} required />
+                                    <Field label="Confirm new password" labelStyle={fieldLabelStyle}>
+                                        <input className="input" type="password" autoComplete="new-password" value={pw.confirm} onChange={e => setPw(p => ({ ...p, confirm: e.target.value }))} required />
+                                    </Field>
                                 </div>
                                 <button type="submit" disabled={pwBusy} className="btn-primary" style={{ padding: '0.7rem 1.5rem', alignSelf: 'flex-start' }}>{pwBusy ? 'Updating…' : 'Update password'}</button>
                             </form>
