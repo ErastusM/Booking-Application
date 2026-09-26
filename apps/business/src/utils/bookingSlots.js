@@ -91,6 +91,53 @@ export const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday'
 
 const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
 
+// ── Whose time a booking takes ──────────────────────────────────────────────
+// The New Appointment times must be exactly the ones the server accepts, so the
+// busy windows for a lane are read the way the API reads them
+// (staffBooking.memberBusyIntervalsBuffered):
+//   - a multi-service ticket takes ONLY the segments that lane performs, each at
+//     its own window — not the whole ticket, and not only for the ticket's
+//     top-level performer. (Matching on the top-level performer showed a member
+//     who does segment 2 of a colleague's ticket as free — every time was
+//     offered and then refused — and greyed the colleague for the whole ticket.)
+//   - a single booking (group rows included) takes its whole window for its one
+//     performer;
+//   - each window is widened by its service's setup/clean-up buffers, and by the
+//     new booking's own (the server widens both sides).
+// `lane` is a member id, or '' for the owner's own column; `laneOf(id)` maps a
+// booking's performer id onto a lane the same way the calendar's lanes do.
+
+const idOf = (x) => (x && typeof x === 'object' ? String(x._id || '') : String(x || ''));
+
+/**
+ * @param {object[]} appointments  the day's non-cancelled bookings
+ * @param {string}   lane          member id, or '' = the owner
+ * @param {(id:string)=>string} laneOf
+ * @param {{ bufferOf?: (serviceId:string)=>{bufferBefore?:number,bufferAfter?:number}|undefined,
+ *           incoming?: {bufferBefore?:number,bufferAfter?:number} }} [opts]
+ * @returns {{start:number,end:number}[]} minutes-from-midnight
+ */
+export const laneBusyRanges = (appointments, lane, laneOf, { bufferOf = () => null, incoming = null } = {}) => {
+    const out = [];
+    const push = (startTime, endTime, serviceId) => {
+        const b = bufferOf(idOf(serviceId)) || {};
+        out.push({
+            start: toMin(startTime) - (b.bufferBefore || 0) - (incoming?.bufferAfter || 0),
+            end: toMin(endTime) + (b.bufferAfter || 0) + (incoming?.bufferBefore || 0),
+        });
+    };
+    (appointments || []).forEach((a) => {
+        if (Array.isArray(a.services) && a.services.length) {
+            a.services.forEach((seg) => {
+                if (laneOf(idOf(seg.teamMember)) === lane) push(seg.startTime, seg.endTime, seg.service);
+            });
+        } else if (laneOf(idOf(a.teamMember)) === lane) {
+            push(a.startTime, a.endTime, a.service);
+        }
+    });
+    return out;
+};
+
 /** "HH:mm" periods → sorted minute blocks, dropping anything empty or inverted. */
 export const periodsToBlocks = (periods) => (periods || [])
     .filter((s) => s?.start && s?.end)

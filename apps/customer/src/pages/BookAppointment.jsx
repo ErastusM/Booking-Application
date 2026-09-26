@@ -71,6 +71,10 @@ const BookAppointment = () => {
     // date (models/Shift), so when present it becomes the slot picker's base
     // window and can extend past published closing. Empty array = rostered day off.
     const [shiftWindow, setShiftWindow] = useState(null);
+    // "Any professional" only: the exact start ranges where ONE person can do the
+    // whole booking (server-computed per performer, at their own length). null =
+    // not given — the busy list alone decides.
+    const [openStarts, setOpenStarts] = useState(null);
     // For a chosen member, the days in the visible month they WORK (open even if
     // the business is closed — covering a Sunday) and are rostered OFF (closed
     // even if the business is open), so the date picker reflects their roster.
@@ -273,18 +277,23 @@ const BookAppointment = () => {
     // becomes known once a service is selected (generic flow), keeping "taken" slots accurate.
     // `stale` guards against an out-of-order response (e.g. a fast date-to-date flip)
     // painting an earlier request's slots over the day the user is actually looking at.
+    // With no professional picked, the view is told the length being booked so it
+    // answers per performer at THEIR length (a slower member's override included).
+    const anyViewOpts = !selectedStaff && selectedService
+        ? { duration: totalDuration || undefined, option: selectedOption?.name || undefined }
+        : undefined;
     useEffect(() => {
-        if (!effectiveProviderId || !formData.appointmentDate) { setBookedSlots([]); setShiftWindow(null); return; }
+        if (!effectiveProviderId || !formData.appointmentDate) { setBookedSlots([]); setShiftWindow(null); setOpenStarts(null); return; }
         let stale = false;
         // The service id makes the "any professional" view staff-aware: the server
         // unions the availability of everyone who performs it, so the picker only
         // shows slots the booking will actually accept (and stops greying an hour
         // where one member is booked but a colleague is free).
-        appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate, selectedStaff?._id || undefined, selectedService?._id || undefined)
-            .then(res => { if (!stale) { setBookedSlots(res.data.data || []); setShiftWindow(res.data.shiftWindow ?? null); } })
-            .catch(() => { if (!stale) { setBookedSlots([]); setShiftWindow(null); } });
+        appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate, selectedStaff?._id || undefined, selectedService?._id || undefined, anyViewOpts)
+            .then(res => { if (!stale) { setBookedSlots(res.data.data || []); setShiftWindow(res.data.shiftWindow ?? null); setOpenStarts(res.data.openStarts ?? null); } })
+            .catch(() => { if (!stale) { setBookedSlots([]); setShiftWindow(null); setOpenStarts(null); } });
         return () => { stale = true; };
-    }, [effectiveProviderId, formData.appointmentDate, selectedStaff, selectedService?._id]);
+    }, [effectiveProviderId, formData.appointmentDate, selectedStaff, selectedService?._id, anyViewOpts?.duration, anyViewOpts?.option]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // Which (date, staff, service) the slot state currently belongs to. The live
     // refresh below is async and unkeyed; without this a response for a day/member
@@ -297,11 +306,12 @@ const BookAppointment = () => {
     // slot freed or grabbed by someone else reflects without a manual refresh.
     useLiveRefresh(() => {
         const key = `${formData.appointmentDate}|${selectedStaff?._id || ''}|${selectedService?._id || ''}`;
-        appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate, selectedStaff?._id || undefined, selectedService?._id || undefined)
+        appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate, selectedStaff?._id || undefined, selectedService?._id || undefined, anyViewOpts)
             .then(res => {
                 if (slotKeyRef.current !== key) return; // a newer day/member/service is selected — drop this
                 setBookedSlots(res.data.data || []);
                 setShiftWindow(res.data.shiftWindow ?? null);
+                setOpenStarts(res.data.openStarts ?? null);
             })
             .catch(() => {});
     }, { intervalMs: 20000, enabled: !!(effectiveProviderId && formData.appointmentDate) });
@@ -726,7 +736,12 @@ const BookAppointment = () => {
         const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
         if (dateStr === todayStr) minStart = now.getHours() * 60 + now.getMinutes();
 
-        return buildTimeSlots({ blocks, bookedRanges, duration, minStart });
+        // "Any professional": a start must suit ONE person for the whole service.
+        const hm = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+        const starts = !selectedStaff && Array.isArray(openStarts)
+            ? openStarts.map(r => ({ start: hm(r.start), end: hm(r.end) }))
+            : null;
+        return buildTimeSlots({ blocks, bookedRanges, duration, minStart, openStarts: starts });
     };
 
     const timeSlots = generateTimeSlots(formData.appointmentDate);
@@ -1324,7 +1339,11 @@ const BookAppointment = () => {
                                                         <span>{slot.time}</span>
                                                         {slot.isBooked && (
                                                             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                                                                {slot.isBlocked ? 'Unavailable' : 'Taken — tap to join waitlist'}
+                                                                {slot.isBlocked
+                                                                    // Free at this time, but the whole service doesn't fit before
+                                                                    // the next unavailable time — not an occupied slot.
+                                                                    ? (slot.until ? `Not enough time before ${slot.until}` : 'Unavailable')
+                                                                    : 'Taken — tap to join waitlist'}
                                                             </span>
                                                         )}
                                                     </button>

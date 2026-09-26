@@ -215,6 +215,51 @@ const outbox = [];
         });
         res.json({ code });
     });
+    // A fresh business for the slot-overlap spec (customer e2e), built on demand
+    // for the day the spec will pick, so it never touches the seeded business
+    // the other specs book. A 2-hour Braids service; Tino works the business's
+    // 08:00–18:00 and already has a 15:00–16:00 booking that day; Selma works
+    // only 13:00–16:00 (the owner's screenshot).
+    let overlapSeq = 0;
+    outer.post('/__e2e/overlap-fixture', async (req, res) => {
+        const StaffAvailability = require('./src/models/StaffAvailability');
+        const { date } = req.body || {};
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) return res.status(400).json({ ok: false });
+        overlapSeq += 1;
+        const owner = await User.create({
+            name: 'Overlap Studio', email: `e2e-overlap-${overlapSeq}-${Date.now()}@bookplus.dev`, password: 'Password1!',
+            phone: '+264810000009', role: 'provider', providerCategory: 'Home services',
+            isVerified: true, provider: 'local', providerSetupComplete: true,
+        });
+        const braids = await Service.create({
+            name: 'Braids', description: 'Two hours', price: 900, duration: 120,
+            provider: owner._id, createdBy: owner._id, isActive: true, location: 'Windhoek',
+        });
+        const trim = await Service.create({
+            name: 'Trim', description: 'One hour', price: 150, duration: 60,
+            provider: owner._id, createdBy: owner._id, isActive: true, location: 'Windhoek',
+        });
+        const open = { enabled: true, slots: [{ start: '08:00', end: '18:00' }] };
+        await Availability.create({
+            provider: owner._id,
+            schedule: { monday: open, tuesday: open, wednesday: open, thursday: open, friday: open, saturday: open, sunday: open },
+        });
+        const [tino, selma] = await TeamMember.create([
+            { provider: owner._id, name: 'Tino Booked', role: 'Braider', offersAllServices: true },
+            { provider: owner._id, name: 'Selma Afternoons', role: 'Braider', offersAllServices: true },
+        ]);
+        const afternoon = { enabled: true, slots: [{ start: '13:00', end: '16:00' }] };
+        await StaffAvailability.create({
+            provider: owner._id, teamMember: selma._id,
+            schedule: { monday: afternoon, tuesday: afternoon, wednesday: afternoon, thursday: afternoon, friday: afternoon, saturday: afternoon, sunday: afternoon },
+        });
+        await Appointment.create({
+            service: trim._id, provider: owner._id, teamMember: tino._id, walkInName: 'Existing Client',
+            appointmentDate: new Date(`${date}T00:00:00.000Z`), startTime: '15:00', endTime: '16:00',
+            status: 'confirmed', totalPrice: 150,
+        });
+        res.json({ providerId: String(owner._id), serviceId: String(braids._id), tino: String(tino._id), selma: String(selma._id) });
+    });
     outer.use(app);
 
     outer.listen(PORT, () => {

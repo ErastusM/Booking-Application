@@ -39,9 +39,17 @@ export const fmtMinutes = (mins) =>
  *        `appointment`, is a real booking whose waitlist is worth offering.
  * @param {number}   args.duration  service length in minutes
  * @param {number}   [args.minStart] earliest allowed start (e.g. "now" for today); -1 = none
- * @returns {{time:string, isBooked:boolean, isBlocked:boolean}[]}
+ * @param {{start:number,end:number}[]} [args.openStarts] when the server knows
+ *        exactly where the whole booking can START (the "any professional" view:
+ *        a start must suit ONE person for the whole service), a start outside
+ *        these inclusive ranges is taken even if its window looks free.
+ * @returns {{time:string, isBooked:boolean, isBlocked:boolean, until?:string}[]}
+ *        `until` (on a greyed "Unavailable" pill) is the time the service would
+ *        run into when the start itself is free but the whole service doesn't fit
+ *        before it — "15:00" for a 2 h service is not occupied, there is just not
+ *        enough time before 16:00.
  */
-export const buildTimeSlots = ({ blocks, bookedRanges = [], duration, minStart = -1 }) => {
+export const buildTimeSlots = ({ blocks, bookedRanges = [], duration, minStart = -1, openStarts = null }) => {
     const slots = [];
     const dur = duration || 60;
 
@@ -79,9 +87,10 @@ export const buildTimeSlots = ({ blocks, bookedRanges = [], duration, minStart =
                 if (!usable(start)) continue;
                 const end = start + dur;
                 const hits = bookedRanges.filter((b) => start < b.end && end > b.start);
-                if (hits.length) {
+                const notOpen = !!openStarts && !openStarts.some((r) => start >= r.start && start <= r.end);
+                if (hits.length || notOpen) {
                     occupied = true;
-                    if (hits.some((h) => !NON_BOOKING_KINDS.has(h.kind))) hitRealBooking = true;
+                    if (hits.some((h) => !NON_BOOKING_KINDS.has(h.kind)) || (notOpen && !hits.length)) hitRealBooking = true;
                     continue;
                 }
                 slots.push({ time: fmtMinutes(start), isBooked: false, isBlocked: false });
@@ -91,7 +100,13 @@ export const buildTimeSlots = ({ blocks, bookedRanges = [], duration, minStart =
             // but blocked time caused it, mark it so the UI can say "Unavailable"
             // and skip the waitlist. Never show a pill for a past/unusable hour.
             if (!anyFree && occupied && usable(hourStart)) {
-                slots.push({ time: fmtMinutes(hourStart), isBooked: true, isBlocked: !hitRealBooking });
+                const pill = { time: fmtMinutes(hourStart), isBooked: true, isBlocked: !hitRealBooking };
+                // Free at the start, but the whole service runs into unavailable time.
+                const hits = bookedRanges.filter((b) => hourStart < b.end && hourStart + dur > b.start);
+                if (pill.isBlocked && hits.length && !hits.some((b) => b.start <= hourStart)) {
+                    pill.until = fmtMinutes(Math.min(...hits.map((b) => b.start)));
+                }
+                slots.push(pill);
             }
         }
     });

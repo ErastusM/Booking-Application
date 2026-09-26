@@ -43,6 +43,18 @@ const ManageBooking = () => {
     const [rTime, setRTime] = useState('');
     const [savingR, setSavingR] = useState(false);
     const rDateRef = useRef(null);
+    // This person's busy times on the picked day (their bookings, blocks, hours),
+    // without this booking itself — so no start is offered that the booking can't
+    // move to in full.
+    const [rBusy, setRBusy] = useState([]);
+    useEffect(() => {
+        if (!showReschedule || !rDate || !appt?.providerId) { setRBusy([]); return undefined; }
+        let stale = false;
+        appointmentService.getBookedSlots(String(appt.providerId), rDate, appt.lane || 'owner', undefined, { exclude: appt._id })
+            .then((res) => { if (!stale) setRBusy(res.data.data || []); })
+            .catch(() => { if (!stale) setRBusy([]); });
+        return () => { stale = true; };
+    }, [showReschedule, rDate, appt?.providerId, appt?.lane, appt?._id]);
 
     const today = new Date().toISOString().split('T')[0];
     const toInputDate = (d) => {
@@ -149,10 +161,14 @@ const ManageBooking = () => {
                                             {(() => {
                                                 // Controlled hourly slots (no arbitrary minute starts), within the
                                                 // provider's hours. Half-hour starts surface server-side conflict rules.
-                                                const duration = appt.service?.duration || (toMin(appt.endTime) - toMin(appt.startTime)) || 30;
+                                                // The booking's own length (kept on a move), not the menu's.
+                                                const span = toMin(appt.endTime) - toMin(appt.startTime);
+                                                const duration = (span > 0 ? span : 0) || appt.service?.duration || 30;
                                                 const blocks = blocksFor(rDate, appt.schedule);
                                                 const minStart = rDate === today ? (new Date().getHours() * 60 + new Date().getMinutes()) : -1;
-                                                const slots = rDate ? buildTimeSlots({ blocks, bookedRanges: [], duration, minStart }) : [];
+                                                const bookedRanges = rBusy.map((b) => ({ start: toMin(b.startTime), end: toMin(b.endTime), kind: b.kind }));
+                                                // Only times the whole booking fits; taken ones aren't offered here.
+                                                const slots = rDate ? buildTimeSlots({ blocks, bookedRanges, duration, minStart }).filter((s) => !s.isBooked) : [];
                                                 if (!rDate) return <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>Pick a date first.</p>;
                                                 if (slots.length === 0) return <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>No available times on this day.</p>;
                                                 return (
