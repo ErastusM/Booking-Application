@@ -17,7 +17,7 @@ const erastus = {
 const john = { _id: 'j', name: 'John', offersAllServices: false, services: ['h', 'b'], serviceOverrides: [] };
 
 describe('servicesFor — what New Appointment offers for each professional', () => {
-    it('the owner ("Me / unassigned") gets only their own services, at the menu price', () => {
+    it('the owner ("Me") gets only their own services, at the menu price', () => {
         const list = servicesFor(catalogue, null);
         expect(list.map((s) => s.name)).toEqual(['Haircut', 'Beard trim']);
         expect(list.find((s) => s._id === 'h').price).toBe(120);

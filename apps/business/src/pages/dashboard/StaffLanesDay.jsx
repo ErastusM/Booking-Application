@@ -7,7 +7,7 @@ import { fmtHM, fmtHMRange } from '../../utils/time';
 import { memberColorMap } from '../../utils/memberColors';
 
 // Epic 2.4 — per-staff calendar lanes. One column per staff member (plus the
-// owner's "Me / unassigned" lane), a shared time axis, and the same visual
+// owner's "Me" lane), a shared time axis, and the same visual
 // language as the FullCalendar views: status-coloured appointment cards,
 // hatched non-working hours, grey blocked time. FullCalendar's resource
 // (per-column) views are a premium plugin, so this view is rendered by hand;

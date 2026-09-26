@@ -1479,7 +1479,7 @@ const ProviderDashboard = () => {
     const activeTeamMembers = teamMembers.filter(m => m.isActive !== false);
 
     // New Appointment offers what the chosen professional performs, at THEIR
-    // price and time: the owner ("Me / unassigned") their own services at the
+    // price and time: the owner ("Me") their own services at the
     // menu price, a team member theirs at their own price. It used to offer the
     // whole catalogue at the catalogue price whoever was picked — a driver's
     // N$20 000 "Long trip" as the owner's, and a member's N$170 haircut as N$120.
@@ -3991,7 +3991,7 @@ const ProviderDashboard = () => {
                                             value={apptForm.teamMember}
                                             onChange={e => setApptPerformer(e.target.value)}
                                             options={[
-                                                { value: '', label: 'Me / unassigned' },
+                                                { value: '', label: 'Me' },
                                                 ...teamMembers.filter(m => m.isActive !== false).map(m => ({ value: String(m._id), label: `${m.name}${m.role ? ` · ${m.role}` : ''}` })),
                                                 // Booking from an inactive member's lane (they can still hold
                                                 // appointments) must not show a raw id
