@@ -61,7 +61,7 @@ const customerSections = () => [
     { id: 'wallet', title: 'The prepaid wallet', blocks: [
         'Some businesses let you keep a **prepaid balance** with them. Each wallet is with one business and can only be spent with that business.',
         { list: [
-            '**Top-ups.** You pay the business directly (bank transfer, eWallet, PayToday or cash) and send a top-up request, optionally with proof of payment. The business confirms it received the money, and then your balance goes up. Card top-ups through DPO Pay are coming soon.',
+            '**Top-ups.** You pay the business directly (bank transfer, eWallet, PayToday or cash) and send a top-up request, optionally with proof of payment. The business confirms it received the money, then your balance goes up and we email you a receipt. Card top-ups through DPO Pay are coming soon.',
             '**Who holds the money.** The business receives and holds your money, not Bookplus. Bookplus keeps the record of your balance.',
             '**Reservations.** When you book with wallet payment, the price is held from your balance. It is taken when the service is completed, and released if the booking is cancelled or missed.',
             '**Refunds.** Each business decides whether it refunds unused balances. **Some businesses make balances non-refundable.** The business’s rule is shown before you top up and on your wallet, and you must confirm that you understand it. Where a refund is allowed, ask the business; a refund is added only after you approve it.',

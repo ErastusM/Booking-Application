@@ -17,6 +17,7 @@ jest.mock('../../utils/emailService', () => ({
     sendAppointmentRescheduled: jest.fn().mockResolvedValue(true),
     sendRebookingPrompt: jest.fn().mockResolvedValue(true),
     sendWalletExpiryReminder: jest.fn().mockResolvedValue(true),
+    sendWalletTopUpReceipt: jest.fn().mockResolvedValue(true),
 }));
 
 const app = require('../../../server');
@@ -189,5 +190,27 @@ describe('Expiry reminders (30 and 7 days before)', () => {
         // ~6 months later, inside the 30-day window of the NEW date: reminded again.
         expect(await runReminderSweep(Date.now() + (6 * 30 - 20) * DAY)).toBe(1);
         expect(emailService.sendWalletExpiryReminder).toHaveBeenCalledTimes(2);
+    });
+});
+
+describe('Top-up receipt email', () => {
+    it('emails the client a receipt with the business rules when a top-up is approved', async () => {
+        const provider = await providerWith({ refundsAllowed: false, expiryMonths: 12 });
+        const client = await makeUser({ email: 'receipt@example.com' });
+        const created = await request(app).post('/api/wallet/topup').set(authHeader(client))
+            .send({ providerId: provider._id.toString(), amount: 300, reference: 'BP-12345' });
+        expect(created.status).toBe(201);
+        const ok = await request(app).post(`/api/wallet/topups/${created.body.data._id}/approve`).set(authHeader(provider));
+        expect(ok.status).toBe(200);
+
+        const end = Date.now() + 3000;
+        while (!emailService.sendWalletTopUpReceipt.mock.calls.length && Date.now() < end) await new Promise((r) => setTimeout(r, 25));
+        expect(emailService.sendWalletTopUpReceipt).toHaveBeenCalledTimes(1);
+        const [to, args] = emailService.sendWalletTopUpReceipt.mock.calls[0];
+        expect(to).toBe('receipt@example.com');
+        expect(args).toMatchObject({
+            businessName: 'Glow Studio', amountLabel: 'R300.00', balanceLabel: 'R300.00', reference: 'BP-12345',
+            refundsAllowed: false, expiryMonths: 12,
+        });
     });
 });

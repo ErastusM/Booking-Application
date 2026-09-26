@@ -9,6 +9,8 @@ const Appointment = require('../models/Appointment');
 const walletService = require('../utils/walletService');
 const { createNotification, notifyAdmins } = require('../utils/notificationhelper');
 const { expiryDateFor } = require('../utils/walletExpiryService');
+const emailService = require('../utils/emailService');
+const { CURRENCIES } = require('../constants/currencies');
 
 const money = (n) => `N$${Number(n || 0).toFixed(2)}`;
 
@@ -28,6 +30,36 @@ const DEFAULT_SETTINGS = {
     paymentInstructions: '',
 };
 const settingsOf = (user) => ({ ...DEFAULT_SETTINGS, ...(user?.walletSettings ? user.walletSettings.toObject?.() || user.walletSettings : {}) });
+
+// Email the client a receipt once a top-up is approved (by the business or an
+// admin). Best-effort and after the response: a failed email never undoes or
+// blocks the approval. Optional-chained so a partial emailService mock in a test
+// can't throw.
+const SYMBOLS = Object.fromEntries(CURRENCIES.map((c) => [c.code, c.symbol]));
+const emailTopUpReceipt = async (txn) => {
+    try {
+        if (!emailService.sendWalletTopUpReceipt) return;
+        const [customer, provider, wallet] = await Promise.all([
+            User.findById(txn.customer).select('name email'),
+            User.findById(txn.provider).select('name businessProfile.businessName businessProfile.currency walletSettings.refundsAllowed walletSettings.expiryMonths'),
+            Wallet.findOne({ customer: txn.customer, provider: txn.provider }).select('totalBalance'),
+        ]);
+        if (!customer?.email || !provider) return;
+        const sym = SYMBOLS[(provider.businessProfile?.currency || 'NAD').toUpperCase()] || 'N$';
+        const fmt = (n) => `${sym}${Number(n || 0).toFixed(2)}`;
+        await emailService.sendWalletTopUpReceipt(customer.email, {
+            name: customer.name,
+            businessName: provider.businessProfile?.businessName || provider.name,
+            amountLabel: fmt(txn.amount),
+            balanceLabel: wallet ? fmt(wallet.totalBalance) : null,
+            reference: txn.reference || '',
+            method: txn.method,
+            date: new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'Africa/Windhoek' }),
+            refundsAllowed: provider.walletSettings?.refundsAllowed !== false,
+            expiryMonths: provider.walletSettings?.expiryMonths || null,
+        });
+    } catch { /* receipt is best-effort */ }
+};
 
 /* ─────────────────────────── CLIENT ─────────────────────────── */
 
@@ -337,6 +369,7 @@ exports.approveTopUp = async (req, res) => {
         const t = result.transaction;
         createNotification(t.customer, `Your ${money(t.amount)} top-up was approved — it's now in your wallet`, 'wallet', '/wallet');
         res.status(200).json({ success: true, message: 'Top-up approved', data: result.transaction });
+        emailTopUpReceipt(t);
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
@@ -517,6 +550,7 @@ exports.adminApproveTopUp = async (req, res) => {
         if (!result.ok) return res.status(result.reason === 'not_found' ? 404 : 409).json({ success: false, message: result.reason === 'already_resolved' ? 'This top-up was already resolved' : 'Top-up not found' });
         createNotification(result.transaction.customer, `Your ${money(result.transaction.amount)} top-up was approved — it's now in your wallet`, 'wallet', '/wallet');
         res.status(200).json({ success: true, message: 'Top-up approved', data: result.transaction });
+        emailTopUpReceipt(result.transaction);
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

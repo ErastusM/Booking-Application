@@ -486,6 +486,36 @@ exports.sendGiftCard = async (email, { recipientName, fromName, businessName, am
     });
 };
 
+// Receipt for an approved wallet top-up: the money the client paid a business
+// is now in their Bookplus wallet with that business. Repeats the business's
+// wallet rules (refundable or not, expiry) so the client has them in writing.
+exports.sendWalletTopUpReceipt = async (email, { name, businessName, amountLabel, balanceLabel, reference, method, date, refundsAllowed, expiryMonths }) => {
+    const rows = [
+        ['Business', escapeHtml(businessName)],
+        ['Date', escapeHtml(date)],
+        ['Method', method === 'cash' ? 'Cash' : 'Bank transfer / deposit'],
+    ];
+    if (reference) rows.push(['Reference', escapeHtml(reference)]);
+    if (balanceLabel) rows.push(['Wallet balance', escapeHtml(balanceLabel)]);
+    const rules = [
+        refundsAllowed === false ? 'This balance is non-refundable.' : 'You can ask the business to refund an unused balance.',
+        Number(expiryMonths) > 0
+            ? `It expires after ${Number(expiryMonths)} months without any wallet activity; we will remind you 30 and 7 days before.`
+            : 'It does not expire.',
+    ].join(' ');
+    await safeSend({
+        from: FROM, to: email, subject: `Receipt: ${amountLabel} added to your wallet with ${businessName}`,
+        html: shell({
+            heading: `Hi ${escapeHtml(name || 'there')}, your top-up is in`,
+            preheader: `${amountLabel} top-up with ${businessName} approved`,
+            inner: `${p(`${escapeHtml(businessName)} confirmed your payment, and <strong>${escapeHtml(amountLabel)}</strong> is now in your Bookplus wallet with them.`)}
+                ${detailsCard(rows, ['Amount', escapeHtml(amountLabel)])}
+                ${p(`<br />${escapeHtml(rules)} The business holds this money; you can spend it on bookings with ${escapeHtml(businessName)}.`)}
+                <div style="margin:24px 0;">${primaryButton(`${primaryOrigin() || '#'}/wallet`, 'View my wallet')}</div>`,
+        }),
+    });
+};
+
 // Advance warning that a prepaid wallet balance will expire (the business opted
 // its wallets into expiry after 6/12/24 months without activity). Sent 30 and 7
 // days ahead by walletExpiryService. Any wallet activity resets the clock, so the
