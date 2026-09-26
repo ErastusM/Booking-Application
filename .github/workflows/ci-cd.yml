@@ -446,6 +446,12 @@ jobs:
             # the owner keeps everything else. Prints every decision and a rollback.
             # After migrate_member_services_flag, whose offersAllServices it reads.
             docker compose exec -T server node scripts/migrate_owner_performs.js || { echo "DEPLOY FAILED: migrate_owner_performs.js exited non-zero" >&2; exit 1; }
+            # Proofs of payment are private: move every old proof still at a PUBLIC
+            # Cloudinary URL to authenticated delivery (needs CLOUDINARY_* in
+            # .env.production; without them it only lists the rows). Unlike the
+            # migrations above this one must NEVER fail the deploy — the script
+            # always exits 0, and the `|| echo` covers exec itself failing.
+            docker compose exec -T server node scripts/migrate_private_proofs.js || echo "WARNING: migrate_private_proofs.js did not run — proofs of payment left as they were (non-fatal)"
 
             # Only now — a fully verified, migrated rollout — move the droplet's
             # LOCAL `:latest` onto it. Nothing in the deploy path reads `:latest`

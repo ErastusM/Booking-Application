@@ -17,7 +17,7 @@ const newRef = () => `BP-${Math.floor(10000 + Math.random() * 89999)}`;
 const WalletTopUpModal = ({ providerId, providerName, currency, onClose, onDone }) => {
     const [amount, setAmount] = useState('');
     const [reference, setReference] = useState(newRef());
-    const [proofUrl, setProofUrl] = useState('');
+    const [proof, setProof] = useState(null); // { ref, kind } once uploaded (private)
     const [uploading, setUploading] = useState(false);
     const [instructions, setInstructions] = useState('');
     const [method, setMethod] = useState('manual');
@@ -41,8 +41,8 @@ const WalletTopUpModal = ({ providerId, providerName, currency, onClose, onDone 
         const file = e.target.files?.[0];
         if (!file) return;
         setUploading(true); setError('');
-        try { const { url } = await uploadProof(file); setProofUrl(url); }
-        catch { setError('Could not upload that file — try again.'); }
+        try { setProof(await uploadProof(file)); }
+        catch (err) { setError(err?.message || 'Could not upload that file — try again.'); }
         finally { setUploading(false); }
     };
 
@@ -52,7 +52,7 @@ const WalletTopUpModal = ({ providerId, providerName, currency, onClose, onDone 
         if (!(amt > 0)) { setError('Enter a valid amount'); return; }
         setBusy(true); setError('');
         try {
-            await walletService.topUp({ providerId, amount: amt, reference, proofUrl, method });
+            await walletService.topUp({ providerId, amount: amt, reference, proof: proof?.ref, method });
             toast('Top-up request sent — awaiting the provider’s confirmation.', 'success');
             onDone();
         } catch (err) {
@@ -61,7 +61,7 @@ const WalletTopUpModal = ({ providerId, providerName, currency, onClose, onDone 
         }
     };
 
-    const isPdf = /\.pdf($|\?)/i.test(proofUrl);
+    const isPdf = proof?.kind === 'pdf';
 
     return (
         <div onClick={() => { if (!busy && !uploading) onClose(); }} className="scrim-in" style={{ position: 'fixed', inset: 0, background: 'rgba(4,5,5,0.65)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1100, padding: '1rem' }}>
@@ -109,9 +109,9 @@ const WalletTopUpModal = ({ providerId, providerName, currency, onClose, onDone 
                     {method !== 'cash' && (
                         <>
                             <div id="topup-proof-label" style={labelStyle}>Proof of payment (optional — image or PDF)</div>
-                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1rem', border: '1.5px dashed var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: proofUrl ? 'var(--gold-dark)' : 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
-                                {proofUrl ? <Check size={16} /> : <Upload size={16} />}
-                                {uploading ? 'Uploading…' : proofUrl ? (isPdf ? 'PDF uploaded — tap to replace' : 'Proof uploaded — tap to replace') : 'Upload a screenshot, receipt or PDF'}
+                            <label style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.7rem 1rem', border: '1.5px dashed var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: proof ? 'var(--gold-dark)' : 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>
+                                {proof ? <Check size={16} /> : <Upload size={16} />}
+                                {uploading ? 'Uploading…' : proof ? (isPdf ? 'PDF uploaded — tap to replace' : 'Proof uploaded — tap to replace') : 'Upload a screenshot, receipt or PDF'}
                                 <input type="file" accept="image/*,application/pdf" onChange={handleProof} className="sr-only" aria-labelledby="topup-proof-label" />
                             </label>
                         </>

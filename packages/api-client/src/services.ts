@@ -382,6 +382,10 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         getMyWallets: () => API.get('/wallet/mine'),
         getMyWalletWithProvider: (providerId: string) => API.get(`/wallet/mine/${providerId}`),
         topUp: (data: any) => API.post('/wallet/topup', data),
+        // Private proof of payment: signed params for one authenticated upload,
+        // and a short-lived link to view a top-up's proof (payer / business only).
+        proofUploadParams: () => API.post('/wallet/proof-upload'),
+        getTopUpProof: (id: string) => API.get(`/wallet/topups/${id}/proof`),
         getMyTransactions: (providerId?: string) => API.get('/wallet/transactions', { params: providerId ? { providerId } : {} }),
         getMyPendingAdjustments: () => API.get('/wallet/adjustments/pending'),
         approveAdjustment: (id: string) => API.post(`/wallet/adjustments/${id}/approve`),
@@ -407,6 +411,7 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         // Provider — own platform balance
         getMyBalance: () => API.get('/provider-wallet/me'),
         submitTopUp: (data: any) => API.post('/provider-wallet/topup', data),
+        getTopUpProof: (id: string) => API.get(`/provider-wallet/topups/${id}/proof`),
         // Admin
         getAdminSummary: () => API.get('/provider-wallet/admin/summary'),
         getAllWallets: () => API.get('/provider-wallet/admin/wallets'),

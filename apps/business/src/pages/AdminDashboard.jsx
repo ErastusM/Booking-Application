@@ -1,18 +1,12 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { appointmentService, serviceService, userService, providerWalletService, walletService, analyticsService } from '../services';
 import { useToast } from '../components/Toast';
+import ProofLink from '../components/ProofLink';
 // App-styled replacements for the native <select> and window.confirm, so the
 // admin's pickers and prompts wear the app's colours.
 import { Select, useConfirm, formatDuration, Field } from '@bookplus/ui';
 import { CalendarDays, ConciergeBell, Users, Clock } from 'lucide-react';
 
-// A payment-proof URL comes from the customer's own submission. The API now
-// stores http(s) only, but rows written before that still hold whatever was sent,
-// so the link is re-checked here before it is rendered for a provider or an admin.
-const safeProofUrl = (u) => {
-    const raw = (u == null ? '' : String(u)).trim();
-    return /^https?:\/\//i.test(raw) ? raw : '';
-};
 
 const nMoney = (n) => `N$${Number(n || 0).toFixed(2)}`;
 const nMoney0 = (n) => `N$${Number(n || 0).toLocaleString(undefined, { maximumFractionDigits: 0 })}`;
@@ -777,8 +771,8 @@ const AdminDashboard = () => {
                                             {new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{t.reference ? ` · ${t.reference}` : ''}
                                             {t.method === 'cash' ? (
                                                 <span style={{ display: 'inline-block', marginLeft: '0.4rem', fontSize: '0.68rem', fontWeight: 600, padding: '0.1rem 0.45rem', borderRadius: '99px', background: '#fef3c7', color: '#92400e' }}>Cash · no proof needed</span>
-                                            ) : safeProofUrl(t.proofUrl) ? (
-                                                <> · <a href={safeProofUrl(t.proofUrl)} target="_blank" rel="noreferrer" style={{ color: 'var(--gold-dark)' }}>View {t.proofType === 'pdf' ? 'PDF' : 'proof'}</a></>
+                                            ) : t.hasProof ? (
+                                                <> · <ProofLink fetchLink={() => providerWalletService.getTopUpProof(t._id)} label={`View ${t.proofType === 'pdf' ? 'PDF' : 'proof'}`} /></>
                                             ) : (
                                                 <span style={{ marginLeft: '0.4rem' }}>· no proof attached</span>
                                             )}
@@ -812,8 +806,8 @@ const AdminDashboard = () => {
                                             {new Date(t.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}{t.reference ? ` · ${t.reference}` : ''}
                                             {t.method === 'cash' ? (
                                                 <span style={{ display: 'inline-block', marginLeft: '0.4rem', fontSize: '0.68rem', fontWeight: 600, padding: '0.1rem 0.45rem', borderRadius: '99px', background: '#fef3c7', color: '#92400e' }}>Cash · no proof needed</span>
-                                            ) : safeProofUrl(t.proofUrl) ? (
-                                                <> · <a href={safeProofUrl(t.proofUrl)} target="_blank" rel="noreferrer" style={{ color: 'var(--gold-dark)' }}>View proof</a></>
+                                            ) : t.hasProof ? (
+                                                <span style={{ marginLeft: '0.4rem' }} title="Proofs of payment are private to the client and the business">· proof attached (private to the client and business)</span>
                                             ) : (
                                                 <span style={{ marginLeft: '0.4rem' }}>· no proof attached</span>
                                             )}
