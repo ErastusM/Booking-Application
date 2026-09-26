@@ -160,7 +160,22 @@ const readOrWrite = (req, res, next) =>
     (req.method === 'GET' ? readLimiter : writeLimiter)(req, res, next);
 
 // Middleware
-app.use(helmet());
+// Content-Security-Policy, enforced (not report-only). The API serves JSON, a
+// few redirects (verify-email, Google sign-in) and bot-only prerender pages
+// with no scripts, styles, images or forms of their own — so it allows loading
+// nothing at all and can't be framed. The apps' own CSPs live in their serve.json.
+app.use(helmet({
+    contentSecurityPolicy: {
+        useDefaults: false,
+        directives: {
+            defaultSrc: ["'none'"],
+            baseUri: ["'none'"],
+            formAction: ["'none'"],
+            frameAncestors: ["'none'"],
+            objectSrc: ["'none'"],
+        },
+    },
+}));
 const allowedOrigins = new Set([
     ...(process.env.CLIENT_URL ? process.env.CLIENT_URL.split(',').map(o => o.trim()).filter(Boolean) : []),
     'http://localhost:3000',
