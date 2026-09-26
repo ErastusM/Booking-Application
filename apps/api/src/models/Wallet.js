@@ -22,11 +22,14 @@ const walletSchema = new mongoose.Schema(
         reservedBalance: { type: Number, default: 0, min: 0 },
         currency: { type: String, default: 'NAD' }, // Namibian dollar (N$)
         // Advance-warning bookkeeping for balance expiry (walletExpiryService).
-        // `forExpiry` is the expiry date the reminders were sent for: any wallet
-        // activity moves the date, and a new date means fresh reminders. Written
+        // Any wallet activity moves the date, and a new date means fresh reminders. Written
         // with timestamps disabled so recording a reminder never counts as
         // "activity" and quietly pushes the expiry date back.
+        // `cycleBase` is the base expiry date (last activity + N months) the cycle
+        // belongs to; `forExpiry` is the date the client was told, which can be
+        // later than the base when the 7-day notice had to be given late.
         expiryReminder: {
+            cycleBase: { type: Date, default: null },
             forExpiry: { type: Date, default: null },
             d30SentAt: { type: Date, default: null },
             d7SentAt: { type: Date, default: null },

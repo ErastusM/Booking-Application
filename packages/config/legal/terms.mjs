@@ -5,18 +5,19 @@
 // cancellations and currencies work must match the code; the rule each clause
 // rests on is noted beside it. Not legal advice; have it reviewed by counsel.
 
-import { COMPANY, operatorName, companyValue } from './company.mjs';
+import { COMPANY, operatorName, companyValue, mailLink } from './company.mjs';
 import { CURRENCY_CODES_TEXT } from './currencies.mjs';
 
 export const TERMS_LAST_UPDATED = '26 September 2026';
 
 const op = operatorName(COMPANY);
-const email = COMPANY.email;
-const mail = `[${email}](mailto:${email})`;
+// companyValue-based: a missing or placeholder address is never shown.
+const mail = mailLink('email');
 const reg = companyValue('registrationNumber');
 const office = companyValue('registeredOffice');
+const entity = companyValue('entityType');
 
-const operatorLine = `Bookplus is operated by **${op}**${COMPANY.entityType ? `, a ${COMPANY.entityType.charAt(0).toLowerCase()}${COMPANY.entityType.slice(1)}` : ''}${reg ? ` (registration number ${reg})` : ''}${office ? `, with its registered office at ${office}` : ''}. Our full details are in our [Legal notice](/legal).`;
+const operatorLine = `Bookplus is operated by **${op}**${entity ? `, a ${entity.charAt(0).toLowerCase()}${entity.slice(1)}` : ''}${reg ? ` (registration number ${reg})` : ''}${office ? `, with its registered office at ${office}` : ''}. Our full details are in our [Legal notice](/legal).`;
 
 // ── Customer terms ─────────────────────────────────────────────────────────
 
@@ -65,7 +66,7 @@ const customerSections = () => [
             '**Who holds the money.** The business receives and holds your money, not Bookplus. Bookplus keeps the record of your balance.',
             '**Reservations.** When you book with wallet payment, the price is held from your balance. It is taken when the service is completed, and released if the booking is cancelled or missed.',
             '**Refunds.** Each business decides whether it refunds unused balances. **Some businesses make balances non-refundable.** The business’s rule is shown before you top up and on your wallet, and you must confirm that you understand it. Where a refund is allowed, ask the business; a refund is added only after you approve it.',
-            '**Expiry.** A business may set its balances to **expire after 6, 12 or 24 months without any wallet activity** (a top-up, booking, payment or refund). If it does, you see this before you top up, your wallet shows the date your balance will expire, and we email and notify you **30 days and 7 days before**. Using or topping up the wallet restarts the period. Money held for an upcoming booking does not expire. When a balance expires it is removed from your wallet.',
+            '**Expiry.** A business may set its balances to **expire after 6, 12 or 24 months without any wallet activity** (a top-up, booking, payment or refund). If it does, you see this before you top up, your wallet shows the date your balance will expire, and we email and notify you **30 days and 7 days before**. Using or topping up the wallet restarts the period. A balance never expires until at least 7 days after we have sent you the 7-day reminder, even if the business switches expiry on or shortens it. Money held for an upcoming booking does not expire. When a balance expires it is removed from your wallet.',
             '**Adjustments.** A business can propose a correction to your balance; it only applies if you approve it.',
             '**Gift cards** add a balance to your wallet with the business that sold them and follow that business’s rules.',
         ] },
@@ -100,7 +101,7 @@ const customerSections = () => [
     ] },
     { id: 'disputes', title: 'Complaints and disputes', blocks: [
         '**With a business:** contact the business first, using the booking messages or its contact details. If that does not work, tell us at ' + mail + ' and we will try to help both sides reach a fair outcome, but the decision rests with the business and you.',
-        '**With us:** email ' + mail + '. We aim to reply within 5 working days and to resolve complaints within 30 days. If we cannot agree, either of us may go to the courts named below.',
+        '**With us:** contact us at ' + mail + '. We aim to reply within 5 working days and to resolve complaints within 30 days. If we cannot agree, either of us may go to the courts named below.',
     ] },
     { id: 'law', title: 'Governing law', blocks: [
         `These Terms are between you and **${op}** and are governed by the laws of the **Republic of Namibia**. The courts of Namibia have jurisdiction. If you live outside Namibia, you keep any consumer rights, and any right to go to your local courts, that the law of your country gives you and that cannot be excluded.`,
@@ -142,7 +143,7 @@ const businessSections = () => [
         'If you turn on the wallet, your clients can prepay a balance that can only be spent with you.',
         { list: [
             'Clients pay you directly. **You receive and hold the money**, and you must confirm a top-up only once the money has arrived.',
-            'You choose whether unused balances are **refundable**, and whether balances **expire after 6, 12 or 24 months without activity**. Bookplus shows your rules to clients before they top up and on their wallet, clients must confirm they understand them, and we remind clients 30 and 7 days before a balance expires.',
+            'You choose whether unused balances are **refundable**, and whether balances **expire after 6, 12 or 24 months without activity**. Bookplus shows your rules to clients before they top up and on their wallet, clients must confirm they understand them, and we remind clients 30 and 7 days before a balance expires. A balance is only removed at least 7 days after its 7-day reminder, so switching expiry on or shortening it gives existing balances at least 7 more days.',
             'Keep to the rules you show. Before you turn refunds off or introduce or shorten an expiry period, tell your existing wallet clients; do not use a stricter new rule to refuse a refund or remove a balance that was topped up under an earlier, more generous rule, unless the client agrees.',
             'Refunds and adjustments you propose only apply once the client approves them.',
             'You remain responsible to your clients for their balances, including if you close your account. Settle or refund outstanding balances before you close it.',
@@ -187,7 +188,7 @@ const businessSections = () => [
         'You can close your business account at any time, after honouring or properly cancelling confirmed bookings and settling client wallet balances. We may suspend or close accounts that break these Terms or put others at risk; where we reasonably can, we tell you why first.',
     ] },
     { id: 'disputes', title: 'Disputes', blocks: [
-        'Disputes with your clients are between you and them. If you have a complaint about Bookplus, email ' + mail + '; we aim to resolve it within 30 days.',
+        'Disputes with your clients are between you and them. If you have a complaint about Bookplus, contact us at ' + mail + '; we aim to resolve it within 30 days.',
     ] },
     { id: 'law', title: 'Governing law', blocks: [
         `These Terms are between you and **${op}** and are governed by the laws of the **Republic of Namibia**. The courts of Namibia have jurisdiction over any dispute.`,

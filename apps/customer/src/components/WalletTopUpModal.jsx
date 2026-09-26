@@ -68,7 +68,7 @@ const WalletTopUpModal = ({ providerId, providerName, currency, onClose, onDone 
         if (needsAck && !understood) { setError('Please confirm you understand this business’s wallet rules.'); return; }
         setBusy(true); setError('');
         try {
-            await walletService.topUp({ providerId, amount: amt, reference, proof: proof?.ref, method });
+            await walletService.topUp({ providerId, amount: amt, reference, proof: proof?.ref, method, rulesAcknowledged: needsAck ? understood : false });
             toast('Top-up request sent — awaiting the provider’s confirmation.', 'success');
             onDone();
         } catch (err) {

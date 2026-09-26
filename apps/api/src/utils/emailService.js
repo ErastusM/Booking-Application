@@ -523,7 +523,7 @@ exports.sendWalletTopUpReceipt = async (email, { name, businessName, amountLabel
 exports.sendWalletExpiryReminder = async (email, { name, businessName, amountLabel, expiresOn, daysLeft, months }) => {
     const href = `${primaryOrigin() || '#'}/wallet`;
     const when = daysLeft <= 1 ? 'tomorrow' : `in ${daysLeft} days`;
-    await safeSend({
+    return safeSend({
         from: FROM, to: email, subject: `Your ${amountLabel} balance with ${businessName} expires ${when}`,
         html: shell({
             heading: `Hi ${escapeHtml(name || 'there')}, your wallet balance expires soon`,

@@ -8,7 +8,7 @@ const User = require('../models/User');
 const Appointment = require('../models/Appointment');
 const walletService = require('../utils/walletService');
 const { createNotification, notifyAdmins } = require('../utils/notificationhelper');
-const { expiryDateFor } = require('../utils/walletExpiryService');
+const { effectiveExpiryFor } = require('../utils/walletExpiryService');
 const emailService = require('../utils/emailService');
 const { CURRENCIES } = require('../constants/currencies');
 
@@ -81,7 +81,7 @@ exports.getMyWallets = async (req, res) => {
             obj.rules = {
                 refundsAllowed: ws.refundsAllowed !== false,
                 expiryMonths,
-                expiresAt: expiryDateFor(w, expiryMonths),
+                expiresAt: effectiveExpiryFor(w, expiryMonths),
             };
             return obj;
         });
@@ -122,7 +122,7 @@ exports.getMyWalletWithProvider = async (req, res) => {
                     // Disclosed BEFORE the client pays (top-up modal): balances with
                     // this business expire after N months without activity, or never.
                     expiryMonths: Number(s.expiryMonths) > 0 ? Number(s.expiryMonths) : null,
-                    expiresAt: existing ? expiryDateFor(existing, s.expiryMonths) : null,
+                    expiresAt: existing ? effectiveExpiryFor(existing, s.expiryMonths) : null,
                     // paymentInstructions is client-facing by design (User.js documents it
                     // as bank/eWallet/PayToday "details shown to clients"), so the booking
                     // and top-up flows must keep receiving it for first-time clients who have
@@ -142,17 +142,38 @@ exports.getMyWalletWithProvider = async (req, res) => {
 // POST /api/wallet/topup — client requests a top-up (pending until approved).
 exports.createTopUp = async (req, res) => {
     try {
-        const { providerId, amount, reference, proof, method } = req.body;
+        const { providerId, amount, reference, proof, method, rulesAcknowledged } = req.body;
         if (!mongoose.isValidObjectId(providerId)) {
             return res.status(400).json({ success: false, message: 'Invalid provider id' });
         }
         if (!isPositiveAmount(amount)) {
             return res.status(400).json({ success: false, message: 'Enter a valid amount' });
         }
-        const provider = await User.findOne({ _id: providerId, role: 'provider' }).select('name');
+        const provider = await User.findOne({ _id: providerId, role: 'provider' }).select('name walletSettings.refundsAllowed walletSettings.expiryMonths');
         if (!provider) return res.status(404).json({ success: false, message: 'Provider not found' });
 
+        // The business's wallet rules are shown before paying; when the money is
+        // non-refundable or can expire the client must confirm them, and we keep
+        // that confirmation (with the rules shown) on the top-up. The app sends
+        // rulesAcknowledged:true once "I understand" is ticked; an older app that
+        // never showed the rules gets a clear message instead of a silent top-up.
+        const rules = {
+            refundsAllowed: provider.walletSettings?.refundsAllowed !== false,
+            expiryMonths: Number(provider.walletSettings?.expiryMonths) > 0 ? Number(provider.walletSettings.expiryMonths) : null,
+        };
+        const ackRequired = !rules.refundsAllowed || !!rules.expiryMonths;
+        if (ackRequired && rulesAcknowledged !== true) {
+            return res.status(400).json({
+                success: false,
+                code: 'WALLET_RULES_NOT_ACKNOWLEDGED',
+                message: 'Please update the app and confirm the wallet rules: this business’s wallet balance is non-refundable or can expire.',
+                rules,
+            });
+        }
+
         const txn = await walletService.createTopUp({
+            rulesAcknowledgedAt: rulesAcknowledged === true ? new Date() : null,
+            rulesShown: rules,
             customer: req.user._id, provider: providerId, amount,
             reference: (reference || '').toString().slice(0, 60),
             // A private upload in this client's own proof folder, or nothing. A
