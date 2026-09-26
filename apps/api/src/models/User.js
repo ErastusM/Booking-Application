@@ -211,8 +211,8 @@ const userSchema = new mongoose.Schema(
         // Send/Resend pushes an entry (hash of the emailed token only) instead of
         // overwriting one slot, so each unexpired, unused invite email keeps
         // working until one of them is accepted — and the member's own "Forgot
-        // password?" can no longer silently kill the invite. Capped at the 10
-        // newest entries (see utils/staffInvites).
+        // password?" can no longer silently kill the invite. Kept small by
+        // the retention rules in utils/staffInvites (trimInvites).
         staffInvites: {
             type: [{
                 _id: false,
@@ -225,6 +225,10 @@ const userSchema = new mongoose.Schema(
                 // throttle only applies after a delivered send — a failed one
                 // must be retryable at once.
                 emailed: { type: Boolean, default: false },
+                // 'owner' = Send/Resend on the Team screen; 'self' = a link the
+                // member asked for. Open owner invites are never trimmed by
+                // anything the public "new link" endpoints can trigger.
+                source: { type: String, enum: ['owner', 'self'], default: 'owner' },
             }],
             default: undefined,
             select: false,

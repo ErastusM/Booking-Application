@@ -137,11 +137,37 @@ describe('several invite emails valid at once', () => {
         expect(sendStaffInviteEmail).toHaveBeenCalledTimes(2);
     });
 
-    it('keeps at most 10 invites per member', async () => {
+    it('never trims an owner invite that still works; drops dead ones down to 10', async () => {
         const { invite, email } = await setup();
-        for (let i = 0; i < 12; i++) { await invite(); await age(email, 2 * 60 * 1000); }
-        const u = await User.findOne({ email }).select('+staffInvites');
+        const tokens = [];
+        for (let i = 0; i < 12; i++) { tokens.push((await invite()).token); await age(email, 2 * 60 * 1000); }
+        let u = await User.findOne({ email }).select('+staffInvites');
+        expect(u.staffInvites).toHaveLength(12);                 // all 12 still open
+        for (const t of tokens) expect((await preview(t)).status).toBe(200);
+
+        await age(email, 8 * 86400000, { expire: true });         // all 12 run out
+        await invite();                                           // a 13th is sent
+        u = await User.findOne({ email }).select('+staffInvites');
         expect(u.staffInvites).toHaveLength(10);
+        expect((await preview(lastInviteToken())).status).toBe(200);
+    });
+
+    it('self-service sends can never push out the owner’s invite (12 requests, 13h apart)', async () => {
+        const { invite, email } = await setup();
+        const ownerToken = (await invite()).token;
+        for (let i = 0; i < 12; i++) {
+            await age(email, 13 * 3600 * 1000);                   // 13h later; still inside 7 days
+            await request(app).post('/api/auth/staff-invite/request').send({ email });
+            await waitFor(() => sendStaffInviteEmail.mock.calls.length === i + 2);
+        }
+        expect(sendStaffInviteEmail).toHaveBeenCalledTimes(13);
+        const u = await User.findOne({ email }).select('+staffInvites');
+        const self = u.staffInvites.filter((e) => e.source === 'self');
+        expect(self.length).toBeLessThanOrEqual(5);
+        expect(u.staffInvites.some((e) => e.source === 'owner')).toBe(true);
+        // The email the owner sent still opens the form and can be accepted.
+        expect((await preview(ownerToken)).status).toBe(200);
+        expect((await accept(ownerToken)).status).toBe(200);
     });
 
     it('the roster shows when the pending invite was sent and until when it works — never a hash', async () => {
@@ -416,5 +442,40 @@ describe('POST /staff-invite/:token/renew and /staff-invite/request', () => {
         expect(sendStaffInviteEmail).not.toHaveBeenCalled();
         expect(sendPasswordResetEmail).not.toHaveBeenCalled();
         expect(sendStaffInviteOwnerReceipt).not.toHaveBeenCalled();
+    });
+});
+
+describe('invitesToDrop (retention rules)', () => {
+    const { invitesToDrop } = require('../../utils/staffInvites');
+    const NOW = Date.now();
+    const e = (hash, source, sentAgoH, { expired = false, used = false, retired = false } = {}) => ({
+        hash, source,
+        sentAt: new Date(NOW - sentAgoH * 3600000),
+        expiresAt: new Date(expired ? NOW - 1000 : NOW + 86400000),
+        usedAt: used ? new Date(NOW) : null,
+        retiredAt: retired ? new Date(NOW) : null,
+    });
+
+    it('keeps only the newest 5 open self-service links, never an open owner invite', () => {
+        const list = [e('o1', 'owner', 100), ...Array.from({ length: 8 }, (_, i) => e(`s${i}`, 'self', 90 - i))];
+        expect(invitesToDrop(list, NOW).sort()).toEqual(['s0', 's1', 's2']);
+    });
+
+    it('drops dead entries (oldest first) before anything open, and keeps the newest used one', () => {
+        const list = [
+            e('u-old', 'owner', 60, { used: true, retired: true }), e('u-new', 'owner', 50, { used: true }),
+            ...Array.from({ length: 6 }, (_, i) => e(`x${i}`, 'owner', 40 - i, { expired: true })),
+            ...Array.from({ length: 5 }, (_, i) => e(`o${i}`, 'owner', 10 - i)),
+        ];
+        const drop = invitesToDrop(list, NOW);
+        expect(list.length - drop.length).toBe(10);
+        expect(drop).not.toContain('u-new');
+        expect(drop.some((h) => h.startsWith('o'))).toBe(false);
+        expect(drop).toEqual(['u-old', 'x0', 'x1']);
+    });
+
+    it('treats entries stored before `source` existed as owner sends', () => {
+        const list = Array.from({ length: 12 }, (_, i) => ({ ...e(`l${i}`, undefined, 20 - i) }));
+        expect(invitesToDrop(list, NOW)).toEqual([]);
     });
 });

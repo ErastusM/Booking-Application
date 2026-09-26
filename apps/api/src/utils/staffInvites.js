@@ -14,7 +14,12 @@ const crypto = require('crypto');
 const User = require('../models/User');
 
 const INVITE_TTL_MS = 7 * 24 * 60 * 60 * 1000;
-const MAX_INVITES = 10;
+// Retention (see trimInvites). Owner-sent invites that can still be used are
+// never trimmed by anything a member — or a stranger who knows their address —
+// can trigger; member-initiated ("self") links are capped on their own.
+const MAX_INVITES = 10;          // target size once dead entries are dropped
+const MAX_SELF_OPEN = 5;         // open self-service links kept per member
+const MAX_OWNER_OPEN = 20;       // backstop: an owner can't grow the array forever
 // An owner double-tapping Send/Resend (or two owners) within this window gets
 // the same answer and no second email.
 const OWNER_RESEND_THROTTLE_MS = 60 * 1000;
@@ -47,9 +52,11 @@ const hasOpenInvite = (user, now = Date.now()) => ((user && user.staffInvites) |
  * Push a fresh invite onto the user (in memory — caller saves, then calls
  * trimInvites). A plain push saves as an atomic $push, so it can't overwrite an
  * accept that lands between this document's load and its save (a whole-array
- * $set would quietly un-use the accepted invite). Returns the raw token.
+ * $set would quietly un-use the accepted invite). `source` is 'owner' for a
+ * Send/Resend from the Team screen, 'self' for a link the member asked for
+ * (renew / request / forgot-password). Returns the raw token.
  */
-const mintInvite = (user, now = new Date()) => {
+const mintInvite = (user, now = new Date(), { source = 'owner' } = {}) => {
     const raw = crypto.randomBytes(32).toString('hex');
     const entry = {
         hash: hashToken(raw),
@@ -58,17 +65,53 @@ const mintInvite = (user, now = new Date()) => {
         usedAt: null,
         retiredAt: null,
         emailed: false,
+        source,
     };
     if (Array.isArray(user.staffInvites)) user.staffInvites.push(entry);
     else user.staffInvites = [entry];
     return { raw, entry };
 };
 
-/** Keep only the newest MAX_INVITES entries (atomic; no-op below the cap). */
-const trimInvites = (userId) => User.updateOne(
-    { _id: userId, [`staffInvites.${MAX_INVITES}`]: { $exists: true } },
-    { $push: { staffInvites: { $each: [], $slice: -MAX_INVITES } } },
-);
+// Entries stored before `source` existed were all owner sends.
+const sourceOf = (e) => (e.source === 'self' ? 'self' : 'owner');
+const isOpen = (e, now) => !e.usedAt && !e.retiredAt && new Date(e.expiresAt).getTime() > now;
+
+/**
+ * Which stored invites to drop (pure; exported for tests). Order:
+ *  1. open self-service links beyond the newest MAX_SELF_OPEN;
+ *  2. dead entries (expired / retired / used — except the newest used one,
+ *     which lets a reopened link say "already set up"), oldest first, until
+ *     the array is back to MAX_INVITES;
+ *  3. only past MAX_OWNER_OPEN, the oldest open owner invites.
+ * An open owner-sent invite is never dropped by steps 1–2, so no number of
+ * member-initiated sends can kill the email the owner sent.
+ */
+const invitesToDrop = (list, now = Date.now()) => {
+    const byOld = [...(list || [])].sort((a, b) => new Date(a.sentAt) - new Date(b.sentAt));
+    const drop = new Set();
+    const openSelf = byOld.filter((e) => sourceOf(e) === 'self' && isOpen(e, now));
+    openSelf.slice(0, Math.max(0, openSelf.length - MAX_SELF_OPEN)).forEach((e) => drop.add(e.hash));
+
+    const used = byOld.filter((e) => e.usedAt);
+    const keepUsed = used.length ? used[used.length - 1].hash : null;
+    const dead = byOld.filter((e) => !isOpen(e, now) && e.hash !== keepUsed);
+    for (const e of dead) {
+        if (byOld.length - drop.size <= MAX_INVITES) break;
+        drop.add(e.hash);
+    }
+
+    const openOwner = byOld.filter((e) => sourceOf(e) === 'owner' && isOpen(e, now));
+    openOwner.slice(0, Math.max(0, openOwner.length - MAX_OWNER_OPEN)).forEach((e) => drop.add(e.hash));
+    return [...drop];
+};
+
+/** Apply invitesToDrop atomically ($pull by hash — never rewrites the array). */
+const trimInvites = async (userId) => {
+    const fresh = await User.findById(userId).select('+staffInvites');
+    const hashes = invitesToDrop(fresh && fresh.staffInvites);
+    if (!hashes.length) return null;
+    return User.updateOne({ _id: userId }, { $pull: { staffInvites: { hash: { $in: hashes } } } });
+};
 
 /** Atomically retire every open invite except `keepHash` (the one just accepted). */
 const retireOthersAtomic = (userId, keepHash, now = new Date()) => User.updateOne(
@@ -162,7 +205,7 @@ const claimSelfServiceSlot = async (user) => {
     if (recent.length >= SELF_DAILY_MAX) return false;
     const r = await User.updateOne(
         { _id: user._id, inviteRequestLog: { $not: { $gt: cool } } },
-        { $push: { inviteRequestLog: { $each: [now], $slice: -MAX_INVITES } } },
+        { $push: { inviteRequestLog: { $each: [now], $slice: -10 } } },
     );
     if (r.modifiedCount !== 1) return false;
     // How many member-initiated sends this account had in the 24h before this one.
@@ -194,7 +237,7 @@ const selfServiceSend = async (userOrId) => {
         const email = require('./emailService');
         const pending = !user.password || hasOpenInvite(user);
         if (pending) {
-            const { raw } = mintInvite(user);
+            const { raw } = mintInvite(user, new Date(), { source: 'self' });
             await user.save({ validateBeforeSave: false });
             await trimInvites(user._id);
             const owner = await User.findById(user.staffOf).select('name email businessProfile');
@@ -223,6 +266,9 @@ const selfServiceSend = async (userOrId) => {
 module.exports = {
     INVITE_TTL_MS,
     MAX_INVITES,
+    MAX_SELF_OPEN,
+    MAX_OWNER_OPEN,
+    invitesToDrop,
     OWNER_RESEND_THROTTLE_MS,
     SELF_COOLDOWN_MS,
     SELF_DAILY_MAX,
