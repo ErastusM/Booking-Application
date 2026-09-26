@@ -10,7 +10,7 @@ const {
     getTeamMemberAvailability, updateTeamMemberAvailability,
     getMyServices, setMyServices, addMyService, addTeamMemberService, setMyPricing,
     getMyProfile, setMyProfile, getMyAvailability, setMyAvailability,
-    getMyStats,
+    getMyStats, getCalendarRoster,
 } = require('../controllers/teamMemberController');
 const {
     listTimeOff, createTimeOff, decideTimeOff, deleteTimeOff,
@@ -44,6 +44,10 @@ router.put('/mine/pricing', auth, setMyPricing);
 // so a staff member — not just the owner — can reach it, and before '/:id/stats'
 // so 'mine' isn't read as a member id.
 router.get('/mine/stats', auth, getMyStats);
+// Who is on the calendar (names + colours only), scoped like the calendar: the
+// owner and whole-calendar members see everyone, a Service provider only
+// themselves. Before '/:id/*' so 'mine' isn't read as a member id.
+router.get('/mine/calendar', auth, allow({ roles: ['provider'], capability: 'calendar:view' }), getCalendarRoster);
 
 // From here down, every route was previously gated by a single blanket
 // `authorize('provider','admin')`. Phase 3c opens the OPERATIONAL roster
@@ -71,9 +75,8 @@ router.delete('/:id', auth, canManageTeam, deleteTeamMember);
 // completed history (snapshotted as "former staff"). See removeTeamMember.
 router.delete('/:id/permanent', auth, canManageTeam, removeTeamMember);
 router.post('/:id/restore', auth, canManageTeam, restoreTeamMember);
-// CROWN JEWEL — OWNER-ONLY. Minting a member's tier/permissions is the one thing
-// team:manage must NEVER grant: a High manager could otherwise mint/spread the
-// High tier or grant themselves owner-equivalent capabilities. Stays owner/admin.
+// Access levels are gone ("just members"): this answers 410 Gone and writes
+// nothing, so an old client learns the setting no longer exists.
 router.put('/:id/permissions', auth, ownerOnly, setTeamMemberPermissions);
 router.get('/:id/stats', auth, ownerOnly, getTeamMemberStats);
 // Date-specific working days. A shift replaces the weekly pattern for that

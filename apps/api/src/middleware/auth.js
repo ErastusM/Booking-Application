@@ -74,10 +74,9 @@ const { can } = require('../utils/permissions');
 // true for provider/admin, this transparently preserves owner/admin access and
 // only ADDS a staff path for members whose tier grants the capability. Swapping
 // `authorize('provider','admin')` → `requireCapability('<cap>')` on a route is a
-// one-line, independently-revertable change. A staff member with no tier chosen
-// (staffTier=null) holds the Service-provider set ('low': own calendar, own
-// bookings, own blocked time); only an explicit 'basic' is view-only. Choose the
-// capability for a swap with that default in mind — it is what a fresh invite gets.
+// one-line, independently-revertable change. Every team member holds the same
+// member set (utils/permissions MEMBER): their own calendar, bookings, clients
+// and blocked time — nothing business-wide.
 exports.requireCapability = (capability) => (req, res, next) => {
     if (!req.user) {
         return res.status(401).json({ success: false, message: 'Not authenticated' });

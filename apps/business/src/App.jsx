@@ -17,7 +17,6 @@ import Login from './pages/Login';
 // decision §8.3). Customer-side routes live in apps/customer.
 const ProviderDashboard = lazy(() => import('./pages/ProviderDashboard'));
 const Team = lazy(() => import('./pages/Team'));
-const MemberAccount = lazy(() => import('./pages/MemberAccount'));
 const ProviderAccount = lazy(() => import('./pages/ProviderAccount'));
 const AdminDashboard = lazy(() => import('./pages/AdminDashboard'));
 const AdminLogin = lazy(() => import('./pages/AdminLogin'));
@@ -32,11 +31,6 @@ const AcceptInvite = lazy(() => import('./pages/AcceptInvite'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 
-// Owners and team members share one Account URL; each gets their own sections.
-const AccountPage = () => {
-    const { user } = useAuthContext();
-    return user?.role === 'staff' ? <MemberAccount /> : <ProviderAccount />;
-};
 
 const RouteFallback = () => (
     <div style={{ minHeight: '60vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -75,11 +69,11 @@ function AppRoutes() {
                     <Route path="/terms" element={<TermsOfService />} />
                     <Route path="/privacy-policy" element={<PrivacyPolicy />} />
 
-                    {/* Provider suite. A Medium+ staff member (whole-business
-                        calendar / client access) is admitted too; ProviderDashboard
-                        then whitelists which tabs their tier may see. */}
+                    {/* The business suite: the owner, and every team member (who sees
+                        it through their own profile — ProviderDashboard whitelists the
+                        member's tabs). */}
                     <Route path="/dashboard" element={
-                        <ProtectedRoute allowedRoles={['provider']} allowCapability={['calendar:view_all', 'clients:assigned']}>
+                        <ProtectedRoute allowedRoles={['provider']} allowCapability={['calendar:view']}>
                             <ProviderDashboard />
                         </ProtectedRoute>
                     } />
@@ -94,7 +88,8 @@ function AppRoutes() {
                     <Route path="/my-schedule" element={<Navigate to="/dashboard?tab=services" replace />} />
                     <Route path="/account" element={
                         <ProtectedRoute allowedRoles={['provider', 'staff']}>
-                            <AccountPage />
+                            {/* One Account page: a team member sees it over their own profile. */}
+                            <ProviderAccount />
                         </ProtectedRoute>
                     } />
 

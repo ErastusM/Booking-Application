@@ -137,13 +137,13 @@ export const useAuth = () => {
         window.dispatchEvent(new Event('auth-logout'));
     }, []);
 
-    // Capability helpers for UI gating (owners/admins hold everything; a staff
-    // member holds their tier's set). Server-side checks remain the real guard.
+    // Capability helpers for UI gating (owners/admins hold everything; a team
+    // member holds the member set). Server-side checks remain the real guard.
     const hasCap = useCallback((cap) => can(user, cap), [user]);
     const hasAnyCap = useCallback((caps) => canAny(user, caps), [user]);
 
     // Re-read the signed-in user from the API (e.g. straight after accepting an
-    // invite, so the tier the calendar gates on is the server's, not a guess).
+    // invite, so the business they belong to is the server's, not a guess).
     const refreshProfile = useCallback(async () => {
         try {
             const response = await API.get('/auth/profile');

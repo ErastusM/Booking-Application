@@ -32,7 +32,7 @@ const INVITE_MESSAGE = 'This invite link is invalid or has expired.';
 // Every field an invite lookup may need, in one projection.
 const INVITE_SELECT = '+staffInvites +password +passwordResetToken +passwordResetExpiry '
     + 'name email role staffOf lastLoginAt isActive deactivatedAt providerCategory avatar phone '
-    + 'providerSetupComplete tokenVersion staffTier staffPermissions provider';
+    + 'providerSetupComplete tokenVersion provider';
 
 const hashToken = (raw) => crypto.createHash('sha256').update(String(raw)).digest('hex');
 

@@ -70,15 +70,12 @@ const userSchema = new mongoose.Schema(
             default: null,
             index: true,
         },
-        // Owner-assigned permission flags, e.g. ['calendar:self','clients:assigned'].
-        // Legacy source; superseded by staffTier but retained as a per-member
-        // override layered on top of the tier (see utils/permissions.js).
+        // LEGACY — ignored. Team members once had access levels (staffTier) and
+        // per-member grants (staffPermissions). There is now one kind of member
+        // with one set of access (utils/permissions.js); nothing reads these for
+        // access and nothing writes them. Kept so old documents load and history-
+        // reading migrations (migrate_owner_performs) can still see them.
         staffPermissions: { type: [String], default: [] },
-        // Preset permission tier for a staff member: 'basic' (explicit view-only) |
-        // 'low' (Service provider) | 'medium' | 'high', or null = nobody chose a
-        // level, which resolves to the Service-provider default (DEFAULT_TIER in
-        // utils/permissions.js). New invites store 'low' explicitly. Owners/admins
-        // are never tiered.
         staffTier: { type: String, enum: ['basic', 'low', 'medium', 'high', null], default: null },
         providerCategory: {
             type: String,

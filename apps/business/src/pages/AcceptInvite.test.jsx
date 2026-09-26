@@ -121,7 +121,7 @@ describe('AcceptInvite submit', () => {
 
     it('success: login, refetch profile, replace to /dashboard', async () => {
         svc.getStaffInvite.mockResolvedValue(PREVIEW);
-        const session = { token: 't', refreshToken: 'r', user: { role: 'staff', staffTier: 'basic' } };
+        const session = { token: 't', refreshToken: 'r', user: { role: 'staff' } };
         svc.acceptStaffInvite.mockResolvedValue({ data: { data: session } });
         renderAt();
         await waitFor(() => expect(state()).toBe('valid'));

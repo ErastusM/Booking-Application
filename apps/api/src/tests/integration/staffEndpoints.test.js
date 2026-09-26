@@ -44,9 +44,9 @@ describe('POST /api/team/:id/invite', () => {
         expect(staffUser).toBeTruthy();
         expect(staffUser.role).toBe('staff');
         expect(staffUser.staffOf.toString()).toBe(owner._id.toString());
-        expect(staffUser.staffPermissions).toEqual(['calendar:self', 'clients:assigned']);
-        // No level picked → Service provider: runs their own calendar from day one.
-        expect(staffUser.staffTier).toBe('low');
+        // No access level or grant is stored: every member is the same.
+        expect(staffUser.staffPermissions).toEqual([]);
+        expect(staffUser.staffTier).toBeNull();
         // The invite lives in staffInvites (one entry per email), not the
         // password-reset slot the member's own "Forgot password?" writes.
         expect(staffUser.staffInvites).toHaveLength(1);
@@ -61,7 +61,7 @@ describe('POST /api/team/:id/invite', () => {
         expect(res.body.data.email).toBe('newstaff@test.com');
     });
 
-    it('stores the level the owner picks at invite time (view-only stays view-only)', async () => {
+    it('ignores any level sent at invite time — there are no access levels', async () => {
         const owner = await makeProvider();
         const member = await makeMember(owner, { email: 'viewonly@test.com' });
         const res = await request(app)
@@ -69,7 +69,9 @@ describe('POST /api/team/:id/invite', () => {
             .set(authHeader(owner))
             .send({ tier: 'basic' });
         expect(res.status).toBe(200);
-        expect((await User.findOne({ email: 'viewonly@test.com' })).staffTier).toBe('basic');
+        const u = await User.findOne({ email: 'viewonly@test.com' });
+        expect(u.staffTier).toBeNull();
+        expect(u.staffPermissions).toEqual([]);
     });
 
     it('reports emailSent:false when the mailer skips or fails', async () => {
@@ -509,7 +511,7 @@ describe('GET /api/appointments — staff sees ONLY their own column', () => {
 });
 
 describe('Staff principal — login + profile (spec §4.2 auth)', () => {
-    it('a staff user logs in and profile exposes staffOf + staffPermissions', async () => {
+    it('a staff user logs in and profile exposes staffOf — and no legacy access level', async () => {
         const owner = await makeProvider();
         const staffUser = await makeUser({
             role: 'staff', staffOf: owner._id, staffPermissions: ['calendar:self'],
@@ -524,7 +526,8 @@ describe('Staff principal — login + profile (spec §4.2 auth)', () => {
         expect(profile.status).toBe(200);
         expect(profile.body.data.role).toBe('staff');
         expect(profile.body.data.staffOf.toString()).toBe(owner._id.toString());
-        expect(profile.body.data.staffPermissions).toEqual(['calendar:self']);
+        expect(profile.body.data).not.toHaveProperty('staffPermissions');
+        expect(profile.body.data).not.toHaveProperty('staffTier');
     });
 });
 

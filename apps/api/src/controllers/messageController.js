@@ -2,21 +2,35 @@ const Message = require('../models/Message');
 const Appointment = require('../models/Appointment');
 const User = require('../models/User');
 const { createNotification } = require('../utils/notificationhelper');
+const TeamMember = require('../models/TeamMember');
 const { can } = require('../utils/permissions');
 
+// Does this appointment involve the member — top-level or as a segment?
+const involvesMember = (appointment, memberId) => {
+    const mid = String(memberId);
+    if (appointment.teamMember && String(appointment.teamMember._id || appointment.teamMember) === mid) return true;
+    return Array.isArray(appointment.services)
+        && appointment.services.some((s) => s.teamMember && String(s.teamMember._id || s.teamMember) === mid);
+};
+
 // The actor's role in an appointment's conversation, or null if they're not a
-// party. A staff member of the appointment's OWN business (staffOf === provider)
-// who holds clients:contact may join as 'staff' — and messages AS THEMSELVES
-// (their own identity is the sender), talking to the client. The staffOf scope
-// is the cross-tenant guard: a staff member can only reach their employer's
-// appointments, never another business's.
-const partyRole = (user, appointment) => {
+// party. A team member of the appointment's OWN business (staffOf === provider)
+// joins as 'staff' for the bookings THEY perform (clients:contact:self) — and
+// messages AS THEMSELVES (their own identity is the sender), talking to the
+// client. The owner-only clients:contact would reach any booking of the
+// business; no member holds it. The staffOf scope is the cross-tenant guard.
+const partyRole = async (user, appointment) => {
     const uid = String(user._id);
     if (appointment.customer && String(appointment.customer) === uid) return 'customer';
     if (appointment.provider && String(appointment.provider) === uid) return 'provider';
     if (user.role === 'staff' && user.staffOf && appointment.provider
-        && String(user.staffOf) === String(appointment.provider)
-        && can(user, 'clients:contact')) return 'staff';
+        && String(user.staffOf) === String(appointment.provider)) {
+        if (can(user, 'clients:contact')) return 'staff';
+        if (can(user, 'clients:contact:self')) {
+            const me = await TeamMember.findOne({ user: user._id, provider: user.staffOf }).select('_id').lean();
+            if (me && involvesMember(appointment, me._id)) return 'staff';
+        }
+    }
     return null;
 };
 
@@ -95,7 +109,7 @@ exports.getMessages = async (req, res) => {
         if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
         // customer / owner / an authorised staff member of this business may read
         // the appointment's thread. null-safe for guest bookings (customer null).
-        if (!partyRole(req.user, appointment)) return res.status(403).json({ success: false, message: 'Not authorized' });
+        if (!(await partyRole(req.user, appointment))) return res.status(403).json({ success: false, message: 'Not authorized' });
 
         const messages = await Message.find({ appointment: appointmentId })
             .populate('sender', 'name avatar')
@@ -126,7 +140,7 @@ exports.sendMessage = async (req, res) => {
         const appointment = await Appointment.findById(appointmentId);
         if (!appointment) return res.status(404).json({ success: false, message: 'Appointment not found' });
 
-        const role = partyRole(req.user, appointment);
+        const role = await partyRole(req.user, appointment);
         if (!role) return res.status(403).json({ success: false, message: 'Not authorized' });
 
         // The customer talks to the business (owner); the owner and any staff

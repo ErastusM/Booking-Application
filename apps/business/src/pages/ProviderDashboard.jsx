@@ -42,8 +42,7 @@ const ProviderAccountTopUpModal = lazy(() => import('./dashboard/WalletModals').
 const WalletAdjustmentModal = lazy(() => import('./dashboard/WalletModals').then(m => ({ default: m.WalletAdjustmentModal })));
 import StaffLanesDay from './dashboard/StaffLanesDay';
 const GiftCards = lazy(() => import('./dashboard/GiftCards'));
-const MemberServicesTab = lazy(() => import('./dashboard/MemberServicesTab'));
-const MemberHoursTab = lazy(() => import('./dashboard/MemberHoursTab'));
+const TimeOffSection = lazy(() => import('./dashboard/TimeOffSection'));
 
 // CSV cell encoding. Two problems with the previous `"${String(c)}"`:
 // a quote inside a value ended the field and corrupted the rest of the row, and a
@@ -103,47 +102,49 @@ const ymd = (d) => {
     return `${dt.getFullYear()}-${p(dt.getMonth() + 1)}-${p(dt.getDate())}`;
 };
 const addDays = (d, n) => { const x = new Date(d); x.setDate(x.getDate() + n); return x; };
+const WEEK_DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
 
 const ProviderDashboard = () => {
     const { user, setUser, hasCap } = useAuthContext();
 
-    // A Medium+ staff member is admitted to this page (App.jsx), but only for the
-    // tabs their tier can use. Owner-only tabs (earnings, team, wallet, services,
-    // insights, availability, memberships, history, overview, messages) are absent
-    // from this whitelist, so a staff member who URL-tampers to ?tab=earnings is
+    // Every team member uses this page — the owner's screens, each scoped to them
+    // (their calendar, clients, earnings, services, hours). The business-wide tabs
+    // (team, wallet, insights, memberships, gift cards, history, overview) are
+    // absent from this whitelist, so a member who URL-tampers to ?tab=wallet is
     // sent back to calendar — and the underlying endpoints 403 for them regardless.
     // Providers/admins hold every capability, so tabAllowed is always true for them.
     const STAFF_TAB_CAPS = {
-        // The calendar is every team member's home: without calendar:view_all the
-        // server narrows it to the bookings they perform (buildAppointmentScope).
-        calendar: 'calendar:view', pending: 'calendar:view_all', confirmed: 'calendar:view_all',
-        completed: 'calendar:view_all', cancelled: 'calendar:view_all',
-        waitlist: 'waitlist:manage', clients: 'clients:assigned', forms: 'forms:manage',
+        // The calendar is every team member's home: the server narrows it to the
+        // bookings they perform (buildAppointmentScope).
+        calendar: 'calendar:view',
+        waitlist: 'waitlist:manage', clients: 'clients:assigned',
         // Their OWN services, hours and conversations (member-scoped screens below).
         services: 'services:self', availability: 'availability:self', messages: 'calendar:view',
+        // Their OWN earnings (money from their own completed bookings) — every member.
+        earnings: 'account:self',
     };
     const isStaff = user?.role === 'staff';
     // A team member's own roster row ({ _id, name, bookable }) — their column is
     // where their bookings and their blocked time go.
     const myMember = useMyMember(user);
     const myMemberId = myMember?._id || null;
-    // What this person may do from the calendar. Owners can do everything; a team
-    // member only what their access allows (the server enforces the same).
-    const seesWholeTeam = !isStaff || hasCap('calendar:view_all');
-    // A member who only sees their own calendar books ONLY into their own column
-    // (the server forces it), so a column that isn't bookable can't take anything
-    // — don't offer a booking the server would refuse. Unknown (still loading)
-    // counts as bookable; the server stays the backstop.
-    const ownColumnClosed = isStaff && !seesWholeTeam && myMember?.bookable === false;
+    // What this person may do from the calendar. The owner sees and runs the
+    // whole business; every team member runs their own column (the server
+    // enforces the same).
+    const seesWholeTeam = !isStaff;
+    // A member books ONLY into their own column (the server forces it), so a
+    // column that isn't bookable can't take anything — don't offer a booking the
+    // server would refuse. Unknown (still loading) counts as bookable; the server
+    // stays the backstop.
+    const ownColumnClosed = isStaff && myMember?.bookable === false;
     const canBook = (!isStaff || hasCap('bookings:create')) && !ownColumnClosed;
     // Which clients the picker offers is decided server-side (/crm/clients: a
     // member sees the clients they serve), and a member with bookings:create may
     // book those — so anyone who can book gets "Existing client".
     const canBookExistingClient = canBook;
-    // calendar:manage (Medium+) = the whole business's blocked time;
-    // calendar:block:self (Service provider) = their OWN lane only.
-    const canManageBlocks = !isStaff || hasCap('calendar:manage');
-    const canBlockOwn = isStaff && !canManageBlocks && hasCap('calendar:block:self') && !!myMemberId;
+    // The owner blocks any time in the business; a member blocks their OWN lane.
+    const canManageBlocks = !isStaff;
+    const canBlockOwn = isStaff && hasCap('calendar:block:self') && !!myMemberId;
     const canBlock = canManageBlocks || canBlockOwn;
     // May this person edit / unblock THIS block? Own-lane members only their own.
     const canEditBlock = (b) => {
@@ -159,10 +160,20 @@ const ProviderDashboard = () => {
         if (String(a.teamMember?._id || a.teamMember || '') === mid) return true;
         return Array.isArray(a.services) && a.services.some((x) => String(x?.teamMember?._id || x?.teamMember || '') === mid);
     };
-    // Booking actions a member may take on THIS booking (server: bookings:status /
-    // bookings:reschedule for any booking, the :self variants for their own).
-    const canChangeApptStatus = (a) => !isStaff || hasCap('bookings:status') || (hasCap('bookings:status:self') && apptIsMine(a));
-    const canRescheduleAppt = (a) => !isStaff || hasCap('bookings:reschedule') || (hasCap('bookings:reschedule:self') && apptIsMine(a));
+    // Is ALL of this booking mine — the booking and every multi-service segment?
+    // A shared ticket (a colleague or the owner does a segment) is the owner's to
+    // move or cancel: changing it would change their part too.
+    const apptWhollyMine = (a) => {
+        if (!a || !myMemberId) return false;
+        const mid = String(myMemberId);
+        if (String(a.teamMember?._id || a.teamMember || '') !== mid) return false;
+        return !Array.isArray(a.services) || a.services.every((x) => String(x?.teamMember?._id || x?.teamMember || '') === mid);
+    };
+    const apptIsShared = (a) => isStaff && apptIsMine(a) && !apptWhollyMine(a);
+    // Booking actions a member may take on THIS booking: their own bookings only,
+    // and only when the whole booking is theirs (the server refuses the rest).
+    const canChangeApptStatus = (a) => !isStaff || (hasCap('bookings:status:self') && apptWhollyMine(a));
+    const canRescheduleAppt = (a) => !isStaff || (hasCap('bookings:reschedule:self') && apptWhollyMine(a));
     const tabAllowed = (t) => user?.role !== 'staff' || (!!STAFF_TAB_CAPS[t] && hasCap(STAFF_TAB_CAPS[t]));
     // Route ALL programmatic tab switches through the whitelist too — in-app
     // buttons (e.g. "View in History", "Message") must not let a staff member open
@@ -205,7 +216,17 @@ const ProviderDashboard = () => {
     const [availability, setAvailability] = useState(null);
     const [savingAvailability, setSavingAvailability] = useState(false);
     const [availabilitySuccess, setAvailabilitySuccess] = useState('');
+    // A member with no hours of their own yet starts from a week of days off.
+    const [memberHadHours, setMemberHadHours] = useState(true);
+    // What a member's CALENDAR shades as working time: their own saved hours
+    // (none saved = no shading). The Availability form edits `availability` (a
+    // full week) separately.
+    const [staffCalendarHours, setStaffCalendarHours] = useState(null);
     const [myServices, setMyServices] = useState([]);
+    // A team member's own service list as the API holds it ({ selected,
+    // offersAllServices, services: the business's menu, overrides: their own
+    // price/time per service}) — what their Catalogue edits.
+    const [memberServicesData, setMemberServicesData] = useState(null);
     const [providerWaitlist, setProviderWaitlist] = useState([]);
     const [earnings, setEarnings] = useState(null);
     const [loadingEarnings, setLoadingEarnings] = useState(false);
@@ -270,16 +291,24 @@ const ProviderDashboard = () => {
     // owner's personal blocks.
     // The business a team member works for — their screens say "Vido Barber", not "your business".
     const [staffBusinessName, setStaffBusinessName] = useState('');
+    // …and the owner's own name, so the owner's column and bookings are labelled
+    // with the OWNER's name on a member's calendar — never the member's.
+    const [staffOwnerName, setStaffOwnerName] = useState('');
+    const ownerName = isStaff ? staffOwnerName : user?.name;
     const businessName = isStaff ? (staffBusinessName || 'your business') : (user?.businessProfile?.businessName || user?.name || 'your business');
     const calendarBlockedTimes = useMemo(() => {
-        // Front desk / managers see the whole business, so they keep every block.
-        if (!isStaff || hasCap('calendar:view_all')) return blockedTimes;
+        if (!isStaff) return blockedTimes;
         return blockedTimes.filter((b) => {
             const tm = String(b.teamMember?._id || b.teamMember || '');
             if (tm) return !!myMemberId && tm === String(myMemberId);
             return !b.ownerOnly;
         });
     }, [blockedTimes, isStaff, myMemberId]); // eslint-disable-line react-hooks/exhaustive-deps
+    // The Availability screen's Blocked Times: the owner's are all of the
+    // business's; a member's are the ones in their own column.
+    const listedBlocks = isStaff
+        ? blockedTimes.filter((b) => !!myMemberId && String(b.teamMember?._id || b.teamMember || '') === String(myMemberId))
+        : blockedTimes;
     const [showBlockedTimeForm, setShowBlockedTimeForm] = useState(false);
     const [editingBlockedTime, setEditingBlockedTime] = useState(null);
     const [blockedTimeForm, setBlockedTimeForm] = useState({ blockType: 'Custom', title: '', date: '', startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', customDays: [], teamMember: 'owner' });
@@ -559,7 +588,15 @@ const ProviderDashboard = () => {
             // /availability/me is the owner's own schedule (and owner-only).
             if (isStaff) {
                 const res = await myAvailabilityService.get();
-                setAvailability(res.data.data?.schedule || null);
+                const sched = res.data.data?.schedule || null;
+                // Nothing is inherited from the business: a member with no hours
+                // yet sees every day off, in the same Working Hours rows.
+                setMemberHadHours(!!sched);
+                setStaffCalendarHours(sched);
+                setAvailability(Object.fromEntries(WEEK_DAYS.map((d) => [d, {
+                    enabled: !!sched?.[d]?.enabled,
+                    slots: sched?.[d]?.slots?.length ? sched[d].slots : [{ start: '09:00', end: '17:00' }],
+                }])));
                 return;
             }
             const res = await availabilityService.getMyAvailability();
@@ -668,7 +705,7 @@ const ProviderDashboard = () => {
         setSavingBlockedTime(true);
         // Scope: 'owner' → the owner alone (ownerOnly), '' → business-wide,
         // an id → that member. Split into the two fields the API expects. A
-        // Service provider may only block their own lane — pin it whatever the
+        // team member may only block their own lane — pin it whatever the
         // form holds (the server refuses anything else).
         if (!canBlockOwn && blockedTimeForm.teamMember === MY_LANE_PENDING) {
             setSavingBlockedTime(false);
@@ -895,7 +932,9 @@ const ProviderDashboard = () => {
         setEarningsError('');
         try {
             const { from, to } = resolveEarningsRange(preset, custom);
-            const res = await earningsService.getMyEarnings({ from, to });
+            // A member's Earnings is this same screen over their own completed
+            // bookings; the business report is the owner's.
+            const res = isStaff ? await earningsService.getMine({ from, to }) : await earningsService.getMyEarnings({ from, to });
             setEarnings(res.data.data);
         } catch {
             setEarningsError('Could not load earnings. Tap retry.');
@@ -1004,7 +1043,8 @@ const ProviderDashboard = () => {
     // client-detail "Book Appointment" entry point (or a prior open).
     // A walk-in row of the client list: no account behind it, keyed "walkin:<name>".
     const isWalkInEntry = (c) => !!(c?.isWalkIn || c?.customer?.isWalkIn || String(c?.customer?._id || '').startsWith('walkin:'));
-    const blankApptFields = { services: [{ serviceId: '' }], clientMode: 'existing', customerId: '', clientName: '', isGroup: false, groupClients: [{ name: '' }], notes: '', startTime: '', teamMember: '' };
+    // A team member's booking starts in their OWN column ('' is the owner's).
+    const blankApptFields = { services: [{ serviceId: '' }], clientMode: 'existing', customerId: '', clientName: '', isGroup: false, groupClients: [{ name: '' }], notes: '', startTime: '', teamMember: isStaff ? String(myMemberId || '') : '' };
     const openBlankApptModal = (extra = {}) => {
         setApptError('');
         setApptForm(prev => ({ ...prev, ...blankApptFields, ...(canBookExistingClient ? {} : { clientMode: 'walkin' }), date: toDateKey(new Date()), ...extra }));
@@ -1113,9 +1153,17 @@ const ProviderDashboard = () => {
     };
 
     const fetchTeam = async () => {
-        if (isStaff && !hasCap('team:manage')) return; // the roster is owner/manager-only
         setLoadingTeam(true);
         try {
+            if (isStaff) {
+                // A member's calendar is their own column: the server returns just
+                // them (name and colour, for their cards) and the owner's name.
+                // Never the roster (that is the owner's Team screen).
+                const res = await teamService.getCalendarRoster();
+                setTeamMembers(res.data.data?.members || []);
+                setStaffOwnerName(res.data.data?.owner?.name || '');
+                return;
+            }
             const res = await teamService.getMyTeam();
             setTeamMembers(res.data.data);
         } catch { /* ignore */ } finally { setLoadingTeam(false); }
@@ -1203,6 +1251,7 @@ const ProviderDashboard = () => {
                 // services, at their own price and time.
                 const res = await myServicesService.get();
                 const d = res.data.data || {};
+                setMemberServicesData(d);
                 const ids = new Set((d.selected || []).map(String));
                 const ov = (id) => (d.overrides || []).find((o) => String(o.service?._id || o.service) === String(id));
                 const all = d.offersAllServices === true || (d.offersAllServices == null && ids.size === 0);
@@ -1228,6 +1277,17 @@ const ProviderDashboard = () => {
         setSavingAvailability(true);
         setAvailabilitySuccess('');
         try {
+            if (isStaff) {
+                // A member saves THEIR hours (/team/mine/availability), never the business's.
+                const bad = WEEK_DAYS.find((d) => availability[d]?.enabled && !(availability[d].slots[0]?.start < availability[d].slots[0]?.end));
+                if (bad) { toast(`${bad[0].toUpperCase()}${bad.slice(1)}: the end time must be after the start time`, 'error'); return; }
+                await myAvailabilityService.set(availability);
+                setMemberHadHours(true);
+                setStaffCalendarHours(availability);
+                setAvailabilitySuccess(WEEK_DAYS.some((d) => availability[d]?.enabled) ? 'Your hours are saved. Clients can book you in these hours.' : 'Saved. You have no working days, so clients can’t book you.');
+                setTimeout(() => setAvailabilitySuccess(''), 4000);
+                return;
+            }
             await availabilityService.updateMyAvailability(availability);
             setAvailabilitySuccess('Availability saved successfully!');
             setTimeout(() => setAvailabilitySuccess(''), 3000);
@@ -1320,6 +1380,45 @@ const ProviderDashboard = () => {
         } finally { setOwnerToggleBusy(''); }
     };
 
+    // A team member's Catalogue edits THEIR list: their own price and time for a
+    // service (serviceOverrides on their roster row), never the business's menu.
+    const memberOverridesWith = (id, price, duration) => [
+        ...(memberServicesData?.overrides || [])
+            .filter((o) => String(o.service?._id || o.service) !== String(id))
+            .map((o) => ({ service: String(o.service?._id || o.service), price: o.price, duration: o.duration })),
+        { service: String(id), price, duration },
+    ];
+    const saveMemberService = async ({ name, price, duration }) => {
+        let id = editingService?._id;
+        if (!id) {
+            const res = await myServicesService.add(name, price, duration);
+            id = res.data.data.service._id;
+        }
+        // Always record THEIR price and time, even when the name matched a
+        // service already on the menu at a different price.
+        await myServicesService.setPricing(memberOverridesWith(id, price, duration));
+    };
+    const removeMemberService = async (s) => {
+        if (!(await confirm({
+            title: `Remove ${s.name} from your services?`,
+            message: `Clients won't be able to book it with you. ${businessName} keeps it on its menu.`,
+            confirmLabel: 'Remove',
+            danger: true,
+        }))) return;
+        try {
+            await myServicesService.set(myServices.map((x) => String(x._id)).filter((id) => id !== String(s._id)), false);
+            toast(`${s.name} removed`, 'success');
+            await fetchMyServices();
+        } catch (err) { toast(err.response?.data?.message || 'Could not remove the service', 'error'); }
+    };
+    const addMemberServiceFromMenu = async (s) => {
+        try {
+            await myServicesService.set([...myServices.map((x) => String(x._id)), String(s._id)], false);
+            toast(`${s.name} added — set your price if it differs`, 'success');
+            await fetchMyServices();
+        } catch (err) { toast(err.response?.data?.message || 'Could not add the service', 'error'); }
+    };
+
     const handleDeleteService = async (id) => {
         if (await confirm({ title: 'Delete this service?', confirmLabel: 'Delete', danger: true })) {
             try {
@@ -1384,20 +1483,22 @@ const ProviderDashboard = () => {
     // menu price, a team member theirs at their own price. It used to offer the
     // whole catalogue at the catalogue price whoever was picked — a driver's
     // N$20 000 "Long trip" as the owner's, and a member's N$170 haircut as N$120.
-    // A team member's own form is already only their services (fetchMyServices).
+    // A team member books only themselves, so their list is their own services
+    // at their own prices (myServices, from /team/mine/services).
     const apptPerformer = !isStaff && apptForm.teamMember
         ? teamMembers.find(m => String(m._id) === String(apptForm.teamMember)) || null
         : null;
     const apptPerformerUnknown = !isStaff && !!apptForm.teamMember && !apptPerformer; // roster not loaded yet
     // "Show every service" is for booking a TEAM MEMBER outside their own list
     // (still at their price). It never widens the owner's own list: a service
-    // only the team performs is not the owner's to sell, at any price.
+    // only the team performs is not the owner's to sell, at any price. It is the
+    // owner's override alone — a member is held to who performs what.
     const apptServices = isStaff
         ? myServices
         : servicesFor(myServices, apptPerformer, { all: (apptShowAll && !!apptForm.teamMember) || apptPerformerUnknown });
     const apptServiceById = (id) => apptServices.find(s => s._id === id);
     const apptNoServicesMsg = isStaff
-        ? 'You have no services yet. Add yours under Services first.'
+        ? 'You have no services yet. Add yours in the Catalogue first.'
         : myServices.length === 0
             ? 'No services found. Add services in the Catalogue tab first.'
             : apptPerformer
@@ -1405,8 +1506,13 @@ const ProviderDashboard = () => {
                 : 'You don’t offer any services yourself — pick a team member.';
     // Switching professional drops service rows the new one doesn't perform.
     const setApptPerformer = (teamMember, all = apptShowAll) => setApptForm(f => {
-        const member = teamMember ? teamMembers.find(m => String(m._id) === String(teamMember)) || null : null;
-        const offered = new Set(servicesFor(myServices, member, { all: (all && !!teamMember) || (!!teamMember && !member) }).map(s => s._id));
+        let list;
+        if (isStaff) list = myServices;
+        else {
+            const member = teamMember ? teamMembers.find(m => String(m._id) === String(teamMember)) || null : null;
+            list = servicesFor(myServices, member, { all: (all && !!teamMember) || (!!teamMember && !member) });
+        }
+        const offered = new Set(list.map(s => s._id));
         const rows = f.services.map(r => (r.serviceId && !offered.has(r.serviceId) ? { ...r, serviceId: '' } : r));
         return { ...f, teamMember, services: rows };
     });
@@ -1623,7 +1729,7 @@ const ProviderDashboard = () => {
     // person to compare side by side. With a single staff member the lanes add
     // nothing over the normal calendar, so hide the option (and fall back to the
     // normal grid below if 'staff' was somehow still selected).
-    const showStaffView = activeTeamMembers.length > 1;
+    const showStaffView = !isStaff && activeTeamMembers.length > 1;
     const calendarViewOptions = [['day', 'Day'], ['3day', '3 Day'], ['week', 'Week'], ...(showStaffView ? [['staff', 'Staff']] : [])];
     const calendarViewLabel = (calendarViewOptions.find(([v]) => v === calendarView) || ['', calendarView])[1];
     const viewMenu = (
@@ -1795,22 +1901,16 @@ const ProviderDashboard = () => {
                     </>
                 )}
 
-                {/* A team member's own services, in the same Service menu layout */}
-                {activeTab === 'services' && isStaff && (
-                    <Suspense fallback={<RowsSkeleton />}>
-                        <MemberServicesTab curSym={curSym} businessName={businessName} />
-                    </Suspense>
-                )}
-
-                {/* My Services tab */}
-                {activeTab === 'services' && !isStaff && (
-                    <div>
+                {/* Catalogue — the owner's Service menu. A team member gets the same
+                    screen over THEIR services, at their own prices and times. */}
+                {activeTab === 'services' && (
+                    <div data-testid="service-menu">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                             <div>
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>Service menu</h2>
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>View and manage the services offered by your business</p>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>{isStaff ? 'The services clients can book you for, at your prices' : 'View and manage the services offered by your business'}</p>
                             </div>
-                            <button onClick={() => { setEditingService(null); setShowServiceForm(true); }} className="btn-primary" style={{ padding: '0.65rem 1.25rem', fontSize: '0.875rem' }}>
+                            <button onClick={() => { setEditingService(null); setShowServiceForm(true); }} className="btn-primary" data-testid="add-service" style={{ padding: '0.65rem 1.25rem', fontSize: '0.875rem' }}>
                                 + Add Service
                             </button>
                         </div>
@@ -1831,7 +1931,7 @@ const ProviderDashboard = () => {
                             </div>
                             {/* Your own services vs the ones only your team performs — the
                                 owner's equivalent of a team member's "My services". */}
-                            <div role="group" aria-label="Who performs it" style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+                            {!isStaff && <div role="group" aria-label="Who performs it" style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
                                 {[['all', 'All services'], ['mine', 'You offer'], ['team', 'Team only']].map(([k, lbl]) => {
                                     const on = catalogueWho === k;
                                     return (
@@ -1841,7 +1941,7 @@ const ProviderDashboard = () => {
                                         </button>
                                     );
                                 })}
-                            </div>
+                            </div>}
                         </div>
 
                         {showServiceForm && (
@@ -1853,13 +1953,20 @@ const ProviderDashboard = () => {
                                     onClose={() => { setShowServiceForm(false); setEditingService(null); }}
                                     onSaved={async () => { await fetchMyServices(); setShowServiceForm(false); setEditingService(null); }}
                                     onCategoriesChanged={fetchCategories}
+                                    memberSave={isStaff ? saveMemberService : null}
+                                    businessName={businessName}
                                 />
                             </Suspense>
                         )}
 
                         <div className="catalogue-grid" style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '1.5rem', alignItems: 'start' }}>
                             {(() => {
-                                const catalogueFiltered = myServices
+                                // A member's headings are the menu categories their own services
+                                // sit in (the category list itself is the owner's to manage).
+                                const menuCategories = isStaff
+                                    ? [...new Map(myServices.filter(s => s.category?._id).map(s => [s.category._id, { _id: s.category._id, name: s.category.name }])).values()]
+                                    : categories;
+                                                                const catalogueFiltered = myServices
                                     .filter(s => !catalogueSearch || (s.name || '').toLowerCase().includes(catalogueSearch.toLowerCase()))
                                     .filter(s => catalogueWho === 'all' || (catalogueWho === 'mine' ? ownerPerforms(s) : !ownerPerforms(s)));
                                 const servicesInCategory = (catId) => catalogueFiltered.filter(s => {
@@ -1868,12 +1975,12 @@ const ProviderDashboard = () => {
                                 });
                                 const sidebarItems = [
                                     { id: 'all', name: 'All categories', count: catalogueFiltered.length },
-                                    ...categories.map(c => ({ id: c._id, name: c.name, count: servicesInCategory(c._id).length })),
+                                    ...menuCategories.map(c => ({ id: c._id, name: c.name, count: servicesInCategory(c._id).length })),
                                     { id: 'featured', name: 'Featured', count: servicesInCategory('featured').length },
                                 ];
                                 const groups = catalogueCategory === 'all'
-                                    ? [...categories.map(c => ({ id: c._id, name: c.name })), { id: 'featured', name: 'Featured' }]
-                                    : [{ id: catalogueCategory, name: catalogueCategory === 'featured' ? 'Featured' : (categories.find(c => c._id === catalogueCategory)?.name || 'Category') }];
+                                    ? [...menuCategories.map(c => ({ id: c._id, name: c.name })), { id: 'featured', name: 'Featured' }]
+                                    : [{ id: catalogueCategory, name: catalogueCategory === 'featured' ? 'Featured' : (menuCategories.find(c => c._id === catalogueCategory)?.name || 'Category') }];
                                 return (
                                     <>
                                         {/* Categories sidebar */}
@@ -1893,13 +2000,13 @@ const ProviderDashboard = () => {
                                                             <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
                                                             <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginLeft: '0.5rem' }}>{item.count}</span>
                                                         </button>
-                                                        {item.id !== 'all' && item.id !== 'featured' && (
+                                                        {!isStaff && item.id !== 'all' && item.id !== 'featured' && (
                                                             <button onClick={() => handleDeleteCategory(item.id)} title="Delete category" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1rem', lineHeight: 1, padding: '0 0.25rem' }}>×</button>
                                                         )}
                                                     </div>
                                                 );
                                             })}
-                                            <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
+                                            {!isStaff && <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
                                                 {showCategoryForm ? (
                                                     <form onSubmit={handleAddCategory} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                                         <input value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder="Category name" className="input" autoFocus />
@@ -1911,7 +2018,7 @@ const ProviderDashboard = () => {
                                                 ) : (
                                                     <button onClick={() => setShowCategoryForm(true)} style={{ background: 'none', border: 'none', color: 'var(--gold-dark)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', fontFamily: 'var(--font-body)', padding: 0 }}>+ Add category</button>
                                                 )}
-                                            </div>
+                                            </div>}
                                         </div>
 
                                         {/* Services list grouped by category */}
@@ -1932,29 +2039,30 @@ const ProviderDashboard = () => {
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                                                 {svcs.map(s => {
                                                                     const mine = ownerPerforms(s);
+                                                                    // A member's own list: who else performs it is the owner's view.
                                                                     const team = teamPerformers(s, teamMembers);
                                                                     const nobody = !mine && team.length === 0;
                                                                     return (
-                                                                    <div key={s._id} data-testid="catalogue-service" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', borderLeft: `3px solid ${mine ? 'var(--gold)' : 'var(--border)'}`, padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
+                                                                    <div key={s._id} data-testid="catalogue-service" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', borderLeft: `3px solid ${mine || isStaff ? 'var(--gold)' : 'var(--border)'}`, padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                                                                         <div style={{ minWidth: 0 }}>
                                                                             <p style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem', marginBottom: '0.2rem' }}>{s.name}</p>
                                                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{formatDuration(s.duration)}{s.location ? ` · 📍 ${s.location}` : ''}</p>
                                                                             {/* Who clients can book for it. A service only your team
                                                                                 performs is theirs: it never shows under you, and its
                                                                                 price here is theirs. */}
-                                                                            <p data-testid="catalogue-performers" style={{ fontSize: '0.75rem', marginTop: '0.3rem', color: nobody ? 'var(--danger-fg, #dc2626)' : 'var(--text-muted)' }}>
+                                                                            {!isStaff && <p data-testid="catalogue-performers" style={{ fontSize: '0.75rem', marginTop: '0.3rem', color: nobody ? 'var(--danger-fg, #dc2626)' : 'var(--text-muted)' }}>
                                                                                 {nobody
                                                                                     ? 'Nobody offers this — clients can’t book it'
                                                                                     : mine
                                                                                         ? `You${team.length ? ` · ${team.map(m => m.name.split(' ')[0]).join(' · ')}` : ''}`
                                                                                         : `Only ${team.map(m => m.name.split(' ')[0]).join(' · ')}`}
-                                                                            </p>
+                                                                            </p>}
                                                                         </div>
                                                                         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0, flexWrap: 'wrap' }}>
                                                                             <span style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem', whiteSpace: 'nowrap' }}>{curSym} {s.price}</span>
-                                                                            <Switch label="I offer this" checked={mine} disabled={ownerToggleBusy === s._id} onChange={(v) => handleToggleOwnerPerforms(s, v)} data-testid="catalogue-owner-performs" />
+                                                                            {!isStaff && <Switch label="I offer this" checked={mine} disabled={ownerToggleBusy === s._id} onChange={(v) => handleToggleOwnerPerforms(s, v)} data-testid="catalogue-owner-performs" />}
                                                                             <button onClick={() => handleEditService(s)} style={{ background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Edit</button>
-                                                                            <button onClick={() => handleDeleteService(s._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Delete</button>
+                                                                            <button onClick={() => (isStaff ? removeMemberService(s) : handleDeleteService(s._id))} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>{isStaff ? 'Remove' : 'Delete'}</button>
                                                                         </div>
                                                                     </div>
                                                                     );
@@ -1969,41 +2077,53 @@ const ProviderDashboard = () => {
                                 );
                             })()}
                         </div>
+
+                        {/* A member can take on a service the business already sells. */}
+                        {isStaff && (() => {
+                            const mineIds = new Set(myServices.map((x) => String(x._id)));
+                            const menuRest = (memberServicesData?.services || []).filter((x) => !mineIds.has(String(x._id)));
+                            if (menuRest.length === 0) return null;
+                            return (
+                                <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.1rem 1.25rem', marginTop: '0.5rem' }}>
+                                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>From {businessName}’s menu</h3>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '0.8rem' }}>Add one you also do. You can set your own price after.</p>
+                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                                        {menuRest.map((x) => (
+                                            <button key={x._id} type="button" onClick={() => addMemberServiceFromMenu(x)} data-testid="menu-add-service"
+                                                style={{ minHeight: '40px', padding: '0 0.9rem', borderRadius: '999px', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--charcoal)', fontFamily: 'var(--font-body)', fontSize: '0.85rem', cursor: 'pointer' }}>
+                                                + {x.name}
+                                            </button>
+                                        ))}
+                                    </div>
+                                </div>
+                            );
+                        })()}
                     </div>
                 )}
 
-                {/* A team member's own working hours + time off, in the same layout */}
-                {activeTab === 'availability' && isStaff && (
-                    <Suspense fallback={<RowsSkeleton />}>
-                        <MemberHoursTab
-                            businessName={businessName}
-                            // Their own lane's blocked time, where the owner has "Blocked
-                            // Times" — offered when their access lets them block time.
-                            blocks={canBlock && myMemberId
-                                ? blockedTimes.filter((b) => String(b.teamMember?._id || b.teamMember || '') === String(myMemberId))
-                                : null}
-                            onAddBlock={() => openBlockedTimeForm()}
-                            onEditBlock={(b) => openBlockedTimeForm(b)}
-                            onDeleteBlock={(b) => handleDeleteBlockedTime(b)}
-                        />
-                    </Suspense>
-                )}
-
-                {/* Availability tab */}
-                {activeTab === 'availability' && !isStaff && (
-                    <div>
+                {/* Availability tab — the owner's Working Hours + Blocked Times. A team
+                    member gets the same screen over THEIR hours and their own blocked
+                    time (plus their time off). */}
+                {activeTab === 'availability' && (
+                    <div data-testid="availability">
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                             <div>
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>Working Hours</h2>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>Set the days and hours you are available for bookings</p>
                             </div>
-                            <button onClick={handleSaveAvailability} disabled={savingAvailability} className="btn-primary" style={{ padding: '0.65rem 1.5rem', fontSize: '0.875rem' }}>
+                            <button onClick={handleSaveAvailability} disabled={savingAvailability || !availability} className="btn-primary" data-testid="save-hours" style={{ padding: '0.65rem 1.5rem', fontSize: '0.875rem' }}>
                                 {savingAvailability ? 'Saving...' : 'Save Changes'}
                             </button>
                         </div>
 
+                        {isStaff && !memberHadHours && (
+                            <div style={{ background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--charcoal)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.25rem', fontSize: '0.875rem' }}>
+                                Turn on the days you work and set your times. Clients can’t book you until you do.
+                            </div>
+                        )}
+
                         {availabilitySuccess && (
-                            <div style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
+                            <div role="status" style={{ background: '#d1fae5', border: '1px solid #6ee7b7', color: '#065f46', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.875rem' }}>
                                 {availabilitySuccess}
                             </div>
                         )}
@@ -2039,22 +2159,22 @@ const ProviderDashboard = () => {
                                     <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)' }}>Blocked Times</h2>
                                     <p style={{ color: 'var(--text-muted)', fontSize: '0.825rem', marginTop: '0.2rem' }}>Block off time when you're unavailable</p>
                                 </div>
-                                {!showBlockedTimeForm && (
-                                    <button onClick={() => openBlockedTimeForm()} className="btn-outline" style={{ padding: '0.55rem 1.1rem', fontSize: '0.825rem' }}>+ Add blocked time</button>
+                                {!showBlockedTimeForm && canBlock && (
+                                    <button onClick={() => openBlockedTimeForm()} className="btn-outline" data-testid="add-blocked-time" style={{ padding: '0.55rem 1.1rem', fontSize: '0.825rem' }}>+ Add blocked time</button>
                                 )}
                             </div>
 
                             {/* Add / Edit form — now handled by the right-side slide-in panel (showBlockedTimeForm) */}
 
                             {/* Blocked times list */}
-                            {blockedTimes.length === 0 ? (
+                            {listedBlocks.length === 0 ? (
                                 <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '2rem', textAlign: 'center' }}>
                                     <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>No blocked times yet. Add one to mark times when you're unavailable.</p>
                                 </div>
                             ) : (
                                 <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
-                                    {blockedTimes.map((bt, i) => (
-                                        <div key={bt._id} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.875rem 1.25rem', borderBottom: i < blockedTimes.length - 1 ? '1px solid var(--border)' : 'none', gap: '1rem' }}>
+                                    {listedBlocks.map((bt, i) => (
+                                        <div key={bt._id} data-testid="blocked-time-row" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0.875rem 1.25rem', borderBottom: i < listedBlocks.length - 1 ? '1px solid var(--border)' : 'none', gap: '1rem' }}>
                                             <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', minWidth: 0 }}>
                                                 <div style={{ width: '38px', height: '38px', borderRadius: '8px', background: 'rgba(240,62,22,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '1rem', flexShrink: 0 }}>🚫</div>
                                                 <div style={{ minWidth: 0 }}>
@@ -2068,15 +2188,21 @@ const ProviderDashboard = () => {
                                                     {bt.reason && <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '0.15rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{bt.reason}</p>}
                                                 </div>
                                             </div>
-                                            <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
+                                            {canEditBlock(bt) && <div style={{ display: 'flex', gap: '0.5rem', flexShrink: 0 }}>
                                                 <button onClick={() => openBlockedTimeForm(bt)} style={{ background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.3rem 0.7rem', cursor: 'pointer', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>Edit</button>
                                                 <button onClick={() => handleDeleteBlockedTime(bt)} style={{ background: 'none', border: '1px solid #fca5a5', borderRadius: 'var(--radius-sm)', padding: '0.3rem 0.7rem', cursor: 'pointer', fontSize: '0.78rem', color: '#dc2626' }}>Delete</button>
-                                            </div>
+                                            </div>}
                                         </div>
                                     ))}
                                 </div>
                             )}
                         </div>
+
+                        {isStaff && (
+                            <Suspense fallback={null}>
+                                <TimeOffSection businessName={businessName} />
+                            </Suspense>
+                        )}
                     </div>
                 )}
 
@@ -2714,14 +2840,14 @@ const ProviderDashboard = () => {
                         {/* Staff filter — who's on the calendar. The house segmented control
                             (styles/index.css) rather than loose pills: one sunken track, the
                             active option raised white, which reads far calmer above the grid. */}
-                        {teamMembers.length > 0 && (
+                        {teamMembers.length > 0 && seesWholeTeam && (
                             <div role="group" aria-label="Filter calendar by staff member" style={{ overflowX: 'auto', padding: '0.55rem 0.9rem', borderBottom: '1px solid var(--border)', background: 'var(--card-bg)', flexShrink: 0, WebkitOverflowScrolling: 'touch' }}>
                                 <div className="segmented">
                                     {[
                                         { id: 'all', label: 'All staff' },
-                                        // The owner's dot is the brand orange, like their bookings;
-                                        // each member's is their own calendar colour.
-                                        { id: 'unassigned', label: isStaff ? 'Owner' : `${(user?.name || 'Me').split(' ')[0]} (me)`, color: 'var(--gold)' },
+                                        // The owner's own column; the dot is the brand orange like their
+                                        // bookings, and each member's is their calendar colour.
+                                        { id: 'unassigned', label: `${(user?.name || 'Me').split(' ')[0]} (me)`, color: 'var(--gold)' },
                                         ...teamMembers.filter(m => m.isActive !== false).map(m => ({ id: String(m._id), label: m.name, color: teamColors[String(m._id)] })),
                                     ].map(({ id, label, color }) => {
                                         // 'All staff' is active when no subset is chosen; each other
@@ -2750,12 +2876,12 @@ const ProviderDashboard = () => {
                                     date={currentDate}
                                     onDateChange={setCurrentDate}
                                     onViewChange={setCalendarView}
-                                    ownerName={user?.name}
+                                    ownerName={ownerName}
                                     teamMembers={teamMembers}
                                     staffFilter={calendarStaffFilter}
                                     appointments={appointments}
                                     blockedTimes={calendarBlockedTimes}
-                                    availability={availability}
+                                    availability={isStaff ? staffCalendarHours : availability}
                                     statusColors={statusCalendarColors}
                                     height="100%"
                                     headerControl={viewMenu}
@@ -2779,9 +2905,9 @@ const ProviderDashboard = () => {
                                     appointments={appointments}
                                     blockedTimes={calendarBlockedTimes}
                                     teamMembers={teamMembers}
-                                    ownerName={user?.name}
+                                    ownerName={ownerName}
                                     staffFilter={calendarStaffFilter}
-                                    availability={availability}
+                                    availability={isStaff ? staffCalendarHours : availability}
                                     height="100%"
                                     headerControl={viewMenu}
                                     onEventClick={openApptDetail}
@@ -2869,7 +2995,9 @@ const ProviderDashboard = () => {
                                             // Fresh booking at the picked slot — clear any client left from a
                                             // prior open. teamMember comes from the staff lane if the selection did.
                                             setApptError('');
-                                            setApptForm(prev => ({ ...prev, ...blankApptFields, ...(canBookExistingClient ? {} : { clientMode: 'walkin' }), date: timeSelectionPreview.date, startTime: timeSelectionPreview.startTime, teamMember: timeSelectionPreview.teamMember !== undefined ? timeSelectionPreview.teamMember : prev.teamMember }));
+                                            // A member always books their own column.
+                                            const laneTm = isStaff ? undefined : timeSelectionPreview.teamMember;
+                                            setApptForm(prev => ({ ...prev, ...blankApptFields, ...(canBookExistingClient ? {} : { clientMode: 'walkin' }), date: timeSelectionPreview.date, startTime: timeSelectionPreview.startTime, teamMember: laneTm !== undefined ? laneTm : (isStaff ? blankApptFields.teamMember : prev.teamMember) }));
                                             setShowApptModal(true);
                                             setTimeSelectionPreview(null);
                                         }} className="btn-primary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.8rem' }}>
@@ -2882,7 +3010,7 @@ const ProviderDashboard = () => {
                                                 date: timeSelectionPreview.date,
                                                 startTime: timeSelectionPreview.startTime,
                                                 endTime: timeSelectionPreview.endTime,
-                                                // A Service provider blocks their own lane, whichever column was tapped.
+                                                // A team member blocks their own lane, whichever column was tapped.
                                                 teamMember: canBlockOwn
                                                     ? String(myMemberId)
                                                     : (timeSelectionPreview.teamMember !== undefined ? timeSelectionPreview.teamMember : prev.teamMember),
@@ -3802,6 +3930,8 @@ const ProviderDashboard = () => {
                             // (id "walkin:<name>", no account), which the API only accepts by
                             // name, as Guest does (see utils/bookingClient.js).
                             const { customerId: bookingCustomerId, walkInName: bookingWalkInName } = bookingClientFields(apptForm, clients);
+                            // A member's booking goes in their own column unless they picked one.
+                            const bookTeamMember = apptForm.teamMember || (isStaff && myMemberId ? String(myMemberId) : undefined);
                             setSavingAppt(true);
                             try {
                                 if (apptForm.isGroup) {
@@ -3813,7 +3943,7 @@ const ProviderDashboard = () => {
                                         endTime,
                                         clients: validClients,
                                         notes: apptForm.notes,
-                                        teamMember: apptForm.teamMember || undefined,
+                                        teamMember: bookTeamMember,
                                     });
                                 } else if (selectedServices.length === 1) {
                                     // Exactly one service — keep hitting the original single-service
@@ -3826,7 +3956,7 @@ const ProviderDashboard = () => {
                                         customerId: bookingCustomerId,
                                         walkInName: bookingWalkInName,
                                         notes: apptForm.notes,
-                                        teamMember: apptForm.teamMember || undefined,
+                                        teamMember: bookTeamMember,
                                         isRecurring: apptForm.isRecurring,
                                         recurrenceType: apptForm.isRecurring ? apptForm.recurrenceType : undefined,
                                         recurrenceInterval: apptForm.isRecurring ? apptForm.recurrenceInterval : undefined,
@@ -3839,7 +3969,7 @@ const ProviderDashboard = () => {
                                         startTime: apptForm.startTime,
                                         customerId: bookingCustomerId,
                                         walkInName: bookingWalkInName,
-                                        teamMember: apptForm.teamMember || undefined,
+                                        teamMember: bookTeamMember,
                                         services: selectedServices.map(s => ({ serviceId: s._id })),
                                     });
                                 }
@@ -3862,7 +3992,7 @@ const ProviderDashboard = () => {
                                             onChange={e => setApptPerformer(e.target.value)}
                                             options={[
                                                 { value: '', label: 'Me / unassigned' },
-                                                ...teamMembers.filter(m => m.isActive !== false).map(m => ({ value: m._id, label: `${m.name}${m.role ? ` · ${m.role}` : ''}` })),
+                                                ...teamMembers.filter(m => m.isActive !== false).map(m => ({ value: String(m._id), label: `${m.name}${m.role ? ` · ${m.role}` : ''}` })),
                                                 // Booking from an inactive member's lane (they can still hold
                                                 // appointments) must not show a raw id
                                                 ...(apptForm.teamMember && !teamMembers.some(m => String(m._id) === String(apptForm.teamMember) && m.isActive !== false)
@@ -3927,7 +4057,7 @@ const ProviderDashboard = () => {
                                                     </div>
                                                 );
                                             })}
-                                            {!isStaff && <button type="button" onClick={() => setApptForm(f => ({ ...f, services: [...f.services, { serviceId: '' }] }))} style={{ alignSelf: 'flex-start', fontSize: '0.75rem', padding: '0.25rem 0.65rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(240,62,22,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add service</button>}
+                                            {<button type="button" onClick={() => setApptForm(f => ({ ...f, services: [...f.services, { serviceId: '' }] }))} style={{ alignSelf: 'flex-start', fontSize: '0.75rem', padding: '0.25rem 0.65rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(240,62,22,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add service</button>}
                                         </div>
                                         {apptServices.length === 0 && <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.35rem' }}>{apptNoServicesMsg}</p>}
                                         {(() => {
@@ -3954,9 +4084,9 @@ const ProviderDashboard = () => {
                                         />
                                     </div>
                                 )}
-                                {/* Group booking toggle (owner-only: group bookings are the owner's) */}
+                                {/* Group booking toggle — a member books a group into their own column */}
                                 <div style={{ borderRadius: 'var(--radius-sm)', border: '1px solid var(--border)', padding: '0.75rem 1rem', background: apptForm.isGroup ? 'rgba(240,62,22,0.05)' : 'transparent' }}>
-                                    <div style={{ display: isStaff ? 'none' : 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: apptForm.isGroup ? '0.75rem' : 0 }}>
+                                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: apptForm.isGroup ? '0.75rem' : 0 }}>
                                         <div>
                                             <span style={{ fontSize: '0.8rem', fontWeight: '600', color: 'var(--charcoal)' }}>Group booking</span>
                                             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>Book multiple clients at once</span>
@@ -4073,10 +4203,9 @@ const ProviderDashboard = () => {
                                         // A team member always books into their OWN column (the server forces
                                         // it), so their lane is their member id and their own bookings and
                                         // blocks are what the times must avoid.
-                                        const laneOf = isStaff
-                                            ? (tmId) => (tmId ? String(tmId) : '')
-                                            : (tmId) => (tmId && rosterIds.has(String(tmId))) ? String(tmId) : '';
-                                        const selectedLane = isStaff ? String(myMemberId || '') : (apptForm.teamMember ? String(apptForm.teamMember) : '');
+                                        const laneOf = (tmId) => (tmId && (rosterIds.has(String(tmId)) || (isStaff && String(tmId) === String(myMemberId)))) ? String(tmId) : '';
+                                        // A member books only their own column; the owner the one picked.
+                                        const selectedLane = isStaff ? String(myMemberId || '') : String(apptForm.teamMember || '');
                                         const toMinutes = (t) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m; };
                                         const bookedRanges = [
                                             ...(appointments || []).filter(a => {
@@ -4121,8 +4250,8 @@ const ProviderDashboard = () => {
                                     <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Notes <span style={{ fontWeight: '400', textTransform: 'none' }}>(optional)</span></label>
                                     <textarea value={apptForm.notes} onChange={e => setApptForm(f => ({ ...f, notes: e.target.value }))} rows={3} placeholder="Any notes for this appointment..." className="input" style={{ width: '100%', resize: 'vertical' }} />
                                 </div>
-                                {/* Recurring — shared controls (Custom frequency + app calendar). Owner-only. */}
-                                {!isStaff && <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
+                                {/* Recurring — shared controls (Custom frequency + app calendar). */}
+                                {<div style={{ borderTop: '1px solid var(--border)', paddingTop: '1rem' }}>
                                     <RecurrenceFields
                                         value={{ isRecurring: apptForm.isRecurring, recurrenceType: apptForm.recurrenceType, recurrenceInterval: apptForm.recurrenceInterval || 1, recurrenceEndDate: apptForm.recurrenceEndDate }}
                                         onChange={(v) => setApptForm(f => ({ ...f, isRecurring: v.isRecurring, recurrenceType: v.recurrenceType, recurrenceInterval: v.recurrenceInterval, recurrenceEndDate: v.recurrenceEndDate }))}
@@ -4234,28 +4363,15 @@ const ProviderDashboard = () => {
                                 editing we show the scope read-only. */}
                             <div>
                                 <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Applies to</label>
-                                {!editingBlockedTime && (isStaff ? canManageBlocks : activeTeamMembers.length > 0) ? (
+                                {!editingBlockedTime && !isStaff && activeTeamMembers.length > 0 ? (
                                     <Select
                                         value={blockedTimeForm.teamMember === MY_LANE_PENDING ? undefined : blockedTimeForm.teamMember}
                                         placeholder="Choose who this applies to"
                                         onChange={e => setBlockedTimeForm(p => ({ ...p, teamMember: e.target.value }))}
                                         options={[
-                                            ...(isStaff
-                                                // A team member who manages the calendar (Reception / Manager):
-                                                // "Only me" is THEIR lane; the owner's own time is a separate,
-                                                // clearly-named option (it used to read "Only me" and block the
-                                                // owner's column instead).
-                                                ? [
-                                                    ...(myMemberId ? [{ value: String(myMemberId), label: `Only me${myMember?.name ? ` (${myMember.name.split(' ')[0]})` : ''}` }] : []),
-                                                    { value: '', label: 'Whole business (everyone)' },
-                                                    { value: 'owner', label: 'Owner only' },
-                                                    ...activeTeamMembers.filter(m => String(m._id) !== String(myMemberId)).map(m => ({ value: m._id, label: `${m.name}${m.role ? ` · ${m.role}` : ''} only` })),
-                                                ]
-                                                : [
-                                                    { value: 'owner', label: `Only me${user?.name ? ` (${user.name.split(' ')[0]})` : ' (owner)'}` },
-                                                    { value: '', label: 'Whole business (everyone)' },
-                                                    ...activeTeamMembers.map(m => ({ value: m._id, label: `${m.name}${m.role ? ` · ${m.role}` : ''} only` })),
-                                                ]),
+                                                { value: 'owner', label: `Only me${user?.name ? ` (${user.name.split(' ')[0]})` : ' (owner)'}` },
+                                                { value: '', label: 'Whole business (everyone)' },
+                                                ...activeTeamMembers.map(m => ({ value: m._id, label: `${m.name}${m.role ? ` · ${m.role}` : ''} only` })),
                                             ...(blockedTimeForm.teamMember && blockedTimeForm.teamMember !== 'owner' && String(blockedTimeForm.teamMember) !== String(myMemberId || '') && !activeTeamMembers.some(m => String(m._id) === String(blockedTimeForm.teamMember))
                                                 ? [{ value: blockedTimeForm.teamMember, label: `${teamMembers.find(m => String(m._id) === String(blockedTimeForm.teamMember))?.name || 'Staff member'} · inactive` }]
                                                 : []),
@@ -4266,8 +4382,8 @@ const ProviderDashboard = () => {
                                     />
                                 ) : (() => {
                                     const scope = blockedTimeForm.teamMember;
-                                    // A team member's own lane reads "Only me (name)" — for a Service
-                                    // provider it is the ONLY lane they can block.
+                                    // A team member's own lane reads "Only me (name)" — the only lane
+                                    // a member can block.
                                     const isMine = isStaff && !!myMemberId && String(scope) === String(myMemberId);
                                     const isMemberScope = scope && scope !== 'owner';
                                     const mineName = myMember?.name || user?.name || '';
@@ -4276,7 +4392,7 @@ const ProviderDashboard = () => {
                                         : isMemberScope
                                             ? `${teamMembers.find(m => String(m._id) === scope)?.name || 'Staff member'} only`
                                             : scope === 'owner'
-                                                ? (isStaff ? 'Owner only' : `Only me${user?.name ? ` (${user.name.split(' ')[0]})` : ''}`)
+                                                ? `Only me${user?.name ? ` (${user.name.split(' ')[0]})` : ''}`
                                                 : (activeTeamMembers.length > 0 || isStaff ? 'Whole business (everyone)' : (user?.name || 'Only me'));
                                     // The signed-in person's avatar stands for "me": the owner's own
                                     // time, or a team member's own lane.
@@ -4411,8 +4527,7 @@ const ProviderDashboard = () => {
                             // complete / no-show transitions only make sense while it's still
                             // pending or confirmed. Hide the Actions chip once there's nothing
                             // left to do (completed / cancelled).
-                            // A team member only sees the actions their access allows on THIS
-                            // booking (View only: none; Service provider: their own bookings).
+                            // A team member acts on their own bookings only.
                             const statusOk = canChangeApptStatus(apptDetailModal);
                             const stillOpen = apptDetailModal.status !== 'cancelled' && apptDetailModal.status !== 'completed';
                             const canConfirm = statusOk && apptDetailModal.status === 'pending';
@@ -4432,6 +4547,11 @@ const ProviderDashboard = () => {
                                             <button onClick={() => openClientProfile(cust)} style={{ flexShrink: 0, fontSize: '0.72rem', fontWeight: 600, color: 'var(--gold-dark)', background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', borderRadius: 'var(--radius-sm)', padding: '0.4rem 0.6rem', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', minHeight: '36px' }}>Profile</button>
                                         )}
                                     </div>
+                                    {apptIsShared(apptDetailModal) && (
+                                        <p data-testid="appt-shared-note" style={{ margin: '0 0 0.75rem', padding: '0.55rem 0.75rem', borderRadius: 'var(--radius-sm)', background: 'var(--surface-sunken)', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                                            Part of this booking is with someone else — ask the owner to change it.
+                                        </p>
+                                    )}
                                     {/* Contact row: Call · Email · Message · Actions ▾ */}
                                     <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.5rem' }}>
                                         <div style={{ flex: 1, minWidth: 0 }}>

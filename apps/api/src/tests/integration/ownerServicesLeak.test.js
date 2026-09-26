@@ -95,13 +95,12 @@ describe('a service a team member adds is theirs, not the owner\'s', () => {
         expect((await Service.findById(both.body.data.service._id)).ownerPerforms).toBe(true);
     });
 
-    it('a manager adding for a colleague cannot opt the owner in', async () => {
+    it('a team member (even a former Manager) cannot add a service for a colleague at all', async () => {
         const ctx = await setup();
         const mgrUser = await makeUser({ role: 'staff', staffOf: ctx.owner._id, staffTier: 'high', name: 'Mara Manager' });
         await TeamMember.create({ provider: ctx.owner._id, name: 'Mara', email: 'mara@test.com', user: mgrUser._id, bookable: false });
         const res = await ownerAddsFor(ctx, ctx.erastus, { name: 'Car wash', price: 150, duration: 45, ownerPerforms: true }, mgrUser);
-        expect([200, 201]).toContain(res.status);
-        expect((await Service.findById(res.body.data.service._id)).ownerPerforms).toBe(false);
+        expect(res.status).toBe(403);
     });
 });
 
@@ -278,19 +277,19 @@ describe('a service BOTH perform, and same-name adds', () => {
 });
 
 describe('the owner\'s own control', () => {
-    it('"I offer this" is the owner\'s switch — a services:edit team member cannot flip it', async () => {
+    it('"I offer this" is the owner\'s switch — a team member cannot flip it', async () => {
         const ctx = await setup();
         const off = await request(app).put(`/api/services/${ctx.trim._id}`).set(authHeader(ctx.owner)).send({ ownerPerforms: false });
         expect(off.status).toBe(200);
         expect(off.body.data.ownerPerforms).toBe(false);
         expect((await ownerTile(ctx)).services).not.toContain(String(ctx.trim._id));
 
+        // A team member (even a former Manager) can't edit the menu at all now.
         const high = await makeUser({ role: 'staff', staffOf: ctx.owner._id, staffTier: 'high', name: 'Hilda High' });
         const tried = await request(app).put(`/api/services/${ctx.trim._id}`).set(authHeader(high)).send({ ownerPerforms: true, price: 75 });
-        expect(tried.status).toBe(200);
+        expect(tried.status).toBe(403);
         const trim = await Service.findById(ctx.trim._id);
         expect(trim.ownerPerforms).toBe(false); // unchanged
-        expect(trim.price).toBe(75);            // the menu edit itself went through
     });
 
     it('a new menu item can be created as "only my team does this"', async () => {

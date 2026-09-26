@@ -143,6 +143,9 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
 
     earningsService: {
         getMyEarnings: (params?: any) => API.get('/earnings', { params }),
+        // A team member's own earnings — money from the completed bookings they
+        // performed, in the same shape as the owner's report.
+        getMine: (params?: any) => API.get('/earnings/mine', { params }),
     },
 
     availabilityService: {
@@ -243,6 +246,9 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
 
     teamService: {
         getMyTeam: () => API.get('/team'),
+        // Who is on the calendar — names and colours only, scoped like the
+        // calendar (a Service provider gets just themselves). Owner or staff.
+        getCalendarRoster: () => API.get('/team/mine/calendar'),
         addMember: (data: any) => API.post('/team', data),
         // Add several members at once. Returns { created, failed, results[] } —
         // each row validated independently, a bad row doesn't fail the batch.
@@ -255,18 +261,8 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         // history as "former staff". Use for a member leaving for good.
         removeMember: (id: string) => API.delete(`/team/${id}/permanent`),
         restoreMember: (id: string) => API.post(`/team/${id}/restore`),
-        setMemberPermissions: (id: string, permissions: string[]) =>
-            API.put(`/team/${id}/permissions`, { permissions }),
-        // Assign a preset permission tier. Sends permissions:[] so the tier is
-        // authoritative — clearing any legacy per-member flags.
-        setMemberTier: (id: string, tier: string | null) =>
-            API.put(`/team/${id}/permissions`, { tier, permissions: [] }),
-        // Set the tier AND the owner-granted add-ons in one call. Use this
-        // whenever a member holds add-on grants (e.g. clients:view_all): the
-        // endpoint replaces staffPermissions wholesale, so sending a tier alone
-        // via setMemberTier would silently drop them.
-        setMemberAccess: (id: string, tier: string | null, permissions: string[]) =>
-            API.put(`/team/${id}/permissions`, { tier, permissions }),
+        // (Access levels were removed — every member has the same access — so
+        // there is no permissions/tier setter any more.)
         getMemberStats: (id: string, days = 30) => API.get(`/team/${id}/stats`, { params: { days } }),
         // Date-specific shifts. A shift replaces the member's weekly pattern for
         // that date; clearing it hands the date back to the pattern.

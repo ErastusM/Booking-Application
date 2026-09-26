@@ -27,8 +27,16 @@ const field = { marginBottom: '1.5rem' };
  * details + Pricing & duration) with a sticky Save, styled with Bookplus tokens.
  * Self-contained: seeds from `editing`, saves via providerServiceService, then
  * calls onSaved().
+ *
+ * A team member edits THEIR services in this same sheet. Pass `memberSave` and
+ * the sheet saves through it instead ({ name, price, duration } — their own
+ * price and time for the service, kept on their roster row), and shows only
+ * what is theirs to set: the name when adding, the price and the Duration. The
+ * business's catalogue fields (category, description, extra time, options,
+ * location) stay the owner's.
  */
-const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, onCategoriesChanged }) => {
+const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, onCategoriesChanged, memberSave = null, businessName = '' }) => {
+    const memberMode = typeof memberSave === 'function';
     const { user } = useAuthContext();
     const isOwner = user?.role === 'provider' || user?.role === 'admin';
     const toast = useToast();
@@ -108,7 +116,8 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
         // Only the owner decides what clients can book THEM for.
         if (isOwner) payload.ownerPerforms = form.ownerPerforms !== false;
         try {
-            if (editing) await providerServiceService.updateMyService(editing._id, payload);
+            if (memberMode) await memberSave({ name: payload.name, price: payload.price, duration: payload.duration });
+            else if (editing) await providerServiceService.updateMyService(editing._id, payload);
             else await providerServiceService.createMyService(payload);
             toast(editing ? 'Service saved.' : 'Service created.', 'success');
             onSaved();
@@ -164,9 +173,11 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                             <label style={label}>Service name</label>
                             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{form.name.length}/255</span>
                         </div>
-                        <input className="input" maxLength={255} value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="Add a service name, e.g. 60-min consultation" style={{ fontSize: '1rem' }} autoFocus />
+                        <input className="input" maxLength={255} value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="Add a service name, e.g. 60-min consultation" style={{ fontSize: '1rem' }} autoFocus={!(memberMode && editing)} readOnly={memberMode && !!editing} data-testid="service-name" />
+                        {memberMode && editing && <p style={helper}>The name is on {businessName || 'the business'}’s menu. Your price and time are yours.</p>}
                     </div>
 
+                    {!memberMode && <>
                     <div style={field}>
                         <label style={label}>Menu category</label>
                         {addingCat ? (
@@ -191,6 +202,8 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                         <textarea className="input" rows={3} maxLength={1000} value={form.description} onChange={(e) => set({ description: e.target.value })} placeholder="Add a short description" style={{ resize: 'vertical' }} />
                     </div>
 
+                    </>}
+
                     {/* ── Pricing and duration ── */}
                     <h2 style={{ ...sectionTitle, marginTop: '2.25rem' }}>Pricing and duration</h2>
 
@@ -205,7 +218,7 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                             <label style={label}>Price</label>
                             <div style={{ position: 'relative' }}>
                                 <span style={{ position: 'absolute', left: '0.9rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.9rem', pointerEvents: 'none' }}>{curSym}</span>
-                                <input className="input" type="number" min="0" step="0.01" disabled={form.priceType === 'free'} value={form.priceType === 'free' ? '' : form.price} onChange={(e) => set({ price: e.target.value })} placeholder="0.00" style={{ paddingLeft: '2.4rem', opacity: form.priceType === 'free' ? 0.5 : 1 }} />
+                                <input className="input" type="number" min="0" step="0.01" disabled={form.priceType === 'free'} value={form.priceType === 'free' ? '' : form.price} onChange={(e) => set({ price: e.target.value })} placeholder="0.00" aria-label="Price" data-testid="service-price" style={{ paddingLeft: '2.4rem', opacity: form.priceType === 'free' ? 0.5 : 1 }} />
                             </div>
                         </div>
                     </div>
@@ -232,6 +245,7 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                         </div>
                     )}
 
+                    {!memberMode && <>
                     {/* Extra time (buffers) */}
                     {showExtra ? (
                         <div style={{ ...field, background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '1rem' }}>
@@ -303,6 +317,7 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                         </div>
                     </div>
                     <p style={helper}>Where clients come for this service. Leave blank to use your business address.</p>
+                    </>}
 
                     {error && <p role="alert" style={{ marginTop: '1.25rem', color: 'var(--danger-fg, #dc2626)', fontSize: '0.85rem' }}>{error}</p>}
                 </div>

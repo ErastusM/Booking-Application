@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import { authService, reviewService } from '../services';
+import { authService, reviewService, myProfileService, myStatsService, providerMarketService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import PushToggle from '../components/PushToggle';
@@ -81,16 +81,50 @@ const Stars = ({ rating }) => (
     </span>
 );
 
-const sidebarItems = [
+// `ownerOnly`: the business's own storefront (its photos and addresses) — the
+// owner's alone. A team member's Account is this same page over THEIR profile.
+const ALL_SECTIONS = [
     { id: 'profile', label: 'My profile' },
-    { id: 'portfolio', label: 'Portfolio' },
-    { id: 'locations', label: 'Locations' },
+    { id: 'portfolio', label: 'Portfolio', ownerOnly: true },
+    { id: 'locations', label: 'Locations', ownerOnly: true },
     { id: 'reviews', label: 'Reviews' },
     { id: 'settings', label: 'Personal settings' },
 ];
 
+// A team member's own booking link: clients who open it book with them.
+const MemberBookingLinkCard = ({ profile, userName }) => {
+    const url = bookingUrl(profile?.businessSlug, profile?.linkSlug);
+    return (
+        <div data-testid="my-booking-link" style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)', padding: '1.1rem 1.25rem', marginBottom: '1.5rem' }}>
+            <p style={{ margin: '0 0 0.2rem', fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.92rem' }}>Your booking link</p>
+            <p style={{ margin: '0 0 0.7rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                {url
+                    ? 'Clients who open it book with you straight away, for your own services and prices.'
+                    : `Your link appears once ${profile?.businessName || 'the business'} creates its booking link.`}
+            </p>
+            <ShareBookingLink url={url} shareTitle={`Book with ${(profile?.name || userName || 'me').split(' ')[0]}`} testId="my-link" />
+        </div>
+    );
+};
+
 const ProviderAccount = () => {
     const { user, setUser } = useAuthContext();
+    const isStaff = user?.role === 'staff';
+    const sidebarItems = ALL_SECTIONS.filter((i) => !(isStaff && i.ownerOnly));
+    // A member's profile is their roster row (the name, photo and title clients
+    // see when choosing who to book), edited through /team/mine/profile.
+    const [memberProfile, setMemberProfile] = useState(null);
+    const [memberForm, setMemberForm] = useState({ name: '', phone: '', bio: '', languagesText: '' });
+    const [memberStats, setMemberStats] = useState(null);
+    useEffect(() => {
+        if (!isStaff) return;
+        myProfileService.get().then((r) => {
+            const d = r.data.data || {};
+            setMemberProfile(d);
+            setMemberForm({ name: d.name || '', phone: d.phone || '', bio: d.bio || '', languagesText: (d.languages || []).join(', ') });
+        }).catch(() => setMemberProfile(false));
+        myStatsService.get(30).then((r) => setMemberStats(r.data.data)).catch(() => setMemberStats(null));
+    }, [isStaff]);
     const navigate = useNavigate();
     const toast = useToast();
     const { darkMode: darkModeOn, toggleDarkMode } = useTheme();
@@ -182,7 +216,7 @@ const ProviderAccount = () => {
     useEffect(() => {
         loadReviews();
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, []);
+    }, [memberProfile?._id]);
 
     const loadPortfolio = async () => {
         setPortfolioLoading(true);
@@ -198,9 +232,13 @@ const ProviderAccount = () => {
     };
 
     const loadReviews = async () => {
+        if (isStaff && !memberProfile?._id) return; // their reviews load once their profile has
         setReviewsLoading(true);
         try {
-            const res = await reviewService.getProviderReviews();
+            // A member's reviews are the ones clients left for a visit with THEM.
+            const res = isStaff
+                ? await providerMarketService.getProviderStaffReviews(user.staffOf, memberProfile._id)
+                : await reviewService.getProviderReviews();
             setReviews(res.data.data || []);
             setAvgRating(res.data.avgRating);
         } catch { /* ignore */ } finally {
@@ -215,6 +253,12 @@ const ProviderAccount = () => {
         setProfileMsg('');
         try {
             const url = await uploadToCloudinary(file);
+            if (isStaff) {
+                const res = await myProfileService.update({ photoUrl: url });
+                setMemberProfile((p) => ({ ...p, photoUrl: res.data.data?.photoUrl || url }));
+                setProfileMsg('Photo updated!');
+                return;
+            }
             const res = await authService.updateProfile({ name: profileForm.name, phone: profileForm.phone, avatar: url });
             setUser(res.data.data);
             setProfileMsg('Photo updated!');
@@ -227,6 +271,14 @@ const ProviderAccount = () => {
         setProfileSaving(true);
         setProfileMsg('');
         try {
+            if (isStaff) {
+                if (!memberForm.name.trim()) { setProfileMsg('Your name can’t be empty — save failed'); return; }
+                const languages = memberForm.languagesText.split(',').map((x) => x.trim()).filter(Boolean);
+                const res = await myProfileService.update({ name: memberForm.name.trim(), phone: memberForm.phone || '', bio: memberForm.bio || '', languages });
+                setMemberProfile((p) => ({ ...p, ...res.data.data }));
+                setProfileMsg('Profile saved!');
+                return;
+            }
             const res = await authService.updateProfile(profileForm);
             setUser(res.data.data);
             setProfileMsg('Profile saved!');
@@ -330,15 +382,15 @@ const ProviderAccount = () => {
                                 </h1>
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginBottom: '2rem' }}>Edit and manage the content of your online profile</p>
 
-                                <BookingLinkCard user={user} setUser={setUser} />
+                                {isStaff ? <MemberBookingLinkCard profile={memberProfile} userName={user?.name} /> : <BookingLinkCard user={user} setUser={setUser} />}
 
                                 <div className="provider-profile-two-col">
                                     {/* Left - photo + name */}
                                     <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '2rem', textAlign: 'center' }}>
                                         <div style={{ width: '90px', height: '90px', borderRadius: '50%', overflow: 'hidden', background: 'var(--gold)', display: 'flex', alignItems: 'center', justifyContent: 'center', margin: '0 auto 1rem', fontSize: '2rem', fontWeight: '600', color: 'var(--ink)' }}>
-                                            {user?.avatar
-                                                ? <img src={cloudinaryAvatar(user.avatar)} alt={user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                                                : user?.name?.charAt(0).toUpperCase()
+                                            {(isStaff ? memberProfile?.photoUrl : user?.avatar)
+                                                ? <img src={cloudinaryAvatar(isStaff ? memberProfile.photoUrl : user.avatar)} alt={isStaff ? memberProfile?.name : user.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                                                : (isStaff ? (memberProfile?.name || user?.name) : user?.name)?.charAt(0).toUpperCase()
                                             }
                                         </div>
                                         <button onClick={() => avatarInputRef.current?.click()} disabled={avatarUploading} style={{ display: 'block', margin: '0 auto 1.25rem', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--text-secondary)', padding: '0.45rem 1.1rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>
@@ -346,14 +398,33 @@ const ProviderAccount = () => {
                                         </button>
                                         <input ref={avatarInputRef} type="file" accept="image/*" onChange={handleAvatarChange} style={{ display: 'none' }} />
 
-                                        <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>{user?.name}</p>
+                                        <p style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>{isStaff ? (memberProfile?.name || user?.name) : user?.name}</p>
                                         <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginBottom: '0.5rem' }}>
                                             {avgRating ? `★ ${avgRating} · ${reviews.length} review${reviews.length === 1 ? '' : 's'}` : 'No reviews yet'}
                                         </p>
-                                        {user?.providerCategory && (
+                                        {!isStaff && user?.providerCategory && (
                                             <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{user.providerCategory}</p>
                                         )}
+                                        {isStaff && (
+                                            <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>{memberProfile?.role || 'Team member'} · set by your business</p>
+                                        )}
 
+                                        {isStaff ? (
+                                        <form onSubmit={handleProfileSave} data-testid="member-profile-form" style={{ marginTop: '1.5rem', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                                            {[['Full Name', 'name', 'input'], ['Phone', 'phone', 'input'], ['About you', 'bio', 'textarea'], ['Languages', 'languagesText', 'input']].map(([label, key, kind]) => (
+                                                <div key={key}>
+                                                    <label htmlFor={`acct-${key}`} style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>{label}</label>
+                                                    {kind === 'textarea'
+                                                        ? <textarea id={`acct-${key}`} value={memberForm[key]} onChange={e => setMemberForm(f => ({ ...f, [key]: e.target.value.slice(0, 300) }))} className="input" rows={3} placeholder="A line or two clients see when they choose who to book." style={{ resize: 'vertical' }} />
+                                                        : <input id={`acct-${key}`} value={memberForm[key]} onChange={e => setMemberForm(f => ({ ...f, [key]: e.target.value }))} className="input" placeholder={key === 'languagesText' ? 'e.g. English, Oshiwambo' : undefined} />}
+                                                </div>
+                                            ))}
+                                            {profileMsg && <p style={{ fontSize: '0.8rem', color: profileMsg.includes('fail') ? 'var(--danger)' : 'var(--success)' }}>{profileMsg}</p>}
+                                            <button type="submit" disabled={profileSaving || !memberProfile} className="btn-primary" style={{ padding: '0.65rem 1.5rem', fontSize: '0.875rem' }}>
+                                                {profileSaving ? 'Saving...' : 'Save changes'}
+                                            </button>
+                                        </form>
+                                        ) : (
                                         <form onSubmit={handleProfileSave} style={{ marginTop: '1.5rem', textAlign: 'left', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                             <div>
                                                 <label style={{ display: 'block', fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: '0.3rem' }}>Business name</label>
@@ -422,6 +493,7 @@ const ProviderAccount = () => {
                                                 {profileSaving ? 'Saving...' : 'Save changes'}
                                             </button>
                                         </form>
+                                        )}
                                     </div>
 
                                     {/* Right - info cards */}
@@ -437,6 +509,19 @@ const ProviderAccount = () => {
                                                     <span className="acct-label">Phone</span>
                                                     <span className="acct-value">{user?.phone}</span>
                                                 </div>
+                                                {isStaff ? (
+                                                    <>
+                                                        <div className="acct-detail-row">
+                                                            <span className="acct-label">Business</span>
+                                                            <span className="acct-value">{memberProfile?.businessName || '—'}</span>
+                                                        </div>
+                                                        <div className="acct-detail-row">
+                                                            <span className="acct-label">Job title</span>
+                                                            <span className="acct-value">{memberProfile?.role || '—'}</span>
+                                                        </div>
+                                                    </>
+                                                ) : (
+                                                    <>
                                                 <div className="acct-detail-row">
                                                     <span className="acct-label">Category</span>
                                                     <span className="acct-value">{user?.providerCategory || '—'}</span>
@@ -445,15 +530,31 @@ const ProviderAccount = () => {
                                                     <span className="acct-label">Verified</span>
                                                     <span className="acct-value" style={{ color: user?.isVerified ? 'var(--success)' : 'var(--warning)', fontWeight: '600' }}>{user?.isVerified ? 'Verified' : 'Pending'}</span>
                                                 </div>
+                                                    </>
+                                                )}
                                             </div>
                                         </div>
 
+                                        {isStaff ? (
+                                            <div data-testid="member-stats" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
+                                                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem' }}>Last 30 days</h3>
+                                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(110px, 1fr))', gap: '0.75rem' }}>
+                                                    {[['Completed', memberStats?.appointments ?? '—'], ['Coming up', memberStats?.upcoming ?? '—'], ['Rating', memberStats?.rating != null ? `${memberStats.rating} ★` : '—']].map(([l, v]) => (
+                                                        <div key={l} style={{ padding: '0.8rem', borderRadius: 'var(--radius-sm)', background: 'var(--surface-sunken)' }}>
+                                                            <div style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>{l}</div>
+                                                            <div style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 700, color: 'var(--charcoal)' }}>{v}</div>
+                                                        </div>
+                                                    ))}
+                                                </div>
+                                            </div>
+                                        ) : (
                                         <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.5rem' }}>
                                             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.5rem' }}>Online profile visibility</h3>
                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', marginBottom: '1rem' }}>Your profile is visible to clients searching for businesses on Bookplus.</p>
                                             {/* Public profiles live on the customer app — plain anchor, not a router Link. */}
                                             <a href={`${CUSTOMER_URL}/providers/${user?.id}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold-dark)', fontWeight: '600', textDecoration: 'none', fontSize: '0.875rem' }}>View public profile →</a>
                                         </div>
+                                        )}
                                     </div>
                                 </div>
                             </div>
@@ -654,7 +755,7 @@ const ProviderAccount = () => {
                                     </div>
 
                                     {/* Calendar */}
-                                    <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: `1px solid ${settingsOpen === 'calendar' ? 'var(--gold)' : 'var(--border)'}`, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                                    {!isStaff && <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: `1px solid ${settingsOpen === 'calendar' ? 'var(--gold)' : 'var(--border)'}`, boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                                         <div onClick={() => setSettingsOpen(s => s === 'calendar' ? null : 'calendar')} style={{ padding: '1.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '1.25rem' }}>
                                             <div style={{ fontSize: '1.6rem', flexShrink: 0 }}>📅</div>
                                             <div style={{ flex: 1 }}>
@@ -695,7 +796,7 @@ const ProviderAccount = () => {
                                                 {calendarEmbed && <p style={{ marginTop: '0.5rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>✓ Google Calendar is connected. Switch to the Google view in your Dashboard → Calendar tab.</p>}
                                             </div>
                                         )}
-                                    </div>
+                                    </div>}
 
                                     {/* Legal — the Terms & Privacy that govern your business account,
                                         surfaced here so they're reachable in-app, not only at signup. */}
@@ -713,7 +814,8 @@ const ProviderAccount = () => {
                                         </div>
                                     </div>
 
-                                    <AccountDangerZone />
+                                    {/* Closing the business's account is the owner's; a member's login is managed by the owner. */}
+                                    {!isStaff && <AccountDangerZone />}
                                 </div>
                             </div>
                         )}

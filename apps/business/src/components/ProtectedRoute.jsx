@@ -25,12 +25,12 @@ const ProtectedRoute = ({ children, allowedRoles, allowCapability, loginPath = '
     // the generic provider login.
     if (!user) return <Navigate to={loginPath} replace />;
 
-    // A route may admit a role OR a capability: a tiered staff member (e.g. a
-    // Medium receptionist holding calendar:view_all / clients:view) reaches an
-    // owner route their role isn't listed for. Server-side checks are the real
+    // A route may admit a role OR a capability: a team member holding one of
+    // the listed capabilities (e.g. calendar:view) reaches an owner route their
+    // role isn't listed for. Server-side checks are the real
     // guard; this only decides what the UI lets them open.
     const roleOk = allowedRoles && allowedRoles.includes(user.role);
-    // allowCapability adds a tiered-STAFF path only; provider/admin are handled by
+    // allowCapability adds a team-member path only; provider/admin are handled by
     // allowedRoles. Scoping to staff keeps admin's redirects unchanged (can()
     // short-circuits true for admin, which would otherwise admit them here).
     const capOk = allowCapability && user.role === 'staff' && hasAnyCap(allowCapability);

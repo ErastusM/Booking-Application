@@ -57,14 +57,13 @@ describe('calendar access — what a staff member sees', () => {
         expect(res.body.data.map((a) => a._id)).toEqual([mine._id.toString()]);
     });
 
-    it('shows the whole business with calendar:all', async () => {
-        const { mosesLogin, mine, hers } = await setup(['calendar:all']);
+    it('still narrows to their own bookings with a legacy calendar:all grant (access levels are gone)', async () => {
+        const { mosesLogin, mine } = await setup(['calendar:all']);
 
         const res = await listFor(mosesLogin);
 
         expect(res.status).toBe(200);
-        const ids = res.body.data.map((a) => a._id).sort();
-        expect(ids).toEqual([mine._id.toString(), hers._id.toString()].sort());
+        expect(res.body.data.map((a) => a._id)).toEqual([mine._id.toString()]);
     });
 
     it('never reaches another business, even holding calendar:all', async () => {
@@ -101,148 +100,6 @@ describe('calendar access — what a staff member sees', () => {
     });
 });
 
-describe('setting permissions', () => {
-    it('lets the owner grant calendar:all', async () => {
-        const { provider, moses, mosesLogin } = await setup(['calendar:self']);
-
-        const res = await request(app)
-            .put(`/api/team/${moses._id}/permissions`)
-            .set(authHeader(provider))
-            .send({ permissions: ['calendar:all'] });
-
-        expect(res.status).toBe(200);
-        expect((await User.findById(mosesLogin._id)).staffPermissions).toEqual(['calendar:all']);
-    });
-
-    // The whole point of it being a permission and not a preference.
-    it('does not let a staff member grant it to themselves', async () => {
-        const { moses, mosesLogin } = await setup(['calendar:self']);
-
-        const res = await request(app)
-            .put(`/api/team/${moses._id}/permissions`)
-            .set(authHeader(mosesLogin))
-            .send({ permissions: ['calendar:all'] });
-
-        expect(res.status).toBe(403);
-        expect((await User.findById(mosesLogin._id)).staffPermissions).toEqual(['calendar:self']);
-    });
-
-    it('refuses another provider\'s team member', async () => {
-        const { moses, mosesLogin } = await setup(['calendar:self']);
-        const intruder = await makeProvider();
-
-        const res = await request(app)
-            .put(`/api/team/${moses._id}/permissions`)
-            .set(authHeader(intruder))
-            .send({ permissions: ['calendar:all'] });
-
-        expect(res.status).toBe(404);
-        expect((await User.findById(mosesLogin._id)).staffPermissions).toEqual(['calendar:self']);
-    });
-
-    // A typo must not sit in the database looking like a granted permission.
-    it('rejects an unknown flag instead of storing it', async () => {
-        const { provider, moses, mosesLogin } = await setup(['calendar:self']);
-
-        const res = await request(app)
-            .put(`/api/team/${moses._id}/permissions`)
-            .set(authHeader(provider))
-            .send({ permissions: ['calendar:all', 'earnings:everything'] });
-
-        expect(res.status).toBe(400);
-        expect(res.body.message).toMatch(/unknown permission/i);
-        expect((await User.findById(mosesLogin._id)).staffPermissions).toEqual(['calendar:self']);
-    });
-
-    it('refuses a member who has no login yet', async () => {
-        const { provider, sarah } = await setup([]);   // sarah was never invited
-
-        const res = await request(app)
-            .put(`/api/team/${sarah._id}/permissions`)
-            .set(authHeader(provider))
-            .send({ permissions: ['calendar:all'] });
-
-        expect(res.status).toBe(400);
-        expect(res.body.message).toMatch(/invite them first/i);
-    });
-
-    it('revoking calendar:all narrows the view again', async () => {
-        const { provider, moses, mosesLogin, mine } = await setup(['calendar:all']);
-
-        await request(app)
-            .put(`/api/team/${moses._id}/permissions`)
-            .set(authHeader(provider))
-            .send({ permissions: ['calendar:self'] });
-
-        const refreshed = await User.findById(mosesLogin._id);
-        const res = await listFor(refreshed);
-
-        expect(res.body.data.map((a) => a._id)).toEqual([mine._id.toString()]);
-    });
-});
-
-describe('permission tiers', () => {
-    it('assigning the Medium tier grants whole-business calendar view', async () => {
-        const { provider, moses, mosesLogin, mine, hers } = await setup([]); // no legacy flags
-
-        const set = await request(app)
-            .put(`/api/team/${moses._id}/permissions`)
-            .set(authHeader(provider))
-            .send({ tier: 'medium' });
-        expect(set.status).toBe(200);
-        expect(set.body.data.tier).toBe('medium');
-        expect((await User.findById(mosesLogin._id)).staffTier).toBe('medium');
-
-        const refreshed = await User.findById(mosesLogin._id);
-        const res = await listFor(refreshed);
-        const ids = res.body.data.map((a) => a._id).sort();
-        expect(ids).toEqual([mine._id.toString(), hers._id.toString()].sort());
-    });
-
-    it('a Basic tier keeps the member scoped to their own bookings', async () => {
-        const { provider, moses, mosesLogin, mine } = await setup([]);
-        await request(app).put(`/api/team/${moses._id}/permissions`).set(authHeader(provider)).send({ tier: 'basic' });
-
-        const res = await listFor(await User.findById(mosesLogin._id));
-        expect(res.body.data.map((a) => a._id)).toEqual([mine._id.toString()]);
-    });
-
-    it('rejects an unknown tier instead of storing it', async () => {
-        const { provider, moses, mosesLogin } = await setup([]);
-        const res = await request(app)
-            .put(`/api/team/${moses._id}/permissions`)
-            .set(authHeader(provider))
-            .send({ tier: 'superuser' });
-        expect(res.status).toBe(400);
-        expect(res.body.message).toMatch(/unknown tier/i);
-        expect((await User.findById(mosesLogin._id)).staffTier).toBeNull();
-    });
-
-    // null = "nobody chose a level", which now resolves to the Service-provider
-    // default ('low') — see DEFAULT_TIER in utils/permissions. The stored value
-    // stays null so the owner can tell "never chosen" from an explicit choice.
-    it('setting tier:null clears the choice back to the Service-provider default', async () => {
-        const { provider, moses, mosesLogin } = await setup([]);
-        await request(app).put(`/api/team/${moses._id}/permissions`).set(authHeader(provider)).send({ tier: 'high' });
-        const reset = await request(app).put(`/api/team/${moses._id}/permissions`).set(authHeader(provider)).send({ tier: null });
-        expect(reset.status).toBe(200);
-        expect((await User.findById(mosesLogin._id)).staffTier).toBeNull();
-    });
-
-    it('the invite path now rejects an unknown permission instead of storing it raw', async () => {
-        const provider = await makeProvider();
-        const member = await TeamMember.create({ provider: provider._id, name: 'New Hire', email: 'newhire2@test.com' });
-        const res = await request(app)
-            .post(`/api/team/${member._id}/invite`)
-            .set(authHeader(provider))
-            .send({ permissions: ['calendar:all', 'take:over:everything'] });
-        expect(res.status).toBe(400);
-        expect(res.body.message).toMatch(/unknown permission/i);
-        // No staff account was created with the junk.
-        expect(await User.findOne({ email: 'newhire2@test.com' })).toBeNull();
-    });
-});
-
 describe('tiered booking-status actions (Phase 1)', () => {
     const setTier = (userId, t) => User.updateOne({ _id: userId }, { $set: { staffTier: t } });
     const setStatus = (user, apptId, status) =>
@@ -263,22 +120,8 @@ describe('tiered booking-status actions (Phase 1)', () => {
         expect(res.status).toBe(403);
     });
 
-    it('a Medium member can change ANY booking in the business', async () => {
-        const { mosesLogin, hers } = await setup([]);
-        await setTier(mosesLogin._id, 'medium');
-        const res = await setStatus(mosesLogin, hers._id, 'confirmed');
-        expect(res.status).toBe(200);
-    });
-
     // Was `tier null → Basic`; null now means the Service-provider default, so
     // view-only is pinned with an EXPLICIT 'basic'.
-    it('an explicit Basic (view-only) member is refused at the route — no booking capability', async () => {
-        const { mosesLogin, mine } = await setup([]);
-        await setTier(mosesLogin._id, 'basic');
-        const res = await setStatus(mosesLogin, mine._id, 'confirmed');
-        expect(res.status).toBe(403);
-    });
-
     it('a member nobody chose a level for (tier null) runs their own book like a Service provider', async () => {
         const { mosesLogin, mine, hers } = await setup([]); // tier null → Service provider
         const own = await setStatus(mosesLogin, mine._id, 'confirmed');
@@ -327,20 +170,6 @@ describe('tiered reschedule actions (Phase 1b)', () => {
         const { mosesLogin, hers } = await setup([]);
         await setTier(mosesLogin._id, 'low');
         const res = await reschedule(mosesLogin, hers._id, weekday());
-        expect(res.status).toBe(403);
-    });
-
-    it('a Medium member can reschedule ANY booking in the business', async () => {
-        const { mosesLogin, hers } = await setup([]);
-        await setTier(mosesLogin._id, 'medium');
-        const res = await reschedule(mosesLogin, hers._id, weekday());
-        expect(res.status).toBe(200);
-    });
-
-    it('an explicit Basic (view-only) member is refused at the route — no reschedule capability', async () => {
-        const { mosesLogin, mine } = await setup([]);
-        await setTier(mosesLogin._id, 'basic');
-        const res = await reschedule(mosesLogin, mine._id, weekday());
         expect(res.status).toBe(403);
     });
 
@@ -409,16 +238,6 @@ describe('staff walk-in create (Phase 1c)', () => {
         expect(String(res.body.data.teamMember)).toBe(String(moses._id));
         // Priced off Moses's own column (service default), never Sarah's override.
         expect(res.body.data.totalPrice).toBe(50);
-    });
-
-    it('an explicit Basic (view-only) member cannot log a walk-in — refused, not booked as themselves', async () => {
-        const { mosesLogin, service } = await setup([]);
-        await setTier(mosesLogin._id, 'basic'); // view-only: no bookings:create
-        const res = await book(mosesLogin, walkIn({ service: service._id.toString() }));
-        expect(res.status).toBe(403);
-        expect(res.body.code).toBe('staff_booking_not_allowed');
-        expect(res.body.message).toMatch(/doesn.t include making bookings/i);
-        expect(await Appointment.countDocuments({ customer: mosesLogin._id })).toBe(0);
     });
 
     it('a member with no level chosen (tier null) can log a walk-in in their own column', async () => {

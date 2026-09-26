@@ -179,34 +179,23 @@ describe('an explicit Service provider (low) holds the same own-lane power', () 
     });
 });
 
-describe('an explicit Basic (view-only) member writes nothing', () => {
-    test('create, edit and delete in their own lane are refused at the route', async () => {
+describe('there are no access levels any more — every former level blocks only its own lane', () => {
+    test('a former View-only member now blocks, edits and unblocks their own lane', async () => {
         const { john, blocks } = await setup('basic');
-        expect((await post(john.login, blockBody({ teamMember: john.member._id.toString() }))).status).toBe(403);
-        expect((await put(john.login, blocks.own._id, { reason: 'x' })).status).toBe(403);
-        expect((await del(john.login, blocks.own._id)).status).toBe(403);
-        expect(await BlockedTime.findById(blocks.own._id)).not.toBeNull();
+        expect((await post(john.login, blockBody({ teamMember: john.member._id.toString() }))).status).toBe(201);
+        expect((await put(john.login, blocks.own._id, { reason: 'x' })).status).toBe(200);
+        expect((await del(john.login, blocks.own._id)).status).toBe(200);
     });
-});
 
-describe('Medium and High keep whole-business power', () => {
-    test('Medium blocks the whole business and a colleague, and edits/deletes any block', async () => {
+    test.each(['medium', 'high'])('a former %s member can no longer block the whole business, the owner or a colleague', async (tier) => {
         const { owner, colleague, blocks } = await setup();
-        const medium = await staff(owner, 'medium');
-        const wide = await post(medium.login, blockBody());
-        expect(wide.status).toBe(201);
-        expect(wide.body.data.teamMember).toBeNull();
-        const lane = await post(medium.login, blockBody({ teamMember: colleague.member._id.toString() }));
-        expect(lane.status).toBe(201);
-        expect((await put(medium.login, blocks.colleagues._id, { reason: 'edited' })).status).toBe(200);
-        expect((await del(medium.login, blocks.wide._id)).status).toBe(200);
-    });
-
-    test('High may still create an owner-only block', async () => {
-        const { owner } = await setup();
-        const high = await staff(owner, 'high');
-        const res = await post(high.login, blockBody({ ownerOnly: true }));
-        expect(res.status).toBe(201);
-        expect(res.body.data.ownerOnly).toBe(true);
+        const former = await staff(owner, tier);
+        expect((await post(former.login, blockBody())).status).toBe(403);
+        expect((await post(former.login, blockBody({ ownerOnly: true }))).status).toBe(403);
+        expect((await post(former.login, blockBody({ teamMember: colleague.member._id.toString() }))).status).toBe(403);
+        expect((await put(former.login, blocks.colleagues._id, { reason: 'edited' })).status).toBe(403);
+        expect((await del(former.login, blocks.wide._id)).status).toBe(403);
+        // …but their own lane is theirs.
+        expect((await post(former.login, blockBody({ teamMember: former.member._id.toString() }))).status).toBe(201);
     });
 });

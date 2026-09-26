@@ -43,16 +43,15 @@ describe('GET /api/blocked-times for a team member', () => {
         expect(res.body.data.map((b) => b.reason).sort()).toEqual(['mine', 'public holiday']);
     });
 
-    // Was `staff(owner, null)` = Basic; null now means the Service-provider
-    // default, which may block its OWN lane (see blockedTimeOwnLane.test.js), so
-    // view-only is pinned with an explicit 'basic'.
-    test('an explicit Basic (view-only) member can read too, but cannot change blocks', async () => {
+    // There are no access levels any more: a former View-only member blocks
+    // their own lane like everyone else.
+    test('a former View-only member reads and blocks their own lane', async () => {
         const owner = await makeProvider();
         const { login, member } = await staff(owner, 'basic');
         expect((await request(app).get('/api/blocked-times').set(authHeader(login))).status).toBe(200);
         const write = await request(app).post('/api/blocked-times').set(authHeader(login))
             .send({ date: '2030-01-07', startTime: '09:00', endTime: '10:00', teamMember: member._id.toString() });
-        expect(write.status).toBe(403);
+        expect(write.status).toBe(201);
     });
 
     test('a member with no level chosen may block their own lane, never the whole business', async () => {
@@ -67,7 +66,7 @@ describe('GET /api/blocked-times for a team member', () => {
         expect(String(own.body.data.teamMember)).toBe(String(member._id));
     });
 
-    test('a Medium member (sees everyone) still gets every block of the business', async () => {
+    test("a former Reception member gets only their own and business-wide blocks — never a colleague's or the owner's", async () => {
         const owner = await makeProvider();
         const { login } = await staff(owner, 'medium');
         const { member: colleague } = await staff(owner, 'low');
@@ -76,7 +75,7 @@ describe('GET /api/blocked-times for a team member', () => {
             { provider: owner._id, teamMember: null, ownerOnly: true, date: '2030-01-07', startTime: '12:00', endTime: '13:00', reason: 'owner lunch' },
         ]);
         const res = await request(app).get('/api/blocked-times').set(authHeader(login));
-        expect(res.body.data).toHaveLength(2);
+        expect(res.body.data).toHaveLength(0);
     });
 });
 
@@ -98,10 +97,10 @@ describe('GET /api/waitinglist/provider for a team member', () => {
         expect(String(res.body.data[0].provider)).toBe(String(owner._id));
     });
 
-    test('an explicit Basic (view-only) member (no waitlist access) is refused', async () => {
+    test('a former View-only member now reaches their waiting list too', async () => {
         const owner = await makeProvider();
         const { login } = await staff(owner, 'basic');
-        expect((await request(app).get('/api/waitinglist/provider').set(authHeader(login))).status).toBe(403);
+        expect((await request(app).get('/api/waitinglist/provider').set(authHeader(login))).status).toBe(200);
     });
 });
 
