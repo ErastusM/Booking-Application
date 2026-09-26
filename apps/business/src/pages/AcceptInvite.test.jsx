@@ -13,7 +13,7 @@ const auth = vi.hoisted(() => ({ login: vi.fn(), refreshProfile: vi.fn(), device
 vi.mock('../services', () => ({ authService: svc }));
 vi.mock('../context/AuthContext', () => ({ useAuthContext: () => auth }));
 
-import AcceptInvite, { PREVIEW_BACKOFF_MS } from './AcceptInvite';
+import AcceptInvite, { PREVIEW_BACKOFF_MS, TOO_MANY } from './AcceptInvite';
 
 const Where = () => <div data-testid="where">{useLocation().pathname}</div>;
 const renderAt = (url = '/accept-invite?token=RAW') => render(
@@ -74,6 +74,15 @@ describe('AcceptInvite states', () => {
         svc.getStaffInvite.mockResolvedValue(PREVIEW);
         await act(async () => { fireEvent.click(screen.getByTestId('invite-retry')); });
         expect(state()).toBe('valid');
+    });
+
+    it('a preview that keeps getting 429 says "too many attempts"', async () => {
+        vi.useFakeTimers();
+        svc.getStaffInvite.mockRejectedValue(httpErr(429));
+        renderAt();
+        for (const ms of PREVIEW_BACKOFF_MS) { await act(async () => { await vi.advanceTimersByTimeAsync(ms); }); }
+        expect(state()).toBe('unreachable');
+        expect(screen.getByTestId('invite-unreachable')).toHaveTextContent(TOO_MANY);
     });
 
     it('recovers inside the backoff without showing an error', async () => {
@@ -141,6 +150,25 @@ describe('AcceptInvite submit', () => {
         fill();
         await waitFor(() => expect(state()).toBe('accepted'));
         expect(screen.getByTestId('invite-sign-in').getAttribute('href')).toBe('/login?email=john%40x.test');
+    });
+
+    it('a 429 on submit says "too many attempts", not a generic error', async () => {
+        svc.getStaffInvite.mockResolvedValue(PREVIEW);
+        svc.acceptStaffInvite.mockRejectedValue(httpErr(429, { message: 'Too many attempts from this connection. Please try again later.' }));
+        renderAt();
+        await waitFor(() => expect(state()).toBe('valid'));
+        fill();
+        expect(await screen.findByTestId('invite-error')).toHaveTextContent(TOO_MANY);
+        expect(state()).toBe('valid');
+    });
+
+    it('a 429 on "Email me a new link" says so', async () => {
+        svc.getStaffInvite.mockRejectedValue(httpErr(404, { code: 'INVITE_EXPIRED' }));
+        svc.renewStaffInvite.mockRejectedValue(httpErr(429, { code: 'RATE_LIMITED' }));
+        renderAt();
+        await waitFor(() => expect(state()).toBe('expired'));
+        fireEvent.click(screen.getByTestId('invite-new-link-button'));
+        expect(await screen.findByTestId('invite-new-link-limited')).toHaveTextContent('Too many attempts, try again in a few minutes.');
     });
 
     it('warns when someone else is signed in on the device (without logging them out)', async () => {

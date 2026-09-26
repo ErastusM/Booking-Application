@@ -39,6 +39,9 @@ const CODE_STATE = {
 // we couldn't check. Exported for tests.
 export const PREVIEW_BACKOFF_MS = [700, 1400, 2800];
 
+// A 429 is not "expired" and not a connection problem: say so plainly.
+export const TOO_MANY = 'Too many attempts, try again in a few minutes.';
+
 const formatDate = (d) => {
     try {
         return new Date(d).toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
@@ -86,6 +89,7 @@ const AcceptInvite = () => {
     const [preview, setPreview] = useState(null);   // { name, email, businessName, returning, expiresAt }
     const [info, setInfo] = useState({});            // { newerSentAt, email } from a failure
     const [attempt, setAttempt] = useState(0);       // bump to re-run the preview
+    const [rateLimited, setRateLimited] = useState(false); // last preview failure was a 429
 
     const [password, setPassword] = useState('');
     const [confirm, setConfirm] = useState('');
@@ -102,6 +106,7 @@ const AcceptInvite = () => {
         let cancelled = false;
         let timer = null;
         setState('checking');
+        setRateLimited(false);
         const run = async (n) => {
             try {
                 const res = await authService.getStaffInvite(token);
@@ -120,6 +125,7 @@ const AcceptInvite = () => {
                 if (n < PREVIEW_BACKOFF_MS.length) {
                     timer = setTimeout(() => run(n + 1), PREVIEW_BACKOFF_MS[n]);
                 } else {
+                    setRateLimited(st === 429);
                     setState('unreachable');
                 }
             }
@@ -163,6 +169,10 @@ const AcceptInvite = () => {
                 setError('We couldn’t reach Bookplus, so your password wasn’t set. Check your connection and try again.');
                 return;
             }
+            if (st === 429) {
+                setError(`${TOO_MANY} Your password wasn’t set yet.`);
+                return;
+            }
             setError(body.message || 'Something went wrong setting your password. Please try again.');
         }
     }, [confirm, login, navigate, password, preview, refreshProfile, token]);
@@ -181,7 +191,9 @@ const AcceptInvite = () => {
             <div data-testid="invite-unreachable">
                 <AuthTitle>We couldn’t check your invite</AuthTitle>
                 <AuthLead>
-                    Bookplus didn’t answer just now, so we couldn’t check your link. Check your connection and try again.
+                    {rateLimited
+                        ? <>{TOO_MANY} Your link is still fine to use.</>
+                        : 'Bookplus didn’t answer just now, so we couldn’t check your link. Check your connection and try again.'}
                 </AuthLead>
                 <button
                     type="button" className="btn-primary" style={{ width: '100%', padding: '0.875rem' }}

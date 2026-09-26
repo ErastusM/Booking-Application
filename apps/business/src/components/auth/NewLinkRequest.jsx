@@ -15,7 +15,7 @@ const NewLinkRequest = ({
     sentMessage, testIdPrefix = 'new-link',
 }) => {
     const [email, setEmail] = useState(initialEmail);
-    const [status, setStatus] = useState('idle');     // idle | sending | sent | offline
+    const [status, setStatus] = useState('idle');     // idle | sending | sent | offline | limited
     const [error, setError] = useState('');
 
     const submit = async (e) => {
@@ -31,9 +31,12 @@ const NewLinkRequest = ({
             await send(askEmail ? addr : undefined);
             setStatus('sent');
         } catch (err) {
-            // Any HTTP answer (200, 400, 429, 5xx) gets the neutral confirmation;
-            // only "no answer at all" is worth telling apart.
-            setStatus(err && err.response ? 'sent' : 'offline');
+            // Any other HTTP answer gets the neutral confirmation. A 429 comes
+            // from the limiter before any lookup, so saying so reveals nothing;
+            // "no answer at all" is worth telling apart too.
+            const st = err?.response?.status;
+            if (st === 429) setStatus('limited');
+            else setStatus(err && err.response ? 'sent' : 'offline');
         }
     };
 
@@ -78,6 +81,11 @@ const NewLinkRequest = ({
             {status === 'offline' && (
                 <Notice tone="danger" role="alert" testId={`${testIdPrefix}-offline`}>
                     We couldn’t reach Bookplus. Check your connection and try again.
+                </Notice>
+            )}
+            {status === 'limited' && (
+                <Notice tone="warning" role="alert" testId={`${testIdPrefix}-limited`}>
+                    Too many attempts, try again in a few minutes.
                 </Notice>
             )}
             <button

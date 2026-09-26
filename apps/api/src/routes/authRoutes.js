@@ -36,6 +36,7 @@ const {
     getBlockedUsers,
 } = require('../controllers/authController');
 const { auth } = require('../middleware/auth');
+const { createInviteRequestLimiter } = require('../middleware/authRateLimit');
 const {
     registerRules,
     loginRules,
@@ -86,11 +87,15 @@ router.post('/reset-password', resetPassword);
 router.get('/staff-invite/:token', getStaffInvite);
 router.post('/staff-invite/:token/accept', accountProbeLimiter, acceptStaffInvite);
 // "Email me a new link" from the invite page (expired / superseded / unknown
-// token). Always the same generic 200, answered before any lookup; the per-IP
-// probe limiter here plus a per-account cooldown (2 min, 5/day) in
-// utils/staffInvites keep it from being used to spam a member or their owner.
-router.post('/staff-invite/request', accountProbeLimiter, requestStaffInvite);
-router.post('/staff-invite/:token/renew', accountProbeLimiter, renewStaffInvite);
+// token). Always the same generic 200, answered before any lookup. Their own
+// limiter (IP + email/token, plus a per-IP ceiling) — NOT accountProbeLimiter,
+// whose 20/h per IP is shared with register, forgot-password and accept: a
+// salon's members asking for links on shared Wi-Fi would otherwise 429 the next
+// member's accept. The per-account cooldown (2 min, 5/day) in utils/staffInvites
+// bounds what is actually emailed to a member or their owner.
+const inviteRequestLimiter = createInviteRequestLimiter({ enabled: process.env.NODE_ENV !== 'test' });
+router.post('/staff-invite/request', inviteRequestLimiter, requestStaffInvite);
+router.post('/staff-invite/:token/renew', inviteRequestLimiter, renewStaffInvite);
 router.get('/verify-email', verifyEmail);
 router.post('/resend-verification', resendVerification);
 router.post('/exchange-code', exchangeCodeRules, exchangeOAuthCode);
