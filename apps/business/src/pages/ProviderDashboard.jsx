@@ -209,6 +209,11 @@ const ProviderDashboard = () => {
     const [availabilitySuccess, setAvailabilitySuccess] = useState('');
     // A member with no hours of their own yet starts from a week of days off.
     const [memberHadHours, setMemberHadHours] = useState(true);
+    // What a member's CALENDAR shades as working time: their own saved hours
+    // (none saved = no shading, as before), or — for a member who sees the
+    // whole team — the business's published hours, like the owner's calendar.
+    // The Availability form edits `availability` (a full week) separately.
+    const [staffCalendarHours, setStaffCalendarHours] = useState(null);
     const [myServices, setMyServices] = useState([]);
     // A team member's own service list as the API holds it ({ selected,
     // offersAllServices, services: the business's menu, overrides: their own
@@ -580,6 +585,13 @@ const ProviderDashboard = () => {
                 // Nothing is inherited from the business: a member with no hours
                 // yet sees every day off, in the same Working Hours rows.
                 setMemberHadHours(!!sched);
+                if (hasCap('calendar:view_all') && user?.staffOf) {
+                    availabilityService.getProviderAvailability(user.staffOf)
+                        .then((r) => setStaffCalendarHours(r.data.data?.schedule || r.data.data || null))
+                        .catch(() => setStaffCalendarHours(sched));
+                } else {
+                    setStaffCalendarHours(sched);
+                }
                 setAvailability(Object.fromEntries(WEEK_DAYS.map((d) => [d, {
                     enabled: !!sched?.[d]?.enabled,
                     slots: sched?.[d]?.slots?.length ? sched[d].slots : [{ start: '09:00', end: '17:00' }],
@@ -1271,6 +1283,7 @@ const ProviderDashboard = () => {
                 if (bad) { toast(`${bad[0].toUpperCase()}${bad.slice(1)}: the end time must be after the start time`, 'error'); return; }
                 await myAvailabilityService.set(availability);
                 setMemberHadHours(true);
+                if (!hasCap('calendar:view_all')) setStaffCalendarHours(availability);
                 setAvailabilitySuccess(WEEK_DAYS.some((d) => availability[d]?.enabled) ? 'Your hours are saved. Clients can book you in these hours.' : 'Saved. You have no working days, so clients can’t book you.');
                 setTimeout(() => setAvailabilitySuccess(''), 4000);
                 return;
@@ -2880,7 +2893,7 @@ const ProviderDashboard = () => {
                                     staffFilter={calendarStaffFilter}
                                     appointments={appointments}
                                     blockedTimes={calendarBlockedTimes}
-                                    availability={availability}
+                                    availability={isStaff ? staffCalendarHours : availability}
                                     statusColors={statusCalendarColors}
                                     height="100%"
                                     headerControl={viewMenu}
@@ -2906,7 +2919,7 @@ const ProviderDashboard = () => {
                                     teamMembers={teamMembers}
                                     ownerName={ownerName}
                                     staffFilter={calendarStaffFilter}
-                                    availability={availability}
+                                    availability={isStaff ? staffCalendarHours : availability}
                                     height="100%"
                                     headerControl={viewMenu}
                                     onEventClick={openApptDetail}
