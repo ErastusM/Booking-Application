@@ -26,7 +26,7 @@ const operatorLine = `Bookplus is operated by **${op}**${entity ? `, a ${entity.
 const customerSections = (W) => [
     { id: 'about', title: 'About these Terms', blocks: [
         operatorLine,
-        'These Terms apply when you use Bookplus to find and book businesses, with an account or as a guest. You accept them by ticking the box when you create an account, by continuing with Google, or by confirming a booking as a guest. Please also read our [Privacy Policy](/privacy-policy).',
+        'These Terms apply when you use Bookplus to find and book businesses, with an account or as a guest. You accept them by ticking the box when you create an account (by email or with Google), or by confirming a booking as a guest. Please also read our [Privacy Policy](/privacy-policy).',
     ] },
     { id: 'eligibility', title: 'Who can use Bookplus', blocks: [
         'You must be **16 or older**. If you are under 18, you confirm that a parent or guardian agrees to you using Bookplus and to these Terms.',
@@ -123,7 +123,7 @@ const customerSections = (W) => [
 const businessSections = (W) => [
     { id: 'about', title: 'About these Terms', blocks: [
         operatorLine,
-        'These Terms apply when you use Bookplus for Business to take bookings, manage your calendar, team and clients, and be listed on the Bookplus marketplace. You accept them by ticking the box when you register, by continuing with Google, or, for team members, by accepting an invitation. Please also read our [Privacy Policy](/privacy-policy).',
+        'These Terms apply when you use Bookplus for Business to take bookings, manage your calendar, team and clients, and be listed on the Bookplus marketplace. You accept them by ticking the box when you register (by email or with Google), or, for team members, by accepting an invitation. Please also read our [Privacy Policy](/privacy-policy).',
     ] },
     { id: 'eligibility', title: 'Eligibility and your account', blocks: [
         { list: [

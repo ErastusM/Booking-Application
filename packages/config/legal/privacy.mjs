@@ -213,24 +213,30 @@ const rights = (audience) => ({
     ],
 });
 
-const cookies = () => ({
+// `cookieList` is the app's own cookies.json (apps/*/src/legal/cookies.json, kept
+// in step with the code by the consent tests); when given, the table lists every
+// item from it, so the policy and the cookie banner can never disagree.
+const CATEGORY_LABEL = { necessary: 'Necessary', analytics: 'Analytics (only after “Accept analytics”)' };
+const cookies = (cookieList) => ({
     id: 'cookies',
     title: 'Cookies and storage on your device',
     blocks: [
         'We use a few cookies and similar browser storage. We do not use advertising cookies or third-party trackers.',
         { table: {
             head: ['Name', 'Purpose', 'Type', 'Kept for'],
-            rows: [
-                ['bp_rt (cookie)', 'Keeps you signed in securely', 'Necessary', RETENTION.refreshCookie],
-                ['bp_oauth_state (cookie)', 'Protects Google sign-in against forgery', 'Necessary', '10 minutes'],
-                ['token, refreshToken, user', 'Your signed-in session', 'Necessary', 'Until you sign out'],
-                ['Your cookie choice', 'Remembers whether you allowed analytics', 'Necessary', 'Until you change it'],
-                ['darkMode, bp_recent_providers, dismissed prompts', 'Remember your light/dark setting, businesses you viewed recently and prompts you closed', 'Preference', 'Until you clear it'],
-                ['bp_sid', 'Analytics ID that links your visits so we can see where people get stuck', 'Analytics (only with your consent)', 'Until you withdraw consent or clear it'],
-            ],
+            rows: cookieList?.items?.length
+                ? cookieList.items.map((i) => [`${i.key} (${String(i.storage).startsWith('cookie') ? 'cookie' : 'browser storage'})`, i.purpose, CATEGORY_LABEL[i.category] || i.category, i.duration])
+                : [
+                    ['bp_rt (cookie)', 'Keeps you signed in securely', 'Necessary', RETENTION.refreshCookie],
+                    ['bp_oauth_state (cookie)', 'Protects Google sign-in against forgery', 'Necessary', '10 minutes'],
+                    ['token, refreshToken, user', 'Your signed-in session', 'Necessary', 'Until you sign out'],
+                    ['bp_consent', 'Remembers whether you allowed analytics', 'Necessary', 'Until you change it'],
+                    ['darkMode, bp_recent_providers, dismissed prompts', 'Remember your light/dark setting, businesses you viewed recently and prompts you closed', 'Necessary', 'Until you clear it'],
+                    ['bp_sid', 'Analytics ID that links your visits so we can see where people get stuck', 'Analytics (only after “Accept analytics”)', 'Until you withdraw consent or clear it'],
+                ],
         } },
-        'Analytics storage is only set after you allow it in the cookie banner, and you can change your choice at any time in cookie settings. Necessary storage cannot be switched off because the service does not work without it.',
-        'On sign-in and sign-up pages the Google button loads Google’s logo from Google’s servers, and the business location picker loads Google Maps, which lets Google see your IP address.',
+        'Analytics storage is only set after you tap “Accept analytics” in the cookie banner. You can change your choice at any time from “Cookie settings”. Necessary storage cannot be switched off because the service does not work without it.',
+        'The business location picker loads Google Maps only when you tap to open the map; that lets Google see your IP address.',
     ],
 });
 
@@ -272,7 +278,7 @@ const changes = () => ({
 
 // `features` defaults to the shared switches; tests pass { walletEnabled: true }
 // to check the wallet wording kept for re-enabling.
-export const privacyPolicy = (audience = 'customer', features = FEATURES) => {
+export const privacyPolicy = (audience = 'customer', features = FEATURES, cookieList = null) => {
     const W = !!features.walletEnabled;
     const sections = [
         whoWeAre(audience),
@@ -283,7 +289,7 @@ export const privacyPolicy = (audience = 'customer', features = FEATURES) => {
         transfers(),
         retention(W),
         rights(audience),
-        cookies(),
+        cookies(cookieList),
         children(),
         security(W),
         contact(),
