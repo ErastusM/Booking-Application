@@ -24,10 +24,15 @@
  *        (no category, options or add-ons; description = the name) — and the
  *        person cannot edit the business menu, so the catalogue could not have
  *        made it.
- *     B. the owner (or a manager) added it for one member from the Team screen
- *        (POST /team/:id/services): created after #217, held by exactly one
- *        member who performs only their own list, whose own price/minutes for
- *        it are the very values the row was created with, same shape as A.
+ *     B. a team member who cannot edit the menu added it for one colleague from
+ *        the Team screen (POST /team/:id/services): created after #217, held by
+ *        exactly that one member, who performs only their own list and whose own
+ *        price/minutes for it are the values the row was created with.
+ *
+ *   The owner, and any member who can edit the menu, could equally have made
+ *   the row as a menu item: the menu form with no description writes the same
+ *   shape (no category, description = name). Such rows are NEVER switched off
+ *   — they stay the owner's and are listed "please confirm".
  *
  *   OWNER KEEPS IT (ownerPerforms:true) for everything else. That includes every
  *   row created before members could add services at all, and every row where
@@ -99,35 +104,52 @@ function classify(s, { members, usersById, can }) {
         return { ownerPerforms: true, why: `created ${created ? ymd(created) : 'long ago'}, before team members could add services of their own` };
     }
 
-    // A. A team member added it for themselves (My services → + Add Service).
+    // Who could have made it as an ordinary MENU item instead? The owner always
+    // could, and so could any team member who can edit the menu (services:edit).
+    // The menu form with an empty description writes the very same shape as a
+    // member's add (no category, description = name), so for those creators the
+    // shape proves nothing — the row may be the owner's own menu item that was
+    // later also given to a member. Only a creator who could NOT use the menu (a
+    // plain Service provider) leaves a row that can only be a member's add.
     const byStaff = !!creator && creator.role === 'staff' && String(creator.staffOf) === String(s.provider);
+    const couldUseMenu = !byStaff || can(creator, 'services:edit');
+    const creatorName = byStaff ? (members.find((m) => String(m.user) === String(creator._id))?.name || creator.name) : null;
+
+    // A. A team member added it for themselves (My services → + Add Service).
     let staffGap = null;
     if (byStaff) {
         const own = members.find((m) => String(m.user) === String(creator._id));
-        const who = own?.name || creator.name;
+        const who = creatorName;
         const stillTheirs = !!own && listsService(own, sid);
-        // Someone who can edit the business menu could have made it there; then
-        // only their own price matching the row's tells the two paths apart.
-        const couldUseCatalogue = can(creator, 'services:edit');
-        if (stillTheirs && shape && (!couldUseCatalogue || typedHere(own, s))) {
+        if (stillTheirs && shape && !couldUseMenu) {
             return { ownerPerforms: false, holder: own, why: `${who} added it as their own service on ${ymd(created)}` };
         }
-        const gap = !own ? `${who} is no longer on the team`
-            : !stillTheirs ? `${firstName(who)} no longer offers it`
-                : !shape ? 'it has since been edited like a menu item'
-                    : `${firstName(who)} can also edit the business menu, so it may be a menu item`;
-        staffGap = `added by ${who} on ${ymd(created)}, but ${gap}`;
+        if (own && !stillTheirs && !holders.length) {
+            staffGap = `added by ${who} on ${ymd(created)}, but ${firstName(who)} no longer offers it`;
+        } else if (stillTheirs) {
+            staffGap = `added by ${who} on ${ymd(created)}, but ${!shape ? 'it has since been edited like a menu item'
+                : `${firstName(who)} can also edit the business menu, so it may be a menu item`}`;
+        } else if (!own) {
+            staffGap = `added by ${who} on ${ymd(created)}, but ${who} is no longer on the team`;
+        }
     }
 
-    // B. The owner (or a manager) added it for one member from the Team screen.
+    // B. Added for one member from the Team screen ("Add a service <member>
+    // offers"). Only a creator who couldn't have put it on the menu makes it
+    // theirs; the owner (or a menu-editing manager) may have made it a menu item
+    // first, so it stays with the owner and is listed to confirm.
     const single = holders.length === 1 && holders[0].offersAllServices === false ? holders[0] : null;
-    if (created >= OWNER_ADD_FOR_MEMBER_SINCE && single && shape) {
-        if (typedHere(single, s)) {
-            return { ownerPerforms: false, holder: single, why: `added for ${single.name} from the Team screen on ${ymd(created)} — the price on it is ${firstName(single.name)}'s` };
+    if (created >= OWNER_ADD_FOR_MEMBER_SINCE && single && shape && !staffGap) {
+        if (!couldUseMenu && typedHere(single, s)) {
+            return { ownerPerforms: false, holder: single, why: `added for ${single.name} from the Team screen by ${creatorName} on ${ymd(created)} — the price on it is ${firstName(single.name)}'s` };
         }
-        if (!staffGap) {
-            return { ownerPerforms: true, confirm: true, why: `only ${single.name} offers it, but ${firstName(single.name)}'s price for it has changed since, so it can't be told apart from a menu item` };
-        }
+        const by = byStaff ? creatorName : 'you';
+        return {
+            ownerPerforms: true, confirm: true,
+            why: typedHere(single, s)
+                ? `only ${single.name} offers it, at the price on it — but ${by} could also have made it as a menu item, so it may be yours too`
+                : `only ${single.name} offers it, but ${firstName(single.name)}'s price for it differs, so it can't be told apart from a menu item`,
+        };
     }
 
     if (staffGap) return { ownerPerforms: true, confirm: true, why: staffGap };
@@ -140,6 +162,7 @@ async function migrateOwnerPerforms({ dryRun = false } = {}) {
     const User = require('../src/models/User');
     const Appointment = require('../src/models/Appointment');
     const { can } = require('../src/utils/permissions');
+    const mongoose = require('mongoose');
 
     const undecided = await Service.find({ provider: { $ne: null }, ownerPerforms: UNDECIDED })
         .select('name description provider createdBy createdAt category options addOns price duration isActive')
@@ -148,10 +171,15 @@ async function migrateOwnerPerforms({ dryRun = false } = {}) {
     if (!undecided.length) return { teamOnly: [], kept: [], confirm: [], ownerBookings: [], dryRun };
 
     const providerIds = [...new Set(undecided.map((s) => String(s.provider)))];
+    const creatorIds = [...new Set(undecided.map((s) => s.createdBy).filter((v) => v != null).map(String))]
+        .filter((id) => mongoose.isValidObjectId(id));
     const [members, creators, owners] = await Promise.all([
         TeamMember.find({ provider: { $in: providerIds } })
             .select('provider user name services offersAllServices serviceOverrides isActive bookable').lean(),
-        User.find({ _id: { $in: [...new Set(undecided.map((s) => String(s.createdBy)).filter(Boolean))] } })
+        // Some old rows have no createdBy (or a malformed one); String() would turn
+        // that into 'undefined' and the query would throw a CastError, failing the
+        // deploy. Drop missing values first, then anything that isn't an ObjectId.
+        User.find({ _id: { $in: creatorIds } })
             .select('role staffOf name staffTier staffPermissions').lean(),
         User.find({ _id: { $in: providerIds } }).select('name businessProfile.businessName').lean(),
     ]);
@@ -182,11 +210,16 @@ async function migrateOwnerPerforms({ dryRun = false } = {}) {
     // the very leak this fixes. Reported, never changed.
     const startOfToday = new Date(); startOfToday.setHours(0, 0, 0, 0);
     const ownerBookings = teamOnly.length ? await Appointment.find({
-        service: { $in: teamOnly.map((d) => d._id) },
+        // Single-service bookings carry the service at the top; a multi-service
+        // booking lists it in its segments.
+        $or: [
+            { service: { $in: teamOnly.map((d) => d._id) } },
+            { 'services.service': { $in: teamOnly.map((d) => d._id) } },
+        ],
         teamMember: null,
         status: { $nin: ['cancelled', 'completed', 'no-show'] },
         appointmentDate: { $gte: startOfToday },
-    }).select('service provider appointmentDate startTime').sort({ appointmentDate: 1 }).lean() : [];
+    }).select('service services.service provider appointmentDate startTime').sort({ appointmentDate: 1 }).lean() : [];
 
     if (!dryRun) {
         // Guarded on "still undecided", so an owner who flipped the switch between
@@ -220,7 +253,8 @@ function report(result, log = console.log) {
         const nameOf = new Map(teamOnly.map((d) => [String(d._id), d]));
         log(`  Upcoming bookings clients made with the OWNER for a now team-only service (hand them to the team member, or switch "I offer this" back on):`);
         ownerBookings.forEach((a) => {
-            const d = nameOf.get(String(a.service));
+            const ids = [a.service, ...(a.services || []).map((x) => x.service)].filter(Boolean).map(String);
+            const d = ids.map((id) => nameOf.get(id)).find(Boolean);
             log(`    - ${d?.business}: ${d?.name} on ${ymd(a.appointmentDate)} ${a.startTime} [appointment ${a._id}]`);
         });
     }

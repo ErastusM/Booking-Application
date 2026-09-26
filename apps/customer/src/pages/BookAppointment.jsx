@@ -599,7 +599,11 @@ const BookAppointment = () => {
         setError('');
         setJoining(true);
         try {
-            await waitingListService.join({ service: formData.service, provider: effectiveProviderId || undefined, appointmentDate: formData.appointmentDate, startTime: formData.startTime, endTime: formData.endTime });
+            // Wait on the professional they picked, so the promotion books THAT
+            // person at their price. The owner tile ('owner') and "anyone" send no
+            // id: the server then books the owner only for a service the owner does.
+            const waitOn = selectedStaff && selectedStaff._id !== 'owner' ? selectedStaff._id : undefined;
+            await waitingListService.join({ service: formData.service, provider: effectiveProviderId || undefined, appointmentDate: formData.appointmentDate, startTime: formData.startTime, endTime: formData.endTime, ...(waitOn ? { teamMember: waitOn } : {}) });
             const target = '/waiting-list?joined=1';
             navigate(target, { replace: true });
             // Fallback in case SPA navigation is interrupted by stale client chunks in production.

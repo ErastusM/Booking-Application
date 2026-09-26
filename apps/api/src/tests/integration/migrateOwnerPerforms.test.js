@@ -64,14 +64,15 @@ describe('migrate_owner_performs', () => {
         // Erastus's own trip — the production leak.
         const trip = (await memberAdds(ctx, { name: 'North to south', price: 20000, duration: 3600 })).body.data.service;
         await legacy(trip._id);
-        // Added for John from the Team screen.
+        // Added for John from the Team screen by the OWNER — who could just as
+        // well have made it on the menu, so it can't be proven John's alone.
         const fade = (await ownerAddsFor(ctx, ctx.john, { name: 'Skin fade', price: 150, duration: 45 })).body.data.service;
         await legacy(fade._id);
 
         const result = await migrateOwnerPerforms();
 
         expect(await flagOf(trip._id)).toBe(false);
-        expect(await flagOf(fade._id)).toBe(false);
+        expect(await flagOf(fade._id)).toBe(true);
         expect(await flagOf(trim._id)).toBe(true);
         expect(await flagOf(beard._id)).toBe(true);
         // The member's prices are theirs and untouched; so are the owner's.
@@ -80,15 +81,16 @@ describe('migrate_owner_performs', () => {
 
         const byName = Object.fromEntries(result.decisions.map((d) => [d.name, d]));
         expect(byName['North to south'].why).toMatch(/Erastus added it as their own service/);
-        expect(byName['Skin fade'].why).toMatch(/added for John from the Team screen/);
+        expect(byName['Skin fade'].confirm).toBe(true);
+        expect(byName['Skin fade'].why).toMatch(/only John offers it, at the price on it — but you could also have made it as a menu item/);
         expect(byName.Trim.why).toMatch(/before team members could add services/);
         expect(byName.Beard.why).toMatch(/a menu item/);
-        expect(result.confirm).toHaveLength(0);
+        expect(result.confirm.map((d) => d.name)).toEqual(['Skin fade']);
 
-        // …and the owner's tile now shows only the owner's.
+        // …and the owner's tile no longer shows Erastus's trip.
         const staff = (await request(app).get(`/api/providers/${ctx.owner._id}/staff`)).body.data;
         const tile = staff.find((m) => m._id === 'owner');
-        expect(tile.services.sort()).toEqual([String(trim._id), String(beard._id)].sort());
+        expect(tile.services.sort()).toEqual([String(trim._id), String(beard._id), String(fade._id)].sort());
     });
 
     it('is idempotent and never overrides a decision already made', async () => {
@@ -145,15 +147,17 @@ describe('migrate_owner_performs', () => {
         const wash = (await memberAdds(ctx, { name: 'Car wash', price: 100, duration: 30 })).body.data.service;
         await TeamMember.updateOne({ _id: ctx.erastus._id }, { $set: { services: [] } });
         await legacy(wash._id);
-        // The same manager's add where her price still matches IS hers.
+        // Even where her price still matches, a manager could have made it on
+        // the menu: it stays with the owner, to confirm.
         const lashes = (await memberAdds(ctx, { name: 'Lashes', price: 180, duration: 50 }, mgrUser)).body.data.service;
         await legacy(lashes._id);
 
         const result = await migrateOwnerPerforms();
         expect(await flagOf(nails._id)).toBe(true);
         expect(await flagOf(wash._id)).toBe(true);
-        expect(await flagOf(lashes._id)).toBe(false);
-        expect(result.confirm.map((d) => d.name).sort()).toEqual(['Car wash', 'Nails']);
+        expect(await flagOf(lashes._id)).toBe(true);
+        expect(result.teamOnly).toHaveLength(0);
+        expect(result.confirm.map((d) => d.name).sort()).toEqual(['Car wash', 'Lashes', 'Nails']);
         expect(result.confirm.find((d) => d.name === 'Car wash').why).toMatch(/no longer offers it/);
         expect(result.confirm.find((d) => d.name === 'Nails').why).toMatch(/can also edit the business menu/);
     });
@@ -202,5 +206,68 @@ describe('migrate_owner_performs', () => {
         const kept = await Appointment.findById(appt._id).lean();
         expect(kept.teamMember).toBeNull();
         expect(kept.status).toBe('confirmed');
+    });
+
+    it('the owner\'s own menu item, later also given to one member at the same price, stays the owner\'s', async () => {
+        const ctx = await setup();
+        // The menu form with the description left as the name — the same shape a
+        // member's add writes.
+        const menu = (await request(app).post('/api/services/my-services').set(authHeader(ctx.owner))
+            .send({ name: 'Skin fade', description: 'Skin fade', price: 150, duration: 45 })).body.data;
+        const res = await ownerAddsFor(ctx, ctx.john, { name: 'Skin fade', price: 150, duration: 45 });
+        expect(res.body.data.reused).toBe(true);
+        await legacy(menu._id);
+
+        const result = await migrateOwnerPerforms();
+        expect(await flagOf(menu._id)).toBe(true);
+        expect(result.confirm.map((d) => d.name)).toEqual(['Skin fade']);
+    });
+
+    it('added for one colleague by a member who cannot edit the menu is that colleague\'s', async () => {
+        const ctx = await setup();
+        // (Written directly: the Team screen add needs team access a plain
+        // Service provider may be granted without menu access.)
+        const run = await makeService(ctx.owner._id, { name: 'Town run', description: 'Town run', price: 300, duration: 60, createdBy: ctx.erastusUser._id });
+        await TeamMember.updateOne({ _id: ctx.john._id }, { $set: { services: [run._id], serviceOverrides: [{ service: run._id, price: 300, duration: 60 }] } });
+        await legacy(run._id);
+
+        const result = await migrateOwnerPerforms();
+        expect(await flagOf(run._id)).toBe(false);
+        expect(result.teamOnly[0].why).toMatch(/added for John from the Team screen by Erastus/);
+    });
+
+    it('survives services with no (or a malformed) createdBy', async () => {
+        const ctx = await setup();
+        const a = await makeService(ctx.owner._id, { name: 'Orphan A' });
+        const b = await makeService(ctx.owner._id, { name: 'Orphan B' });
+        await Service.collection.updateOne({ _id: a._id }, { $unset: { createdBy: 1, ownerPerforms: 1 } });
+        await Service.collection.updateOne({ _id: b._id }, { $set: { createdBy: 'not-an-id' }, $unset: { ownerPerforms: 1 } });
+
+        const result = await migrateOwnerPerforms();
+        expect(result.decisions.map((d) => d.name).sort()).toEqual(['Orphan A', 'Orphan B']);
+        expect(await flagOf(a._id)).toBe(true);
+        expect(await flagOf(b._id)).toBe(true);
+    });
+
+    it('reports multi-service bookings with the owner that include a now team-only service', async () => {
+        const ctx = await setup();
+        const trim = await makeService(ctx.owner._id, { name: 'Trim', price: 70 });
+        const trip = (await memberAdds(ctx, { name: 'North to south', price: 20000, duration: 180 })).body.data.service;
+        await legacy(trip._id);
+        const customer = await makeUser({ name: 'Ndapewa Client' });
+        const multi = await Appointment.create({
+            customer: customer._id, provider: ctx.owner._id, service: trim._id, teamMember: null,
+            services: [
+                { service: trim._id, name: 'Trim', price: 70, duration: 30, startTime: '09:00', endTime: '09:30' },
+                { service: oid(trip._id), name: 'North to south', price: 20000, duration: 180, startTime: '09:30', endTime: '12:30' },
+            ],
+            appointmentDate: futureDate(3), startTime: '09:00', endTime: '12:30', status: 'confirmed', totalPrice: 20070,
+        });
+
+        const result = await migrateOwnerPerforms();
+        expect(result.ownerBookings.map((a) => String(a._id))).toEqual([String(multi._id)]);
+        const lines = [];
+        report(result, (l) => lines.push(l));
+        expect(lines.join('\n')).toMatch(new RegExp(`North to south on .+\\[appointment ${multi._id}\\]`));
     });
 });
