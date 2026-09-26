@@ -293,3 +293,234 @@ describe('ClientPicker with a large roster', () => {
         expect(screen.getByText('D0003 Client')).toBeInTheDocument();
     });
 });
+
+/**
+ * Browse mode — the Clients tab. The same list, but each row is a button that
+ * opens the client (no radio, nothing is "picked"), with the client's total
+ * spend on the right. The picker tests above run in the default (pick) mode
+ * and are unchanged.
+ */
+describe('ClientPicker in browse mode (the Clients tab)', () => {
+    const spendRow = (id, name, spend, extra = {}) => ({ ...row(id, name, extra), totalSpend: spend });
+    const BROWSE = ROSTER.map((c, i) => ({ ...c, totalSpend: [240, 1998.5, 360, 0][i % 4] }));
+    const money = (n) => `N$ ${n}`;
+
+    function Browse({ clients = BROWSE, onOpen = () => {}, ...rest }) {
+        const [open, setOpen] = useState('');
+        return (
+            <ClientPicker
+                mode="browse"
+                clients={clients}
+                value={open}
+                onOpen={(c) => { setOpen(c.customer._id); onOpen(c); }}
+                formatSpend={money}
+                aria-label="Clients"
+                data-testid="clients"
+                {...rest}
+            />
+        );
+    }
+    const rowNames = () => within(screen.getByRole('list', { name: 'Clients' })).getAllByRole('button').map((b) => b.querySelector('.cp-name').textContent);
+
+    it('is a list of buttons — no listbox, no options, no radio, no "Booking for" line', () => {
+        render(<Browse />);
+        const list = screen.getByRole('list', { name: 'Clients' });
+        expect(screen.queryByRole('listbox')).toBeNull();
+        expect(screen.queryAllByRole('option')).toHaveLength(0);
+        expect(within(list).getAllByRole('listitem')).toHaveLength(ROSTER.length);
+        expect(within(list).getAllByRole('button')).toHaveLength(ROSTER.length);
+        expect(list.querySelector('.cp-radio')).toBeNull();
+        expect(list).not.toHaveAttribute('tabindex');
+        expect(screen.queryByTestId('clients-picked')).toBeNull();
+        // Same A–Z order as the picker.
+        expect(rowNames()).toEqual([
+            'Adriel Nangolo', 'amber Stone', 'Bruno Mars', 'Carla Bruni', 'Émile Zola',
+            'Marcus Aurelius', 'Mia Wallace', 'Tom Walker', 'Zed Zulu', 'nameless@mail.test',
+        ]);
+        expect(within(list).getAllByRole('listitem')[0]).toHaveAttribute('aria-setsize', String(ROSTER.length));
+    });
+
+    it('shows each client\'s spend on the right, with picture/initials, phone, completed visits and last visit', () => {
+        render(<Browse clients={[
+            spendRow('a', 'Adriel Nangolo', 240, { avatar: 'https://res.cloudinary.com/demo/image/upload/v1/a.jpg', visits: 3, last: '2024-09-25T10:00:00.000Z' }),
+            spendRow('b', 'Beata Kalimbo', 1998.5, { phone: '+264 81 555 0000', visits: 7 }),
+            spendRow('c', 'Carla Bruni', 0, { visits: 0, last: null }),
+            spendRow('walkin:wanda', 'Walk-in Wanda', 120, { isWalkIn: true, email: null }),
+        ]} />);
+        const adriel = screen.getByTestId('clients-row-a');
+        expect(adriel.tagName).toBe('BUTTON');
+        expect(adriel.querySelector('img')).toHaveAttribute('loading', 'lazy');
+        expect(screen.getByTestId('clients-spend-a')).toHaveTextContent('N$ 240');
+        expect(adriel).toHaveTextContent('3 visits · last visit 25 Sep 2024');
+        // Completed visits, not every booking (the roster's `visits` is 99).
+        expect(adriel).not.toHaveTextContent('99');
+        // The accessible name reads the spend as spend.
+        expect(adriel).toHaveAccessibleName(/Adriel Nangolo Total spend N\$ 240/);
+
+        const beata = screen.getByTestId('clients-row-b');
+        expect(beata.querySelector('.cp-initials')).toHaveTextContent('BK');
+        expect(beata).toHaveTextContent('+264 81 555 0000');
+        expect(screen.getByTestId('clients-spend-b')).toHaveTextContent('N$ 1998.5');
+
+        const carla = screen.getByTestId('clients-row-c');
+        expect(carla).toHaveTextContent('No visits yet');
+        expect(screen.getByTestId('clients-spend-c')).toHaveTextContent('N$ 0');
+        expect(screen.getByTestId('clients-row-walkin:wanda')).toHaveTextContent('Walk-in');
+    });
+
+    it('without formatSpend there is no spend column', () => {
+        render(<Browse formatSpend={undefined} />);
+        expect(screen.getByTestId('clients-list').querySelector('.cp-spend')).toBeNull();
+    });
+
+    it('tapping a row opens that client (the whole row), and marks it as the open one', async () => {
+        const user = userEvent.setup();
+        const onOpen = vi.fn();
+        render(<Browse onOpen={onOpen} />);
+        await user.click(screen.getByTestId('clients-row-u4'));
+        expect(onOpen).toHaveBeenCalledTimes(1);
+        expect(onOpen.mock.calls[0][0]).toBe(BROWSE[3]); // Bruno Mars, as the API sent it
+        expect(screen.getByTestId('clients-row-u4')).toHaveAttribute('aria-current', 'true');
+        expect(screen.getByTestId('clients-row-u4')).not.toHaveAttribute('aria-selected');
+        // Tapping the open client again opens it again (it is not a toggle).
+        await user.click(screen.getByTestId('clients-row-u4'));
+        expect(onOpen).toHaveBeenCalledTimes(2);
+        // A walk-in opens with its walkin: id.
+        await user.click(screen.getByTestId('clients-row-walkin:tom walker'));
+        expect(onOpen.mock.calls[2][0].customer._id).toBe('walkin:tom walker');
+    });
+
+    it('keyboard: one tab stop; arrows / Home / End / a letter move focus between rows; Enter and Space open', async () => {
+        const user = userEvent.setup();
+        const onOpen = vi.fn();
+        render(<><button type="button">before</button><Browse onOpen={onOpen} /></>);
+        const buttons = () => within(screen.getByRole('list', { name: 'Clients' })).getAllByRole('button');
+        expect(buttons().filter((b) => b.tabIndex === 0)).toHaveLength(1);
+
+        act(() => screen.getByRole('button', { name: 'before' }).focus());
+        await user.tab(); // the search box
+        expect(document.activeElement).toBe(screen.getByTestId('clients-search'));
+        await user.tab(); // into the list: its first row
+        const focused = () => document.activeElement.querySelector('.cp-name')?.textContent;
+        expect(focused()).toBe('Adriel Nangolo');
+        await user.keyboard('{ArrowDown}{ArrowDown}');
+        expect(focused()).toBe('Bruno Mars');
+        expect(buttons().filter((b) => b.tabIndex === 0)).toEqual([document.activeElement]);
+        await user.keyboard('{ArrowUp}');
+        expect(focused()).toBe('amber Stone');
+        await user.keyboard('{End}');
+        expect(focused()).toBe('nameless@mail.test');
+        await user.keyboard('{Home}');
+        expect(focused()).toBe('Adriel Nangolo');
+        let now = 1e12;
+        vi.spyOn(Date, 'now').mockImplementation(() => (now += 1000));
+        await user.keyboard('m');
+        expect(focused()).toBe('Marcus Aurelius');
+        vi.mocked(Date.now).mockRestore();
+
+        await user.keyboard('{Enter}');
+        expect(onOpen).toHaveBeenCalledTimes(1);
+        expect(onOpen.mock.calls[0][0].customer.name).toBe('Marcus Aurelius');
+        await user.keyboard('{ArrowDown}');
+        await user.keyboard(' ');
+        expect(onOpen).toHaveBeenCalledTimes(2);
+        expect(onOpen.mock.calls[1][0].customer.name).toBe('Mia Wallace');
+
+        // Tab leaves the list (it does not step through every row).
+        await user.tab();
+        expect(document.activeElement.closest('[role="list"]')).toBeNull();
+    });
+
+    it('search: name, phone or email; ArrowDown moves into the results; Enter on a single match opens it', async () => {
+        const user = userEvent.setup();
+        const onOpen = vi.fn();
+        render(<Browse onOpen={onOpen} />);
+        const search = screen.getByTestId('clients-search');
+        await user.type(search, 'emile');
+        expect(rowNames()).toEqual(['Émile Zola']);
+        await user.clear(search);
+        await user.type(search, '81 123');
+        expect(rowNames()).toEqual(['amber Stone']);
+        await user.clear(search);
+        await user.type(search, 'u6@mail');
+        expect(rowNames()).toEqual(['Mia Wallace']);
+        await user.keyboard('{Enter}');
+        expect(onOpen).toHaveBeenCalledWith(BROWSE[5]);
+
+        await user.clear(search);
+        await user.type(search, 'mar');
+        expect(rowNames()).toEqual(['Bruno Mars', 'Marcus Aurelius']);
+        await user.keyboard('{ArrowDown}');
+        expect(document.activeElement).toBe(screen.getByTestId('clients-row-u4'));
+
+        await user.clear(search);
+        await user.type(search, 'nobody');
+        expect(screen.getByTestId('clients-list')).toHaveTextContent('No clients match “nobody”');
+    });
+
+    it('can keep its search text outside (searchQuery / onSearchChange)', async () => {
+        const user = userEvent.setup();
+        function Held() {
+            const [q, setQ] = useState('zed');
+            return <><output data-testid="held">{q}</output><Browse searchQuery={q} onSearchChange={setQ} /></>;
+        }
+        render(<Held />);
+        expect(screen.getByTestId('clients-search')).toHaveValue('zed');
+        expect(rowNames()).toEqual(['Zed Zulu']);
+        await user.click(screen.getByTestId('clients-clear'));
+        expect(screen.getByTestId('held')).toHaveTextContent('');
+        expect(rowNames()).toHaveLength(ROSTER.length);
+    });
+
+    describe('with a large roster', () => {
+        const letters = 'ABCDEFGHIJKLMNOPRSTUVWYZ';
+        const big = [];
+        for (let i = 0; i < 1040; i += 1) {
+            const L = letters[i % letters.length];
+            big.push({ ...row(`c${i}`, `${L}${String(i).padStart(4, '0')} Client`), totalSpend: i });
+        }
+
+        it('is windowed, and the rail jumps to a letter (a tap, and an empty letter to the next)', async () => {
+            const user = userEvent.setup();
+            render(<Browse clients={big} />);
+            const list = screen.getByTestId('clients-list');
+            expect(within(list).getAllByRole('button').length).toBeLessThan(40);
+
+            expect(screen.queryByText('M0012 Client')).toBeNull();
+            await user.click(screen.getByRole('button', { name: 'Jump to M' }));
+            expect(screen.getByText('M0012 Client')).toBeInTheDocument();
+            const before = big.filter((c) => c.customer.name[0] < 'M').length;
+            expect(list.scrollTop).toBe(12 * HEAD_H + before * ROW_H);
+            expect(screen.getByTestId('clients-spend-c12')).toHaveTextContent('N$ 12');
+            // The jumped-to row becomes the list's tab stop; focus stays on the rail.
+            expect(screen.getByTestId('clients-row-c12')).toHaveAttribute('tabindex', '0');
+            expect(document.activeElement).not.toBe(screen.getByTestId('clients-row-c12'));
+
+            await user.click(screen.getByRole('button', { name: 'Jump to Q (no clients)' }));
+            expect(screen.getByText('R0016 Client')).toBeInTheDocument();
+            expect(screen.getByRole('status')).toHaveTextContent('No clients under Q, showing R');
+        });
+
+        it('dragging along the rail jumps letter by letter', () => {
+            render(<Browse clients={big} />);
+            const rail = screen.getByTestId('clients-rail');
+            rail.getBoundingClientRect = () => ({ top: 0, left: 0, right: 32, bottom: 270, width: 32, height: 270, x: 0, y: 0 });
+            const pointer = (el, type, clientY) => fireEvent(el, new MouseEvent(type, { bubbles: true, clientY }));
+            pointer(screen.getByTestId('clients-letter-A'), 'pointerdown', 5);
+            pointer(rail, 'pointermove', 235); // "W"
+            expect(screen.getByText('W0021 Client')).toBeInTheDocument();
+            pointer(rail, 'pointerup', 235);
+        });
+
+        it('a focused row stays rendered when the list scrolls away from it', async () => {
+            const user = userEvent.setup();
+            render(<Browse clients={big} />);
+            await user.click(screen.getByTestId('clients-row-c0'));
+            const list = screen.getByTestId('clients-list');
+            list.scrollTop = 20000;
+            fireEvent.scroll(list);
+            expect(screen.getByTestId('clients-row-c0')).toBeInTheDocument();
+            expect(screen.getByTestId('clients-row-c0')).toHaveAttribute('tabindex', '0');
+        });
+    });
+});

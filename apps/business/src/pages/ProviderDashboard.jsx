@@ -34,7 +34,7 @@ import { bookingClientFields } from '../utils/bookingClient';
 import ClientPicker from '../components/ClientPicker';
 import MiniCalendar from '../components/MiniCalendar';
 import RecurrenceFields from '../components/RecurrenceFields';
-import { currencySymbol } from '../utils/currency';
+import { currencySymbol, formatMoney } from '../utils/currency';
 import { servicesFor, ownerPerforms, teamPerformers } from '../utils/performerServices';
 import { MEMBER_PALETTE, memberColorMap, sameColor } from '../utils/memberColors';
 import Switch from '../components/Switch';
@@ -405,9 +405,9 @@ const ProviderDashboard = () => {
     const [savingClientNote, setSavingClientNote] = useState(false);
     const [clientSearchQuery, setClientSearchQuery] = useState('');
     // The API returns clients most-recent-visit first. Every client list the
-    // owner reads (the New Appointment picker, the Clients tab) shows them A–Z
-    // instead, from this one sorted copy, so a client sits in the same place in
-    // both. Filtering an already-sorted list keeps search results A–Z too.
+    // owner reads (the New Appointment picker, the Clients tab — both the one
+    // ClientPicker, which sorts through utils/clientSort too) shows them A–Z, so
+    // a client sits in the same place in both.
     const sortedClients = useMemo(() => sortClients(clients), [clients]);
     // The New Appointment client list: every client but the owner's own account.
     const clientPickerRows = useMemo(() => sortedClients.filter(c => c.customer && c.customer._id !== user?._id), [sortedClients, user?._id]);
@@ -1078,6 +1078,41 @@ const ProviderDashboard = () => {
             setClientNoteForm({ notes: '', allergies: '', conditions: '', internalNotes: '', tags: '', birthday: '' });
             setClientDetailError(err.response?.data?.message || 'Could not load this client. Please try again.');
         }
+    };
+
+    // Keyboard / screen-reader focus around an open client. On a phone the list is
+    // hidden while a client is open, so the row that opened them (focused) goes
+    // away and focus would fall back to the page: put it on the client's name
+    // instead, and back on their row when the details close (on a computer too —
+    // the Close button that had focus is gone). Where the list stays in view,
+    // focus stays on the row.
+    const clientsListRef = useRef(null);
+    const clientDetailTitleRef = useRef(null);
+    useEffect(() => {
+        if (!selectedClient || (!clientDetail && !clientDetailError)) return;
+        const list = clientsListRef.current;
+        if (list?.getClientRects().length) return; // the list is still shown
+        // Only when focus was lost with the list (or the panel it replaced) —
+        // never pull it away from somewhere the user has since moved to.
+        const ae = document.activeElement;
+        if (ae && ae !== document.body && !list?.contains(ae)) return;
+        clientDetailTitleRef.current?.focus();
+    }, [clientDetail, clientDetailError]); // eslint-disable-line react-hooks/exhaustive-deps
+    const closeClientDetail = () => {
+        const id = String(selectedClient?.customer?._id || '');
+        setSelectedClient(null);
+        setClientDetail(null);
+        setClientDetailError('');
+        // Next frame: the list is shown again by then, and ClientPicker keeps the
+        // opened (active) row rendered. A client opened from elsewhere (an
+        // appointment) may have no row in view: then the list's own tab stop.
+        requestAnimationFrame(() => {
+            const list = clientsListRef.current;
+            if (!list) return;
+            const row = (id && list.querySelector(`[data-testid="clients-row-${CSS.escape(id)}"]`))
+                || list.querySelector('.cp-row[tabindex="0"]');
+            row?.focus({ preventScroll: true });
+        });
     };
 
     const saveClientNote = async () => {
@@ -3272,105 +3307,59 @@ const ProviderDashboard = () => {
 
             {/* Clients tab */}
             {activeTab === 'clients' && (
-                <div className={`clients-grid${selectedClient ? ' has-selection' : ''}`} style={{ display: 'grid', gridTemplateColumns: selectedClient ? '1fr 380px' : '1fr', gap: '1.5rem', alignItems: 'start' }}>
-                    <div className="clients-list" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
+                // The list keeps a sensible width on desktop, with the open client beside it.
+                <div className={`clients-grid${selectedClient ? ' has-selection' : ''}`} style={{ display: 'grid', gridTemplateColumns: selectedClient ? 'minmax(0, 720px) 380px' : 'minmax(0, 720px)', gap: '1.5rem', alignItems: 'start' }}>
+                    <div ref={clientsListRef} className="clients-list" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', overflow: 'hidden' }}>
                         <div style={{ padding: '1.25rem 1.5rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                             <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>My Clients</h2>
-                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{clients.length} total</span>
+                            <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }} data-testid="clients-total">{clients.length} total</span>
                         </div>
-                        <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid var(--border)' }}>
-                            <div style={{ position: 'relative', maxWidth: '360px' }}>
-                                <input
-                                    type="text"
-                                    value={clientSearchQuery}
-                                    onChange={e => setClientSearchQuery(e.target.value)}
-                                    placeholder="Search clients by name or phone"
-                                    aria-label="Search clients"
-                                    className="input"
-                                    style={{ width: '100%', paddingRight: clientSearchQuery ? '2.6rem' : undefined }}
-                                />
-                                {clientSearchQuery && <SearchClear onClear={() => setClientSearchQuery('')} label="Clear client search" />}
-                            </div>
-                        </div>
-                        {loadingClients ? <RowsSkeleton /> : (() => {
-                            const q = clientSearchQuery.trim().toLowerCase();
-                            // Alphabetical (case- and accent-insensitive) via the shared
-                            // sortedClients, the same order the New Appointment picker uses.
-                            const filteredClients = q
-                                ? sortedClients.filter(c => {
-                                    const name = (c.customer?.name || '').toLowerCase();
-                                    const phone = (c.customer?.phone || '').toLowerCase();
-                                    return name.includes(q) || phone.includes(q);
-                                })
-                                : sortedClients;
-                            return (
-                            <div className="clients-table-wrap" style={{ overflowX: 'auto' }}>
-                                <table className="clients-table" style={{ width: '100%', borderCollapse: 'collapse', fontSize: '0.875rem' }}>
-                                    <thead>
-                                        <tr style={{ background: 'var(--warm-gray)', textAlign: 'left' }}>
-                                            {[['Client', 'Client'], ['Total Visits', 'Visits'], ['Last Visit', 'Last'], ['Total Spend', 'Spend'], ['', '']].map(([h, short]) => (
-                                                <th key={h} style={{ padding: '0.75rem 1rem', fontWeight: '600', color: 'var(--text-secondary)', fontSize: '0.75rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-                                                    {/* Full caption on desktop, short one on phones so the header stays
-                                                        a single line beside the compacted columns. */}
-                                                    <span className="lbl-full">{h}</span>
-                                                    <span className="lbl-compact">{short}</span>
-                                                </th>
-                                            ))}
-                                        </tr>
-                                    </thead>
-                                    <tbody>
-                                        {filteredClients.map((c, i) => (
-                                            <tr key={i} onClick={() => { setSelectedClient(c); fetchClientDetail(c.customer._id); }} style={{ borderBottom: '1px solid var(--border)', transition: 'background 0.1s', cursor: 'pointer' }} onMouseEnter={e => e.currentTarget.style.background = 'var(--warm-gray)'} onMouseLeave={e => e.currentTarget.style.background = 'transparent'}>
-                                                <td style={{ padding: '0.875rem 1rem' }}>
-                                                    <div className="client-name" style={{ fontWeight: '600', color: 'var(--charcoal)' }}>{c.customer?.name}</div>
-                                                    <div className="client-email" style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>{c.customer?.email}</div>
-                                                </td>
-                                                <td style={{ padding: '0.875rem 1rem', color: 'var(--charcoal)', fontWeight: '500' }}>{c.visits}</td>
-                                                <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>
-                                                    {c.lastVisit ? (
-                                                        <>
-                                                            {/* Same date, two widths — CSS shows the compact one on phones so
-                                                                the row never wraps to a second line. */}
-                                                            <span className="date-full">{new Date(c.lastVisit).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</span>
-                                                            <span className="date-compact">{new Date(c.lastVisit).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: '2-digit' })}</span>
-                                                        </>
-                                                    ) : '—'}
-                                                </td>
-                                                <td style={{ padding: '0.875rem 1rem', color: 'var(--gold-dark)', fontWeight: '600' }}>{nMoney(c.totalSpend)}</td>
-                                                <td className="col-view" style={{ padding: '0.875rem 1rem' }}>
-                                                    <button onClick={e => { e.stopPropagation(); setSelectedClient(c); fetchClientDetail(c.customer._id); }} style={{ background: 'rgba(240,62,22,0.08)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--gold-dark)', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.78rem', fontWeight: '600' }}>View</button>
-                                                </td>
-                                            </tr>
-                                        ))}
-                                    </tbody>
-                                </table>
-                                {clients.length === 0 && clientsError && (
-                                    <div style={{ padding: '2.5rem 1.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
-                                        <p style={{ margin: 0, color: 'var(--charcoal)', fontWeight: 600 }}>Couldn’t load your clients</p>
-                                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{clientsError}</p>
-                                        <button onClick={fetchClients} className="btn-primary" style={{ padding: '0.45rem 1.1rem', fontSize: '0.85rem' }}>Try again</button>
-                                    </div>
-                                )}
-                                {clients.length === 0 && !clientsError && <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No clients yet. Clients will appear here once they book with you.</div>}
-                                {clients.length > 0 && filteredClients.length === 0 && <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No clients match “{clientSearchQuery}”.</div>}
-                            </div>
-                            );
-                        })()}
+                        {loadingClients ? <RowsSkeleton /> : clients.length === 0 ? (
+                            clientsError ? (
+                                <div style={{ padding: '2.5rem 1.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>
+                                    <p style={{ margin: 0, color: 'var(--charcoal)', fontWeight: 600 }}>Couldn’t load your clients</p>
+                                    <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{clientsError}</p>
+                                    <button onClick={fetchClients} className="btn-primary" style={{ padding: '0.45rem 1.1rem', fontSize: '0.85rem' }}>Try again</button>
+                                </div>
+                            ) : (
+                                <div style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>No clients yet. Clients will appear here once they book with you.</div>
+                            )
+                        ) : (
+                            // The same contact-style list as New Appointment's client step
+                            // (components/ClientPicker), in browse mode: search by name,
+                            // phone or email, A–Z sections and rail, each client's completed
+                            // visits, last visit and total spend. Tapping a client (or Enter)
+                            // opens them. Which clients are listed is decided server-side
+                            // (/crm/clients: a team member sees the clients they serve).
+                            <ClientPicker
+                                mode="browse"
+                                className="clients-cp"
+                                clients={clients}
+                                value={selectedClient?.customer?._id || ''}
+                                onOpen={(c) => { setSelectedClient(c); fetchClientDetail(c.customer._id); }}
+                                formatSpend={(n) => formatMoney(n, curCode)}
+                                searchQuery={clientSearchQuery}
+                                onSearchChange={setClientSearchQuery}
+                                height="fill"
+                                aria-label="Clients"
+                                data-testid="clients"
+                            />
+                        )}
                     </div>
                     {selectedClient && !clientDetail && clientDetailError && (
                         <div className="client-detail-panel" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                            <p style={{ margin: 0, color: 'var(--charcoal)', fontWeight: 600 }}>{selectedClient.customer?.name}</p>
+                            <p ref={clientDetailTitleRef} tabIndex={-1} className="client-detail-title" style={{ margin: 0, color: 'var(--charcoal)', fontWeight: 600 }}>{selectedClient.customer?.name}</p>
                             <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.875rem' }}>{clientDetailError}</p>
                             <div style={{ display: 'flex', gap: '0.5rem' }}>
                                 <button onClick={() => fetchClientDetail(selectedClient.customer._id)} className="btn-primary" style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}>Try again</button>
-                                <button onClick={() => { setSelectedClient(null); setClientDetailError(''); }} className="btn-outline" style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}>Close</button>
+                                <button onClick={closeClientDetail} className="btn-outline" style={{ padding: '0.45rem 1rem', fontSize: '0.85rem' }}>Close</button>
                             </div>
                         </div>
                     )}
                     {selectedClient && clientDetail && (
                         <div className="client-detail-panel" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', position: 'sticky', top: 'calc(100px + env(safe-area-inset-top, 0px))' }}>
                             <div style={{ padding: '1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                                <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>{selectedClient.customer?.name}</h3>
+                                <h3 ref={clientDetailTitleRef} tabIndex={-1} className="client-detail-title" style={{ fontFamily: 'var(--font-display)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>{selectedClient.customer?.name}</h3>
                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                                     <button
                                         onClick={async () => {
@@ -3381,7 +3370,7 @@ const ProviderDashboard = () => {
                                         }}
                                         style={{ background: 'none', border: '1px solid var(--border)', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '0.72rem', padding: '0.25rem 0.6rem', borderRadius: 'var(--radius-sm)' }}
                                     >Block</button>
-                                    <button aria-label="Close" onClick={() => { setSelectedClient(null); setClientDetail(null); }} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.2rem' }}>×</button>
+                                    <button aria-label="Close" onClick={closeClientDetail} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.2rem' }}>×</button>
                                 </div>
                             </div>
                             <div style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '1rem', maxHeight: '70vh', overflowY: 'auto' }}>

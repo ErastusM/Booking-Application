@@ -22,8 +22,12 @@ const SYMBOLS = Object.fromEntries(CURRENCIES.map((c) => [c.code, c.symbol]));
 // The symbol for a currency code (falls back to the code, then to N$).
 export const currencySymbol = (code) => SYMBOLS[(code || '').toUpperCase()] || code || 'N$';
 
-// "N$ 120" / "$ 120" — prefixes the amount with the currency symbol.
+// "N$ 240" / "N$ 1,998.50" — the currency symbol, a space, then the amount
+// grouped the way the device writes numbers (as Earnings does). Rounded to the
+// cent, and cents only when there are some: a whole amount reads "N$ 240".
 export const formatMoney = (amount, code = 'NAD') => {
-    const n = Number(amount);
-    return `${currencySymbol(code)} ${Number.isFinite(n) ? n : 0}`;
+    const v = Number(amount);
+    const n = Number.isFinite(v) ? Math.round(v * 100) / 100 : 0;
+    const cents = Number.isInteger(n) ? 0 : 2;
+    return `${currencySymbol(code)} ${n.toLocaleString(undefined, { minimumFractionDigits: cents, maximumFractionDigits: cents })}`;
 };
