@@ -31,6 +31,6 @@ const bookingRejectionSchema = new mongoose.Schema(
 
 bookingRejectionSchema.index({ provider: 1, createdAt: -1 });
 // Self-cleaning after the 7-day reporting window.
-bookingRejectionSchema.index({ createdAt: 1 }, { expireAfterSeconds: 7 * 24 * 60 * 60 });
+bookingRejectionSchema.index({ createdAt: 1 }, { expireAfterSeconds: require('../constants/retention').RETENTION.BOOKING_REJECTION_DAYS * 24 * 60 * 60 });
 
 module.exports = mongoose.model('BookingRejection', bookingRejectionSchema);

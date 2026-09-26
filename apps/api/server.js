@@ -50,6 +50,7 @@ const marketingRoutes = require('./src/routes/marketingRoutes');
 const startReminderJob = require('./src/utils/reminderService');
 const startWalletExpiryJob = require('./src/utils/walletExpiryService');
 const startAutoCompleteJob = require('./src/utils/autoCompleteService');
+const startRetentionJob = require('./src/utils/dataRetentionService');
 const passport = require('./src/config/passport');
 const User = require('./src/models/User');
 
@@ -332,6 +333,7 @@ if (require.main === module) {
             startReminderJob();
             startWalletExpiryJob();
             startAutoCompleteJob();
+            startRetentionJob();
         });
 
         const shutdown = async (signal) => {

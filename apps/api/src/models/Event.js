@@ -1,4 +1,5 @@
 const mongoose = require('mongoose');
+const { RETENTION } = require('../constants/retention');
 
 // Lightweight product-analytics event — the funnel pipe, NOT a revenue metric
 // (money data lives on Appointment/Wallet behind /analytics). We record page
@@ -22,7 +23,9 @@ const eventSchema = new mongoose.Schema(
 
 eventSchema.index({ name: 1, createdAt: -1 });
 eventSchema.index({ sessionId: 1, createdAt: 1 });
-// Auto-expire raw events after 180 days so the collection can't grow unbounded.
-eventSchema.index({ createdAt: 1 }, { expireAfterSeconds: 180 * 24 * 60 * 60 });
+// Auto-expire raw events (RETENTION.ANALYTICS_EVENTS_DAYS, quoted by the Privacy
+// Policy). NOTE: changing the period needs the existing index dropped/collMod'd —
+// Mongo will not change expireAfterSeconds on an existing index by itself.
+eventSchema.index({ createdAt: 1 }, { expireAfterSeconds: RETENTION.ANALYTICS_EVENTS_DAYS * 24 * 60 * 60 });
 
 module.exports = mongoose.model('Event', eventSchema);
