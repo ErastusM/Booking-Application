@@ -59,3 +59,13 @@ export const missingCompanyFields = (company = COMPANY) =>
 
 /** The operator's name for running text: the legal name, or the trading name if that isn't set. */
 export const operatorName = (company = COMPANY) => companyValue('legalName', company) || company.tradingName || 'Bookplus';
+
+/**
+ * An email address as an inline link for the legal text — "[a@b.c](mailto:a@b.c)" —
+ * or, when the address is missing or a placeholder, a pointer to the legal
+ * notice instead, so a placeholder can never be rendered as a link.
+ */
+export const mailLink = (key = 'email', company = COMPANY) => {
+    const v = companyValue(key, company) || (key !== 'email' ? companyValue('email', company) : null);
+    return v ? `[${v}](mailto:${v})` : 'the contact details in our [Legal notice](/legal)';
+};

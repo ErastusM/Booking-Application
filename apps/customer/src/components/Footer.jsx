@@ -1,7 +1,7 @@
 import React from 'react';
 import { openConsentSettings } from '@bookplus/api-client';
 import { Link } from 'react-router-dom';
-import { COMPANY, companyValue } from '@bookplus/config/legal/company.mjs';
+import { companyValue } from '@bookplus/config/legal/company.mjs';
 
 // App-wide footer — keeps the legal pages reachable from anywhere, signed in or not.
 const Footer = () => {
@@ -19,7 +19,8 @@ const Footer = () => {
                     <Link to="/privacy-policy" style={linkStyle}>Privacy Policy</Link>
                     <Link to="/terms" style={linkStyle}>Terms of Service</Link>
                     <Link to="/legal" style={linkStyle}>Who we are</Link>
-                    <a href={`mailto:${COMPANY.email}`} style={linkStyle}>{COMPANY.email}</a>
+                    {/* Hidden when the configured address is missing or a placeholder. */}
+                    {companyValue('email') && <a href={`mailto:${companyValue('email')}`} style={linkStyle}>{companyValue('email')}</a>}
                     <button type="button" onClick={openConsentSettings} data-testid="cookie-settings-link" style={{ ...linkStyle, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}>Cookie settings</button>
                 </nav>
             </div>

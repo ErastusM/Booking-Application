@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { CompanyDetails, LegalDocument } from '@bookplus/ui';
-import { COMPANY, isPlaceholder, missingCompanyFields, companyValue, operatorName } from '@bookplus/config/legal/company.mjs';
+import { COMPANY, isPlaceholder, missingCompanyFields, companyValue, operatorName, mailLink } from '@bookplus/config/legal/company.mjs';
 import { privacyPolicy, RETENTION } from '@bookplus/config/legal/privacy.mjs';
 import { termsOfService } from '@bookplus/config/legal/terms.mjs';
 import { legalNotice } from '@bookplus/config/legal/notice.mjs';
@@ -36,6 +36,12 @@ describe('company details guard', () => {
         expect(missingCompanyFields(draft)).toEqual(expect.arrayContaining(['Legal entity name', 'Phone']));
         expect(companyValue('legalName', draft)).toBeNull();
         expect(operatorName(draft)).toBe('Bookplus');
+    });
+
+    it('contact email links never carry a placeholder', () => {
+        expect(mailLink('email', { ...COMPANY, email: '[Contact email]' })).not.toMatch(/mailto:/);
+        expect(mailLink('email', { ...COMPANY, email: '[Contact email]' })).toContain('[Legal notice](/legal)');
+        expect(mailLink('privacyEmail', { ...COMPANY, privacyEmail: '' })).toBe(`[${COMPANY.email}](mailto:${COMPANY.email})`);
     });
 
     it('the build warns about placeholders but does not fail', () => {

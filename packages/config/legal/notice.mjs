@@ -8,7 +8,8 @@ export const NOTICE_LAST_UPDATED = '26 September 2026';
 
 export const legalNotice = (audience = 'customer') => {
     const op = operatorName(COMPANY);
-    const email = companyValue('email') || COMPANY.email;
+    // companyValue: a missing or placeholder value is left out, never shown.
+    const email = companyValue('email');
     const privacyEmail = companyValue('privacyEmail') || email;
     const phone = companyValue('phone');
     return {
@@ -21,9 +22,9 @@ export const legalNotice = (audience = 'customer') => {
             { id: 'company', title: 'Company details', blocks: [{ company: true }] },
             { id: 'contact', title: 'Contact us', blocks: [
                 { list: [
-                    `Email: [${email}](mailto:${email})`,
+                    ...(email ? [`Email: [${email}](mailto:${email})`] : []),
                     ...(phone ? [`Phone: [${phone}](tel:${phone.replace(/[^+\d]/g, '')})`] : []),
-                    `Privacy requests: [${privacyEmail}](mailto:${privacyEmail})`,
+                    ...(privacyEmail ? [`Privacy requests: [${privacyEmail}](mailto:${privacyEmail})`] : []),
                 ] },
                 'We aim to reply within 5 working days.',
             ] },

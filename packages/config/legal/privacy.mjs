@@ -18,7 +18,7 @@
 //   { note: '...' }               -> highlighted note
 //   { company: true }             -> the operator's details from company.mjs
 
-import { COMPANY, operatorName, companyValue } from './company.mjs';
+import { COMPANY, operatorName, companyValue, mailLink } from './company.mjs';
 
 export const PRIVACY_LAST_UPDATED = '26 September 2026';
 
@@ -35,8 +35,7 @@ export const RETENTION = {
 };
 
 const op = operatorName(COMPANY);
-const privacyEmail = companyValue('privacyEmail') || COMPANY.email;
-const mail = `[${privacyEmail}](mailto:${privacyEmail})`;
+const mail = mailLink('privacyEmail');
 
 // ── Shared building blocks ──────────────────────────────────────────────────
 
@@ -195,7 +194,7 @@ const rights = (audience) => ({
             '**Restrict** processing while a complaint is looked at, where the law gives that right.',
             '**Complain** to a regulator. In South Africa: the Information Regulator (inforegulator.org.za). In the EU/UK: your local data protection authority. In Namibia the Data Protection Bill is not yet in force; you can still complain to us and we will respond.',
         ] },
-        `Guests without an account can make any of these requests by emailing ${mail} from the email address used for the booking. We reply within 30 days and may ask you to prove who you are. Requests are free.`,
+        `Guests without an account can make any of these requests by writing to ${mail} from the email address used for the booking. We reply within 30 days and may ask you to prove who you are. Requests are free.`,
         audience === 'business'
             ? 'If one of your clients asks you about information you hold about them, you must deal with it. We will help you where we can.'
             : 'For records a business keeps about you, you can also ask the business directly.',
@@ -245,7 +244,7 @@ const contact = () => ({
     id: 'contact',
     title: 'Contact us',
     blocks: [
-        `For privacy questions or requests, write to our ${COMPANY.privacyContact ? 'Information Officer' : 'privacy contact'} at ${mail}, or by post to the address in our [Legal notice](/legal).`,
+        `For privacy questions or requests, write to our ${companyValue('privacyContact') ? 'Information Officer' : 'privacy contact'} at ${mail}, or by post to the address in our [Legal notice](/legal).`,
     ],
 });
 
