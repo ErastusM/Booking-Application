@@ -29,6 +29,21 @@ export const fmtMinutes = (mins) =>
     `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
 
 /**
+ * Blocks in time order, with blocks that touch or overlap read as one
+ * (08:00–12:30 + 12:30–18:00 is 08:00–18:00) — exactly how the server reads a
+ * day's periods when it checks a booking (staffBooking.withinPeriods).
+ */
+export const mergeBlocks = (blocks) => (blocks || [])
+    .filter((b) => Number.isFinite(b?.start) && Number.isFinite(b?.end) && b.end > b.start)
+    .sort((a, b) => a.start - b.start)
+    .reduce((out, b) => {
+        const last = out[out.length - 1];
+        if (last && b.start <= last.end) last.end = Math.max(last.end, b.end);
+        else out.push({ start: b.start, end: b.end });
+        return out;
+    }, []);
+
+/**
  * @param {Object}   args
  * @param {{start:number,end:number}[]} args.blocks       working blocks for the day
  * @param {{start:number,end:number}[]} args.bookedRanges  already-booked ranges
@@ -43,7 +58,7 @@ export const buildTimeSlots = ({ blocks, bookedRanges = [], duration, minStart =
     const slots = [];
     const dur = duration || 60;
 
-    blocks.forEach((block) => {
+    mergeBlocks(blocks).forEach((block) => {
         // A start is usable when it's inside the block, the whole service fits,
         // and it isn't in the past.
         const usable = (start) =>
@@ -198,12 +213,14 @@ export const ticketBuffers = (rows, bufferOf = () => null) => {
     return { bufferBefore: before, bufferAfter: after };
 };
 
-/** "HH:mm" periods → sorted minute blocks, dropping anything empty or inverted. */
-export const periodsToBlocks = (periods) => (periods || [])
+/**
+ * "HH:mm" periods → sorted minute blocks, dropping anything empty or inverted.
+ * Periods that touch or overlap read as one (08:00–12:30 + 12:30–18:00 is
+ * 08:00–18:00), exactly as the server reads them when it checks a booking.
+ */
+export const periodsToBlocks = (periods) => mergeBlocks((periods || [])
     .filter((s) => s?.start && s?.end)
-    .map((s) => ({ start: toMin(s.start), end: toMin(s.end) }))
-    .filter((b) => Number.isFinite(b.start) && Number.isFinite(b.end) && b.end > b.start)
-    .sort((a, b) => a.start - b.start);
+    .map((s) => ({ start: toMin(s.start), end: toMin(s.end) })));
 
 /** The weekday name of a 'YYYY-MM-DD' date (calendar date, no timezone shift). */
 export const dayNameOf = (ymd) => {

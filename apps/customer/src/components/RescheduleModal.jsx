@@ -32,6 +32,7 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
         ? bookingParts({ startTime: appointment.startTime, endTime: appointment.endTime, lane, segments })
         : null), [appointment?._id]); // eslint-disable-line react-hooks/exhaustive-deps
     const lanes = parts ? [...new Set(parts.map((p) => p.lane))] : [lane];
+    const proFirst = String(appointment?.teamMember?.name || '').trim().split(/\s+/)[0] || 'Your professional';
 
     const [schedule, setSchedule] = useState(null);
     const [scheduleLoaded, setScheduleLoaded] = useState(false);
@@ -42,7 +43,9 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
     // shift's periods, if they have one that day, and whose hours it is — 'none'
     // (no working hours of their own that day, so the booking can't move there)
     // or 'leave'. The owner's column is the business's hours.
-    const [dayInfo, setDayInfo] = useState({ shiftWindow: null, hoursSource: null, openings: [] });
+    // `memberHasHours` false: they have no working hours on ANY day (no weekly
+    // hours, no shift ahead), so no date can work — say so, not "try another".
+    const [dayInfo, setDayInfo] = useState({ shiftWindow: null, hoursSource: null, openings: [], memberHasHours: true });
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [pendingTime, setPendingTime] = useState(null); // slot awaiting a confirm tap
@@ -90,9 +93,9 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                     setBusyByLane(Object.fromEntries(pairs.map(([l, body]) => [l, body?.data || []])));
                     setBookedSlots(pairs.flatMap(([, body]) => body?.data || []));
                     const own = (pairs.find(([l]) => l === lane) || [])[1] || {};
-                    setDayInfo({ shiftWindow: own.shiftWindow ?? null, hoursSource: own.hoursSource || null, openings: own.openings || [] });
+                    setDayInfo({ shiftWindow: own.shiftWindow ?? null, hoursSource: own.hoursSource || null, openings: own.openings || [], memberHasHours: own.memberHasHours !== false });
                 })
-                .catch(() => { if (reqId === bookedReqRef.current) { setBusyByLane({}); setBookedSlots([]); setDayInfo({ shiftWindow: null, hoursSource: null, openings: [] }); } });
+                .catch(() => { if (reqId === bookedReqRef.current) { setBusyByLane({}); setBookedSlots([]); setDayInfo({ shiftWindow: null, hoursSource: null, openings: [], memberHasHours: true }); } });
         }
     };
 
@@ -240,11 +243,13 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                             <p style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '1rem 0 0.6rem' }}>Pick a time</p>
                             {slots.length === 0 ? (
                                 <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', padding: '0.5rem 0' }}>
-                                    {dayInfo.hoursSource === 'none'
-                                        ? 'Your professional has no working hours that day — try another.'
-                                        : dayInfo.hoursSource === 'leave'
-                                            ? 'Your professional is away that day — try another.'
-                                            : 'No open slots that day — try another.'}
+                                    {dayInfo.hoursSource === 'none' && !dayInfo.memberHasHours
+                                        ? `${proFirst} isn’t taking new times right now — contact the business, or cancel this booking.`
+                                        : dayInfo.hoursSource === 'none'
+                                            ? 'Your professional has no working hours that day — try another.'
+                                            : dayInfo.hoursSource === 'leave'
+                                                ? 'Your professional is away that day — try another.'
+                                                : 'No open slots that day — try another.'}
                                 </p>
                             ) : (
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: '0.5rem' }}>

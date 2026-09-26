@@ -124,6 +124,18 @@ describe('the day\'s hours', () => {
             .toEqual([{ start: 15, end: 45 }]);
     });
 
+    it('periods that touch or overlap are one block, as the server reads them', () => {
+        // Saved before the screens refused touching periods: 12:00 for an hour is
+        // accepted by the server (one period), so it must be offered.
+        expect(periodsToBlocks([{ start: '12:30', end: '18:00' }, { start: '08:00', end: '12:30' }]))
+            .toEqual([{ start: 480, end: 1080 }]);
+        expect(periodsToBlocks([{ start: '08:00', end: '13:00' }, { start: '12:00', end: '14:00' }, { start: '15:00', end: '16:00' }]))
+            .toEqual([{ start: 480, end: 840 }, { start: 900, end: 960 }]);
+        const slots = buildTimeSlots({ blocks: periodsToBlocks([{ start: '08:00', end: '12:30' }, { start: '12:30', end: '18:00' }]), duration: 60 });
+        expect(slots.map((x) => x.time)).toContain('12:00');
+        expect(slots.map((x) => x.time)).not.toContain('12:30');
+    });
+
     it('the report: Saturday 09:00–14:00 at 12:30, 45-min service → only 13:00, and the note says why', () => {
         const blocks = scheduleBlocksFor(WEEK, '2026-09-26');
         const minStart = 12 * 60 + 30;

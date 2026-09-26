@@ -48,18 +48,42 @@ const ManageBooking = () => {
     // move to in full. A booking whose services are done by different people
     // checks each part in ITS person's time (as the server checks the move).
     const [rBusyByLane, setRBusyByLane] = useState({});
+    // How the booking's own professional works the picked day (the same answer
+    // the booking page and My Appointments read): their shift's periods, if they
+    // have one that day (they replace the business's hours and may run past
+    // closing); whose hours it is — 'none' (no working hours of their own that
+    // day) or 'leave' means no time can work; each period's opening time (08:15,
+    // or 14:30 after a break), always offered when the booking fits; and whether
+    // they have hours on ANY day. null until loaded.
+    const [rDay, setRDay] = useState(null);
+    const rOwnLane = appt?.lane || 'owner';
     const rParts = appt && Array.isArray(appt.segments) && appt.segments.length
-        ? bookingParts({ startTime: appt.startTime, endTime: appt.endTime, lane: appt.lane || 'owner', segments: appt.segments })
+        ? bookingParts({ startTime: appt.startTime, endTime: appt.endTime, lane: rOwnLane, segments: appt.segments })
         : null;
-    const rLanes = rParts ? [...new Set(rParts.map((p) => p.lane))] : [appt?.lane || 'owner'];
+    const rLanes = rParts ? [...new Set(rParts.map((p) => p.lane))] : [rOwnLane];
     const rLanesKey = rLanes.join(',');
     useEffect(() => {
-        if (!showReschedule || !rDate || !appt?.providerId) { setRBusyByLane({}); return undefined; }
+        if (!showReschedule || !rDate) { setRBusyByLane({}); setRDay(null); return undefined; }
+        // No business to ask (an old booking without one): the business's hours.
+        if (!appt?.providerId) { setRBusyByLane({}); setRDay({ shiftWindow: null, hoursSource: null, openings: [], memberHasHours: true }); return undefined; }
         let stale = false;
+        setRDay(null); // a new day: nothing offered until its answer is in
         Promise.all(rLanes.map((l) => appointmentService.getBookedSlots(String(appt.providerId), rDate, l, undefined, { exclude: appt._id })
-            .then((res) => [l, res.data.data || []])))
-            .then((pairs) => { if (!stale) setRBusyByLane(Object.fromEntries(pairs)); })
-            .catch(() => { if (!stale) setRBusyByLane({}); });
+            .then((res) => [l, res.data || {}])))
+            .then((pairs) => {
+                if (stale) return;
+                setRBusyByLane(Object.fromEntries(pairs.map(([l, body]) => [l, body.data || []])));
+                const own = (pairs.find(([l]) => l === rOwnLane) || [])[1] || {};
+                setRDay({
+                    shiftWindow: own.shiftWindow ?? null,
+                    hoursSource: own.hoursSource || null,
+                    openings: Array.isArray(own.openings) ? own.openings : [],
+                    memberHasHours: own.memberHasHours !== false,
+                });
+            })
+            // Couldn't ask: fall back to the business's hours (the server still
+            // checks the move), rather than a list that never loads.
+            .catch(() => { if (!stale) { setRBusyByLane({}); setRDay({ shiftWindow: null, hoursSource: null, openings: [], memberHasHours: true }); } });
         return () => { stale = true; };
     }, [showReschedule, rDate, appt?.providerId, rLanesKey, appt?._id]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -171,16 +195,33 @@ const ManageBooking = () => {
                                                 // The booking's own length (kept on a move), not the menu's.
                                                 const span = toMin(appt.endTime) - toMin(appt.startTime);
                                                 const duration = (span > 0 ? span : 0) || appt.service?.duration || 30;
-                                                const blocks = blocksFor(rDate, appt.schedule);
+                                                // The professional's day, as the server checks the move: a
+                                                // shift replaces the business's hours; no hours of their own
+                                                // that day (or away) means nothing can be offered.
+                                                const noHoursThatDay = rDay && (rDay.hoursSource === 'none' || rDay.hoursSource === 'leave');
+                                                const blocks = rDay?.shiftWindow
+                                                    ? rDay.shiftWindow.filter((sl) => sl?.start && sl?.end).map((sl) => ({ start: toMin(sl.start), end: toMin(sl.end) })).filter((b) => b.end > b.start)
+                                                    : blocksFor(rDate, appt.schedule);
                                                 const minStart = rDate === today ? (new Date().getHours() * 60 + new Date().getMinutes()) : -1;
                                                 const toRanges = (list) => (list || []).map((b) => ({ start: toMin(b.startTime), end: toMin(b.endTime), kind: b.kind }));
                                                 const bookedRanges = Object.values(rBusyByLane).flatMap(toRanges);
                                                 const openStarts = rParts
                                                     ? partsOpenStarts(rParts, Object.fromEntries(Object.entries(rBusyByLane).map(([l, list]) => [l, toRanges(list)])))
                                                     : null;
+                                                // Each working period's own opening time is a start when it fits.
+                                                const openings = (rDay?.openings || []).map(toMin);
                                                 // Only times the whole booking fits; taken ones aren't offered here.
-                                                const slots = rDate ? buildTimeSlots({ blocks, bookedRanges, duration, minStart, openStarts }).filter((s) => !s.isBooked) : [];
+                                                const slots = rDate && rDay && !noHoursThatDay
+                                                    ? buildTimeSlots({ blocks, bookedRanges, duration, minStart, openings, openStarts }).filter((s) => !s.isBooked)
+                                                    : [];
+                                                const staffFirst = String(appt.staff || '').trim().split(/\s+/)[0] || 'Your professional';
                                                 if (!rDate) return <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>Pick a date first.</p>;
+                                                if (!rDay) return <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>Finding free times…</p>;
+                                                if (rDay.hoursSource === 'none' && !rDay.memberHasHours) {
+                                                    return <p data-testid="manage-no-hours" style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>{staffFirst} isn’t taking new times right now — contact the business, or cancel this booking.</p>;
+                                                }
+                                                if (rDay.hoursSource === 'none') return <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>{staffFirst} doesn’t work on this day — try another.</p>;
+                                                if (rDay.hoursSource === 'leave') return <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>{staffFirst} is away on this day — try another.</p>;
                                                 if (slots.length === 0) return <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', margin: 0 }}>No available times on this day.</p>;
                                                 return (
                                                     <div role="group" aria-labelledby="manage-new-time-label" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(72px, 1fr))', gap: '0.4rem' }}>

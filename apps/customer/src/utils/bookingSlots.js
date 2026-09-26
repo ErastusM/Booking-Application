@@ -33,6 +33,22 @@ export const fmtMinutes = (mins) =>
     `${String(Math.floor(mins / 60)).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
 
 /**
+ * Working blocks in time order, with blocks that touch or overlap read as one
+ * (08:00–12:30 + 12:30–18:00 is 08:00–18:00) — exactly how the server reads a
+ * day's periods when it checks a booking, so a start is never offered that it
+ * refuses, nor one it takes left out.
+ */
+export const mergeBlocks = (blocks) => (blocks || [])
+    .filter((b) => Number.isFinite(b?.start) && Number.isFinite(b?.end) && b.end > b.start)
+    .sort((a, b) => a.start - b.start)
+    .reduce((out, b) => {
+        const last = out[out.length - 1];
+        if (last && b.start <= last.end) last.end = Math.max(last.end, b.end);
+        else out.push({ start: b.start, end: b.end });
+        return out;
+    }, []);
+
+/**
  * @param {Object}   args
  * @param {{start:number,end:number}[]} args.blocks       working blocks for the day
  * @param {{start:number,end:number,kind?:string}[]} args.bookedRanges  busy ranges.
@@ -71,7 +87,7 @@ export const buildTimeSlots = ({ blocks, bookedRanges = [], duration, minStart =
         return p;
     };
 
-    blocks.forEach((block) => {
+    mergeBlocks(blocks).forEach((block) => {
         // A start is usable when it's inside the block, the whole service fits,
         // and it isn't in the past.
         const usable = (start) =>

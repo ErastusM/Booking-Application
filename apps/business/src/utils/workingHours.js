@@ -25,6 +25,15 @@ export const sortedPeriods = (slots) => (Array.isArray(slots) ? slots : [])
     .map(({ start, end }) => ({ start, end }))
     .sort((a, b) => toMin(a.start) - toMin(b.start));
 
+// Sorted periods that touch or overlap, joined into one.
+const joinTouching = (periods) => periods.reduce((out, p) => {
+    const last = out[out.length - 1];
+    if (last && toMin(p.start) <= toMin(last.end)) {
+        if (toMin(p.end) > toMin(last.end)) last.end = p.end;
+    } else out.push({ ...p });
+    return out;
+}, []);
+
 /** The week with each day's periods in time order — what gets saved. */
 export const sortedWeek = (week) => Object.fromEntries(Object.entries(week || {})
     .map(([day, cfg]) => [day, { enabled: !!cfg?.enabled, slots: sortedPeriods(cfg?.slots) }]));
@@ -33,10 +42,12 @@ export const sortedWeek = (week) => Object.fromEntries(Object.entries(week || {}
  * A stored week (from the API) in the editor's shape: every day present, each
  * with at least one period to show. A day switched on with no usable period is
  * shown switched OFF — that is how bookings read it (closed), so the screen
- * says the same and saving never quietly opens it.
+ * says the same and saving never quietly opens it. Periods that touch or
+ * overlap (08:00–12:00 + 12:00–18:00, saved before these screens refused it)
+ * show as the one period bookings read them as, so the week saves again as is.
  */
 export const editableWeek = (raw) => Object.fromEntries(WEEK_DAYS.map((d) => {
-    const periods = sortedPeriods(raw?.[d]?.slots).filter(isPeriod);
+    const periods = joinTouching(sortedPeriods(raw?.[d]?.slots).filter(isPeriod));
     const enabled = !!raw?.[d]?.enabled && periods.length > 0;
     return [d, { enabled, slots: periods.length ? periods : [{ ...DEFAULT_PERIOD }] }];
 }));

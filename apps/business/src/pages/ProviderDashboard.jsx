@@ -7,6 +7,7 @@ import { Link, useLocation, useNavigate } from 'react-router-dom';
 import CalendarGrid, { visibleDateKeys } from '../components/CalendarGrid';
 import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService, waitingListService, earningsService, analyticsService, walletService, providerWalletService, authService, myAvailabilityService, myServicesService, providerMarketService } from '../services';
 import StaffReadinessBanner from '../components/StaffReadinessBanner';
+import TeamHoursBanner from '../components/TeamHoursBanner';
 import { useAuthContext } from '../context/AuthContext';
 // Lazy — pulls in the Google Maps SDK only when a new provider is onboarding,
 // keeping it out of the main dashboard bundle.
@@ -23,7 +24,7 @@ import { Calendar, History, CalendarClock, Clock, LayoutDashboard, TrendingUp, B
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { NAMIBIAN_TOWNS, normalizeTown } from '../utils/namibiaTowns';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
-import useMyMember from '../hooks/useMyMember';
+import useMyMember, { refreshMyMember, loadMyMember } from '../hooks/useMyMember';
 import { buildTimeSlots, periodsToBlocks, scheduleBlocksFor, dayNameOf, hoursNote, blocksLabel, laneBusyRanges, ticketBuffers } from '../utils/bookingSlots';
 import { editableWeek, sortedPeriods, sortedWeek, weekProblem } from '../utils/workingHours';
 import DayPeriods from '../components/DayPeriods';
@@ -217,7 +218,14 @@ const ProviderDashboard = () => {
     const [availabilitySuccess, setAvailabilitySuccess] = useState('');
     // A member with no hours of their own yet starts from a week of days off —
     // and can't be booked until they set some (nothing comes from the business's).
+    // Whether they CAN be booked is the server's answer (myMember.hasHours:
+    // weekly hours in any rotation week, or a shift from today on — what the Team
+    // card and the client's tiles say); the weekly-only read is a fallback for an
+    // older API. memberHoursNow is that answer refreshed after a save.
     const [memberHadHours, setMemberHadHours] = useState(true);
+    const [memberHoursNow, setMemberHoursNow] = useState(null);
+    const memberServerHours = memberHoursNow ?? myMember?.hasHours;
+    const memberNotBookable = isStaff && (typeof memberServerHours === 'boolean' ? !memberServerHours : !memberHadHours);
     // What a member's CALENDAR shades as working time: their own saved hours
     // (none saved = no shading). The Availability form edits `availability` (a
     // full week) separately.
@@ -1333,10 +1341,21 @@ const ProviderDashboard = () => {
                 // A member saves THEIR hours (/team/mine/availability), never the business's.
                 await myAvailabilityService.set(week);
                 setAvailability(week);
-                setMemberHadHours(WEEK_DAYS.some((d) => week[d]?.enabled));
+                const weeklyOn = WEEK_DAYS.some((d) => week[d]?.enabled);
+                setMemberHadHours(weeklyOn);
                 setStaffCalendarHours(week);
                 setCalHoursNonce((n) => n + 1); // the calendar's shading reads the saved hours
-                setAvailabilitySuccess(WEEK_DAYS.some((d) => availability[d]?.enabled) ? 'Your hours are saved. Clients can book you in these hours.' : 'Saved. You have no working days, so clients can’t book you.');
+                // Ask the server again whether clients can book them now (a shift
+                // from today on counts too), so this screen and the Team card agree.
+                refreshMyMember();
+                const me = await loadMyMember(String(user?._id || user?.id || '')).catch(() => null);
+                const serverSays = typeof me?.hasHours === 'boolean' ? me.hasHours : null;
+                setMemberHoursNow(serverSays);
+                setAvailabilitySuccess(weeklyOn
+                    ? 'Your hours are saved. Clients can book you in these hours.'
+                    : serverSays
+                        ? 'Saved. You have no weekly working days — clients can book you on your shifts only.'
+                        : 'Saved. You have no working days, so clients can’t book you.');
                 setTimeout(() => setAvailabilitySuccess(''), 4000);
                 return;
             }
@@ -2231,7 +2250,7 @@ const ProviderDashboard = () => {
                             </button>
                         </div>
 
-                        {isStaff && !memberHadHours && (
+                        {memberNotBookable && (
                             <div style={{ background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--charcoal)', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.25rem', fontSize: '0.875rem' }}>
                                 Turn on the days you work and set your times. Clients can’t book you until you do.
                             </div>
@@ -2948,6 +2967,8 @@ const ProviderDashboard = () => {
                             also offers "block time". */}
 
                         {isStaff && <StaffReadinessBanner />}
+                        {/* The owner: which team members clients can't book (no hours). */}
+                        {!isStaff && <TeamHoursBanner members={teamMembers} />}
 
                         {/* Staff filter — who's on the calendar. The house segmented control
                             (styles/index.css) rather than loose pills: one sunken track, the

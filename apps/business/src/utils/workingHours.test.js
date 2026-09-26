@@ -44,6 +44,17 @@ describe('what is shown is what is saved', () => {
         expect(Object.keys(week)).toEqual(['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']);
     });
 
+    it('periods saved touching (before the screens refused it) load as the one period bookings read', () => {
+        const week = editableWeek({
+            monday: { enabled: true, slots: [{ start: '12:00', end: '18:00' }, { start: '08:00', end: '12:00' }] },
+            tuesday: { enabled: true, slots: [{ start: '08:00', end: '13:00' }, { start: '12:00', end: '14:00' }] },
+        });
+        expect(week.monday.slots).toEqual([{ start: '08:00', end: '18:00' }]);
+        expect(week.tuesday.slots).toEqual([{ start: '08:00', end: '14:00' }]);
+        // …so the week saves again without "the two periods overlap".
+        expect(weekProblem(week)).toBeNull();
+    });
+
     it('sortedWeek saves periods in time order, with nothing but start and end', () => {
         expect(sortedWeek({ monday: day({ start: '14:00', end: '18:00', _id: 'x' }, { start: '08:00', end: '12:00' }) }))
             .toEqual({ monday: { enabled: true, slots: [{ start: '08:00', end: '12:00' }, { start: '14:00', end: '18:00' }] } });
