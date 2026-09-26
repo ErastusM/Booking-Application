@@ -105,7 +105,7 @@ export const buildTimeSlots = ({ blocks, bookedRanges = [], duration, minStart =
             let occupied = false;
             let hitRealBooking = false;
             let hourWaitable = false;      // is the :00 itself taken by bookings only?
-            let takenOpening = null;       // { start, real, waitable } — the first taken opening time
+            let takenOpening = null;       // { start, waitable } — the first taken opening time
             // Candidate starts in this hour: the :00, plus any aligned leftover
             // starts that fall inside it — sorted so the list stays chronological.
             const candidates = [hourStart, ...[...partialStarts].filter((t) => t >= hourStart && t < hourStart + 60)]
@@ -128,7 +128,7 @@ export const buildTimeSlots = ({ blocks, bookedRanges = [], duration, minStart =
                     const waitable = hits.every((h) => !NON_BOOKING_KINDS.has(h.kind));
                     if (real) hitRealBooking = true;
                     if (start === hourStart) hourWaitable = waitable;
-                    if (takenOpening === null && openingStarts.has(start)) takenOpening = { start, real, waitable };
+                    if (takenOpening === null && openingStarts.has(start)) takenOpening = { start, waitable };
                     continue;
                 }
                 slots.push({ time: fmtMinutes(start), isBooked: false, isBlocked: false });
@@ -145,8 +145,6 @@ export const buildTimeSlots = ({ blocks, bookedRanges = [], duration, minStart =
                     slots.push({ time: fmtMinutes(takenOpening.start), isBooked: true, isBlocked: false });
                 } else if (usable(hourStart)) {
                     slots.push(pill(hourStart, !hitRealBooking));
-                } else if (takenOpening) {
-                    slots.push(pill(takenOpening.start, !takenOpening.real));
                 }
             }
         }
