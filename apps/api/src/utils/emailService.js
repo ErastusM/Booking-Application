@@ -487,7 +487,8 @@ exports.sendStaffInviteEmail = async (email, name, businessName, token) => {
             preheader: `Join ${businessName} on Bookplus.`,
             inner: `${p(`${escapeHtml(businessName)} added you to their team on Bookplus. Accept your invite to set a password and go straight to your calendar.`)}
                 <div style="margin:24px 0;">${primaryButton(url, 'Accept invite')}</div>
-                ${p(`<span style="color:${C.muted};font-size:13px;">This link expires in 7 days. If you weren’t expecting this, you can safely ignore it.</span>`)}`,
+                ${p(`<span style="color:${C.muted};font-size:13px;">Button not working? Paste this link into your browser:<br><span style="word-break:break-all;color:${C.ink};">${url}</span></span>`)}
+                ${p(`<span style="color:${C.muted};font-size:13px;">Any invite we’ve sent works until you set your password (7 days each). If one has expired, open it and tap <strong>Email me a new link</strong>. If you weren’t expecting this, you can safely ignore it.</span>`)}`,
         }),
     });
 };
@@ -495,14 +496,19 @@ exports.sendStaffInviteEmail = async (email, name, businessName, token) => {
 // Owner receipt — an audit trail so the owner has a record of exactly who they
 // invited and when. Fire-and-forget from the invite handler; never blocks the
 // response or affects whether the staff invite itself is reported as sent.
-exports.sendStaffInviteOwnerReceipt = async (ownerEmail, memberName, memberEmail, businessName) => {
+// `opts.requestedByMember`: the member asked for a fresh link themselves (their
+// invite had expired) — same receipt, worded so the owner isn't told "You invited".
+exports.sendStaffInviteOwnerReceipt = async (ownerEmail, memberName, memberEmail, businessName, opts = {}) => {
     if (!ownerEmail) return { skipped: true };
+    const byMember = !!(opts && opts.requestedByMember);
     return safeSend({
         from: FROM, to: ownerEmail, subject: `Invite sent to ${memberName}`,
         html: shell({
             heading: `Team invite sent`,
-            preheader: `You invited ${memberName} to ${businessName}.`,
-            inner: `${p(`You invited <strong>${escapeHtml(memberName)}</strong> (${escapeHtml(memberEmail)}) to join <strong>${escapeHtml(businessName)}</strong> on Bookplus.`)}
+            preheader: byMember ? `${memberName} asked for a new invite link to ${businessName}.` : `You invited ${memberName} to ${businessName}.`,
+            inner: `${p(byMember
+                ? `<strong>${escapeHtml(memberName)}</strong> (${escapeHtml(memberEmail)}) asked for a new link to join <strong>${escapeHtml(businessName)}</strong> on Bookplus, so we emailed them a fresh invite.`
+                : `You invited <strong>${escapeHtml(memberName)}</strong> (${escapeHtml(memberEmail)}) to join <strong>${escapeHtml(businessName)}</strong> on Bookplus.`)}
                 ${p(`They’ll appear as <em>“Invited · awaiting login”</em> on your team until they accept and sign in for the first time. You can resend the invite from their card if it doesn’t arrive.`)}
                 ${p(`<span style="color:${C.muted};font-size:13px;">This is a confirmation for your records — no action is needed.</span>`)}`,
         }),

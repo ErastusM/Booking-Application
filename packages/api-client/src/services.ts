@@ -30,8 +30,12 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         // Staff invite acceptance (Fresha-style). getStaffInvite previews who
         // the invite is for; acceptStaffInvite sets the password and returns a
         // full auth session (token + refreshToken + user), signing them in.
-        getStaffInvite: (token: string) => API.get(`/auth/staff-invite/${token}`),
-        acceptStaffInvite: (token: string, password: string) => API.post(`/auth/staff-invite/${token}/accept`, { password }),
+        getStaffInvite: (token: string) => API.get(`/auth/staff-invite/${encodeURIComponent(token)}`),
+        acceptStaffInvite: (token: string, password: string) => API.post(`/auth/staff-invite/${encodeURIComponent(token)}/accept`, { password }),
+        // "Email me a new link" from an expired/used/unknown invite. Always the
+        // same generic 200 whatever the token or address (no enumeration).
+        renewStaffInvite: (token: string) => API.post(`/auth/staff-invite/${encodeURIComponent(token)}/renew`),
+        requestStaffInvite: (email: string) => API.post('/auth/staff-invite/request', { email }),
         deactivateAccount: () => API.post('/auth/deactivate'),
         deleteAccount: (password: string) => API.delete('/auth/account', { data: { password } }),
         getBlockedUsers: () => API.get('/auth/blocked-users'),

@@ -22,7 +22,8 @@ const CREDENTIAL_PATHS = new Set([
 ]);
 const isCredentialRequest = (req) => CREDENTIAL_PATHS.has(req.path)
     || req.path.startsWith('/google')
-    || (req.method === 'POST' && /^\/staff-invite\/[^/]+\/accept$/.test(req.path));
+    || (req.method === 'POST' && /^\/staff-invite\/[^/]+\/(accept|renew)$/.test(req.path))
+    || (req.method === 'POST' && req.path === '/staff-invite/request');
 
 const createAuthRouteLimiter = ({ enabled = true, credentialMax = 20, credentialIpMax = 200, sessionMax = 600, windowMs = 15 * 60 * 1000 } = {}) => {
     const common = {
