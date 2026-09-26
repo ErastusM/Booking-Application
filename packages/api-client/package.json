@@ -2,7 +2,7 @@
     "name": "@bookplus/api-client",
     "version": "0.1.0",
     "private": true,
-    "description": "Bookplus API client — one axios instance with the auth refresh interceptor, plus per-domain service methods. Shared by all apps.",
+    "description": "Bookplus API client \u2014 one axios instance with the auth refresh interceptor, plus per-domain service methods. Shared by all apps.",
     "main": "dist/index.js",
     "types": "dist/index.d.ts",
     "exports": {
@@ -16,7 +16,8 @@
     ],
     "scripts": {
         "build": "tsc -p tsconfig.json",
-        "prepare": "tsc -p tsconfig.json"
+        "prepare": "tsc -p tsconfig.json",
+        "test": "vitest run"
     },
     "peerDependencies": {
         "axios": "^1.3.0"
