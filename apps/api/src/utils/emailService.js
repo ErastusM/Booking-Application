@@ -275,15 +275,15 @@ exports.sendWelcomeEmail = async (email, name, role) => {
         subject: isProvider ? 'Your business account is ready' : 'Welcome to Bookplus',
         html: shell({
             footer: FOOTER_ACCOUNT,
-            heading: isProvider ? "You’re verified," : "You’re all set,",
+            heading: "You’re all set,",
             headingAccent: escapeHtml(name),
             preheader: isProvider
                 ? 'Your Bookplus business account is active.'
-                : 'Your Bookplus account is verified.',
+                : 'Your email address is confirmed.',
             inner: isProvider
-                ? `${p("Your account is verified. Complete your business profile, add your services, and you’ll be ready to receive bookings.")}
+                ? `${p("Your email address is confirmed. Complete your business profile, add your services, and you’ll be ready to receive bookings.")}
                    <div style="margin:24px 0;">${primaryButton(`${businessOrigin() || '#'}/dashboard`, 'Set up my business')}</div>`
-                : `${p('Your account is verified. You can now discover providers and book appointments in a few taps.')}
+                : `${p('Your email address is confirmed. You can now discover businesses and book appointments in a few taps.')}
                    <div style="margin:24px 0;">${primaryButton(`${primaryOrigin() || '#'}/providers`, 'Find providers')}</div>`,
         }),
     });

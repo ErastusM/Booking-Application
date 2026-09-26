@@ -2,7 +2,7 @@
     "id": "bookplus-customer",
     "name": "Bookplus — Appointment Booking",
     "short_name": "Bookplus",
-    "description": "Book trusted local businesses for beauty, health, fitness, automotive, home services and more.",
+    "description": "Book local businesses for beauty, health, fitness, automotive, home services and more.",
     "start_url": "/",
     "scope": "/",
     "display": "standalone",

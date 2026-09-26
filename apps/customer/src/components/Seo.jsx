@@ -10,8 +10,8 @@ import { useEffect } from 'react';
 // It ALWAYS writes a complete set of tags (falling back to the site defaults for
 // anything a page doesn't supply) and restores those defaults on unmount, so a
 // provider page's image/canonical never leak onto the next route.
-const SITE_TITLE = 'Bookplus — Book trusted local services';
-const DEFAULT_DESC = 'Discover and book trusted local businesses — beauty, health, fitness, automotive, home services and more. Real-time availability and instant confirmation.';
+const SITE_TITLE = 'Bookplus — Book local services online';
+const DEFAULT_DESC = 'Discover and book local businesses — beauty, health, fitness, automotive, home services and more. Real-time availability, instant confirmation and reviews from real bookings.';
 
 const siteOrigin = () => (typeof window !== 'undefined' ? window.location.origin : 'https://www.bookplus.pro');
 

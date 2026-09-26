@@ -1,11 +1,13 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
-import { ShieldCheck, CalendarCheck, Clock, Zap, ArrowRight } from 'lucide-react';
+import { MessageSquareQuote, CalendarCheck, Clock, Zap, ArrowRight } from 'lucide-react';
 import { useAuthContext } from '../context/AuthContext';
 import Seo from '../components/Seo';
 
 const features = [
-    { Icon: ShieldCheck, title: 'Trusted professionals', description: 'Top-rated providers across beauty, wellness, automotive, training and more.' },
+    // Accurate claim only: businesses list themselves (there is no vetting), but a
+    // review can only come from a client with a completed booking (reviewController).
+    { Icon: MessageSquareQuote, title: 'Reviews from real bookings', description: 'Reviews come only from clients with a completed booking, across beauty, wellness, automotive, training and more.' },
     { Icon: CalendarCheck, title: 'Book in seconds', description: 'Pick a time and confirm instantly — no phone calls, no waiting rooms.' },
     { Icon: Clock, title: 'On your schedule', description: 'Early mornings or late evenings, find a slot that fits your day.' },
     { Icon: Zap, title: 'Instant confirmation', description: 'Real-time confirmations and reminders, straight to your inbox.' },
@@ -17,8 +19,8 @@ const About = () => {
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
             <Seo
-                title="About Bookplus — Book trusted local services"
-                description="Bookplus is the easiest way to discover and book trusted local businesses across Namibia and beyond — real-time availability, instant confirmation."
+                title="About Bookplus — Book local services online"
+                description="Bookplus lets you discover and book local businesses across Namibia and beyond — real-time availability, instant confirmation and reviews from real bookings."
                 url={(typeof window !== 'undefined' ? window.location.origin : 'https://www.bookplus.pro') + '/about'}
             />
             {/* Hero */}
@@ -73,7 +75,7 @@ const About = () => {
                     <p style={{ color: 'var(--text-secondary)', fontSize: '1rem', lineHeight: 1.6, margin: '0 0 2rem' }}>
                         {isProvider
                             ? 'Manage your bookings, clients and calendar from one elegant workspace.'
-                            : 'Browse trusted local businesses and book in seconds.'}
+                            : 'Browse local businesses, read reviews from real bookings, and book in seconds.'}
                     </p>
                     {/* The dashboard lives in the BUSINESS app — this app has no
                         /dashboard route (linking it silently bounced home). */}
