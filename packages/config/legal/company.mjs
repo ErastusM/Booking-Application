@@ -19,7 +19,9 @@ export const COMPANY = {
     registrationAuthority: 'Business and Intellectual Property Authority (BIPA), Namibia',
     registeredOffice: 'Erf 1442 Mahetago, Iipumbu Yashilongo Street, Swakopmund, Namibia',
     postalAddress: 'P.O. Box 906, Swakopmund, Namibia',
-    phone: '+264 81 684 4677',
+    // Support lines, in the order shown. Each entry is guarded on its own: a
+    // placeholder entry is hidden (and warned about at build time).
+    phones: ['+264 81 684 4677', '+264 81 281 9840'],
     email: 'info@bookplus.pro',
     // Privacy requests. No separate privacy@ mailbox exists, so this is the
     // general inbox. The role is the one POPIA / the Namibian Data Protection
@@ -37,21 +39,53 @@ export const REQUIRED_FIELDS = [
     ['registrationNumber', 'Registration number'],
     ['registeredOffice', 'Registered office'],
     ['postalAddress', 'Postal address'],
-    ['phone', 'Phone'],
+    ['phones', 'Phone'],
     ['email', 'Email'],
     ['privacyContact', 'Privacy contact'],
     ['privacyEmail', 'Privacy email'],
 ];
 
-/** True for an empty value or a bracketed placeholder such as "[Phone number]". */
+/**
+ * True for an empty value or a bracketed placeholder such as "[Phone number]".
+ * A list (phones) counts as a placeholder when it is empty or ANY entry is one,
+ * so the build warning catches a half-filled list.
+ */
 export const isPlaceholder = (value) => {
     if (value == null) return true;
+    if (Array.isArray(value)) return value.length === 0 || value.some(isPlaceholder);
     const v = String(value).trim();
     return v === '' || /\[[^\]]*\]/.test(v);
 };
 
-/** The value, or null when it is a placeholder (so it is never rendered). */
-export const companyValue = (key, company = COMPANY) => (isPlaceholder(company[key]) ? null : String(company[key]).trim());
+/**
+ * The value, or null when it is a placeholder (so it is never rendered). For a
+ * list, the real entries only (null when there are none).
+ */
+export const companyValue = (key, company = COMPANY) => {
+    const v = company[key];
+    if (Array.isArray(v)) {
+        const real = v.filter((x) => !isPlaceholder(x)).map((x) => String(x).trim());
+        return real.length ? real : null;
+    }
+    return isPlaceholder(v) ? null : String(v).trim();
+};
+
+/** The support phone numbers that are actually set (placeholders removed). */
+export const companyPhones = (company = COMPANY) => companyValue('phones', company) || [];
+
+/** "tel:+264816844677" for a displayed number. */
+export const telHref = (phone) => `tel:${String(phone).replace(/[^+\d]/g, '')}`;
+
+/**
+ * The phone numbers as inline links for the legal text —
+ * "[+264 81 684 4677](tel:+264816844677) or [+264 81 281 9840](tel:+264812819840)" —
+ * or '' when none is set.
+ */
+export const phoneLinks = (company = COMPANY) => {
+    const links = companyPhones(company).map((p) => `[${p}](${telHref(p)})`);
+    if (links.length <= 1) return links.join('');
+    return `${links.slice(0, -1).join(', ')} or ${links[links.length - 1]}`;
+};
 
 /** Labels of required fields that still hold placeholders. */
 export const missingCompanyFields = (company = COMPANY) =>

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { render, screen, within } from '@testing-library/react';
 import { MemoryRouter } from 'react-router-dom';
 import { CompanyDetails, LegalDocument } from '@bookplus/ui';
-import { COMPANY, isPlaceholder, missingCompanyFields, companyValue, operatorName, mailLink } from '@bookplus/config/legal/company.mjs';
+import { COMPANY, isPlaceholder, missingCompanyFields, companyValue, operatorName, mailLink, companyPhones, phoneLinks } from '@bookplus/config/legal/company.mjs';
 import { privacyPolicy, RETENTION } from '@bookplus/config/legal/privacy.mjs';
 import { termsOfService } from '@bookplus/config/legal/terms.mjs';
 import { legalNotice } from '@bookplus/config/legal/notice.mjs';
@@ -32,7 +32,7 @@ describe('company details guard', () => {
     });
 
     it('lists missing fields and never returns a placeholder value', () => {
-        const draft = { ...COMPANY, legalName: '[Legal entity name]', phone: '' };
+        const draft = { ...COMPANY, legalName: '[Legal entity name]', phones: [] };
         expect(missingCompanyFields(draft)).toEqual(expect.arrayContaining(['Legal entity name', 'Phone']));
         expect(companyValue('legalName', draft)).toBeNull();
         expect(operatorName(draft)).toBe('Bookplus');
@@ -63,7 +63,7 @@ describe('company details guard', () => {
     });
 
     it('with complete details shows them all and no fallback', () => {
-        render(<CompanyDetails company={{ ...COMPANY, legalName: 'Acme Bookings CC', registrationNumber: 'CC/2000/1', registeredOffice: '1 Main St', phone: '+264 61 000 000', email: 'a@b.c', privacyContact: 'Info Officer' }} />);
+        render(<CompanyDetails company={{ ...COMPANY, legalName: 'Acme Bookings CC', registrationNumber: 'CC/2000/1', registeredOffice: '1 Main St', phones: ['+264 61 000 000'], email: 'a@b.c', privacyContact: 'Info Officer' }} />);
         const box = screen.getByTestId('company-details');
         expect(box).toHaveTextContent('Acme Bookings CC');
         expect(box).toHaveTextContent('CC/2000/1');
@@ -71,11 +71,50 @@ describe('company details guard', () => {
     });
 });
 
+describe('support phone numbers', () => {
+    const PHONES = ['+264 81 684 4677', '+264 81 281 9840'];
+    const TELS = ['tel:+264816844677', 'tel:+264812819840'];
+
+    it('both support lines are configured', () => {
+        expect(companyPhones()).toEqual(PHONES);
+    });
+
+    it('a placeholder entry is hidden, and warned about, without hiding the other', () => {
+        const draft = { ...COMPANY, phones: ['+264 81 684 4677', '[Second phone]'] };
+        expect(companyPhones(draft)).toEqual(['+264 81 684 4677']);
+        expect(missingCompanyFields(draft)).toContain('Phone');
+        expect(missingCompanyFields({ ...COMPANY, phones: [] })).toContain('Phone');
+        expect(missingCompanyFields()).not.toContain('Phone');
+        expect(phoneLinks(draft)).toBe('[+264 81 684 4677](tel:+264816844677)');
+        expect(phoneLinks({ ...COMPANY, phones: [] })).toBe('');
+    });
+
+    it('the company details box shows each number as its own tel: link', () => {
+        render(<CompanyDetails company={COMPANY} />);
+        const box = screen.getByTestId('company-details');
+        PHONES.forEach((p, i) => expect(within(box).getByText(p).closest('a')).toHaveAttribute('href', TELS[i]));
+    });
+
+    it('the legal notice, Privacy Policy and Terms all give both numbers as tel: links', () => {
+        const docs = [legalNotice('customer'), legalNotice('business'), privacyPolicy('customer'), privacyPolicy('business'), termsOfService('customer'), termsOfService('business')];
+        for (const d of docs) {
+            const t = textOf(d);
+            PHONES.forEach((p, i) => expect(t).toContain(`[${p}](${TELS[i]})`));
+        }
+    });
+
+    it('rendered legal notice links both numbers', () => {
+        render(<MemoryRouter><LegalNotice /></MemoryRouter>);
+        const contact = within(document.getElementById('contact'));
+        PHONES.forEach((p, i) => expect(contact.getByText(p).closest('a')).toHaveAttribute('href', TELS[i]));
+    });
+});
+
 describe('the "Who we are" page', () => {
     it('renders the configured operator details with no placeholder text', () => {
         render(<MemoryRouter><LegalNotice /></MemoryRouter>);
         const box = screen.getByTestId('company-details');
-        for (const key of ['legalName', 'registrationNumber', 'registeredOffice', 'phone', 'email']) {
+        for (const key of ['legalName', 'registrationNumber', 'registeredOffice', 'email']) {
             const v = companyValue(key);
             if (v) expect(box).toHaveTextContent(v);
         }

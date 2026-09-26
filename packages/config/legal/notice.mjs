@@ -2,7 +2,7 @@
 // publish (Electronic Transactions Act 4 of 2019, consumer-protection part), shown
 // at /legal in both apps and linked from the footer, the Privacy Policy and the
 // Terms. The details themselves come from company.mjs.
-import { COMPANY, operatorName, companyValue } from './company.mjs';
+import { COMPANY, operatorName, companyValue, companyPhones, telHref } from './company.mjs';
 
 export const NOTICE_LAST_UPDATED = '26 September 2026';
 
@@ -11,7 +11,7 @@ export const legalNotice = (audience = 'customer') => {
     // companyValue: a missing or placeholder value is left out, never shown.
     const email = companyValue('email');
     const privacyEmail = companyValue('privacyEmail') || email;
-    const phone = companyValue('phone');
+    const phones = companyPhones();
     return {
         title: 'Who we are',
         updated: NOTICE_LAST_UPDATED,
@@ -23,7 +23,7 @@ export const legalNotice = (audience = 'customer') => {
             { id: 'contact', title: 'Contact us', blocks: [
                 { list: [
                     ...(email ? [`Email: [${email}](mailto:${email})`] : []),
-                    ...(phone ? [`Phone: [${phone}](tel:${phone.replace(/[^+\d]/g, '')})`] : []),
+                    ...phones.map((p) => `Phone: [${p}](${telHref(p)})`),
                     ...(privacyEmail ? [`Privacy requests: [${privacyEmail}](mailto:${privacyEmail})`] : []),
                 ] },
                 'We aim to reply within 5 working days.',

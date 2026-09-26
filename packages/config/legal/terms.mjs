@@ -5,7 +5,7 @@
 // cancellations and currencies work must match the code; the rule each clause
 // rests on is noted beside it. Not legal advice; have it reviewed by counsel.
 
-import { COMPANY, operatorName, companyValue, mailLink } from './company.mjs';
+import { COMPANY, operatorName, companyValue, mailLink, phoneLinks } from './company.mjs';
 import { CURRENCY_CODES_TEXT } from './currencies.mjs';
 
 export const TERMS_LAST_UPDATED = '26 September 2026';
@@ -13,6 +13,7 @@ export const TERMS_LAST_UPDATED = '26 September 2026';
 const op = operatorName(COMPANY);
 // companyValue-based: a missing or placeholder address is never shown.
 const mail = mailLink('email');
+const phones = phoneLinks();
 const reg = companyValue('registrationNumber');
 const office = companyValue('registeredOffice');
 const entity = companyValue('entityType');
@@ -111,7 +112,7 @@ const customerSections = () => [
         'We may update these Terms, for example when we add features or the law changes. The date at the top shows the latest version. If a change is significant we tell you in advance by email or in the app. Bookings you already made stay under the Terms that applied when you made them.',
     ] },
     { id: 'contact', title: 'Contact', blocks: [
-        `${op}: ${mail}${companyValue('phone') ? `, ${companyValue('phone')}` : ''}. Full details are in our [Legal notice](/legal).`,
+        `${op}: ${mail}${phones ? `, or phone ${phones}` : ''}. Full details are in our [Legal notice](/legal).`,
     ] },
 ];
 
@@ -195,7 +196,7 @@ const businessSections = () => [
         'These Terms and other notices may be made and kept electronically, in line with the Electronic Transactions Act 4 of 2019.',
     ] },
     { id: 'changes', title: 'Changes and contact', blocks: [
-        `We may update these Terms; the date at the top shows the latest version, and we tell you in advance about significant changes. Contact: ${mail}${companyValue('phone') ? `, ${companyValue('phone')}` : ''}. Full details are in our [Legal notice](/legal).`,
+        `We may update these Terms; the date at the top shows the latest version, and we tell you in advance about significant changes. Contact: ${mail}${phones ? `, or phone ${phones}` : ''}. Full details are in our [Legal notice](/legal).`,
     ] },
 ];
 

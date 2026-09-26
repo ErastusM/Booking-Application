@@ -18,7 +18,7 @@
 //   { note: '...' }               -> highlighted note
 //   { company: true }             -> the operator's details from company.mjs
 
-import { COMPANY, operatorName, companyValue, mailLink } from './company.mjs';
+import { COMPANY, operatorName, companyValue, mailLink, phoneLinks } from './company.mjs';
 
 export const PRIVACY_LAST_UPDATED = '26 September 2026';
 
@@ -244,7 +244,7 @@ const contact = () => ({
     id: 'contact',
     title: 'Contact us',
     blocks: [
-        `For privacy questions or requests, write to our ${companyValue('privacyContact') ? 'Information Officer' : 'privacy contact'} at ${mail}, or by post to the address in our [Legal notice](/legal).`,
+        `For privacy questions or requests, write to our ${companyValue('privacyContact') ? 'Information Officer' : 'privacy contact'} at ${mail}${phoneLinks() ? `, call ${phoneLinks()}` : ''}, or write by post to the address in our [Legal notice](/legal).`,
     ],
 });
 

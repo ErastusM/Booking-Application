@@ -33,7 +33,8 @@ export interface CompanyInfo {
     registrationAuthority?: string;
     registeredOffice?: string;
     postalAddress?: string;
-    phone?: string;
+    /** Support lines; each is shown as its own tel: link. */
+    phones?: string[];
     email?: string;
     privacyContact?: string;
     privacyEmail?: string;
@@ -45,7 +46,12 @@ const liStyle: CSSProperties = { color: 'var(--text-secondary)', lineHeight: 1.7
 const h2Style: CSSProperties = { fontFamily: 'var(--font-display)', fontSize: '1.2rem', fontWeight: 600, color: 'var(--charcoal)', margin: '2.25rem 0 0.7rem', scrollMarginTop: '90px' };
 
 /** Empty, or a "[Bracketed placeholder]" — never shown to users. */
-export const isLegalPlaceholder = (v: unknown): boolean => v == null || String(v).trim() === '' || /\[[^\]]*\]/.test(String(v));
+export const isLegalPlaceholder = (v: unknown): boolean =>
+    Array.isArray(v) ? v.length === 0 || v.some(isLegalPlaceholder) : v == null || String(v).trim() === '' || /\[[^\]]*\]/.test(String(v));
+
+// The real entries of a value: a list keeps only its non-placeholder items.
+const realValues = (v: unknown): string[] =>
+    (Array.isArray(v) ? v : [v]).filter((x) => !isLegalPlaceholder(x)).map((x) => String(x).trim());
 
 const defaultRenderLink: RenderLink = (href, children, key) => <a key={key} href={href} style={linkStyle}>{children}</a>;
 
@@ -83,12 +89,12 @@ const COMPANY_ROWS: Array<[keyof CompanyInfo, string]> = [
     ['registrationAuthority', 'Registered with'],
     ['registeredOffice', 'Registered office'],
     ['postalAddress', 'Postal address'],
-    ['phone', 'Phone'],
+    ['phones', 'Phone'],
     ['email', 'Email'],
     ['privacyContact', 'Privacy contact'],
     ['privacyEmail', 'Privacy requests'],
 ];
-const REQUIRED: Array<keyof CompanyInfo> = ['legalName', 'registrationNumber', 'registeredOffice', 'phone', 'email', 'privacyContact'];
+const REQUIRED: Array<keyof CompanyInfo> = ['legalName', 'registrationNumber', 'registeredOffice', 'phones', 'email', 'privacyContact'];
 
 /**
  * The operator's identity as a definition list. A value that is still a
@@ -96,21 +102,27 @@ const REQUIRED: Array<keyof CompanyInfo> = ['legalName', 'registrationNumber', '
  * "details coming soon" line takes its place so users never see "[...]".
  */
 export const CompanyDetails = ({ company }: { company: CompanyInfo }) => {
-    const rows = COMPANY_ROWS.filter(([k]) => !isLegalPlaceholder(company[k]));
+    const rows = COMPANY_ROWS.filter(([k]) => realValues(company[k]).length > 0);
     const incomplete = REQUIRED.some((k) => isLegalPlaceholder(company[k]));
     const hrefFor = (k: keyof CompanyInfo, v: string) =>
-        (k === 'email' || k === 'privacyEmail') ? `mailto:${v}` : k === 'phone' ? `tel:${v.replace(/[^+\d]/g, '')}` : null;
+        (k === 'email' || k === 'privacyEmail') ? `mailto:${v}` : k === 'phones' ? `tel:${v.replace(/[^+\d]/g, '')}` : null;
     return (
         <div data-testid="company-details" style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem 1.15rem', margin: '0 0 1rem' }}>
             <dl style={{ margin: 0, display: 'grid', gridTemplateColumns: 'minmax(0, max-content) minmax(0, 1fr)', gap: '0.45rem 1rem' }}>
                 {rows.map(([k, label]) => {
-                    const v = String(company[k]).trim();
-                    const href = hrefFor(k, v);
+                    const values = realValues(company[k]);
                     return (
                         <Fragment key={k}>
                             <dt style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>{label}</dt>
                             <dd style={{ margin: 0, color: 'var(--charcoal)', fontSize: '0.9rem', fontWeight: 500, overflowWrap: 'anywhere' }}>
-                                {href ? <a href={href} style={linkStyle}>{v}</a> : v}
+                                {values.map((v) => {
+                                    const href = hrefFor(k, v);
+                                    return (
+                                        <span key={v} style={values.length > 1 ? { display: 'block' } : undefined}>
+                                            {href ? <a href={href} style={linkStyle}>{v}</a> : v}
+                                        </span>
+                                    );
+                                })}
                             </dd>
                         </Fragment>
                     );
