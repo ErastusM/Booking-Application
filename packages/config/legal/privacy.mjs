@@ -23,16 +23,20 @@ import { FEATURES } from '../features.mjs';
 
 export const PRIVACY_LAST_UPDATED = '26 September 2026';
 
-// Retention periods. Where the code already fixes a period, that value wins and
-// the source is named; keep these in step with the retention job's constants.
+// Retention periods, from the retention job's constants
+// (apps/api/src/constants/retention.js). Keep them in step with that file.
 export const RETENTION = {
-    analyticsEvents: '180 days', // apps/api/src/models/Event.js TTL index (180 days)
-    errorLogs: '90 days',
-    bookingRejections: '7 days', // apps/api/src/models/BookingRejection.js TTL index
+    analyticsEvents: '180 days', // only collected after "Accept analytics"
+    crashReports: '90 days in Sentry', // never stored in our database
+    notifications: '12 months',
+    sessions: '31 days without use',
+    verificationLinks: 'when they expire (24 hours / 1 hour)',
+    staffInvites: '30 days after they expire',
+    guestContact: '24 months after that guest’s last booking',
+    bookingRejections: '7 days',
+    unfinishedGoogleSignUps: '30 minutes',
     backups: '14 days', // ops/backup/backup.sh BACKUP_RETENTION_DAYS default
-    unverifiedAccounts: '30 days',
-    guestContact: '24 months after the guest’s last booking',
-    refreshSession: '30 days', // bp_rt cookie Max-Age / REFRESH_TOKEN_EXPIRE
+    refreshCookie: '30 days', // bp_rt cookie Max-Age / REFRESH_TOKEN_EXPIRE
 };
 
 const op = operatorName(COMPANY);
@@ -169,15 +173,18 @@ const retention = (W) => ({
             head: ['Information', 'How long'],
             rows: [
                 ['Your account and profile', 'Until you delete your account. Deletion removes or anonymises your personal details (see "Your rights")'],
-                ['Accounts that never verified their email', `Deleted after ${RETENTION.unverifiedAccounts}`],
-                ['Guest contact details (name, email, phone on a guest booking)', `Anonymised ${RETENTION.guestContact}`],
-                [W ? 'Booking and wallet records' : 'Booking records (and any balance held from before the wallet was paused)', 'Kept while the business’s account is open, because the business needs them for its own accounting. When you delete your account, your name, email and phone are removed from them'],
+                ['Guest contact details (name, email, phone on a guest booking)', `Anonymised ${RETENTION.guestContact}; the booking itself stays`],
+                ['Accounting records (completed bookings)', 'Kept for as long as the law requires. When you delete your account, your name, email and phone are removed from them'],
                 ['Allergy notes, client notes and form answers', 'Until the business deletes them, or you delete your account'],
                 ['Messages', 'Until you delete your account'],
-                ['Analytics events', RETENTION.analyticsEvents],
-                ['Error logs and crash reports', RETENTION.errorLogs],
-                ['Records of failed booking attempts', RETENTION.bookingRejections],
-                ['Sign-in, password-reset, email-verification and invite links and tokens', 'Removed promptly once used or expired'],
+                ['In-app notifications', `Deleted after ${RETENTION.notifications}`],
+                ['Analytics events (only after you choose “Accept analytics”)', `Deleted after ${RETENTION.analyticsEvents}`],
+                ['Browser crash reports', `Never stored in our database; kept ${RETENTION.crashReports}`],
+                ['Signed-in sessions', `Cleared after ${RETENTION.sessions}`],
+                ['Email-verification and password-reset links', `Cleared ${RETENTION.verificationLinks}`],
+                ['Staff invite links', `Deleted ${RETENTION.staffInvites}`],
+                ['Unfinished Google sign-ups', `Cleared after ${RETENTION.unfinishedGoogleSignUps}`],
+                ['Records of failed booking attempts', `Deleted after ${RETENTION.bookingRejections}`],
                 ['Database backups', `Overwritten after ${RETENTION.backups}`],
             ],
         } },
@@ -214,7 +221,7 @@ const cookies = () => ({
         { table: {
             head: ['Name', 'Purpose', 'Type', 'Kept for'],
             rows: [
-                ['bp_rt (cookie)', 'Keeps you signed in securely', 'Necessary', RETENTION.refreshSession],
+                ['bp_rt (cookie)', 'Keeps you signed in securely', 'Necessary', RETENTION.refreshCookie],
                 ['bp_oauth_state (cookie)', 'Protects Google sign-in against forgery', 'Necessary', '10 minutes'],
                 ['token, refreshToken, user', 'Your signed-in session', 'Necessary', 'Until you sign out'],
                 ['Your cookie choice', 'Remembers whether you allowed analytics', 'Necessary', 'Until you change it'],
