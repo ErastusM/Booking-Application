@@ -127,7 +127,11 @@ describe('DELETE /api/auth/account — customer', () => {
         expect(g).toMatchObject({ guestName: 'Deleted guest', guestEmail: null, guestPhone: null });
 
         // Gone:
-        expect(await Message.countDocuments({ $or: [{ sender: customer._id }, { recipient: customer._id }] })).toBe(0);
+        // Their own words are gone; the business's side of the conversation stays.
+        const theirs = await Message.find({ sender: customer._id });
+        expect(theirs.map((m) => m.content)).toEqual(['[message deleted]']);
+        const businessSide = await Message.find({ sender: provider._id, recipient: customer._id });
+        expect(businessSide.map((m) => m.content)).toEqual(['Confirmed']);
         expect(await ClientNote.countDocuments({ customer: customer._id })).toBe(0);
         expect(await FormSubmission.countDocuments({ customer: customer._id })).toBe(0);
         expect(await Notification.countDocuments({ user: customer._id })).toBe(0);
@@ -137,6 +141,26 @@ describe('DELETE /api/auth/account — customer', () => {
         expect([401, 403]).toContain((await request(app).get('/api/auth/profile').set(authHeader(customer))).status);
         expect((await request(app).post('/api/auth/login').send({ email: 'ana@example.com', password: 'Password1!' })).status).not.toBe(200);
         expect(provider).toBeTruthy();
+    });
+
+    it('the business still sees the conversation, with the client as "Deleted user"', async () => {
+        const { customer, provider, appt } = await seedCustomer();
+        await request(app).delete('/api/auth/account').set(authHeader(customer)).send({ password: 'Password1!' }).expect(200);
+        const res = await request(app).get(`/api/messages/${appt._id}`).set(authHeader(provider));
+        expect(res.status).toBe(200);
+        const rows = res.body.data;
+        expect(rows.map((m) => m.content).sort()).toEqual(['Confirmed', '[message deleted]']);
+        const fromClient = rows.find((m) => m.content === '[message deleted]');
+        expect(fromClient.sender.name).toBe('Deleted user');
+        expect(JSON.stringify(rows)).not.toContain('See you soon');
+    });
+
+    it('when the BUSINESS deletes, the client keeps their own messages and sees the business’s as deleted', async () => {
+        const { customer, provider, appt } = await seedCustomer();
+        await request(app).delete('/api/auth/account').set(authHeader(provider)).send({ password: 'Password1!' }).expect(200);
+        const res = await request(app).get(`/api/messages/${appt._id}`).set(authHeader(customer));
+        expect(res.status).toBe(200);
+        expect(res.body.data.map((m) => m.content).sort()).toEqual(['See you soon', '[message deleted]']);
     });
 
     it('a Google-only account (no password) confirms by typing its email', async () => {

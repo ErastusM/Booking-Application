@@ -35,6 +35,7 @@ const clean = (doc) => {
 };
 
 const EXPORT_VERSION = 1;
+const MESSAGE_DELETED = '[message deleted]';
 
 /** Build the "Download my data" document for one user id. */
 async function exportAccount(userId) {
@@ -138,7 +139,8 @@ const anonEmail = () => `deleted_${crypto.randomBytes(8).toString('hex')}@delete
  * Deleted:
  *   - name, email, phone, avatar, Google link, password and every token;
  *   - consents log, marketing preference, favourites, blocks, survey answers;
- *   - messages they sent or received, notifications, push subscriptions,
+ *   - the text of messages they sent (kept as "[message deleted]" so the other
+ *     party's side of the conversation still reads); notifications, push subscriptions,
  *     waiting-list entries, their analytics events;
  *   - any business's client notes about them (incl. allergies/health) and
  *     their intake-form answers;
@@ -183,7 +185,10 @@ async function purgeAccount(user) {
 
     const tasks = [
         M('Appointment').updateMany({ customer: id }, { $set: { notes: '' } }),
-        M('Message').deleteMany({ $or: [{ sender: id }, { recipient: id }] }),
+        // The other party keeps their side of the conversation. What THIS person
+        // wrote is blanked; they themselves now show as "Deleted user" (the
+        // sender/recipient reference points at the anonymised account).
+        M('Message').updateMany({ sender: id }, { $set: { content: MESSAGE_DELETED } }),
         M('Notification').deleteMany({ user: id }),
         M('PushSubscription').deleteMany({ user: id }),
         M('WaitingList').deleteMany({ customer: id }),
@@ -217,4 +222,4 @@ async function purgeAccount(user) {
     destroyImages(images).catch(() => {});
 }
 
-module.exports = { exportAccount, purgeAccount, destroyImages, EXPORT_VERSION };
+module.exports = { exportAccount, purgeAccount, destroyImages, EXPORT_VERSION, MESSAGE_DELETED };
