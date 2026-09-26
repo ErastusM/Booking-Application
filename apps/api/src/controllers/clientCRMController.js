@@ -62,10 +62,11 @@ exports.getMyClients = async (req, res) => {
         // Only the fields the per-client roll-up below reads — as lean plain
         // objects, and with the never-referenced service join dropped. This was
         // hydrating the provider's whole appointment history (two populates) just
-        // to reduce it to one row per client.
+        // to reduce it to one row per client. `avatar` feeds the New Appointment
+        // client list's picture (an additive field: older clients ignore it).
         const appointments = await Appointment.find(scope.filter)
             .select('customer walkInName status totalPrice appointmentDate')
-            .populate('customer', 'name email phone createdAt')
+            .populate('customer', 'name email phone avatar createdAt')
             .sort({ appointmentDate: -1 })
             .lean();
 
@@ -75,7 +76,7 @@ exports.getMyClients = async (req, res) => {
             if (appt.walkInName && appt.walkInName.trim()) {
                 const name = appt.walkInName.trim();
                 key = `walkin:${name.toLowerCase()}`;
-                customer = { _id: key, name, email: null, phone: null, isWalkIn: true };
+                customer = { _id: key, name, email: null, phone: null, avatar: null, isWalkIn: true };
                 isWalkIn = true;
             } else if (appt.customer && appt.customer._id.toString() !== providerIdStr) {
                 key = appt.customer._id.toString();
