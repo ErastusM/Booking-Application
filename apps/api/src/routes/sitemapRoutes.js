@@ -22,6 +22,7 @@ const STATIC_PATHS = [
     { path: '/about', changefreq: 'monthly', priority: '0.4' },
     { path: '/privacy-policy', changefreq: 'yearly', priority: '0.2' },
     { path: '/terms', changefreq: 'yearly', priority: '0.2' },
+    { path: '/legal', changefreq: 'yearly', priority: '0.2' },
 ];
 
 // GET /api/seo/sitemap.xml — nginx exposes this at www.bookplus.pro/sitemap.xml.

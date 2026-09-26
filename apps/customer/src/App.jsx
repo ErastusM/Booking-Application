@@ -34,16 +34,19 @@ const ForgotPassword = lazy(() => import('./pages/ForgotPassword'));
 const ResetPassword = lazy(() => import('./pages/ResetPassword'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
 const TermsOfService = lazy(() => import('./pages/TermsOfService'));
+const LegalNotice = lazy(() => import('./pages/LegalNotice'));
 const About = lazy(() => import('./pages/About'));
 const ManageBooking = lazy(() => import('./pages/ManageBooking'));
 const Wallet = lazy(() => import('./pages/Wallet'));
 const Unsubscribe = lazy(() => import('./pages/Unsubscribe'));
 
-// The footer only belongs on the two "website" pages — everywhere else the
-// app chrome stays clean (bottom nav on mobile, nothing on desktop).
+// The footer only belongs on the "website" pages (home, about and the legal
+// pages) — everywhere else the app chrome stays clean (bottom nav on mobile,
+// nothing on desktop).
+const FOOTER_PATHS = ['/', '/about', '/privacy-policy', '/terms', '/legal'];
 const FooterGate = () => {
     const { pathname } = useLocation();
-    return (pathname === '/' || pathname === '/about') ? <Footer /> : null;
+    return FOOTER_PATHS.includes(pathname) ? <Footer /> : null;
 };
 
 const RouteFallback = () => (
@@ -91,6 +94,7 @@ function AppRoutes() {
                     <Route path="/reset-password" element={<ResetPassword />} />
                     <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                     <Route path="/terms" element={<TermsOfService />} />
+                    <Route path="/legal" element={<LegalNotice />} />
                     <Route path="/manage/:token" element={<ManageBooking />} />
                     {/* One-click marketing-email unsubscribe (public, signed token). */}
                     <Route path="/unsubscribe/:token" element={<Unsubscribe />} />

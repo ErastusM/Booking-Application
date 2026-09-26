@@ -25,3 +25,8 @@ export { formatDuration } from './formatDuration';
 // A <label htmlFor> tied to its control by useId (plus hint/error wiring).
 export { Field } from './Field';
 export type { FieldProps } from './Field';
+
+// Legal pages (Privacy Policy, Terms, legal notice) rendered from the structured
+// text in @bookplus/config/legal, so both apps show one source.
+export { LegalDocument, LegalText, CompanyDetails, isLegalPlaceholder } from './Legal';
+export type { LegalDoc, LegalSection, LegalBlock, LegalDocumentProps, CompanyInfo, RenderLink } from './Legal';

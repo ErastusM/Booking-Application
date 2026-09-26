@@ -117,6 +117,7 @@ const Navbar = () => {
     const LEGAL_LINKS = [
         { to: '/terms', label: 'Terms of Service' },
         { to: '/privacy-policy', label: 'Privacy Policy' },
+        { to: '/legal', label: 'Who we are' },
     ];
 
     const isHome = location.pathname === '/';

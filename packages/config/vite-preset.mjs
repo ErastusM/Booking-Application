@@ -1,4 +1,5 @@
 import react from '@vitejs/plugin-react';
+import { legalDetailsPlugin } from './legal/buildCheck.mjs';
 
 /**
  * Shared Vite config for the Bookplus apps (customer + business).
@@ -13,6 +14,7 @@ export const makeViteConfig = ({ port }) => {
     return {
         plugins: [
             react(),
+            legalDetailsPlugin(),
             {
                 name: 'bookplus-version-json',
                 apply: 'build',
