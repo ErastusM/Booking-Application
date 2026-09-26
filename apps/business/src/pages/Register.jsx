@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router-dom';
 import { authService } from '../services';
 import MAIN_CATEGORIES from '../constants/mainCategories';
 import { API_BASE } from '../services/api';
 import { MailCheck, Check } from 'lucide-react';
+// App-styled replacement for the native <select>, so the picker wears the app's colours.
+import { Select } from '@bookplus/ui';
 
 /**
  * "List your business" — the business side's own signup (Fresha model: the
@@ -28,6 +30,11 @@ const Register = () => {
     const [passwordFocused, setPasswordFocused] = useState(false);
     const [resendMsg, setResendMsg] = useState('');
     const [consented, setConsented] = useState(false);
+    // The category picker has no native `required` bubble: once a submit has
+    // been tried, an empty category shows the red border next to the error, and
+    // focus goes to the picker (as the browser's bubble would have taken it).
+    const [triedSubmit, setTriedSubmit] = useState(false);
+    const categoryRef = useRef(null);
 
     const handleChange = (e) => setFormData(prev => ({ ...prev, [e.target.name]: e.target.value }));
 
@@ -51,8 +58,10 @@ const Register = () => {
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setTriedSubmit(true);
         if (!formData.providerCategory) {
             setError('Please select your main service category');
+            categoryRef.current?.focus();
             return;
         }
         if (formData.providerCategory === 'Other' && !customCategory.trim()) {
@@ -208,8 +217,10 @@ const Register = () => {
                             </Link>
                         </p>
 
+                        {/* role="alert": announced when it appears, since a failed submit no
+                            longer raises the browser's own (announced) bubble. */}
                         {error && (
-                            <div style={{
+                            <div id="register-error" role="alert" style={{
                                 background: '#fee2e2',
                                 border: '1px solid #fca5a5',
                                 color: '#991b1b',
@@ -260,21 +271,25 @@ const Register = () => {
                             ))}
 
                             <div>
-                                <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                                <label id="provider-category-label" style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                                     Main Category
                                 </label>
-                                <select
+                                {/* The picker's change event carries `name`, so handleChange still works. */}
+                                <Select
                                     name="providerCategory"
                                     value={formData.providerCategory}
                                     onChange={handleChange}
+                                    options={MAIN_CATEGORIES.map(category => ({ value: category, label: category }))}
+                                    placeholder="Select your primary category"
+                                    searchable
+                                    searchPlaceholder="Search categories"
+                                    sheetTitle="Main category"
+                                    aria-labelledby="provider-category-label"
+                                    aria-describedby={triedSubmit && !formData.providerCategory ? 'register-error' : undefined}
                                     required
-                                    className="input"
-                                >
-                                    <option value="">Select your primary category</option>
-                                    {MAIN_CATEGORIES.map(category => (
-                                        <option key={category} value={category}>{category}</option>
-                                    ))}
-                                </select>
+                                    invalid={triedSubmit && !formData.providerCategory}
+                                    ref={categoryRef}
+                                />
                                 {formData.providerCategory === 'Other' && (
                                     <input
                                         type="text"

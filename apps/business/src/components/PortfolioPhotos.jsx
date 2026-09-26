@@ -39,6 +39,9 @@ const PortfolioPhotos = ({ portfolio, onSave, onAddFiles, uploading }) => {
     const [editing, setEditing] = useState(null); // index of the photo open in the editor
     const [drag, setDrag] = useState(null); // { from, over } while a photo is being moved
     const press = useRef(null);
+    // Set when a drag ends: the click the browser may still send for that press
+    // (a mouse drag dropped back on its own tile) is not a tap. The next press clears it.
+    const dragJustEnded = useRef(false);
     const inputRef = useRef(null);
     const order = drag ? move(images, drag.from, drag.over) : images;
     const closeEditor = useCallback(() => setEditing(null), []);
@@ -53,8 +56,13 @@ const PortfolioPhotos = ({ portfolio, onSave, onAddFiles, uploading }) => {
 
     // Tap = edit. Hold (touch) or press-and-move (mouse) = pick the photo up;
     // it follows the finger across the grid and drops where it's released.
+    // The tap itself is handled by the tile's click, not here on pointerup: the
+    // browser sends that click after pointerup at the same spot, so an editor
+    // opened on pointerup took the click on whatever control appeared under the
+    // finger — on a phone, tapping the third photo in a row hit "Remove photo".
     const onTileDown = (e, i) => {
         if (e.button !== undefined && e.button !== 0) return;
+        dragJustEnded.current = false;
         press.current?.cleanup?.();
         const p = { i, x: e.clientX, y: e.clientY, id: e.pointerId, mouse: e.pointerType === 'mouse', active: false, over: i };
         const lift = () => { p.active = true; setDrag({ from: i, over: i }); navigator.vibrate?.(8); };
@@ -76,12 +84,13 @@ const PortfolioPhotos = ({ portfolio, onSave, onAddFiles, uploading }) => {
             const { active, over } = p;
             p.cleanup();
             if (active) {
+                dragJustEnded.current = true;
                 setDrag(null);
                 if (over !== i) {
                     const next = move(images, i, over);
                     onSave({ ...portfolio, images: next }, over === 0 || i === 0 ? 'Cover photo updated.' : 'Order saved.');
                 }
-            } else setEditing(i);
+            }
         };
         const onCancel = () => { p.cleanup(); setDrag(null); };
         // While a photo is held, a finger slide must move it rather than scroll the page.
@@ -156,6 +165,7 @@ const PortfolioPhotos = ({ portfolio, onSave, onAddFiles, uploading }) => {
                             return (
                                 <div key={url} data-photo-slot={k} role="button" tabIndex={0} aria-label={`Photo ${k + 1}${k === 0 ? ', cover' : ''}. Edit`} data-testid="portfolio-photo"
                                     onPointerDown={(e) => onTileDown(e, i)}
+                                    onClick={() => { if (dragJustEnded.current) dragJustEnded.current = false; else setEditing(i); }}
                                     onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); setEditing(i); } }}
                                     onContextMenu={(e) => e.preventDefault()}
                                     style={{ position: 'relative', borderRadius: '10px', overflow: 'hidden', cursor: drag ? 'grabbing' : 'pointer', touchAction: 'manipulation', userSelect: 'none', WebkitUserSelect: 'none', WebkitTouchCallout: 'none',

@@ -1,9 +1,12 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { authService } from '../services';
 import MAIN_CATEGORIES from '../constants/mainCategories';
 import { cloudinaryAvatar } from '../utils/cloudinary';
+import { Select } from '@bookplus/ui';
+
+const CATEGORY_REQUIRED = 'Please choose your main service category';
 
 const CompleteProfile = () => {
     const { user, setUser } = useAuthContext();
@@ -13,6 +16,9 @@ const CompleteProfile = () => {
     const [customCategory, setCustomCategory] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    // No native `required` bubble on the category picker: a missing category
+    // moves focus to it, as the browser's bubble would have.
+    const categoryRef = useRef(null);
     const isProvider = user?.role === 'provider';
 
     const handleSubmit = async (e) => {
@@ -22,7 +28,8 @@ const CompleteProfile = () => {
             return;
         }
         if (isProvider && !category) {
-            setError('Please choose your main service category');
+            setError(CATEGORY_REQUIRED);
+            categoryRef.current?.focus();
             return;
         }
         if (isProvider && category === 'Other' && !customCategory.trim()) {
@@ -79,8 +86,10 @@ const CompleteProfile = () => {
                             </p>
                         </div>
 
+                        {/* role="alert": announced when it appears, since a failed submit no
+                            longer raises the browser's own (announced) bubble. */}
                         {error && (
-                            <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
+                            <div id="complete-profile-error" role="alert" style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
                                 {error}
                             </div>
                         )}
@@ -109,10 +118,21 @@ const CompleteProfile = () => {
                                     <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                                         Main service category
                                     </label>
-                                    <select value={category} onChange={e => setCategory(e.target.value)} required className="input">
-                                        <option value="">Select your category</option>
-                                        {MAIN_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
+                                    {/* No native `required` bubble on the app-styled Select — handleSubmit checks it. */}
+                                    <Select
+                                        value={category}
+                                        onChange={e => setCategory(e.target.value)}
+                                        options={MAIN_CATEGORIES.map(c => ({ value: c, label: c }))}
+                                        placeholder="Select your category"
+                                        searchable
+                                        searchPlaceholder="Search categories"
+                                        required
+                                        invalid={error === CATEGORY_REQUIRED && !category}
+                                        aria-describedby={error === CATEGORY_REQUIRED && !category ? 'complete-profile-error' : undefined}
+                                        ref={categoryRef}
+                                        aria-label="Main service category"
+                                        data-testid="provider-category"
+                                    />
                                     {category === 'Other' && (
                                         <input
                                             type="text"

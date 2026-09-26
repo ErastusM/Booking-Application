@@ -5,9 +5,15 @@ import { cloudinaryAvatar, cloudinaryThumb } from '../utils/cloudinary';
 import { CURRENCIES } from '../utils/currency';
 import { track } from '../services/client';
 import MapPicker, { MAPS_KEY, reverseGeocode } from './MapPicker';
+// App-styled replacements for the native <select> and time inputs, so the
+// pickers wear the app's colours (and hours are always 24-hour).
+import { Select, TimePicker } from '@bookplus/ui';
 import { MapPin, Clock, ConciergeBell, Camera, LinkIcon, Check, Copy, Share2, ArrowLeft, Plus, X } from 'lucide-react';
 
 const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'https://www.bookplus.pro';
+
+// Currency choices, e.g. "N$ · Namibian dollar (NAD)". Long enough to get a search box.
+const CURRENCY_OPTIONS = CURRENCIES.map((c) => ({ value: c.code, label: `${c.symbol} · ${c.name} (${c.code})` }));
 
 const DAYS = [
     ['monday', 'Monday'], ['tuesday', 'Tuesday'], ['wednesday', 'Wednesday'],
@@ -177,8 +183,12 @@ const OnboardingWizard = ({ user, onComplete }) => {
 
     const darkBtn = { width: '100%', padding: '0.95rem', borderRadius: '999px', border: 'none', background: 'var(--ink, #040505)', color: '#fff', fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: 600, cursor: 'pointer' };
 
+    // z 2450: above all app chrome and modals (the highest, ServiceFormModal, is
+    // 2400) but below the @bookplus/ui picker popups (2500), which render into
+    // document.body — at the old 9999 the currency and time pickers opened
+    // hidden behind this screen.
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 9999, background: 'var(--off-white)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+        <div style={{ position: 'fixed', inset: 0, zIndex: 2450, background: 'var(--off-white)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
             {/* Progress bar */}
             <div style={{ height: '4px', background: 'var(--border)', flexShrink: 0 }}>
                 <div style={{ height: '100%', width: `${progress}%`, background: 'var(--gold)', transition: 'width 0.4s ease' }} />
@@ -218,11 +228,7 @@ const OnboardingWizard = ({ user, onComplete }) => {
                             <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Business name</label>
                             <input className="input" value={businessName} onChange={(e) => setBusinessName(e.target.value)} placeholder="e.g. Riverside Studio" style={{ fontSize: '1rem' }} />
                             <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: 600, color: 'var(--text-secondary)', margin: '1.1rem 0 0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Currency</label>
-                            <select className="input" value={currency} onChange={(e) => setCurrency(e.target.value)} style={{ fontSize: '1rem' }} aria-label="Currency">
-                                {CURRENCIES.map((c) => (
-                                    <option key={c.code} value={c.code}>{c.symbol} · {c.name} ({c.code})</option>
-                                ))}
-                            </select>
+                            <Select value={currency} onChange={(e) => setCurrency(e.target.value)} options={CURRENCY_OPTIONS} searchPlaceholder="Search currencies" style={{ fontSize: '1rem' }} aria-label="Currency" />
                             <p style={{ margin: '0.4rem 0 0', fontSize: '0.78rem', color: 'var(--text-muted)' }}>Prices across your booking page and earnings show in this currency.</p>
                             <ul style={{ listStyle: 'none', padding: 0, margin: '1.75rem 0 0', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                                 {['Set your location & hours', 'Add your services and prices', 'Get a shareable booking link'].map((t) => (
@@ -270,9 +276,10 @@ const OnboardingWizard = ({ user, onComplete }) => {
                                             <span style={{ width: '96px', fontSize: '0.88rem', fontWeight: 600, color: day.enabled ? 'var(--charcoal)' : 'var(--text-muted)' }}>{label}</span>
                                             {day.enabled ? (
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', marginLeft: 'auto' }}>
-                                                    <input type="time" value={slot.start} onChange={(e) => setTime('start', e.target.value)} className="input" style={{ padding: '0.3rem 0.4rem', width: 'auto' }} />
+                                                    {/* No clock icon: two of these share a phone row with the toggle and day name. */}
+                                                    <TimePicker value={slot.start} onChange={(e) => setTime('start', e.target.value)} aria-label={`${label} opening time`} hideIcon style={{ padding: '0.3rem 0.5rem', width: 'auto', minWidth: '4.25rem' }} />
                                                     <span style={{ color: 'var(--text-muted)' }}>–</span>
-                                                    <input type="time" value={slot.end} onChange={(e) => setTime('end', e.target.value)} className="input" style={{ padding: '0.3rem 0.4rem', width: 'auto' }} />
+                                                    <TimePicker value={slot.end} onChange={(e) => setTime('end', e.target.value)} aria-label={`${label} closing time`} hideIcon style={{ padding: '0.3rem 0.5rem', width: 'auto', minWidth: '4.25rem' }} />
                                                 </div>
                                             ) : <span style={{ marginLeft: 'auto', fontSize: '0.82rem', color: 'var(--text-muted)' }}>Closed</span>}
                                         </div>

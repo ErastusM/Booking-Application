@@ -1,9 +1,11 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
 import { authService } from '../services';
 import MAIN_CATEGORIES from '../constants/mainCategories';
 import { cloudinaryAvatar } from '../utils/cloudinary';
+// App-styled replacement for the native <select>, so the picker wears the app's colours.
+import { Select } from '@bookplus/ui';
 
 // Landing spot for a Google sign-in that hasn't given us a phone number yet
 // (see AuthCallBack.jsx's needsPhone redirect). Mirrors apps/customer's
@@ -17,16 +19,23 @@ const CompleteProfile = () => {
     const [customCategory, setCustomCategory] = useState('');
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
+    // The category picker has no native `required` bubble: once a submit has
+    // been tried, an empty category shows the red border next to the error, and
+    // focus goes to the picker (as the browser's bubble would have taken it).
+    const [triedSubmit, setTriedSubmit] = useState(false);
+    const categoryRef = useRef(null);
     const isProvider = user?.role === 'provider';
 
     const handleSubmit = async (e) => {
         e.preventDefault();
+        setTriedSubmit(true);
         if (!phone.trim()) {
             setError('Please enter your phone number');
             return;
         }
         if (isProvider && !category) {
             setError('Please choose your main service category');
+            categoryRef.current?.focus();
             return;
         }
         if (isProvider && category === 'Other' && !customCategory.trim()) {
@@ -73,8 +82,10 @@ const CompleteProfile = () => {
                             </p>
                         </div>
 
+                        {/* role="alert": announced when it appears, since a failed submit no
+                            longer raises the browser's own (announced) bubble. */}
                         {error && (
-                            <div style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
+                            <div id="complete-profile-error" role="alert" style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#991b1b', padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)', marginBottom: '1.5rem', fontSize: '0.85rem' }}>
                                 {error}
                             </div>
                         )}
@@ -100,13 +111,23 @@ const CompleteProfile = () => {
 
                             {isProvider && (
                                 <div>
-                                    <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
+                                    <label id="main-category-label" style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>
                                         Main service category
                                     </label>
-                                    <select value={category} onChange={e => setCategory(e.target.value)} required className="input">
-                                        <option value="">Select your category</option>
-                                        {MAIN_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                                    </select>
+                                    <Select
+                                        value={category}
+                                        onChange={e => setCategory(e.target.value)}
+                                        options={MAIN_CATEGORIES.map(c => ({ value: c, label: c }))}
+                                        placeholder="Select your category"
+                                        searchable
+                                        searchPlaceholder="Search categories"
+                                        sheetTitle="Main service category"
+                                        aria-labelledby="main-category-label"
+                                        aria-describedby={triedSubmit && !category ? 'complete-profile-error' : undefined}
+                                        required
+                                        invalid={triedSubmit && !category}
+                                        ref={categoryRef}
+                                    />
                                     {category === 'Other' && (
                                         <input
                                             type="text"

@@ -1106,6 +1106,10 @@ body.dark-mode .staff-lane-offhours {
 .input.is-invalid:focus { box-shadow: 0 0 0 3px rgba(239,68,68,0.18); }
 textarea.input { min-height: 88px; resize: vertical; line-height: 1.55; padding-top: 0.7rem; }
 .input:hover:not(:focus) { border-color: #bfc2c1; }
+/* The app-styled picker triggers (@bookplus/ui) are .input buttons: keep their
+   invalid (red) and open (orange) borders while hovered instead of the grey above. */
+.input.bp-trigger[aria-invalid="true"] { border-color: var(--danger); }
+.input.bp-trigger[aria-expanded="true"] { border-color: var(--gold); }
 
 /* Segmented control */
 .segmented { display: inline-flex; background: var(--surface-sunken); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 3px; gap: 2px; }

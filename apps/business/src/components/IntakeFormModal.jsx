@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { formService } from '../services';
+import { Select, DatePicker } from '@bookplus/ui';
 
 // Should a field show, given current answers and its showIf rule?
 const fieldVisible = (field, answers) => {
@@ -91,12 +92,13 @@ const IntakeFormModal = ({ appointmentId, onClose, onCompleted }) => {
                 {f.type === 'textarea' && <textarea {...common} rows={3} value={v || ''} onChange={e => setAnswer(f.label, e.target.value)} style={{ ...common.style, resize: 'vertical' }} />}
                 {f.type === 'text' && <input {...common} value={v || ''} onChange={e => setAnswer(f.label, e.target.value)} />}
                 {f.type === 'number' && <input {...common} type="number" value={v || ''} onChange={e => setAnswer(f.label, e.target.value)} />}
-                {f.type === 'date' && <input {...common} type="date" value={v || ''} onChange={e => setAnswer(f.label, e.target.value)} />}
+                {f.type === 'date' && <DatePicker style={common.style} value={v || ''} onChange={e => setAnswer(f.label, e.target.value)} clearable aria-label={f.label} />}
+                {/* Optional questions keep a way back to "no answer" (the old blank row). */}
                 {f.type === 'select' && (
-                    <select {...common} value={v || ''} onChange={e => setAnswer(f.label, e.target.value)}>
-                        <option value="">Select…</option>
-                        {f.options.map(o => <option key={o} value={o}>{o}</option>)}
-                    </select>
+                    <Select style={common.style} value={v || ''} onChange={e => setAnswer(f.label, e.target.value)}
+                        options={f.options.map(o => ({ value: o, label: o }))} placeholder="Select…"
+                        actions={!f.required && v ? [{ label: 'Clear answer', onSelect: () => setAnswer(f.label, '') }] : undefined}
+                        aria-label={f.label} />
                 )}
                 {f.type === 'radio' && (
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem' }}>

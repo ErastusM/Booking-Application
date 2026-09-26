@@ -1,6 +1,9 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { appointmentService, serviceService, userService, providerWalletService, walletService, analyticsService } from '../services';
 import { useToast } from '../components/Toast';
+// App-styled replacements for the native <select> and window.confirm, so the
+// admin's pickers and prompts wear the app's colours.
+import { Select, useConfirm } from '@bookplus/ui';
 import { CalendarDays, ConciergeBell, Users, Clock } from 'lucide-react';
 
 // A payment-proof URL comes from the customer's own submission. The API now
@@ -21,6 +24,23 @@ const statusConfig = {
     cancelled: { label: 'Cancelled', bg: '#fee2e2', color: '#991b1b' },
     'no-show': { label: 'No-show', bg: '#ede9fe', color: '#5b21b6' },
 };
+
+// Choices for the per-row status picker in the appointments table.
+const STATUS_OPTIONS = ['pending', 'confirmed', 'completed', 'cancelled', 'no-show'].map(v => ({ value: v, label: statusConfig[v].label }));
+const ROLE_FILTER_OPTIONS = [
+    { value: '', label: 'All roles' },
+    { value: 'customer', label: 'Customers' },
+    { value: 'provider', label: 'Providers' },
+    { value: 'admin', label: 'Admins' },
+];
+const STATUS_FILTER_OPTIONS = [
+    { value: '', label: 'All statuses' },
+    { value: 'active', label: 'Active' },
+    { value: 'suspended', label: 'Suspended' },
+];
+// The .input trigger already carries the toolbar's border, radius and font; an
+// inline border here would also pin its colour and hide the orange open state.
+const filterSelectStyle = { width: 'auto', minWidth: '9.5rem', padding: '0.5rem 0.75rem', fontSize: '0.875rem' };
 
 const chipStyle = (active) => ({
     padding: '0.4rem 0.9rem', borderRadius: '99px', border: '1px solid',
@@ -49,6 +69,7 @@ const Pagination = ({ page, pages, onChange }) => (
 
 const AdminDashboard = () => {
     const toast = useToast();
+    const confirm = useConfirm();
     const [pendingId, setPendingId] = useState(null); // guards per-row actions against double-submit
     const [activeTab, setActiveTab] = useState('appointments');
     const [appointments, setAppointments] = useState([]);
@@ -122,7 +143,7 @@ const AdminDashboard = () => {
         try {
             approve ? await providerWalletService.approveTopUp(id) : await providerWalletService.rejectTopUp(id);
             await fetchProviderWalletData();
-        } catch (err) { alert(err.response?.data?.message || 'Could not update top-up'); } finally { setResolvingTopUpId(null); }
+        } catch (err) { toast(err.response?.data?.message || 'Could not update top-up', 'error'); } finally { setResolvingTopUpId(null); }
     };
 
     const resolveClientTopUp = async (id, approve) => {
@@ -131,7 +152,7 @@ const AdminDashboard = () => {
         try {
             approve ? await walletService.adminApproveClientTopUp(id) : await walletService.adminRejectClientTopUp(id);
             await fetchProviderWalletData();
-        } catch (err) { alert(err.response?.data?.message || 'Could not update top-up'); } finally { setResolvingTopUpId(null); }
+        } catch (err) { toast(err.response?.data?.message || 'Could not update top-up', 'error'); } finally { setResolvingTopUpId(null); }
     };
 
     const fetchUsers = async () => {
@@ -235,7 +256,7 @@ const AdminDashboard = () => {
     };
 
     const handleDeleteService = async (id) => {
-        if (pendingId === id || !window.confirm('Delete this service?')) return;
+        if (pendingId === id || !(await confirm({ title: 'Delete this service?', confirmLabel: 'Delete', danger: true }))) return;
         setPendingId(id);
         try {
             await serviceService.deleteService(id);
@@ -247,7 +268,7 @@ const AdminDashboard = () => {
     };
 
     const handleDeleteUser = async (id) => {
-        if (pendingId === id || !window.confirm('Delete this user?')) return;
+        if (pendingId === id || !(await confirm({ title: 'Delete this user?', confirmLabel: 'Delete', danger: true }))) return;
         setPendingId(id);
         try {
             await userService.deleteUser(id);
@@ -260,7 +281,7 @@ const AdminDashboard = () => {
 
     const handleRoleChange = async (id, role) => {
         if (pendingId === id) return;
-        if (role === 'admin' && !window.confirm('Grant this user admin access? Admins can manage all users, services, and platform funds.')) {
+        if (role === 'admin' && !(await confirm({ title: 'Grant this user admin access?', message: 'Admins can manage all users, services, and platform funds.', confirmLabel: 'Grant access' }))) {
             return;
         }
         setPendingId(id);
@@ -443,13 +464,7 @@ const AdminDashboard = () => {
                                                     <span style={{ padding: '0.2rem 0.65rem', borderRadius: '99px', fontSize: '0.72rem', fontWeight: '600', background: s.bg, color: s.color }}>{s.label}</span>
                                                 </td>
                                                 <td style={{ padding: '0.875rem 1rem' }}>
-                                                    <select value={a.status} onChange={e => handleUpdateStatus(a._id, e.target.value)} style={{ fontSize: '0.75rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.35rem 0.5rem', fontFamily: 'var(--font-body)', color: 'var(--text-secondary)', cursor: 'pointer', outline: 'none' }}>
-                                                        <option value="pending">Pending</option>
-                                                        <option value="confirmed">Confirmed</option>
-                                                        <option value="completed">Completed</option>
-                                                        <option value="cancelled">Cancelled</option>
-                                                        <option value="no-show">No-show</option>
-                                                    </select>
+                                                    <Select value={a.status} onChange={e => handleUpdateStatus(a._id, e.target.value)} options={STATUS_OPTIONS} size="sm" aria-label="Appointment status" style={{ width: 'auto', minWidth: '7.5rem', fontSize: '0.75rem', borderWidth: '1px' }} />
                                                 </td>
                                             </tr>
                                         );
@@ -541,17 +556,8 @@ const AdminDashboard = () => {
                                     placeholder="Search name or email…"
                                     style={{ ...inputStyle, width: '220px', padding: '0.5rem 0.75rem' }}
                                 />
-                                <select value={userRoleFilter} onChange={e => { setUserRoleFilter(e.target.value); setUserPage(1); }} style={{ ...inputStyle, width: 'auto', padding: '0.5rem 0.75rem', cursor: 'pointer' }}>
-                                    <option value="">All roles</option>
-                                    <option value="customer">Customers</option>
-                                    <option value="provider">Providers</option>
-                                    <option value="admin">Admins</option>
-                                </select>
-                                <select value={userStatusFilter} onChange={e => { setUserStatusFilter(e.target.value); setUserPage(1); }} style={{ ...inputStyle, width: 'auto', padding: '0.5rem 0.75rem', cursor: 'pointer' }}>
-                                    <option value="">All statuses</option>
-                                    <option value="active">Active</option>
-                                    <option value="suspended">Suspended</option>
-                                </select>
+                                <Select value={userRoleFilter} onChange={e => { setUserRoleFilter(e.target.value); setUserPage(1); }} options={ROLE_FILTER_OPTIONS} aria-label="Filter by role" style={filterSelectStyle} />
+                                <Select value={userStatusFilter} onChange={e => { setUserStatusFilter(e.target.value); setUserPage(1); }} options={STATUS_FILTER_OPTIONS} aria-label="Filter by status" style={filterSelectStyle} />
                             </div>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{usersMeta.total} total</span>
                         </div>

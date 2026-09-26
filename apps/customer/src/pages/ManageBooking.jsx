@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { appointmentService } from '../services';
 import { buildTimeSlots } from '../utils/bookingSlots';
 import { currencySymbol } from '../utils/currency';
 import { apptLocalDate } from '../utils/date';
 import { Calendar, Clock, MapPin, ConciergeBell, User, CheckCircle2, XCircle } from 'lucide-react';
+import { DatePicker, useConfirm } from '@bookplus/ui';
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const toMin = (t) => { const [h, m] = String(t || '').split(':').map(Number); return (h || 0) * 60 + (m || 0); };
@@ -31,6 +32,7 @@ const statusBadge = {
 
 const ManageBooking = () => {
     const { token } = useParams();
+    const confirm = useConfirm();
     const [appt, setAppt] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState('');
@@ -40,6 +42,7 @@ const ManageBooking = () => {
     const [rDate, setRDate] = useState('');
     const [rTime, setRTime] = useState('');
     const [savingR, setSavingR] = useState(false);
+    const rDateRef = useRef(null);
 
     const today = new Date().toISOString().split('T')[0];
     const toInputDate = (d) => {
@@ -57,7 +60,7 @@ const ManageBooking = () => {
     useEffect(load, [token]);
 
     const cancel = async () => {
-        if (!window.confirm('Cancel this booking? This cannot be undone.')) return;
+        if (!(await confirm({ title: 'Cancel this booking?', message: 'This cannot be undone.', confirmLabel: 'Cancel booking', cancelLabel: 'Keep it', danger: true }))) return;
         setCancelling(true); setError('');
         try {
             await appointmentService.cancelByToken(token);
@@ -72,7 +75,12 @@ const ManageBooking = () => {
 
     const reschedule = async (e) => {
         e.preventDefault();
-        if (!rDate || !rTime) { setError('Please pick a new date and time'); return; }
+        if (!rDate || !rTime) {
+            setError('Please pick a new date and time');
+            // No native `required` bubble on the date picker: take focus there instead.
+            if (!rDate) rDateRef.current?.focus();
+            return;
+        }
         setSavingR(true); setError('');
         try {
             await appointmentService.rescheduleByToken(token, { appointmentDate: rDate, startTime: rTime });
@@ -131,11 +139,12 @@ const ManageBooking = () => {
                                 </div>
                             ) : (appt.status === 'pending' || appt.status === 'confirmed') ? (
                                 <>
-                                    {error && <p style={{ color: 'var(--danger-fg)', fontSize: '0.85rem', marginTop: '1rem' }}>{error}</p>}
+                                    {error && <p id="manage-error" role="alert" style={{ color: 'var(--danger-fg)', fontSize: '0.85rem', marginTop: '1rem' }}>{error}</p>}
                                     {showReschedule ? (
                                         <form onSubmit={reschedule} style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
                                             <label style={{ fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>New date</label>
-                                            <input type="date" value={rDate} min={today} onChange={e => { setRDate(e.target.value); setRTime(''); }} className="input" required />
+                                            {/* App-styled picker has no native `required` bubble — reschedule()'s !rDate check covers it (and focuses it). */}
+                                            <DatePicker ref={rDateRef} value={rDate} min={today} onChange={e => { setRDate(e.target.value); setRTime(''); }} required invalid={!!error && !rDate} aria-describedby={error && !rDate ? 'manage-error' : undefined} aria-label="New date" data-testid="manage-reschedule-date" />
                                             <label style={{ fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>New start time</label>
                                             {(() => {
                                                 // Controlled hourly slots (no arbitrary minute starts), within the

@@ -9,6 +9,13 @@ import { normalizeTown } from '../utils/namibiaTowns';
 import { currencySymbol } from '../utils/currency';
 import Seo from '../components/Seo';
 import { useToast } from '../components/Toast';
+import { Select, DatePicker } from '@bookplus/ui';
+
+// Hero search "when" choices: any time, or a floor on the hour from 07:00 to 19:00.
+const SEARCH_TIMES = [
+    { value: '', label: 'Any time' },
+    ...Array.from({ length: 13 }, (_, i) => `${String(i + 7).padStart(2, '0')}:00`).map(t => ({ value: t, label: t })),
+];
 
 // Provider dashboards live in the business app — cross-app hops are hard
 // navigations (like the Navbar's) so the other app boots fresh with its own data.
@@ -526,25 +533,38 @@ const Home = () => {
                         {/* Location + when segments — desktop only; mobile keeps the plain pill */}
                         <div className="home-search-when">
                             <MapPin size={15} strokeWidth={2} style={{ color: 'var(--text-muted)', flexShrink: 0 }} />
-                            <select value={searchLoc} onChange={e => setSearchLoc(e.target.value)} aria-label="Location" style={{ maxWidth: '150px' }}>
-                                <option value="">All locations</option>
-                                {allTowns.map(t => <option key={t} value={t}>{t}</option>)}
-                            </select>
+                            <Select
+                                value={searchLoc}
+                                onChange={e => setSearchLoc(e.target.value)}
+                                options={[{ value: '', label: 'All locations' }, ...allTowns.map(t => ({ value: t, label: t }))]}
+                                searchPlaceholder="Search towns"
+                                popoverMinWidth={220}
+                                aria-label="Location"
+                                data-testid="search-location"
+                                style={{ maxWidth: '150px' }}
+                            />
                         </div>
                         <div className="home-search-when">
-                            <input
-                                type="date"
+                            <DatePicker
                                 value={searchDate}
                                 min={(d => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`)(new Date())}
                                 onChange={e => setSearchDate(e.target.value)}
+                                clearable
+                                placeholder="Any date"
                                 aria-label="Date"
+                                data-testid="search-date"
                             />
-                            <select value={searchTime} onChange={e => setSearchTime(e.target.value)} aria-label="Time" disabled={!searchDate} style={{ opacity: searchDate ? 1 : 0.45 }}>
-                                <option value="">Any time</option>
-                                {Array.from({ length: 13 }, (_, i) => `${String(i + 7).padStart(2, '0')}:00`).map(t => (
-                                    <option key={t} value={t}>{t}</option>
-                                ))}
-                            </select>
+                            <Select
+                                value={searchTime}
+                                onChange={e => setSearchTime(e.target.value)}
+                                options={SEARCH_TIMES}
+                                searchable={false}
+                                popoverMinWidth={168}
+                                aria-label="Time"
+                                data-testid="search-time"
+                                disabled={!searchDate}
+                                style={{ opacity: searchDate ? 1 : 0.45 }}
+                            />
                         </div>
                         <button type="submit" aria-label="Search" className="btn-primary" style={{ borderRadius: '50%', width: '46px', height: '46px', padding: 0, flexShrink: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center' }}>
                             <ArrowRight size={21} strokeWidth={2.5} />

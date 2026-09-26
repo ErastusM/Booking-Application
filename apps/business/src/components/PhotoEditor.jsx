@@ -1,6 +1,10 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { SHAPES, ratioOf, maxCrop, defaultCrop, hasCrop, fitCrop, cropBox, photoFilter, WarmthFilter, useFilterId } from './PhotoFrame';
 import { cloudinaryPhoto } from '../utils/cloudinary';
+// App-styled confirm dialog in place of window.confirm. It stacks above this
+// editor (z 2500 vs 2000) and takes Escape first, so backing out of the dialog
+// leaves the editor open.
+import { useConfirm } from '@bookplus/ui';
 
 // Instagram-style editor for one portfolio photo. Crop: drag to move, pinch /
 // scroll / slide to zoom, inside the post shape. Adjust: brightness, contrast,
@@ -60,6 +64,7 @@ const chip = (on) => ({
 const textBtn = { background: 'none', border: 'none', color: '#fff', fontSize: '0.9rem', cursor: 'pointer', padding: '0.5rem', fontFamily: 'var(--font-body)' };
 
 const PhotoEditor = ({ url, edit, shape: startShape, isCover, onDone, onCancel, onRemove }) => {
+    const confirm = useConfirm();
     const [shape, setShape] = useState(startShape || '1:1');
     const ratio = ratioOf(shape);
     const [tab, setTab] = useState('crop');
@@ -309,7 +314,7 @@ const PhotoEditor = ({ url, edit, shape: startShape, isCover, onDone, onCancel, 
                         {!isCover && (
                             <button type="button" onClick={() => onDone({ ...result(), makeCover: true })} disabled={!crop} style={{ ...textBtn, fontSize: '0.8rem', padding: '0.25rem', textDecoration: 'underline' }} data-testid="photo-make-cover">Make this the cover</button>
                         )}
-                        <button type="button" onClick={() => { if (window.confirm('Remove this photo from your portfolio?')) onRemove(); }} style={{ ...textBtn, fontSize: '0.8rem', padding: '0.25rem', color: '#ff8a70', textDecoration: 'underline' }} data-testid="photo-remove">Remove photo</button>
+                        <button type="button" onClick={async () => { if (await confirm({ title: 'Remove this photo from your portfolio?', confirmLabel: 'Remove', danger: true })) onRemove(); }} style={{ ...textBtn, fontSize: '0.8rem', padding: '0.25rem', color: '#ff8a70', textDecoration: 'underline' }} data-testid="photo-remove">Remove photo</button>
                     </div>
                 </div>
 

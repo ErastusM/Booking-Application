@@ -50,8 +50,10 @@ test.describe('Customer booking', () => {
 
         const cancelBtn = page.getByRole('button', { name: /^cancel$/i }).first();
         if (await cancelBtn.count()) {
-            page.once('dialog', (d) => d.accept()); // confirm() prompt
+            // Cancel opens the in-app "What would you like to do?" modal (never a
+            // browser confirm()), so the cancel is confirmed from there.
             await cancelBtn.click();
+            await page.getByRole('button', { name: /^cancel appointment$/i }).click();
             await expect(page.getByText(/cancelled/i).first()).toBeVisible({ timeout: 10_000 });
         }
     });

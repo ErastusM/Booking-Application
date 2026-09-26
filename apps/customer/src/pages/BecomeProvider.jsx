@@ -4,6 +4,7 @@ import { useAuthContext } from '../context/AuthContext';
 import { authService } from '../services';
 import MAIN_CATEGORIES from '../constants/mainCategories';
 import { Briefcase, Check } from 'lucide-react';
+import { Select } from '@bookplus/ui';
 
 // Listing a business ADDS a business account alongside the customer one
 // (authController.becomeProvider creates a second document on the same email,
@@ -85,10 +86,19 @@ const BecomeProvider = () => {
                         <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                             <div>
                                 <label style={{ display: 'block', fontSize: '0.8rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.5rem', letterSpacing: '0.05em', textTransform: 'uppercase' }}>Main service category</label>
-                                <select value={category} onChange={e => setCategory(e.target.value)} required className="input">
-                                    <option value="">Select your category</option>
-                                    {MAIN_CATEGORIES.map(c => <option key={c} value={c}>{c}</option>)}
-                                </select>
+                                {/* No native `required` bubble on the app-styled Select — handleSubmit checks it. */}
+                                <Select
+                                    value={category}
+                                    onChange={e => setCategory(e.target.value)}
+                                    options={MAIN_CATEGORIES.map(c => ({ value: c, label: c }))}
+                                    placeholder="Select your category"
+                                    searchable
+                                    searchPlaceholder="Search categories"
+                                    required
+                                    invalid={!!error && !category}
+                                    aria-label="Main service category"
+                                    data-testid="provider-category"
+                                />
                                 {category === 'Other' && (
                                     <input type="text" value={customCategory} onChange={e => setCustomCategory(e.target.value)} required placeholder="e.g. Pet grooming, Tattoo studio…" className="input" style={{ marginTop: '0.75rem' }} />
                                 )}
