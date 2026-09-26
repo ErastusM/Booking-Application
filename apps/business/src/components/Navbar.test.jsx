@@ -57,13 +57,10 @@ describe('Navbar — one app for the owner and the team', () => {
         expect(desktopTabs(container)).toEqual(['Calendar', 'Clients', 'Earnings', 'Catalogue', 'More']);
     });
 
-    it('a Service provider gets the same row in the same order, not a different app', () => {
+    it('a Service provider gets exactly the same row, Earnings included (their own takings)', () => {
         const { container } = renderAs(member('low'));
         const tabs = desktopTabs(container);
-        expect(tabs[0]).toBe('Calendar');
-        expect(tabs[1]).toBe('Clients');
-        expect(tabs).toContain('Catalogue');
-        expect(tabs[tabs.length - 1]).toBe('More');
+        expect(tabs).toEqual(['Calendar', 'Clients', 'Earnings', 'Catalogue', 'More']);
         // The old member-only tabs are gone.
         expect(tabs).not.toContain('My services');
         expect(tabs).not.toContain('My hours');

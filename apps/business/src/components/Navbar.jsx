@@ -110,7 +110,8 @@ const Navbar = () => {
     // The business suite's own nav (owner + team members); admins have theirs.
     const inSuite = user?.role === 'provider' || user?.role === 'staff';
     // Earnings: the money from the signed-in person's own completed bookings.
-    const showEarnings = user?.role === 'provider';
+    // For a member that is their own takings — never the business's.
+    const showEarnings = inSuite;
     // The legal pages are otherwise only reachable at signup or by direct URL —
     // surface them in the account menu so they're findable once signed in.
     const LEGAL_LINKS = [

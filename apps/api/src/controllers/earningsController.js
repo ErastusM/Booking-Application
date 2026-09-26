@@ -233,3 +233,165 @@ exports.getMyEarnings = async (req, res) => {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }
 };
+
+/**
+ * GET /api/earnings/mine  (staff — any level)
+ * A team member's OWN earnings: the money from the completed bookings they
+ * performed, in the same shape as the owner's report so the business app shows
+ * it on the owner's Earnings screen. Reporting only — no payroll, no
+ * commission, no pay runs.
+ *
+ * Scoped to the member: only their business's completed bookings that they
+ * performed, top-level or as a segment of a multi-service ticket — and on such
+ * a ticket only THEIR segments' prices count, never a colleague's. The
+ * business-wide report (GET /api/earnings) stays behind reports:view.
+ *
+ * Query: ?from=YYYY-MM-DD&to=YYYY-MM-DD  (defaults to the last 30 days)
+ */
+const TeamMember = require('../models/TeamMember');
+
+exports.getMyOwnEarnings = async (req, res) => {
+    try {
+        if (req.user.role !== 'staff' || !req.user.staffOf) {
+            return res.status(403).json({ success: false, message: 'Only a team member has their own earnings here.' });
+        }
+        const member = await TeamMember.findOne({ user: req.user._id, provider: req.user.staffOf }).select('_id').lean();
+        if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
+        const mid = String(member._id);
+        const now = new Date();
+
+        const parseDate = (s, fallback) => {
+            if (!s) return fallback;
+            const d = new Date(s);
+            return isNaN(d.getTime()) ? fallback : d;
+        };
+        // Same UTC-anchored range as the owner's report.
+        const rangeFrom = parseDate(req.query.from, new Date(now.getTime() - 29 * 24 * 60 * 60 * 1000));
+        rangeFrom.setUTCHours(0, 0, 0, 0);
+        const rangeTo = parseDate(req.query.to, now);
+        rangeTo.setUTCHours(23, 59, 59, 999);
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const startOfLastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const endOfLastMonth = new Date(now.getFullYear(), now.getMonth(), 0, 23, 59, 59, 999);
+
+        const docs = await Appointment.find({
+            provider: req.user.staffOf,
+            status: 'completed',
+            $or: [{ teamMember: member._id }, { 'services.teamMember': member._id }],
+        })
+            .select('customer guestName guestEmail walkInName service services teamMember appointmentDate startTime endTime totalPrice')
+            .populate('service', 'name')
+            .populate('services.service', 'name')
+            .populate('customer', 'name')
+            .sort({ appointmentDate: -1 })
+            .lean();
+
+        // Each booking's lines that are THIS member's: their segments of a
+        // multi-service ticket, or the whole ticket when they performed it.
+        const linesOf = (a) => {
+            const segs = Array.isArray(a.services) ? a.services : [];
+            if (segs.length) {
+                return segs
+                    .filter((s) => s.teamMember && String(s.teamMember) === mid)
+                    .map((s) => ({ name: s.service?.name || s.name || 'Unknown', earned: Number(s.price) || 0 }));
+            }
+            return String(a.teamMember || '') === mid
+                ? [{ name: a.service?.name || 'Unknown', earned: Number(a.totalPrice) || 0 }]
+                : [];
+        };
+        const rows = docs
+            .map((a) => ({ a, lines: linesOf(a) }))
+            .filter((r) => r.lines.length)
+            .map((r) => ({ ...r, earned: r.lines.reduce((s, l) => s + l.earned, 0), when: new Date(r.a.appointmentDate) }));
+
+        const inRange = rows.filter((r) => r.when >= rangeFrom && r.when <= rangeTo);
+        const sum = (list) => list.reduce((s, r) => s + r.earned, 0);
+        const rangeEarned = sum(inRange);
+        const rangeCount = inRange.length;
+        const thisMonth = rows.filter((r) => r.when >= startOfMonth);
+        const lastMonth = rows.filter((r) => r.when >= startOfLastMonth && r.when <= endOfLastMonth);
+        const thisMonthEarned = sum(thisMonth);
+        const lastMonthEarned = sum(lastMonth);
+        const growthPct = lastMonthEarned === 0
+            ? (thisMonthEarned > 0 ? 100 : 0)
+            : Math.round(((thisMonthEarned - lastMonthEarned) / lastMonthEarned) * 100);
+
+        const byServiceMap = new Map();
+        inRange.forEach((r) => r.lines.forEach((l) => {
+            const cur = byServiceMap.get(l.name) || { name: l.name, earned: 0, count: 0 };
+            cur.earned += l.earned; cur.count += 1;
+            byServiceMap.set(l.name, cur);
+        }));
+        const byService = [...byServiceMap.values()].sort((x, y) => y.earned - x.earned);
+
+        const dayMap = new Map();
+        inRange.forEach((r) => {
+            const key = r.when.toISOString().slice(0, 10);
+            const cur = dayMap.get(key) || { earned: 0, count: 0 };
+            cur.earned += r.earned; cur.count += 1;
+            dayMap.set(key, cur);
+        });
+        const overTime = [];
+        const dayCursor = new Date(rangeFrom);
+        let guard = 0;
+        while (dayCursor <= rangeTo && guard < 370) {
+            const key = dayCursor.toISOString().slice(0, 10);
+            const found = dayMap.get(key);
+            overTime.push({
+                date: key,
+                label: dayCursor.toLocaleDateString('en-US', { month: 'short', day: 'numeric', timeZone: 'UTC' }),
+                earned: found ? found.earned : 0,
+                count: found ? found.count : 0,
+            });
+            dayCursor.setUTCDate(dayCursor.getUTCDate() + 1);
+            guard += 1;
+        }
+
+        // Their top clients — the clients they served, which their client list
+        // already shows them.
+        const clientName = (a) => a.customer?.name || a.guestName || a.walkInName || 'Walk-in';
+        const clientKey = (a) => String(a.customer?._id || a.guestEmail || a.walkInName || 'walk-in');
+        const clientMap = new Map();
+        inRange.forEach((r) => {
+            const k = clientKey(r.a);
+            const cur = clientMap.get(k) || { name: clientName(r.a), earned: 0, count: 0 };
+            cur.earned += r.earned; cur.count += 1;
+            clientMap.set(k, cur);
+        });
+        const topClients = [...clientMap.values()].sort((x, y) => y.earned - x.earned).slice(0, 5);
+
+        const recent = rows.slice(0, 10).map((r) => ({
+            _id: r.a._id,
+            client: clientName(r.a),
+            service: r.lines.map((l) => l.name).join(', '),
+            date: r.a.appointmentDate,
+            time: r.a.startTime ? `${r.a.startTime} – ${r.a.endTime}` : '',
+            amount: r.earned,
+        }));
+
+        res.status(200).json({
+            success: true,
+            data: {
+                range: { from: rangeFrom, to: rangeTo },
+                totals: {
+                    earned: rangeEarned,
+                    completedCount: rangeCount,
+                    avgPerAppointment: rangeCount > 0 ? Math.round(rangeEarned / rangeCount) : 0,
+                    allTimeEarned: sum(rows),
+                    allTimeCount: rows.length,
+                },
+                thisMonth: { earned: thisMonthEarned, completedCount: thisMonth.length },
+                lastMonth: { earned: lastMonthEarned, completedCount: lastMonth.length },
+                growthPct,
+                byService,
+                // Never a breakdown of colleagues: this is one person's report.
+                byTeamMember: [],
+                overTime,
+                topClients,
+                recent,
+            },
+        });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};

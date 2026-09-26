@@ -143,6 +143,9 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
 
     earningsService: {
         getMyEarnings: (params?: any) => API.get('/earnings', { params }),
+        // A team member's own earnings — money from the completed bookings they
+        // performed, in the same shape as the owner's report.
+        getMine: (params?: any) => API.get('/earnings/mine', { params }),
     },
 
     availabilityService: {

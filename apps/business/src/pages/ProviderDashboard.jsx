@@ -107,10 +107,10 @@ const WEEK_DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'satu
 const ProviderDashboard = () => {
     const { user, setUser, hasCap } = useAuthContext();
 
-    // A Medium+ staff member is admitted to this page (App.jsx), but only for the
-    // tabs their tier can use. Owner-only tabs (earnings, team, wallet, services,
-    // insights, availability, memberships, history, overview, messages) are absent
-    // from this whitelist, so a staff member who URL-tampers to ?tab=earnings is
+    // Every team member uses this page — the owner's screens, each scoped to them
+    // (their calendar, clients, earnings, services, hours). The business-wide tabs
+    // (team, wallet, insights, memberships, gift cards, history, overview) are
+    // absent from this whitelist, so a member who URL-tampers to ?tab=wallet is
     // sent back to calendar — and the underlying endpoints 403 for them regardless.
     // Providers/admins hold every capability, so tabAllowed is always true for them.
     const STAFF_TAB_CAPS = {
@@ -121,6 +121,8 @@ const ProviderDashboard = () => {
         waitlist: 'waitlist:manage', clients: 'clients:assigned', forms: 'forms:manage',
         // Their OWN services, hours and conversations (member-scoped screens below).
         services: 'services:self', availability: 'availability:self', messages: 'calendar:view',
+        // Their OWN earnings (money from their own completed bookings) — every member.
+        earnings: 'account:self',
     };
     const isStaff = user?.role === 'staff';
     // A team member's own roster row ({ _id, name, bookable }) — their column is
@@ -917,7 +919,9 @@ const ProviderDashboard = () => {
         setEarningsError('');
         try {
             const { from, to } = resolveEarningsRange(preset, custom);
-            const res = await earningsService.getMyEarnings({ from, to });
+            // A member's Earnings is this same screen over their own completed
+            // bookings; the business report is the owner's.
+            const res = isStaff ? await earningsService.getMine({ from, to }) : await earningsService.getMyEarnings({ from, to });
             setEarnings(res.data.data);
         } catch {
             setEarningsError('Could not load earnings. Tap retry.');

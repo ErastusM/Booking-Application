@@ -18,6 +18,11 @@ const SEED = {
         password: 'Password1!',          // opens the CUSTOMER side
         businessPassword: 'Different1!', // opens the BUSINESS side
     },
+    // A bookable Service provider (roster member 'Pat Provider') who has served
+    // 'E2E Regular' before — the one-app member spec.
+    member: { email: 'e2e-member@bookplus.dev', password: 'Password1!' },
+    memberName: 'Pat Provider',
+    regularName: 'E2E Regular',
     staffName: 'Sam Staff',
     serviceName: 'E2E Session',
     providerName: 'E2E Provider',

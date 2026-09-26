@@ -119,6 +119,32 @@ const outbox = [];
         user: samUser._id, bookable: false,
     });
 
+    // A bookable "Service provider" with a login, for the one-app member spec
+    // (member-one-app.spec): Pat performs E2E Session at his own price and time,
+    // and once served "E2E Regular" (a completed booking two days ago), so he can
+    // book that existing client and has takings of his own on Earnings. The
+    // regular is a separate customer so the customer-app specs' E2E Customer
+    // never gains a past visit (and a review prompt).
+    const patUser = await User.create({
+        name: 'Pat Provider', email: 'e2e-member@bookplus.dev', password: 'Password1!',
+        phone: '+264810000005', role: 'staff', staffOf: provider._id, isVerified: true,
+        provider: 'local', staffTier: 'low', lastLoginAt: new Date(),
+    });
+    const pat = await TeamMember.create({
+        provider: provider._id, name: 'Pat Provider', role: 'Stylist', color: '#F59E0B',
+        user: patUser._id, bookable: true, offersAllServices: false, services: [service._id],
+        serviceOverrides: [{ service: service._id, price: 120, duration: 45 }],
+    });
+    const regular = await User.create({
+        name: 'E2E Regular', email: 'e2e-regular@bookplus.dev', password: 'Password1!',
+        phone: '+264810000006', role: 'customer', isVerified: true, provider: 'local',
+    });
+    const twoDaysAgo = new Date(today); twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+    await Appointment.create({
+        service: service._id, provider: provider._id, teamMember: pat._id, customer: regular._id,
+        appointmentDate: twoDaysAgo, startTime: '09:00', endTime: '09:45', status: 'completed', totalPrice: 120,
+    });
+
     // One email holding BOTH a customer and a business account (same password),
     // for the login destination-chooser and cross-app hand-off specs.
     await User.create({
