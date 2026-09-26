@@ -49,7 +49,7 @@ describe('Fix 1 — recurring booking no longer races on its first occurrence', 
         });
 
         const [r1, r2] = await Promise.all([bookRecurring(a), bookRecurring(b)]);
-        expect([r1.status, r2.status].sort()).toEqual([201, 400]); // one wins, one refused
+        expect([r1.status, r2.status].sort()).toEqual([201, 409]); // one wins, one refused
         const anchorRows = await Appointment.countDocuments({
             provider: provider._id, teamMember: null, appointmentDate: new Date(DATE), startTime: '10:00', status: { $ne: 'cancelled' },
         });

@@ -54,7 +54,7 @@ describe('concurrent booking of the same slot', () => {
         ]);
 
         const statuses = [r1.status, r2.status].sort();
-        expect(statuses).toEqual([201, 400]); // exactly one wins, one refused
+        expect(statuses).toEqual([201, 409]); // exactly one wins, one refused
         const rows = await Appointment.countDocuments({
             provider: provider._id, teamMember: null, startTime: '10:00', status: { $ne: 'cancelled' },
         });
@@ -76,7 +76,7 @@ describe('concurrent booking of the same slot', () => {
             book(b, svc, provider, '14:00', '15:00', mid),
         ]);
 
-        expect([r1.status, r2.status].sort()).toEqual([201, 400]);
+        expect([r1.status, r2.status].sort()).toEqual([201, 409]);
         const rows = await Appointment.countDocuments({
             provider: provider._id, teamMember: member._id, startTime: '14:00', status: { $ne: 'cancelled' },
         });

@@ -26,6 +26,8 @@ const Appointment = require('../models/Appointment');
 const Availability = require('../models/Availability');
 const Service = require('../models/Service');
 
+const { effectiveDuration } = require('./memberPricing');
+
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const toMin = (t) => {
     const [h, m] = String(t).split(':').map(Number);
@@ -33,6 +35,35 @@ const toMin = (t) => {
 };
 const overlaps = (aS, aE, bS, bE) => aS < bE && aE > bS;
 const dateStr = (d) => (typeof d === 'string' ? d.slice(0, 10) : new Date(d).toISOString().slice(0, 10));
+const hhmm = (m) => `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+
+/**
+ * THE booking rule, in one place. A person can take [startMin, endMin) iff the
+ * whole window lies inside one of their working periods and overlaps none of
+ * their busy windows (bookings, blocked time, breaks, leave). Half-open: a
+ * booking that ends exactly when the next one starts does NOT overlap it.
+ *
+ * `working` null = no hours constraint. Every overlap test in the booking paths
+ * (create, reschedule, recurring, group, multi-service, waiting list, the slot
+ * views) is this predicate over that person's own windows.
+ */
+const overlapsAny = (startMin, endMin, intervals) => (intervals || []).some(([s, e]) => overlaps(startMin, endMin, s, e));
+const windowFits = ({ startMin, endMin, working = null, busy = [] }) => endMin > startMin
+    && (working == null || working.some(([a, b]) => startMin >= a && endMin <= b))
+    && !overlapsAny(startMin, endMin, busy);
+
+/**
+ * How many minutes one professional needs for a booking: the chosen option's
+ * own length (options carry their own), else that person's duration override
+ * for the service (TeamMember.serviceOverrides — #228), else the menu duration;
+ * plus the add-on minutes. `member` null = the owner, who books at the menu
+ * length. This is the length every overlap check must use for that person — a
+ * 2-hour job checked as 1 hour lands on top of their next booking.
+ */
+const performerMinutes = ({ svc, member = null, option = null, addOnMinutes = 0 }) => {
+    const base = option && option.duration > 0 ? option.duration : effectiveDuration(member, svc);
+    return (base > 0 ? base : 30) + (addOnMinutes || 0);
+};
 
 /**
  * The [startMin, endMin] windows an appointment occupies FOR one member.
@@ -55,6 +86,13 @@ const memberBusyIntervals = (appt, memberId) => {
 };
 // A member is involved in a booking as its top-level performer OR a segment one.
 const memberInvolvedFilter = (memberId) => ({ $or: [{ teamMember: memberId }, { 'services.teamMember': memberId }] });
+// The owner's own work is stored unassigned (teamMember null) — on a single
+// booking, or on the segments of a multi-service ticket they perform, even when
+// a colleague is the ticket's top-level performer. Matching only `teamMember:
+// null` missed those segments, so the owner could be double-booked over them.
+const ownerInvolvedFilter = () => ({ $or: [{ teamMember: null }, { services: { $elemMatch: { teamMember: null } } }] });
+// One lane: a member id, or null for the owner's own column.
+const laneInvolvedFilter = (memberId) => (memberId ? memberInvolvedFilter(memberId) : ownerInvolvedFilter());
 
 /**
  * The busy windows an existing appointment occupies FOR one member, each WIDENED
@@ -68,8 +106,12 @@ const memberInvolvedFilter = (memberId) => ({ $or: [{ teamMember: memberId }, { 
  * so an existing booking's cleanup time reliably blocks the next slot regardless
  * of the order the two were booked.
  *
- * `memberId` null = the owner's own column (whole-ticket span). `bufferByService`
- * maps serviceId → { bufferBefore, bufferAfter } (see bufferMapForAppointments).
+ * `memberId` null = the owner's own column: an unassigned single booking, or the
+ * unassigned segments of a multi-service ticket. (It used to be the whole span of
+ * whatever it was handed, which greyed the owner for a colleague's segment of a
+ * ticket they started, and — given a provider-wide list — for every member's
+ * bookings.) `bufferByService` maps serviceId → { bufferBefore, bufferAfter }
+ * (see bufferMapForAppointments).
  */
 const memberBusyIntervalsBuffered = (appt, memberId, bufferByService = {}) => {
     const widen = (s, e, svcId) => {
@@ -77,7 +119,12 @@ const memberBusyIntervalsBuffered = (appt, memberId, bufferByService = {}) => {
         return [s - (b.bufferBefore || 0), e + (b.bufferAfter || 0)];
     };
     if (memberId == null) {
-        return [widen(toMin(appt.startTime), toMin(appt.endTime), appt.service)];
+        if (Array.isArray(appt.services) && appt.services.length) {
+            return appt.services
+                .filter(s => !s.teamMember)
+                .map(s => widen(toMin(s.startTime), toMin(s.endTime), s.service));
+        }
+        return appt.teamMember ? [] : [widen(toMin(appt.startTime), toMin(appt.endTime), appt.service)];
     }
     const id = String(memberId);
     if (Array.isArray(appt.services) && appt.services.length) {
@@ -86,6 +133,13 @@ const memberBusyIntervalsBuffered = (appt, memberId, bufferByService = {}) => {
             .map(s => widen(toMin(s.startTime), toMin(s.endTime), s.service));
     }
     return String(appt.teamMember) === id ? [widen(toMin(appt.startTime), toMin(appt.endTime), appt.service)] : [];
+};
+
+// The whole ticket span (buffered), whoever performs it — for the provider-wide
+// view, which isn't about one person.
+const wholeSpanBuffered = (appt, bufferByService = {}) => {
+    const b = bufferByService[String(appt.service)] || {};
+    return [[toMin(appt.startTime) - (b.bufferBefore || 0), toMin(appt.endTime) + (b.bufferAfter || 0)]];
 };
 
 /**
@@ -341,12 +395,20 @@ async function isMemberFree({ providerId, member, date, startTime, endTime, svc,
  * (like anyAvailableBusy) and evaluates each performer IN MEMORY with the exact
  * same predicates staffHoursReason + isMemberFree use (leave → shift replaces
  * weekly → weekly/business hours; business-wide + own blocks; buffered,
- * segment-aware appointment clash), returning the first free member's id or null.
+ * segment-aware appointment clash).
+ *
+ * Each performer is tested for THEIR OWN window: `endFor(member)` gives the end
+ * of the booking if that person does it (their duration override can make it
+ * longer than the posted window). Checking every performer against the posted
+ * window booked a 120-minute member for a 60-minute slot, straight into their
+ * next booking. Returns { memberId, endTime } for the first performer who is
+ * free for their whole window, else { memberId: null, reason } — reason
+ * 'booked' when someone was rostered and clear of blocks but already booked.
  */
-async function firstFreePerformer({ providerId, performers, date, startTime, endTime, svc, businessSchedule, soloOwner }) {
+async function firstFreePerformer({ providerId, performers, date, startTime, endTime, endFor, svc, businessSchedule, soloOwner }) {
     const key = dateStr(date);
     const startMin = toMin(startTime);
-    const endMin = toMin(endTime);
+    const postedEndMin = toMin(endTime);
     const ids = performers.map(m => m._id);
     const dayStart = new Date(date); dayStart.setHours(0, 0, 0, 0);
     const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999);
@@ -384,10 +446,18 @@ async function firstFreePerformer({ providerId, performers, date, startTime, end
     const memberBlocksBy = {}; blocks.forEach(b => { if (b.teamMember) (memberBlocksBy[String(b.teamMember)] = memberBlocksBy[String(b.teamMember)] || []).push(b); });
 
     const nStart = startMin - (svc?.bufferBefore || 0);
-    const nEnd = endMin + (svc?.bufferAfter || 0);
+    let anyBooked = false;
 
     for (const member of performers) {
         const k = String(member._id);
+        const memberEnd = endFor ? endFor(member) : endTime;
+        const endMin = toMin(memberEnd);
+        if (!(endMin > startMin)) continue;
+        // A window longer than the posted one was never business-hours checked
+        // upstream ("any" bookings are gated by the business hours) — check the
+        // extension here so a slower performer can't be booked past closing.
+        if (endMin > postedEndMin && businessSchedule && !withinSchedule(businessSchedule, date, startMin, endMin)) continue;
+        const nEnd = endMin + (svc?.bufferAfter || 0);
         // 1. Approved leave overrides everything (all-day or windowed).
         const memberLeaves = leavesBy[k] || [];
         if (memberLeaves.some(lv => (lv.allDay || lv.startTime == null || lv.endTime == null)
@@ -406,18 +476,22 @@ async function firstFreePerformer({ providerId, performers, date, startTime, end
         if (businessBlocks.some(b => overlaps(startMin, endMin, toMin(b.startTime), toMin(b.endTime)))) continue;
         if ((memberBlocksBy[k] || []).some(b => overlaps(startMin, endMin, toMin(b.startTime), toMin(b.endTime)))) continue;
         // 4. Existing appointments, buffered + segment-aware.
-        const clash = appts.some(a => memberBusyIntervalsBuffered(a, member._id, bufferByService).some(([s, e]) => overlaps(nStart, nEnd, s, e)));
-        if (clash) continue;
-        return member._id;
+        const clash = appts.some(a => overlapsAny(nStart, nEnd, memberBusyIntervalsBuffered(a, member._id, bufferByService)));
+        if (clash) { anyBooked = true; continue; }
+        return { memberId: member._id, endTime: memberEnd };
     }
-    return null;
+    return { memberId: null, reason: anyBooked ? 'booked' : 'unavailable' };
 }
 
 /**
  * Resolve which staff member (if any) a new booking lands on.
- * Returns { teamMember: ObjectId|null } or { status, error } for rejection.
+ * Returns { teamMember: ObjectId|null, endTime? } or { status, error } for
+ * rejection. `endFor(member)` is the booking's end if that member performs it
+ * (their own duration); "any available" tests each performer against their own
+ * window and returns the chosen one's endTime. A clash with an existing booking
+ * is a 409; hours, leave and blocks stay 400.
  */
-async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime, endTime, requestedTeamMember, requester }) {
+async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime, endTime, endFor, requestedTeamMember, requester }) {
     // Customer-side resolution (validate a requested member / pick "any available")
     // applies to EVERYONE except the provider who owns this business. Keying on
     // role==='customer' alone let a 'staff' (or another business's provider, or an
@@ -495,7 +569,7 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
                 providerId, member, date: appointmentDate, startTime, endTime, svc,
                 businessSchedule, enforceHours: true, ignoreWeeklyHours: soloOwner,
             });
-            if (!check.free) return { status: 400, error: UNAVAILABLE_MESSAGES[check.reason], reason: check.reason };
+            if (!check.free) return { status: check.reason === 'booked' ? 409 : 400, error: UNAVAILABLE_MESSAGES[check.reason], reason: check.reason };
         }
         // provider/admin: ownership proven via the roster; hours/blocks are overridable
         return { teamMember: member._id };
@@ -513,11 +587,15 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
     // $in queries for the whole roster instead of ~6 sequential queries per member
     // under the booking lock (see firstFreePerformer).
     const chosen = await firstFreePerformer({
-        providerId, performers, date: appointmentDate, startTime, endTime, svc,
+        providerId, performers, date: appointmentDate, startTime, endTime, endFor, svc,
         businessSchedule, soloOwner,
     });
-    if (chosen) return { teamMember: chosen };
-    return { status: 400, error: 'No staff member is available at that time. You can join the waiting list instead.', reason: 'no_staff_available' };
+    if (chosen.memberId) return { teamMember: chosen.memberId, endTime: chosen.endTime };
+    return {
+        status: chosen.reason === 'booked' ? 409 : 400,
+        error: 'No staff member is available at that time. You can join the waiting list instead.',
+        reason: 'no_staff_available',
+    };
 }
 
 /**
@@ -547,8 +625,20 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
  *
  * `appointments` is the day's already-fetched non-cancelled list, passed in so
  * the picker and this computation can never disagree about the day's bookings.
+ *
+ * Duration-aware, per performer. Merging everyone's free time and marking busy
+ * only where NOBODY is free advertised starts no single person could take for
+ * the whole service (Hilda free 13:00–14:30 + Erastus free 15:00–17:00 read as
+ * "14:00 open" for a 2-hour service). Now each performer contributes only the
+ * starts at which THEY can do the whole service at THEIR length (`duration` is
+ * the length the client will post — menu or option plus add-ons; a performer's
+ * own override replaces the menu part). The result carries:
+ *   busy       — for clients that test a [start, start+duration) window:
+ *                everything outside the union of the per-performer windows;
+ *   openStarts — the exact start ranges (inclusive, HH:MM) at which at least
+ *                one performer can take the whole booking.
  */
-async function anyAvailableBusy({ providerId, svc, date, appointments }) {
+async function anyAvailableBusy({ providerId, svc, date, appointments, duration, optionName }) {
     const key = dateStr(date);
     const roster = await TeamMember.find({ provider: providerId, isActive: true }).sort({ createdAt: 1 });
     const bookableRoster = roster.filter(m => m.bookable !== false);
@@ -595,8 +685,17 @@ async function anyAvailableBusy({ providerId, svc, date, appointments }) {
     const businessBlocks = blocks.filter(b => !b.teamMember && !b.ownerOnly).map(b => [toMin(b.startTime), toMin(b.endTime)]);
     const memberBlocksBy = byMember(blocks.filter(b => b.teamMember));
 
+    // The client's window length, and each performer's own length for the same
+    // booking (their override replaces the menu part; add-ons stay as sent).
+    const option = optionName ? (svc.options || []).find((o) => o.name === optionName) || null : null;
+    const menuMinutes = performerMinutes({ svc, member: null, option });
+    const clientMinutes = Number(duration) > 0 ? Math.round(Number(duration)) : menuMinutes;
+    const addOnMinutes = Math.max(0, clientMinutes - menuMinutes);
+
     const rosteredAll = [];
     const freeAll = [];
+    const fitAll = [];    // [a, lastStart + clientMinutes): a client window inside it is one performer's whole booking
+    const startsAll = []; // [firstStart, lastStart], inclusive
     for (const m of performers) {
         const k = String(m._id);
         const shift = shiftBy[k];
@@ -619,24 +718,58 @@ async function anyAvailableBusy({ providerId, svc, date, appointments }) {
             subtractIntervals(intersectIntervals(working, businessDay), leaveCuts),
             businessBlocks
         );
-        const cuts = (memberBlocksBy[k] || []).map(b => [toMin(b.startTime), toMin(b.endTime)]);
-        (appointments || []).forEach((a) => memberBusyIntervalsBuffered(a, m._id, bufferByService).forEach((iv) => cuts.push(iv)));
+        const ownBlocks = (memberBlocksBy[k] || []).map(b => [toMin(b.startTime), toMin(b.endTime)]);
+        const apptBusy = [];
+        (appointments || []).forEach((a) => memberBusyIntervalsBuffered(a, m._id, bufferByService).forEach((iv) => apptBusy.push(iv)));
         rosteredAll.push(...rostered);
-        freeAll.push(...subtractIntervals(rostered, cuts));
+        freeAll.push(...subtractIntervals(rostered, [...ownBlocks, ...apptBusy]));
+        // Where can THIS performer start the whole booking? Exactly what the
+        // validator (firstFreePerformer) accepts: [s, s + need) inside their
+        // working time, and — widened by the incoming service's own buffers —
+        // clear of their (buffered) bookings. Widening a booking [x, y) to
+        // [x - bufferAfter, y + bufferBefore) turns the second test into a plain
+        // overlap on [s, s + need).
+        const need = performerMinutes({ svc, member: m, option, addOnMinutes });
+        const startable = subtractIntervals(
+            subtractIntervals(rostered, ownBlocks),
+            apptBusy.map(([x, y]) => [x - (svc.bufferAfter || 0), y + (svc.bufferBefore || 0)]),
+        );
+        startable.forEach(([a, b]) => {
+            if (b - a >= need) {
+                startsAll.push([a, b - need]);
+                fitAll.push([a, b - need + clientMinutes]);
+            }
+        });
     }
 
     const rostered = mergeIntervals(rosteredAll);
-    const free = mergeIntervals(freeAll);
+    const booked = subtractIntervals(rostered, mergeIntervals(freeAll)); // rostered, but everyone occupied
+    const fit = mergeIntervals(fitAll);
     const busy = [];
     // Nobody rostered → "Unavailable" (no waitlist: there is no one to wait for).
-    subtractIntervals([[0, DAY_END]], rostered).forEach(([s, e]) => {
+    const offShift = subtractIntervals([[0, DAY_END]], rostered);
+    subtractIntervals(offShift, fit).forEach(([s, e]) => {
         busy.push({ startTime: hhmmOf(s), endTime: hhmmOf(e), kind: 'off_shift' });
     });
-    // Rostered but everyone occupied → "Taken", the waitlist makes sense.
-    subtractIntervals(rostered, free).forEach(([s, e]) => {
-        busy.push({ startTime: hhmmOf(s), endTime: hhmmOf(e), kind: 'appointment' });
+    // Rostered, but nobody can START the whole booking there. Where that is down
+    // to bookings it is "Taken" (the waitlist makes sense); where it is only the
+    // end of the day or a block coming up it reads "Unavailable".
+    subtractIntervals(subtractIntervals([[0, DAY_END]], offShift), fit).forEach(([s, e]) => {
+        const nearBooking = booked.some(([bs, be]) => bs <= e && be >= s);
+        busy.push({ startTime: hhmmOf(s), endTime: hhmmOf(e), kind: nearBooking ? 'appointment' : 'off_shift' });
     });
-    return { applied: true, busy };
+    // Closed ranges — a single-minute range (a gap exactly the service long) is kept.
+    const openStarts = [];
+    startsAll.sort((x, y) => x[0] - y[0]).forEach(([s, e]) => {
+        const last = openStarts[openStarts.length - 1];
+        if (last && s <= last[1] + 1) last[1] = Math.max(last[1], e);
+        else openStarts.push([s, e]);
+    });
+    return {
+        applied: true,
+        busy,
+        openStarts: openStarts.map(([s, e]) => ({ start: hhmm(s), end: hhmm(Math.min(e, DAY_END - 1)) })),
+    };
 }
 
 /**
@@ -711,7 +844,8 @@ async function memberDayHours({ providerId, member, date }) {
 module.exports = {
     memberDayHours,
     resolveBookingStaff, isMemberFree, firstFreePerformer, performsService, ownerPerforms, staffHoursReason,
-    memberBusyIntervals, memberBusyIntervalsBuffered, bufferMapForAppointments,
-    memberInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy,
+    memberBusyIntervals, memberBusyIntervalsBuffered, wholeSpanBuffered, bufferMapForAppointments,
+    memberInvolvedFilter, ownerInvolvedFilter, laneInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy,
     pickRotationWeek, scheduleDayIntervals, withinSchedule,
+    overlapsAny, windowFits, performerMinutes,
 };

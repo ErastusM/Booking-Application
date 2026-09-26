@@ -52,7 +52,7 @@ describe('Group booking enforces the same constraints as a single booking', () =
             clients: [{ name: 'Group A' }, { name: 'Group B' }],
         });
 
-        expect(res.status).toBe(400);
+        expect(res.status).toBe(409);
         expect(res.body.message).toMatch(/already booked/i);
         // The original booking must survive and nothing may be written on top of it.
         expect(await Appointment.countDocuments({})).toBe(1);

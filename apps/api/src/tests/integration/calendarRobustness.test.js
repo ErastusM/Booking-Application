@@ -164,7 +164,7 @@ describe('Edit cannot create a conflict', () => {
             .set(authHeader(admin))
             .send({ startTime: '10:00' });
 
-        expect(res.status).toBe(400);
+        expect(res.status).toBe(409);
         expect(res.body.message).toMatch(/already booked/i);
 
         // B is unchanged

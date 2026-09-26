@@ -141,7 +141,7 @@ describe('batch reschedule — it is one unit or nothing', () => {
             ],
         });
 
-        expect(res.status).toBe(400);
+        expect(res.status).toBe(409);
         expect(res.body.message).toMatch(/overlap each other/i);
         expect((await Appointment.findById(a._id)).startTime).toBe('10:00');
     });

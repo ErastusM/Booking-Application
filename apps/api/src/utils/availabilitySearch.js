@@ -16,7 +16,7 @@ const Appointment = require('../models/Appointment');
 const Shift = require('../models/Shift');
 const TimeOff = require('../models/TimeOff');
 const { NAMIBIA_OFFSET_MIN } = require('./appointmentTime');
-const { pickRotationWeek } = require('./staffBooking');
+const { pickRotationWeek, memberBusyIntervalsBuffered } = require('./staffBooking');
 const { bookableMembersByProvider, hasPerformer } = require('./serviceOffering');
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -87,7 +87,7 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
             provider: { $in: candidateIds },
             appointmentDate: { $gte: dayStart, $lte: dayEnd },
             status: { $nin: ['cancelled'] },
-        }).select('provider teamMember startTime endTime'),
+        }).select('provider teamMember startTime endTime services'),
     ]);
     const memberIds = members.map(m => m._id);
     // Roster shape for THIS date, mirroring the booking validator's precedence
@@ -143,8 +143,12 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
             const busy = [];
             appts.forEach(a => {
                 if (a.provider.toString() !== pid) return;
-                const col = a.teamMember ? a.teamMember.toString() : null;
-                if (col === memberId) busy.push({ start: toMin(a.startTime), end: toMin(a.endTime) });
+                // This column's OWN windows: a member's segments of a multi-service
+                // ticket (or their single booking); for the owner column the
+                // unassigned ones. The top-level performer + whole span missed a
+                // colleague's segment and offered an opening the booking refuses.
+                // (Unbuffered: search promises an opening, see above.)
+                memberBusyIntervalsBuffered(a, memberId, {}).forEach(([s, e]) => busy.push({ start: s, end: e }));
             });
             blocked.forEach(b => {
                 if (b.provider.toString() !== pid) return;

@@ -21,7 +21,7 @@ const {
     sendStaffBookingAlert,
 } = require('../utils/emailService');
 const calendarHelper = require('../utils/calendarHelper');
-const { resolveBookingStaff, staffHoursReason, memberBusyIntervalsBuffered, bufferMapForAppointments, memberInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy, performsService, pickRotationWeek } = require('../utils/staffBooking');
+const { resolveBookingStaff, staffHoursReason, memberBusyIntervalsBuffered, wholeSpanBuffered, bufferMapForAppointments, memberInvolvedFilter, laneInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy, performsService, pickRotationWeek, overlapsAny, performerMinutes } = require('../utils/staffBooking');
 const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, findBusinessWideBlocksForDate, toDateKey, BLOCKED_MESSAGE } = require('../utils/blockedTime');
 const { overrideFor } = require('../utils/memberPricing');
 const { recordBookingRejection, rejectionsSummary } = require('../utils/bookingRejections');
@@ -185,48 +185,71 @@ const isTimeWithinSchedule = (schedule, appointmentDate, startTime, durationMinu
 
 const hasConflictingAppointment = async (providerId, appointmentDate, startTime, endTime, excludeId, opts = {}) => {
     if (!providerId) return false;
-    const { teamMember = null, bufferBefore = 0, bufferAfter = 0 } = opts;
+    const { teamMember = null, bufferBefore = 0, bufferAfter = 0, appointment = null } = opts;
     const start = new Date(appointmentDate);
     start.setHours(0, 0, 0, 0);
     const end = new Date(appointmentDate);
     end.setHours(23, 59, 59, 999);
-    // Per-staff: only the SAME member's bookings collide — different staff can
+
+    // WHO is busy WHEN if the booking sits at [startTime, endTime]. A single
+    // booking is one window for its one performer. A multi-service ticket being
+    // moved is one window PER SEGMENT, each for that segment's own performer
+    // (shifted with the move) — checking the whole span against the top-level
+    // performer alone never looked at the colleague doing segment 2, and refused
+    // the primary for time only the colleague needs.
+    let windows = [{ teamMember: teamMember || null, s: parseTimeToMinutes(startTime), e: parseTimeToMinutes(endTime), before: bufferBefore || 0, after: bufferAfter || 0 }];
+    const segs = appointment && Array.isArray(appointment.services) && appointment.services.length ? appointment.services : null;
+    if (segs) {
+        const delta = parseTimeToMinutes(startTime) - parseTimeToMinutes(appointment.startTime);
+        const segBuffers = await bufferMapForAppointments([{ services: segs }]);
+        windows = segs.map((seg) => {
+            const b = segBuffers[String(seg.service?._id || seg.service)] || {};
+            return {
+                teamMember: seg.teamMember?._id || seg.teamMember || null,
+                s: parseTimeToMinutes(seg.startTime) + delta,
+                e: parseTimeToMinutes(seg.endTime) + delta,
+                before: b.bufferBefore || 0,
+                after: b.bufferAfter || 0,
+            };
+        });
+    }
+    // Per-staff: only the SAME person's bookings collide — different staff can
     // hold the same clock time, and teamMember null is the owner's own column.
-    // For a named member this matches bookings where they are the top-level OR a
-    // segment performer, so a colleague's multi-service segment is no longer
-    // invisible to the conflict check (the double-booking this closes).
-    const memberScope = teamMember ? memberInvolvedFilter(teamMember) : { teamMember: null };
+    // Each lane matches bookings where that person is the top-level OR a segment
+    // performer (the owner's segments are the unassigned ones).
+    const lanes = [...new Map(windows.map((w) => [String(w.teamMember || ''), w.teamMember])).values()];
+    const laneOr = lanes.flatMap((l) => laneInvolvedFilter(l).$or);
     const existing = await Appointment.find({
         provider: providerId,
         appointmentDate: { $gte: start, $lte: end },
         status: { $nin: ['cancelled'] },
-        ...memberScope,
+        $or: laneOr,
         // Accepts one id or many: a batch reschedule has to ignore every booking
         // it is itself moving, or each move would "conflict" with its siblings'
         // stale positions. $nin with a single element behaves exactly like $ne.
         _id: { $nin: Array.isArray(excludeId) ? excludeId : [excludeId] },
     }).select('startTime endTime services teamMember service');
-    // Expand the incoming booking by its service buffers so a reschedule can't land
-    // flush against a booking whose service reserves cleanup time.
-    const newStart = parseTimeToMinutes(startTime) - (bufferBefore || 0);
-    const newEnd = parseTimeToMinutes(endTime) + (bufferAfter || 0);
-    // Each existing booking is widened by ITS OWN service buffers too — otherwise
-    // an existing booking's cleanup time only blocks a following one depending on
-    // which was booked first (memberBusyIntervalsBuffered). A named member is busy
-    // only over their own segment windows; teamMember null is the owner column.
+    // The incoming window is widened by its service buffers, and each existing
+    // booking by ITS OWN service buffers too — otherwise an existing booking's
+    // cleanup time only blocks a following one depending on which was booked
+    // first (memberBusyIntervalsBuffered).
     const bufferByService = await bufferMapForAppointments(existing);
-    return existing.some(a =>
-        memberBusyIntervalsBuffered(a, teamMember || null, bufferByService)
-            .some(([s, e]) => timesOverlap(newStart, newEnd, s, e)));
+    return windows.some((w) => existing.some((a) =>
+        overlapsAny(w.s - w.before, w.e + w.after, memberBusyIntervalsBuffered(a, w.teamMember, bufferByService))));
 };
 
 // The teamMember + buffers a reschedule/revival must check against — the moved
-// booking's own assigned member and its service's cleanup buffers.
+// booking's own assigned member and its service's cleanup buffers, plus the
+// booking itself so a multi-service ticket is checked segment by segment.
 const conflictScope = (appointment) => ({
     teamMember: appointment.teamMember || null,
     bufferBefore: appointment.service?.bufferBefore || 0,
     bufferAfter: appointment.service?.bufferAfter || 0,
+    appointment,
 });
+
+// A clash with an existing booking of the same person is a 409 Conflict.
+const SLOT_TAKEN_MESSAGE = 'This time slot is already booked. You can join the waiting list instead.';
 
 /**
  * Post-write conflict re-check for a reschedule, and roll back if it lost.
@@ -333,10 +356,11 @@ const filterBookableOccurrences = async ({
         Appointment.find({
             provider: providerId,
             // Segment-aware, like every other overlap path: a member is busy where
-            // they are the top-level OR a segment performer. A bare exact match
-            // missed an existing multi-service booking where this member ran only
-            // one segment, letting a recurring occurrence double-book them.
-            ...(teamMember ? memberInvolvedFilter(teamMember) : { teamMember: null }),
+            // they are the top-level OR a segment performer (the owner where they
+            // are unassigned). A bare exact match missed an existing multi-service
+            // booking where this person ran only one segment, letting a recurring
+            // occurrence double-book them.
+            ...laneInvolvedFilter(teamMember || null),
             appointmentDate: { $gte: rangeStart, $lte: rangeEnd },
             status: { $nin: ['cancelled'] },
         }).select('appointmentDate startTime endTime services teamMember service').lean(),
@@ -372,7 +396,7 @@ const filterBookableOccurrences = async ({
     const nStart = start - (svc?.bufferBefore || 0);
     const nEnd = end + (svc?.bufferAfter || 0);
     const apptClashes = (list) => (list || []).some(a =>
-        memberBusyIntervalsBuffered(a, teamMember || null, bufferByService).some(([s, e]) => nStart < e && nEnd > s));
+        overlapsAny(nStart, nEnd, memberBusyIntervalsBuffered(a, teamMember || null, bufferByService)));
 
     const kept = [];
     const skipped = [];
@@ -418,7 +442,7 @@ const filterBookableOccurrences = async ({
  */
 exports.getBookedSlots = async (req, res) => {
     try {
-        const { providerId, date, teamMember, service } = req.query;
+        const { providerId, date, teamMember, service, duration, option, exclude } = req.query;
         if (!providerId || !date) {
             return res.status(400).json({ success: false, message: 'providerId and date are required' });
         }
@@ -439,12 +463,15 @@ exports.getBookedSlots = async (req, res) => {
             appointmentDate: { $gte: start, $lte: end },
             status: { $nin: ['cancelled'] },
         };
+        // A reschedule picker leaves out the booking being moved — it is not in the
+        // way of itself (the server excludes it too). Only ever hides, never adds.
+        if (exclude && require('mongoose').isValidObjectId(exclude)) query._id = { $ne: exclude };
         // Additive: scope busy times to one staff member. Without it the query
         // stays provider-wide, exactly as before. A named member matches bookings
         // where they are the top-level OR a segment performer, so a multi-service
-        // segment assigned to them is no longer missed by the picker.
-        if (memberId) Object.assign(query, memberInvolvedFilter(memberId));
-        else if (ownerColumn) query.teamMember = null; // owner's own unassigned bookings only
+        // segment assigned to them is no longer missed by the picker; the owner's
+        // column is their unassigned bookings AND unassigned segments.
+        if (memberId || ownerColumn) Object.assign(query, laneInvolvedFilter(memberId));
 
         const Shift = require('../models/Shift');
         const TimeOff = require('../models/TimeOff');
@@ -476,11 +503,14 @@ exports.getBookedSlots = async (req, res) => {
         // belong to this provider — otherwise the param is ignored, not an error,
         // so a stale client link degrades to the legacy view instead of breaking.
         if (!teamMember && service && require('mongoose').isValidObjectId(service)) {
-            const svcDoc = await Service.findById(service).select('provider ownerPerforms').lean();
+            const svcDoc = await Service.findById(service).select('provider ownerPerforms duration options bufferBefore bufferAfter').lean();
             if (svcDoc && String(svcDoc.provider) === String(providerId)) {
                 // ownerPerforms travels with the id: the owner-column fallback only
-                // applies to a service the owner actually offers.
-                const anyView = await anyAvailableBusy({ providerId, svc: svcDoc, date, appointments });
+                // applies to a service the owner actually offers. `duration` (the
+                // length the client will post) and `option` make the view
+                // per-performer: only starts where ONE person can do the whole
+                // service at their own length.
+                const anyView = await anyAvailableBusy({ providerId, svc: svcDoc, date, appointments, duration, optionName: option });
                 if (anyView.applied) {
                     // Re-emit ONLY business-wide blocks — NOT the owner's own
                     // (ownerOnly) blocks. `blocks` above was fetched with a null
@@ -498,6 +528,9 @@ exports.getBookedSlots = async (req, res) => {
                             ...bizBlocks.map(b => ({ startTime: b.startTime, endTime: b.endTime, kind: 'blocked' })),
                         ],
                         shiftWindow: null,
+                        // Exact start ranges (inclusive) where one performer can take
+                        // the whole booking; clients that know it test starts against it.
+                        openStarts: anyView.openStarts || null,
                     });
                 }
             }
@@ -517,7 +550,12 @@ exports.getBookedSlots = async (req, res) => {
         };
         const apptBusy = [];
         appointments.forEach((a) => {
-            memberBusyIntervalsBuffered(a, memberId, slotBuffers).forEach(([s, e]) =>
+            // One person's own windows (a member's segments; the owner's unassigned
+            // ones), or — provider-wide, no person named — the whole ticket.
+            const windows = (memberId || ownerColumn)
+                ? memberBusyIntervalsBuffered(a, memberId, slotBuffers)
+                : wholeSpanBuffered(a, slotBuffers);
+            windows.forEach(([s, e]) =>
                 apptBusy.push({ startTime: minToHHMM(s), endTime: minToHHMM(e), teamMember: a.teamMember, kind: 'appointment' }));
         });
 
@@ -1219,15 +1257,17 @@ exports.createAppointment = async (req, res) => {
         // no specific member here and keep the business default.
         let memberPriceOverride = null;
         let memberDurationOverride = null;
+        let reqMember = null;
         // 'owner' is the sentinel for the owner's own column, not a real member id
         // — the owner books at the business's default price/duration.
-        if (effectiveTeamMember && effectiveTeamMember !== 'owner' && providerId) {
-            const reqMember = await TeamMember.findOne({ _id: effectiveTeamMember, provider: providerId }).select('serviceOverrides');
+        if (effectiveTeamMember && effectiveTeamMember !== 'owner' && providerId
+            && require('mongoose').isValidObjectId(effectiveTeamMember)) {
+            reqMember = await TeamMember.findOne({ _id: effectiveTeamMember, provider: providerId }).select('serviceOverrides');
             const ov = reqMember ? overrideFor(reqMember, svc._id) : null;
             if (ov && ov.price != null) memberPriceOverride = ov.price;
             if (ov && ov.duration != null) memberDurationOverride = ov.duration;
         }
-        const baseServicePrice = chosenOption
+        let baseServicePrice = chosenOption
             ? (chosenOption.price || 0)
             : (memberPriceOverride != null ? memberPriceOverride : (svc.price || 0));
 
@@ -1258,6 +1298,35 @@ exports.createAppointment = async (req, res) => {
             const allowed = new Set(baseDurations.map(dur => dur + addOnDuration));
             if (bookingDuration <= 0 || !allowed.has(bookingDuration)) {
                 return res.status(400).json({ success: false, message: 'The selected time doesn’t match the service length. Please choose your service and time again.' });
+            }
+        }
+
+        // The window every check below runs on — and that is stored — is the
+        // performer's REAL one. A client's length was validated above; for "any
+        // available" the chosen performer's own duration (#228) governs, and the
+        // owner (who skips the length check) may lengthen a booking but never post
+        // it shorter than the service: a 2-hour job posted as 14:00–15:00 next to
+        // a 15:00 booking was accepted and stored as one hour.
+        const startMin = parseTimeToMinutes(startTime);
+        const postedMinutes = parseTimeToMinutes(endTime) - startMin;
+        const endFor = (member) => {
+            let minutes = postedMinutes;
+            if (isCustomerLike) {
+                const ov = member ? overrideFor(member, svc._id) : null;
+                if (!chosenOption && ov && ov.duration != null) minutes = ov.duration + addOnDuration;
+            } else {
+                minutes = Math.max(postedMinutes, performerMinutes({ svc, member, option: chosenOption, addOnMinutes: addOnDuration }));
+            }
+            // Past midnight can't be stored (see validBookingWindow) — no window.
+            return startMin + minutes < 24 * 60 ? minutesToTime(startMin + minutes) : null;
+        };
+        // A named member (or the owner's own column) is known now; "any available"
+        // is settled by resolveBookingStaff below.
+        let bookingEnd = endTime;
+        if (reqMember || !isCustomerLike) {
+            bookingEnd = endFor(reqMember);
+            if (!bookingEnd) {
+                return res.status(400).json({ success: false, message: 'A booking must end after it starts, on the same day.' });
             }
         }
 
@@ -1292,7 +1361,9 @@ exports.createAppointment = async (req, res) => {
         let resolvedTeamMember = teamMember || null;
         if (providerId) {
             const resolution = await resolveBookingStaff({
-                svc, providerId, appointmentDate, startTime, endTime,
+                svc, providerId, appointmentDate, startTime, endTime: bookingEnd,
+                // "Any available" tests each performer for their own length.
+                endFor,
                 // Guests resolve staff exactly like a customer ("any available").
                 // A staff walk-in (or a Service provider's booking for their own
                 // client) is forced onto the booker's own column; resolveBookingStaff
@@ -1308,6 +1379,13 @@ exports.createAppointment = async (req, res) => {
                 return res.status(resolution.status).json({ success: false, message: resolution.error });
             }
             resolvedTeamMember = resolution.teamMember;
+            // "Any available" picked someone: book THEIR length, at THEIR price.
+            if (resolution.endTime) bookingEnd = resolution.endTime;
+            if (resolvedTeamMember && !reqMember && !chosenOption) {
+                const picked = await TeamMember.findOne({ _id: resolvedTeamMember, provider: providerId }).select('serviceOverrides');
+                const ov = picked ? overrideFor(picked, svc._id) : null;
+                if (ov && ov.price != null) baseServicePrice = ov.price;
+            }
         }
 
         // Blocked time is a hard stop for customers and guests. resolveBookingStaff
@@ -1317,7 +1395,7 @@ exports.createAppointment = async (req, res) => {
         // they may deliberately book a walk-in into their own blocked time.
         if (isCustomerLike && providerId) {
             const blocked = await overlapsBlockedTime({
-                providerId, appointmentDate, startTime, endTime, teamMember: resolvedTeamMember,
+                providerId, appointmentDate, startTime, endTime: bookingEnd, teamMember: resolvedTeamMember,
             });
             if (blocked) {
                 recordBookingRejection({ providerId, reason: 'blocked', date: appointmentDate, startTime });
@@ -1326,33 +1404,20 @@ exports.createAppointment = async (req, res) => {
         }
 
         if (providerId) {
-            const [newSH, newSM] = startTime.split(':').map(Number);
-            const [newEH, newEM] = endTime.split(':').map(Number);
-            // Buffer minutes around the new booking are treated as occupied
-            const newStart = newSH * 60 + newSM - (svc.bufferBefore || 0);
-            const newEnd = newEH * 60 + newEM + (svc.bufferAfter || 0);
-            const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
-            const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
             // Per-staff conflicts: different team members can be booked concurrently.
-            // When a staff member is set, count bookings where they are the
-            // top-level OR a segment performer (over that member's own segment
-            // windows); otherwise the provider's own (unassigned) bookings count.
+            // The resolved person's own windows count — top-level or segment
+            // performer (a member), or the unassigned ones (the owner) — each
+            // widened by its buffers, against the WHOLE service at their length.
             // Runs AFTER resolution so it re-checks the resolved member — the race
             // backstop.
-            const overlapQuery = {
-                provider: providerId,
-                appointmentDate: { $gte: dayStart, $lte: dayEnd },
-                status: { $nin: ['cancelled'] },
-                ...(resolvedTeamMember ? memberInvolvedFilter(resolvedTeamMember) : { teamMember: null }),
-            };
-            const existing = await Appointment.find(overlapQuery).select('startTime endTime teamMember services service');
-            const bufferByService = await bufferMapForAppointments(existing);
-            const hasOverlap = existing.some(a =>
-                memberBusyIntervalsBuffered(a, resolvedTeamMember || null, bufferByService)
-                    .some(([s, e]) => newStart < e && newEnd > s));
+            const hasOverlap = await hasConflictingAppointment(providerId, appointmentDate, startTime, bookingEnd, null, {
+                teamMember: resolvedTeamMember || null,
+                bufferBefore: svc.bufferBefore || 0,
+                bufferAfter: svc.bufferAfter || 0,
+            });
             if (hasOverlap) {
                 if (isCustomerLike) recordBookingRejection({ providerId, reason: 'slot_taken', date: appointmentDate, startTime });
-                return res.status(400).json({ success: false, message: 'This time slot is already booked. You can join the waiting list instead.' });
+                return res.status(409).json({ success: false, code: 'slot_taken', message: SLOT_TAKEN_MESSAGE });
             }
         } else {
             // Fallback for services without a provider: check by service+time
@@ -1363,7 +1428,7 @@ exports.createAppointment = async (req, res) => {
                 status: { $nin: ['cancelled'] },
             });
             if (existingAppointment) {
-                return res.status(400).json({ success: false, message: 'This time slot is already booked. You can join the waiting list instead.' });
+                return res.status(409).json({ success: false, code: 'slot_taken', message: SLOT_TAKEN_MESSAGE });
             }
         }
 
@@ -1420,7 +1485,7 @@ exports.createAppointment = async (req, res) => {
             provider: svc.provider || null,
             locationId: locRes.locationId,
             startTime,
-            endTime,
+            endTime: bookingEnd,
             notes: notes || '',
             selectedAddOns: resolvedAddOns,
             selectedOptionName: chosenOption ? chosenOption.name : null,
@@ -1495,9 +1560,9 @@ exports.createAppointment = async (req, res) => {
                 // Drop occurrences that land on blocked time, a closed day, or an
                 // existing booking — previously every date was inserted unchecked.
                 const { kept, skipped } = await filterBookableOccurrences({
-                    providerId, dates: candidates, startTime, endTime,
+                    providerId, dates: candidates, startTime, endTime: bookingEnd,
                     teamMember: resolvedTeamMember, schedule: providerSchedule,
-                    duration: parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime),
+                    duration: parseTimeToMinutes(bookingEnd) - parseTimeToMinutes(startTime),
                     enforceHoursAndBlocks: isCustomerLike, svc,
                 });
                 skippedDates = skipped;
@@ -1508,7 +1573,7 @@ exports.createAppointment = async (req, res) => {
                 // series), so without this the just-closed create race stays open for
                 // a recurring booking's first date — two concurrent recurring bookings
                 // could both land their anchor on the same person/slot.
-                if (providerId && await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, null, {
+                if (providerId && await hasConflictingAppointment(providerId, appointmentDate, startTime, bookingEnd, null, {
                     teamMember: resolvedTeamMember || null,
                     bufferBefore: svc.bufferBefore || 0,
                     bufferAfter: svc.bufferAfter || 0,
@@ -1523,7 +1588,7 @@ exports.createAppointment = async (req, res) => {
                 return;
             }
             // Authoritative overlap re-check INSIDE the lock, then insert.
-            if (providerId && await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, null, {
+            if (providerId && await hasConflictingAppointment(providerId, appointmentDate, startTime, bookingEnd, null, {
                 teamMember: resolvedTeamMember || null,
                 bufferBefore: svc.bufferBefore || 0,
                 bufferAfter: svc.bufferAfter || 0,
@@ -1550,7 +1615,7 @@ exports.createAppointment = async (req, res) => {
         } catch (err) {
             if (err.code === 'BOOKING_BUSY' || err.code === 'SLOT_TAKEN') {
                 if (isCustomerLike) recordBookingRejection({ providerId, reason: 'slot_taken', date: appointmentDate, startTime });
-                return res.status(400).json({ success: false, message: 'This time slot was just booked. You can join the waiting list instead.' });
+                return res.status(409).json({ success: false, code: 'slot_taken', message: 'This time slot was just booked. You can join the waiting list instead.' });
             }
             throw err;
         }
@@ -1618,7 +1683,7 @@ exports.createAppointment = async (req, res) => {
                         // Member gets an email too (owner fallback has no email → in-app/push only, as before).
                         // Guarded so a partial emailService mock in a test can't throw and skip the notices below.
                         if (t.email && typeof sendStaffBookingAlert === 'function') {
-                            sendStaffBookingAlert(t.email, t.name, svc.name, bookingDate, `${startTime} – ${endTime}`, clientLabel).catch(() => {});
+                            sendStaffBookingAlert(t.email, t.name, svc.name, bookingDate, `${startTime} – ${bookingEnd}`, clientLabel).catch(() => {});
                         }
                     }
                 }
@@ -1641,12 +1706,12 @@ exports.createAppointment = async (req, res) => {
 
             try {
                 const dateStr = new Date(appointmentDate).toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-                const timeStr = `${startTime} – ${endTime}`;
+                const timeStr = `${startTime} – ${bookingEnd}`;
                 // Shared helper: emits a real UTC instant. The old inline builder wrote a
                 // floating stamp with no zone, which Google reads as UTC — showing a 10:00
                 // booking as 12:00 to a CAT (UTC+2) reader.
                 const gcalUrl = calendarHelper.googleCalendarUrl({
-                    title: svc.name, appointmentDate, startTime, endTime,
+                    title: svc.name, appointmentDate, startTime, endTime: bookingEnd,
                     details: 'Booked via Bookplus',
                 });
 
@@ -1665,7 +1730,7 @@ exports.createAppointment = async (req, res) => {
                     // Downloadable .ics so the booking drops straight into any calendar app.
                     ics: calendarHelper.buildIcs({
                         uid: `${appointment._id}@bookplus`, title: svc.name,
-                        appointmentDate, startTime, endTime,
+                        appointmentDate, startTime, endTime: bookingEnd,
                         description: 'Booked via Bookplus', location: address || undefined, status: 'CONFIRMED',
                     }),
                 };
@@ -1857,12 +1922,13 @@ exports.createMultiServiceAppointment = async (req, res) => {
                 const segMember = seg.teamMember || teamMember || null;
                 const segStart = parseTimeToMinutes(seg.startTime);
                 const segEnd = parseTimeToMinutes(seg.endTime);
-                return sameDay.some(a => memberBusyIntervalsBuffered(a, segMember, sameDayBuffers).some(([s, e]) => segStart < e && segEnd > s));
+                // segMember null = the owner: their unassigned bookings and segments.
+                return sameDay.some(a => overlapsAny(segStart, segEnd, memberBusyIntervalsBuffered(a, segMember, sameDayBuffers)));
             });
         };
         // Fast pre-check outside the lock (good UX); the lock re-checks authoritatively.
         if (await segmentsClash()) {
-            return res.status(400).json({ success: false, message: 'That time overlaps an existing booking for one of the selected staff members.' });
+            return res.status(409).json({ success: false, code: 'slot_taken', message: 'That time overlaps an existing booking for one of the selected staff members.' });
         }
 
         // Payment: reuse the provider's wallet config. Provider bookings are never
@@ -1910,7 +1976,7 @@ exports.createMultiServiceAppointment = async (req, res) => {
             });
         } catch (err) {
             if (err.code === 'BOOKING_BUSY' || err.code === 'SLOT_TAKEN') {
-                return res.status(400).json({ success: false, message: 'That time overlaps an existing booking for one of the selected staff members.' });
+                return res.status(409).json({ success: false, code: 'slot_taken', message: 'That time overlaps an existing booking for one of the selected staff members.' });
             }
             throw err;
         }
@@ -2020,7 +2086,7 @@ exports.updateAppointment = async (req, res) => {
                     return res.status(400).json({ success: false, message: 'Selected time is outside the availability schedule' });
                 }
                 if (await hasConflictingAppointment(providerId, newDate, newStart, newEnd, appointment._id, conflictScope(appointment))) {
-                    return res.status(400).json({ success: false, message: 'This time slot is already booked' });
+                    return res.status(409).json({ success: false, code: 'slot_taken', message: 'This time slot is already booked' });
                 }
                 // Parity with the customer/provider/guest reschedule paths: an edit
                 // must not land on provider blocked time or a staff member's rostered
@@ -2267,7 +2333,7 @@ exports.updateAppointmentStatus = async (req, res) => {
                     revProviderId, appointment.appointmentDate, appointment.startTime, appointment.endTime, appointment._id, conflictScope(appointment),
                 );
                 if (conflict) {
-                    return res.status(400).json({ success: false, message: 'That slot has since been booked, so this cancelled appointment can’t be reinstated.' });
+                    return res.status(409).json({ success: false, code: 'slot_taken', message: 'That slot has since been booked, so this cancelled appointment can’t be reinstated.' });
                 }
                 if (await overlapsBlockedTime({
                     providerId: revProviderId, appointmentDate: appointment.appointmentDate,
@@ -2484,7 +2550,7 @@ exports.providerRescheduleAppointment = async (req, res) => {
 
         const conflict = await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appointment._id, conflictScope(appointment));
         if (conflict) {
-            return res.status(400).json({ success: false, message: 'This time slot is already booked' });
+            return res.status(409).json({ success: false, code: 'slot_taken', message: 'This time slot is already booked' });
         }
 
         const shifted = shiftedSegments(appointment, startMinutes);
@@ -2693,7 +2759,7 @@ exports.providerBatchReschedule = async (req, res) => {
                 const aStart = parseTimeToMinutes(a.startTime) - (a.scope.bufferBefore || 0);
                 const aEnd = parseTimeToMinutes(a.endTime) + (a.scope.bufferAfter || 0);
                 if (timesOverlap(aStart, aEnd, parseTimeToMinutes(b.startTime), parseTimeToMinutes(b.endTime))) {
-                    return res.status(400).json({ success: false, message: 'Those moves overlap each other' });
+                    return res.status(409).json({ success: false, code: 'slot_taken', message: 'Those moves overlap each other' });
                 }
             }
         }
@@ -2920,7 +2986,7 @@ exports.rescheduleAppointment = async (req, res) => {
             }
             const conflict = await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appointment._id, conflictScope(appointment));
             if (conflict) {
-                return res.status(400).json({ success: false, message: 'This time slot is already booked' });
+                return res.status(409).json({ success: false, code: 'slot_taken', message: 'This time slot is already booked' });
             }
             // Same hard stop as booking: a customer must not be able to move an
             // appointment onto time the provider has blocked off.
@@ -2994,7 +3060,9 @@ exports.rescheduleAppointment = async (req, res) => {
 /* --- Group Bookings --- */
 exports.createGroupBooking = async (req, res) => {
     try {
-        const { service, appointmentDate, startTime, endTime, clients, groupSize, notes, teamMember } = req.body;
+        const { service, appointmentDate, startTime, endTime: postedEnd, clients, groupSize, notes, teamMember } = req.body;
+        // Reassigned below to the performer's real end (never shorter than the service).
+        let endTime = postedEnd;
         if (!clients || !Array.isArray(clients) || clients.length === 0) {
             return res.status(400).json({ success: false, message: 'At least one client is required' });
         }
@@ -3003,6 +3071,24 @@ exports.createGroupBooking = async (req, res) => {
         }
         const svc = await Service.findById(service);
         if (!svc) return res.status(404).json({ success: false, message: 'Service not found' });
+
+        // The group sits in ONE window that must hold the whole service at the
+        // performer's own length (their duration override, else the menu). The
+        // posted endTime was trusted, so a 2-hour group posted as one hour was
+        // checked — and stored — as one hour, right up against the next booking.
+        // It may be longer (the owner's choice); never shorter.
+        {
+            const performerId = req.user.role === 'staff' ? null : (teamMember && teamMember !== 'owner' ? teamMember : null);
+            const perfDoc = performerId && require('mongoose').isValidObjectId(performerId)
+                ? await TeamMember.findOne({ _id: performerId, provider: svc.provider }).select('serviceOverrides')
+                : (req.user.role === 'staff' ? await TeamMember.findOne({ user: req.user._id, provider: req.user.staffOf }).select('serviceOverrides') : null);
+            const s0 = parseTimeToMinutes(startTime);
+            const need = Math.max(parseTimeToMinutes(postedEnd) - s0, performerMinutes({ svc, member: perfDoc }));
+            if (s0 + need >= 24 * 60) {
+                return res.status(400).json({ success: false, message: 'A booking must end after it starts, on the same day.' });
+            }
+            endTime = minutesToTime(s0 + need);
+        }
 
         // This path used to insert straight to the DB with no validation at all,
         // while the single-booking path enforced every one of these. Flipping the
@@ -3098,32 +3184,17 @@ exports.createGroupBooking = async (req, res) => {
         // group bookings for the same member both pass and both write.
         const groupOverlaps = async () => {
             if (!providerId) return false;
-            const [newSH, newSM] = startTime.split(':').map(Number);
-            const [newEH, newEM] = endTime.split(':').map(Number);
-            const newStart = newSH * 60 + newSM - (svc.bufferBefore || 0);
-            const newEnd = newEH * 60 + newEM + (svc.bufferAfter || 0);
-            const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
-            const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
-            // Segment- AND buffer-aware, matching the single-booking overlap check.
-            // An exact `teamMember` match + raw window compare missed an existing
-            // multi-service ticket where THIS member performs only a segment (its
-            // top-level teamMember is a colleague), and ignored service buffers —
-            // both let a group booking double-book the member or sit inside another
-            // booking's reserved cleanup time.
-            const existing = await Appointment.find({
-                provider: providerId,
-                appointmentDate: { $gte: dayStart, $lte: dayEnd },
-                status: { $nin: ['cancelled'] },
-                ...(resolvedTeamMember ? memberInvolvedFilter(resolvedTeamMember) : { teamMember: null }),
-            }).select('startTime endTime teamMember services service');
-            const bufferByService = await bufferMapForAppointments(existing);
-            return existing.some(a =>
-                memberBusyIntervalsBuffered(a, resolvedTeamMember || null, bufferByService)
-                    .some(([s, e]) => newStart < e && newEnd > s));
+            // Segment- AND buffer-aware and lane-exact (a member's own windows, or
+            // the owner's unassigned ones), the same check as every other path.
+            return hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, null, {
+                teamMember: resolvedTeamMember || null,
+                bufferBefore: svc.bufferBefore || 0,
+                bufferAfter: svc.bufferAfter || 0,
+            });
         };
         // Fast pre-check outside the lock; the lock re-checks authoritatively.
         if (await groupOverlaps()) {
-            return res.status(400).json({ success: false, message: 'This time slot is already booked. You can join the waiting list instead.' });
+            return res.status(409).json({ success: false, code: 'slot_taken', message: SLOT_TAKEN_MESSAGE });
         }
 
         const gid = randomUUID();
@@ -3160,7 +3231,7 @@ exports.createGroupBooking = async (req, res) => {
             }
         } catch (err) {
             if (err.code === 'BOOKING_BUSY' || err.code === 'SLOT_TAKEN') {
-                return res.status(400).json({ success: false, message: 'This time slot is already booked. You can join the waiting list instead.' });
+                return res.status(409).json({ success: false, code: 'slot_taken', message: SLOT_TAKEN_MESSAGE });
             }
             throw err;
         }
@@ -3250,6 +3321,11 @@ exports.getAppointmentByToken = async (req, res) => {
                 staff: appt.teamMember ? appt.teamMember.name : null,
                 clientName: appt.walkInName || appt.guestName || null,
                 schedule,
+                // For the reschedule picker's busy times: this booking's business and
+                // person ('owner' = the unassigned column) — the same public ids the
+                // booking page uses.
+                providerId: appt.provider?._id || null,
+                lane: appt.teamMember?._id ? String(appt.teamMember._id) : 'owner',
                 // Same fallback the server enforces (0 = anytime), so the page never shows a
                 // stricter policy than the one actually applied.
                 cancellationWindowHours: appt.provider?.bookingPolicy?.cancellationWindowHours ?? DEFAULT_WINDOW_HOURS,
@@ -3380,7 +3456,7 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
                 return res.status(400).json({ success: false, message: 'That time is outside the provider availability schedule.' });
             }
             if (await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appt._id, conflictScope(appt))) {
-                return res.status(400).json({ success: false, message: 'That time slot is already booked.' });
+                return res.status(409).json({ success: false, code: 'slot_taken', message: 'That time slot is already booked.' });
             }
             // Guest "manage my booking" reschedule — same blocked-time hard stop.
             const unavailableGuest = await staffUnavailableMessage(appt, appointmentDate, startTime, endTime);

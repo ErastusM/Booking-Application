@@ -29,7 +29,7 @@ const toMinutes = (t) => {
 // respect a block just as a customer booking does; otherwise cancelling an
 // appointment that sits inside a newly-blocked window would auto-book the next
 // person in line straight into the provider's time off.
-const slotIsFree = async (providerId, appointmentDate, startTime, endTime, teamMember = null) => {
+const slotIsFree = async (providerId, appointmentDate, startTime, endTime, teamMember = null, svc = null) => {
     if (!providerId) return true;
     const dayStart = new Date(appointmentDate); dayStart.setHours(0, 0, 0, 0);
     const dayEnd = new Date(appointmentDate); dayEnd.setHours(23, 59, 59, 999);
@@ -41,18 +41,19 @@ const slotIsFree = async (providerId, appointmentDate, startTime, endTime, teamM
     // and the raw window compare ignored service buffers — so promotion could
     // double-book a segment performer or land inside another booking's cleanup
     // time. memberInvolvedFilter + memberBusyIntervalsBuffered close both.
-    const { memberInvolvedFilter, memberBusyIntervalsBuffered, bufferMapForAppointments } = require('./staffBooking');
+    // The owner's column is their unassigned bookings AND unassigned segments.
+    const { laneInvolvedFilter, memberBusyIntervalsBuffered, bufferMapForAppointments, overlapsAny } = require('./staffBooking');
     const existing = await Appointment.find({
         provider: providerId,
         appointmentDate: { $gte: dayStart, $lte: dayEnd },
         status: { $nin: ['cancelled'] },
-        ...(teamMember ? memberInvolvedFilter(teamMember) : { teamMember: null }),
+        ...laneInvolvedFilter(teamMember || null),
     }).select('startTime endTime teamMember services service');
-    const nStart = toMinutes(startTime);
-    const nEnd = toMinutes(endTime || startTime);
+    // The incoming booking is widened by its own buffers, as on create.
+    const nStart = toMinutes(startTime) - (svc?.bufferBefore || 0);
+    const nEnd = toMinutes(endTime || startTime) + (svc?.bufferAfter || 0);
     const bufferByService = await bufferMapForAppointments(existing);
-    if (existing.some(a => memberBusyIntervalsBuffered(a, teamMember || null, bufferByService)
-        .some(([s, e]) => nStart < e && nEnd > s))) return false;
+    if (existing.some(a => overlapsAny(nStart, nEnd, memberBusyIntervalsBuffered(a, teamMember || null, bufferByService)))) return false;
 
     // Honour the assigned member's roster: shift → weekly pattern → business
     // hours. The create path refuses a booking onto a rostered day off, an
@@ -106,7 +107,7 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
 
         if (!next) return; // nobody waiting, or another worker holds a fresh claim
 
-        const svc = await Service.findById(service).select('name price duration provider ownerPerforms');
+        const svc = await Service.findById(service).select('name price duration provider ownerPerforms bufferBefore bufferAfter');
         const providerId = next.provider || svc?.provider || null;
 
         // WHO does it, and at whose price — the same performer rules as a direct
@@ -120,24 +121,35 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
         //     otherwise the first free team member who does, at that member's price;
         //   - nobody fits → no promotion; the client keeps their place in line.
         const TeamMember = require('../models/TeamMember');
-        const { performsService, ownerPerforms } = require('./staffBooking');
+        const { performsService, ownerPerforms, performerMinutes } = require('./staffBooking');
         const { effectivePrice } = require('./memberPricing');
-        let candidates = []; // [{ teamMember: id|null, price }]
+        // Each candidate books the WHOLE service at THEIR length (a member's
+        // duration override, else the menu), which is also the window checked:
+        // the freed slot's own end is the cancelled booking's length, and a slower
+        // performer promoted into it used to run into their next booking.
+        const s0 = toMinutes(startTime);
+        const endOf = (m) => {
+            const mins = svc ? performerMinutes({ svc, member: m }) : (toMinutes(endTime || startTime) - s0);
+            const e = s0 + mins;
+            return e < 24 * 60 ? `${String(Math.floor(e / 60)).padStart(2, '0')}:${String(e % 60).padStart(2, '0')}` : null;
+        };
+        let candidates = []; // [{ teamMember: id|null, price, endTime }]
         if (providerId && svc) {
             const roster = await TeamMember.find({ provider: providerId, isActive: true, bookable: { $ne: false } })
                 .select('services offersAllServices serviceOverrides').sort({ createdAt: 1 }).lean();
-            const asMember = (m) => ({ teamMember: m._id, price: effectivePrice(m, svc) });
+            const asMember = (m) => ({ teamMember: m._id, price: effectivePrice(m, svc), endTime: endOf(m) });
             if (next.teamMember) {
                 const m = roster.find((r) => String(r._id) === String(next.teamMember));
                 if (m && performsService(m, svc._id)) candidates = [asMember(m)];
             } else if (ownerPerforms(svc)) {
-                candidates = [{ teamMember: null, price: svc.price || 0 }];
+                candidates = [{ teamMember: null, price: svc.price || 0, endTime: endOf(null) }];
             } else {
                 candidates = roster.filter((m) => performsService(m, svc._id)).map(asMember);
             }
         } else if (svc) {
-            candidates = [{ teamMember: null, price: svc.price || 0 }];
+            candidates = [{ teamMember: null, price: svc.price || 0, endTime: endOf(null) }];
         }
+        candidates = candidates.filter((c) => c.endTime);
 
         const manageToken = randomUUID();
         const buildDoc = (who) => ({
@@ -150,7 +162,7 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
             teamMember: who.teamMember || null,
             appointmentDate,
             startTime,
-            endTime,
+            endTime: who.endTime,
             totalPrice: who.price,
             status: 'confirmed',
             statusHistory: [{ status: 'confirmed', changedBy: null }],
@@ -166,7 +178,7 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
             if (!candidates.length) { const e = new Error('no_performer'); e.noPerformer = true; throw e; }
             for (const who of candidates) {
                 const commit = async () => {
-                    if (!(await slotIsFree(providerId, appointmentDate, startTime, endTime, who.teamMember))) {
+                    if (!(await slotIsFree(providerId, appointmentDate, startTime, who.endTime, who.teamMember, svc))) {
                         const e = new Error('slot_not_free'); e.slotNotFree = true; throw e;
                     }
                     return Appointment.create(buildDoc(who));
@@ -194,6 +206,7 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
             throw err;
         }
         const promotedMember = performer.teamMember || null;
+        const bookedEnd = performer.endTime; // what was actually booked
 
         // Settle the claim to its final state.
         await WaitingList.updateOne({ _id: next._id }, { $set: { status: 'promoted', notified: true } });
@@ -237,7 +250,7 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
                     if (memberEmail && typeof emailService.sendStaffBookingAlert === 'function') {
                         emailService.sendStaffBookingAlert(
                             memberEmail, m.name, svc?.name || 'Appointment', dateStr,
-                            `${startTime}${endTime ? ` – ${endTime}` : ''}`, next.customer.name,
+                            `${startTime} – ${bookedEnd}`, next.customer.name,
                         ).catch(() => {});
                     }
                 }
@@ -251,13 +264,13 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
 
         // Email the promoted customer their confirmation (fire-and-forget; safeSend never throws)
         if (next.customer.email) {
-            const timeStr = `${startTime}${endTime ? ` – ${endTime}` : ''}`;
+            const timeStr = `${startTime} – ${bookedEnd}`;
             // Shared helper (real UTC instant). The old inline builder wrote a floating
             // stamp with no zone, which Google reads as UTC — advertising a 10:00 slot
             // as 12:00 to a CAT (UTC+2) reader.
             const gcalUrl = googleCalendarUrl({
                 title: svc?.name || 'Appointment',
-                appointmentDate, startTime, endTime: endTime || startTime,
+                appointmentDate, startTime, endTime: bookedEnd,
                 details: 'Booked via Bookplus',
             });
 

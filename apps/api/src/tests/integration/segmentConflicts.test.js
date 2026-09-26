@@ -103,7 +103,7 @@ describe('the booking endpoints agree', () => {
     it('refuses a customer booking the segment-only member during their segment', async () => {
         const ctx = await setup();
         await makeStack(ctx);
-        expect((await book(ctx, ctx.bob, '11:00', '11:30')).status).toBe(400);
+        expect((await book(ctx, ctx.bob, '11:00', '11:30')).status).toBe(409);
     });
 
     it('accepts a customer booking them outside it', async () => {
@@ -123,6 +123,6 @@ describe('the booking endpoints agree', () => {
             .put(`/api/appointments/${other._id}/reschedule`)
             .set(authHeader(ctx.customer))
             .send({ appointmentDate: DATE, startTime: '11:15' });
-        expect(res.status).toBe(400);
+        expect(res.status).toBe(409);
     });
 });

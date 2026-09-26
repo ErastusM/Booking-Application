@@ -51,7 +51,7 @@ describe('Batch 1b — multi-service lock covers every segment member', () => {
         });
 
         const [r1, r2] = await Promise.all([multi(), multi()]);
-        expect([r1.status, r2.status].sort()).toEqual([201, 400]); // one wins, one refused
+        expect([r1.status, r2.status].sort()).toEqual([201, 409]); // one wins, one refused
         const aliceBookings = await Appointment.countDocuments({ provider: provider._id, 'services.teamMember': alice._id });
         expect(aliceBookings).toBe(1); // Alice's 10:30 segment booked exactly once
     });
