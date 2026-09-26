@@ -153,25 +153,24 @@ describe('Terms of Service content', () => {
         }
     });
 
-    it('explains wallet refunds and expiry, cancellations, the marketplace role and Namibian law', () => {
+    it('explains wallet refunds and expiry, cancellations and the marketplace role', () => {
         const t = textOf(termsOfService('customer'));
         expect(t).toMatch(/non-refundable/);
         expect(t).toMatch(/6, 12 or 24 months without any wallet activity/);
         expect(t).toMatch(/30 days and 7 days before/);
         expect(t).toMatch(/No-shows/);
         expect(t).toMatch(/The business provides the service, not Bookplus/);
-        expect(t).toMatch(/Republic of Namibia/);
         expect(t).toContain(operatorName());
         expect(t).toMatch(/Reviews/);
         const ids = termsOfService('customer').sections.map((s) => s.id);
-        expect(ids).toEqual(expect.arrayContaining(['wallet', 'cancellations', 'responsibility', 'law', 'disputes', 'termination', 'acceptable-use', 'reviews']));
+        expect(ids).toEqual(expect.arrayContaining(['wallet', 'cancellations', 'responsibility', 'disputes', 'termination', 'acceptable-use', 'reviews']));
     });
 
     it('has no liability cap or exclusion (removed pending legal advice), but keeps the platform role and consumer rights', () => {
         for (const audience of ['customer', 'business']) {
             const t = textOf(termsOfService(audience));
             expect(t).not.toMatch(/N\$1,000|total liability|limited to direct loss/i);
-            expect(t).not.toMatch(/not liable|as is|indirect or consequential|not responsible for/i);
+            expect(t).not.toMatch(/not liable|as is|indirect or consequential|not responsible for|governed by|jurisdiction|compensate bookplus|indemnif/i);
             expect(t).toMatch(/Nothing in these Terms takes away any right/);
         }
         expect(textOf(termsOfService('customer'))).toMatch(/The business provides the service, not Bookplus/);

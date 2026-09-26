@@ -88,9 +88,9 @@ const customerSections = () => [
     { id: 'content', title: 'Your content and our intellectual property', blocks: [
         'Content you upload (photos, reviews, messages) stays yours. You give us a non-exclusive licence to host, show and process it to run Bookplus, for as long as it is on the platform. The Bookplus name, logo and software belong to us.',
     ] },
-    // Liability limits and exclusions were removed on the owner's instruction
-    // (September 2026) pending legal advice. Do not add a cap or exclusion here
-    // without the lawyer's sign-off.
+    // Liability limits, exclusions, the indemnity and the governing-law clause
+    // were removed on the owner's instruction (September 2026) pending legal
+    // advice. Do not add them back without the lawyer's sign-off.
     { id: 'responsibility', title: 'Who is responsible for what', blocks: [
         'Business listings, prices and availability are supplied by the businesses. **The business provides the service, not Bookplus** (see “Our role” above).',
         'Nothing in these Terms takes away any right you have under consumer-protection or other law.',
@@ -100,11 +100,7 @@ const customerSections = () => [
     ] },
     { id: 'disputes', title: 'Complaints and disputes', blocks: [
         '**With a business:** contact the business first, using the booking messages or its contact details. If that does not work, tell us at ' + mail + ' and we will try to help both sides reach a fair outcome, but the decision rests with the business and you.',
-        '**With us:** contact us at ' + mail + '. We aim to reply within 5 working days and to resolve complaints within 30 days. If we cannot agree, either of us may go to the courts named below.',
-    ] },
-    { id: 'law', title: 'Governing law', blocks: [
-        `These Terms are between you and **${op}** and are governed by the laws of the **Republic of Namibia**. The courts of Namibia have jurisdiction. If you live outside Namibia, you keep any consumer rights, and any right to go to your local courts, that the law of your country gives you and that cannot be excluded.`,
-        'You agree that these Terms, your booking confirmations and other notices can be made and kept electronically, in line with the Electronic Transactions Act 4 of 2019. You can save or print these Terms from this page at any time.',
+        '**With us:** contact us at ' + mail + '. We aim to reply within 5 working days and to resolve complaints within 30 days.',
     ] },
     { id: 'changes', title: 'Changes to these Terms', blocks: [
         'We may update these Terms, for example when we add features or the law changes. The date at the top shows the latest version. If a change is significant we tell you in advance by email or in the app. Bookings you already made stay under the Terms that applied when you made them.',
@@ -179,22 +175,17 @@ const businessSections = () => [
     { id: 'content', title: 'Content and intellectual property', blocks: [
         'Content you upload stays yours. You give us a non-exclusive licence to host, show and process it to run Bookplus and to show your listing on the marketplace. The Bookplus name, logo and software belong to us.',
     ] },
-    // Liability limits and exclusions were removed on the owner's instruction
-    // (September 2026) pending legal advice. Do not add a cap or exclusion here
-    // without the lawyer's sign-off.
+    // Liability limits, exclusions, the indemnity and the governing-law clause
+    // were removed on the owner's instruction (September 2026) pending legal
+    // advice. Do not add them back without the lawyer's sign-off.
     { id: 'responsibility', title: 'Responsibility for your services', blocks: [
         'You provide your services to your clients; Bookplus does not (see “Our role” above). Nothing in these Terms takes away any right that the law gives you.',
-        'You agree to compensate Bookplus for claims and losses caused by your services, your breach of these Terms, or your handling of your clients’ information or wallet balances.',
     ] },
     { id: 'termination', title: 'Suspending or closing accounts', blocks: [
         'You can close your business account at any time, after honouring or properly cancelling confirmed bookings and settling client wallet balances. We may suspend or close accounts that break these Terms or put others at risk; where we reasonably can, we tell you why first.',
     ] },
     { id: 'disputes', title: 'Disputes', blocks: [
         'Disputes with your clients are between you and them. If you have a complaint about Bookplus, contact us at ' + mail + '; we aim to resolve it within 30 days.',
-    ] },
-    { id: 'law', title: 'Governing law', blocks: [
-        `These Terms are between you and **${op}** and are governed by the laws of the **Republic of Namibia**. The courts of Namibia have jurisdiction over any dispute.`,
-        'These Terms and other notices may be made and kept electronically, in line with the Electronic Transactions Act 4 of 2019.',
     ] },
     { id: 'changes', title: 'Changes and contact', blocks: [
         `We may update these Terms; the date at the top shows the latest version, and we tell you in advance about significant changes. Contact: ${mail}${phones ? `, or phone ${phones}` : ''}. Full details are in our [Legal notice](/legal).`,
