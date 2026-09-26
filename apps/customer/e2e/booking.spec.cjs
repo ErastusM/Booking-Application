@@ -37,6 +37,9 @@ test.describe('Customer booking', () => {
         // 4) Continue → Review → Confirm
         await page.getByTestId('booking-continue').click();
         await expect(page.getByRole('button', { name: /^confirm$/i }).first()).toBeVisible();
+        // Order summary: with the wallet "coming soon", payment is at the appointment.
+        await expect(page.getByTestId('review-payment')).toContainText('Pay at your appointment');
+        await expect(page.getByTestId('review-payment')).not.toContainText('wallet');
         await page.getByTestId('booking-confirm').click();
 
         // Lands on My Appointments with the confirmation flag

@@ -3,6 +3,9 @@ const rateLimit = require('express-rate-limit');
 const { auth, authorize } = require('../middleware/auth');
 const giftCards = require('../controllers/giftCardController');
 
+// Gift cards credit the client wallet, so selling and redeeming them waits for
+// the wallet (403 WALLET_COMING_SOON while it is off); listing and voiding stay.
+const { requireWallet } = require('../constants/features');
 const router = express.Router();
 
 // Codes are short enough to type, so guessing must be expensive: a handful of
@@ -20,10 +23,10 @@ const redeemLimiter = rateLimit({
 
 // Owner: sell, list and cancel. Staff never sell gift cards (money is the owner's).
 router.get('/', auth, authorize('provider'), giftCards.listMine);
-router.post('/', auth, authorize('provider'), giftCards.create);
+router.post('/', auth, requireWallet, authorize('provider'), giftCards.create);
 router.post('/:id/void', auth, authorize('provider'), giftCards.voidCard);
 
 // Client: redeem a code into their wallet with that business.
-router.post('/redeem', auth, redeemLimiter, giftCards.redeem);
+router.post('/redeem', auth, requireWallet, redeemLimiter, giftCards.redeem);
 
 module.exports = router;

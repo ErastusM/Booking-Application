@@ -10,6 +10,7 @@ const User = require('../models/User');
 const { createNotification, notifyAdmins } = require('../utils/notificationhelper');
 const { apptPhrase, ApptPhrase, theirApptPhrase, servicePhrase } = require('../utils/apptCopy');
 const walletService = require('../utils/walletService');
+const { walletEnabled, WALLET_COMING_SOON } = require('../constants/features');
 const {
     sendAppointmentConfirmed,
     sendAppointmentCompleted,
@@ -1373,7 +1374,13 @@ exports.createAppointment = async (req, res) => {
         // otherwise it's a plain cash/pay-later booking.
         let walletCfg = null;
         let chosenMethod = 'cash';
-        if (svc.provider) {
+        // Wallet "coming soon" (WALLET_ENABLED off): every booking is cash, paid at
+        // the appointment, whatever the business's wallet settings say. Asking to
+        // pay from the wallet gets a clear 403 rather than a silent switch.
+        if (!walletEnabled() && paymentMethod === 'wallet') {
+            return res.status(403).json(WALLET_COMING_SOON);
+        }
+        if (svc.provider && walletEnabled()) {
             const provWallet = await User.findById(svc.provider).select('walletSettings');
             walletCfg = provWallet?.walletSettings || null;
             // A guest has no prepaid wallet — always cash. If the business REQUIRES
@@ -1860,7 +1867,10 @@ exports.createMultiServiceAppointment = async (req, res) => {
 
         // Payment: reuse the provider's wallet config. Provider bookings are never
         // blocked on insufficient funds — reserve the summed total when possible.
-        const provWallet = await User.findById(providerId).select('walletSettings');
+        if (!walletEnabled() && paymentMethod === 'wallet') {
+            return res.status(403).json(WALLET_COMING_SOON);
+        }
+        const provWallet = walletEnabled() ? await User.findById(providerId).select('walletSettings') : null;
         const walletCfg = provWallet?.walletSettings || null;
         let chosenMethod = 'cash';
         if (walletCfg?.enabled && customerId) {

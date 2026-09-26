@@ -1,4 +1,6 @@
 import React, { useState, useEffect } from 'react';
+import { FEATURES } from '@bookplus/config/features.mjs';
+import { SoonBadge } from './ComingSoon';
 import { createPortal } from 'react-dom';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuthContext } from '../context/AuthContext';
@@ -97,14 +99,14 @@ const Navbar = () => {
         { to: '/dashboard?tab=insights', label: 'Insights', cap: null },
         { to: '/dashboard?tab=messages', label: 'Messages', cap: 'calendar:view' },
         { to: '/dashboard?tab=memberships', label: 'Memberships', cap: null },
-        { to: '/dashboard?tab=giftcards', label: 'Gift cards', cap: null },
+        { to: '/dashboard?tab=giftcards', label: 'Gift cards', cap: null, soon: !FEATURES.walletEnabled },
         { to: '/team', label: 'Team', cap: null },
     ].filter((l) => itemShown(l.cap));
     // Config areas — grouped under the account menu / Settings. For a member,
     // Availability is THEIR hours and blocked time.
     const SETTINGS_LINKS = [
         { to: '/dashboard?tab=availability', label: 'Availability', cap: 'availability:self' },
-        { to: '/dashboard?tab=wallet', label: 'Wallet', cap: null },
+        { to: '/dashboard?tab=wallet', label: 'Wallet', cap: null, soon: !FEATURES.walletEnabled },
         { to: '/dashboard?tab=forms', label: 'Forms', cap: null },
     ].filter((l) => itemShown(l.cap));
     // The business suite's own nav (owner + team members); admins have theirs.
@@ -281,7 +283,7 @@ const Navbar = () => {
                                             <Link key={l.to} to={l.to} onClick={() => setMoreOpen(false)} style={{ display: 'block', padding: '0.55rem 0.8rem', borderRadius: '9px', textDecoration: 'none', color: 'var(--charcoal)', fontSize: '0.88rem', fontWeight: 600 }}
                                                 onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
                                                 onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                            >{l.label}</Link>
+                                            >{l.label}{l.soon && <SoonBadge />}</Link>
                                         ))}
                                     </div>
                                 </>
@@ -349,7 +351,7 @@ const Navbar = () => {
                                                         <Link key={l.to} to={l.to} onClick={() => setProfileOpen(false)} style={{ display: 'block', padding: '0.55rem 0.85rem', borderRadius: '10px', textDecoration: 'none', color: 'var(--charcoal)', fontSize: '0.88rem', fontWeight: 600 }}
                                                             onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
                                                             onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                                        >{l.label}</Link>
+                                                        >{l.label}{l.soon && <SoonBadge />}</Link>
                                                     ))}
                                                     <div style={{ borderTop: '1px solid var(--border)', margin: '0.35rem 0' }} />
                                                 </>
@@ -361,7 +363,7 @@ const Navbar = () => {
                                                 <Link key={l.to} to={l.to} onClick={() => setProfileOpen(false)} style={{ display: 'block', padding: '0.55rem 0.85rem', borderRadius: '10px', textDecoration: 'none', color: 'var(--charcoal)', fontSize: '0.88rem', fontWeight: 600 }}
                                                     onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
                                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
-                                                >{l.label}</Link>
+                                                >{l.label}{l.soon && <SoonBadge />}</Link>
                                             ))}
                                             <div style={{ borderTop: '1px solid var(--border)', margin: '0.35rem 0' }} />
                                             {/* Account switcher — customer site as a second workspace,
@@ -544,11 +546,11 @@ const Navbar = () => {
 
                         {/* More — same set as the desktop "More" dropdown */}
                         {inSuite && MORE_LINKS.length > 0 && drawerSection('More')}
-                        {inSuite && MORE_LINKS.map(l => <React.Fragment key={l.to}>{mobileLink(l.to, l.label)}</React.Fragment>)}
+                        {inSuite && MORE_LINKS.map(l => <React.Fragment key={l.to}>{mobileLink(l.to, <>{l.label}{l.soon && <SoonBadge />}</>)}</React.Fragment>)}
 
                         {/* Settings — config areas + account, grouped away from daily use */}
                         {inSuite && drawerSection('Settings')}
-                        {inSuite && SETTINGS_LINKS.map(l => <React.Fragment key={l.to}>{mobileLink(l.to, l.label)}</React.Fragment>)}
+                        {inSuite && SETTINGS_LINKS.map(l => <React.Fragment key={l.to}>{mobileLink(l.to, <>{l.label}{l.soon && <SoonBadge />}</>)}</React.Fragment>)}
                         {inSuite && mobileLink('/account', 'My Account')}
 
                         {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}

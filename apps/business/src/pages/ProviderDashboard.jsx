@@ -1,5 +1,7 @@
 import React, { useEffect, useMemo, useState, useRef, lazy, Suspense } from 'react';
 import ProofLink from '../components/ProofLink';
+import { FEATURES } from '@bookplus/config/features.mjs';
+import ComingSoon from '../components/ComingSoon';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
 import CalendarGrid from '../components/CalendarGrid';
@@ -852,6 +854,19 @@ const ProviderDashboard = () => {
 
     const fetchWalletData = async () => {
         setWalletLoading(true);
+        // Wallet "coming soon": only the read-only lists — clients' existing
+        // balances and this business's own account balance — nothing that acts.
+        if (!FEATURES.walletEnabled) {
+            try {
+                const [cw, mine] = await Promise.all([walletService.getProviderWallets(), providerWalletService.getMyBalance()]);
+                setWalletClientWallets(cw.data.data || []);
+                setProviderBalance(mine.data.data?.wallet || null);
+                setWalletError('');
+            } catch (err) {
+                setWalletError(err.response?.data?.message || 'Could not load existing balances. Check your connection and try again.');
+            } finally { setWalletLoading(false); }
+            return;
+        }
         try {
             const [summary, settings, topups, cw, adj, mine] = await Promise.all([
                 walletService.getProviderSummary(),
@@ -3526,7 +3541,34 @@ const ProviderDashboard = () => {
                 </Suspense>
             )}
 
-            {activeTab === 'wallet' && (
+            {activeTab === 'wallet' && !FEATURES.walletEnabled && (
+                // Wallet "coming soon": settings, top-up approvals and adjustments are
+                // off; balances that already exist stay visible, read-only.
+                <ComingSoon testId="wallet-coming-soon" title="Wallet — coming soon" line="Clients pay you at their appointment for now. Client wallets, top-ups and gift cards arrive later.">
+                    {walletError && <p role="alert" style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.88rem' }}>{walletError} <button onClick={fetchWalletData} className="btn-outline" style={{ padding: '0.3rem 0.8rem', fontSize: '0.82rem' }}>Try again</button></p>}
+                    {(providerBalance?.balance || 0) > 0 && (
+                        <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '0.9rem 1.1rem', fontSize: '0.9rem', color: 'var(--charcoal)' }}>
+                            Your Bookplus account balance: <strong>{nMoney(providerBalance.balance)}</strong> — contact Bookplus about it.
+                        </div>
+                    )}
+                    {walletClientWallets.filter((w) => (w.totalBalance || 0) > 0).length > 0 && (
+                        <div data-testid="wallet-readonly-balances" style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
+                            <div style={{ padding: '0.85rem 1.1rem', borderBottom: '1px solid var(--border)' }}>
+                                <p style={{ margin: 0, fontFamily: 'var(--font-display)', fontWeight: 600, color: 'var(--charcoal)' }}>Existing client balances</p>
+                                <p style={{ margin: '0.2rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>Read-only. Settle these with each client directly; nothing here expires or is removed.</p>
+                            </div>
+                            {walletClientWallets.filter((w) => (w.totalBalance || 0) > 0).map((w) => (
+                                <div key={w._id} style={{ display: 'flex', justifyContent: 'space-between', gap: '1rem', padding: '0.65rem 1.1rem', borderBottom: '1px solid var(--border)', fontSize: '0.88rem' }}>
+                                    <span style={{ color: 'var(--charcoal)' }}>{w.customer?.name || 'Client'}</span>
+                                    <strong style={{ color: 'var(--charcoal)' }}>{curSym}{Number(w.totalBalance || 0).toFixed(2)}</strong>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </ComingSoon>
+            )}
+
+            {activeTab === 'wallet' && FEATURES.walletEnabled && (
                 <div>
                     {walletError && !walletSummary ? (
                         <div style={{ background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '2rem 1.5rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.75rem' }}>

@@ -3,6 +3,7 @@
 // at /legal in both apps and linked from the footer, the Privacy Policy and the
 // Terms. The details themselves come from company.mjs.
 import { COMPANY, operatorName, companyValue, companyPhones, telHref } from './company.mjs';
+import { FEATURES } from '../features.mjs';
 
 export const NOTICE_LAST_UPDATED = '26 September 2026';
 
@@ -29,12 +30,12 @@ export const legalNotice = (audience = 'customer') => {
                 'We aim to reply within 5 working days.',
             ] },
             { id: 'what-we-do', title: 'What Bookplus does', blocks: [
-                'Bookplus lets clients find local businesses, see their prices and availability, book appointments, keep a prepaid wallet with a business, and message it. **The businesses provide the services; Bookplus does not.** Businesses list themselves; we do not vet, license or certify them. Reviews can only be left by clients who completed a booking.',
-                'Bookplus does not charge clients a booking fee. Prices are set by each business, in the currency it chooses, and shown before you book.',
+                `Bookplus lets clients find local businesses, see their prices and availability, book appointments, ${FEATURES.walletEnabled ? 'keep a prepaid wallet with a business, ' : ''}and message it. **The businesses provide the services; Bookplus does not.** Businesses list themselves; we do not vet, license or certify them. Reviews can only be left by clients who completed a booking.`,
+                `Bookplus does not charge clients a booking fee. Prices are set by each business, in the currency it chooses, and shown before you book.${FEATURES.walletEnabled ? '' : ' You pay the business at your appointment; the wallet is coming soon.'}`,
             ] },
             { id: 'legal-documents', title: 'Terms, privacy and complaints', blocks: [
                 { list: [
-                    `[${audience === 'business' ? 'Business Terms of Service' : 'Terms of Service'}](/terms): how bookings, cancellations, wallets and reviews work, and how to raise a complaint.`,
+                    `[${audience === 'business' ? 'Business Terms of Service' : 'Terms of Service'}](/terms): how bookings, cancellations${FEATURES.walletEnabled ? ', wallets' : ''} and reviews work, and how to raise a complaint.`,
                     `[Privacy Policy](/privacy-policy): what we collect, why, who receives it and your rights.`,
                 ] },
                 'These documents can be saved or printed from their pages. Bookings are confirmed by email.',

@@ -9,6 +9,7 @@ const Appointment = require('../models/Appointment');
 const walletService = require('../utils/walletService');
 const { createNotification, notifyAdmins } = require('../utils/notificationhelper');
 const { effectiveExpiryFor } = require('../utils/walletExpiryService');
+const { walletEnabled } = require('../constants/features');
 const emailService = require('../utils/emailService');
 const { CURRENCIES } = require('../constants/currencies');
 
@@ -81,7 +82,8 @@ exports.getMyWallets = async (req, res) => {
             obj.rules = {
                 refundsAllowed: ws.refundsAllowed !== false,
                 expiryMonths,
-                expiresAt: effectiveExpiryFor(w, expiryMonths),
+                // Balances never expire while the wallet is "coming soon".
+                expiresAt: walletEnabled() ? effectiveExpiryFor(w, expiryMonths) : null,
             };
             return obj;
         });
@@ -115,14 +117,17 @@ exports.getMyWalletWithProvider = async (req, res) => {
             data: {
                 wallet,
                 provider: { _id: provider._id, name: provider.name, avatar: provider.avatar },
+                // comingSoon: the platform wallet switch is off — the business's own
+                // setting is then reported as disabled so no app offers wallet payment.
+                comingSoon: !walletEnabled(),
                 settings: {
-                    enabled: s.enabled,
+                    enabled: !!s.enabled && walletEnabled(),
                     bookingPaymentMode: s.bookingPaymentMode,
                     refundsAllowed: s.refundsAllowed !== false,
                     // Disclosed BEFORE the client pays (top-up modal): balances with
                     // this business expire after N months without activity, or never.
                     expiryMonths: Number(s.expiryMonths) > 0 ? Number(s.expiryMonths) : null,
-                    expiresAt: existing ? effectiveExpiryFor(existing, s.expiryMonths) : null,
+                        expiresAt: existing && walletEnabled() ? effectiveExpiryFor(existing, s.expiryMonths) : null,
                     // paymentInstructions is client-facing by design (User.js documents it
                     // as bank/eWallet/PayToday "details shown to clients"), so the booking
                     // and top-up flows must keep receiving it for first-time clients who have
@@ -130,7 +135,7 @@ exports.getMyWalletWithProvider = async (req, res) => {
                     // break those flows. But a provider who configured the wallet and then
                     // switched it OFF has withdrawn that payment offer, so don't keep leaking
                     // their free-text banking details to every authenticated caller.
-                    paymentInstructions: s.enabled ? s.paymentInstructions : '',
+                    paymentInstructions: s.enabled && walletEnabled() ? s.paymentInstructions : '',
                 },
             },
         });

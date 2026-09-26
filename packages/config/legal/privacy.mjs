@@ -19,6 +19,7 @@
 //   { company: true }             -> the operator's details from company.mjs
 
 import { COMPANY, operatorName, companyValue, mailLink, phoneLinks } from './company.mjs';
+import { FEATURES } from '../features.mjs';
 
 export const PRIVACY_LAST_UPDATED = '26 September 2026';
 
@@ -66,7 +67,7 @@ const businessesAsControllers = (audience) => ({
         ],
 });
 
-const collectedTable = (audience) => {
+const collectedTable = (audience, W) => {
     const rows = [
         ['Account details', 'Name, email address, phone number, password (stored only as a one-way hash), profile photo, and whether you are a client, business owner or team member. If you sign in with Google: your Google account ID, name, email address and profile photo.', 'You'],
         ['Sign-up choices', 'When you accepted the Terms and this policy, your confirmation that you are 16 or older, and whether you agreed to marketing emails.', 'You'],
@@ -75,15 +76,19 @@ const collectedTable = (audience) => {
         ['Location', '“Near me”: with your permission your device’s GPS position is sent from your browser directly to OpenStreetMap to find your town. We do not receive or store your coordinates. Businesses: the business address and map pin you set.', 'Your device / the business'],
         ['Reviews', 'Your star rating and written review, shown publicly on the business’s page with your name and profile photo. Only possible after a completed booking.', 'You'],
         ['Messages', 'Messages between you and a business about a booking, and whether they have been read.', 'You and the business'],
-        ['Wallet and payments', 'Prepaid wallet balances you hold with each business, top-ups, reservations, deductions, refunds and adjustments, payment references and method (bank transfer, eWallet, PayToday or cash), and gift cards (including the recipient’s name and email). We do not collect card numbers.', 'You and the business'],
-        ['Photos and files', 'Profile photos, business portfolio photos, and proof-of-payment images or PDFs you upload with a top-up.', 'You'],
+        W
+            ? ['Wallet and payments', 'Prepaid wallet balances you hold with each business, top-ups, reservations, deductions, refunds and adjustments, payment references and method (bank transfer, eWallet, PayToday or cash), and gift cards (including the recipient’s name and email). We do not collect card numbers.', 'You and the business']
+            : ['Payments', 'You pay the business directly at your appointment; we record the price and whether the booking was paid. We do not collect card numbers. **The Bookplus wallet is coming soon: if we introduce it, we will update this policy first.** Balances some clients already hold with a business from before are kept unchanged and shown to that client and business.', 'You and the business'],
+        W
+            ? ['Photos and files', 'Profile photos, business portfolio photos, and proof-of-payment images or PDFs you upload with a top-up.', 'You']
+            : ['Photos', 'Profile photos and business portfolio photos.', 'You'],
         ['Device and usage data', 'The pages and steps you use (for example “viewed a business”, “started a booking”), your browser type, and an analytics ID called **bp_sid** stored on your device, only if you allow analytics. Your IP address is processed by our servers for security and rate limiting. If a page crashes we receive an error report (the error, the page address without any private link or code, and your browser type).', 'Your device'],
         ['Notifications', 'If you turn on push notifications, the push address your browser gives us.', 'Your device'],
         ['Feedback', 'Answers to our short sign-up survey and suggestions you send us.', 'You'],
     ];
     if (audience === 'business') {
         rows.splice(2, 0,
-            ['Business details', 'Business name, category, description, address and map pin, services, prices and currency, opening hours, cancellation policy, wallet settings, payment instructions for clients, and portfolio photos. Most of this is shown publicly on your booking page.', 'You'],
+            ['Business details', `Business name, category, description, address and map pin, services, prices and currency, opening hours, cancellation policy${W ? ', wallet settings, payment instructions for clients' : ''}, and portfolio photos. Most of this is shown publicly on your booking page.`, 'You'],
             ['Team data', 'For team members you invite: name, email, phone, role and permissions, working hours, shifts, time off, and clock-in and clock-out times.', 'You and your team'],
         );
     }
@@ -97,7 +102,7 @@ const collectedTable = (audience) => {
     };
 };
 
-const purposes = () => ({
+const purposes = (W) => ({
     id: 'why',
     title: 'Why we use it, and our legal basis',
     blocks: [
@@ -108,7 +113,7 @@ const purposes = () => ({
                 ['Create and secure your account; sign you in', 'Account details, device data', 'Performing our contract with you'],
                 ['Make, change and remind you of bookings; send confirmations and receipts by email; let you message the business', 'Account details, bookings, messages', 'Performing our contract with you'],
                 ['Let a business keep client notes and forms it needs to serve you safely', 'Allergy notes, intake form answers', 'Your explicit consent when you give the information to the business, and the business’s own legal basis; we act for the business'],
-                ['Run the prepaid wallet: top-ups, reservations, refunds, expiry reminders', 'Wallet data, proofs of payment', 'Performing our contract with you'],
+                ...(W ? [['Run the prepaid wallet: top-ups, reservations, refunds, expiry reminders', 'Wallet data, proofs of payment', 'Performing our contract with you']] : []),
                 ['Find businesses near you', 'Your location (only when you tap “Near me”)', 'Your consent (your browser asks first)'],
                 ['Show reviews from real bookings', 'Reviews', 'Our legitimate interest in honest reviews, and yours in reading them'],
                 ['Understand how people use Bookplus so we can improve it', 'Usage data and the bp_sid analytics ID', 'Your consent, which you can withdraw at any time'],
@@ -121,7 +126,7 @@ const purposes = () => ({
     ],
 });
 
-const sharing = (audience) => ({
+const sharing = (audience, W) => ({
     id: 'sharing',
     title: 'Who we share it with',
     blocks: [
@@ -133,7 +138,7 @@ const sharing = (audience) => ({
             head: ['Provider', 'What they do', 'Where'],
             rows: [
                 ['DigitalOcean, LLC', 'Hosts our servers and database, and the database backups', 'Data centre outside Namibia (company in the USA)'],
-                ['Cloudinary Ltd.', 'Stores and delivers photos and uploaded files, including proofs of payment (kept private)', 'USA'],
+                ['Cloudinary Ltd.', W ? 'Stores and delivers photos and uploaded files, including proofs of payment (kept private)' : 'Stores and delivers photos', 'USA'],
                 ['Resend, Inc. or our mailbox provider Hostinger', 'Delivers our emails (confirmations, receipts, reminders, password resets)', 'USA (Resend); EU (Hostinger)'],
                 ['Functional Software, Inc. (Sentry)', 'Error monitoring: records crash reports so we can fix them', 'USA'],
                 ['Google LLC', 'Google Sign-In, if you choose it; Google Maps for the business location picker and directions links', 'USA'],
@@ -156,7 +161,7 @@ const transfers = () => ({
     ],
 });
 
-const retention = () => ({
+const retention = (W) => ({
     id: 'retention',
     title: 'How long we keep it',
     blocks: [
@@ -166,7 +171,7 @@ const retention = () => ({
                 ['Your account and profile', 'Until you delete your account. Deletion removes or anonymises your personal details (see "Your rights")'],
                 ['Accounts that never verified their email', `Deleted after ${RETENTION.unverifiedAccounts}`],
                 ['Guest contact details (name, email, phone on a guest booking)', `Anonymised ${RETENTION.guestContact}`],
-                ['Booking and wallet records', 'Kept while the business’s account is open, because the business needs them for its own accounting. When you delete your account, your name, email and phone are removed from them'],
+                [W ? 'Booking and wallet records' : 'Booking records (and any balance held from before the wallet was paused)', 'Kept while the business’s account is open, because the business needs them for its own accounting. When you delete your account, your name, email and phone are removed from them'],
                 ['Allergy notes, client notes and form answers', 'Until the business deletes them, or you delete your account'],
                 ['Messages', 'Until you delete your account'],
                 ['Analytics events', RETENTION.analyticsEvents],
@@ -231,11 +236,11 @@ const children = () => ({
     ],
 });
 
-const security = () => ({
+const security = (W) => ({
     id: 'security',
     title: 'Security',
     blocks: [
-        'We protect your information with measures that include: encrypted connections (HTTPS with HSTS) for all traffic; passwords stored only as bcrypt hashes; short-lived sign-in tokens that are revoked when you change your password; rate limits on sign-in; access to proofs of payment only through private, time-limited links; role-based access for team members and staff; and daily backups.',
+        `We protect your information with measures that include: encrypted connections (HTTPS with HSTS) for all traffic; passwords stored only as bcrypt hashes; short-lived sign-in tokens that are revoked when you change your password; rate limits on sign-in; ${W ? 'access to proofs of payment only through private, time-limited links; ' : ''}role-based access for team members and staff; and daily backups.`,
         'No system is perfectly secure. If a breach affects your information and puts you at risk, we will tell you and the relevant regulator as the law requires.',
     ],
 });
@@ -258,19 +263,22 @@ const changes = () => ({
 
 // ── The document ────────────────────────────────────────────────────────────
 
-export const privacyPolicy = (audience = 'customer') => {
+// `features` defaults to the shared switches; tests pass { walletEnabled: true }
+// to check the wallet wording kept for re-enabling.
+export const privacyPolicy = (audience = 'customer', features = FEATURES) => {
+    const W = !!features.walletEnabled;
     const sections = [
         whoWeAre(audience),
         businessesAsControllers(audience),
-        collectedTable(audience),
-        purposes(),
-        sharing(audience),
+        collectedTable(audience, W),
+        purposes(W),
+        sharing(audience, W),
         transfers(),
-        retention(),
+        retention(W),
         rights(audience),
         cookies(),
         children(),
-        security(),
+        security(W),
         contact(),
         changes(),
     ];
@@ -279,7 +287,7 @@ export const privacyPolicy = (audience = 'customer') => {
         updated: PRIVACY_LAST_UPDATED,
         intro: [
             `This policy explains what personal information ${op} collects when you use Bookplus, why, who receives it, how long we keep it and your rights. It should be read with our [Terms of Service](/terms).`,
-            { note: 'In short: we collect what is needed to run bookings and wallets; the business you book with sees your booking details; allergy notes and intake forms can contain health information and are shown only to that business; analytics is off until you allow it; we never sell your data; you can export or delete it at any time.' },
+            { note: `In short: we collect what is needed to run bookings${W ? ' and wallets' : ''}; the business you book with sees your booking details; allergy notes and intake forms can contain health information and are shown only to that business; analytics is off until you allow it; we never sell your data; you can export or delete it at any time.` },
         ],
         sections,
     };

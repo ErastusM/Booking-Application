@@ -7,6 +7,7 @@ const { createNotification } = require('./notificationhelper');
 const { withLock } = require('./lock');
 const { sendWalletExpiryReminder } = require('./emailService');
 const { CURRENCIES } = require('../constants/currencies');
+const { walletEnabled } = require('../constants/features');
 
 const log = pino({ level: process.env.LOG_LEVEL || 'info' });
 
@@ -172,6 +173,8 @@ const expiryProviders = () => User.find({ 'walletSettings.expiryMonths': { $gt: 
  */
 const runReminderSweep = async (nowMs = Date.now()) => {
     let sent = 0;
+    // Wallet "coming soon": no reminders (and, below, no expiry) while it is off.
+    if (!walletEnabled()) return sent;
     try {
         for (const provider of await expiryProviders()) {
             const months = provider.walletSettings.expiryMonths;
@@ -208,6 +211,9 @@ const runReminderSweep = async (nowMs = Date.now()) => {
  */
 const runExpirySweep = async (nowMs = Date.now()) => {
     const result = { expired: 0, noticed: 0 };
+    // Wallet "coming soon": existing balances are frozen as they are — never
+    // expired — until the wallet is switched back on.
+    if (!walletEnabled()) return result;
     try {
         for (const provider of await expiryProviders()) {
             const months = provider.walletSettings.expiryMonths;

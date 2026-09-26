@@ -16,6 +16,7 @@ import AuthPrompt from '../components/AuthPrompt';
 import { track } from '../services/client';
 import { formatDuration, Field, LegalText } from '@bookplus/ui';
 import { CONSENT_COPY } from '@bookplus/config/legal/consent.mjs';
+import { FEATURES } from '@bookplus/config/features.mjs';
 
 // The API answers a signed-out request with "No token, authorization denied".
 // That's server-speak for "you're signed out" — never show it. Anything else
@@ -140,7 +141,10 @@ const BookAppointment = () => {
     // Wallet chosen but the balance can't cover it — the summary panel already warns
     // about this, but nothing stopped the customer proceeding anyway; gate both the
     // "Review & Confirm" step-over and the final Confirm on it too.
-    const walletShort = !!(wallet?.settings?.enabled && paymentMethod === 'wallet' && selectedService && totalPrice > (wallet.wallet?.availableBalance ?? 0));
+    // Paying from the wallet is only offered while the wallet feature is on AND
+    // this business has it enabled; otherwise payment is cash at the appointment.
+    const walletOn = FEATURES.walletEnabled && !!wallet?.settings?.enabled;
+    const walletShort = !!(walletOn && paymentMethod === 'wallet' && selectedService && totalPrice > (wallet.wallet?.availableBalance ?? 0));
 
     // Which provider are we booking? Prefer the URL, but fall back to the selected
     // service's owner so availability + booked slots still load in the generic
@@ -230,7 +234,9 @@ const BookAppointment = () => {
     // balance and warn before a wallet-required booking that can't be covered.
     useEffect(() => {
         // Guests have no wallet — skip the (401-ing) fetch and always pay cash.
-        if (!user || !effectiveProviderId) { setWallet(null); return; }
+        // Wallet "coming soon" (FEATURES.walletEnabled off): every booking is cash
+        // at the appointment, so there is nothing to load or offer.
+        if (!FEATURES.walletEnabled || !user || !effectiveProviderId) { setWallet(null); return; }
         walletService.getMyWalletWithProvider(effectiveProviderId)
             .then(res => {
                 setWallet(res.data.data);
@@ -527,7 +533,7 @@ const BookAppointment = () => {
                     // quoted, not the base service price.
                     ...(selectedOption?.name ? { selectedOptionName: selectedOption.name } : {}),
                     ...(selectedStaff?._id ? { teamMember: selectedStaff._id } : {}),
-                    ...(wallet?.settings?.enabled ? { paymentMethod } : {}),
+                    ...(walletOn ? { paymentMethod } : {}),
                     // Guest checkout: send contact details instead of relying on a session.
                     ...(!user ? { guestName, guestEmail: guest.email.trim(), guestPhone: guest.phone.trim(), marketingOptIn: guestMarketing } : {}),
                     ...(recurrence.isRecurring ? {
@@ -856,9 +862,9 @@ const BookAppointment = () => {
                             <div style={cardStyle} data-testid="review-payment">
                                 <div style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.4rem' }}>Payment</div>
                                 <div style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', lineHeight: 1.55 }}>
-                                    {wallet?.settings?.enabled && paymentMethod === 'wallet'
+                                    {walletOn && paymentMethod === 'wallet'
                                         ? <>{curSym} {totalPrice} will be held from your wallet with {providerInfo?.name || 'this business'} now and taken when your appointment is completed. If the booking is cancelled or missed, it is released back to your balance.</>
-                                        : <>You pay {providerInfo?.name || 'the business'} {curSym} {totalPrice} at your appointment. Nothing is charged now.</>}
+                                        : <><strong style={{ color: 'var(--charcoal)' }}>Pay at your appointment.</strong> You pay {providerInfo?.name || 'the business'} {curSym} {totalPrice} in cash at your appointment. Nothing is charged now.</>}
                                     {' '}Bookplus does not charge a booking fee or deposit.
                                 </div>
                             </div>
@@ -1377,7 +1383,7 @@ const BookAppointment = () => {
                         </div>
 
                         {/* Payment method — let the client pay from their wallet or in cash */}
-                        {wallet?.settings?.enabled && (() => {
+                        {walletOn && (() => {
                             const available = wallet.wallet?.availableBalance ?? 0;
                             const short = paymentMethod === 'wallet' && selectedService && totalPrice > available;
                             return (
@@ -1421,6 +1427,11 @@ const BookAppointment = () => {
                                 {joining && <span style={{ display: 'inline-block', width: '16px', height: '16px', border: '2px solid rgba(4,5,5,0.2)', borderTopColor: 'var(--gold)', borderRadius: '50%', animation: 'spin 0.7s linear infinite', flexShrink: 0 }} />}
                                 {joining ? 'Joining...' : 'Join Waiting List'}
                             </button>
+                        )}
+                        {!walletOn && (
+                            <p data-testid="pay-at-appointment" style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)', textAlign: 'center', margin: '0.25rem 0 0', fontWeight: 600 }}>
+                                Pay at your appointment
+                            </p>
                         )}
                         <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)', textAlign: 'center', marginTop: '1rem', lineHeight: 1.5 }}>
                             {(providerInfo?.cancellationWindowHours ?? 0) === 0

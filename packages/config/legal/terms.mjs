@@ -7,6 +7,7 @@
 
 import { COMPANY, operatorName, companyValue, mailLink, phoneLinks } from './company.mjs';
 import { CURRENCY_CODES_TEXT } from './currencies.mjs';
+import { FEATURES } from '../features.mjs';
 
 export const TERMS_LAST_UPDATED = '26 September 2026';
 
@@ -22,7 +23,7 @@ const operatorLine = `Bookplus is operated by **${op}**${entity ? `, a ${entity.
 
 // ── Customer terms ─────────────────────────────────────────────────────────
 
-const customerSections = () => [
+const customerSections = (W) => [
     { id: 'about', title: 'About these Terms', blocks: [
         operatorLine,
         'These Terms apply when you use Bookplus to find and book businesses, with an account or as a guest. You accept them by ticking the box when you create an account, by continuing with Google, or by confirming a booking as a guest. Please also read our [Privacy Policy](/privacy-policy).',
@@ -32,7 +33,7 @@ const customerSections = () => [
         'Give accurate details and keep them up to date. You are responsible for bookings made from your account.',
     ] },
     { id: 'our-role', title: 'Our role: a marketplace', blocks: [
-        'Bookplus is an online **marketplace**. We provide the technology that lets you discover businesses, see their availability and prices, book, pay into a wallet and message them.',
+        `Bookplus is an online **marketplace**. We provide the technology that lets you discover businesses, see their availability and prices, book${W ? ', pay into a wallet' : ''} and message them.`,
         '**The business provides the service, not Bookplus.** Your agreement for the service is with the business. The business is responsible for the service, its quality and safety, its prices, and any licences it needs. We do not employ businesses or their staff and we do not vet, license or certify them.',
         'Reviews come only from clients who completed a booking, but they are the clients’ own opinions.',
     ] },
@@ -45,7 +46,9 @@ const customerSections = () => [
     { id: 'prices', title: 'Prices, currency and payment', blocks: [
         'Each business sets its own prices and chooses the currency it prices in. Businesses on Bookplus can price in any of these currencies: ' + CURRENCY_CODES_TEXT + '. The price and currency are shown on the business page and again on the booking summary before you confirm.',
         '**Bookplus does not charge you a booking fee.** If we ever introduce a fee for clients, we will show it to you before you book.',
-        'You pay the business, either at the appointment (for example cash, card or transfer, as the business accepts) or from your prepaid wallet with that business. Some businesses require wallet payment for bookings; this is shown before you confirm. Your bank may charge you for currency conversion; that is between you and your bank.',
+        W
+            ? 'You pay the business, either at the appointment (for example cash, card or transfer, as the business accepts) or from your prepaid wallet with that business. Some businesses require wallet payment for bookings; this is shown before you confirm. Your bank may charge you for currency conversion; that is between you and your bank.'
+            : '**You pay the business directly at your appointment**, in cash or another way the business accepts. Nothing is charged when you book. Your bank may charge you for currency conversion; that is between you and your bank.',
         'The price shown is the business’s price at the time you book. If the business later changes its prices, your confirmed booking keeps the price you were shown.',
     ] },
     { id: 'bookings', title: 'Bookings and confirmations', blocks: [
@@ -55,12 +58,14 @@ const customerSections = () => [
     { id: 'cancellations', title: 'Cancellations, changes and no-shows', blocks: [
         { list: [
             '**Your cancellations.** Each business sets how much notice it needs, from “any time” up to several days. That notice is shown before you book. You can cancel or reschedule in the app, or from the link in your confirmation email, until the notice period starts. After that, contact the business.',
-            '**If the business cancels**, we tell you by email and any wallet amount held for the booking is released back to your available balance.',
-            '**No-shows.** Bookplus does not charge a no-show fee, and any wallet amount held for a booking you missed is released. A business may decide not to accept further bookings from clients who repeatedly miss appointments.',
+            `**If the business cancels**, we tell you by email${W ? ' and any wallet amount held for the booking is released back to your available balance' : ''}.`,
+            `**No-shows.** Bookplus does not charge a no-show fee${W ? ', and any wallet amount held for a booking you missed is released' : ''}. A business may decide not to accept further bookings from clients who repeatedly miss appointments.`,
             'Refunds for a service you are unhappy with are a matter between you and the business under its own policy and the law. We may help you contact the business.',
         ] },
     ] },
-    { id: 'wallet', title: 'The prepaid wallet', blocks: [
+    // Wallet "coming soon" (FEATURES.walletEnabled off): the short notice. The full
+    // wallet terms stay here for when it is switched back on.
+    W ? { id: 'wallet', title: 'The prepaid wallet', blocks: [
         'Some businesses let you keep a **prepaid balance** with them. Each wallet is with one business and can only be spent with that business.',
         { list: [
             '**Top-ups.** You pay the business directly (bank transfer, eWallet, PayToday or cash) and send a top-up request, optionally with proof of payment. The business confirms it received the money, then your balance goes up and we email you a receipt. Card top-ups through DPO Pay are coming soon.',
@@ -72,6 +77,9 @@ const customerSections = () => [
             '**Gift cards** add a balance to your wallet with the business that sold them and follow that business’s rules.',
         ] },
         'Nothing in these rules takes away a refund you are entitled to by law.',
+    ] } : { id: 'wallet', title: 'Wallet (coming soon)', blocks: [
+        'The Bookplus wallet is **not available yet**. Clients pay the business directly at the appointment.',
+        'If you already hold a balance with a business from before, it stays as it is: it does not expire, and you can see it in the app. Contact that business to use or settle it. We will update these Terms before the wallet is introduced.',
     ] },
     { id: 'reviews', title: 'Reviews', blocks: [
         'You can review a business once for each completed booking. Reviews must be honest and about your own experience. Do not post reviews that are false, offensive, discriminatory, that include other people’s personal information, or that you were paid or rewarded for. Businesses must not write, buy or reward reviews of themselves.',
@@ -80,7 +88,7 @@ const customerSections = () => [
     { id: 'acceptable-use', title: 'Acceptable use', blocks: [
         { list: [
             'Do not use Bookplus for anything unlawful, fraudulent, harmful or misleading, or to harass anyone.',
-            'Do not make fake bookings, book slots you do not intend to keep, or send false proof of payment.',
+            `Do not make fake bookings${W ? ', book slots you do not intend to keep, or send false proof of payment' : ' or book slots you do not intend to keep'}.`,
             'Do not misuse, disrupt, scrape, reverse-engineer or try to gain unauthorised access to the platform or other people’s accounts.',
             'Do not upload content that is unlawful, infringing or offensive, or that you have no right to share.',
         ] },
@@ -96,7 +104,7 @@ const customerSections = () => [
         'Nothing in these Terms takes away any right you have under consumer-protection or other law.',
     ] },
     { id: 'termination', title: 'Suspending or closing accounts', blocks: [
-        'You can close your account at any time. We may suspend or close an account, or remove content, if it breaks these Terms, puts other users at risk, or where the law requires. Where we reasonably can, we tell you why first and give you a chance to respond. If your account is closed, contact the businesses you hold wallet balances with about those balances.',
+        'You can close your account at any time. We may suspend or close an account, or remove content, if it breaks these Terms, puts other users at risk, or where the law requires. Where we reasonably can, we tell you why first and give you a chance to respond. If your account is closed, contact any business you hold a balance with about that balance.',
     ] },
     { id: 'disputes', title: 'Complaints and disputes', blocks: [
         '**With a business:** contact the business first, using the booking messages or its contact details. If that does not work, tell us at ' + mail + ' and we will try to help both sides reach a fair outcome, but the decision rests with the business and you.',
@@ -112,7 +120,7 @@ const customerSections = () => [
 
 // ── Business terms ─────────────────────────────────────────────────────────
 
-const businessSections = () => [
+const businessSections = (W) => [
     { id: 'about', title: 'About these Terms', blocks: [
         operatorLine,
         'These Terms apply when you use Bookplus for Business to take bookings, manage your calendar, team and clients, and be listed on the Bookplus marketplace. You accept them by ticking the box when you register, by continuing with Google, or, for team members, by accepting an invitation. Please also read our [Privacy Policy](/privacy-policy).',
@@ -134,7 +142,7 @@ const businessSections = () => [
             'You are responsible for your own taxes, including any VAT on your services.',
         ] },
     ] },
-    { id: 'wallet', title: 'Client wallets', blocks: [
+    W ? { id: 'wallet', title: 'Client wallets', blocks: [
         'If you turn on the wallet, your clients can prepay a balance that can only be spent with you.',
         { list: [
             'Clients pay you directly. **You receive and hold the money**, and you must confirm a top-up only once the money has arrived.',
@@ -143,6 +151,9 @@ const businessSections = () => [
             'Refunds and adjustments you propose only apply once the client approves them.',
             'You remain responsible to your clients for their balances, including if you close your account. Settle or refund outstanding balances before you close it.',
         ] },
+    ] } : { id: 'wallet', title: 'Wallet (coming soon)', blocks: [
+        'The client wallet is **not available yet**: clients pay you directly at the appointment. Top-ups, wallet payments and gift cards are switched off.',
+        'Any balance a client already holds with you stays as it is. It does not expire and is shown read-only to you and to the client; settle it with the client directly. We will update these Terms before the wallet is introduced.',
     ] },
     { id: 'team', title: 'Your team', blocks: [
         'You may invite staff with the permissions you choose. You are responsible for who you give access to, what they do in your account, and removing access when they leave. Team members must accept these Terms when they accept an invitation.',
@@ -182,7 +193,7 @@ const businessSections = () => [
         'You provide your services to your clients; Bookplus does not (see “Our role” above). Nothing in these Terms takes away any right that the law gives you.',
     ] },
     { id: 'termination', title: 'Suspending or closing accounts', blocks: [
-        'You can close your business account at any time, after honouring or properly cancelling confirmed bookings and settling client wallet balances. We may suspend or close accounts that break these Terms or put others at risk; where we reasonably can, we tell you why first.',
+        'You can close your business account at any time, after honouring or properly cancelling confirmed bookings and settling any client balances. We may suspend or close accounts that break these Terms or put others at risk; where we reasonably can, we tell you why first.',
     ] },
     { id: 'disputes', title: 'Disputes', blocks: [
         'Disputes with your clients are between you and them. If you have a complaint about Bookplus, contact us at ' + mail + '; we aim to resolve it within 30 days.',
@@ -192,9 +203,11 @@ const businessSections = () => [
     ] },
 ];
 
-export const termsOfService = (audience = 'customer') => ({
+// `features` defaults to the shared switches; tests pass { walletEnabled: true }
+// to check the full wallet terms kept for re-enabling.
+export const termsOfService = (audience = 'customer', features = FEATURES) => ({
     title: audience === 'business' ? 'Business Terms of Service' : 'Terms of Service',
     updated: TERMS_LAST_UPDATED,
     intro: [],
-    sections: audience === 'business' ? businessSections() : customerSections(),
+    sections: audience === 'business' ? businessSections(!!features.walletEnabled) : customerSections(!!features.walletEnabled),
 });

@@ -17,7 +17,9 @@ const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const moneyLabel = (provider, n) => `${currencySymbol(provider?.businessProfile?.currency || 'NAD')}${Number(n).toFixed(0)}`;
 
 // Gift cards are spent from the client wallet, so the business's wallet must be on.
-const walletOn = (provider) => !!provider?.walletSettings?.enabled;
+const { walletEnabled } = require('../constants/features');
+// Off while the platform wallet is "coming soon" (WALLET_ENABLED), whatever the business set.
+const walletOn = (provider) => walletEnabled() && !!provider?.walletSettings?.enabled;
 
 /* ───────────── OWNER ───────────── */
 

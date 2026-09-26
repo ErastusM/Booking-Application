@@ -9,6 +9,8 @@ import { legalNotice } from '@bookplus/config/legal/notice.mjs';
 import { LEGAL_CURRENCIES } from '@bookplus/config/legal/currencies.mjs';
 import { legalDetailsPlugin } from '@bookplus/config/legal/buildCheck.mjs';
 import LegalNotice from '../pages/LegalNotice';
+import ComingSoon from '../components/ComingSoon';
+import { FEATURES, WALLET_COMING_SOON_LINE } from '@bookplus/config/features.mjs';
 
 /**
  * The legal pages (compliance scorecard points 3, 4, 7, 12, 13, 16 and 18).
@@ -127,7 +129,7 @@ describe('Privacy Policy content matches what the platform does', () => {
         it(`${audience}: names every processor, sensitive data type and retention period`, () => {
             const t = textOf(privacyPolicy(audience));
             for (const name of ['Cloudinary', 'Resend', 'Sentry', 'Google', 'OpenStreetMap', 'DigitalOcean']) expect(t).toContain(name);
-            for (const topic of ['bp_sid', 'bp_rt', 'GPS', 'allergy', 'intake', 'health', 'proof-of-payment', 'Reviews', 'Messages', 'wallet']) expect(t.toLowerCase()).toContain(topic.toLowerCase());
+            for (const topic of ['bp_sid', 'bp_rt', 'GPS', 'allergy', 'intake', 'health', 'Reviews', 'Messages']) expect(t.toLowerCase()).toContain(topic.toLowerCase());
             for (const period of Object.values(RETENTION)) expect(t).toContain(period);
             expect(t).toContain('16 and older');
             expect(t).toMatch(/Access and export/);
@@ -144,6 +146,48 @@ describe('Privacy Policy content matches what the platform does', () => {
     });
 });
 
+describe('wallet "coming soon" in the legal text', () => {
+    it('the default is the coming-soon state', () => {
+        expect(FEATURES.walletEnabled).toBe(false);
+    });
+
+    it('Terms (client and business) replace the wallet sections with a short coming-soon notice', () => {
+        for (const audience of ['customer', 'business']) {
+            const w = termsOfService(audience).sections.find((sec) => sec.id === 'wallet');
+            expect(w.title).toBe('Wallet (coming soon)');
+            const t = textOf(w);
+            expect(t).toMatch(/not available yet/);
+            expect(t).toMatch(/directly at the appointment/);
+            expect(t).not.toMatch(/top up|non-refundable|6, 12 or 24/i);
+        }
+        const all = textOf(termsOfService('customer'));
+        expect(all).toMatch(/You pay the business directly at your appointment/);
+        expect(all).not.toMatch(/from your prepaid wallet|proof of payment/);
+    });
+
+    it('Privacy Policy drops wallet transactions and proofs of payment, with the "update first" line', () => {
+        for (const audience of ['customer', 'business']) {
+            const t = textOf(privacyPolicy(audience));
+            expect(t).not.toMatch(/proof/i);
+            expect(t).not.toMatch(/top-up|reservations, deductions/i);
+            expect(t).toMatch(/wallet is coming soon: if we introduce it, we will update this policy first/);
+        }
+        const on = textOf(privacyPolicy('customer', { walletEnabled: true }));
+        expect(on).toMatch(/proof-of-payment/);
+    });
+});
+
+describe('ComingSoon', () => {
+    it('shows the badge, title, line and any read-only content', () => {
+        render(<ComingSoon title="Wallet — coming soon" line={WALLET_COMING_SOON_LINE}><p>Your balance with X: N$10.00</p></ComingSoon>);
+        const box = screen.getByTestId('coming-soon');
+        expect(box).toHaveTextContent('Coming soon');
+        expect(box).toHaveTextContent('Wallet — coming soon');
+        expect(box).toHaveTextContent('Pay at your appointment for now.');
+        expect(box).toHaveTextContent('Your balance with X: N$10.00');
+    });
+});
+
 describe('Terms of Service content', () => {
     it('names every pricing currency instead of "Namibian Dollars only"', () => {
         for (const audience of ['customer', 'business']) {
@@ -153,11 +197,15 @@ describe('Terms of Service content', () => {
         }
     });
 
-    it('explains wallet refunds and expiry, cancellations and the marketplace role', () => {
-        const t = textOf(termsOfService('customer'));
+    it('keeps the full wallet terms for when the wallet is switched back on', () => {
+        const t = textOf(termsOfService('customer', { walletEnabled: true }));
         expect(t).toMatch(/non-refundable/);
         expect(t).toMatch(/6, 12 or 24 months without any wallet activity/);
         expect(t).toMatch(/30 days and 7 days before/);
+    });
+
+    it('explains cancellations and the marketplace role', () => {
+        const t = textOf(termsOfService('customer'));
         expect(t).toMatch(/No-shows/);
         expect(t).toMatch(/The business provides the service, not Bookplus/);
         expect(t).toContain(operatorName());
