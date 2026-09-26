@@ -11,6 +11,7 @@ const MAIN_CATEGORIES = require('../constants/mainCategories');
 const { CURRENCY_CODES } = require('../constants/currencies');
 const { notifyAdmins } = require('../utils/notificationhelper');
 const { primaryOrigin, businessOrigin, originForRole } = require('../utils/origins');
+const staffInvites = require('../utils/staffInvites');
 
 // How many recent refresh-token ids (jti hashes) to remember per user. Enough to
 // cover a handful of concurrent devices without growing unbounded.
@@ -1395,11 +1396,21 @@ exports.forgotPassword = async (req, res) => {
         if (accountType === 'customer' || accountType === 'business') {
             query.role = User.roleFilterForAccountType(accountType);
         }
-        const users = await User.find(query).select('+passwordResetToken +passwordResetExpiry');
+        const users = await User.find(query).select('+password +passwordResetToken +passwordResetExpiry');
         const { sendPasswordResetEmail } = require('../utils/emailService');
 
         for (const user of users) {
             if (user.provider !== 'local') continue;
+            // An invited team member who never set a password has nothing to
+            // reset — and the reset token used to share one slot with their
+            // invite, so this silently killed the invite they were holding.
+            // Send them a fresh invite instead (fire-and-forget, cooldown-limited),
+            // and leave passwordResetToken — which may still hold an invite emailed
+            // before invites moved to staffInvites — untouched.
+            if (user.role === 'staff' && !user.password && user.staffOf) {
+                staffInvites.selfServiceSend(user._id).catch(() => {});
+                continue;
+            }
             // Generate a secure random token; store only its SHA-256 hash
             const rawToken = crypto.randomBytes(32).toString('hex');
             user.passwordResetToken = crypto.createHash('sha256').update(rawToken).digest('hex');
@@ -1487,19 +1498,21 @@ exports.getStaffInvite = async (req, res) => {
         const { token } = req.params;
         if (!token) return res.status(400).json({ success: false, message: 'Missing invite token' });
 
-        const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-        const user = await User.findOne({
-            passwordResetToken: hashedToken,
-            passwordResetExpiry: { $gt: new Date() },
-            role: 'staff',
-        }).select('name email staffOf lastLoginAt');
-
-        if (!user || !user.staffOf) {
-            return res.status(404).json({ success: false, message: 'This invite link is invalid or has expired.' });
+        // Every invite email ever sent (up to 10) is checked, then the legacy
+        // passwordResetToken slot so pre-staffInvites emails keep working.
+        const inv = await staffInvites.resolveInvite(token);
+        if (inv.code) {
+            // Same status + message as ever; the code (and, for a token holder,
+            // what happened) lets the page explain instead of just "expired".
+            const body = { success: false, message: staffInvites.INVITE_MESSAGE, code: inv.code };
+            if (inv.code === 'INVITE_SUPERSEDED') body.newerSentAt = inv.newerSentAt;
+            if (inv.code === 'INVITE_ACCEPTED') body.email = inv.user.email;   // prefill Sign in
+            return res.status(404).json(body);
         }
+        const { user, entry } = inv;
 
         const owner = await User.findById(user.staffOf).select('name businessProfile');
-        const businessName = owner?.businessProfile?.businessName || owner?.name || 'the team';
+        const businessName = staffInvites.businessNameFor(owner);
 
         return res.status(200).json({
             success: true,
@@ -1510,6 +1523,7 @@ exports.getStaffInvite = async (req, res) => {
                 businessName,
                 // First-time accept vs a returning member re-setting their password.
                 returning: !!user.lastLoginAt,
+                expiresAt: entry.expiresAt,
             },
         });
     } catch (error) {
@@ -1518,12 +1532,49 @@ exports.getStaffInvite = async (req, res) => {
 };
 
 /**
+ * POST /api/auth/staff-invite/:token/renew   (public)
+ * POST /api/auth/staff-invite/request        (public) body: { email }
+ * "Email me a new link" from the invite page. Whatever the token/address is, the
+ * response is the same generic 200 and it is sent BEFORE any lookup runs, so
+ * neither body nor timing tells a caller whether an account exists. The work
+ * (fresh invite + owner receipt, or a sign-in email for an active member) runs
+ * afterwards, per-account cooldown-limited — see utils/staffInvites.
+ */
+const RENEW_RESPONSE = {
+    success: true,
+    message: 'If that invite can be renewed, a new link is on its way to the email address it was sent to.',
+};
+
+exports.renewStaffInvite = async (req, res) => {
+    const { token } = req.params;
+    res.status(200).json(RENEW_RESPONSE);
+    try {
+        const inv = await staffInvites.resolveInvite(token);
+        if (inv.user && inv.code !== 'INVITE_INVALID' && inv.code !== 'INVITE_REVOKED') {
+            await staffInvites.selfServiceSend(inv.user._id);
+        }
+    } catch { /* already answered; never surface anything */ }
+};
+
+exports.requestStaffInvite = async (req, res) => {
+    const email = typeof req.body?.email === 'string' ? req.body.email.trim().toLowerCase() : '';
+    if (!email || email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+        return res.status(400).json({ success: false, message: 'Enter a valid email address' });
+    }
+    res.status(200).json(RENEW_RESPONSE);
+    try {
+        const user = await User.findOne({ email, role: 'staff' }).select('_id');
+        if (user) await staffInvites.selfServiceSend(user._id);
+    } catch { /* already answered */ }
+};
+
+/**
  * POST /api/auth/staff-invite/:token/accept   (public)
  * Body: { password }. The Fresha-style "accept invite" step: an invited staff
  * member sets their password and is signed straight in — no bounce to a login
- * screen. Same token mechanics as the reset flow, but scoped to staff and it
- * returns auth tokens (+ refresh cookie) so the client lands in their own
- * calendar already authenticated.
+ * screen. Any unexpired, unused invite this member was sent works; accepting
+ * one retires the rest. Returns auth tokens (+ refresh cookie) so the client
+ * lands in their own calendar already authenticated.
  */
 exports.acceptStaffInvite = async (req, res) => {
     try {
@@ -1541,22 +1592,18 @@ exports.acceptStaffInvite = async (req, res) => {
             });
         }
 
-        const hashedToken = crypto.createHash('sha256').update(token).digest('hex');
-        const user = await User.findOne({
-            passwordResetToken: hashedToken,
-            passwordResetExpiry: { $gt: new Date() },
-            role: 'staff',
-            // Must still be attached to a business. Archiving a member severs
-            // staffOf but leaves the invite token intact — a deliberate, terminal
-            // revocation. Without this, an archived member could accept a stale
-            // invite and reactivate a working login, defeating the archive.
-            // Mirrors getStaffInvite's `!user.staffOf` rejection.
-            staffOf: { $ne: null },
-        }).select('+password name email role providerCategory avatar phone providerSetupComplete tokenVersion isActive deactivatedAt staffOf staffTier staffPermissions');
-
-        if (!user) {
-            return res.status(400).json({ success: false, message: 'This invite link is invalid or has expired.' });
+        // resolveInvite refuses (INVITE_REVOKED) a member no longer attached to a
+        // business: archiving severs staffOf but leaves invites stored — a
+        // deliberate, terminal revocation. Without it an archived member could
+        // accept a stale invite and reactivate a working login.
+        const inv = await staffInvites.resolveInvite(token);
+        if (inv.code) {
+            const body = { success: false, message: staffInvites.INVITE_MESSAGE, code: inv.code };
+            if (inv.code === 'INVITE_SUPERSEDED') body.newerSentAt = inv.newerSentAt;
+            if (inv.code === 'INVITE_ACCEPTED') body.email = inv.user.email;
+            return res.status(400).json(body);
         }
+        const { user } = inv;
 
         // An admin suspension (isActive:false with no deactivatedAt) is a
         // platform-level block that accepting an invite must not silently undo —
@@ -1565,6 +1612,31 @@ exports.acceptStaffInvite = async (req, res) => {
         if (user.isActive === false && !user.deactivatedAt) {
             return res.status(403).json({ success: false, message: 'Your account has been suspended. Please contact support.' });
         }
+
+        // Claim THIS invite atomically, so two tabs (or two emails) racing to
+        // accept can't both set a password: exactly one wins, the other gets
+        // INVITE_ACCEPTED.
+        // "No live invite already used" is part of the claim, so two DIFFERENT
+        // invite emails accepted at the same moment can't both win either.
+        const now = new Date();
+        const noneUsed = { staffInvites: { $not: { $elemMatch: { usedAt: { $ne: null }, retiredAt: null } } } };
+        const claim = inv.legacy
+            ? await User.updateOne(
+                { _id: user._id, passwordResetToken: inv.hash, ...noneUsed },
+                { $set: { passwordResetToken: null, passwordResetExpiry: null } },
+            )
+            : await User.updateOne(
+                { _id: user._id, $and: [{ staffInvites: { $elemMatch: { hash: inv.hash, usedAt: null, retiredAt: null } } }, noneUsed] },
+                { $set: { 'staffInvites.$[mine].usedAt': now } },
+                { arrayFilters: [{ 'mine.hash': inv.hash }] },
+            );
+        if (claim.modifiedCount !== 1) {
+            return res.status(400).json({ success: false, message: staffInvites.INVITE_MESSAGE, code: 'INVITE_ACCEPTED', email: user.email });
+        }
+        // Every other open invite stops working once one has been used. Done
+        // atomically (not through user.save) so the claim above is never
+        // overwritten by this document's stale copy of the array.
+        await staffInvites.retireOthersAtomic(user._id, inv.hash, now);
 
         user.password = password;
         user.passwordResetToken = null;

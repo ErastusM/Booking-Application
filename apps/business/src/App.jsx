@@ -8,7 +8,7 @@ import Navbar from './components/Navbar';
 import ProtectedRoute from './components/ProtectedRoute';
 import AppUpdater from './components/AppUpdater';
 import SignupSurveyModal, { shouldShowSignupSurvey } from './components/SignupSurveyModal';
-import { track } from './services/client';
+import client, { track } from './services/client';
 import Login from './pages/Login';
 
 // Business app route map (DUAL_APP_SPEC.md §2b). Parity migration keeps the
@@ -125,6 +125,18 @@ function AppRoutes() {
     );
 }
 
+// The app chrome (Navbar → NotificationBell's 30s poll, the account switcher's
+// getSibling) makes authenticated calls on mount. On a page opened from an
+// emailed one-time link (accept invite, reset password, verify email) those
+// calls ran against whatever dead session the device held, and their 401 →
+// failed refresh → forceLogout navigated the invitee away from their form.
+// Those pages are standalone screens: no chrome, no background calls.
+function AppChrome() {
+    const { pathname } = useLocation();
+    if (client.isPublicTokenPath(pathname)) return null;
+    return <Navbar />;
+}
+
 // Post-signup survey — a one-time "did signup go smoothly?" prompt for the
 // provider who owns the account (the person who actually went through /register).
 // Gated on the profile's `signupSurvey` field (null/undefined = not answered
@@ -149,7 +161,7 @@ export default function App() {
                     <ConfirmProvider>
                         {/* No footer in the business tool — it's an app, not a website. */}
                         <AppUpdater />
-                        <Navbar />
+                        <AppChrome />
                         <AppRoutes />
                         <SignupSurveyGate />
                     </ConfirmProvider>

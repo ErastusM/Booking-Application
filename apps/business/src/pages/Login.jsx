@@ -1,15 +1,26 @@
 import React, { useState } from 'react';
-import { Link, useNavigate, useSearchParams } from 'react-router-dom';
+import { Link, Navigate, useNavigate, useSearchParams } from 'react-router-dom';
 import { authService } from '../services';
 import { useAuthContext } from '../context/AuthContext';
 import { API_BASE } from '../services/api';
+import { safeNext } from '../utils/safeNext';
+
+// ?error= codes other flows send here. session_expired comes from the
+// api-client when a session can't be refreshed; it used to be dropped
+// silently, so people landed on a bare Sign In page with no idea why.
+const ERROR_NOTICES = {
+    session_expired: 'Your session ended, sign in again.',
+};
 
 const CUSTOMER_URL = import.meta.env.VITE_CUSTOMER_URL || 'http://localhost:3002';
 
 const Login = () => {
-    const { login } = useAuthContext();
+    const { login, user, sessionChecked } = useAuthContext();
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
+    // Back to the page the lapsed session interrupted (same-origin paths only).
+    const next = safeNext(searchParams.get('next'));
+    const notice = ERROR_NOTICES[searchParams.get('error')] || '';
     // Sent here by the website's destination chooser when the business account
     // keeps its own password: carry the email over so they only retype the one
     // thing we actually need.
@@ -54,7 +65,7 @@ const Login = () => {
             // Straight in. They came to the business door, so a customer account
             // on the same email is not a question to put to them here.
             login(session);
-            navigate(homeForRole(session?.user?.role));
+            navigate(next || homeForRole(session?.user?.role), { replace: true });
         } catch (err) {
             // A wrong-side 403 carries the other side's accountType; an admin
             // suspension is ALSO a 403 and carries none. Branching on the bare
@@ -73,6 +84,11 @@ const Login = () => {
             setLoading(false);
         }
     };
+
+    // Already signed in (and the session checked out): nothing to do here.
+    if (sessionChecked && user && !loading) {
+        return <Navigate to={next || homeForRole(user.role)} replace />;
+    }
 
     return (
         <div style={{
@@ -187,6 +203,16 @@ const Login = () => {
                                     </Link>
                                 </div>
                             )}
+                        </div>
+                    )}
+
+                    {notice && !error && (
+                        <div data-testid="login-session-notice" role="status" style={{
+                            background: 'var(--info-bg)', color: 'var(--info-fg)',
+                            padding: '0.75rem 1rem', borderRadius: 'var(--radius-sm)',
+                            marginBottom: '1.5rem', fontSize: '0.85rem', lineHeight: 1.5,
+                        }}>
+                            {notice}
                         </div>
                     )}
 

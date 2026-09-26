@@ -1,7 +1,16 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Link, useNavigate, useSearchParams } from 'react-router-dom';
 import { authService } from '../services';
+import PasswordFields, { passwordMeetsRules } from '../components/auth/PasswordFields';
+import NewLinkRequest from '../components/auth/NewLinkRequest';
+import { AuthSplit, AuthTitle, AuthLead, Notice, linkStyle } from '../components/auth/AuthSplit';
 
+/**
+ * Set a new password from an emailed reset link. Like /accept-invite, this is
+ * an emailed-link page: it renders without the app chrome and a dead session
+ * on the device can no longer redirect it away (api-client PUBLIC_TOKEN_PATHS).
+ * A spent or expired link offers "Email me a new link" right here.
+ */
 const ResetPassword = () => {
     const [searchParams] = useSearchParams();
     const navigate = useNavigate();
@@ -12,226 +21,107 @@ const ResetPassword = () => {
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState('');
     const [success, setSuccess] = useState(false);
+    const [expired, setExpired] = useState(!token);
 
-    const passwordRegex = /^(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=[\]{};':"\\|,.<>/?]).{8,}$/;
+    useEffect(() => {
+        if (!success) return undefined;
+        const t = setTimeout(() => navigate('/login'), 3000);
+        return () => clearTimeout(t);
+    }, [success, navigate]);
 
     const handleSubmit = async (e) => {
         e.preventDefault();
         setError('');
-
+        if (!passwordMeetsRules(password)) {
+            return setError('Your password needs everything in the list below the box.');
+        }
         if (password !== confirm) {
-            return setError('Passwords do not match');
+            return setError('The two passwords don’t match.');
         }
-        if (!passwordRegex.test(password)) {
-            return setError('Password must be at least 8 characters and include an uppercase letter, a number and a special character');
-        }
-
         setLoading(true);
         try {
             await authService.resetPassword({ token, password });
             setSuccess(true);
-            setTimeout(() => navigate('/login'), 3000);
         } catch (err) {
-            setError(err.response?.data?.message || 'Reset failed. The link may have expired.');
+            const msg = err.response?.data?.message || '';
+            if (err.response?.status === 400 && /invalid or has expired/i.test(msg)) {
+                setExpired(true);
+            } else if (!err.response) {
+                setError('We couldn’t reach Bookplus, so your password wasn’t changed. Check your connection and try again.');
+            } else {
+                setError(msg || 'Something went wrong. Please try again.');
+            }
         } finally {
             setLoading(false);
         }
     };
 
-    if (!token) {
-        return (
-            <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--off-white)' }}>
-                <div style={{ textAlign: 'center', maxWidth: '400px', padding: '2rem' }}>
-                    <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
-                    <h2 style={{ fontFamily: 'var(--font-display)', color: 'var(--charcoal)', marginBottom: '1rem' }}>Invalid reset link</h2>
-                    <p style={{ color: 'var(--text-muted)', marginBottom: '1.5rem' }}>This password reset link is invalid or missing. Please request a new one.</p>
-                    <Link to="/forgot-password" className="btn-primary" style={{ textDecoration: 'none', padding: '0.75rem 1.5rem', display: 'inline-block' }}>
-                        Request new link
-                    </Link>
-                </div>
+    let body;
+    if (success) {
+        body = (
+            <div data-testid="reset-success">
+                <AuthTitle>Password updated</AuthTitle>
+                <AuthLead>Your new password is set. Taking you to sign in…</AuthLead>
+                <Link to="/login" className="btn-primary" style={{ display: 'block', textAlign: 'center', textDecoration: 'none', padding: '0.875rem' }}>
+                    Sign in
+                </Link>
+            </div>
+        );
+    } else if (expired) {
+        body = (
+            <div data-testid="reset-expired">
+                <AuthTitle>{token ? 'This reset link has expired' : 'This reset link is incomplete'}</AuthTitle>
+                <AuthLead>
+                    Reset links work for an hour and only once. Enter your email and we’ll send you a new one.
+                </AuthLead>
+                <NewLinkRequest
+                    askEmail
+                    send={(email) => authService.forgotPassword(email)}
+                    sentMessage="If that address has a Bookplus business account, a new reset link is on its way. It can take a minute — check your spam folder too."
+                    testIdPrefix="reset-new-link"
+                />
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', textAlign: 'center', margin: '1.25rem 0 0' }}>
+                    <Link to="/login" style={linkStyle}>Remembered it? Sign in</Link>
+                </p>
+            </div>
+        );
+    } else {
+        body = (
+            <div data-testid="reset-form">
+                <AuthTitle>Choose a new password</AuthTitle>
+                <AuthLead>Enter and confirm your new password below.</AuthLead>
+                {error && <Notice tone="danger" role="alert" testId="reset-error">{error}</Notice>}
+                <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.1rem', position: 'relative' }}>
+                    <PasswordFields
+                        password={password}
+                        onPassword={setPassword}
+                        confirm={confirm}
+                        onConfirm={setConfirm}
+                        label="New password"
+                        testIdPrefix="reset"
+                        disabled={loading}
+                    />
+                    <button
+                        type="submit"
+                        disabled={loading}
+                        className="btn-primary"
+                        style={{ width: '100%', padding: '0.875rem' }}
+                        data-testid="reset-submit"
+                    >
+                        {loading ? 'Saving…' : 'Set new password →'}
+                    </button>
+                </form>
             </div>
         );
     }
 
     return (
-        <div style={{
-            minHeight: '100dvh',
-            display: 'grid',
-            gridTemplateColumns: '1fr 1fr',
-            background: 'var(--off-white)',
-        }}>
-            {/* Left decorative panel */}
-            <div className="auth-left" style={{
-                background: 'var(--ink)',
-                display: 'flex',
-                flexDirection: 'column',
-                justifyContent: 'center',
-                padding: '4rem',
-                position: 'relative',
-                overflow: 'hidden',
-            }}>
-                <div style={{
-                    position: 'absolute',
-                    inset: 0,
-                    backgroundImage: 'radial-gradient(ellipse at 30% 70%, rgba(240,62,22,0.05) 0%, transparent 60%)',
-                    pointerEvents: 'none',
-                }} />
-                <div style={{ position: 'relative', zIndex: 1 }}>
-                    <Link to="/" style={{
-                        fontFamily: 'var(--font-display)',
-                        fontSize: '1.8rem',
-                        fontWeight: '600',
-                        color: 'white',
-                        textDecoration: 'none',
-                        display: 'block',
-                        marginBottom: '4rem',
-                    }}>
-                        Book<span style={{ color: 'var(--gold)' }}>plus</span>
-                    </Link>
-                    <h2 style={{
-                        fontFamily: 'var(--font-display)',
-                        fontSize: 'clamp(2rem, 3vw, 2.8rem)',
-                        fontWeight: '600',
-                        color: 'white',
-                        lineHeight: 1.2,
-                        marginBottom: '1.5rem',
-                    }}>
-                        Choose a new<br />
-                        <span style={{ color: 'var(--gold)', fontStyle: 'italic' }}>password.</span>
-                    </h2>
-                    <p style={{
-                        color: 'rgba(255,255,255,0.5)',
-                        fontSize: '1rem',
-                        lineHeight: 1.7,
-                        fontWeight: '300',
-                        maxWidth: '340px',
-                    }}>
-                        Make it strong. At least 8 characters with an uppercase letter, a number and a special character.
-                    </p>
-                    <div className="gold-divider" style={{ marginTop: '2rem' }} />
-                </div>
-            </div>
-
-            {/* Right form panel */}
-            <div className="auth-right" style={{
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '4rem 3rem',
-            }}>
-                <div style={{ width: '100%', maxWidth: '400px' }} className="fade-up">
-                    {success ? (
-                        <div style={{ textAlign: 'center' }}>
-                            <div style={{ fontSize: '3rem', marginBottom: '1.5rem' }}>✅</div>
-                            <h1 style={{
-                                fontFamily: 'var(--font-display)',
-                                fontSize: '1.8rem',
-                                fontWeight: '600',
-                                color: 'var(--charcoal)',
-                                marginBottom: '1rem',
-                            }}>
-                                Password updated!
-                            </h1>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.95rem', lineHeight: 1.7, marginBottom: '2rem' }}>
-                                Your password has been reset successfully. Redirecting you to sign in…
-                            </p>
-                            <Link to="/login" style={{
-                                color: 'var(--gold-dark)',
-                                fontWeight: '600',
-                                fontSize: '0.9rem',
-                                textDecoration: 'none',
-                            }}>
-                                Sign In →
-                            </Link>
-                        </div>
-                    ) : (
-                        <>
-                            <h1 style={{
-                                fontFamily: 'var(--font-display)',
-                                fontSize: '2rem',
-                                fontWeight: '600',
-                                color: 'var(--charcoal)',
-                                marginBottom: '0.5rem',
-                            }}>
-                                New Password
-                            </h1>
-                            <p style={{ color: 'var(--text-muted)', fontSize: '0.9rem', marginBottom: '2rem' }}>
-                                Enter and confirm your new password below.
-                            </p>
-
-                            {error && (
-                                <div style={{
-                                    background: '#fee2e2',
-                                    border: '1px solid #fca5a5',
-                                    color: '#991b1b',
-                                    padding: '0.75rem 1rem',
-                                    borderRadius: 'var(--radius-sm)',
-                                    marginBottom: '1.5rem',
-                                    fontSize: '0.85rem',
-                                }}>
-                                    {error}
-                                </div>
-                            )}
-
-                            <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-                                <div>
-                                    <label style={{
-                                        display: 'block',
-                                        fontSize: '0.8rem',
-                                        fontWeight: '600',
-                                        color: 'var(--text-secondary)',
-                                        marginBottom: '0.5rem',
-                                        letterSpacing: '0.05em',
-                                        textTransform: 'uppercase',
-                                    }}>
-                                        New Password
-                                    </label>
-                                    <input
-                                        type="password"
-                                        value={password}
-                                        onChange={e => setPassword(e.target.value)}
-                                        required
-                                        placeholder="••••••••"
-                                        className="input"
-                                    />
-                                </div>
-
-                                <div>
-                                    <label style={{
-                                        display: 'block',
-                                        fontSize: '0.8rem',
-                                        fontWeight: '600',
-                                        color: 'var(--text-secondary)',
-                                        marginBottom: '0.5rem',
-                                        letterSpacing: '0.05em',
-                                        textTransform: 'uppercase',
-                                    }}>
-                                        Confirm Password
-                                    </label>
-                                    <input
-                                        type="password"
-                                        value={confirm}
-                                        onChange={e => setConfirm(e.target.value)}
-                                        required
-                                        placeholder="••••••••"
-                                        className="input"
-                                    />
-                                </div>
-
-                                <button
-                                    type="submit"
-                                    disabled={loading}
-                                    className="btn-primary"
-                                    style={{ width: '100%', marginTop: '0.5rem', padding: '0.875rem' }}
-                                >
-                                    {loading ? 'Saving...' : 'Set New Password →'}
-                                </button>
-                            </form>
-                        </>
-                    )}
-                </div>
-            </div>
-        </div>
+        <AuthSplit
+            side={<>Choose a new<br /><span style={{ color: 'var(--gold)', fontStyle: 'italic' }}>password.</span></>}
+            sideBody="Make it strong: at least 8 characters with an uppercase letter, a number and a symbol."
+        >
+            {body}
+        </AuthSplit>
     );
 };
 

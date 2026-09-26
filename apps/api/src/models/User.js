@@ -207,6 +207,35 @@ const userSchema = new mongoose.Schema(
         oauthCodeExpiry: { type: Date, default: null, select: false },
         passwordResetToken: { type: String, default: null, select: false },
         passwordResetExpiry: { type: Date, default: null, select: false },
+        // Staff set-password invites, kept APART from passwordResetToken. Every
+        // Send/Resend pushes an entry (hash of the emailed token only) instead of
+        // overwriting one slot, so each unexpired, unused invite email keeps
+        // working until one of them is accepted — and the member's own "Forgot
+        // password?" can no longer silently kill the invite. Kept small by
+        // the retention rules in utils/staffInvites (trimInvites).
+        staffInvites: {
+            type: [{
+                _id: false,
+                hash: { type: String, required: true },
+                sentAt: { type: Date, required: true },
+                expiresAt: { type: Date, required: true },
+                usedAt: { type: Date, default: null },
+                retiredAt: { type: Date, default: null },
+                // Whether the email actually went out. The owner's 60s resend
+                // throttle only applies after a delivered send — a failed one
+                // must be retryable at once.
+                emailed: { type: Boolean, default: false },
+                // 'owner' = Send/Resend on the Team screen; 'self' = a link the
+                // member asked for. Open owner invites are never trimmed by
+                // anything the public "new link" endpoints can trigger.
+                source: { type: String, enum: ['owner', 'self'], default: 'owner' },
+            }],
+            default: undefined,
+            select: false,
+        },
+        // When the invitee asked for a fresh link / sign-in email themselves
+        // (renew / request / forgot-password). Per-account cooldown + daily cap.
+        inviteRequestLog: { type: [Date], default: undefined, select: false },
     },
     {
         timestamps: true,
@@ -221,6 +250,8 @@ const userSchema = new mongoose.Schema(
                 delete ret.verificationTokenExpiry;
                 delete ret.passwordResetToken;
                 delete ret.passwordResetExpiry;
+                delete ret.staffInvites;
+                delete ret.inviteRequestLog;
                 delete ret.refreshTokenJtis;
                 delete ret.oauthCode;
                 delete ret.oauthCodeExpiry;
@@ -280,6 +311,7 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
 userSchema.index({ googleId: 1 }, { sparse: true });
 userSchema.index({ verificationToken: 1 }, { sparse: true });
 userSchema.index({ passwordResetToken: 1 }, { sparse: true });
+userSchema.index({ 'staffInvites.hash': 1 }, { sparse: true });
 userSchema.index({ oauthCode: 1 }, { sparse: true });
 
 module.exports = mongoose.model('User', userSchema);

@@ -10,6 +10,7 @@ import { cloudinaryAvatar } from '../utils/cloudinary';
 import ShareBookingLink, { bookingUrl } from '../components/ShareBookingLink';
 import { DEFAULT_TIER } from '../utils/permissions';
 import { MEMBER_PALETTE, BRAND_ORANGE, memberColorMap, sameColor, isUnsetColor } from '../utils/memberColors';
+import { inviteStatus, resendCooldownLeft } from '../utils/inviteStatus';
 
 /**
  * Epic 2.4 — staff management: roster CRUD, invite-to-login, per-staff
@@ -241,6 +242,22 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
     const hasLogin = !!member.user;
     const loggedIn = !!(member.user && member.user.lastLoginAt);
     const invitedPending = hasLogin && !loggedIn;
+    // The latest invite's timing: from this card's own send if there was one,
+    // else from the roster payload. Every invite email stays valid for 7 days
+    // until one is accepted, so Resend is not needed "just in case".
+    const lastSentAt = inviteResult?.sentAt || member.inviteSentAt || null;
+    const lastExpiresAt = inviteResult?.expiresAt || member.inviteExpiresAt || null;
+    const invStatus = inviteStatus({ sentAt: lastSentAt, expiresAt: lastExpiresAt });
+    // Resend is disabled for 60s after a send that went out (a failed send can
+    // be retried at once). Ticks once a second while counting down.
+    const [nowTick, setNowTick] = useState(() => Date.now());
+    const cooldownFrom = inviteResult ? (inviteResult.ok ? inviteResult.sentAt : null) : member.inviteSentAt;
+    const cooldown = resendCooldownLeft(cooldownFrom, nowTick);
+    useEffect(() => {
+        if (cooldown <= 0) return undefined;
+        const t = setTimeout(() => setNowTick(Date.now()), 1000);
+        return () => clearTimeout(t);
+    }, [cooldown, nowTick]);
     const perms = member.user?.staffPermissions || [];
     // Current tier: the stored staffTier, else inferred from the legacy flag
     // (calendar:all ≈ reception-level whole-business view), else the
@@ -625,7 +642,11 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
             const res = await teamService.inviteMember(member._id, inviteEmail ? { email: inviteEmail } : {});
             const data = res?.data?.data || {};
             const to = data.email || inviteEmail;
-            setInviteResult({ ok: !!data.emailSent, email: to });
+            setInviteResult({
+                ok: !!data.emailSent, email: to, throttled: !!data.throttled,
+                sentAt: data.inviteSentAt || null, expiresAt: data.inviteExpiresAt || null,
+            });
+            setNowTick(Date.now());
             onChanged();
         } catch (err) {
             setInviteResult({ ok: false, error: err.response?.data?.message || 'Invite failed' });
@@ -1061,23 +1082,37 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                                         color: inviteResult.ok ? '#065f46' : '#991b1b',
                                     }}
                                 >
-                                    {inviteResult.ok
-                                        ? <><strong>Invite email sent</strong> to {inviteResult.email}. They set a password from the link and then appear as active here.</>
+                                    {inviteResult.ok && inviteResult.throttled
+                                        ? <><strong>Already sent a moment ago</strong> to {inviteResult.email} — ask them to check their inbox (and spam).</>
+                                        : inviteResult.ok
+                                        ? <><strong>Invite email sent</strong> to {inviteResult.email}. They set a password from the link and then appear as active here. Any earlier invite email still works too.</>
                                         : <><strong>Saved, but the invite email didn’t send{inviteResult.email ? ` to ${inviteResult.email}` : ''}.</strong> {inviteResult.error ? inviteResult.error : 'Check the address and resend below.'}</>}
                                 </div>
                             )}
 
                             {!loggedIn && (
                                 <Section icon={Mail} title="Invite to log in">
-                                    {invitedPending && (
-                                        <p style={{ margin: '0 0 0.6rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
-                                            Invited — waiting for them to set a password and sign in. Resend the email if it didn’t arrive.
-                                        </p>
+                                    {/* A send that just failed is explained by the red note above —
+                                        don't also claim "Invite sent". */}
+                                    {invitedPending && !(inviteResult && !inviteResult.ok) && (
+                                        invStatus.kind === 'expired' ? (
+                                            <p data-testid="invite-status" data-kind="expired" style={{ margin: '0 0 0.6rem', fontSize: '0.82rem', color: 'var(--warning-fg)' }}>
+                                                <strong>Invite expired — resend.</strong> Their link has run out; a new email gives them another 7 days. They can also tap “Email me a new link” on the expired page.
+                                            </p>
+                                        ) : invStatus.kind === 'active' ? (
+                                            <p data-testid="invite-status" data-kind="active" style={{ margin: '0 0 0.6rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                                                Invite sent {invStatus.sent}, valid until {invStatus.until}; earlier emails still work. Waiting for them to set a password.
+                                            </p>
+                                        ) : (
+                                            <p data-testid="invite-status" data-kind="none" style={{ margin: '0 0 0.6rem', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>
+                                                Invited — waiting for them to set a password and sign in. Resend the email if it didn’t arrive.
+                                            </p>
+                                        )
                                     )}
                                     <div style={{ display: 'flex', gap: '0.5rem', flexWrap: 'wrap' }}>
                                         <input value={inviteEmail} onChange={e => setInviteEmail(e.target.value)} placeholder="their@email.com" className="input" style={{ maxWidth: '260px' }} data-testid="invite-email" />
-                                        <button type="button" className="btn-primary" onClick={invite} disabled={busy === 'invite'} data-testid="invite-send" style={{ padding: '0.6rem 1.3rem' }}>
-                                            {busy === 'invite' ? 'Sending…' : invitedPending ? 'Resend invite' : 'Send invite'}
+                                        <button type="button" className="btn-primary" onClick={invite} disabled={busy === 'invite' || (invitedPending && cooldown > 0)} data-testid="invite-send" style={{ padding: '0.6rem 1.3rem' }}>
+                                            {busy === 'invite' ? 'Sending…' : invitedPending ? (cooldown > 0 ? `Sent · resend in ${cooldown}s` : 'Resend invite') : 'Send invite'}
                                         </button>
                                     </div>
                                     {!hasLogin && (

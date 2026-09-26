@@ -107,8 +107,9 @@ describe('POST /api/auth/staff-invite/:token/accept', () => {
         expect(res.status).toBe(400);
 
         // Token still valid — they can retry with a strong password.
-        const user = await User.findOne({ email }).select('+passwordResetToken');
-        expect(user.passwordResetToken).toBeTruthy();
+        const user = await User.findOne({ email }).select('+staffInvites');
+        expect(user.staffInvites).toHaveLength(1);
+        expect(user.staffInvites[0].usedAt).toBeNull();
         expect(user.lastLoginAt).toBeFalsy();
     });
 

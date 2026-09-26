@@ -11,7 +11,18 @@ export interface ApiClientOptions {
      *  business account authenticates as the RIGHT one for this app — the SSO
      *  cookie from the sibling app can no longer bootstrap a wrong-side session. */
     accountType?: AccountType;
+    /** Pages opened from an emailed one-time link (invite, reset, verify). A
+     *  dead session found on one of these is cleared quietly — the page is
+     *  NEVER navigated away, because leaving it loses the link's token.
+     *  Defaults to PUBLIC_TOKEN_PATHS. */
+    publicTokenPaths?: string[];
 }
+
+/** Pages whose URL carries a one-time emailed token (see ApiClientOptions). */
+export const PUBLIC_TOKEN_PATHS: string[] = ['/accept-invite', '/reset-password', '/verify-email'];
+
+export const isPublicTokenPath = (pathname: string, paths: string[] = PUBLIC_TOKEN_PATHS): boolean =>
+    paths.some((p) => pathname === p || pathname === `${p}/`);
 
 export const inferApiBase = (explicit?: string): string => {
     if (explicit) return explicit;
@@ -34,21 +45,28 @@ export const inferApiBase = (explicit?: string): string => {
 
 // Clear the session and bounce to login. Only used when we truly can't recover
 // (no refresh token, or the refresh itself failed).
-const forceLogout = () => {
+export const forceLogout = (publicTokenPaths: string[] = PUBLIC_TOKEN_PATHS): void => {
+    if (typeof window === 'undefined') return;
+    const { pathname, search } = window.location;
     // NEVER tear down the session while the OAuth callback is establishing one.
     // On /auth/callback the page still holds a STALE token from a prior session;
     // background polls (notifications, favorites, …) 401 with it and would
     // trigger this, wiping the FRESH token the callback just stored — stranding
     // the user on /complete-profile with "No token". The callback owns the
     // session here; let it finish.
-    if (window.location.pathname === '/auth/callback') return;
+    if (pathname === '/auth/callback') return;
     localStorage.removeItem('token');
     localStorage.removeItem('refreshToken');
     window.dispatchEvent(new Event('auth-logout'));
-    // Redirect to login if not already there
-    if (window.location.pathname !== '/login') {
-        window.location.href = '/login?error=session_expired';
-    }
+    // An emailed-link page (accept invite, reset password, verify email) opened
+    // on a device holding someone's dead session: drop the session, stay put.
+    // Redirecting here flashed the invitee's "create password" form for a split
+    // second and replaced it with a bare Sign In page — losing the token.
+    if (isPublicTokenPath(pathname, publicTokenPaths)) return;
+    if (pathname === '/login') return;
+    // Remember where they were so signing back in returns them there.
+    const next = pathname && pathname !== '/' ? `&next=${encodeURIComponent(pathname + search)}` : '';
+    window.location.href = `/login?error=session_expired${next}`;
 };
 
 /**
@@ -89,7 +107,11 @@ export const bootstrapSession = async (apiBase: string, accountType?: AccountTyp
 // cookie-fallback case the refresh could even hand this app the OTHER side's
 // tokens. With accountType attached, a wrong-side refresh 403s, which the
 // handler below treats as an auth failure and clears the stale session.
-export const createHttp = (apiBase: string, accountType?: AccountType): AxiosInstance => {
+export const createHttp = (
+    apiBase: string,
+    accountType?: AccountType,
+    publicTokenPaths: string[] = PUBLIC_TOKEN_PATHS,
+): AxiosInstance => {
     const API = axios.create({
         baseURL: `${apiBase}/api`,
         // Credentialed requests: without this the browser DISCARDS the SSO
@@ -216,7 +238,7 @@ export const createHttp = (apiBase: string, accountType?: AccountType): AxiosIns
                 const st = (refreshError as AxiosError).response?.status;
                 const isAuthFailure =
                     st === 401 || st === 403 || (refreshError as { isAuthFailure?: boolean })?.isAuthFailure === true;
-                if (isAuthFailure) forceLogout();
+                if (isAuthFailure) forceLogout(publicTokenPaths);
                 return Promise.reject(refreshError);
             } finally {
                 isRefreshing = false;

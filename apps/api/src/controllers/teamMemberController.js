@@ -1,4 +1,3 @@
-const crypto = require('crypto');
 const TeamMember = require('../models/TeamMember');
 const User = require('../models/User');
 const Service = require('../models/Service');
@@ -8,6 +7,7 @@ const { validate: validatePermissions, isTier, DEFAULT_TIER } = require('../util
 const { memberBusyIntervals, memberInvolvedFilter, pickRotationWeek } = require('../utils/staffBooking');
 const { memberSlugMap } = require('../utils/memberLink');
 const { isHexColor, isUnsetColor, colorForNewMember } = require('../utils/memberColors');
+const staffInvites = require('../utils/staffInvites');
 
 const dayKeyOf = (d) => new Date(d).toISOString().slice(0, 10);
 const toMin = (t) => { const [h, m] = String(t).split(':').map(Number); return (h || 0) * 60 + (m || 0); };
@@ -145,9 +145,26 @@ exports.getMyTeam = async (req, res) => {
             .sort({ isPrimary: -1, createdAt: 1 }); // the primary member leads the roster
         // Each member's personal booking-link handle, for the owner's "share" row.
         const slugs = await memberSlugMap(providerId);
+        // Invite timing for members still awaiting their first sign-in, so the
+        // Team card can say when the invite went out and until when it works.
+        // Read separately (never populated) so no token hash can reach the payload.
+        const pendingIds = members.filter((m) => m.user && !m.user.lastLoginAt).map((m) => m.user._id || m.user);
+        const invitesByUser = new Map();
+        if (pendingIds.length) {
+            const pendingUsers = await User.find({ _id: { $in: pendingIds } })
+                .select('+staffInvites +passwordResetToken +passwordResetExpiry lastLoginAt');
+            for (const u of pendingUsers) invitesByUser.set(String(u._id), staffInvites.inviteSummary(u));
+        }
         const data = (redactHR(req, members) || []).map((m) => {
             const obj = typeof m.toObject === 'function' ? m.toObject() : m;
-            return { ...obj, linkSlug: slugs.get(String(obj._id)) || null };
+            const uid = obj.user && (obj.user._id || obj.user);
+            const inv = uid ? invitesByUser.get(String(uid)) : null;
+            return {
+                ...obj,
+                linkSlug: slugs.get(String(obj._id)) || null,
+                inviteSentAt: inv ? inv.inviteSentAt : null,
+                inviteExpiresAt: inv ? inv.inviteExpiresAt : null,
+            };
         });
         res.status(200).json({ success: true, data });
     } catch (error) {
@@ -1024,7 +1041,7 @@ exports.inviteTeamMember = async (req, res) => {
         // marketplace customer profile and wrongly 409 — blocking staff who are
         // also platform customers, a very common case. The staff login we create or
         // re-attach is always a business-side account.
-        let staffUser = await User.findOne({ email, role: { $in: ['provider', 'staff', 'admin'] } });
+        let staffUser = await User.findOne({ email, role: { $in: ['provider', 'staff', 'admin'] } }).select('+staffInvites');
         if (staffUser) {
             const isOwnStaff = staffUser.role === 'staff'
                 && staffUser.staffOf && staffUser.staffOf.toString() === req.user._id.toString();
@@ -1048,8 +1065,13 @@ exports.inviteTeamMember = async (req, res) => {
                 }
                 await User.deleteOne({ _id: staffUser._id });
                 staffUser = null;   // recreated fresh below
-            } else if (isOurFormerStaff) {
+            } else if (isOurFormerStaff && !isOwnStaff) {
                 staffUser.staffOf = req.user._id;   // re-attach our own archived member's login
+                // Invites emailed BEFORE the archive stay dead: re-inviting grants
+                // access through the new email only, not every old one lying around.
+                staffInvites.retireOpenInvites(staffUser, new Date(), { includeUsed: true });
+                staffUser.passwordResetToken = null;
+                staffUser.passwordResetExpiry = null;
             }
         }
         if (!staffUser) {
@@ -1106,16 +1128,32 @@ exports.inviteTeamMember = async (req, res) => {
             return res.status(400).json({ success: false, message: 'That login is already assigned to another team member.' });
         }
 
+        // A double-tapped Send/Resend (the button, a second owner, a retry) for
+        // the same address inside a minute is answered as sent, without minting
+        // or emailing again — the member just got one.
+        const previous = staffUser.isNew ? null : staffInvites.latestInvite(staffUser);
+        if (previous && previous.emailed && !previous.usedAt && !previous.retiredAt && Date.now() - new Date(previous.sentAt).getTime() < staffInvites.OWNER_RESEND_THROTTLE_MS) {
+            return res.status(200).json({
+                success: true,
+                data: {
+                    member, staffUserId: staffUser._id, email, emailSent: true, throttled: true,
+                    inviteSentAt: previous.sentAt, inviteExpiresAt: previous.expiresAt,
+                },
+            });
+        }
+
         // An invite always grants (or restores) access — a member deactivated or
         // archived earlier may have had their login blocked, and re-inviting is the
         // explicit way to let them back in.
         staffUser.isActive = true;
 
-        // Set-password token — same mechanics as the reset flow, 7-day window.
-        const rawToken = crypto.randomBytes(32).toString('hex');
-        staffUser.passwordResetToken = crypto.createHash('sha256').update(rawToken).digest('hex');
-        staffUser.passwordResetExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+        // Set-password token, 7-day window. PUSHED onto staffInvites rather than
+        // overwriting one slot: every earlier invite email the member holds keeps
+        // working until one is accepted (the Resend used to kill the email they
+        // had open — "invalid or has expired" on submit).
+        const { raw: rawToken, entry: invite } = staffInvites.mintInvite(staffUser);
         await staffUser.save({ validateBeforeSave: false });
+        await staffInvites.trimInvites(staffUser._id);
 
         member.user = staffUser._id;
         if (!member.email) member.email = email;
@@ -1133,6 +1171,13 @@ exports.inviteTeamMember = async (req, res) => {
             const result = await sendStaffInviteEmail(email, member.name, businessName, rawToken);
             emailSent = !!result && !result.skipped && !result.error;
         } catch { emailSent = false; }
+        if (emailSent) {
+            await User.updateOne(
+                { _id: staffUser._id },
+                { $set: { 'staffInvites.$[e].emailed': true } },
+                { arrayFilters: [{ 'e.hash': invite.hash }] },
+            ).catch(() => {});
+        }
 
         // Owner audit receipt — fire-and-forget and best-effort. A confirmation
         // of who was invited, for the owner's records; it must never block the
@@ -1145,7 +1190,13 @@ exports.inviteTeamMember = async (req, res) => {
             }
         } catch { /* never let the audit receipt affect the invite response */ }
 
-        res.status(200).json({ success: true, data: { member, staffUserId: staffUser._id, email, emailSent } });
+        res.status(200).json({
+            success: true,
+            data: {
+                member, staffUserId: staffUser._id, email, emailSent,
+                inviteSentAt: invite.sentAt, inviteExpiresAt: invite.expiresAt,
+            },
+        });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

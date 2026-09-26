@@ -40,14 +40,19 @@ describe('POST /api/team/:id/invite', () => {
             .set(authHeader(owner));
 
         expect(res.status).toBe(200);
-        const staffUser = await User.findOne({ email: 'newstaff@test.com' }).select('+passwordResetToken');
+        const staffUser = await User.findOne({ email: 'newstaff@test.com' }).select('+passwordResetToken +staffInvites');
         expect(staffUser).toBeTruthy();
         expect(staffUser.role).toBe('staff');
         expect(staffUser.staffOf.toString()).toBe(owner._id.toString());
         expect(staffUser.staffPermissions).toEqual(['calendar:self', 'clients:assigned']);
         // No level picked → Service provider: runs their own calendar from day one.
         expect(staffUser.staffTier).toBe('low');
-        expect(staffUser.passwordResetToken).toBeTruthy();
+        // The invite lives in staffInvites (one entry per email), not the
+        // password-reset slot the member's own "Forgot password?" writes.
+        expect(staffUser.staffInvites).toHaveLength(1);
+        expect(staffUser.passwordResetToken).toBeFalsy();
+        expect(res.body.data.inviteSentAt).toBeTruthy();
+        expect(res.body.data.inviteExpiresAt).toBeTruthy();
 
         const linked = await TeamMember.findById(member._id);
         expect(linked.user.toString()).toBe(staffUser._id.toString());
@@ -82,6 +87,10 @@ describe('POST /api/team/:id/invite', () => {
         const owner = await makeProvider();
         const member = await makeMember(owner, { email: 'twice@test.com' });
         await request(app).post(`/api/team/${member._id}/invite`).set(authHeader(owner));
+        // A minute later (an immediate double-tap is throttled — see staffInviteLifecycle).
+        const u = await User.findOne({ email: 'twice@test.com' }).select('+staffInvites');
+        u.staffInvites[0].sentAt = new Date(Date.now() - 2 * 60 * 1000);
+        await u.save({ validateBeforeSave: false });
         const again = await request(app).post(`/api/team/${member._id}/invite`).set(authHeader(owner));
         expect(again.status).toBe(200);              // resend, not a rejection
         expect(again.body.data.emailSent).toBe(true);
