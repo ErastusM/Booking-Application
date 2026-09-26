@@ -3,6 +3,7 @@ import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { cardState } from '../../components/CalendarGrid';
 import useApptDrag from '../../components/calendar/useApptDrag';
 import ConflictSheet from '../../components/calendar/ConflictSheet';
+import { fmtHM, fmtHMRange } from '../../utils/time';
 
 // Epic 2.4 — per-staff calendar lanes. One column per staff member (plus the
 // owner's "Me / unassigned" lane), a shared time axis, and the same visual
@@ -27,6 +28,8 @@ const minutesOf = (t) => {
     const [h = 0, m = 0] = String(t || '').split(':').map(Number);
     return (h || 0) * 60 + (m || 0);
 };
+// Data, not display: the "HH:mm" sent in the slot-click payload. Labels use the
+// shared 24-hour fmtHM.
 const timeOf = (mins) => `${pad(Math.floor(mins / 60))}:${pad(mins % 60)}`;
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 
@@ -260,12 +263,12 @@ const StaffLanesDay = ({
         columns: [dayKey],
         lanes: canReassign ? laneOrder : [],
         laneLabel: laneNameById,
-        fmt: (m) => `${String(Math.floor(m / 60) % 24).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`,
+        fmt: fmtHM,
         enabled: !!onReschedule,
         onCommit: useCallback(async ({ moves, mode }) => {
             if (!onReschedule) return;
             // Wall-clock for the payload, matching the reschedule path's own
-            // convention (mod-24, distinct from the display timeOf).
+            // convention (mod-24, unlike the slot-click timeOf).
             const hhmm = (mins) => `${String(Math.floor(mins / 60) % 24).padStart(2, '0')}:${String(mins % 60).padStart(2, '0')}`;
             // A cross-lane drop is a reassignment: the primary (first) move carries
             // a staffKey different from the booking's current lane. It can't ride the
@@ -383,7 +386,9 @@ const StaffLanesDay = ({
                     <div style={{ position: 'sticky', left: 0, zIndex: 4, background: 'var(--card-bg)', height: `${bodyH}px`, borderRight: '1px solid var(--border)' }}>
                         {hourMarks.map((m) => (
                             <span key={m} className="tnum" style={{ position: 'absolute', top: `${pxOf(m - windowStart) - 7}px`, right: '6px', fontSize: '0.66rem', fontWeight: 600, color: 'var(--text-muted)' }}>
-                                {m === windowStart ? '' : timeOf(m)}
+                                {/* The top mark is blank, and so is a bottom 24:00 mark: it would read
+                                    "00:00" (midnight of the next day), like the day-columns grid. */}
+                                {m === windowStart || m >= 24 * 60 ? '' : fmtHM(m)}
                             </span>
                         ))}
                     </div>
@@ -541,14 +546,14 @@ const StaffLanesDay = ({
                     }}
                 >
                     {dnd.status.text || (dnd.status.place
-                        ? `${timeOf(dnd.status.place.startMin)} – ${timeOf(dnd.status.place.endMin)}`
+                        ? fmtHMRange(dnd.status.place.startMin, dnd.status.place.endMin)
                         : '')}
                 </div>
             )}
 
             <ConflictSheet
                 sheet={dnd.sheet}
-                fmt={timeOf}
+                fmt={fmtHM}
                 busy={dnd.busy}
                 onChoose={dnd.chooseRoute}
                 onCancel={dnd.cancelSheet}

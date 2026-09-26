@@ -1,4 +1,17 @@
 const { sendRaw } = require('../utils/emailService');
+const { NAMIBIA_OFFSET_MIN } = require('../utils/appointmentTime');
+
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+const pad = (n) => String(n).padStart(2, '0');
+
+// "25 September 2026, 15:45" — 24-hour, Namibia time (Africa/Windhoek, UTC+2,
+// no DST). Shift by the fixed offset and read the UTC getters, so it is right
+// whatever timezone the server runs in (the API container runs UTC, which made
+// the old en-US "3:45 PM" footer two hours behind as well as 12-hour).
+const submittedAtLabel = (at = new Date()) => {
+    const w = new Date(at.getTime() + NAMIBIA_OFFSET_MIN * 60 * 1000);
+    return `${w.getUTCDate()} ${MONTHS[w.getUTCMonth()]} ${w.getUTCFullYear()}, ${pad(w.getUTCHours())}:${pad(w.getUTCMinutes())}`;
+};
 
 const escapeHtml = (str) => {
     if (typeof str !== 'string') return '';
@@ -62,7 +75,7 @@ exports.submitSuggestion = async (req, res) => {
                     <div style="background: #e6e8e7; border-left: 3px solid #f03e16; padding: 1.25rem 1.5rem; border-radius: 0 8px 8px 0; margin-bottom: 1.5rem;">
                         <p style="color: #040505; font-size: 0.95rem; line-height: 1.75; margin: 0; white-space: pre-wrap;">${safeMessage}</p>
                     </div>
-                    <p style="color: #9ca3af; font-size: 0.78rem; margin: 0;">Submitted via Bookplus &bull; ${new Date().toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' })}</p>
+                    <p style="color: #9ca3af; font-size: 0.78rem; margin: 0;">Submitted via Bookplus &bull; ${submittedAtLabel()}</p>
                 </div>
                 <div style="background: #040505; padding: 1.25rem 2rem; text-align: center;">
                     <p style="color: #6b7280; font-size: 0.75rem; margin: 0;">Bookplus &copy; ${new Date().getFullYear()} &bull; bookplus.pro</p>
