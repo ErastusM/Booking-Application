@@ -7,7 +7,7 @@ const TeamMember = require('../models/TeamMember');
 const Availability = require('../models/Availability');
 const Shift = require('../models/Shift');
 const TimeOff = require('../models/TimeOff');
-const { pickRotationWeek, ownerPerforms, membersHoursReadiness } = require('../utils/staffBooking');
+const { pickRotationWeek, ownerPerforms, membersHoursReadiness, availabilityHasHours, isLoneBookable } = require('../utils/staffBooking');
 const { bookableMembersByProvider, performersOf, offeringSummary } = require('../utils/serviceOffering');
 const { photoPresentation } = require('../utils/photoEdits');
 const { memberSlugMap, findMemberIdBySlug } = require('../utils/memberLink');
@@ -229,7 +229,7 @@ exports.getProviderStaffShiftDays = async (req, res) => {
         if (!member) return res.status(200).json({ success: true, data: { working: [], off: [] } });
 
         const StaffAvailability = require('../models/StaffAvailability');
-        const [shifts, leaves, availability] = await Promise.all([
+        const [shifts, leaves, availability, businessAv, lone] = await Promise.all([
             Shift.find({ teamMember: member._id, date: { $gte: from, $lte: to } }).select('date slots').lean(),
             // All-day approved leave overlapping the window closes those days.
             TimeOff.find({
@@ -239,6 +239,11 @@ exports.getProviderStaffShiftDays = async (req, res) => {
             // Their WEEKLY hours — which days they work at all, not just the dates
             // someone rostered by hand.
             StaffAvailability.findOne({ teamMember: member._id }).select('schedule rotation').lean(),
+            // The business's hours: a weekly day only opens when the business is
+            // open then too (the validator caps weekly hours by them) — only a
+            // Shift can open a day the business is closed.
+            Availability.findOne({ provider: req.params.id }).select('schedule').lean(),
+            isLoneBookable(req.params.id),
         ]);
 
         const workingSet = new Set();
@@ -257,14 +262,30 @@ exports.getProviderStaffShiftDays = async (req, res) => {
         // only found out by opening it to a wall of greyed-out times. A member with
         // NO weekly hours of their own has no hours at all (nothing is inherited
         // from the business), so every day without a shift is off.
-        const weekly = pickWeekFor(availability);
+        //
+        // The business's ONLY bookable member, when they do have weekly hours,
+        // works the business's hours (staffBooking.weeklyHoursFor), so their own
+        // week narrows nothing: the picker's business-hours days are right.
+        const hasWeekly = availabilityHasHours(availability);
+        const weekly = hasWeekly && !lone ? pickWeekFor(availability) : null;
         const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const mins = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+        const periodsOn = (week, key) => {
+            const day = week && week[DAY_NAMES[new Date(`${key}T00:00:00.000Z`).getUTCDay()]];
+            return day && day.enabled && Array.isArray(day.slots) ? day.slots.filter((sl) => sl && sl.start && sl.end && mins(sl.end) > mins(sl.start)) : [];
+        };
+        const businessSchedule = businessAv?.schedule || null;
         for (let d = new Date(`${from}T00:00:00.000Z`); d.toISOString().slice(0, 10) <= to; d.setUTCDate(d.getUTCDate() + 1)) {
             const key = d.toISOString().slice(0, 10);
             if (shiftDates.has(key)) continue;   // a rostered shift is authoritative for its date
-            const week = weekly ? weekly(key) : null;
-            const day = week && week[DAY_NAMES[new Date(`${key}T00:00:00.000Z`).getUTCDay()]];
-            const works = !!(day && day.enabled && Array.isArray(day.slots) && day.slots.some((sl) => sl && sl.start && sl.end));
+            if (hasWeekly && lone) continue;     // the business's hours decide, as for the owner
+            const own = weekly ? periodsOn(weekly(key), key) : [];
+            // Working only where their hours meet the business's (a business that
+            // never published hours doesn't narrow them).
+            const biz = businessSchedule ? periodsOn(businessSchedule, key) : null;
+            const works = own.some((p) => (biz === null
+                ? true
+                : biz.some((b) => Math.min(mins(p.end), mins(b.end)) > Math.max(mins(p.start), mins(b.start)))));
             (works ? workingSet : offSet).add(key);
         }
         // Expand each all-day leave into the days it covers within [from, to].

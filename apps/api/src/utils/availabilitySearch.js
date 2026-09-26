@@ -17,7 +17,7 @@ const Appointment = require('../models/Appointment');
 const Shift = require('../models/Shift');
 const TimeOff = require('../models/TimeOff');
 const { NAMIBIA_OFFSET_MIN } = require('./appointmentTime');
-const { pickRotationWeek, memberBusyIntervalsBuffered, ownerPerforms } = require('./staffBooking');
+const { pickRotationWeek, memberBusyIntervalsBuffered, ownerPerforms, availabilityHasHours } = require('./staffBooking');
 const { bookableMembersByProvider, hasPerformer } = require('./serviceOffering');
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -32,15 +32,26 @@ const toMin = (t) => {
 const fmt = (min) => `${String(Math.floor(min / 60)).padStart(2, '0')}:${String(min % 60).padStart(2, '0')}`;
 const overlaps = (aS, aE, bS, bE) => aS < bE && aE > bS;
 
+// Periods that touch or overlap read as one, as the booking validator reads them
+// (staffBooking.withinPeriods).
+const mergeBlocks = (blocks) => blocks
+    .filter(b => b.end > b.start)
+    .sort((a, b) => a.start - b.start)
+    .reduce((out, b) => {
+        const last = out[out.length - 1];
+        if (last && b.start <= last.end) last.end = Math.max(last.end, b.end);
+        else out.push({ ...b });
+        return out;
+    }, []);
+
 const blocksFor = (schedule, dateStr) => {
     if (!schedule) return DEFAULT_BLOCKS;
     const [y, m, d] = dateStr.split('-').map(Number);
     const day = schedule[DAY_NAMES[new Date(y, m - 1, d).getDay()]];
     if (!day?.enabled || !Array.isArray(day.slots) || day.slots.length === 0) return [];
-    return day.slots
+    return mergeBlocks(day.slots
         .filter(s => s?.start && s?.end)
-        .map(s => ({ start: toMin(s.start), end: toMin(s.end) }))
-        .filter(b => b.end > b.start);
+        .map(s => ({ start: toMin(s.start), end: toMin(s.end) })));
 };
 
 /**
@@ -186,16 +197,22 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
                     memberLeaves.forEach(lv => busy.push({ start: toMin(lv.startTime), end: toMin(lv.endTime) }));
                     const shift = shiftByMember.get(memberId);
                     if (shift) {
-                        blocks = (shift.slots || [])
-                            .map(sl => ({ start: toMin(sl.start), end: toMin(sl.end) }))
-                            .filter(b => b.end > b.start);
+                        blocks = mergeBlocks((shift.slots || [])
+                            .map(sl => ({ start: toMin(sl.start), end: toMin(sl.end) })));
                         (shift.breaks || []).forEach(b => busy.push({ start: toMin(b.start), end: toMin(b.end) }));
                     } else {
                         const ownDoc = staffAvailByMember.get(memberId);
-                        // Rotation-aware: the week that applies on THIS date (or the
-                        // flat schedule when the member has no rotation).
-                        const ownSchedule = ownDoc ? pickRotationWeek(ownDoc, date) : null;
-                        blocks = ownSchedule ? blocksFor(ownSchedule, date) : [];
+                        if (!availabilityHasHours(ownDoc)) {
+                            blocks = [];                    // no hours of their own: not bookable
+                        } else if (roster.length === 1) {
+                            // The business's only bookable member works the
+                            // business's hours (staffBooking.weeklyHoursFor).
+                            blocks = businessBlocks;
+                        } else {
+                            // Rotation-aware: the week that applies on THIS date (or
+                            // the flat schedule when the member has no rotation).
+                            blocks = blocksFor(pickRotationWeek(ownDoc, date), date);
+                        }
                     }
                 }
             } else {

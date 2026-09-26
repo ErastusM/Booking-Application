@@ -6,8 +6,11 @@
  *   - a day switched on has at least one period;
  *   - every time is HH:mm, 24-hour;
  *   - each period ends after it starts;
- *   - periods don't overlap (a split day — 08:00–12:00 and 14:00–18:00 — is two
- *     periods with a gap between them).
+ *   - periods don't overlap or touch (a split day — 08:00–12:00 and 14:00–18:00
+ *     — is two periods with a break between them; 08:00–12:00 + 12:00–18:00 is
+ *     one period, and is refused as two, as the Working Hours screens refuse it.
+ *     Rows saved before this rule are read as one period everywhere —
+ *     staffBooking.withinPeriods).
  *
  * Messages name the day, so the screen can say exactly what to fix. A day's
  * periods are saved in time order (sortedWeek), so they read back exactly as the
@@ -24,12 +27,12 @@ const WORDS = {
     business: {
         missing: 'set the opening and closing time, or switch the day off.',
         inverted: (s) => `the closing time (${s.end}) must be after the opening time (${s.start}).`,
-        overlap: 'two opening periods overlap.',
+        overlap: 'two opening periods overlap — the second must start after the first closes, leaving a break between them.',
     },
     member: {
         missing: 'set the starting and ending time, or switch the day off.',
         inverted: (s) => `the ending time (${s.end}) must be after the starting time (${s.start}). Swap them if they're reversed.`,
-        overlap: 'two working periods overlap. Please make them separate, non-overlapping times.',
+        overlap: 'two working periods overlap. Please make them separate, non-overlapping times, with a break between them.',
     },
 };
 
@@ -60,7 +63,8 @@ function weekError(schedule, { kind = 'business', strictDays = kind === 'busines
         }
         const sorted = [...slots].sort((a, b) => toMins(a.start) - toMins(b.start));
         for (let i = 1; i < sorted.length; i += 1) {
-            if (toMins(sorted[i].start) < toMins(sorted[i - 1].end)) return `${label}: ${words.overlap}`;
+            // Touching (12:00 → 12:00) counts: two periods need a break between them.
+            if (toMins(sorted[i].start) <= toMins(sorted[i - 1].end)) return `${label}: ${words.overlap}`;
         }
     }
     return null;

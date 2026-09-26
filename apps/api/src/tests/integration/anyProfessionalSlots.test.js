@@ -146,10 +146,10 @@ describe('fallbacks', () => {
         expect(data.some((b) => b.kind === 'off_shift')).toBe(false); // legacy view has no union entries
     });
 
-    // There is no "solo owner" waiver any more (it dated from when the owner was
-    // their own team member): a business's one member works THEIR hours, and the
-    // view and the validator agree on it.
-    it("a lone member works their own hours — the evening they don't work is closed, and booking it is refused", async () => {
+    // The business's ONLY bookable member, with weekly hours of their own, works
+    // the business's hours (#121 — staffBooking.weeklyHoursFor): the view and
+    // the validator agree on it. With NO hours of their own: see the next test.
+    it("the only bookable member: business hours govern — their narrow weekly pattern doesn't close the evening (#121 parity)", async () => {
         const provider = await makeProvider();
         const customer = await makeUser();
         const svc = await makeService(provider._id, { duration: 30 });
@@ -158,10 +158,8 @@ describe('fallbacks', () => {
         await StaffAvailability.create({ provider: provider._id, teamMember: solo._id, schedule: everyDay('09:00', '17:00') });
 
         const data = await slots({ provider, svc });
-        expect(busyAt(data, ['off_shift'], mins('17:00'), mins('19:00'))).toBe(true);
-        expect(busyAt(data, ['off_shift', 'appointment'], mins('09:00'), mins('17:00'))).toBe(false);
-        expect((await bookAny({ customer, svc }, '18:00', '18:30')).status).toBe(400);
-        expect((await bookAny({ customer, svc }, '16:00', '16:30')).status).toBe(201);
+        expect(busyAt(data, ['off_shift', 'appointment'], mins('08:00'), mins('19:00'))).toBe(false);
+        expect((await bookAny({ customer, svc }, '18:00', '18:30')).status).toBe(201);
     });
 
     it('performers with no hours of their own leave the whole day unavailable — and booking is refused', async () => {

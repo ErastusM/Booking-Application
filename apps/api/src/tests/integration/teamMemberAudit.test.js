@@ -7,7 +7,7 @@
  *
  *   #1  a staff member's self-calendar shows segments they perform
  *   #2  an existing booking's service buffers block an adjacent booking
- *   #4  a lone member's reschedule is held to their own hours, like create
+ *   #4  a lone member's reschedule gets the business hours, like create does
  *   #5  a named member's slot feed reflects their weekly days off
  *   #6  inviting staff isn't blocked by a same-email CUSTOMER account
  *   #7  one login can't back two rows; archiving one keeps the other's access
@@ -173,13 +173,11 @@ describe('#2 existing service buffers are enforced against the next booking', ()
     });
 });
 
-// ── #4 a lone member's reschedule is held to the same hours as create ────────
-// This used to be the "solo owner" waiver: with exactly one bookable member, that
-// member's own weekly hours were ignored and the business's used instead (#121,
-// from when the owner was their own team member). The owner is the null column
-// now, and a member is only bookable in their OWN hours however small the team —
-// on create and on reschedule alike.
-describe('#4 a lone member: reschedule matches create — their own hours, not the business\'s', () => {
+// ── #4 a lone member's reschedule gets the business hours, like create ──────
+// A business's only bookable member who has weekly hours of their own is booked
+// over the business's hours (staffBooking.weeklyHoursFor, #121) — on create and on
+// reschedule alike. (With no hours of their own they aren't bookable at all.)
+describe('#4 a lone member: reschedule matches create for after-hours slots', () => {
     const setupSolo = async () => {
         const provider = await makeProvider();
         const customer = await makeUser();
@@ -191,23 +189,15 @@ describe('#4 a lone member: reschedule matches create — their own hours, not t
         return { provider, customer, svc, member };
     };
 
-    it('refuses an 18:00 slot (inside business hours, outside theirs) on create AND on reschedule', async () => {
+    it('lets the customer book an 18:00 slot AND reschedule it to another evening slot', async () => {
         const ctx = await setupSolo();
-        const evening = await request(app).post('/api/appointments').set(authHeader(ctx.customer))
-            .send({ service: ctx.svc._id.toString(), appointmentDate: DATE, startTime: '18:00', endTime: '18:30', teamMember: ctx.member._id.toString() });
-        expect(evening.status).toBe(400);
-        expect(evening.body.message).toMatch(/working hours/i);
-
         const booked = await request(app).post('/api/appointments').set(authHeader(ctx.customer))
-            .send({ service: ctx.svc._id.toString(), appointmentDate: DATE, startTime: '10:00', endTime: '10:30', teamMember: ctx.member._id.toString() });
+            .send({ service: ctx.svc._id.toString(), appointmentDate: DATE, startTime: '18:00', endTime: '18:30', teamMember: ctx.member._id.toString() });
         expect(booked.status).toBe(201);
 
-        const late = await request(app).put(`/api/appointments/${booked.body.data._id}/reschedule`)
+        const res = await request(app).put(`/api/appointments/${booked.body.data._id}/reschedule`)
             .set(authHeader(ctx.customer)).send({ appointmentDate: DATE, startTime: '18:30' });
-        expect(late.status).toBe(400);
-        const inHours = await request(app).put(`/api/appointments/${booked.body.data._id}/reschedule`)
-            .set(authHeader(ctx.customer)).send({ appointmentDate: DATE, startTime: '16:00' });
-        expect(inHours.status).toBe(200);
+        expect(res.status).toBe(200);
     });
 });
 
@@ -216,7 +206,7 @@ describe('#5 named-member booked-slots honors weekly StaffAvailability', () => {
     it('marks the whole day off_shift on a weekday the member does not work', async () => {
         const provider = await makeProvider();
         const svc = await makeService(provider._id, { duration: 30 });
-        // Two bookable members, as in a real roster.
+        // Two bookable members, so each works their own weekly hours.
         const member = await TeamMember.create({ provider: provider._id, name: 'Rae' });
         await TeamMember.create({ provider: provider._id, name: 'Roy' });
         await Availability.create({ provider: provider._id, schedule: everyDay('08:00', '20:00') });

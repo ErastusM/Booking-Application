@@ -62,6 +62,8 @@ describe('booked-slots tells the time list each period\'s opening time', () => {
         await Availability.create({ provider: provider._id, schedule: everyDayHours('08:00', '18:00') });
         const erastus = await TeamMember.create({ provider: provider._id, name: 'Erastus' });
         await giveHours(erastus, split('07:00', '12:00', '14:15', '19:00'));
+        // A colleague: the business's ONLY bookable member works its hours instead.
+        await giveHours(await TeamMember.create({ provider: provider._id, name: 'Hilda' }));
         const body = await slots(provider, { teamMember: erastus._id.toString() });
         // 07:00 is before the business opens, so his first period opens at 08:00.
         expect(body.openings).toEqual(['08:00', '14:15']);
@@ -111,6 +113,8 @@ describe('the server accepts every opening time it offers', () => {
         await Availability.updateOne({ provider: ctx.provider._id }, { $set: { schedule: everyDayHours('08:00', '18:00') } });
         const erastus = await TeamMember.create({ provider: ctx.provider._id, name: 'Erastus' });
         await giveHours(erastus, split('08:15', '12:00', '14:30', '18:00'));
+        // A colleague: the business's ONLY bookable member works its hours instead.
+        await giveHours(await TeamMember.create({ provider: ctx.provider._id, name: 'Hilda' }));
         expect((await book(ctx, '08:15', '09:00', { teamMember: erastus._id.toString() })).status).toBe(201);
         expect((await book(ctx, '14:30', '15:15', { teamMember: erastus._id.toString() })).status).toBe(201);
         expect((await book(ctx, '12:30', '13:15', { teamMember: erastus._id.toString() })).status).toBe(400);
@@ -133,6 +137,9 @@ describe('search offers each opening time next to its 30-minute grid', () => {
         await makeService(provider._id, { duration: 30, ownerPerforms: false });
         const erastus = await TeamMember.create({ provider: provider._id, name: 'Erastus' });
         await giveHours(erastus, split('08:15', '09:00', '14:45', '18:00'));
+        // A colleague in from 16:00 (the business's ONLY bookable member would
+        // work the business's hours instead of their own).
+        await giveHours(await TeamMember.create({ provider: provider._id, name: 'Hilda' }), everyDayHours('16:00', '18:00'));
 
         const [hit] = (await searchAvailability({ date: DATE, duration: 30, maxOpenings: 10 }))
             .filter((r) => r.provider === String(provider._id));

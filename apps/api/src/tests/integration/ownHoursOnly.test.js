@@ -234,6 +234,27 @@ describe('existing bookings', () => {
         expect(moved.status).toBe(400);
         expect(moved.body.message).toMatch(/no working hours/i);
     });
+
+    it('a member with no hours can\'t move their own booking to a new time either — the owner still can', async () => {
+        const ctx = await shop();
+        const login = await makeUser({ role: 'staff', staffOf: ctx.owner._id, email: 'john-move@test.com' });
+        await TeamMember.updateOne({ _id: ctx.john._id }, { $set: { user: login._id } });
+        const appt = await Appointment.create({
+            customer: ctx.customer._id, service: ctx.trim._id, provider: ctx.owner._id, teamMember: ctx.john._id,
+            appointmentDate: DAY, startTime: '10:00', endTime: '10:30', status: 'confirmed', totalPrice: 70,
+        });
+        const move = (as, startTime) => request(app).put(`/api/appointments/${appt._id}/provider-reschedule`)
+            .set(authHeader(as)).send({ appointmentDate: DATE, startTime });
+        const refused = await move(login, '11:00');
+        expect(refused.status).toBe(400);
+        expect(refused.body.message).toBe('That staff member has no working hours set for that day.');
+        expect((await Appointment.findById(appt._id).lean()).startTime).toBe('10:00');
+        // The owner's override is unchanged.
+        expect((await move(ctx.owner, '11:00')).status).toBe(200);
+        // With hours of his own he moves it as before — even outside them (as today).
+        await giveHours(ctx.john, everyDayHours('09:00', '12:00'));
+        expect((await move(login, '15:00')).status).toBe(200);
+    });
 });
 
 describe('readiness on the Team card and the member\'s own profile', () => {

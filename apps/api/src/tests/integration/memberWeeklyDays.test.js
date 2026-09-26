@@ -32,8 +32,8 @@ const weekdaysOnly = {
     thursday: open, friday: open, saturday: shut,
 };
 
-// Two bookable members, as in a real roster (a lone member is treated exactly
-// the same — see the last test).
+// Two bookable members: a business's ONLY bookable member works the business's
+// hours when they have weekly hours of their own (see the lone-member test).
 const setup = async (schedule) => {
     const owner = await makeProvider();
     const erastus = await TeamMember.create({ provider: owner._id, name: 'Erastus', role: 'Barber', email: 'e@test.com', isActive: true });
@@ -88,9 +88,10 @@ describe('GET /api/providers/:id/staff/:memberId/shift-days — weekly hours', (
         expect(off.sort()).toEqual(['2026-09-14', '2026-09-15', '2026-09-17', '2026-09-18', '2026-09-19', '2026-09-20']);
     });
 
-    // No "solo member" exception any more: a lone member's weekly hours narrow
-    // the calendar exactly as the validator now holds them to those hours.
-    it('a lone bookable member is narrowed by their weekly hours like anyone else', async () => {
+    // A business's only bookable member who has weekly hours of their own works
+    // the business's hours (staffBooking.weeklyHoursFor): narrowing here would
+    // close days the booking would actually accept.
+    it('a lone bookable member with hours of their own is not narrowed — the business\'s days apply', async () => {
         const owner = await makeProvider();
         const solo = await TeamMember.create({ provider: owner._id, name: 'Solo', role: 'Barber', email: 's@test.com', isActive: true });
         await StaffAvailability.create({ provider: owner._id, teamMember: solo._id, schedule: weekdaysOnly });
@@ -98,9 +99,22 @@ describe('GET /api/providers/:id/staff/:memberId/shift-days — weekly hours', (
         const res = await request(app)
             .get(`/api/providers/${owner._id}/staff/${solo._id}/shift-days?from=2026-09-14&to=2026-09-20`);
 
+        expect(days(res)).toEqual({ working: [], off: [] });
+    });
+
+    // The business is closed on Wednesdays; Erastus's week includes Wednesday.
+    // Only a Shift opens a day the business is closed — the validator caps weekly
+    // hours by the business's, so offering the day led to "No available slots".
+    it('a weekly working day the business is closed is not a working day', async () => {
+        const { owner, erastus } = await setup(weekdaysOnly);
+        const Availability = require('../../models/Availability');
+        await Availability.create({ provider: owner._id, schedule: { ...weekdaysOnly, wednesday: shut } });
+        const res = await request(app)
+            .get(`/api/providers/${owner._id}/staff/${erastus._id}/shift-days?from=2026-09-14&to=2026-09-20`);
         const { working, off } = days(res);
-        expect(working).toEqual(expect.arrayContaining(['2026-09-14', '2026-09-18']));
-        expect(off).toEqual(expect.arrayContaining(['2026-09-19', '2026-09-20']));
+        expect(working).not.toContain('2026-09-16');
+        expect(off).toContain('2026-09-16');
+        expect(working).toEqual(expect.arrayContaining(['2026-09-14', '2026-09-15', '2026-09-17', '2026-09-18']));
     });
 
     it('approved leave still wins over a weekly working day', async () => {

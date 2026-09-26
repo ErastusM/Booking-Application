@@ -127,6 +127,9 @@ describe('the gap between the periods is closed', () => {
         await Availability.updateOne({ provider: ctx.owner._id }, { $set: { schedule: everyDayHours('07:00', '20:00') } });
         const member = await TeamMember.create({ provider: ctx.owner._id, name: 'Erastus' });
         await StaffAvailability.create({ provider: ctx.owner._id, teamMember: member._id, schedule: splitWeek() });
+        // A colleague: the business's ONLY bookable member works its hours instead.
+        const hilda = await TeamMember.create({ provider: ctx.owner._id, name: 'Hilda' });
+        await StaffAvailability.create({ provider: ctx.owner._id, teamMember: hilda._id, schedule: splitWeek() });
 
         const hours = (await request(app).get(`/api/team/${member._id}/hours`).query({ date: DATE }).set(authHeader(ctx.owner)).expect(200)).body.data;
         expect(hours.slots).toEqual([{ start: '08:00', end: '12:00' }, { start: '14:00', end: '18:00' }]);
@@ -138,5 +141,51 @@ describe('the gap between the periods is closed', () => {
 
         expect((await book(ctx, '14:00', '14:30', { teamMember: member._id.toString() })).status).toBe(201);
         expect((await book(ctx, '12:30', '13:00', { teamMember: member._id.toString() })).status).toBe(400);
+    });
+});
+
+// Two periods that TOUCH (08:00–12:30 and 12:30–18:00) are one period with no
+// break. The Working Hours screens refuse them as two ("leave a break between
+// them"), and so does the server now; rows saved before read as the one period
+// everywhere — the booking check, the time lists and the hours — so the page
+// never offers a start the booking then refuses (12:00 for an hour), nor hides
+// one it takes.
+describe('periods that touch', () => {
+    const touching = () => Object.fromEntries(DAYS.map((d) => [d, {
+        enabled: true, slots: [{ start: '08:00', end: '12:30' }, { start: '12:30', end: '18:00' }],
+    }]));
+
+    it('are refused on save — for the business and for a member — naming the day', async () => {
+        const { owner, login } = await team();
+        const biz = await request(app).put('/api/availability/me').set(authHeader(owner)).send({ schedule: touching() }).expect(400);
+        expect(biz.body.message).toMatch(/^Monday: two opening periods overlap — .*leaving a break between them/);
+        const own = await request(app).put('/api/team/mine/availability').set(authHeader(login)).send({ schedule: touching() }).expect(400);
+        expect(own.body.message).toMatch(/^Monday: two working periods overlap.*with a break between them/);
+    });
+
+    it('already saved, they read as one period: 12:00 for an hour is offered and accepted, for the business and a member', async () => {
+        const owner = await makeProvider();
+        await Availability.create({ provider: owner._id, schedule: touching() });
+        const svc = await makeService(owner._id, { duration: 60 });
+        const customer = await makeUser();
+        const book = (startTime, endTime, extra = {}) => request(app).post('/api/appointments').set(authHeader(customer))
+            .send({ service: svc._id.toString(), appointmentDate: DATE, startTime, endTime, ...extra });
+        expect((await book('12:00', '13:00')).status).toBe(201);
+
+        const erastus = await TeamMember.create({ provider: owner._id, name: 'Erastus' });
+        const hilda = await TeamMember.create({ provider: owner._id, name: 'Hilda' });
+        await StaffAvailability.create({ provider: owner._id, teamMember: erastus._id, schedule: touching() });
+        await StaffAvailability.create({ provider: owner._id, teamMember: hilda._id, schedule: touching() });
+        const slots = (await request(app).get('/api/appointments/booked-slots')
+            .query({ providerId: owner._id.toString(), date: DATE, teamMember: erastus._id.toString() })).body;
+        expect(slots.openings).toEqual(['08:00']);
+        expect(slots.data.filter((b) => b.kind === 'off_shift' && b.startTime > '08:00' && b.endTime < '18:00')).toEqual([]);
+        const hours = (await request(app).get(`/api/team/${erastus._id}/hours`).query({ date: DATE }).set(authHeader(owner)).expect(200)).body.data;
+        expect(hours.slots).toEqual([{ start: '08:00', end: '18:00' }]);
+        expect((await book('12:00', '13:00', { teamMember: erastus._id.toString() })).status).toBe(201);
+        // "Any available" too (Erastus is taken now; Hilda has the same day).
+        const any = await book('12:00', '13:00');
+        expect(any.status).toBe(201);
+        expect(String(any.body.data.teamMember)).toBe(String(hilda._id));
     });
 });
