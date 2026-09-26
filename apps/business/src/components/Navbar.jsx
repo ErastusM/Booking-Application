@@ -84,22 +84,33 @@ const Navbar = () => {
         }
     };
 
+    // One app, seen through each person's own profile: the owner and a team
+    // member get the SAME navigation — same labels, same order, same places.
+    // A member simply doesn't see the items their access level can't open
+    // (every screen behind them is scoped server-side regardless). `cap: null`
+    // marks a business-wide area that stays the owner's alone.
+    const itemShown = (cap) => user?.role === 'provider' || (cap !== null && navCan(cap));
     // Provider feature areas that live behind the top-nav "More" menu + the mobile
     // drawer, reached via /dashboard?tab=… (the in-page tab strip was removed).
     const MORE_LINKS = [
-        { to: '/dashboard?tab=waitlist', label: 'Waiting list' },
-        { to: '/dashboard?tab=insights', label: 'Insights' },
-        { to: '/dashboard?tab=messages', label: 'Messages' },
-        { to: '/dashboard?tab=memberships', label: 'Memberships' },
-        { to: '/dashboard?tab=giftcards', label: 'Gift cards' },
-        { to: '/team', label: 'Team' },
-    ];
-    // Config areas — grouped under the account menu / Settings.
+        { to: '/dashboard?tab=waitlist', label: 'Waiting list', cap: 'waitlist:manage' },
+        { to: '/dashboard?tab=insights', label: 'Insights', cap: null },
+        { to: '/dashboard?tab=messages', label: 'Messages', cap: 'calendar:view' },
+        { to: '/dashboard?tab=memberships', label: 'Memberships', cap: null },
+        { to: '/dashboard?tab=giftcards', label: 'Gift cards', cap: null },
+        { to: '/team', label: 'Team', cap: null },
+    ].filter((l) => itemShown(l.cap));
+    // Config areas — grouped under the account menu / Settings. For a member,
+    // Availability is THEIR hours and blocked time.
     const SETTINGS_LINKS = [
-        { to: '/dashboard?tab=availability', label: 'Availability' },
-        { to: '/dashboard?tab=wallet', label: 'Wallet' },
-        { to: '/dashboard?tab=forms', label: 'Forms' },
-    ];
+        { to: '/dashboard?tab=availability', label: 'Availability', cap: 'availability:self' },
+        { to: '/dashboard?tab=wallet', label: 'Wallet', cap: null },
+        { to: '/dashboard?tab=forms', label: 'Forms', cap: 'forms:manage' },
+    ].filter((l) => itemShown(l.cap));
+    // The business suite's own nav (owner + team members); admins have theirs.
+    const inSuite = user?.role === 'provider' || user?.role === 'staff';
+    // Earnings: the money from the signed-in person's own completed bookings.
+    const showEarnings = user?.role === 'provider';
     // The legal pages are otherwise only reachable at signup or by direct URL —
     // surface them in the account menu so they're findable once signed in.
     const LEGAL_LINKS = [
@@ -247,9 +258,9 @@ const Navbar = () => {
                 <div style={{ display: 'flex', alignItems: 'center', gap: '1.25rem' }} className="nav-desktop">
                     {navCan('calendar:view') && navLink('/dashboard', 'Calendar')}
                     {navCan('clients:assigned') && navLink('/dashboard?tab=clients', 'Clients')}
-                    {user?.role === 'provider' && navLink('/dashboard?tab=earnings', 'Earnings')}
-                    {user?.role === 'provider' && navLink('/dashboard?tab=services', 'Catalogue')}
-                    {user?.role === 'provider' && (
+                    {showEarnings && navLink('/dashboard?tab=earnings', 'Earnings')}
+                    {navCan('services:self') && navLink('/dashboard?tab=services', 'Catalogue')}
+                    {inSuite && MORE_LINKS.length > 0 && (
                         <div style={{ position: 'relative' }}>
                             <button
                                 onClick={() => setMoreOpen(o => !o)}
@@ -263,7 +274,7 @@ const Navbar = () => {
                             {moreOpen && (
                                 <>
                                     <div onClick={() => setMoreOpen(false)} style={{ position: 'fixed', inset: 0, zIndex: 1100 }} />
-                                    <div style={{ position: 'absolute', left: 0, top: 'calc(100% + 12px)', zIndex: 1101, width: '210px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '14px', boxShadow: '0 16px 44px rgba(4,5,5,0.28)', overflow: 'hidden', padding: '0.35rem' }}>
+                                    <div data-testid="more-menu" style={{ position: 'absolute', left: 0, top: 'calc(100% + 12px)', zIndex: 1101, width: '210px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: '14px', boxShadow: '0 16px 44px rgba(4,5,5,0.28)', overflow: 'hidden', padding: '0.35rem' }}>
                                         {MORE_LINKS.map(l => (
                                             <Link key={l.to} to={l.to} onClick={() => setMoreOpen(false)} style={{ display: 'block', padding: '0.55rem 0.8rem', borderRadius: '9px', textDecoration: 'none', color: 'var(--charcoal)', fontSize: '0.88rem', fontWeight: 600 }}
                                                 onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
@@ -275,9 +286,6 @@ const Navbar = () => {
                             )}
                         </div>
                     )}
-                    {user?.role === 'staff' && navLink('/dashboard?tab=services', 'My services')}
-                    {user?.role === 'staff' && navLink('/dashboard?tab=availability', 'My hours')}
-                    {user?.role === 'staff' && navLink('/account', 'Account')}
                     {user?.role === 'admin' && navLink('/bkplus-command', 'Dashboard')}
                     {user?.role === 'admin' && navLink('/bkplus-command/insights', 'Analytics')}
                 </div>
@@ -323,7 +331,7 @@ const Navbar = () => {
                                                 <p style={{ margin: 0, fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.92rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.name}</p>
                                                 <p style={{ margin: '1px 0 0', fontSize: '0.75rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{user.email}</p>
                                             </div>
-                                            {user.role === 'provider' && (
+                                            {inSuite && (
                                                 <Link to="/account" onClick={() => setProfileOpen(false)} style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.6rem 0.85rem', borderRadius: '10px', textDecoration: 'none', color: 'var(--charcoal)', fontSize: '0.88rem', fontWeight: '600' }}
                                                     onMouseEnter={e => e.currentTarget.style.background = 'var(--surface-sunken)'}
                                                     onMouseLeave={e => e.currentTarget.style.background = 'transparent'}
@@ -332,7 +340,7 @@ const Navbar = () => {
                                                     My account
                                                 </Link>
                                             )}
-                                            {user.role === 'provider' && (
+                                            {inSuite && SETTINGS_LINKS.length > 0 && (
                                                 <>
                                                     <p style={{ margin: '0.35rem 0 0.15rem', padding: '0 0.85rem', fontSize: '0.68rem', fontWeight: 600, letterSpacing: '0.08em', textTransform: 'uppercase', color: 'var(--text-muted)' }}>Settings</p>
                                                     {SETTINGS_LINKS.map(l => (
@@ -529,30 +537,23 @@ const Navbar = () => {
                         {/* Primary — the four everyday areas (mirrors desktop + bottom nav) */}
                         {navCan('calendar:view') && mobileLink('/dashboard', 'Calendar')}
                         {navCan('clients:assigned') && mobileLink('/dashboard?tab=clients', 'Clients')}
-                        {user?.role === 'provider' && mobileLink('/dashboard?tab=earnings', 'Earnings')}
-                        {user?.role === 'provider' && mobileLink('/dashboard?tab=services', 'Catalogue')}
+                        {showEarnings && mobileLink('/dashboard?tab=earnings', 'Earnings')}
+                        {navCan('services:self') && mobileLink('/dashboard?tab=services', 'Catalogue')}
 
                         {/* More — same set as the desktop "More" dropdown */}
-                        {user?.role === 'provider' && drawerSection('More')}
-                        {user?.role === 'provider' && MORE_LINKS.map(l => <React.Fragment key={l.to}>{mobileLink(l.to, l.label)}</React.Fragment>)}
+                        {inSuite && MORE_LINKS.length > 0 && drawerSection('More')}
+                        {inSuite && MORE_LINKS.map(l => <React.Fragment key={l.to}>{mobileLink(l.to, l.label)}</React.Fragment>)}
 
                         {/* Settings — config areas + account, grouped away from daily use */}
-                        {user?.role === 'provider' && drawerSection('Settings')}
-                        {user?.role === 'provider' && SETTINGS_LINKS.map(l => <React.Fragment key={l.to}>{mobileLink(l.to, l.label)}</React.Fragment>)}
-                        {user?.role === 'provider' && mobileLink('/account', 'My Account')}
+                        {inSuite && drawerSection('Settings')}
+                        {inSuite && SETTINGS_LINKS.map(l => <React.Fragment key={l.to}>{mobileLink(l.to, l.label)}</React.Fragment>)}
+                        {inSuite && mobileLink('/account', 'My Account')}
 
-                        {user?.role === 'staff' && mobileLink('/dashboard?tab=services', 'My services')}
-                        {user?.role === 'staff' && drawerSection('More')}
-                        {user?.role === 'staff' && mobileLink('/dashboard?tab=messages', 'Messages')}
-                        {user?.role === 'staff' && hasCap('waitlist:manage') && mobileLink('/dashboard?tab=waitlist', 'Waiting list')}
-                        {user?.role === 'staff' && drawerSection('Settings')}
-                        {user?.role === 'staff' && mobileLink('/dashboard?tab=availability', 'My working hours')}
-                        {user?.role === 'staff' && mobileLink('/account', 'My Account')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command', 'Dashboard')}
                         {user?.role === 'admin' && mobileLink('/bkplus-command/insights', 'Analytics')}
 
                         {/* Cross-app link lives at the foot of the list, not amongst product tabs */}
-                        {user?.role === 'provider' && drawerSection('Other')}
+                        {inSuite && drawerSection('Other')}
                         <a href={CUSTOMER_URL} style={{ color: 'var(--text-primary)', textDecoration: 'none', fontWeight: 500, fontSize: '0.98rem', padding: '0.72rem 1.25rem', borderLeft: '3px solid transparent', display: 'block' }}>Customer site</a>
 
                         {/* Legal — reachable in-app for everyone, not only at signup */}
@@ -610,7 +611,7 @@ const Navbar = () => {
 
         {/* Mobile bottom navigation — provider: flat full-width bar flush to the
             bottom edge with a top border (matches the calendar design mock). */}
-        {(user?.role === 'provider' || user?.role === 'staff') && createPortal(
+        {inSuite && createPortal(
             <div className="nav-mobile" style={{
                 position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
                 display: 'flex', justifyContent: 'center',
@@ -669,10 +670,7 @@ const Navbar = () => {
                         </span>
                     </Link>
                     )}
-                    {user?.role === 'staff' && bottomTab({ to: '/dashboard?tab=services', label: 'Services', icon: (
-                        <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" viewBox="0 0 24 24"><path d="M5 6h14M5 12h14M5 18h9"/></svg>
-                    ) })}
-                    {user?.role === 'provider' && bottomTab({ to: '/dashboard?tab=earnings', label: 'Earnings', icon: (
+                    {showEarnings && bottomTab({ to: '/dashboard?tab=earnings', label: 'Earnings', icon: (
                         <svg width="20" height="20" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6"/></svg>
                     ) })}
                     {bottomTab({ to: '/account', label: 'Account', icon: (
