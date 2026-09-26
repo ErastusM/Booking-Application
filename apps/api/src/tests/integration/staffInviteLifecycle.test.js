@@ -199,7 +199,7 @@ describe('legacy invites (emailed before staffInvites existed)', () => {
         expect((await preview(raw)).status).toBe(200);
         const res = await accept(raw);
         expect(res.status).toBe(200);
-        expect(res.body.data.user.staffTier).toBe('low');
+        expect(res.body.data.user).not.toHaveProperty('staffTier');
         const u = await User.findOne({ email: 'legacy@test.com' }).select('+passwordResetToken');
         expect(u.passwordResetToken).toBeNull();
         expect((await accept(raw)).status).toBe(400);
@@ -334,18 +334,21 @@ describe('failure codes', () => {
     });
 });
 
-describe('accept response carries the access level', () => {
-    it.each(['basic', 'low', 'medium', 'high'])('tier %s', async (tier) => {
+describe('accept response: one member shape, no access level', () => {
+    it.each(['basic', 'low', 'medium', 'high'])('an invite sent with an old tier %s still makes a plain member', async (tier) => {
         const { invite, owner } = await setup(`t-${tier}@test.com`, 'Tier Hire', tier);
         const res = await accept((await invite()).token);
         expect(res.status).toBe(200);
-        expect(res.body.data.user.staffTier).toBe(tier);
-        expect(Array.isArray(res.body.data.user.staffPermissions)).toBe(true);
+        expect(res.body.data.user).not.toHaveProperty('staffTier');
+        expect(res.body.data.user).not.toHaveProperty('staffPermissions');
         expect(String(res.body.data.user.staffOf)).toBe(String(owner._id));
-        // The fresh token works on /auth/profile straight away.
+        const stored = await User.findOne({ email: `t-${tier}@test.com` });
+        expect(stored.staffTier).toBeNull();
+        // The fresh token works on /auth/profile straight away, with the same shape.
         const prof = await request(app).get('/api/auth/profile').set('Authorization', `Bearer ${res.body.data.token}`);
         expect(prof.status).toBe(200);
-        expect(prof.body.data.staffTier).toBe(tier);
+        expect(prof.body.data).not.toHaveProperty('staffTier');
+        expect(prof.body.data).not.toHaveProperty('staffPermissions');
     });
 });
 

@@ -152,7 +152,7 @@ const AcceptInvite = () => {
             // Signed in as the invitee from here on; any other session on this
             // device is replaced locally (never logged out server-side).
             login(session);
-            // The server's view of their level is what the calendar gates on.
+            // Re-read their profile (their business, name) from the server.
             await refreshProfile();
             navigate('/dashboard', { replace: true });
         } catch (err) {

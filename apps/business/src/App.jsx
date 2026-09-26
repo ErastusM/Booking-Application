@@ -69,11 +69,11 @@ function AppRoutes() {
                     <Route path="/terms" element={<TermsOfService />} />
                     <Route path="/privacy-policy" element={<PrivacyPolicy />} />
 
-                    {/* Provider suite. A Medium+ staff member (whole-business
-                        calendar / client access) is admitted too; ProviderDashboard
-                        then whitelists which tabs their tier may see. */}
+                    {/* The business suite: the owner, and every team member (who sees
+                        it through their own profile — ProviderDashboard whitelists the
+                        member's tabs). */}
                     <Route path="/dashboard" element={
-                        <ProtectedRoute allowedRoles={['provider']} allowCapability={['calendar:view_all', 'clients:assigned']}>
+                        <ProtectedRoute allowedRoles={['provider']} allowCapability={['calendar:view']}>
                             <ProviderDashboard />
                         </ProtectedRoute>
                     } />

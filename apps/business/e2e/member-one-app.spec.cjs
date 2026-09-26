@@ -3,7 +3,7 @@ const { SEED, login } = require('./helpers.cjs');
 
 /**
  * One app: a team member uses the OWNER's app through their own profile.
- * Pat Provider (apps/api/e2e-server.js) is a bookable "Service provider" who
+ * Pat Provider (apps/api/e2e-server.js) is a bookable team member who
  * performs E2E Session at his own price and time (N$120, 45 min) and once served
  * E2E Regular (a completed N$120 booking two days ago).
  */
@@ -11,7 +11,7 @@ const { SEED, login } = require('./helpers.cjs');
 // The desktop tab row, as the labels read.
 const desktopTabs = (page) => page.locator('.nav-desktop').first().locator(':scope > *').allInnerTexts();
 
-test.describe('A Service provider gets the owner\'s app', () => {
+test.describe('A team member gets the owner\'s app', () => {
     test.use({ viewport: { width: 1280, height: 800 } });
 
     test('the same navbar as the owner, minus only the owner\'s business-wide items', async ({ page, browser }) => {

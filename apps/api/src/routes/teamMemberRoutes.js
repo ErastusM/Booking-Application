@@ -75,9 +75,8 @@ router.delete('/:id', auth, canManageTeam, deleteTeamMember);
 // completed history (snapshotted as "former staff"). See removeTeamMember.
 router.delete('/:id/permanent', auth, canManageTeam, removeTeamMember);
 router.post('/:id/restore', auth, canManageTeam, restoreTeamMember);
-// CROWN JEWEL — OWNER-ONLY. Minting a member's tier/permissions is the one thing
-// team:manage must NEVER grant: a High manager could otherwise mint/spread the
-// High tier or grant themselves owner-equivalent capabilities. Stays owner/admin.
+// Access levels are gone ("just members"): this answers 410 Gone and writes
+// nothing, so an old client learns the setting no longer exists.
 router.put('/:id/permissions', auth, ownerOnly, setTeamMemberPermissions);
 router.get('/:id/stats', auth, ownerOnly, getTeamMemberStats);
 // Date-specific working days. A shift replaces the weekly pattern for that

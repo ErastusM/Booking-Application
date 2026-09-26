@@ -406,10 +406,6 @@ exports.login = async (req, res) => {
                     avatar: user.avatar,
                     phone: user.phone,
                     providerSetupComplete: user.providerSetupComplete,
-                    // Staff tier/permissions ride along so the business app can gate
-                    // nav/tabs off the cached user before /auth/profile resolves.
-                    staffTier: user.staffTier,
-                    staffPermissions: user.staffPermissions,
                     staffOf: user.staffOf,
                 },
                 token,
@@ -626,7 +622,9 @@ exports.getProfile = async (req, res) => {
         // password / refreshTokenJtis / oauthCode / passwordResetToken are already
         // select:false, but verificationToken is NOT — returning it let an
         // authenticated user read a reusable self-verification token (finding #27).
-        const user = await User.findById(req.user.id).select('-verificationToken -verificationTokenExpiry');
+        // The legacy access-level fields are left out too: every team member is
+        // the same, so the profile has one member shape (like login and accept).
+        const user = await User.findById(req.user.id).select('-verificationToken -verificationTokenExpiry -staffTier -staffPermissions');
 
         res.status(200).json({
             success: true,
@@ -1672,11 +1670,6 @@ exports.acceptStaffInvite = async (req, res) => {
                     avatar: user.avatar,
                     phone: user.phone,
                     providerSetupComplete: user.providerSetupComplete,
-                    // Same staff fields as login, so the business app gates its
-                    // buttons off the member's real level from the first render
-                    // (an undefined tier would read as the Service-provider default).
-                    staffTier: user.staffTier,
-                    staffPermissions: user.staffPermissions,
                     staffOf: user.staffOf,
                 },
                 token: accessToken,

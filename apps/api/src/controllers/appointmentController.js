@@ -2,7 +2,6 @@ const pino = require('pino');
 const { isFullName, FULL_NAME_MESSAGE } = require('../utils/personName');
 const logger = pino({ level: process.env.LOG_LEVEL || 'info' });
 const { randomUUID } = require('crypto');
-const mongoose = require('mongoose');
 const Appointment = require('../models/Appointment');
 const Availability = require('../models/Availability');
 const Service = require('../models/Service');
@@ -689,35 +688,26 @@ const staffCanActOnAppointment = async (user, appointment, { unscoped, selfScope
  * multi-service ("+ Add service") and group paths. The same rules the single
  * booking path (createAppointment) applies to a member, in one place:
  *   - bookings:create, and only for the business they work for;
- *   - whose column it lands in: their OWN, unless they see the whole calendar
- *     (calendar:view_all) and name a colleague or the owner ('owner') for a
- *     booking of existing clients — a walk-in always goes in their own column;
- *   - which existing clients: any of the business's clients with clients:view
- *     (or the owner-granted clients:view_all), otherwise ONLY the clients they
- *     personally serve. Checked before any client record is read, so a member
- *     can't probe other accounts.
- * Returns { error: { status, message } } or { performer, ownMemberId } where
- * performer is a TeamMember id, or null for the owner's own column.
+ *   - it always lands in their OWN column;
+ *   - only for the clients they personally serve (the same scope their client
+ *     list shows). Checked before any client record is read, so a member can't
+ *     probe other accounts.
+ * Returns { error: { status, message } } or { performer, ownMemberId } (both
+ * their own roster row).
  */
-const staffBookingScope = async (req, providerId, { customerIds = [], walkIn = false, teamMember = null } = {}) => {
+const staffBookingScope = async (req, providerId, { customerIds = [] } = {}) => {
     const refuse = (status, message) => ({ error: { status, message, code: 'staff_booking_not_allowed' } });
     if (!can(req.user, 'bookings:create')) return refuse(403, 'Your access doesn’t include making bookings. Ask the owner.');
     if (!providerId || String(providerId) !== String(req.user.staffOf)) return refuse(403, 'You can only book services of the business you work for.');
     const mine = await staffMemberOf(req.user);
     if (!mine) return refuse(403, 'You do not have a bookable staff profile to book under.');
 
-    let performer = mine._id;
-    if (can(req.user, 'calendar:view_all') && !walkIn && teamMember) {
-        performer = String(teamMember) === 'owner' ? null : teamMember;
-        if (performer && !mongoose.isValidObjectId(performer)) return refuse(400, 'Unknown team member');
-    }
+    // Always their own column, whatever the body names.
+    const performer = mine._id;
 
-    const seesAllClients = can(req.user, 'clients:view') || can(req.user, 'clients:view_all');
     for (const id of customerIds) {
-        if (!seesAllClients) {
-            const serves = await Appointment.exists({ provider: providerId, customer: id, ...memberInvolvedFilter(mine._id) });
-            if (!serves) return refuse(403, 'You can only book clients you serve. Book a new client as a walk-in by name instead.');
-        }
+        const serves = await Appointment.exists({ provider: providerId, customer: id, ...memberInvolvedFilter(mine._id) });
+        if (!serves) return refuse(403, 'You can only book clients you serve. Book a new client as a walk-in by name instead.');
         const client = await User.findById(id).select('role');
         const isClient = client?.role === 'customer' && await Appointment.exists({ customer: id, provider: providerId });
         if (!isClient) return refuse(403, 'You can only book on behalf of an existing client. Use a walk-in for a first-time client.');

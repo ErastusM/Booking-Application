@@ -105,13 +105,12 @@ const outbox = [];
     // their own services on My schedule). Not bookable, so they never enter
     // customer "any available" resolution and can't perturb the booking specs;
     // lastLoginAt is set so they read as an active member, not a pending invite.
-    // No staffTier: nobody chose a level, so Sam is a "Service provider" (the
-    // default) — he blocks his own time, but his closed column takes no bookings
-    // (member-own-calendar.spec).
+    // Like every member he runs his own column — he blocks his own time, but
+    // his closed column takes no bookings (member-own-calendar.spec).
     const samUser = await User.create({
         name: 'Sam Staff', email: 'e2e-staff@bookplus.dev', password: 'Password1!',
         phone: '+264810000002', role: 'staff', staffOf: provider._id, isVerified: true,
-        provider: 'local', staffPermissions: ['calendar:self', 'clients:assigned'],
+        provider: 'local',
         lastLoginAt: new Date(),
     });
     await TeamMember.create({
@@ -119,7 +118,7 @@ const outbox = [];
         user: samUser._id, bookable: false,
     });
 
-    // A bookable "Service provider" with a login, for the one-app member spec
+    // A bookable team member with a login, for the one-app member spec
     // (member-one-app.spec): Pat performs E2E Session at his own price and time,
     // and once served "E2E Regular" (a completed booking two days ago), so he can
     // book that existing client and has takings of his own on Earnings. The
@@ -128,7 +127,7 @@ const outbox = [];
     const patUser = await User.create({
         name: 'Pat Provider', email: 'e2e-member@bookplus.dev', password: 'Password1!',
         phone: '+264810000005', role: 'staff', staffOf: provider._id, isVerified: true,
-        provider: 'local', staffTier: 'low', lastLoginAt: new Date(),
+        provider: 'local', lastLoginAt: new Date(),
     });
     const pat = await TeamMember.create({
         provider: provider._id, name: 'Pat Provider', role: 'Stylist', color: '#F59E0B',

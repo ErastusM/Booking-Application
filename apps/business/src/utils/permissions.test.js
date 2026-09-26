@@ -1,73 +1,43 @@
 import { describe, it, expect } from 'vitest';
-import { can, canAny, effectiveCapabilities, resolvedTier, DEFAULT_TIER } from './permissions';
+import { can, canAny, effectiveCapabilities, MEMBER } from './permissions';
 
 // UI-visibility mirror of the backend can(); real enforcement is server-side.
+// "Just members": one kind of team member, whatever old fields say.
+const BUSINESS_WIDE = [
+    'calendar:view_all', 'calendar:manage', 'clients:view', 'clients:view_all', 'clients:edit', 'clients:contact',
+    'bookings:status', 'bookings:reschedule', 'bookings:cancel', 'bookings:edit', 'forms:manage',
+    'reports:view', 'services:edit', 'prices:edit', 'packages:manage', 'availability:manage',
+    'team:manage', 'wallet:view', 'settings:edit',
+];
+const FORMER = [
+    { staffTier: 'basic' }, { staffTier: 'low' }, { staffTier: 'medium' }, { staffTier: 'high' }, { staffTier: null }, {},
+    { staffTier: 'high', staffPermissions: ['clients:view_all', 'calendar:all', 'team:manage'] },
+];
+
 describe('frontend capability resolver', () => {
     it('owners and admins hold everything', () => {
         expect(can({ role: 'provider' }, 'team:manage')).toBe(true);
         expect(can({ role: 'admin' }, 'wallet:view')).toBe(true);
-        expect(can({ role: 'provider' }, 'anything:at:all')).toBe(true);
     });
 
     it('a null / non-staff user holds nothing', () => {
-        expect(can(null, 'calendar:view_all')).toBe(false);
-        expect(can({ role: 'customer' }, 'clients:view')).toBe(false);
+        expect(can(null, 'calendar:view')).toBe(false);
+        expect(can({ role: 'customer' }, 'clients:assigned')).toBe(false);
     });
 
-    it('a Medium staff member gets the reception set but not High capabilities', () => {
-        const medium = { role: 'staff', staffTier: 'medium' };
-        expect(can(medium, 'calendar:view_all')).toBe(true);
-        expect(can(medium, 'clients:view')).toBe(true);
-        expect(can(medium, 'clients:edit')).toBe(true);
-        expect(can(medium, 'calendar:manage')).toBe(true);
-        expect(can(medium, 'forms:manage')).toBe(true);
-        // High-only:
-        expect(can(medium, 'reports:view')).toBe(false);
-        expect(can(medium, 'team:manage')).toBe(false);
-        expect(can(medium, 'services:edit')).toBe(false);
+    it('every team member — whatever level they once had — holds exactly the member set', () => {
+        FORMER.forEach((f) => {
+            const u = { role: 'staff', ...f };
+            MEMBER.forEach((c) => expect(can(u, c)).toBe(true));
+            BUSINESS_WIDE.forEach((c) => expect(can(u, c)).toBe(false));
+            expect(can(u, 'calendar:all')).toBe(false); // legacy alias of view_all
+            expect([...effectiveCapabilities(u)].sort()).toEqual([...MEMBER].sort());
+        });
     });
 
-    it('a Low (Service provider) member runs their own calendar but cannot see the whole calendar or clients', () => {
-        const low = { role: 'staff', staffTier: 'low' };
-        expect(can(low, 'bookings:create')).toBe(true);
-        expect(can(low, 'calendar:block:self')).toBe(true);
-        expect(can(low, 'calendar:manage')).toBe(false);
-        expect(can(low, 'calendar:view_all')).toBe(false);
-        expect(can(low, 'clients:view')).toBe(false);
-    });
-
-    it('no tier (null or undefined) resolves to the Service-provider default', () => {
-        expect(DEFAULT_TIER).toBe('low');
-        for (const fresh of [{ role: 'staff', staffTier: null }, { role: 'staff' }]) {
-            expect(resolvedTier(fresh)).toBe('low');
-            expect(can(fresh, 'calendar:view')).toBe(true); // baseline
-            expect(can(fresh, 'bookings:create')).toBe(true);
-            expect(can(fresh, 'calendar:block:self')).toBe(true);
-            expect(can(fresh, 'bookings:status:self')).toBe(true);
-            expect(can(fresh, 'calendar:manage')).toBe(false);
-            expect(can(fresh, 'calendar:view_all')).toBe(false);
-            expect(can(fresh, 'clients:view')).toBe(false);
-        }
-    });
-
-    it('an explicit basic member is view-only', () => {
-        const basic = { role: 'staff', staffTier: 'basic' };
-        expect(resolvedTier(basic)).toBe('basic');
-        expect(can(basic, 'calendar:view')).toBe(true);
-        expect(can(basic, 'bookings:create')).toBe(false);
-        expect(can(basic, 'calendar:block:self')).toBe(false);
-        expect(can(basic, 'bookings:status:self')).toBe(false);
-    });
-
-    it('the legacy calendar:all flag maps to calendar:view_all', () => {
-        const legacy = { role: 'staff', staffTier: null, staffPermissions: ['calendar:all'] };
-        expect(can(legacy, 'calendar:view_all')).toBe(true);
-        expect(effectiveCapabilities(legacy).has('calendar:view_all')).toBe(true);
-    });
-
-    it('canAny is true when any listed capability is held', () => {
-        const medium = { role: 'staff', staffTier: 'medium' };
-        expect(canAny(medium, ['reports:view', 'clients:view'])).toBe(true);
-        expect(canAny(medium, ['reports:view', 'team:manage'])).toBe(false);
+    it('canAny passes when any listed capability is held', () => {
+        const m = { role: 'staff' };
+        expect(canAny(m, ['team:manage', 'calendar:view'])).toBe(true);
+        expect(canAny(m, ['team:manage', 'wallet:view'])).toBe(false);
     });
 });

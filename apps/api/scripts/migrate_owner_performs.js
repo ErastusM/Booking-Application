@@ -161,7 +161,16 @@ async function migrateOwnerPerforms({ dryRun = false } = {}) {
     const TeamMember = require('../src/models/TeamMember');
     const User = require('../src/models/User');
     const Appointment = require('../src/models/Appointment');
-    const { can } = require('../src/utils/permissions');
+    // Whether a member could use the menu editor WHEN they created the row.
+    // Access levels are gone now (every member is the same), but the rows were
+    // made under the old ones: a Manager (staffTier 'high', or a services:edit
+    // grant) could edit the menu, so their rows prove nothing either way. Read
+    // from the stored fields, which are kept for exactly this kind of history.
+    const can = (u, cap) => {
+        if (cap !== 'services:edit') return false;
+        if (!u || u.role !== 'staff') return !!u;
+        return u.staffTier === 'high' || (Array.isArray(u.staffPermissions) && u.staffPermissions.includes('services:edit'));
+    };
     const mongoose = require('mongoose');
 
     const undecided = await Service.find({ provider: { $ne: null }, ownerPerforms: UNDECIDED })

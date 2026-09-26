@@ -2,12 +2,13 @@
  * One app: a team member books from the owner's New Appointment screen — the
  * same "+ Add service" (multi-service), Group booking and "Repeat this
  * appointment" the owner has — but the server keeps the booking theirs:
- *   - in their OWN column (a Service provider can't put it in a colleague's);
- *   - only for the clients they serve (unless their level sees all clients);
+ *   - in their OWN column (never a colleague's or the owner's);
+ *   - only for the clients they serve;
  *   - at their OWN price and time for each service;
  *   - held to every guard a customer is (past, hours, blocked time).
- * And the calendar's people list (/team/mine/calendar) gives a member only what
- * their calendar already shows: names and colours, never contact details.
+ * And the calendar's people list (/team/mine/calendar) gives a member only
+ * themselves. There are no access levels: a former View-only, Reception or
+ * Manager member is held to exactly the same.
  */
 const request = require('supertest');
 const app = require('../../../server');
@@ -101,11 +102,12 @@ describe('+ Add service (multi-service) for a team member', () => {
         expect(await Appointment.countDocuments({ customer: hers._id, status: 'confirmed' })).toBe(0);
     });
 
-    it('is refused for a View-only member, and for another business', async () => {
+    it('works for a former View-only member too (there are no levels); is refused for another business', async () => {
         const { provider, cut, mine } = await setup();
         const viewer = await makeStaff(provider, 'basic');
         const r1 = await multi(viewer.login, { appointmentDate: weekday(), startTime: '14:00', walkInName: 'X', services: [{ serviceId: String(cut._id) }] });
-        expect(r1.status).toBe(403);
+        expect(r1.status).toBe(201);
+        expect(idOf(r1.body.data.teamMember)).toBe(String(viewer.member._id));
 
         const other = await makeProvider();
         const stranger = await makeStaff(other, 'high');
@@ -124,56 +126,27 @@ describe('+ Add service (multi-service) for a team member', () => {
         expect(past.status).toBe(400);
     });
 
-    it('lets Reception (whole calendar) name a colleague for an existing client', async () => {
+    it("a former Reception member can't book a colleague's client or into a colleague's or the owner's column", async () => {
         const { provider, cut, sarah, hers } = await setup();
         const lina = await makeStaff(provider, 'medium');
-        const res = await multi(lina.login, {
+        const onBehalf = await multi(lina.login, {
             appointmentDate: weekday(), startTime: '15:00', customerId: String(hers._id), teamMember: String(sarah.member._id),
             services: [{ serviceId: String(cut._id) }],
         });
-        expect(res.status).toBe(201);
-        expect(idOf(res.body.data.teamMember)).toBe(String(sarah.member._id));
+        expect(onBehalf.status).toBe(403);
+        for (const teamMember of [String(sarah.member._id), 'owner']) {
+            const walkIn = await multi(lina.login, {
+                appointmentDate: weekday(), startTime: '16:00', walkInName: 'Walk In', teamMember,
+                services: [{ serviceId: String(cut._id), teamMember }],
+            });
+            expect(walkIn.status).toBe(201);
+            expect(idOf(walkIn.body.data.teamMember)).toBe(String(lina.member._id));
+            await Appointment.deleteOne({ _id: walkIn.body.data._id });
+        }
     });
 });
 
-describe("#228's performer rules hold for a member's multi and group bookings", () => {
-    it("Reception can't put a service only the team does in the owner's column", async () => {
-        const { provider, cut, hers } = await setup();
-        const teamOnly = await makeService(provider._id, { name: 'Long trip', price: 900, duration: 60, ownerPerforms: false });
-        const lina = await makeStaff(provider, 'medium');
-        const res = await multi(lina.login, {
-            appointmentDate: weekday(), startTime: '15:00', customerId: String(hers._id), teamMember: 'owner',
-            services: [{ serviceId: String(teamOnly._id) }],
-        });
-        expect(res.status).toBe(400);
-        const g = await group(lina.login, {
-            service: String(teamOnly._id), appointmentDate: weekday(), startTime: '10:00', endTime: '11:00',
-            clients: [{ customerId: String(hers._id) }], teamMember: 'owner',
-        });
-        expect(g.status).toBe(400);
-        // The owner still performs Cut, so that one is fine.
-        const ok = await multi(lina.login, {
-            appointmentDate: weekday(), startTime: '15:00', customerId: String(hers._id), teamMember: 'owner',
-            services: [{ serviceId: String(cut._id) }],
-        });
-        expect(ok.status).toBe(201);
-        expect(ok.body.data.teamMember).toBeNull();
-    });
-
-    it("prices a colleague's segments at the colleague's own price", async () => {
-        const { provider, cut, sarah, hers } = await setup();
-        sarah.member.serviceOverrides = [{ service: cut._id, price: 170, duration: 40 }];
-        await sarah.member.save();
-        const lina = await makeStaff(provider, 'medium');
-        const res = await multi(lina.login, {
-            appointmentDate: weekday(), startTime: '15:00', customerId: String(hers._id), teamMember: String(sarah.member._id),
-            services: [{ serviceId: String(cut._id) }],
-        });
-        expect(res.status).toBe(201);
-        expect(res.body.data.totalPrice).toBe(170);
-        expect(res.body.data.endTime).toBe('15:40');
-    });
-
+describe("#228's performer rules hold for a member's multi-service bookings", () => {
     it("a member can't book themselves for a service they don't perform", async () => {
         const { provider, erastus } = await setup();
         const other = await makeService(provider._id, { name: 'Nails', price: 80, duration: 30 });
@@ -211,13 +184,13 @@ describe('Group booking for a team member', () => {
         expect(res.status).toBe(403);
     });
 
-    it('is refused for a View-only member', async () => {
+    it('works for a former View-only member too', async () => {
         const { provider, cut } = await setup();
         const viewer = await makeStaff(provider, 'basic');
         const res = await group(viewer.login, {
             service: String(cut._id), appointmentDate: weekday(), startTime: '10:00', endTime: '10:30', clients: [{ name: 'G' }],
         });
-        expect(res.status).toBe(403);
+        expect(res.status).toBe(201);
     });
 });
 
@@ -251,19 +224,16 @@ describe('The calendar people list (/team/mine/calendar)', () => {
         expect(res.body.data.owner.name).toBe('Olivia Owner');
     });
 
-    it("gives whole-calendar members names and colours — never anyone's email, phone, pay or permissions", async () => {
+    it('a former Manager also gets only themselves — no colleagues, no prices', async () => {
         const { provider } = await setup();
         const hilda = await makeStaff(provider, 'high');
         const res = await roster(hilda.login);
         expect(res.status).toBe(200);
-        expect(res.body.data.members.length).toBe(3);
+        expect(res.body.data.members).toHaveLength(1);
+        expect(res.body.data.members[0]).toMatchObject({ isMe: true });
         const raw = JSON.stringify(res.body);
         expect(raw).not.toMatch(/@private\.test/);
-        expect(raw).not.toMatch(/\+2648100/);
-        res.body.data.members.forEach((m) => {
-            expect(Object.keys(m).sort()).toEqual(expect.arrayContaining(['_id', 'name', 'isMe']));
-            ['email', 'phone', 'user', 'commission', 'payRate', 'staffPermissions', 'staffTier', 'employment', 'notes'].forEach((k) => expect(m).not.toHaveProperty(k));
-        });
+        expect(raw).not.toMatch(/serviceOverrides/);
     });
 
     it('is refused to customers', async () => {

@@ -51,12 +51,12 @@ describe('GET /api/waitinglist/provider for team members', () => {
         expect(names(res)).toEqual(['Petrina Anyone', 'Tomas Johns']);
     });
 
-    it('a member who sees the whole calendar sees every entry', async () => {
+    it('a former Reception member no longer sees every entry — only those waiting on anyone (they serve none)', async () => {
         const { provider } = await setup();
         const { login } = await makeStaff(provider, 'medium');
         const res = await request(app).get('/api/waitinglist/provider').set(authHeader(login));
         expect(res.status).toBe(200);
-        expect(names(res)).toHaveLength(3);
+        expect(names(res)).toEqual(['Petrina Anyone']);
     });
 
     it('the owner sees every entry', async () => {

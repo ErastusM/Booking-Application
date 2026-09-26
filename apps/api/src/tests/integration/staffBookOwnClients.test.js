@@ -178,48 +178,36 @@ describe('the same rules for an explicit Service provider (low)', () => {
         expect(other.status).toBe(403);
     });
 
-    it('with the owner-granted clients:view_all add-on books any client of the business — still into their own column', async () => {
+    it('a once-granted "See all clients" add-on no longer lets them book a colleague\'s client', async () => {
         const { service, john, sarah, sarahsClient } = await setup({ johnTier: 'low', johnPermissions: ['clients:view_all'] });
         const res = await book(john.login, slot({
             service: service._id.toString(), customerId: sarahsClient._id.toString(), teamMember: sarah.member._id.toString(),
         }));
-        expect(res.status).toBe(201);
-        expect(idOf(res.body.data.customer)).toBe(String(sarahsClient._id));
-        expect(idOf(res.body.data.teamMember)).toBe(String(john.member._id));
+        expect(res.status).toBe(403);
     });
 });
 
-describe('an explicit Basic (view-only) member books nothing', () => {
-    it('refuses their own client and a walk-in alike', async () => {
+describe('there are no access levels any more', () => {
+    it('a former View-only member now books their own client and a walk-in, into their own column', async () => {
         const { service, john, johnsClient } = await setup({ johnTier: 'basic' });
         const client = await book(john.login, slot({ service: service._id.toString(), customerId: johnsClient._id.toString() }));
-        expect(client.status).toBe(403);
-        expect(client.body.code).toBe('staff_booking_not_allowed');
-        expect(client.body.message).toMatch(/doesn.t include making bookings/i);
-        const walkIn = await book(john.login, slot({ service: service._id.toString(), walkInName: 'Jane Passerby' }));
-        expect(walkIn.status).toBe(403);
-        expect(walkIn.body.code).toBe('staff_booking_not_allowed');
-    });
-});
-
-describe('Medium and High are unchanged', () => {
-    it('Medium books a client they do not serve, into the colleague column they choose', async () => {
-        const { provider, service, sarah, ownersClient } = await setup();
-        const medium = await makeStaff(provider, 'medium');
-        const res = await book(medium.login, slot({
-            service: service._id.toString(), customerId: ownersClient._id.toString(), teamMember: sarah.member._id.toString(),
-        }));
-        expect(res.status).toBe(201);
-        expect(idOf(res.body.data.teamMember)).toBe(String(sarah.member._id));
+        expect(client.status).toBe(201);
+        expect(idOf(client.body.data.teamMember)).toBe(String(john.member._id));
+        const walkIn = await book(john.login, slot({ service: service._id.toString(), walkInName: 'Jane Passerby', startTime: '15:00', endTime: '15:30' }));
+        expect(walkIn.status).toBe(201);
     });
 
-    it('High books any client of the business into their own column', async () => {
-        const { provider, service, sarahsClient } = await setup();
-        const high = await makeStaff(provider, 'high');
-        const res = await book(high.login, slot({
-            service: service._id.toString(), customerId: sarahsClient._id.toString(), teamMember: high.member._id.toString(),
-        }));
-        expect(res.status).toBe(201);
-        expect(idOf(res.body.data.teamMember)).toBe(String(high.member._id));
+    it.each(['medium', 'high'])('a former %s member books only the clients they serve, and only into their own column', async (tier) => {
+        const { provider, service, sarah, sarahsClient, ownersClient } = await setup();
+        const former = await makeStaff(provider, tier);
+        for (const c of [sarahsClient, ownersClient]) {
+            const res = await book(former.login, slot({
+                service: service._id.toString(), customerId: c._id.toString(), teamMember: sarah.member._id.toString(),
+            }));
+            expect(res.status).toBe(403);
+        }
+        const walkIn = await book(former.login, slot({ service: service._id.toString(), walkInName: 'Walk In', teamMember: sarah.member._id.toString() }));
+        expect(walkIn.status).toBe(201);
+        expect(idOf(walkIn.body.data.teamMember)).toBe(String(former.member._id));
     });
 });

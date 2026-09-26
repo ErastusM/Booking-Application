@@ -202,18 +202,16 @@ test.describe('Invited member lands on the create-password form and stays there'
         await expect(page.getByPlaceholder('you@example.com')).toHaveValue(email);
     });
 
-    for (const tier of ['basic', 'low', 'medium', 'high']) {
-        test(`a ${tier}-level member lands on their calendar after accepting`, async ({ page, request }) => {
-            const owner = await signIn(request, SEED.provider);
-            const email = uniqueEmail(`tier-${tier}`);
-            const id = await addMember(request, owner, email, `Tier ${tier}`);
-            await invite(request, owner, id, { tier });
-            const [link] = await inviteLinks(request, email);
-            await page.goto(link);
-            await acceptWith(page);
-            await expectOnCalendar(page);
-        });
-    }
+    test('a member lands on their calendar after accepting', async ({ page, request }) => {
+        const owner = await signIn(request, SEED.provider);
+        const email = uniqueEmail('member');
+        const id = await addMember(request, owner, email, 'New Member');
+        await invite(request, owner, id);
+        const [link] = await inviteLinks(request, email);
+        await page.goto(link);
+        await acceptWith(page);
+        await expectOnCalendar(page);
+    });
 });
 
 test.describe('Sign-in after a lapsed session', () => {

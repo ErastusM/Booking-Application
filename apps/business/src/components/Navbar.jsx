@@ -17,15 +17,15 @@ const Navbar = () => {
     const { darkMode, toggleDarkMode } = useTheme();
     const navigate = useNavigate();
 
-    // A nav item shows for the owner, or for a staff member whose tier holds the
-    // capability (a Medium receptionist gets Calendar + Clients). Kept staff-scoped
-    // so admin's business-nav is unchanged. Owner-only items stay role==='provider'.
+    // A nav item shows for the owner, or for a team member when it is one of
+    // their own areas (the member set in utils/permissions). Kept staff-scoped so
+    // admin's business-nav is unchanged. Owner-only items stay role==='provider'.
     const navCan = (cap) => user?.role === 'provider' || (user?.role === 'staff' && hasCap(cap));
-    // A team member who sees only their own calendar books only into their own
-    // column; if that column isn't open for bookings the server refuses every
-    // booking, so the "+" isn't offered (mirrors ProviderDashboard's canBook).
+    // A team member books only into their own column; if that column isn't open
+    // for bookings the server refuses every booking, so the "+" isn't offered
+    // (mirrors ProviderDashboard's canBook).
     const myMember = useMyMember(user);
-    const ownColumnClosed = user?.role === 'staff' && !hasCap('calendar:view_all') && myMember?.bookable === false;
+    const ownColumnClosed = user?.role === 'staff' && myMember?.bookable === false;
     const location = useLocation();
     const [scrolled, setScrolled] = useState(false);
     const [menuOpen, setMenuOpen] = useState(false);
@@ -105,7 +105,7 @@ const Navbar = () => {
     const SETTINGS_LINKS = [
         { to: '/dashboard?tab=availability', label: 'Availability', cap: 'availability:self' },
         { to: '/dashboard?tab=wallet', label: 'Wallet', cap: null },
-        { to: '/dashboard?tab=forms', label: 'Forms', cap: 'forms:manage' },
+        { to: '/dashboard?tab=forms', label: 'Forms', cap: null },
     ].filter((l) => itemShown(l.cap));
     // The business suite's own nav (owner + team members); admins have theirs.
     const inSuite = user?.role === 'provider' || user?.role === 'staff';

@@ -74,12 +74,10 @@ describe('POST /api/auth/staff-invite/:token/accept', () => {
         expect(res.body.data.refreshToken).toBeTruthy();
         expect(res.body.data.user.email).toBe(email);
         expect(res.body.data.user.role).toBe('staff');
-        // The member's access level rides along (like login), so the business
-        // app gates its buttons off the real level from the first render. A
-        // fresh invite with no level picked is a Service provider.
-        expect(res.body.data.user.staffTier).toBe('low');
+        // No access level rides along any more — every member is the same.
+        expect(res.body.data.user).not.toHaveProperty('staffTier');
+        expect(res.body.data.user).not.toHaveProperty('staffPermissions');
         expect(String(res.body.data.user.staffOf)).toBe(String(owner._id));
-        expect(res.body.data.user.staffPermissions).toEqual(['calendar:self', 'clients:assigned']);
         // Refresh cookie is set so the sibling-app SSO bootstrap works too.
         expect(res.headers['set-cookie'].join(';')).toMatch(/bp_rt=/);
 

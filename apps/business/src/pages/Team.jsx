@@ -4,11 +4,10 @@ import { useAuthContext } from '../context/AuthContext';
 import { teamService, providerServiceService } from '../services';
 import { useToast } from '../components/Toast';
 import Switch from '../components/Switch';
-import { UserPlus, Mail, Clock, ConciergeBell, ChevronDown, Check, Eye, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft, Star, Trash2, Camera, Share2 } from 'lucide-react';
+import { UserPlus, Mail, Clock, ConciergeBell, ChevronDown, Check, User, BarChart3, Wallet, CalendarCheck, CalendarDays, Coffee, X, Plus, Palmtree, ArrowRightLeft, Star, Trash2, Camera, Share2 } from 'lucide-react';
 import { uploadToCloudinary } from '../utils/uploadImage';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import ShareBookingLink, { bookingUrl } from '../components/ShareBookingLink';
-import { DEFAULT_TIER } from '../utils/permissions';
 import { MEMBER_PALETTE, BRAND_ORANGE, memberColorMap, sameColor, isUnsetColor } from '../utils/memberColors';
 import { inviteStatus, resendCooldownLeft } from '../utils/inviteStatus';
 
@@ -56,18 +55,6 @@ const HoursGrid = ({ week, onToggle, onSlot }) => (
         ))}
     </div>
 );
-
-// Permission tiers a staff member can be assigned (mirrors the API's TIERS).
-// "Service provider" comes first: it is what a member holds when nobody chose a
-// level (DEFAULT_TIER), and what a new invite gets. View only is an explicit
-// choice, never the accidental default.
-const TIER_OPTIONS = [
-    { value: 'low', label: 'Service provider', desc: 'Runs their own calendar: books their clients, blocks their own time, confirms/completes/cancels their own bookings.' },
-    { value: 'basic', label: 'View only', desc: 'Sees their own bookings; can’t book or block time.' },
-    { value: 'medium', label: 'Reception', desc: 'Sees the whole calendar and can change any booking’s status.' },
-    { value: 'high', label: 'Manager', desc: 'Reception access, plus management tools (reports, pricing, team) as they roll out.' },
-];
-const TIER_LABELS = Object.fromEntries(TIER_OPTIONS.map((t) => [t.value, t.label]));
 
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 // A 'YYYY-MM-DD' range read the way people say it: "16 Aug", "16–20 Aug",
@@ -258,19 +245,6 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
         const t = setTimeout(() => setNowTick(Date.now()), 1000);
         return () => clearTimeout(t);
     }, [cooldown, nowTick]);
-    const perms = member.user?.staffPermissions || [];
-    // Current tier: the stored staffTier, else inferred from the legacy flag
-    // (calendar:all ≈ reception-level whole-business view), else the
-    // Service-provider default a member with no level chosen actually holds.
-    // (This used to fall back to 'basic', and toggling "See all clients" wrote
-    // that inferred value back — so some stored 'basic' rows were never a
-    // deliberate owner choice.)
-    const [tier, setTier] = useState(member.user?.staffTier || (perms.includes('calendar:all') ? 'medium' : DEFAULT_TIER));
-    // Owner-granted add-ons, held separately from the tier because the endpoint
-    // REPLACES staffPermissions wholesale — saving one without the other would
-    // silently drop it. No tier confers these; the owner switches them on per
-    // person (see GRANTABLE in utils/permissions).
-    const [viewAllClients, setViewAllClients] = useState(perms.includes('clients:view_all'));
     const [tab, setTab] = useState('overview');
     const [stats, setStats] = useState(null);      // null = not fetched, false = failed
     const [bookable, setBookable] = useState(member.bookable !== false);
@@ -453,45 +427,6 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
         }
         await refreshTimeOff();
         setToBusy('');
-    };
-
-    const setTierLevel = async (next) => {
-        const previous = tier;
-        setTier(next);              // optimistic
-        setBusy('perms');
-        try {
-            // Send the tier WITH the owner-granted add-ons: the endpoint replaces
-            // staffPermissions wholesale, so omitting them here would revoke a
-            // grant as a side effect of changing tier. Legacy flags still clear.
-            await teamService.setMemberAccess(member._id, next, viewAllClients ? ['clients:view_all'] : []);
-            flash(`${member.name}'s access set to ${TIER_LABELS[next] || next}.`);
-            onChanged();
-        } catch (err) {
-            setTier(previous);
-            flash(err?.response?.data?.message || 'Could not change access level.');
-        } finally {
-            setBusy('');
-        }
-    };
-
-    // Grant/revoke the whole-business client list for this one person. Sends the
-    // current tier alongside so the tier isn't reset by the same wholesale write.
-    const toggleViewAllClients = async () => {
-        const next = !viewAllClients;
-        setViewAllClients(next);            // optimistic
-        setBusy('perms');
-        try {
-            await teamService.setMemberAccess(member._id, tier, next ? ['clients:view_all'] : []);
-            flash(next
-                ? `${member.name} can now see all of the business's clients.`
-                : `${member.name} now sees only the clients they serve.`);
-            onChanged();
-        } catch (err) {
-            setViewAllClients(!next);
-            flash(err?.response?.data?.message || 'Could not change client access.');
-        } finally {
-            setBusy('');
-        }
     };
 
     const savePersonal = async () => {
@@ -1117,7 +1052,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                                     </div>
                                     {!hasLogin && (
                                         <p style={{ margin: '0.55rem 0 0', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                                            They join as a Service provider — they run their own calendar. You can change their access level here any time.
+                                            They join as a team member: they run their own calendar, bookings, clients, services and hours.
                                         </p>
                                     )}
                                 </Section>
@@ -1128,7 +1063,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                                     <span style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', maxWidth: '40ch' }}>
                                         {bookable
                                             ? 'Clients can pick them when booking.'
-                                            : 'On the team, but never offered to clients — for managers and front desk.'}
+                                            : 'On the team, but never offered to clients — for someone who doesn’t take bookings.'}
                                     </span>
                                     <Switch checked={bookable} disabled={busy === 'bookable'} onChange={toggleBookable} label={bookable ? 'Bookable' : 'Not bookable'} data-testid="bookable-switch" />
                                 </div>
@@ -1181,49 +1116,6 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                                             </div>
                                         )}
                                     </div>
-                                </Section>
-                            )}
-
-                            {member.user && (
-                                <Section icon={Eye} title="Access level">
-                                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap', padding: '0.7rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)' }}>
-                                        <Select
-                                            value={tier}
-                                            disabled={busy === 'perms'}
-                                            onChange={(e) => setTierLevel(e.target.value)}
-                                            options={TIER_OPTIONS.map((t) => ({ value: t.value, label: t.label, description: t.desc }))}
-                                            aria-label="Access level"
-                                            popoverMinWidth={300}
-                                            data-testid="member-tier"
-                                            style={{ maxWidth: '220px', padding: '0.5rem 0.6rem' }}
-                                        />
-                                        <span style={{ fontSize: '0.82rem', color: 'var(--text-secondary)', flex: 1, minWidth: '200px' }}>
-                                            {(TIER_OPTIONS.find((t) => t.value === tier) || {}).desc}
-                                        </span>
-                                    </div>
-                                    <label
-                                        style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', marginTop: '0.6rem', padding: '0.7rem 0.85rem', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: busy === 'perms' ? 'default' : 'pointer' }}
-                                    >
-                                        <input
-                                            type="checkbox"
-                                            checked={viewAllClients}
-                                            disabled={busy === 'perms'}
-                                            onChange={toggleViewAllClients}
-                                            data-testid="member-view-all-clients"
-                                        />
-                                        <span style={{ flex: 1, minWidth: 0 }}>
-                                            <span style={{ display: 'block', fontSize: '0.86rem', fontWeight: 600, color: 'var(--charcoal)' }}>
-                                                See all clients
-                                            </span>
-                                            <span style={{ display: 'block', fontSize: '0.78rem', color: 'var(--text-secondary)' }}>
-                                                For front desk or managers. Off, they see only the clients they
-                                                personally serve — no access level grants this on its own.
-                                            </span>
-                                        </span>
-                                    </label>
-                                    <p style={{ margin: '0.5rem 0 0', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                                        Owners and admins always have full access and can’t be limited.
-                                    </p>
                                 </Section>
                             )}
 

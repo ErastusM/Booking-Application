@@ -3,7 +3,6 @@ const User = require('../models/User');
 const Service = require('../models/Service');
 const StaffAvailability = require('../models/StaffAvailability');
 const Appointment = require('../models/Appointment');
-const { validate: validatePermissions, isTier, DEFAULT_TIER, can } = require('../utils/permissions');
 const { memberBusyIntervals, memberInvolvedFilter, pickRotationWeek } = require('../utils/staffBooking');
 const { memberSlugMap } = require('../utils/memberLink');
 const { isHexColor, isUnsetColor, colorForNewMember } = require('../utils/memberColors');
@@ -141,7 +140,7 @@ exports.getMyTeam = async (req, res) => {
         const providerId = businessScope(req);
         if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const members = await TeamMember.find({ provider: providerId })
-            .populate('user', 'staffPermissions staffTier lastLoginAt')
+            .populate('user', 'lastLoginAt')
             .sort({ isPrimary: -1, createdAt: 1 }); // the primary member leads the roster
         // Each member's personal booking-link handle, for the owner's "share" row.
         const slugs = await memberSlugMap(providerId);
@@ -916,66 +915,18 @@ exports.getMyStats = async (req, res) => {
 };
 
 /**
- * PUT /api/team/:id/permissions  (provider/admin)
- * Body: { permissions: ['calendar:all', …] }
+ * PUT /api/team/:id/permissions  — GONE (410).
  *
- * What a staff member is allowed to do, set by the owner. Only flags the API
- * actually enforces (or the descriptive ones the invite flow writes) are
- * accepted — an unknown flag is rejected rather than stored, so a typo can't
- * sit in the database looking like a granted permission.
- *
- * A staff member can never reach this: the router gates the whole file to
- * provider/admin, which is the difference between a permission and a
- * preference.
+ * "Just members." There are no access levels or per-member grants any more:
+ * every team member has the same access (utils/permissions MEMBER). Nothing is
+ * written; an old client calling this learns plainly that the setting is gone.
  */
 exports.setTeamMemberPermissions = async (req, res) => {
-    try {
-        // Accept a preset `tier` and/or a legacy/override `permissions` array.
-        // Only the fields present in the body are changed.
-        const update = {};
-        if (req.body.tier !== undefined) {
-            if (req.body.tier !== null && !isTier(req.body.tier)) {
-                return res.status(400).json({ success: false, message: `Unknown tier: ${req.body.tier}` });
-            }
-            // null = "nobody chose a level", which resolves to the Service-provider
-            // default ('low') in utils/permissions. View-only is the explicit 'basic'.
-            update.staffTier = req.body.tier;
-        }
-        if (req.body.permissions !== undefined) {
-            const { accepted, rejected } = validatePermissions(req.body.permissions);
-            if (rejected.length) {
-                return res.status(400).json({ success: false, message: `Unknown permission: ${rejected.join(', ')}` });
-            }
-            update.staffPermissions = accepted;
-        }
-        if (!Object.keys(update).length) {
-            return res.status(400).json({ success: false, message: 'Provide a tier or permissions to set' });
-        }
-
-        const member = await TeamMember.findOne({ _id: req.params.id, provider: req.user._id });
-        if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
-        if (!member.user) {
-            return res.status(400).json({
-                success: false,
-                message: 'This team member has no login yet — invite them first.',
-            });
-        }
-
-        const staffUser = await User.findOneAndUpdate(
-            // Re-assert the link rather than trusting member.user alone: the
-            // account must still be a staff account belonging to this business.
-            { _id: member.user, role: 'staff', staffOf: req.user._id },
-            { $set: update },
-            { new: true },
-        ).select('staffPermissions staffTier');
-        if (!staffUser) {
-            return res.status(404).json({ success: false, message: 'That login no longer belongs to your team' });
-        }
-
-        res.status(200).json({ success: true, data: { permissions: staffUser.staffPermissions, tier: staffUser.staffTier } });
-    } catch (error) {
-        res.status(500).json({ success: false, message: 'Internal server error' });
-    }
+    res.status(410).json({
+        success: false,
+        code: 'access_levels_removed',
+        message: 'Team members no longer have access levels. Every member has the same access to their own calendar, clients and bookings.',
+    });
 };
 
 /**
@@ -1075,27 +1026,8 @@ exports.inviteTeamMember = async (req, res) => {
             }
         }
         if (!staffUser) {
-            // Validate any caller-supplied permissions / tier before storing — this
-            // path previously wrote req.body.permissions raw, so arbitrary strings
-            // could be persisted as permissions.
-            let staffPermissions = ['calendar:self', 'clients:assigned'];
-            if (req.body.permissions !== undefined) {
-                const { accepted, rejected } = validatePermissions(req.body.permissions);
-                if (rejected.length) {
-                    return res.status(400).json({ success: false, message: `Unknown permission: ${rejected.join(', ')}` });
-                }
-                if (accepted.length) staffPermissions = accepted;
-            }
-            // A new member runs their own calendar from day one ("Service
-            // provider") unless the owner picks another level. Stored explicitly
-            // so the roster shows what they actually hold.
-            let staffTier = DEFAULT_TIER;
-            if (req.body.tier !== undefined && req.body.tier !== null) {
-                if (!isTier(req.body.tier)) {
-                    return res.status(400).json({ success: false, message: `Unknown tier: ${req.body.tier}` });
-                }
-                staffTier = req.body.tier;
-            }
+            // Every member has the same access — no level or grant is asked for
+            // or stored (any `tier` / `permissions` in the body is ignored).
             staffUser = new User({
                 name: member.name,
                 email,
@@ -1109,8 +1041,6 @@ exports.inviteTeamMember = async (req, res) => {
                 // marketplace customer — the business side is a distinct account.
                 accountType: 'business',
                 staffOf: req.user._id,
-                staffPermissions,
-                staffTier,
                 provider: 'local',
                 isVerified: true, // owner-vouched; they prove the mailbox by using the invite link
             });
@@ -1333,17 +1263,13 @@ const myMemberDoc = (req) => (req.user.staffOf
     : Promise.resolve(null));
 
 /**
- * GET /api/team/mine/calendar  (owner or staff)
- * The people on the calendar — name, colour and job title only — so a team
- * member's calendar shows the same staff colours, performer names, staff filter
- * and Staff (lanes) view as the owner's. Never the roster's contact details,
- * pay, permissions or HR fields (that is GET /api/team, team:manage).
- *
- * Scoped like the calendar itself (buildAppointmentScope): a member who sees the
- * whole calendar (calendar:view_all) gets everyone they can already see bookings
- * for; a member who sees only their own column gets only themselves.
- * data: { members: [{ _id, name, color, role, isActive, bookable, photoUrl, isMe
- *                     (+ services, offersAllServices, serviceOverrides for whole-calendar viewers) }],
+ * GET /api/team/mine/calendar  (owner or member)
+ * The people on the calendar — name, colour and job title — so a member's
+ * calendar shows the same colour and performer name on their cards as the
+ * owner's. A member gets only themselves (their calendar is their own column);
+ * the owner gets the roster with who performs what. Never contact details,
+ * pay, permissions or HR fields (that is GET /api/team).
+ * data: { members: [{ _id, name, color, role, isActive, bookable, photoUrl, isMe }],
  *         owner: { name } }
  */
 exports.getCalendarRoster = async (req, res) => {
@@ -1352,14 +1278,14 @@ exports.getCalendarRoster = async (req, res) => {
         if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const fields = '_id name color role isActive bookable photoUrl user';
         let members;
-        if (req.user.role === 'staff' && !can(req.user, 'calendar:view_all')) {
+        if (req.user.role === 'staff') {
+            // A member's calendar is their own column: just themselves.
             const me = await TeamMember.findOne({ user: req.user._id, provider: providerId }).select(fields).lean();
             members = me ? [me] : [];
         } else {
-            // Whoever may book any column also needs who performs what, at
-            // which price (the New Appointment screen is professional-first and
-            // prices each person's own way) — the same figures every booking
-            // with them already shows. Still no contact, HR or permission fields.
+            // The owner books any column, so also who performs what, at which
+            // price (New Appointment is professional-first). Still no contact,
+            // HR or permission fields.
             members = await TeamMember.find({ provider: providerId })
                 .select(`${fields} services offersAllServices serviceOverrides`)
                 .sort({ isPrimary: -1, createdAt: 1 }).lean();

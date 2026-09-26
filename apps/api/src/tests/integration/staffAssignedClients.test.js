@@ -96,46 +96,17 @@ describe('staff client list is assignment-scoped', () => {
     });
 });
 
-describe('clients:view_all — the owner-granted front-desk add-on', () => {
-    it('NO tier grants it, not even High — it must be granted per person', async () => {
-        // The load-bearing property. If this ever fails, promoting someone to
-        // Manager silently hands them every client record, which is the leak the
-        // assigned-client scoping exists to prevent.
-        const { mineUser } = await setup({ tier: 'high', permissions: [] });
+describe('the old "See all clients" add-on and access levels are gone', () => {
+    it.each([
+        ['a former Manager', { tier: 'high', permissions: [] }],
+        ['a former Reception member', { tier: 'medium', permissions: [] }],
+        ['a member once granted "See all clients"', { tier: 'basic', permissions: ['clients:view_all'] }],
+    ])('%s sees only the clients they serve', async (_label, opts) => {
+        const { mineUser, theirClient } = await setup(opts);
         const res = await list(mineUser);
         expect(res.status).toBe(200);
         expect(res.body.data.map((c) => c.customer.name)).toEqual(['My Client']);
-    });
-
-    it('a granted member sees the WHOLE business client list', async () => {
-        const { mineUser } = await setup({ tier: 'basic', permissions: ['clients:view_all'] });
-        const names = (await list(mineUser)).body.data.map((c) => c.customer.name).sort();
-        expect(names).toEqual(['My Client', 'Their Client']);
-    });
-
-    it('a granted member may open a client they do not personally serve', async () => {
-        const { mineUser, theirClient } = await setup({ tier: 'basic', permissions: ['clients:view_all'] });
-        const res = await request(app).get(`/api/crm/clients/${theirClient._id}`).set(authHeader(mineUser));
-        expect(res.status).toBe(200);
-    });
-
-    it('the grant does NOT cross businesses', async () => {
-        // Widening the scope must never widen it past staffOf.
-        const { theirClient } = await setup({ permissions: ['clients:view_all'] });
-        const otherOwner = await makeProvider();
-        const outsider = await makeUser({
-            role: 'staff', staffOf: otherOwner._id, staffPermissions: ['clients:view_all'],
-        });
-        const names = (await list(outsider)).body.data.map((c) => c.customer.name);
-        expect(names).not.toContain('Their Client');
-    });
-
-    it('revoking it returns the member to assigned-only', async () => {
-        const { mineUser } = await setup({ tier: 'medium', permissions: ['clients:view_all'] });
-        expect((await list(mineUser)).body.data.length).toBe(2);
-        await User.updateOne({ _id: mineUser._id }, { $set: { staffPermissions: [] } });
-        const after = (await list(mineUser)).body.data.map((c) => c.customer.name);
-        expect(after).toEqual(['My Client']);
+        expect((await request(app).get(`/api/crm/clients/${theirClient._id}`).set(authHeader(mineUser))).status).toBe(404);
     });
 });
 
@@ -153,23 +124,14 @@ describe("staff cannot open or annotate a colleague's client", () => {
         expect(res.body.data.appointments.length).toBeGreaterThan(0);
     });
 
-    it("refuses to write a CRM note about a colleague's client", async () => {
-        // clients:edit is Medium+, so give the tier — assignment must still bind.
-        const { mineUser, theirClient } = await setup({ tier: 'medium', permissions: [] });
-        const res = await request(app)
-            .put(`/api/crm/clients/${theirClient._id}/notes`)
-            .set(authHeader(mineUser))
-            .send({ notes: 'should not stick' });
-        expect(res.status).toBe(404);
-    });
-
-    it('allows a note about their own client', async () => {
-        const { mineUser, myClient } = await setup({ tier: 'medium', permissions: [] });
-        const res = await request(app)
-            .put(`/api/crm/clients/${myClient._id}/notes`)
-            .set(authHeader(mineUser))
-            .send({ notes: 'allergic to peanuts' });
-        expect(res.status).toBe(200);
-        expect(res.body.data.notes).toBe('allergic to peanuts');
+    it('client notes are the owner\'s: a member (even a former Reception member) cannot write one', async () => {
+        const { mineUser, myClient, theirClient } = await setup({ tier: 'medium', permissions: [] });
+        for (const c of [myClient, theirClient]) {
+            const res = await request(app)
+                .put(`/api/crm/clients/${c._id}/notes`)
+                .set(authHeader(mineUser))
+                .send({ notes: 'should not stick' });
+            expect(res.status).toBe(403);
+        }
     });
 });

@@ -114,11 +114,10 @@ const ProviderDashboard = () => {
     // sent back to calendar — and the underlying endpoints 403 for them regardless.
     // Providers/admins hold every capability, so tabAllowed is always true for them.
     const STAFF_TAB_CAPS = {
-        // The calendar is every team member's home: without calendar:view_all the
-        // server narrows it to the bookings they perform (buildAppointmentScope).
-        calendar: 'calendar:view', pending: 'calendar:view_all', confirmed: 'calendar:view_all',
-        completed: 'calendar:view_all', cancelled: 'calendar:view_all',
-        waitlist: 'waitlist:manage', clients: 'clients:assigned', forms: 'forms:manage',
+        // The calendar is every team member's home: the server narrows it to the
+        // bookings they perform (buildAppointmentScope).
+        calendar: 'calendar:view',
+        waitlist: 'waitlist:manage', clients: 'clients:assigned',
         // Their OWN services, hours and conversations (member-scoped screens below).
         services: 'services:self', availability: 'availability:self', messages: 'calendar:view',
         // Their OWN earnings (money from their own completed bookings) — every member.
@@ -129,23 +128,23 @@ const ProviderDashboard = () => {
     // where their bookings and their blocked time go.
     const myMember = useMyMember(user);
     const myMemberId = myMember?._id || null;
-    // What this person may do from the calendar. Owners can do everything; a team
-    // member only what their access allows (the server enforces the same).
-    const seesWholeTeam = !isStaff || hasCap('calendar:view_all');
-    // A member who only sees their own calendar books ONLY into their own column
-    // (the server forces it), so a column that isn't bookable can't take anything
-    // — don't offer a booking the server would refuse. Unknown (still loading)
-    // counts as bookable; the server stays the backstop.
-    const ownColumnClosed = isStaff && !seesWholeTeam && myMember?.bookable === false;
+    // What this person may do from the calendar. The owner sees and runs the
+    // whole business; every team member runs their own column (the server
+    // enforces the same).
+    const seesWholeTeam = !isStaff;
+    // A member books ONLY into their own column (the server forces it), so a
+    // column that isn't bookable can't take anything — don't offer a booking the
+    // server would refuse. Unknown (still loading) counts as bookable; the server
+    // stays the backstop.
+    const ownColumnClosed = isStaff && myMember?.bookable === false;
     const canBook = (!isStaff || hasCap('bookings:create')) && !ownColumnClosed;
     // Which clients the picker offers is decided server-side (/crm/clients: a
     // member sees the clients they serve), and a member with bookings:create may
     // book those — so anyone who can book gets "Existing client".
     const canBookExistingClient = canBook;
-    // calendar:manage (Medium+) = the whole business's blocked time;
-    // calendar:block:self (Service provider) = their OWN lane only.
-    const canManageBlocks = !isStaff || hasCap('calendar:manage');
-    const canBlockOwn = isStaff && !canManageBlocks && hasCap('calendar:block:self') && !!myMemberId;
+    // The owner blocks any time in the business; a member blocks their OWN lane.
+    const canManageBlocks = !isStaff;
+    const canBlockOwn = isStaff && hasCap('calendar:block:self') && !!myMemberId;
     const canBlock = canManageBlocks || canBlockOwn;
     // May this person edit / unblock THIS block? Own-lane members only their own.
     const canEditBlock = (b) => {
@@ -161,10 +160,9 @@ const ProviderDashboard = () => {
         if (String(a.teamMember?._id || a.teamMember || '') === mid) return true;
         return Array.isArray(a.services) && a.services.some((x) => String(x?.teamMember?._id || x?.teamMember || '') === mid);
     };
-    // Booking actions a member may take on THIS booking (server: bookings:status /
-    // bookings:reschedule for any booking, the :self variants for their own).
-    const canChangeApptStatus = (a) => !isStaff || hasCap('bookings:status') || (hasCap('bookings:status:self') && apptIsMine(a));
-    const canRescheduleAppt = (a) => !isStaff || hasCap('bookings:reschedule') || (hasCap('bookings:reschedule:self') && apptIsMine(a));
+    // Booking actions a member may take on THIS booking: their own bookings only.
+    const canChangeApptStatus = (a) => !isStaff || (hasCap('bookings:status:self') && apptIsMine(a));
+    const canRescheduleAppt = (a) => !isStaff || (hasCap('bookings:reschedule:self') && apptIsMine(a));
     const tabAllowed = (t) => user?.role !== 'staff' || (!!STAFF_TAB_CAPS[t] && hasCap(STAFF_TAB_CAPS[t]));
     // Route ALL programmatic tab switches through the whitelist too — in-app
     // buttons (e.g. "View in History", "Message") must not let a staff member open
@@ -210,9 +208,8 @@ const ProviderDashboard = () => {
     // A member with no hours of their own yet starts from a week of days off.
     const [memberHadHours, setMemberHadHours] = useState(true);
     // What a member's CALENDAR shades as working time: their own saved hours
-    // (none saved = no shading, as before), or — for a member who sees the
-    // whole team — the business's published hours, like the owner's calendar.
-    // The Availability form edits `availability` (a full week) separately.
+    // (none saved = no shading). The Availability form edits `availability` (a
+    // full week) separately.
     const [staffCalendarHours, setStaffCalendarHours] = useState(null);
     const [myServices, setMyServices] = useState([]);
     // A team member's own service list as the API holds it ({ selected,
@@ -289,8 +286,7 @@ const ProviderDashboard = () => {
     const ownerName = isStaff ? staffOwnerName : user?.name;
     const businessName = isStaff ? (staffBusinessName || 'your business') : (user?.businessProfile?.businessName || user?.name || 'your business');
     const calendarBlockedTimes = useMemo(() => {
-        // Front desk / managers see the whole business, so they keep every block.
-        if (!isStaff || hasCap('calendar:view_all')) return blockedTimes;
+        if (!isStaff) return blockedTimes;
         return blockedTimes.filter((b) => {
             const tm = String(b.teamMember?._id || b.teamMember || '');
             if (tm) return !!myMemberId && tm === String(myMemberId);
@@ -585,13 +581,7 @@ const ProviderDashboard = () => {
                 // Nothing is inherited from the business: a member with no hours
                 // yet sees every day off, in the same Working Hours rows.
                 setMemberHadHours(!!sched);
-                if (hasCap('calendar:view_all') && user?.staffOf) {
-                    availabilityService.getProviderAvailability(user.staffOf)
-                        .then((r) => setStaffCalendarHours(r.data.data?.schedule || r.data.data || null))
-                        .catch(() => setStaffCalendarHours(sched));
-                } else {
-                    setStaffCalendarHours(sched);
-                }
+                setStaffCalendarHours(sched);
                 setAvailability(Object.fromEntries(WEEK_DAYS.map((d) => [d, {
                     enabled: !!sched?.[d]?.enabled,
                     slots: sched?.[d]?.slots?.length ? sched[d].slots : [{ start: '09:00', end: '17:00' }],
@@ -704,7 +694,7 @@ const ProviderDashboard = () => {
         setSavingBlockedTime(true);
         // Scope: 'owner' → the owner alone (ownerOnly), '' → business-wide,
         // an id → that member. Split into the two fields the API expects. A
-        // Service provider may only block their own lane — pin it whatever the
+        // team member may only block their own lane — pin it whatever the
         // form holds (the server refuses anything else).
         if (!canBlockOwn && blockedTimeForm.teamMember === MY_LANE_PENDING) {
             setSavingBlockedTime(false);
@@ -1155,10 +1145,9 @@ const ProviderDashboard = () => {
         setLoadingTeam(true);
         try {
             if (isStaff) {
-                // A member's calendar gets the people it shows — names and colours
-                // only, scoped server-side like the calendar itself: the whole team
-                // with calendar:view_all, otherwise just themselves. Never the
-                // roster's contact details (that is the owner's Team screen).
+                // A member's calendar is their own column: the server returns just
+                // them (name and colour, for their cards) and the owner's name.
+                // Never the roster (that is the owner's Team screen).
                 const res = await teamService.getCalendarRoster();
                 setTeamMembers(res.data.data?.members || []);
                 setStaffOwnerName(res.data.data?.owner?.name || '');
@@ -1283,7 +1272,7 @@ const ProviderDashboard = () => {
                 if (bad) { toast(`${bad[0].toUpperCase()}${bad.slice(1)}: the end time must be after the start time`, 'error'); return; }
                 await myAvailabilityService.set(availability);
                 setMemberHadHours(true);
-                if (!hasCap('calendar:view_all')) setStaffCalendarHours(availability);
+                setStaffCalendarHours(availability);
                 setAvailabilitySuccess(WEEK_DAYS.some((d) => availability[d]?.enabled) ? 'Your hours are saved. Clients can book you in these hours.' : 'Saved. You have no working days, so clients can’t book you.');
                 setTimeout(() => setAvailabilitySuccess(''), 4000);
                 return;
@@ -1483,19 +1472,8 @@ const ProviderDashboard = () => {
     // menu price, a team member theirs at their own price. It used to offer the
     // whole catalogue at the catalogue price whoever was picked — a driver's
     // N$20 000 "Long trip" as the owner's, and a member's N$170 haircut as N$120.
-    // A team member books with the same rule. Their own column offers THEIR
-    // services at their prices (myServices); a member who sees the whole
-    // calendar and picks a colleague or the owner gets what THAT person
-    // performs, at that person's price — the business's menu (from
-    // /team/mine/services) read through the colleague's roster row, exactly as
-    // the server prices and checks it.
-    const staffServicesFor = (teamMember) => {
-        if (!seesWholeTeam || !teamMember || String(teamMember) === String(myMemberId || '')) return myServices;
-        const menu = memberServicesData?.services || [];
-        if (teamMember === 'owner') return servicesFor(menu, null);
-        const member = teamMembers.find(m => String(m._id) === String(teamMember));
-        return member ? servicesFor(menu, member) : [];
-    };
+    // A team member books only themselves, so their list is their own services
+    // at their own prices (myServices, from /team/mine/services).
     const apptPerformer = !isStaff && apptForm.teamMember
         ? teamMembers.find(m => String(m._id) === String(apptForm.teamMember)) || null
         : null;
@@ -1505,11 +1483,11 @@ const ProviderDashboard = () => {
     // only the team performs is not the owner's to sell, at any price. It is the
     // owner's override alone — a member is held to who performs what.
     const apptServices = isStaff
-        ? staffServicesFor(apptForm.teamMember)
+        ? myServices
         : servicesFor(myServices, apptPerformer, { all: (apptShowAll && !!apptForm.teamMember) || apptPerformerUnknown });
     const apptServiceById = (id) => apptServices.find(s => s._id === id);
     const apptNoServicesMsg = isStaff
-        ? (apptServices === myServices ? 'You have no services yet. Add yours in the Catalogue first.' : 'They don’t offer any services yet.')
+        ? 'You have no services yet. Add yours in the Catalogue first.'
         : myServices.length === 0
             ? 'No services found. Add services in the Catalogue tab first.'
             : apptPerformer
@@ -1518,7 +1496,7 @@ const ProviderDashboard = () => {
     // Switching professional drops service rows the new one doesn't perform.
     const setApptPerformer = (teamMember, all = apptShowAll) => setApptForm(f => {
         let list;
-        if (isStaff) list = staffServicesFor(teamMember);
+        if (isStaff) list = myServices;
         else {
             const member = teamMember ? teamMembers.find(m => String(m._id) === String(teamMember)) || null : null;
             list = servicesFor(myServices, member, { all: (all && !!teamMember) || (!!teamMember && !member) });
@@ -1740,7 +1718,7 @@ const ProviderDashboard = () => {
     // person to compare side by side. With a single staff member the lanes add
     // nothing over the normal calendar, so hide the option (and fall back to the
     // normal grid below if 'staff' was somehow still selected).
-    const showStaffView = activeTeamMembers.length > 1;
+    const showStaffView = !isStaff && activeTeamMembers.length > 1;
     const calendarViewOptions = [['day', 'Day'], ['3day', '3 Day'], ['week', 'Week'], ...(showStaffView ? [['staff', 'Staff']] : [])];
     const calendarViewLabel = (calendarViewOptions.find(([v]) => v === calendarView) || ['', calendarView])[1];
     const viewMenu = (
@@ -2856,11 +2834,10 @@ const ProviderDashboard = () => {
                                 <div className="segmented">
                                     {[
                                         { id: 'all', label: 'All staff' },
-                                        // The owner's column carries the OWNER's name; "(me)" marks the
-                                        // signed-in person's own column, owner or member alike. The owner's
-                                        // dot is the brand orange; each member's is their calendar colour.
-                                        { id: 'unassigned', label: isStaff ? (ownerName || 'Owner') : `${(user?.name || 'Me').split(' ')[0]} (me)`, color: 'var(--gold)' },
-                                        ...teamMembers.filter(m => m.isActive !== false).map(m => ({ id: String(m._id), label: m.isMe ? `${m.name} (me)` : m.name, color: teamColors[String(m._id)] })),
+                                        // The owner's own column; the dot is the brand orange like their
+                                        // bookings, and each member's is their calendar colour.
+                                        { id: 'unassigned', label: `${(user?.name || 'Me').split(' ')[0]} (me)`, color: 'var(--gold)' },
+                                        ...teamMembers.filter(m => m.isActive !== false).map(m => ({ id: String(m._id), label: m.name, color: teamColors[String(m._id)] })),
                                     ].map(({ id, label, color }) => {
                                         // 'All staff' is active when no subset is chosen; each other
                                         // option is a toggle (membership in the selection Set).
@@ -3007,10 +2984,9 @@ const ProviderDashboard = () => {
                                             // Fresh booking at the picked slot — clear any client left from a
                                             // prior open. teamMember comes from the staff lane if the selection did.
                                             setApptError('');
-                                            // A lane's '' is the owner's column; for a member that is 'owner'
-                                            // ('' would mean "their own" in the booking form).
-                                            const laneTm = timeSelectionPreview.teamMember;
-                                            setApptForm(prev => ({ ...prev, ...blankApptFields, ...(canBookExistingClient ? {} : { clientMode: 'walkin' }), date: timeSelectionPreview.date, startTime: timeSelectionPreview.startTime, teamMember: laneTm !== undefined ? (isStaff && laneTm === '' ? 'owner' : laneTm) : (prev.teamMember || blankApptFields.teamMember) }));
+                                            // A member always books their own column.
+                                            const laneTm = isStaff ? undefined : timeSelectionPreview.teamMember;
+                                            setApptForm(prev => ({ ...prev, ...blankApptFields, ...(canBookExistingClient ? {} : { clientMode: 'walkin' }), date: timeSelectionPreview.date, startTime: timeSelectionPreview.startTime, teamMember: laneTm !== undefined ? laneTm : (isStaff ? blankApptFields.teamMember : prev.teamMember) }));
                                             setShowApptModal(true);
                                             setTimeSelectionPreview(null);
                                         }} className="btn-primary" style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '0.5rem', padding: '0.8rem' }}>
@@ -3023,7 +2999,7 @@ const ProviderDashboard = () => {
                                                 date: timeSelectionPreview.date,
                                                 startTime: timeSelectionPreview.startTime,
                                                 endTime: timeSelectionPreview.endTime,
-                                                // A Service provider blocks their own lane, whichever column was tapped.
+                                                // A team member blocks their own lane, whichever column was tapped.
                                                 teamMember: canBlockOwn
                                                     ? String(myMemberId)
                                                     : (timeSelectionPreview.teamMember !== undefined ? timeSelectionPreview.teamMember : prev.teamMember),
@@ -4004,15 +3980,11 @@ const ProviderDashboard = () => {
                                             value={apptForm.teamMember}
                                             onChange={e => setApptPerformer(e.target.value)}
                                             options={[
-                                                // The owner's column: "Me" for the owner; for a member it is
-                                                // the owner's, by name ('' is the member's own column there).
-                                                isStaff
-                                                    ? { value: 'owner', label: `${ownerName || 'Owner'} · Owner` }
-                                                    : { value: '', label: 'Me / unassigned' },
-                                                ...teamMembers.filter(m => m.isActive !== false).map(m => ({ value: String(m._id), label: `${m.name}${m.isMe ? ' (me)' : ''}${m.role ? ` · ${m.role}` : ''}` })),
+                                                { value: '', label: 'Me / unassigned' },
+                                                ...teamMembers.filter(m => m.isActive !== false).map(m => ({ value: String(m._id), label: `${m.name}${m.role ? ` · ${m.role}` : ''}` })),
                                                 // Booking from an inactive member's lane (they can still hold
                                                 // appointments) must not show a raw id
-                                                ...(apptForm.teamMember && apptForm.teamMember !== 'owner' && !teamMembers.some(m => String(m._id) === String(apptForm.teamMember) && m.isActive !== false)
+                                                ...(apptForm.teamMember && !teamMembers.some(m => String(m._id) === String(apptForm.teamMember) && m.isActive !== false)
                                                     ? [{ value: apptForm.teamMember, label: `${teamMembers.find(m => String(m._id) === String(apptForm.teamMember))?.name || 'Staff member'} · inactive` }]
                                                     : []),
                                             ]}
@@ -4221,11 +4193,8 @@ const ProviderDashboard = () => {
                                         // it), so their lane is their member id and their own bookings and
                                         // blocks are what the times must avoid.
                                         const laneOf = (tmId) => (tmId && (rosterIds.has(String(tmId)) || (isStaff && String(tmId) === String(myMemberId)))) ? String(tmId) : '';
-                                        // A member who sees only their own column books only there; a
-                                        // whole-calendar member books the column they picked ('owner' =
-                                        // the owner's, which is '' here).
-                                        const pickedLane = apptForm.teamMember === 'owner' ? '' : String(apptForm.teamMember || '');
-                                        const selectedLane = !seesWholeTeam ? String(myMemberId || '') : pickedLane;
+                                        // A member books only their own column; the owner the one picked.
+                                        const selectedLane = isStaff ? String(myMemberId || '') : String(apptForm.teamMember || '');
                                         const toMinutes = (t) => { const [h, m] = (t || '0:0').split(':').map(Number); return h * 60 + m; };
                                         const bookedRanges = [
                                             ...(appointments || []).filter(a => {
@@ -4383,28 +4352,15 @@ const ProviderDashboard = () => {
                                 editing we show the scope read-only. */}
                             <div>
                                 <label style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Applies to</label>
-                                {!editingBlockedTime && (isStaff ? canManageBlocks : activeTeamMembers.length > 0) ? (
+                                {!editingBlockedTime && !isStaff && activeTeamMembers.length > 0 ? (
                                     <Select
                                         value={blockedTimeForm.teamMember === MY_LANE_PENDING ? undefined : blockedTimeForm.teamMember}
                                         placeholder="Choose who this applies to"
                                         onChange={e => setBlockedTimeForm(p => ({ ...p, teamMember: e.target.value }))}
                                         options={[
-                                            ...(isStaff
-                                                // A team member who manages the calendar (Reception / Manager):
-                                                // "Only me" is THEIR lane; the owner's own time is a separate,
-                                                // clearly-named option (it used to read "Only me" and block the
-                                                // owner's column instead).
-                                                ? [
-                                                    ...(myMemberId ? [{ value: String(myMemberId), label: `Only me${myMember?.name ? ` (${myMember.name.split(' ')[0]})` : ''}` }] : []),
-                                                    { value: '', label: 'Whole business (everyone)' },
-                                                    { value: 'owner', label: 'Owner only' },
-                                                    ...activeTeamMembers.filter(m => String(m._id) !== String(myMemberId)).map(m => ({ value: m._id, label: `${m.name}${m.role ? ` · ${m.role}` : ''} only` })),
-                                                ]
-                                                : [
-                                                    { value: 'owner', label: `Only me${user?.name ? ` (${user.name.split(' ')[0]})` : ' (owner)'}` },
-                                                    { value: '', label: 'Whole business (everyone)' },
-                                                    ...activeTeamMembers.map(m => ({ value: m._id, label: `${m.name}${m.role ? ` · ${m.role}` : ''} only` })),
-                                                ]),
+                                                { value: 'owner', label: `Only me${user?.name ? ` (${user.name.split(' ')[0]})` : ' (owner)'}` },
+                                                { value: '', label: 'Whole business (everyone)' },
+                                                ...activeTeamMembers.map(m => ({ value: m._id, label: `${m.name}${m.role ? ` · ${m.role}` : ''} only` })),
                                             ...(blockedTimeForm.teamMember && blockedTimeForm.teamMember !== 'owner' && String(blockedTimeForm.teamMember) !== String(myMemberId || '') && !activeTeamMembers.some(m => String(m._id) === String(blockedTimeForm.teamMember))
                                                 ? [{ value: blockedTimeForm.teamMember, label: `${teamMembers.find(m => String(m._id) === String(blockedTimeForm.teamMember))?.name || 'Staff member'} · inactive` }]
                                                 : []),
@@ -4415,8 +4371,8 @@ const ProviderDashboard = () => {
                                     />
                                 ) : (() => {
                                     const scope = blockedTimeForm.teamMember;
-                                    // A team member's own lane reads "Only me (name)" — for a Service
-                                    // provider it is the ONLY lane they can block.
+                                    // A team member's own lane reads "Only me (name)" — the only lane
+                                    // a member can block.
                                     const isMine = isStaff && !!myMemberId && String(scope) === String(myMemberId);
                                     const isMemberScope = scope && scope !== 'owner';
                                     const mineName = myMember?.name || user?.name || '';
@@ -4425,7 +4381,7 @@ const ProviderDashboard = () => {
                                         : isMemberScope
                                             ? `${teamMembers.find(m => String(m._id) === scope)?.name || 'Staff member'} only`
                                             : scope === 'owner'
-                                                ? (isStaff ? 'Owner only' : `Only me${user?.name ? ` (${user.name.split(' ')[0]})` : ''}`)
+                                                ? `Only me${user?.name ? ` (${user.name.split(' ')[0]})` : ''}`
                                                 : (activeTeamMembers.length > 0 || isStaff ? 'Whole business (everyone)' : (user?.name || 'Only me'));
                                     // The signed-in person's avatar stands for "me": the owner's own
                                     // time, or a team member's own lane.
@@ -4560,8 +4516,7 @@ const ProviderDashboard = () => {
                             // complete / no-show transitions only make sense while it's still
                             // pending or confirmed. Hide the Actions chip once there's nothing
                             // left to do (completed / cancelled).
-                            // A team member only sees the actions their access allows on THIS
-                            // booking (View only: none; Service provider: their own bookings).
+                            // A team member acts on their own bookings only.
                             const statusOk = canChangeApptStatus(apptDetailModal);
                             const stillOpen = apptDetailModal.status !== 'cancelled' && apptDetailModal.status !== 'completed';
                             const canConfirm = statusOk && apptDetailModal.status === 'pending';

@@ -2,16 +2,16 @@ const { test, expect } = require('@playwright/test');
 const { SEED, login } = require('./helpers.cjs');
 
 /**
- * A team member nobody chose an access level for runs their OWN calendar
- * ("Service provider"). The seeded staff login, Sam Staff (apps/api/e2e-server.js),
- * has no stored tier and is not bookable — so he may block time in his own lane,
- * but is never offered a booking the server would refuse for his closed column.
+ * Every team member runs their OWN calendar — there are no access levels. The
+ * seeded staff login, Sam Staff (apps/api/e2e-server.js), is not bookable — so
+ * he may block time in his own lane, but is never offered a booking the server
+ * would refuse for his closed column.
  */
 
 const cardByName = (page, name) => page.getByTestId('team-member-card').filter({ hasText: name });
 
-test.describe('Access level — Service provider is the default', () => {
-    test('the owner sees a member with no level chosen as "Service provider", listed first', async ({ page }) => {
+test.describe('Every member is the same', () => {
+    test("the owner's Team card shows no access level to pick", async ({ page }) => {
         await login(page, SEED.provider);
         await page.goto('/team');
 
@@ -19,16 +19,11 @@ test.describe('Access level — Service provider is the default', () => {
         await card.getByRole('button').first().click();
         await card.getByTestId('tab-workspace').click();
 
-        const picker = card.getByTestId('member-tier');
-        // The app's own Select: the value is on data-value, options open in a popup.
-        await expect(picker).toHaveAttribute('data-value', 'low');
-        await expect(picker).toContainText('Service provider');
-        await picker.click();
-        const options = page.getByTestId('member-tier-popup').getByRole('option');
-        await expect(options.first()).toContainText('Service provider');
-        await expect(page.getByTestId('member-tier-popup').locator('[data-value="basic"]')).toContainText('View only');
-        await page.keyboard.press('Escape');
-        await expect(card).toContainText('blocks their own time');
+        await expect(card.getByTestId('member-tier')).toHaveCount(0);
+        await expect(card.getByTestId('member-view-all-clients')).toHaveCount(0);
+        for (const word of ['Access level', 'Service provider', 'View only', 'Reception', 'Manager']) {
+            await expect(card.getByText(word, { exact: true })).toHaveCount(0);
+        }
     });
 });
 

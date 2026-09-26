@@ -57,7 +57,7 @@ describe('Navbar — one app for the owner and the team', () => {
         expect(desktopTabs(container)).toEqual(['Calendar', 'Clients', 'Earnings', 'Catalogue', 'More']);
     });
 
-    it('a Service provider gets exactly the same row, Earnings included (their own takings)', () => {
+    it('a team member gets exactly the same row, Earnings included (their own takings)', () => {
         const { container } = renderAs(member('low'));
         const tabs = desktopTabs(container);
         expect(tabs).toEqual(['Calendar', 'Clients', 'Earnings', 'Catalogue', 'More']);
@@ -78,35 +78,23 @@ describe('Navbar — one app for the owner and the team', () => {
         expect(moreItems(c2)).toEqual(['Waiting list', 'Messages']);
     });
 
-    it('a View-only member has no Waiting list (their level cannot manage it) but still has Messages', async () => {
-        const { container } = renderAs(member('basic'));
-        await openMore();
-        expect(moreItems(container)).toEqual(['Messages']);
+    it('every member gets the same menus, whatever level they once had', async () => {
+        for (const tier of ['basic', 'medium', 'high']) {
+            const { container, unmount } = renderAs(member(tier));
+            expect(desktopTabs(container)).toEqual(['Calendar', 'Clients', 'Earnings', 'Catalogue', 'More']);
+            await openMore();
+            expect(moreItems(container)).toEqual(['Waiting list', 'Messages']);
+            unmount();
+        }
     });
 
-    it('the avatar menu has the Settings group for a member too — their own Availability, never the Wallet', async () => {
-        renderAs(member('low'));
+    it('the avatar menu has the Settings group for a member too — their own Availability, never the Wallet or Forms', async () => {
+        renderAs(member('high'));
         await userEvent.click(screen.getByRole('button', { name: 'Account menu' }));
         const menu = screen.getByText('Settings').parentElement;
         expect(within(menu).getByText('My account')).toBeTruthy();
         expect(within(menu).getByText('Availability')).toBeTruthy();
         expect(within(menu).queryByText('Wallet')).toBeNull();
-        // Forms needs forms:manage (Reception and up).
         expect(within(menu).queryByText('Forms')).toBeNull();
-    });
-
-    it('Reception sees Forms under Settings; still no Wallet', async () => {
-        renderAs(member('medium'));
-        await userEvent.click(screen.getByRole('button', { name: 'Account menu' }));
-        const menu = screen.getByText('Settings').parentElement;
-        expect(within(menu).getByText('Forms')).toBeTruthy();
-        expect(within(menu).queryByText('Wallet')).toBeNull();
-    });
-
-    it('even a Manager never gets Team, Insights, Memberships, Gift cards or Wallet in the menus', async () => {
-        const { container } = renderAs(member('high'));
-        await openMore();
-        const items = moreItems(container);
-        ['Team', 'Insights', 'Memberships', 'Gift cards'].forEach((l) => expect(items).not.toContain(l));
     });
 });
