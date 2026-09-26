@@ -13,6 +13,46 @@
  * and the app code — Sentry v8 auto-instruments http/express at require time.
  */
 const Sentry = require('@sentry/node');
+const { scrubUrl, scrubText } = require('./src/utils/redact');
+
+/**
+ * Last line of defence before an event leaves the process. Sentry records the
+ * request URL + query string, breadcrumbs of outgoing/incoming HTTP calls and the
+ * transaction name — any of which can carry a reset/invite/verify token, an OAuth
+ * code or a guest /manage/<token>. Scrub them all (same rules as the logs).
+ * Exported for tests.
+ */
+const scrubEvent = (event) => {
+    try {
+        if (!event || typeof event !== 'object') return event;
+        if (event.request) {
+            if (event.request.url) event.request.url = scrubUrl(event.request.url);
+            if (event.request.query_string) event.request.query_string = '[redacted]';
+            if (event.request.cookies) event.request.cookies = '[redacted]';
+            if (event.request.headers) {
+                for (const h of Object.keys(event.request.headers)) {
+                    if (/^(authorization|cookie|referer)$/i.test(h)) event.request.headers[h] = '[redacted]';
+                }
+            }
+        }
+        if (typeof event.transaction === 'string') event.transaction = scrubUrl(event.transaction);
+        if (typeof event.message === 'string') event.message = scrubText(event.message);
+        if (event.extra && typeof event.extra === 'object') {
+            for (const k of Object.keys(event.extra)) {
+                if (typeof event.extra[k] === 'string') event.extra[k] = scrubText(event.extra[k]);
+            }
+        }
+        for (const ex of (event.exception && event.exception.values) || []) {
+            if (typeof ex.value === 'string') ex.value = scrubText(ex.value);
+        }
+        for (const b of event.breadcrumbs || []) {
+            if (typeof b.message === 'string') b.message = scrubText(b.message);
+            if (b.data && typeof b.data.url === 'string') b.data.url = scrubUrl(b.data.url);
+            if (b.data && typeof b.data['http.query'] === 'string') b.data['http.query'] = '[redacted]';
+        }
+    } catch { /* scrubbing must never drop the report */ }
+    return event;
+};
 
 const dsn = process.env.SENTRY_DSN;
 if (dsn) {
@@ -28,6 +68,15 @@ if (dsn) {
         // Never attach cookies / auth headers / request bodies by default — the
         // API handles credentials and personal data. Opt in explicitly if ever needed.
         sendDefaultPii: false,
+        beforeSend: scrubEvent,
+        beforeSendTransaction: scrubEvent,
+        beforeBreadcrumb: (crumb) => {
+            try {
+                if (crumb && crumb.data && typeof crumb.data.url === 'string') crumb.data.url = scrubUrl(crumb.data.url);
+                if (crumb && typeof crumb.message === 'string') crumb.message = scrubText(crumb.message);
+            } catch { /* keep the crumb */ }
+            return crumb;
+        },
         // Sentry still CAPTURES an uncaught exception, but must not own the exit:
         // server.js's own handler alerts the ops webhook and flushes Sentry before
         // a clean process.exit(1) (→ container restart). Letting Sentry force-exit
@@ -41,5 +90,6 @@ if (dsn) {
 // Whether monitoring is actually active (a DSN was provided). Callers can use
 // this to avoid setting up Sentry-only middleware when it's inert.
 Sentry.isEnabled = () => Boolean(dsn);
+Sentry.scrubEvent = scrubEvent;
 
 module.exports = Sentry;

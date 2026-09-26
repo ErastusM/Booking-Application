@@ -4,9 +4,11 @@ import {
 } from './http';
 import { makeServices, BookplusServices } from './services';
 import { createTelemetry, Telemetry } from './telemetry';
+import { scrubUrl, scrubText, scrubPath, routeTemplate } from './redact';
 
 export type { AccountType, ApiClientOptions, BookplusServices, Telemetry };
 export { inferApiBase, bootstrapSession, createTelemetry, forceLogout, isPublicTokenPath, PUBLIC_TOKEN_PATHS };
+export { scrubUrl, scrubText, scrubPath, routeTemplate };
 
 export const createBookplusClient = (options: ApiClientOptions = {}) => {
     const apiBase = inferApiBase(options.apiUrl);

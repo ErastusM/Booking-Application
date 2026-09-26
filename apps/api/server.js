@@ -10,6 +10,7 @@ const rateLimit = require('express-rate-limit');
 const { createAuthRouteLimiter } = require('./src/middleware/authRateLimit');
 const pino = require('pino');
 const pinoHttp = require('pino-http');
+const { scrubPath } = require('./src/utils/redact');
 const mongoose = require('mongoose');
 const connectDB = require('./src/utils/database');
 const { errorHandler, notFound } = require('./src/middleware/errorHandler');
@@ -201,7 +202,8 @@ if (process.env.NODE_ENV !== 'test') {
         serializers: {
             req(req) {
                 const s = pino.stdSerializers.req(req);
-                if (s && s.url) s.url = String(s.url).split('?')[0];
+                // Path tokens too: /manage/<token>, /staff-invite/<token>.
+                if (s && s.url) s.url = scrubPath(String(s.url).split('?')[0]);
                 return s;
             },
         },

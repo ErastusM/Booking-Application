@@ -1,0 +1,20 @@
+{
+  "_comment": "Shared by apps/api (src/utils/redact.js) and the browser copy (packages/api-client/src/redact.ts). Input -> expected scrubbed URL.",
+  "urls": [
+    ["https://app.bookplus.pro/reset-password?token=abc123", "https://app.bookplus.pro/reset-password?token=[redacted]"],
+    ["https://business.bookplus.pro/accept-invite?token=abc123", "https://business.bookplus.pro/accept-invite?token=[redacted]"],
+    ["https://api.bookplus.pro/api/auth/verify-email?token=abc&app=customer", "https://api.bookplus.pro/api/auth/verify-email?token=[redacted]&app=[redacted]"],
+    ["https://www.bookplus.pro/verify-email?status=success&role=customer", "https://www.bookplus.pro/verify-email?status=[redacted]&role=[redacted]"],
+    ["https://www.bookplus.pro/manage/0b8a3c1e-2f4d-4c6a-9e7b-1a2b3c4d5e6f", "https://www.bookplus.pro/manage/:token"],
+    ["/manage/abc/cancel", "/manage/:token/cancel"],
+    ["/auth/callback?code=zz&signup=yy", "/auth/callback?code=[redacted]&signup=[redacted]"],
+    ["/wallet?redeem=GIFT-123", "/wallet?redeem=[redacted]"],
+    ["/api/auth/staff-invite/request", "/api/auth/staff-invite/request"],
+    ["/api/auth/staff-invite/abcdef/accept", "/api/auth/staff-invite/:token/accept"],
+    ["/providers/64b7f0c2a1b2c3d4e5f60718", "/providers/64b7f0c2a1b2c3d4e5f60718"],
+    ["/b/vibe-barbershop", "/b/vibe-barbershop"],
+    ["https://www.bookplus.pro/unsubscribe/eyJ1IjoiNjRiN2YwYzJhMWIyYzNkNGU1ZjYwNzE4In0.c2lnbmF0dXJlc2lnbmF0dXJlc2ln", "https://www.bookplus.pro/unsubscribe/:token"],
+    ["https://www.bookplus.pro/#access_token=x", "https://www.bookplus.pro/#[redacted]"],
+    ["/", "/"]
+  ]
+}

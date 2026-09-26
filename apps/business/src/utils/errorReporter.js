@@ -3,6 +3,12 @@
 // production JS failures stop being invisible. Best-effort and defensive: it
 // never throws, dedupes within a short window, and caps sends per session so a
 // runaway loop can't spam. Only active in production builds (dev has the console).
+//
+// Nothing secret leaves the browser: the page URL of a reset, invite, verify,
+// OAuth-callback or /manage/<token> screen IS the credential, so the URL, the
+// message and the stack are scrubbed (query values, fragments and token path
+// segments → [redacted] / :token) before they are sent. The API scrubs again.
+import { scrubUrl, scrubText } from '@bookplus/api-client';
 const APP_NAME = 'business';
 const ENDPOINT = `${import.meta.env.VITE_API_URL || ''}/api/client-errors`;
 const MAX_PER_SESSION = 20;
@@ -28,9 +34,11 @@ const post = (payload) => {
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
                 app: APP_NAME,
-                url: typeof location !== 'undefined' ? location.href : '',
                 userAgent: typeof navigator !== 'undefined' ? navigator.userAgent : '',
                 ...payload,
+                url: typeof location !== 'undefined' ? scrubUrl(location.href) : '',
+                message: scrubText(String(payload.message || '')),
+                stack: scrubText(String(payload.stack || '')),
             }),
             keepalive: true, // allow the send to complete even during unload
         }).catch(() => {});

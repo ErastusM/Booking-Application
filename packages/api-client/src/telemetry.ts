@@ -1,4 +1,5 @@
 import { AxiosInstance } from 'axios';
+import { routeTemplate } from './redact';
 
 // Tiny client-side product-analytics buffer. track(name, props) queues an event;
 // the queue flushes to POST /api/events on an interval, when it fills, and on tab
@@ -81,7 +82,9 @@ export function createTelemetry(api: AxiosInstance, apiBase: string, app: 'custo
     const track = (name: string, props?: Props) => {
         if (!name) return;
         try {
-            queue.push({ name: String(name).slice(0, 60), props, path: location.pathname, t: Date.now() });
+            // Route template only (/manage/:token), never the raw path or query:
+            // a guest's manage link IS their booking credential.
+            queue.push({ name: String(name).slice(0, 60), props, path: routeTemplate(location.pathname), t: Date.now() });
             if (queue.length >= MAX_BATCH) flush();
             else schedule();
         } catch {
