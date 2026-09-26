@@ -3,7 +3,7 @@ const User = require('../models/User');
 const Service = require('../models/Service');
 const StaffAvailability = require('../models/StaffAvailability');
 const Appointment = require('../models/Appointment');
-const { memberBusyIntervals, memberBusyIntervalsBuffered, memberInvolvedFilter, pickRotationWeek, performerMinutes } = require('../utils/staffBooking');
+const { memberBusyIntervals, memberBusyIntervalsBuffered, memberInvolvedFilter, pickRotationWeek, performerMinutes, membersHoursReadiness } = require('../utils/staffBooking');
 const { memberSlugMap } = require('../utils/memberLink');
 const { isHexColor, isUnsetColor, colorForNewMember } = require('../utils/memberColors');
 const staffInvites = require('../utils/staffInvites');
@@ -179,6 +179,10 @@ exports.getMyTeam = async (req, res) => {
                 .select('+staffInvites +passwordResetToken +passwordResetExpiry lastLoginAt');
             for (const u of pendingUsers) invitesByUser.set(String(u._id), staffInvites.inviteSummary(u));
         }
+        // Can each member be booked at all? A member with no working hours of their
+        // own (no weekly hours, no shift from today on) can't — the Team card says
+        // so, since nothing is inherited from the business's hours.
+        const readiness = await membersHoursReadiness(members.map((m) => m._id));
         const data = (redactHR(req, members) || []).map((m) => {
             const obj = typeof m.toObject === 'function' ? m.toObject() : m;
             const uid = obj.user && (obj.user._id || obj.user);
@@ -188,6 +192,7 @@ exports.getMyTeam = async (req, res) => {
                 linkSlug: slugs.get(String(obj._id)) || null,
                 inviteSentAt: inv ? inv.inviteSentAt : null,
                 inviteExpiresAt: inv ? inv.inviteExpiresAt : null,
+                hasHours: readiness.get(String(obj._id)) === true,
             };
         });
         res.status(200).json({ success: true, data });
@@ -795,7 +800,6 @@ const computeMemberStats = async (providerId, member, days) => {
 
     const Appointment = require('../models/Appointment');
     const Review = require('../models/Review');
-    const Availability = require('../models/Availability');
 
     // A member counts for a booking if they are its top-level member OR they
     // perform one of its services (multi-service tickets split across staff).
@@ -803,7 +807,7 @@ const computeMemberStats = async (providerId, member, days) => {
     const inWindow = { provider: providerId, appointmentDate: { $gte: from, $lte: to }, ...memberMatch };
     const inPrevWindow = { provider: providerId, appointmentDate: { $gte: fromPrev, $lte: toPrev }, ...memberMatch };
 
-    const [done, prevDone, upcoming, noShows, cancellations, ratingAgg, staffHours, businessHours, shifts] = await Promise.all([
+    const [done, prevDone, upcoming, noShows, cancellations, ratingAgg, staffHours, shifts] = await Promise.all([
         Appointment.find({ ...inWindow, status: 'completed' })
             .select('totalPrice customer startTime endTime services'),
         // Prior window — only what the trend needs (completed count + revenue).
@@ -827,7 +831,6 @@ const computeMemberStats = async (providerId, member, days) => {
             { $group: { _id: null, avg: { $avg: '$rating' }, count: { $sum: 1 } } },
         ]),
         StaffAvailability.findOne({ teamMember: member._id }),
-        Availability.findOne({ provider: providerId }),
         Shift.find({
             teamMember: member._id,
             date: { $gte: from.toISOString().slice(0, 10), $lte: to.toISOString().slice(0, 10) },
@@ -868,10 +871,10 @@ const computeMemberStats = async (providerId, member, days) => {
             continue;
         }
         // Rotation-aware: the member's EFFECTIVE week for THIS date (the flat
-        // schedule when they have no rotation), else business hours when they have
-        // no per-staff schedule at all. Mirrors the booking resolver so occupancy
-        // and availability never disagree.
-        const week = staffHours ? pickRotationWeek(staffHours, dayKey) : (businessHours?.schedule || null);
+        // schedule when they have no rotation). No hours of their own = nothing
+        // scheduled (they can't be booked), never the business's hours. Mirrors
+        // the booking resolver so occupancy and availability never disagree.
+        const week = staffHours ? pickRotationWeek(staffHours, dayKey) : null;
         const cfg = week?.[STATS_DAY_NAMES[d.getUTCDay()]];
         if (cfg?.enabled && Array.isArray(cfg.slots)) scheduledMinutes += sumPeriods(cfg.slots);
     }
@@ -1576,9 +1579,10 @@ exports.getMyProfile = async (req, res) => {
         if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
         // Their personal booking link: /b/<business slug>/<member slug>. The
         // business slug is null until the owner creates the business link.
-        const [owner, slugs] = await Promise.all([
+        const [owner, slugs, readiness] = await Promise.all([
             User.findById(member.provider).select('businessProfile.slug businessProfile.businessName').lean(),
             memberSlugMap(member.provider),
+            membersHoursReadiness([member._id]),
         ]);
         res.status(200).json({
             success: true,
@@ -1592,6 +1596,9 @@ exports.getMyProfile = async (req, res) => {
                 bio: member.bio, pronouns: member.pronouns, languages: member.languages,
                 // Front desk / managers who don't take bookings skip the "go live" nudge.
                 bookable: member.bookable !== false,
+                // Working hours of their own (weekly, or a shift from today on).
+                // Without them clients can't book this member at all.
+                hasHours: readiness.get(String(member._id)) === true,
             },
         });
     } catch (error) {
@@ -1654,10 +1661,11 @@ const canTouchStaffAvailability = (reqUser, member) =>
 /**
  * GET /api/team/:id/hours?date=YYYY-MM-DD  (owner/admin, or anyone on the team)
  * One person's working hours on one date, as the booking validator reads them
- * (leave → shift → weekly hours capped by business hours → business hours). The
- * New Appointment time list uses it, so the times offered for a team member are
- * that member's hours rather than the business's. :id is a member id, 'mine'
- * (the signed-in member) or 'owner' (the owner's own column = business hours).
+ * (leave → shift → weekly hours capped by business hours; neither = no hours,
+ * source 'none', closed). The New Appointment time list uses it, so the times
+ * offered for a team member are that member's hours rather than the business's.
+ * :id is a member id, 'mine' (the signed-in member) or 'owner' (the owner's own
+ * column = business hours).
  */
 exports.getMemberDayHours = async (req, res) => {
     try {
@@ -1693,7 +1701,8 @@ exports.getMemberDayHours = async (req, res) => {
 
 /**
  * GET /api/team/:id/availability  (provider/admin, or staff-self)
- * data: null means "no per-staff schedule — inherits business hours".
+ * data: null means "no hours of their own" — they can't be booked until some
+ * are set (nothing is inherited from the business's hours).
  */
 exports.getTeamMemberAvailability = async (req, res) => {
     try {
@@ -1807,7 +1816,8 @@ exports.updateTeamMemberAvailability = async (req, res) => {
 
 /**
  * GET /api/team/mine/availability  (staff-self)
- * data: null means "no per-staff schedule — inherits business hours".
+ * data: null means "no hours of their own" — they can't be booked until some
+ * are set (nothing is inherited from the business's hours).
  */
 exports.getMyAvailability = async (req, res) => {
     try {

@@ -13,7 +13,7 @@
 const request = require('supertest');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
-const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = require('../helpers/factories');
+const { makeUser, makeProvider, makeService, makeAppointment, authHeader, giveHours } = require('../helpers/factories');
 const Appointment = require('../../models/Appointment');
 const TeamMember = require('../../models/TeamMember');
 const User = require('../../models/User');
@@ -29,6 +29,8 @@ const makeStaff = async (provider, name) => {
     seq += 1;
     const login = await makeUser({ role: 'staff', staffOf: provider._id, email: `shared-${seq}@test.com` });
     const member = await TeamMember.create({ provider: provider._id, name, user: login._id, offersAllServices: true });
+    // Hours of their own: a member with none can't be booked at all.
+    await giveHours(member);
     return { login, member };
 };
 const weekday = (plus = 3) => {

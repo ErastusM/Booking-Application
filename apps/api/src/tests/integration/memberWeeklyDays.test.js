@@ -32,8 +32,8 @@ const weekdaysOnly = {
     thursday: open, friday: open, saturday: shut,
 };
 
-// Two bookable members: the solo-member exception (a lone member inherits
-// business hours) must not swallow the case under test.
+// Two bookable members, as in a real roster (a lone member is treated exactly
+// the same — see the last test).
 const setup = async (schedule) => {
     const owner = await makeProvider();
     const erastus = await TeamMember.create({ provider: owner._id, name: 'Erastus', role: 'Barber', email: 'e@test.com', isActive: true });
@@ -74,17 +74,23 @@ describe('GET /api/providers/:id/staff/:memberId/shift-days — weekly hours', (
         expect(off).toContain('2026-09-14');
     });
 
-    it('a member with no weekly schedule inherits business hours — nothing is narrowed', async () => {
+    // The owner's answer: a member with no hours of their own is not bookable.
+    // They used to inherit the business's days here (nothing narrowed).
+    it('a member with no weekly schedule has every day off — except a day they have a shift', async () => {
         const { owner, erastus } = await setup(null);
+        await Shift.create({ provider: owner._id, teamMember: erastus._id, date: '2026-09-16', slots: [{ start: '09:00', end: '13:00' }] });
 
         const res = await request(app)
             .get(`/api/providers/${owner._id}/staff/${erastus._id}/shift-days?from=2026-09-14&to=2026-09-20`);
 
-        // No opinion either way: the client falls back to the business's days.
-        expect(days(res)).toEqual({ working: [], off: [] });
+        const { working, off } = days(res);
+        expect(working).toEqual(['2026-09-16']);
+        expect(off.sort()).toEqual(['2026-09-14', '2026-09-15', '2026-09-17', '2026-09-18', '2026-09-19', '2026-09-20']);
     });
 
-    it('a SOLO bookable member is not narrowed — the validator ignores their weekly hours', async () => {
+    // No "solo member" exception any more: a lone member's weekly hours narrow
+    // the calendar exactly as the validator now holds them to those hours.
+    it('a lone bookable member is narrowed by their weekly hours like anyone else', async () => {
         const owner = await makeProvider();
         const solo = await TeamMember.create({ provider: owner._id, name: 'Solo', role: 'Barber', email: 's@test.com', isActive: true });
         await StaffAvailability.create({ provider: owner._id, teamMember: solo._id, schedule: weekdaysOnly });
@@ -92,8 +98,9 @@ describe('GET /api/providers/:id/staff/:memberId/shift-days — weekly hours', (
         const res = await request(app)
             .get(`/api/providers/${owner._id}/staff/${solo._id}/shift-days?from=2026-09-14&to=2026-09-20`);
 
-        // Narrowing here would close days the booking would actually accept.
-        expect(days(res)).toEqual({ working: [], off: [] });
+        const { working, off } = days(res);
+        expect(working).toEqual(expect.arrayContaining(['2026-09-14', '2026-09-18']));
+        expect(off).toEqual(expect.arrayContaining(['2026-09-19', '2026-09-20']));
     });
 
     it('approved leave still wins over a weekly working day', async () => {

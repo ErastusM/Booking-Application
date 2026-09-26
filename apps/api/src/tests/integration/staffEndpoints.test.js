@@ -16,7 +16,7 @@ jest.mock('../../utils/emailService', () => ({
 
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
-const { makeUser, makeProvider, makeService, authHeader } = require('../helpers/factories');
+const { makeUser, makeProvider, makeService, authHeader, giveHours } = require('../helpers/factories');
 const User = require('../../models/User');
 const TeamMember = require('../../models/TeamMember');
 const BlockedTime = require('../../models/BlockedTime');
@@ -257,7 +257,7 @@ describe('PUT /api/team/:id/services', () => {
 describe('GET/PUT /api/team/:id/availability', () => {
     const schedule = { monday: { enabled: true, slots: [{ start: '09:00', end: '13:00' }] } };
 
-    it('provider sets a schedule; absence returns null (inherit business hours)', async () => {
+    it('provider sets a schedule; absence returns null (no hours of their own)', async () => {
         const owner = await makeProvider();
         const member = await makeMember(owner);
 
@@ -359,6 +359,8 @@ describe('GET /api/appointments/booked-slots?teamMember=', () => {
         const customer = await makeUser();
         const a = await makeMember(owner, { name: 'A' });
         const b = await makeMember(owner, { name: 'B' });
+        await giveHours(a);
+        await giveHours(b);
 
         const date = new Date();
         date.setDate(date.getDate() + 7);
@@ -383,8 +385,10 @@ describe('GET /api/appointments/booked-slots?teamMember=', () => {
         const onlyA = await request(app)
             .get(`/api/appointments/booked-slots?providerId=${owner._id}&date=${day}&teamMember=${a._id}`)
             .set(authHeader(customer));
-        expect(onlyA.body.data).toHaveLength(1);
-        expect(onlyA.body.data[0].teamMember.toString()).toBe(a._id.toString());
+        // A's own bookings only (their hours add just the 23:59 end-of-day edge).
+        const aBookings = onlyA.body.data.filter((x) => x.kind === 'appointment');
+        expect(aBookings).toHaveLength(1);
+        expect(aBookings[0].teamMember.toString()).toBe(a._id.toString());
     });
 });
 

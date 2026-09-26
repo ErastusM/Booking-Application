@@ -21,10 +21,15 @@ test.describe('Team — working hours labels', () => {
         await page.goto('/team');
 
         const card = cardByName(page, 'Alex Rivera');
+        // Alex has no working hours of his own (the seed leaves him without), and
+        // nothing comes from the business's hours — so clients can't book him,
+        // and his card says so before it is even opened.
+        await expect(card.getByTestId('member-not-bookable')).toHaveText(/Not bookable — no working hours set/);
         await expandCard(card);
         await card.getByTestId('tab-workspace').click();
 
-        // Hours inherit the business by default — reveal the per-day editor.
+        await expect(card.getByTestId('no-hours-note')).toContainText('can’t be booked until you set them');
+        // Reveal the per-day editor.
         await card.getByTestId('custom-hours').click();
 
         await expect(card.getByText('Starting time', { exact: true })).toBeVisible();

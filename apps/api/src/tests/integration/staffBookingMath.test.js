@@ -18,7 +18,7 @@ jest.mock('../../utils/emailService', () => ({
 
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
-const { makeUser, makeProvider, makeService, authHeader } = require('../helpers/factories');
+const { makeUser, makeProvider, makeService, authHeader, giveHours } = require('../helpers/factories');
 const TeamMember = require('../../models/TeamMember');
 const StaffAvailability = require('../../models/StaffAvailability');
 const BlockedTime = require('../../models/BlockedTime');
@@ -46,12 +46,15 @@ const book = (asUser, svc, { teamMember, startTime = '10:00', endTime = '10:30' 
         .set(authHeader(asUser))
         .send({ service: svc._id.toString(), appointmentDate: DATE, startTime, endTime, teamMember });
 
-const setup = async () => {
+// Alice and Bob work every day, all day, unless a test sets their hours itself
+// ({ withHours: false }): a member with no hours of their own can't be booked.
+const setup = async ({ withHours = true } = {}) => {
     const owner = await makeProvider();
     const svc = await makeService(owner._id);
     const customer = await makeUser();
     const a = await TeamMember.create({ provider: owner._id, name: 'Alice' });
     const b = await TeamMember.create({ provider: owner._id, name: 'Bob' });
+    if (withHours) { await giveHours(a); await giveHours(b); }
     return { owner, svc, customer, a, b };
 };
 
@@ -80,7 +83,7 @@ describe('Customer picks a staff member — validation', () => {
     });
 
     it("staff hours: a member's own schedule wins over business hours", async () => {
-        const { owner, svc, customer, a } = await setup();
+        const { owner, svc, customer, a } = await setup({ withHours: false });
         // Alice only works Tuesdays — DATE is a Wednesday.
         await StaffAvailability.create({
             provider: owner._id, teamMember: a._id,
@@ -155,7 +158,7 @@ describe('Back-compat + overrides', () => {
     });
 
     it("provider can book a member outside that member's hours (walk-in override)", async () => {
-        const { owner, svc, a } = await setup();
+        const { owner, svc, a } = await setup({ withHours: false });
         await StaffAvailability.create({
             provider: owner._id, teamMember: a._id,
             schedule: { tuesday: { enabled: true, slots: [{ start: '09:00', end: '17:00' }] } },
@@ -178,58 +181,77 @@ describe('Back-compat + overrides', () => {
     });
 });
 
-describe('Solo owner — business hours govern (their own weekly hours are waived)', () => {
+// There used to be a "solo owner" waiver here: with exactly one bookable member,
+// that member's own weekly hours were ignored and the business's hours used
+// instead (#121 — from when the owner was their own team member). The owner is
+// the null column now, so the waiver only ever applied to a real team member,
+// and it is exactly what the owner asked to end: a member works THEIR hours,
+// and with none of their own they aren't bookable, however small the team.
+describe('A lone team member works their own hours (no solo waiver)', () => {
     const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
     const everyDay = (start, end) => DAYS.reduce((s, d) => { s[d] = { enabled: true, slots: [{ start, end }] }; return s; }, {});
 
-    // A one-person business: the owner is their own only bookable member, with a
-    // leftover custom weekly schedule (09:00–17:00) narrower than the shop's real
-    // hours (08:00–19:00). Booking within business hours must still work.
-    const soloSetup = async () => {
+    // The shop is open 08:00–19:00; its one team member works 09:00–17:00.
+    const soloSetup = async ({ hours = everyDay('09:00', '17:00') } = {}) => {
         const owner = await makeProvider();
         const svc = await makeService(owner._id);
         const customer = await makeUser();
-        const solo = await TeamMember.create({ provider: owner._id, name: 'Owner Themself' });
+        const solo = await TeamMember.create({ provider: owner._id, name: 'Only Member' });
         await Availability.create({ provider: owner._id, schedule: everyDay('08:00', '19:00') });
-        await StaffAvailability.create({ provider: owner._id, teamMember: solo._id, schedule: everyDay('09:00', '17:00') });
+        if (hours) await StaffAvailability.create({ provider: owner._id, teamMember: solo._id, schedule: hours });
         return { owner, svc, customer, solo };
     };
 
-    it('books an 18:00 slot — inside business hours, outside the leftover staff hours (any available)', async () => {
+    it('refuses 18:00 — inside business hours, outside theirs — for any available and by name', async () => {
         const { svc, customer, solo } = await soloSetup();
-        const res = await book(customer, svc, { startTime: '18:00', endTime: '18:30' });
-        expect(res.status).toBe(201);
-        expect(res.body.data.teamMember.toString()).toBe(solo._id.toString());
+        const any = await book(customer, svc, { startTime: '18:00', endTime: '18:30' });
+        expect(any.status).toBe(400);
+        const named = await book(customer, svc, { teamMember: solo._id, startTime: '18:00', endTime: '18:30' });
+        expect(named.status).toBe(400);
+        expect(named.body.message).toMatch(/working hours/i);
     });
 
-    it('books it when the customer requests the member by name too', async () => {
+    it('books inside their own hours, any available and by name', async () => {
         const { svc, customer, solo } = await soloSetup();
-        expect((await book(customer, svc, { teamMember: solo._id, startTime: '18:00', endTime: '18:30' })).status).toBe(201);
+        const any = await book(customer, svc, { startTime: '10:00', endTime: '10:30' });
+        expect(any.status).toBe(201);
+        expect(any.body.data.teamMember.toString()).toBe(solo._id.toString());
+        expect((await book(customer, svc, { teamMember: solo._id, startTime: '11:00', endTime: '11:30' })).status).toBe(201);
     });
 
-    it('still refuses a genuine double-booking (the waiver is hours-only)', async () => {
+    it('with no hours of their own they are not bookable at all — by name or any available', async () => {
+        const { svc, customer, solo } = await soloSetup({ hours: null });
+        const named = await book(customer, svc, { teamMember: solo._id, startTime: '10:00', endTime: '10:30' });
+        expect(named.status).toBe(400);
+        expect(named.body.message).toMatch(/no working hours/i);
+        const any = await book(customer, svc, { startTime: '10:00', endTime: '10:30' });
+        expect(any.status).toBe(400);
+        expect(any.body.message).toMatch(/waiting list/i);
+    });
+
+    it('still refuses a genuine double-booking', async () => {
         const { svc, customer, solo } = await soloSetup();
-        expect((await book(customer, svc, { startTime: '18:00', endTime: '18:30' })).status).toBe(201);
+        expect((await book(customer, svc, { startTime: '10:00', endTime: '10:30' })).status).toBe(201);
         // Second booking on the same member at the same time is a real clash, not hours.
-        const clash = await book(customer, svc, { teamMember: solo._id, startTime: '18:00', endTime: '18:30' });
+        const clash = await book(customer, svc, { teamMember: solo._id, startTime: '10:00', endTime: '10:30' });
         expect(clash.status).toBe(409);
         expect(clash.body.message).toMatch(/already booked|waiting list/i);
     });
 
-    it('still refuses approved leave (the waiver is hours-only)', async () => {
+    it('still refuses approved leave', async () => {
         const { owner, svc, customer, solo } = await soloSetup();
         await request(app).post(`/api/team/${solo._id}/timeoff`).set(authHeader(owner))
             .send({ startDate: DATE, endDate: DATE, allDay: true });
-        expect((await book(customer, svc, { startTime: '18:00', endTime: '18:30' })).status).toBe(400);
+        expect((await book(customer, svc, { startTime: '10:00', endTime: '10:30' })).status).toBe(400);
     });
 
-    it('still refuses a slot outside the BUSINESS hours', async () => {
-        const { svc, customer, solo } = await soloSetup();
+    it('still refuses a slot outside the BUSINESS hours, even inside theirs', async () => {
+        const { svc, customer, solo } = await soloSetup({ hours: everyDay('00:00', '23:59') });
         // 20:00 is past the shop's 19:00 close — business hours still gate it.
         expect((await book(customer, svc, { teamMember: solo._id, startTime: '20:00', endTime: '20:30' })).status).toBe(400);
     });
 
-    it('a two-person roster is NOT waived — a narrow-hours member still rejects', async () => {
+    it('a two-person roster: a narrow-hours pair rejects outside their hours', async () => {
         const owner = await makeProvider();
         const svc = await makeService(owner._id);
         const customer = await makeUser();

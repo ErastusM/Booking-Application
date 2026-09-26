@@ -11,7 +11,7 @@
 const request = require('supertest');
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
-const { makeUser, makeProvider, makeService, makeAppointment, authHeader } = require('../helpers/factories');
+const { makeUser, makeProvider, makeService, makeAppointment, authHeader, giveHours } = require('../helpers/factories');
 const Appointment = require('../../models/Appointment');
 const TeamMember = require('../../models/TeamMember');
 const User = require('../../models/User');
@@ -33,6 +33,10 @@ const setup = async (permissions = []) => {
 
     const moses = await TeamMember.create({ provider: provider._id, name: 'Moses Hamalwa', role: 'Barber' });
     const sarah = await TeamMember.create({ provider: provider._id, name: 'Sarah Nangolo', role: 'Stylist' });
+    // Hours of their own: a member with none can't be booked (nothing is
+    // inherited from the business), and these tests are about permissions.
+    await giveHours(moses);
+    await giveHours(sarah);
 
     const mosesLogin = await makeUser({
         role: 'staff', staffOf: provider._id, email: 'moses@test.com', staffPermissions: permissions,

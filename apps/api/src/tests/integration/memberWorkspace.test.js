@@ -13,7 +13,7 @@ const TeamMember = require('../../models/TeamMember');
 const BlockedTime = require('../../models/BlockedTime');
 const WaitingList = require('../../models/WaitingList');
 const Appointment = require('../../models/Appointment');
-const { makeUser, makeProvider, makeService, authHeader } = require('../helpers/factories');
+const { makeUser, makeProvider, makeService, authHeader, giveHours } = require('../helpers/factories');
 
 beforeAll(() => testDb.connect());
 afterEach(() => testDb.clearDatabase());
@@ -24,6 +24,8 @@ const staff = async (provider, tier, extra = {}) => {
     seq += 1;
     const login = await makeUser({ role: 'staff', staffOf: provider._id, staffTier: tier, email: `m${seq}@test.com` });
     const member = await TeamMember.create({ provider: provider._id, name: `Member ${seq}`, user: login._id, ...extra });
+    // Hours of their own: a member with none can't be booked at all.
+    await giveHours(member);
     return { login, member };
 };
 

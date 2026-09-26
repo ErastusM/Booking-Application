@@ -38,6 +38,11 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
     const [selectedDate, setSelectedDate] = useState(null);
     const [bookedSlots, setBookedSlots] = useState([]);
     const [busyByLane, setBusyByLane] = useState({});
+    // The day as the booking's own professional works it (booked-slots): their
+    // shift's periods, if they have one that day, and whose hours it is — 'none'
+    // (no working hours of their own that day, so the booking can't move there)
+    // or 'leave'. The owner's column is the business's hours.
+    const [dayInfo, setDayInfo] = useState({ shiftWindow: null, hoursSource: null });
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [pendingTime, setPendingTime] = useState(null); // slot awaiting a confirm tap
@@ -76,15 +81,18 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
         setError('');
         if (providerId) {
             const reqId = ++bookedReqRef.current;
-            // One list per person the booking involves (usually just one).
+            // One list per person the booking involves (usually just one). The
+            // booking's own person's answer also says how they work that day.
             Promise.all(lanes.map((l) => appointmentService.getBookedSlots(providerId, dateStr, l, undefined, { exclude: appointment?._id })
-                .then((res) => [l, res.data.data || []])))
+                .then((res) => [l, res.data])))
                 .then((pairs) => {
                     if (reqId !== bookedReqRef.current) return;
-                    setBusyByLane(Object.fromEntries(pairs));
-                    setBookedSlots(pairs.flatMap(([, list]) => list));
+                    setBusyByLane(Object.fromEntries(pairs.map(([l, body]) => [l, body?.data || []])));
+                    setBookedSlots(pairs.flatMap(([, body]) => body?.data || []));
+                    const own = (pairs.find(([l]) => l === lane) || [])[1] || {};
+                    setDayInfo({ shiftWindow: own.shiftWindow ?? null, hoursSource: own.hoursSource || null });
                 })
-                .catch(() => { if (reqId === bookedReqRef.current) { setBusyByLane({}); setBookedSlots([]); } });
+                .catch(() => { if (reqId === bookedReqRef.current) { setBusyByLane({}); setBookedSlots([]); setDayInfo({ shiftWindow: null, hoursSource: null }); } });
         }
     };
 
@@ -100,8 +108,17 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
 
     const slots = useMemo(() => {
         if (!selectedDate) return [];
+        // Their professional has no hours that day (none of their own, or away).
+        if (dayInfo.hoursSource === 'none' || dayInfo.hoursSource === 'leave') return [];
         let blocks = [{ start: 8 * 60, end: 20 * 60 }];
-        if (schedule) {
+        if (dayInfo.shiftWindow) {
+            // A shift replaces the business's hours for its date and may run past them.
+            blocks = dayInfo.shiftWindow
+                .filter((s) => s?.start && s?.end)
+                .map((s) => ({ start: toMin(s.start), end: toMin(s.end) }))
+                .filter((b) => b.end > b.start);
+            if (!blocks.length) return [];
+        } else if (schedule) {
             const [y, m, d] = selectedDate.split('-').map(Number);
             const cfg = schedule[DAY_NAMES[new Date(y, m - 1, d).getDay()]];
             if (!cfg?.enabled || !Array.isArray(cfg.slots)) return [];
@@ -134,7 +151,7 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
             ? partsOpenStarts(parts, Object.fromEntries(Object.entries(busyByLane).map(([l, list]) => [l, toRanges(list)])))
             : null;
         return buildTimeSlots({ blocks, bookedRanges, duration, minStart, openStarts });
-    }, [selectedDate, schedule, bookedSlots, busyByLane, parts, duration]);
+    }, [selectedDate, schedule, bookedSlots, busyByLane, parts, duration, dayInfo]);
 
     const confirm = async (time) => {
         setBusy(true); setError('');
@@ -220,7 +237,13 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                         <>
                             <p style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', letterSpacing: '0.08em', textTransform: 'uppercase', margin: '1rem 0 0.6rem' }}>Pick a time</p>
                             {slots.length === 0 ? (
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', padding: '0.5rem 0' }}>No open slots that day — try another.</p>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', padding: '0.5rem 0' }}>
+                                    {dayInfo.hoursSource === 'none'
+                                        ? 'Your professional has no working hours that day — try another.'
+                                        : dayInfo.hoursSource === 'leave'
+                                            ? 'Your professional is away that day — try another.'
+                                            : 'No open slots that day — try another.'}
+                                </p>
                             ) : (
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(84px, 1fr))', gap: '0.5rem' }}>
                                     {slots.map((s, i) => (

@@ -114,8 +114,7 @@ describe('rotation resolver — the applicable week governs the booking', () => 
 describe('rotation — booked-slots picker agrees with the validator', () => {
     it('the OFF-week member shows the day as off_shift (advertised == bookable)', async () => {
         const { owner, a, b } = await setup();
-        // Two bookable members so the named-member weekly branch runs (a solo
-        // owner is intentionally skipped by the picker).
+        // Two bookable members, each on their own rotation.
         await StaffAvailability.create({
             provider: owner._id, teamMember: a._id, schedule: workingWeek,
             rotation: { anchor: DATE, weeks: [workingWeek, offWeek] }, // on week

@@ -10,7 +10,7 @@
  *     on without times, no closing before opening) and read back identically
  *   - GET /api/team/:id/hours returns one person's hours for a date by the same
  *     rules bookings are checked against (owner = business hours; member =
- *     leave → shift → weekly within business hours → business hours)
+ *     leave → shift → weekly within business hours → none: not bookable)
  *   - a Saturday is read as Saturday, and a customer booking agrees with it
  */
 process.env.TZ = 'UTC';
@@ -145,10 +145,14 @@ describe('GET /api/team/:id/hours — one person\'s hours on a date', () => {
         expect(res.body.data.slots).toEqual([{ start: '08:30', end: '17:00' }]);
     });
 
-    it('a member with no hours of their own works the business\'s', async () => {
+    // The owner's answer: a member with no hours of their own is NOT bookable —
+    // they used to fall back to the business's hours here.
+    it('a member with no hours of their own has none: closed, source "none"', async () => {
         const { owner, john } = await team();
         const res = await hours(owner, john._id, SAT).expect(200);
-        expect(res.body.data).toMatchObject({ source: 'business', slots: [{ start: '09:00', end: '14:00' }] });
+        expect(res.body.data).toMatchObject({ source: 'none', slots: [] });
+        // …and the business's hours are still reported alongside, for the note.
+        expect(res.body.data.business).toEqual([{ start: '09:00', end: '14:00' }]);
     });
 
     it('a shift replaces the weekly hours for its date, and its break is busy', async () => {

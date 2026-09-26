@@ -21,7 +21,7 @@ const breakSchema = new mongoose.Schema({
  *
  * PRECEDENCE, and this is the whole contract:
  *
- *     a Shift for the date  →  the member's weekly pattern  →  business hours
+ *     a Shift for the date  →  the member's weekly pattern  →  no hours (not bookable)
  *
  * A Shift, when present, REPLACES the pattern for that date rather than adding
  * to it. That is what makes "I'm not in on Thursday" expressible: a shift with
@@ -42,7 +42,9 @@ const shiftSchema = new mongoose.Schema({
     // window in this codebase.
     date: { type: String, required: true },
     // Empty slots = rostered off that day. Distinct from having no Shift row at
-    // all, which means "fall back to the weekly pattern".
+    // all, which means "fall back to the weekly pattern" (and a member with no
+    // weekly pattern either has no hours that day — nothing comes from the
+    // business's hours).
     slots:  { type: [periodSchema], default: [] },
     breaks: { type: [breakSchema],  default: [] },
     note:   { type: String, default: '', trim: true, maxlength: 120 },

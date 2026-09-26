@@ -3,7 +3,7 @@
  *
  * The contract these exist to pin (models/Shift states it, this proves it):
  *
- *     a Shift for the date  →  the member's weekly pattern  →  business hours
+ *     a Shift for the date  →  the member's weekly pattern  →  no hours (not bookable)
  *
  * A shift REPLACES the pattern for that one date. That is the only way to say
  * "not in this Thursday" without editing every Thursday, so a shift with no
@@ -69,9 +69,8 @@ const tryBook = ({ provider, customer, svc, member }, startTime, endTime) =>
 describe('shift precedence', () => {
     it('falls back to the weekly pattern when there is no shift', async () => {
         const ctx = await setup();
-        // A second bookable member makes this a genuine roster. A lone bookable
-        // member is treated as a solo owner and inherits the business hours (their
-        // own weekly schedule is bypassed) — covered in staffBookingMath.
+        // A second bookable member, as in a real roster (a lone member is held to
+        // their own weekly hours in exactly the same way — staffBookingMath).
         await TeamMember.create({ provider: ctx.provider._id, name: 'Second Chair' });
         expect((await tryBook(ctx, '10:00', '10:30')).teamMember).toBeTruthy();
         // 08:00 is inside business hours but outside their 09:00 pattern.
@@ -237,7 +236,11 @@ describe('a member\'s shift days for the customer calendar', () => {
 
         const res = await shiftDays(provider, member, DATE, OTHER_DATE);
 
-        expect(res.body.data.working).toEqual([]);
+        // Only the range's own days, read from their weekly hours (every day) —
+        // never the out-of-range shift. (A lone member is no longer exempt from
+        // their own weekly hours.)
+        expect(res.body.data.working).toEqual([DATE, OTHER_DATE]);
+        expect(res.body.data.working).not.toContain(futureDate(19));
         expect(res.body.data.off).toEqual([]);
     });
 

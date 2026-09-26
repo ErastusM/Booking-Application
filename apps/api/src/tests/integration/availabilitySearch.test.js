@@ -13,7 +13,7 @@ jest.mock('../../utils/emailService', () => ({
 
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
-const { makeUser, makeProvider, makeService } = require('../helpers/factories');
+const { makeUser, makeProvider, makeService, giveHours } = require('../helpers/factories');
 const Availability = require('../../models/Availability');
 const Appointment = require('../../models/Appointment');
 const BlockedTime = require('../../models/BlockedTime');
@@ -96,13 +96,15 @@ describe('single-column (no roster) providers', () => {
 });
 
 describe('staffed providers — union semantics', () => {
+    // The owner doesn't perform the service here, so only the staff columns count.
     it('a slot stays open while ANY staff column is free; business-wide blocks close it', async () => {
         const p = await makeProvider();
-        const svc = await makeService(p._id);
+        const svc = await makeService(p._id, { ownerPerforms: false });
         const customer = await makeUser();
         await hours(p, 'wednesday', [{ start: '10:00', end: '12:00' }]);
         const a = await TeamMember.create({ provider: p._id, name: 'Alice' });
-        await TeamMember.create({ provider: p._id, name: 'Bob' });
+        const b = await TeamMember.create({ provider: p._id, name: 'Bob' });
+        await giveHours(a); await giveHours(b);
         await appt(p, customer, svc, '10:00', '10:30', a._id); // Alice busy, Bob free
 
         let res = await search({ date: DATE });
@@ -117,9 +119,10 @@ describe('staffed providers — union semantics', () => {
 
     it('vanishes entirely when every column is blocked all day', async () => {
         const p = await makeProvider();
-        await makeService(p._id);
+        await makeService(p._id, { ownerPerforms: false });
         await hours(p, 'wednesday', [{ start: '10:00', end: '11:00' }]);
         const a = await TeamMember.create({ provider: p._id, name: 'Alice' });
+        await giveHours(a);
         await BlockedTime.create({ provider: p._id, teamMember: a._id, date: DATE, startTime: '10:00', endTime: '11:00' });
 
         const res = await search({ date: DATE });

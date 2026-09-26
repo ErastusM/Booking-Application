@@ -553,10 +553,13 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(150px, 1fr))', gap: '0.85rem' }}>
                                     {staff.map(member => {
                                         const hex = /^#[0-9a-f]{6}$/i.test(member.color || '') ? member.color : null;
-                                        const canBook = user?._id !== provider._id;
+                                        // No working hours of their own = nobody can book them yet
+                                        // (nothing comes from the business's hours).
+                                        const notTaking = member.hasHours === false;
+                                        const canBook = user?._id !== provider._id && !notTaking;
                                         const go = () => { if (canBook) navigate(`/book-appointment?providerId=${provider._id}&teamMemberId=${member._id}`); };
                                         return (
-                                            <button key={member._id} type="button" onClick={go} className="pressable" style={{
+                                            <button key={member._id} type="button" onClick={go} className="pressable" data-testid="profile-team-member" aria-disabled={notTaking || undefined} style={{
                                                 background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', boxShadow: 'var(--shadow-sm)',
                                                 padding: '1rem', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '0.5rem', cursor: canBook ? 'pointer' : 'default', textAlign: 'center', fontFamily: 'var(--font-body)',
                                             }}>
@@ -566,6 +569,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                                 <span style={{ fontWeight: 600, fontSize: '0.9rem', color: 'var(--charcoal)' }}>{member.name}</span>
                                                 {member.role && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{member.role}</span>}
                                                 {canBook && <span className="btn-primary" style={{ padding: '0.4rem 1rem', fontSize: '0.8rem', marginTop: '0.15rem' }}>Book</span>}
+                                                {notTaking && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '0.15rem' }}>Not taking bookings yet</span>}
                                             </button>
                                         );
                                     })}

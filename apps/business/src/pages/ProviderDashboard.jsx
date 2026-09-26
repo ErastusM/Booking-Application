@@ -213,7 +213,8 @@ const ProviderDashboard = () => {
     const [availability, setAvailability] = useState(null);
     const [savingAvailability, setSavingAvailability] = useState(false);
     const [availabilitySuccess, setAvailabilitySuccess] = useState('');
-    // A member with no hours of their own yet starts from a week of days off.
+    // A member with no hours of their own yet starts from a week of days off —
+    // and can't be booked until they set some (nothing comes from the business's).
     const [memberHadHours, setMemberHadHours] = useState(true);
     // What a member's CALENDAR shades as working time: their own saved hours
     // (none saved = no shading). The Availability form edits `availability` (a
@@ -610,8 +611,10 @@ const ProviderDashboard = () => {
                 const res = await myAvailabilityService.get();
                 const sched = res.data.data?.schedule || null;
                 // Nothing is inherited from the business: a member with no hours
-                // yet sees every day off, in the same Working Hours rows.
-                setMemberHadHours(!!sched);
+                // yet sees every day off, in the same Working Hours rows, and the
+                // note that clients can't book them — which is exactly what the
+                // booking rules do. Days switched on with no times aren't hours.
+                setMemberHadHours(!!sched && WEEK_DAYS.some((d) => sched[d]?.enabled && (sched[d].slots || []).some((sl) => sl?.start && sl?.end && sl.start < sl.end)));
                 setStaffCalendarHours(sched);
                 setAvailability(Object.fromEntries(WEEK_DAYS.map((d) => [d, {
                     enabled: !!sched?.[d]?.enabled,
@@ -1323,7 +1326,7 @@ const ProviderDashboard = () => {
                 const bad = WEEK_DAYS.find((d) => availability[d]?.enabled && !(availability[d].slots[0]?.start < availability[d].slots[0]?.end));
                 if (bad) { toast(`${bad[0].toUpperCase()}${bad.slice(1)}: the end time must be after the start time`, 'error'); return; }
                 await myAvailabilityService.set(availability);
-                setMemberHadHours(true);
+                setMemberHadHours(WEEK_DAYS.some((d) => availability[d]?.enabled));
                 setStaffCalendarHours(availability);
                 setAvailabilitySuccess(WEEK_DAYS.some((d) => availability[d]?.enabled) ? 'Your hours are saved. Clients can book you in these hours.' : 'Saved. You have no working days, so clients can’t book you.');
                 setTimeout(() => setAvailabilitySuccess(''), 4000);
@@ -4269,7 +4272,10 @@ const ProviderDashboard = () => {
                                         //   the owner's own column ("Me") → the business's Working Hours;
                                         //   a team member (picked by the owner, or the member themself) →
                                         //   that member's hours that day (shift, else their weekly hours
-                                        //   within the business's, else the business's), from the API.
+                                        //   within the business's), from the API. A member with neither
+                                        //   has NO hours (source 'none'): nothing comes from the
+                                        //   business's, so they can't be booked — only the owner's
+                                        //   "Book outside working hours" override offers times.
                                         // It used to read the business's hours for every column, and fall
                                         // back to 08:00–20:00 on a day the hours say is closed — so the
                                         // owner saw times that matched neither what they set nor what
@@ -4347,6 +4353,15 @@ const ProviderDashboard = () => {
                                         const dayCap = dayName.charAt(0).toUpperCase() + dayName.slice(1);
                                         const closedText = dh?.source === 'leave'
                                             ? `${isStaff ? 'You are' : `${memberName} is`} on leave that day.`
+                                            : dh?.source === 'none'
+                                                // No shift that day and no weekly hours of their own. A member
+                                                // sets them in Availability; the owner, on the member's Team card.
+                                                // (Someone with only shifts on OTHER days has hours — just not this one.)
+                                                ? (isStaff
+                                                    ? (myMember?.hasHours ? `You have no working hours on ${dayCap}.` : 'You have no working hours set — set them in Availability.')
+                                                    : teamMembers.find(m => String(m._id) === apptHoursWho)?.hasHours
+                                                        ? `${memberName} has no working hours on ${dayCap}.`
+                                                        : `${memberName} has no working hours set — they can set them in Availability, or you can on their Team card.`)
                                             : forMember
                                                 ? `${isStaff ? 'You don’t work' : `${memberName} doesn’t work`} on ${dayCap}${dh?.source === 'shift' ? ' (rostered off that day)' : ''}.`
                                                 : `Closed on ${dayCap} in your Working Hours.`;

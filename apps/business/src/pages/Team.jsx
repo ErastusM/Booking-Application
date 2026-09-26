@@ -13,7 +13,8 @@ import { inviteStatus, resendCooldownLeft } from '../utils/inviteStatus';
 
 /**
  * Epic 2.4 — staff management: roster CRUD, invite-to-login, per-staff
- * weekly hours (absence = inherit business hours), and service assignment
+ * weekly hours (none = not bookable: nothing is inherited from the business's
+ * hours), and service assignment
  * ([] = performs every service). Backend: /api/team/* (already live).
  */
 const DAYS = ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday'];
@@ -213,7 +214,9 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
             price: o.price ?? '', duration: o.duration ?? '',
         }])
     ));
-    const [schedule, setSchedule] = useState(null); // null = inherits business hours
+    // null = loading; 'none' = no weekly hours of their own, so clients can't book
+    // them (nothing is inherited from the business's hours); else their week.
+    const [schedule, setSchedule] = useState(null);
     // Optional rotating (multi-week) schedule, mirroring the staff self-editor.
     const [rotationOn, setRotationOn] = useState(false);
     const [rotation, setRotation] = useState({ anchor: new Date().toISOString().slice(0, 10), weeks: [] });
@@ -296,14 +299,14 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
         if (!open || tab !== 'workspace' || schedule !== null) return;
         teamService.getMemberAvailability(member._id)
             .then(res => {
-                setSchedule(res.data.data?.schedule || 'inherit');
+                setSchedule(res.data.data?.schedule || 'none');
                 const rot = res.data.data?.rotation;
                 if (rot && Array.isArray(rot.weeks) && rot.weeks.length > 0) {
                     setRotationOn(true);
                     setRotation({ anchor: rot.anchor || new Date().toISOString().slice(0, 10), weeks: rot.weeks.map(normWeek) });
                 }
             })
-            .catch(() => setSchedule('inherit'));
+            .catch(() => setSchedule('none'));
     }, [open, tab]); // eslint-disable-line react-hooks/exhaustive-deps
 
     useEffect(() => {
@@ -355,6 +358,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
             await teamService.setMemberShift(member._id, { date: shiftDate, slots, breaks: slots.length ? breaks : [] });
             await refreshShifts();
             flash(slots.length ? `Shift saved for ${shiftDate}.` : `${member.name} is off on ${shiftDate}.`);
+            onChanged?.(); // a shift is hours of their own — the card's "Not bookable" may clear
         } catch (err) {
             setShiftErr(err?.response?.data?.message || 'Could not save that shift.');
         } finally { setBusy(''); }
@@ -366,6 +370,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
             await teamService.clearMemberShift(member._id, shiftDate);
             await refreshShifts();
             flash('Back to their usual hours for that day.');
+            onChanged?.();
         } catch {
             setShiftErr('Could not clear that shift.');
         } finally { setBusy(''); }
@@ -694,7 +699,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
     };
 
     const saveHours = async () => {
-        if (schedule === 'inherit' || !schedule) return;
+        if (schedule === 'none' || !schedule) return;
         setBusy('hours');
         try {
             // With rotation on, week 1 doubles as the flat schedule legacy readers
@@ -705,6 +710,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                 await teamService.updateMemberAvailability(member._id, schedule, null);
             }
             flash('Hours saved');
+            onChanged?.(); // the card's "Not bookable — no working hours set" reads the roster
         } catch (err) { flash(err?.response?.data?.message || 'Could not save hours'); }
         finally { setBusy(''); }
     };
@@ -725,7 +731,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
     const toggleRotation = (on) => {
         setRotationOn(on);
         if (on && rotation.weeks.length === 0) {
-            setRotation({ anchor: new Date().toISOString().slice(0, 10), weeks: [normWeek(schedule && schedule !== 'inherit' ? schedule : DEFAULT_SCHED()), DEFAULT_SCHED()] });
+            setRotation({ anchor: new Date().toISOString().slice(0, 10), weeks: [normWeek(schedule && schedule !== 'none' ? schedule : DEFAULT_SCHED()), DEFAULT_SCHED()] });
             setActiveWk(0);
         }
     };
@@ -757,6 +763,11 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                         {member.role || 'Staff'}
                         {!hasLogin ? ' · roster only' : loggedIn ? ' · active' : ' · invited, awaiting login'}
                         {offersAll ? ' · all services' : assigned.length ? ` · ${assigned.length} service${assigned.length > 1 ? 's' : ''}` : ' · no services'}
+                        {/* Nothing is inherited from the business's hours: a member
+                            with none of their own can't be booked, so say so here. */}
+                        {bookable && member.hasHours === false && (
+                            <span data-testid="member-not-bookable" style={{ color: 'var(--gold-dark)', fontWeight: 600 }}> · Not bookable — no working hours set</span>
+                        )}
                     </span>
                 </span>
                 {loggedIn
@@ -1404,13 +1415,15 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
 
                             <Section icon={Clock} title="Working hours">
                                 {schedule === null && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading…</p>}
-                                {schedule === 'inherit' && (
+                                {schedule === 'none' && (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>
-                                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.88rem' }}>Inherits the business hours.</p>
-                                        <button type="button" className="btn-outline" style={{ padding: '0.45rem 1rem', fontSize: '0.82rem' }} onClick={startCustomHours} data-testid="custom-hours">Set custom hours</button>
+                                        <p style={{ margin: 0, color: 'var(--text-secondary)', fontSize: '0.88rem' }} data-testid="no-hours-note">
+                                            No working hours set — {(member.name || 'they').split(' ')[0]} can’t be booked until you set them{member.user ? ' (or they set their own in Availability)' : ''}.
+                                        </p>
+                                        <button type="button" className="btn-outline" style={{ padding: '0.45rem 1rem', fontSize: '0.82rem' }} onClick={startCustomHours} data-testid="custom-hours">Set working hours</button>
                                     </div>
                                 )}
-                                {schedule && schedule !== 'inherit' && (
+                                {schedule && schedule !== 'none' && (
                                     <div>
                                         {/* Single week vs a rotating multi-week cycle. The grid below keeps
                                             the day, both time fields and the column labels aligned in fixed

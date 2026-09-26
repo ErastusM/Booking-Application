@@ -75,6 +75,10 @@ const BookAppointment = () => {
     // whole booking (server-computed per performer, at their own length). null =
     // not given — the busy list alone decides.
     const [openStarts, setOpenStarts] = useState(null);
+    // Whose hours the chosen day is read from (booked-slots `hoursSource`):
+    // 'none' = the chosen professional has no working hours of their own that day
+    // (nothing comes from the business's), 'leave' = away, else null/'weekly'/…
+    const [hoursSource, setHoursSource] = useState(null);
     // For a chosen member, the days in the visible month they WORK (open even if
     // the business is closed — covering a Sunday) and are rostered OFF (closed
     // even if the business is open), so the date picker reflects their roster.
@@ -131,6 +135,7 @@ const BookAppointment = () => {
         setSelectedOption(null);
         setSelectedAddOns([]);
         setShiftWindow(null);
+        setHoursSource(null);
         setFormData(prev => ({ ...prev, service: '', startTime: '', endTime: '' }));
     };
 
@@ -283,15 +288,15 @@ const BookAppointment = () => {
         ? { duration: totalDuration || undefined, option: selectedOption?.name || undefined }
         : undefined;
     useEffect(() => {
-        if (!effectiveProviderId || !formData.appointmentDate) { setBookedSlots([]); setShiftWindow(null); setOpenStarts(null); return; }
+        if (!effectiveProviderId || !formData.appointmentDate) { setBookedSlots([]); setShiftWindow(null); setOpenStarts(null); setHoursSource(null); return; }
         let stale = false;
         // The service id makes the "any professional" view staff-aware: the server
         // unions the availability of everyone who performs it, so the picker only
         // shows slots the booking will actually accept (and stops greying an hour
         // where one member is booked but a colleague is free).
         appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate, selectedStaff?._id || undefined, selectedService?._id || undefined, anyViewOpts)
-            .then(res => { if (!stale) { setBookedSlots(res.data.data || []); setShiftWindow(res.data.shiftWindow ?? null); setOpenStarts(res.data.openStarts ?? null); } })
-            .catch(() => { if (!stale) { setBookedSlots([]); setShiftWindow(null); setOpenStarts(null); } });
+            .then(res => { if (!stale) { setBookedSlots(res.data.data || []); setShiftWindow(res.data.shiftWindow ?? null); setOpenStarts(res.data.openStarts ?? null); setHoursSource(res.data.hoursSource || null); } })
+            .catch(() => { if (!stale) { setBookedSlots([]); setShiftWindow(null); setOpenStarts(null); setHoursSource(null); } });
         return () => { stale = true; };
     }, [effectiveProviderId, formData.appointmentDate, selectedStaff, selectedService?._id, anyViewOpts?.duration, anyViewOpts?.option]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -312,6 +317,7 @@ const BookAppointment = () => {
                 setBookedSlots(res.data.data || []);
                 setShiftWindow(res.data.shiftWindow ?? null);
                 setOpenStarts(res.data.openStarts ?? null);
+                setHoursSource(res.data.hoursSource || null);
             })
             .catch(() => {});
     }, { intervalMs: 20000, enabled: !!(effectiveProviderId && formData.appointmentDate) });
@@ -702,6 +708,10 @@ const BookAppointment = () => {
 
     const generateTimeSlots = (dateStr) => {
         const duration = totalDuration || 30;
+        // A chosen professional with no working hours that day (none of their
+        // own, or away on leave) has no times at all — say why below instead of
+        // a list of greyed-out "Unavailable" hours.
+        if (selectedStaff && (hoursSource === 'none' || hoursSource === 'leave')) return [];
 
         // Working blocks for the day — supports multiple slots (e.g. 09:00–12:00, 13:00–17:00)
         let blocks = [{ start: 8 * 60, end: 20 * 60 }];
@@ -745,6 +755,7 @@ const BookAppointment = () => {
     };
 
     const timeSlots = generateTimeSlots(formData.appointmentDate);
+    const staffFirst = (selectedStaff?.name || '').trim().split(' ')[0] || 'This professional';
     const selectedSlotBooked = formData.startTime && timeSlots.find(s => s.time === formData.startTime)?.isBooked;
     const canReview = formData.service && formData.appointmentDate && formData.startTime && !availabilityError && !selectedSlotBooked && !walletShort;
 
@@ -1097,7 +1108,7 @@ const BookAppointment = () => {
                                 </span>
                                 <span style={{ flex: 1, minWidth: 0 }}>
                                     <span style={{ display: 'block', fontWeight: 700, color: 'var(--charcoal)' }}>{selectedStaff.name}</span>
-                                    <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)' }}>{selectedStaff.role ? `${selectedStaff.role} · ` : ''}chosen from the link</span>
+                                    <span style={{ display: 'block', fontSize: '0.8rem', color: 'var(--text-muted)' }}>{selectedStaff.role ? `${selectedStaff.role} · ` : ''}{selectedStaff.hasHours === false ? 'not taking bookings yet' : 'chosen from the link'}</span>
                                 </span>
                                 <button type="button" onClick={() => setPickerOpen(true)} style={{ background: 'none', border: 'none', color: 'var(--gold-dark)', fontWeight: 600, fontSize: '0.85rem', cursor: 'pointer', minHeight: '44px', padding: '0 0.4rem', fontFamily: 'var(--font-body)', textDecoration: 'underline' }}>Change</button>
                             </div>
@@ -1112,11 +1123,18 @@ const BookAppointment = () => {
                                     {staffList.map(st => {
                                         const sel = selectedStaff?._id === st._id;
                                         const initial = (st.name || '?').trim()[0]?.toUpperCase() || '?';
+                                        // No working hours of their own = nobody can book them yet
+                                        // (nothing comes from the business's hours), so the tile says
+                                        // so rather than leading to a calendar with no times.
+                                        const notTaking = st.hasHours === false;
                                         return (
-                                            <button key={st._id} type="button" data-testid="booking-staff" onClick={() => chooseStaff(st)} style={{
-                                                display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.8rem', cursor: 'pointer', textAlign: 'left',
+                                            <button key={st._id} type="button" data-testid="booking-staff" data-taking-bookings={notTaking ? 'no' : 'yes'}
+                                                disabled={notTaking} aria-disabled={notTaking || undefined}
+                                                onClick={() => { if (!notTaking) chooseStaff(st); }} style={{
+                                                display: 'flex', alignItems: 'center', gap: '0.65rem', padding: '0.8rem', cursor: notTaking ? 'not-allowed' : 'pointer', textAlign: 'left',
                                                 border: `2px solid ${sel ? 'var(--gold)' : 'var(--border)'}`, borderRadius: 'var(--radius)',
-                                                background: sel ? 'rgba(240,62,22,0.08)' : 'var(--card-bg)', fontFamily: 'var(--font-body)',
+                                                background: sel ? 'rgba(240,62,22,0.08)' : notTaking ? 'var(--surface-sunken)' : 'var(--card-bg)', fontFamily: 'var(--font-body)',
+                                                opacity: notTaking ? 0.7 : 1,
                                                 transition: 'border-color var(--dur) ease, background var(--dur) ease',
                                             }}>
                                                 <span aria-hidden="true" style={{ width: '38px', height: '38px', borderRadius: '50%', flexShrink: 0, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', background: st.color || 'var(--gold)', color: 'var(--on-ink)', fontWeight: 700, fontSize: '0.95rem' }}>
@@ -1125,6 +1143,7 @@ const BookAppointment = () => {
                                                 <span style={{ minWidth: 0 }}>
                                                     <span style={{ display: 'block', fontWeight: 600, color: 'var(--charcoal)', fontSize: '0.9rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{st.name}</span>
                                                     {st.role && <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)' }}>{st.role}</span>}
+                                                    {notTaking && <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic', marginTop: '0.1rem' }}>Not taking bookings yet</span>}
                                                     {st.ratingCount > 0 && (
                                                         <span style={{ display: 'block', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.1rem' }} data-testid="booking-staff-rating">
                                                             <span aria-hidden="true" style={{ color: 'var(--gold)' }}>★</span> {st.ratingAvg} <span>({st.ratingCount})</span>
@@ -1239,6 +1258,14 @@ const BookAppointment = () => {
                             {/* Month calendar — navigate up to 4 months ahead */}
                             <div style={{ marginBottom: '1.5rem' }}>
                                 <div id="booking-date-label" style={labelStyle}>Select a date</div>
+                                {selectedStaff && selectedStaff.hasHours === false && (
+                                    <p data-testid="booking-staff-not-taking" style={{ fontSize: '0.875rem', color: 'var(--text-secondary)', margin: '0 0 0.75rem', fontFamily: 'var(--font-body)' }}>
+                                        {staffFirst} isn’t taking bookings yet.{' '}
+                                        <button type="button" onClick={() => setPickerOpen(true)} style={{ background: 'none', border: 'none', padding: 0, color: 'var(--gold-dark)', fontWeight: 600, fontSize: 'inherit', cursor: 'pointer', fontFamily: 'var(--font-body)', textDecoration: 'underline' }}>
+                                            Choose another professional
+                                        </button>
+                                    </p>
+                                )}
                                 <div role="group" aria-labelledby="booking-date-label" style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1rem', background: 'var(--card-bg)', maxWidth: '420px' }}>
                                     {/* Month header + nav */}
                                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '0.85rem' }}>
@@ -1301,8 +1328,14 @@ const BookAppointment = () => {
                                 <div>
                                     <div id="booking-time-label" style={labelStyle}>Pick a time</div>
                                     {timeSlots.length === 0 ? (
-                                        <p style={{ fontSize: '0.875rem', color: 'var(--text-muted)', padding: '0.75rem 0', fontFamily: 'var(--font-body)' }}>
-                                            No available slots on this day.
+                                        <p data-testid="booking-no-times" style={{ fontSize: '0.875rem', color: 'var(--text-muted)', padding: '0.75rem 0', fontFamily: 'var(--font-body)' }}>
+                                            {selectedStaff && selectedStaff.hasHours === false
+                                                ? `${staffFirst} isn’t taking bookings yet.`
+                                                : selectedStaff && hoursSource === 'none'
+                                                    ? `${staffFirst} doesn’t work on ${formattedDate}.`
+                                                    : selectedStaff && hoursSource === 'leave'
+                                                        ? `${staffFirst} is away that day.`
+                                                        : 'No available slots on this day.'}
                                         </p>
                                     ) : (
                                         <div role="group" aria-labelledby="booking-time-label" style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>

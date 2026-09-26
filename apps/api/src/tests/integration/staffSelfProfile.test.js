@@ -66,7 +66,7 @@ describe('GET/PUT /api/team/mine/profile', () => {
 });
 
 describe('GET/PUT /api/team/mine/availability', () => {
-    it('is null before any custom hours are set (inherits business hours)', async () => {
+    it('is null before any hours are set (no hours of their own — not bookable yet)', async () => {
         const { staff } = await makeTeam();
         const res = await request(app).get('/api/team/mine/availability').set(authHeader(staff));
         expect(res.status).toBe(200);          // resolves to the self handler, not /:id with id='mine'

@@ -1,8 +1,9 @@
 /**
  * Availability-first provider search — "who can actually take me on <date>
  * (around <time>)?". For each candidate provider the day is computed as:
- * business hours ∩ (union of staff columns, or the owner column when there is
- * no roster) − blocked time (business-wide + per-staff) − existing bookings.
+ * business hours ∩ (union of the bookable staff columns — each over their OWN
+ * hours, none of their own = closed — plus the owner column when the owner
+ * offers anything) − blocked time (business-wide + per-staff) − existing bookings.
  * Buffers are intentionally ignored here: search promises an OPENING; the
  * booking flow re-validates the exact slot (incl. buffers + races) on create.
  */
@@ -16,7 +17,7 @@ const Appointment = require('../models/Appointment');
 const Shift = require('../models/Shift');
 const TimeOff = require('../models/TimeOff');
 const { NAMIBIA_OFFSET_MIN } = require('./appointmentTime');
-const { pickRotationWeek, memberBusyIntervalsBuffered } = require('./staffBooking');
+const { pickRotationWeek, memberBusyIntervalsBuffered, ownerPerforms } = require('./staffBooking');
 const { bookableMembersByProvider, hasPerformer } = require('./serviceOffering');
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -81,7 +82,9 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
     const dayEnd = new Date(date); dayEnd.setHours(23, 59, 59, 999);
     const [availabilities, members, blocked, appts] = await Promise.all([
         Availability.find({ provider: { $in: candidateIds } }).select('provider schedule'),
-        TeamMember.find({ provider: { $in: candidateIds }, isActive: true }).select('provider'),
+        // Only people clients can be sent to: a front-desk member (bookable:false)
+        // with hours would otherwise advertise openings nobody can take.
+        TeamMember.find({ provider: { $in: candidateIds }, isActive: true, bookable: { $ne: false } }).select('provider'),
         BlockedTime.find({ provider: { $in: candidateIds }, date }).select('provider teamMember ownerOnly startTime endTime'),
         Appointment.find({
             provider: { $in: candidateIds },
@@ -138,8 +141,13 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
         if (businessBlocks.length === 0) continue; // closed that day
 
         const roster = membersByProvider.get(pid) || [];
-        // Columns: each staff member, or the owner when there's no roster.
-        const columns = (roster.length ? roster : [null]).map(memberId => {
+        // Columns: each bookable staff member, plus the owner's own column when
+        // the owner offers any of these services (always, with no roster). The
+        // owner is a bookable professional next to the team (getProviderStaff),
+        // so a business whose members have no hours of their own still shows the
+        // owner's openings instead of vanishing from search.
+        const ownerColumn = !roster.length || (byProvider.get(pid) || []).some(ownerPerforms);
+        const columns = [...roster, ...(ownerColumn ? [null] : [])].map(memberId => {
             const busy = [];
             appts.forEach(a => {
                 if (a.provider.toString() !== pid) return;
@@ -163,8 +171,9 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
 
             // Working windows, honouring the booking validator's precedence for a
             // real member: approved leave → a date-specific Shift (which REPLACES
-            // the weekly pattern, its breaks becoming busy) → weekly pattern →
-            // business hours. The owner column (no roster) has no Shift/TimeOff.
+            // the weekly pattern, its breaks becoming busy) → their own weekly
+            // pattern → nothing (no hours of their own = not bookable). The owner
+            // column works the business hours and has no Shift/TimeOff.
             let blocks;
             if (memberId) {
                 const memberLeaves = leavesByMember.get(memberId) || [];
@@ -186,7 +195,7 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
                         // Rotation-aware: the week that applies on THIS date (or the
                         // flat schedule when the member has no rotation).
                         const ownSchedule = ownDoc ? pickRotationWeek(ownDoc, date) : null;
-                        blocks = ownSchedule ? blocksFor(ownSchedule, date) : businessBlocks;
+                        blocks = ownSchedule ? blocksFor(ownSchedule, date) : [];
                     }
                 }
             } else {

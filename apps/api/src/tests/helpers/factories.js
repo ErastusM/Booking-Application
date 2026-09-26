@@ -2,6 +2,7 @@ const User = require('../../models/User');
 const Service = require('../../models/Service');
 const Appointment = require('../../models/Appointment');
 const Review = require('../../models/Review');
+const StaffAvailability = require('../../models/StaffAvailability');
 const { generateToken } = require('../../utils/helpers');
 
 let _counter = 0;
@@ -94,6 +95,23 @@ exports.makeReview = async (customerId, serviceId, appointmentId, overrides = {}
         ...overrides,
     });
 };
+
+// A weekly schedule with the same period every day, e.g. everyDayHours('08:00', '18:00').
+exports.everyDayHours = (start = '00:00', end = '23:59') => Object.fromEntries(
+    ['monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday', 'sunday']
+        .map((d) => [d, { enabled: true, slots: [{ start, end }] }])
+);
+
+/**
+ * Give a team member working hours of their own. Nothing is inherited from the
+ * business's hours: a member with no hours of their own can't be booked (the
+ * owner's decision), so any test that books a member needs this. The default —
+ * every day, all day — leaves the business's hours, blocks and bookings as the
+ * only limits, which is what a test not ABOUT hours wants.
+ */
+exports.giveHours = (member, schedule = exports.everyDayHours()) => StaffAvailability.create({
+    provider: member.provider, teamMember: member._id, schedule,
+});
 
 exports.tokenFor = (user) => generateToken(user._id, user.tokenVersion || 0);
 
