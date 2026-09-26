@@ -119,7 +119,7 @@ const StaffLanesDay = ({
         [blockedTimes, dayKey]
     );
 
-    // Lanes: the owner ("Me / unassigned") plus active members — and any inactive
+    // Lanes: the owner ("Me") plus active members — and any inactive
     // member who still has an appointment today, so nothing booked can go invisible.
     const lanes = useMemo(() => {
         const memberIdsWithApptsToday = new Set(
@@ -129,7 +129,7 @@ const StaffLanesDay = ({
         // stand-in palette colour for one with none yet — never the orange).
         const colors = memberColorMap(teamMembers);
         const all = [
-            { id: 'unassigned', name: ownerName || 'Me', sub: 'Owner · unassigned', color: 'var(--gold)' },
+            { id: 'unassigned', name: ownerName || 'Me', sub: 'Owner', color: 'var(--gold)' },
             ...teamMembers
                 .filter((m) => m.isActive !== false || memberIdsWithApptsToday.has(String(m._id)))
                 .map((m) => ({
