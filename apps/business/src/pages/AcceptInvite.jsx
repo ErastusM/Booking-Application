@@ -5,6 +5,8 @@ import { useAuthContext } from '../context/AuthContext';
 import PasswordFields, { passwordMeetsRules } from '../components/auth/PasswordFields';
 import NewLinkRequest from '../components/auth/NewLinkRequest';
 import { AuthSplit, AuthTitle, AuthLead, Notice, linkStyle } from '../components/auth/AuthSplit';
+import { LegalText } from '@bookplus/ui';
+import { CONSENT_COPY } from '@bookplus/config/legal/consent.mjs';
 
 /**
  * Accept-invite landing. An invited team member arrives from the emailed link,
@@ -316,6 +318,14 @@ const AcceptInvite = () => {
                     >
                         {submitting ? 'Setting up…' : 'Accept & go to my calendar →'}
                     </button>
+                    {/* Accepting creates the team member's account: show the Terms here,
+                        the one sign-up path that has no consent checkbox. */}
+                    <p data-testid="accept-terms" style={{ margin: '-0.35rem 0 0', fontSize: '0.8rem', color: 'var(--text-secondary)', lineHeight: 1.5, textAlign: 'center' }}>
+                        <LegalText
+                            text={CONSENT_COPY.invite}
+                            renderLink={(href, children, key) => <Link key={key} to={href} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--gold-dark)', textDecoration: 'underline' }}>{children}</Link>}
+                        />
+                    </p>
                 </form>
                 <SignInLink email={preview?.email} />
             </div>
