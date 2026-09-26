@@ -7,6 +7,8 @@ const TeamMember = require('../models/TeamMember');
 const { createNotification } = require('../utils/notificationhelper');
 const pushService = require('../utils/pushService');
 const { can } = require('../utils/permissions');
+const mongoose = require('mongoose');
+const { performsService, ownerPerforms } = require('../utils/staffBooking');
 
 const toMinutes = (t) => {
     const [h, m] = String(t).split(':').map(Number);
@@ -17,7 +19,7 @@ const toMinutes = (t) => {
 exports.joinWaitingList = async (req, res) => {
     try {
         const { service, appointmentDate, startTime, endTime, teamMember } = req.body;
-        const svc = await Service.findById(service).select('name provider');
+        const svc = await Service.findById(service).select('name provider ownerPerforms');
         if (!svc) {
             return res.status(404).json({ success: false, message: 'Service not found' });
         }
@@ -33,15 +35,32 @@ exports.joinWaitingList = async (req, res) => {
         // `const providerId = svc.provider`).
         const provider = svc.provider || null;
 
-        // Which staff member the customer is waiting on. Validated against THIS
-        // provider's roster — same rule as booking — so a caller can't waitlist
-        // against another business's member, and anything unrecognised degrades to
-        // null ("anyone"), which is the pre-existing behaviour. Promotion reads this
-        // to check the freed slot against the right column and to book onto it.
+        // Which professional the customer is waiting on — held to the same rules as
+        // booking them: a member of THIS business who can be booked and performs
+        // the service. No member (or the owner's 'owner' placeholder) means the
+        // owner, or anyone who does it; promotion (waitingListHelper) resolves that
+        // to the owner only when the owner performs the service, else to a free
+        // member who does, each at their own price.
         let waitingFor = null;
-        if (teamMember && provider) {
-            const onRoster = await TeamMember.exists({ _id: teamMember, provider, isActive: true });
-            if (onRoster) waitingFor = teamMember;
+        if (teamMember && teamMember !== 'owner' && provider) {
+            const member = mongoose.isValidObjectId(teamMember)
+                ? await TeamMember.findOne({ _id: teamMember, provider, isActive: true, bookable: { $ne: false } })
+                    .select('services offersAllServices').lean()
+                : null;
+            if (!member) {
+                return res.status(400).json({ success: false, message: 'That professional is not available at this business' });
+            }
+            if (!performsService(member, svc._id)) {
+                return res.status(400).json({ success: false, message: 'That professional does not offer this service' });
+            }
+            waitingFor = member._id;
+        } else if (provider && !ownerPerforms(svc)) {
+            // Waiting on the owner / anyone: somebody must actually do it.
+            const anyone = (await TeamMember.find({ provider, isActive: true, bookable: { $ne: false } })
+                .select('services offersAllServices').lean()).some((m) => performsService(m, svc._id));
+            if (!anyone) {
+                return res.status(400).json({ success: false, message: 'Nobody here offers that service at the moment.' });
+            }
         }
 
         const dateObj = new Date(appointmentDate);

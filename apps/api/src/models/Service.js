@@ -45,6 +45,31 @@ const serviceSchema = new mongoose.Schema(
             default: true
         },
 
+        /* Does the OWNER perform this service themselves?
+         *
+         * The owner is a professional like any team member — clients see them as
+         * their own tile once the business has a roster — but they have no
+         * TeamMember row, so what they offer has to live somewhere. It lives here,
+         * per service, and is the owner's equivalent of TeamMember.services.
+         *
+         *   true   → the owner offers it, at this Service's price and duration
+         *   false  → only the team members who list it offer it; it never appears
+         *            under the owner, and nobody can book the owner for it
+         *   absent → rows from before this field: read as TRUE (utils/staffBooking
+         *            ownerPerforms), so deploying changes nothing on its own
+         *
+         * Deliberately NO schema default: a default would be written back onto a
+         * legacy row the first time anything saved it, turning "not decided yet"
+         * into a decision nobody made, and hiding it from
+         * scripts/migrate_owner_performs.js.
+         *
+         * Written true by the catalogue (the owner's own menu), false by a team
+         * member's "add a service I offer" (and the owner's "add a service <member>
+         * offers"), and changed only by the owner or an admin. */
+        ownerPerforms: {
+            type: Boolean,
+        },
+
         createdBy: {
             type: mongoose.Schema.ObjectId,
             ref: 'User',

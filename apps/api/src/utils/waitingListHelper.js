@@ -106,22 +106,52 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
 
         if (!next) return; // nobody waiting, or another worker holds a fresh claim
 
-        const svc = await Service.findById(service).select('name price duration provider');
+        const svc = await Service.findById(service).select('name price duration provider ownerPerforms');
         const providerId = next.provider || svc?.provider || null;
 
+        // WHO does it, and at whose price — the same performer rules as a direct
+        // booking (staffBooking.resolveBookingStaff). The waiting list used to book
+        // the owner's column for anything at the service's price, so a client
+        // waiting on a service only a team member performs was promoted onto the
+        // OWNER at that member's price.
+        //   - waiting on a named member: only if they still work here, can be
+        //     booked and perform the service; at THEIR price;
+        //   - waiting on the owner / anyone (null): the owner if they perform it,
+        //     otherwise the first free team member who does, at that member's price;
+        //   - nobody fits → no promotion; the client keeps their place in line.
+        const TeamMember = require('../models/TeamMember');
+        const { performsService, ownerPerforms } = require('./staffBooking');
+        const { effectivePrice } = require('./memberPricing');
+        let candidates = []; // [{ teamMember: id|null, price }]
+        if (providerId && svc) {
+            const roster = await TeamMember.find({ provider: providerId, isActive: true, bookable: { $ne: false } })
+                .select('services offersAllServices serviceOverrides').sort({ createdAt: 1 }).lean();
+            const asMember = (m) => ({ teamMember: m._id, price: effectivePrice(m, svc) });
+            if (next.teamMember) {
+                const m = roster.find((r) => String(r._id) === String(next.teamMember));
+                if (m && performsService(m, svc._id)) candidates = [asMember(m)];
+            } else if (ownerPerforms(svc)) {
+                candidates = [{ teamMember: null, price: svc.price || 0 }];
+            } else {
+                candidates = roster.filter((m) => performsService(m, svc._id)).map(asMember);
+            }
+        } else if (svc) {
+            candidates = [{ teamMember: null, price: svc.price || 0 }];
+        }
+
         const manageToken = randomUUID();
-        const buildDoc = () => ({
+        const buildDoc = (who) => ({
             customer: next.customer._id,
             service,
             provider: providerId,
             // Promote onto the SAME staff column the waitlist entry targeted, so the
             // booking is visible to (and counted against) the right member instead of
             // silently landing on the owner's unassigned column (finding #16).
-            teamMember: next.teamMember || null,
+            teamMember: who.teamMember || null,
             appointmentDate,
             startTime,
             endTime,
-            totalPrice: svc ? svc.price : 0,
+            totalPrice: who.price,
             status: 'confirmed',
             statusHistory: [{ status: 'confirmed', changedBy: null }],
             manageToken,
@@ -131,26 +161,39 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
         // booking controller uses — otherwise a customer booking can slip into the
         // freed slot between slotIsFree() and create(), double-booking the member.
         let promoted;
+        let performer = null;
         try {
-            const commit = async () => {
-                if (!(await slotIsFree(providerId, appointmentDate, startTime, endTime, next.teamMember))) {
-                    const e = new Error('slot_not_free'); e.slotNotFree = true; throw e;
+            if (!candidates.length) { const e = new Error('no_performer'); e.noPerformer = true; throw e; }
+            for (const who of candidates) {
+                const commit = async () => {
+                    if (!(await slotIsFree(providerId, appointmentDate, startTime, endTime, who.teamMember))) {
+                        const e = new Error('slot_not_free'); e.slotNotFree = true; throw e;
+                    }
+                    return Appointment.create(buildDoc(who));
+                };
+                try {
+                    promoted = providerId
+                        ? await withBookingLock(bookingLockKey(providerId, who.teamMember, appointmentDate), commit)
+                        : await commit();
+                    performer = who;
+                    break;
+                } catch (err) {
+                    // Another performer may still be free; only the last one decides.
+                    if (err && (err.slotNotFree || err.code === 'BOOKING_BUSY') && who !== candidates[candidates.length - 1]) continue;
+                    throw err;
                 }
-                return Appointment.create(buildDoc());
-            };
-            promoted = providerId
-                ? await withBookingLock(bookingLockKey(providerId, next.teamMember, appointmentDate), commit)
-                : await commit();
+            }
         } catch (err) {
             // Release the claim so they keep their place in line (slot re-taken, the
-            // lock was busy, or the create failed).
+            // lock was busy, nobody performs it, or the create failed).
             await WaitingList.updateOne({ _id: next._id, status: 'promoting' }, { $set: { status: 'waiting' } }).catch(() => {});
-            if (err && (err.slotNotFree || err.code === 'BOOKING_BUSY')) {
-                logger.warn({ service: String(service), startTime }, 'Skipped waitlist promotion — slot no longer free');
+            if (err && (err.slotNotFree || err.code === 'BOOKING_BUSY' || err.noPerformer)) {
+                logger.warn({ service: String(service), startTime, reason: err.noPerformer ? 'no_performer' : 'slot_not_free' }, 'Skipped waitlist promotion');
                 return;
             }
             throw err;
         }
+        const promotedMember = performer.teamMember || null;
 
         // Settle the claim to its final state.
         await WaitingList.updateOne({ _id: next._id }, { $set: { status: 'promoted', notified: true } });
@@ -179,10 +222,9 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
         // ping THAT member too (in-app + push via createNotification, and an
         // email) — a promotion onto their column is a fresh booking they should
         // hear about, just like a direct one. Best-effort; never break promotion.
-        if (next.teamMember) {
+        if (promotedMember) {
             try {
-                const TeamMember = require('../models/TeamMember');
-                const m = await TeamMember.findById(next.teamMember)
+                const m = await TeamMember.findById(promotedMember)
                     .select('user name email').populate('user', 'email name').lean();
                 if (m && m.user) {
                     await createNotification(
@@ -226,7 +268,7 @@ exports.promoteFromWaitingList = async (service, appointmentDate, startTime, end
             // can't open — matches how confirmation/reminder emails build it.
             const clientBase = primaryOrigin();
             const extras = {
-                price: svc ? svc.price : undefined,
+                price: performer.price,
                 bookingRef: String(promoted._id).slice(-8).toUpperCase(),
                 manageUrl: clientBase ? `${clientBase}/manage/${manageToken}` : undefined,
                 directionsUrl: address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : undefined,

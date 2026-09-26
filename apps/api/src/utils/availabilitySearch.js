@@ -17,6 +17,7 @@ const Shift = require('../models/Shift');
 const TimeOff = require('../models/TimeOff');
 const { NAMIBIA_OFFSET_MIN } = require('./appointmentTime');
 const { pickRotationWeek } = require('./staffBooking');
+const { bookableMembersByProvider, hasPerformer } = require('./serviceOffering');
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const GRID_STEP = 30; // minutes between offered start times
@@ -48,8 +49,13 @@ const blocksFor = (schedule, dateStr) => {
 async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 4 }) {
     // 1) Candidate providers: anyone with an active service; a text query
     //    narrows by service name/category OR business/provider name.
-    const services = await Service.find({ isActive: true, provider: { $ne: null } })
-        .select('provider name category');
+    //    Only services someone can actually be booked for count: a service
+    //    only a departed member performed would otherwise still match a query
+    //    and surface a business that can't take the booking.
+    const allServices = await Service.find({ isActive: true, provider: { $ne: null } })
+        .select('provider name category ownerPerforms');
+    const membersBy = await bookableMembersByProvider([...new Set(allServices.map(s => s.provider.toString()))]);
+    const services = allServices.filter(s => hasPerformer(s, membersBy.get(s.provider.toString()) || []));
     const byProvider = new Map();
     services.forEach(s => {
         const pid = s.provider.toString();

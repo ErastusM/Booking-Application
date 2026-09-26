@@ -3,7 +3,7 @@ import { appointmentService, serviceService, userService, providerWalletService,
 import { useToast } from '../components/Toast';
 // App-styled replacements for the native <select> and window.confirm, so the
 // admin's pickers and prompts wear the app's colours.
-import { Select, useConfirm } from '@bookplus/ui';
+import { Select, useConfirm, formatDuration } from '@bookplus/ui';
 import { CalendarDays, ConciergeBell, Users, Clock } from 'lucide-react';
 
 // A payment-proof URL comes from the customer's own submission. The API now
@@ -529,7 +529,7 @@ const AdminDashboard = () => {
                                                 <span style={{ display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', overflow: 'hidden' }}>{s.description}</span>
                                             </td>
                                             <td style={{ padding: '0.875rem 1rem', fontWeight: '600', color: 'var(--gold-dark)' }}>{nMoney(s.price)}</td>
-                                            <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{s.duration} min</td>
+                                            <td style={{ padding: '0.875rem 1rem', color: 'var(--text-secondary)' }}>{formatDuration(s.duration)}</td>
                                             <td style={{ padding: '0.875rem 1rem' }}>
                                                 <div style={{ display: 'flex', gap: '0.5rem' }}>
                                                     <button onClick={() => handleEditService(s)} style={{ background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--gold-dark)', padding: '0.3rem 0.75rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Edit</button>

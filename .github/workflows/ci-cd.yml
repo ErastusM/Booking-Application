@@ -434,6 +434,12 @@ jobs:
             # business-wide because `ownerOnly` did not exist before 2026-09-01)
             # so they stop closing every team member's day. Prints what it changed.
             docker compose exec -T server node scripts/migrate_blocked_time_scope.js || { echo "DEPLOY FAILED: migrate_blocked_time_scope.js exited non-zero" >&2; exit 1; }
+            # A team member's own services are not the owner's: decide, for every
+            # service that predates Service.ownerPerforms, whether the owner offers
+            # it — team-only only where the data plainly says a member added it,
+            # the owner keeps everything else. Prints every decision and a rollback.
+            # After migrate_member_services_flag, whose offersAllServices it reads.
+            docker compose exec -T server node scripts/migrate_owner_performs.js || { echo "DEPLOY FAILED: migrate_owner_performs.js exited non-zero" >&2; exit 1; }
 
             # Only now — a fully verified, migrated rollout — move the droplet's
             # LOCAL `:latest` onto it. Nothing in the deploy path reads `:latest`

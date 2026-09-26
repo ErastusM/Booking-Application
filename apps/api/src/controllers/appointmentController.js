@@ -475,9 +475,11 @@ exports.getBookedSlots = async (req, res) => {
         // belong to this provider — otherwise the param is ignored, not an error,
         // so a stale client link degrades to the legacy view instead of breaking.
         if (!teamMember && service && require('mongoose').isValidObjectId(service)) {
-            const svcDoc = await Service.findById(service).select('provider').lean();
+            const svcDoc = await Service.findById(service).select('provider ownerPerforms').lean();
             if (svcDoc && String(svcDoc.provider) === String(providerId)) {
-                const anyView = await anyAvailableBusy({ providerId, svc: { _id: service }, date, appointments });
+                // ownerPerforms travels with the id: the owner-column fallback only
+                // applies to a service the owner actually offers.
+                const anyView = await anyAvailableBusy({ providerId, svc: svcDoc, date, appointments });
                 if (anyView.applied) {
                     // Re-emit ONLY business-wide blocks — NOT the owner's own
                     // (ownerOnly) blocks. `blocks` above was fetched with a null
@@ -1590,6 +1592,16 @@ exports.createMultiServiceAppointment = async (req, res) => {
         if (!msLoc.ok) {
             return res.status(400).json({ success: false, message: 'That location is not available for this business.' });
         }
+        // Each segment is priced and timed for the person doing it: a member's own
+        // price/duration (serviceOverrides) when they have one, else the
+        // business's — the same rule the single-service path and the New
+        // Appointment form apply. Every segment used to take the catalogue
+        // price, so a member's N$170 haircut was recorded at the owner's N$120.
+        const wantedMembers = [...new Set(reqServices.map((it) => it?.teamMember || teamMember || null).filter(Boolean).map(String))];
+        const segMemberDocs = wantedMembers.length && wantedMembers.every((id) => require('mongoose').isValidObjectId(id))
+            ? await TeamMember.find({ _id: { $in: wantedMembers }, provider: providerId }).select('serviceOverrides')
+            : [];
+        const segMemberById = new Map(segMemberDocs.map((m) => [String(m._id), m]));
         const built = [];
         let cursor = startMin;
         for (const item of reqServices) {
@@ -1598,11 +1610,14 @@ exports.createMultiServiceAppointment = async (req, res) => {
             if (String(svc.provider) !== String(providerId)) {
                 return res.status(403).json({ success: false, message: 'You can only add your own services.' });
             }
-            const duration = (typeof svc.duration === 'number' && svc.duration > 0) ? svc.duration : 30;
+            const segMember = segMemberById.get(String(item?.teamMember || teamMember || '')) || null;
+            const ov = segMember ? overrideFor(segMember, svc._id) : null;
+            const baseDuration = (ov && ov.duration != null) ? ov.duration : svc.duration;
+            const duration = (typeof baseDuration === 'number' && baseDuration > 0) ? baseDuration : 30;
             built.push({
                 service: svc._id,
                 name: svc.name,
-                price: svc.price || 0,
+                price: (ov && ov.price != null) ? ov.price : (svc.price || 0),
                 duration,
                 startTime: minutesToTime(cursor),
                 endTime: minutesToTime(cursor + duration),

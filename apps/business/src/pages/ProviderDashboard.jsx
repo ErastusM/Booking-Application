@@ -28,11 +28,13 @@ import { bookingClientFields } from '../utils/bookingClient';
 import MiniCalendar from '../components/MiniCalendar';
 import RecurrenceFields from '../components/RecurrenceFields';
 import { currencySymbol } from '../utils/currency';
+import { servicesFor, ownerPerforms, teamPerformers } from '../utils/performerServices';
+import Switch from '../components/Switch';
 import { useToast } from '../components/Toast';
 // App-styled replacements for the native <select>, date/time inputs and
 // window.confirm, so every picker and prompt wears the app's colours (and times
 // are always 24-hour, whatever the device's locale).
-import { Select, DatePicker, TimePicker, useConfirm } from '@bookplus/ui';
+import { Select, DatePicker, TimePicker, useConfirm, formatDuration } from '@bookplus/ui';
 import { statusConfig, ContactActions, ChromeModal, CloseButton, StatsSkeleton, RowsSkeleton, Avatar, fmtConvTime } from './dashboard/primitives';
 // Lazy — wallet modals open only from the Wallet tab; keep them off the initial chunk.
 const ProviderAccountTopUpModal = lazy(() => import('./dashboard/WalletModals').then(m => ({ default: m.ProviderAccountTopUpModal })));
@@ -224,6 +226,10 @@ const ProviderDashboard = () => {
     const [showCategoryForm, setShowCategoryForm] = useState(false);
     const [catalogueCategory, setCatalogueCategory] = useState('all');
     const [catalogueSearch, setCatalogueSearch] = useState('');
+    // Service menu filter: everything, the services YOU offer, or the ones only
+    // your team does ('all' | 'mine' | 'team').
+    const [catalogueWho, setCatalogueWho] = useState('all');
+    const [ownerToggleBusy, setOwnerToggleBusy] = useState('');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [calendarView, setCalendarView] = useState('3day');
     const [viewMenuOpen, setViewMenuOpen] = useState(false); // compact view-switcher dropdown in the calendar header
@@ -287,6 +293,9 @@ const ProviderDashboard = () => {
     const [savingAdjustHours, setSavingAdjustHours] = useState(false);
     const [recurringMode, setRecurringMode] = useState('this');
     const [showApptModal, setShowApptModal] = useState(false);
+    // The owner's override in New Appointment: offer every service, not just what
+    // the chosen professional performs.
+    const [apptShowAll, setApptShowAll] = useState(false);
     // `services` is a list of { serviceId } rows — the "Add service" flow lets a
     // provider stack several services into one booking (POST /appointments/multi).
     // Group bookings and the legacy single-service create path only ever read
@@ -460,6 +469,8 @@ const ProviderDashboard = () => {
         if (activeTab === 'messages' && conversations.length === 0) fetchConversations();
         if (activeTab === 'memberships' && myPackages.length === 0) fetchMyPackages();
         if (activeTab === 'team' && teamMembers.length === 0) fetchTeam();
+        // The service menu says who performs each service ("Only Erastus").
+        if (activeTab === 'services' && !isStaff && teamMembers.length === 0) fetchTeam();
         if (activeTab === 'history' && history.length === 0) fetchHistory(1);
         // Team needed for staff assignment + the calendar staff filter
         if (activeTab === 'calendar' && teamMembers.length === 0) fetchTeam();
@@ -1284,6 +1295,23 @@ const ProviderDashboard = () => {
         setShowServiceForm(true);
     };
 
+    // "I offer this" — the owner's own list of what clients can book THEM for.
+    // Off = only the team members who perform it; it leaves the owner's tile,
+    // their starting price and their own New Appointment list.
+    const handleToggleOwnerPerforms = async (svc, next) => {
+        setOwnerToggleBusy(svc._id);
+        setMyServices(prev => prev.map(s => s._id === svc._id ? { ...s, ownerPerforms: next } : s));
+        try {
+            const res = await providerServiceService.updateMyService(svc._id, { ownerPerforms: next });
+            const saved = res?.data?.data;
+            if (saved) setMyServices(prev => prev.map(s => s._id === svc._id ? { ...s, ownerPerforms: saved.ownerPerforms } : s));
+            toast(next ? `Clients can book you for ${svc.name}.` : `${svc.name} is now only offered by your team.`, 'success');
+        } catch (err) {
+            setMyServices(prev => prev.map(s => s._id === svc._id ? { ...s, ownerPerforms: svc.ownerPerforms } : s));
+            toast(err.response?.data?.message || 'Could not update the service', 'error');
+        } finally { setOwnerToggleBusy(''); }
+    };
+
     const handleDeleteService = async (id) => {
         if (await confirm({ title: 'Delete this service?', confirmLabel: 'Delete', danger: true })) {
             try {
@@ -1342,6 +1370,38 @@ const ProviderDashboard = () => {
     };
 
     const activeTeamMembers = teamMembers.filter(m => m.isActive !== false);
+
+    // New Appointment offers what the chosen professional performs, at THEIR
+    // price and time: the owner ("Me / unassigned") their own services at the
+    // menu price, a team member theirs at their own price. It used to offer the
+    // whole catalogue at the catalogue price whoever was picked — a driver's
+    // N$20 000 "Long trip" as the owner's, and a member's N$170 haircut as N$120.
+    // A team member's own form is already only their services (fetchMyServices).
+    const apptPerformer = !isStaff && apptForm.teamMember
+        ? teamMembers.find(m => String(m._id) === String(apptForm.teamMember)) || null
+        : null;
+    const apptPerformerUnknown = !isStaff && !!apptForm.teamMember && !apptPerformer; // roster not loaded yet
+    // "Show every service" is for booking a TEAM MEMBER outside their own list
+    // (still at their price). It never widens the owner's own list: a service
+    // only the team performs is not the owner's to sell, at any price.
+    const apptServices = isStaff
+        ? myServices
+        : servicesFor(myServices, apptPerformer, { all: (apptShowAll && !!apptForm.teamMember) || apptPerformerUnknown });
+    const apptServiceById = (id) => apptServices.find(s => s._id === id);
+    const apptNoServicesMsg = isStaff
+        ? 'You have no services yet. Add yours under Services first.'
+        : myServices.length === 0
+            ? 'No services found. Add services in the Catalogue tab first.'
+            : apptPerformer
+                ? `${apptPerformer.name.split(' ')[0]} doesn’t offer any services yet.`
+                : 'You don’t offer any services yourself — pick a team member.';
+    // Switching professional drops service rows the new one doesn't perform.
+    const setApptPerformer = (teamMember, all = apptShowAll) => setApptForm(f => {
+        const member = teamMember ? teamMembers.find(m => String(m._id) === String(teamMember)) || null : null;
+        const offered = new Set(servicesFor(myServices, member, { all: (all && !!teamMember) || (!!teamMember && !member) }).map(s => s._id));
+        const rows = f.services.map(r => (r.serviceId && !offered.has(r.serviceId) ? { ...r, serviceId: '' } : r));
+        return { ...f, teamMember, services: rows };
+    });
 
     const statusCalendarColors = {
         pending:   { bg: '#FEF3C7', text: '#92400E', borderColor: '#F59E0B' },
@@ -1596,7 +1656,8 @@ const ProviderDashboard = () => {
 
     // Service choices for the New Appointment form: the group picker and every
     // multi-service row. The list gets a search box once it is long.
-    const serviceOptions = myServices.map(s => ({ value: s._id, label: `${s.name} (${s.duration} min)` }));
+    // Only what the chosen professional performs, at their price and time.
+    const serviceOptions = apptServices.map(s => ({ value: s._id, label: `${s.name} (${formatDuration(s.duration)})` }));
 
     return (
         <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
@@ -1686,7 +1747,7 @@ const ProviderDashboard = () => {
                                                     <p style={{ fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>{a.service?.name}</p>
                                                     {a.isRecurring && <span title="Recurring appointment" style={{ fontSize: '0.7rem', background: 'rgba(240,62,22,0.12)', color: 'var(--gold-dark)', borderRadius: '99px', padding: '0.1rem 0.4rem', fontWeight: '600' }}>↻</span>}
                                                 </div>
-                                                <p style={{ color: 'var(--gold-dark)', fontWeight: '600', fontSize: '0.875rem' }}>{curSym} {a.service?.price} · {a.service?.duration} min</p>
+                                                <p style={{ color: 'var(--gold-dark)', fontWeight: '600', fontSize: '0.875rem' }}>{curSym} {a.service?.price} · {formatDuration(a.service?.duration)}</p>
                                             </div>
                                             <div>
                                                 <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.35rem' }}>Date & Time</p>
@@ -1760,6 +1821,19 @@ const ProviderDashboard = () => {
                                 <input value={catalogueSearch} onChange={e => setCatalogueSearch(e.target.value)} placeholder="Search service name" aria-label="Search services" className="input" style={{ paddingLeft: '2.5rem', paddingRight: catalogueSearch ? '2.6rem' : undefined }} />
                                 {catalogueSearch && <SearchClear onClear={() => setCatalogueSearch('')} label="Clear service search" />}
                             </div>
+                            {/* Your own services vs the ones only your team performs — the
+                                owner's equivalent of a team member's "My services". */}
+                            <div role="group" aria-label="Who performs it" style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
+                                {[['all', 'All services'], ['mine', 'You offer'], ['team', 'Team only']].map(([k, lbl]) => {
+                                    const on = catalogueWho === k;
+                                    return (
+                                        <button key={k} type="button" aria-pressed={on} onClick={() => setCatalogueWho(k)} data-testid={`catalogue-who-${k}`}
+                                            style={{ minHeight: '36px', padding: '0 0.9rem', borderRadius: '999px', border: `1px solid ${on ? 'var(--gold)' : 'var(--border)'}`, background: on ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)', color: on ? 'var(--gold-dark)' : 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
+                                            {lbl}{k === 'all' ? '' : ` (${myServices.filter(s => (k === 'mine') === ownerPerforms(s)).length})`}
+                                        </button>
+                                    );
+                                })}
+                            </div>
                         </div>
 
                         {showServiceForm && (
@@ -1777,7 +1851,9 @@ const ProviderDashboard = () => {
 
                         <div className="catalogue-grid" style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '1.5rem', alignItems: 'start' }}>
                             {(() => {
-                                const catalogueFiltered = myServices.filter(s => !catalogueSearch || (s.name || '').toLowerCase().includes(catalogueSearch.toLowerCase()));
+                                const catalogueFiltered = myServices
+                                    .filter(s => !catalogueSearch || (s.name || '').toLowerCase().includes(catalogueSearch.toLowerCase()))
+                                    .filter(s => catalogueWho === 'all' || (catalogueWho === 'mine' ? ownerPerforms(s) : !ownerPerforms(s)));
                                 const servicesInCategory = (catId) => catalogueFiltered.filter(s => {
                                     const sCat = s.category?._id || s.category || null;
                                     return catId === 'featured' ? !sCat : sCat === catId;
@@ -1846,19 +1922,35 @@ const ProviderDashboard = () => {
                                                         <div key={group.id} style={{ marginBottom: '1.5rem' }}>
                                                             <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>{group.name}</h3>
                                                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                                                {svcs.map(s => (
-                                                                    <div key={s._id} style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', borderLeft: '3px solid var(--gold)', padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+                                                                {svcs.map(s => {
+                                                                    const mine = ownerPerforms(s);
+                                                                    const team = teamPerformers(s, teamMembers);
+                                                                    const nobody = !mine && team.length === 0;
+                                                                    return (
+                                                                    <div key={s._id} data-testid="catalogue-service" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', borderLeft: `3px solid ${mine ? 'var(--gold)' : 'var(--border)'}`, padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                                                                         <div style={{ minWidth: 0 }}>
                                                                             <p style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem', marginBottom: '0.2rem' }}>{s.name}</p>
-                                                                            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{s.duration} min{s.location ? ` · 📍 ${s.location}` : ''}</p>
+                                                                            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{formatDuration(s.duration)}{s.location ? ` · 📍 ${s.location}` : ''}</p>
+                                                                            {/* Who clients can book for it. A service only your team
+                                                                                performs is theirs: it never shows under you, and its
+                                                                                price here is theirs. */}
+                                                                            <p data-testid="catalogue-performers" style={{ fontSize: '0.75rem', marginTop: '0.3rem', color: nobody ? 'var(--danger-fg, #dc2626)' : 'var(--text-muted)' }}>
+                                                                                {nobody
+                                                                                    ? 'Nobody offers this — clients can’t book it'
+                                                                                    : mine
+                                                                                        ? `You${team.length ? ` · ${team.map(m => m.name.split(' ')[0]).join(' · ')}` : ''}`
+                                                                                        : `Only ${team.map(m => m.name.split(' ')[0]).join(' · ')}`}
+                                                                            </p>
                                                                         </div>
-                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0 }}>
+                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0, flexWrap: 'wrap' }}>
                                                                             <span style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem', whiteSpace: 'nowrap' }}>{curSym} {s.price}</span>
+                                                                            <Switch label="I offer this" checked={mine} disabled={ownerToggleBusy === s._id} onChange={(v) => handleToggleOwnerPerforms(s, v)} data-testid="catalogue-owner-performs" />
                                                                             <button onClick={() => handleEditService(s)} style={{ background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Edit</button>
                                                                             <button onClick={() => handleDeleteService(s._id)} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: '#ef4444', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Delete</button>
                                                                         </div>
                                                                     </div>
-                                                                ))}
+                                                                    );
+                                                                })}
                                                             </div>
                                                         </div>
                                                     );
@@ -3670,7 +3762,7 @@ const ProviderDashboard = () => {
                             // blank/duplicate-removed rows) — this is also what decides which
                             // create path runs below.
                             const selectedServices = apptForm.services
-                                .map(row => myServices.find(s => s._id === row.serviceId))
+                                .map(row => apptServiceById(row.serviceId))
                                 .filter(Boolean);
                             if (selectedServices.length === 0) {
                                 setApptError('Please select at least one service');
@@ -3750,6 +3842,28 @@ const ProviderDashboard = () => {
                             }
                         }} style={{ padding: '1.5rem', overflowY: 'auto', minHeight: 0 }}>
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                                {/* WHO first: the services below are the ones this person performs. */}
+                                {teamMembers.length > 0 && seesWholeTeam && (
+                                    <div>
+                                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Staff member</label>
+                                        <Select
+                                            value={apptForm.teamMember}
+                                            onChange={e => setApptPerformer(e.target.value)}
+                                            options={[
+                                                { value: '', label: 'Me / unassigned' },
+                                                ...teamMembers.filter(m => m.isActive !== false).map(m => ({ value: m._id, label: `${m.name}${m.role ? ` · ${m.role}` : ''}` })),
+                                                // Booking from an inactive member's lane (they can still hold
+                                                // appointments) must not show a raw id
+                                                ...(apptForm.teamMember && !teamMembers.some(m => String(m._id) === String(apptForm.teamMember) && m.isActive !== false)
+                                                    ? [{ value: apptForm.teamMember, label: `${teamMembers.find(m => String(m._id) === String(apptForm.teamMember))?.name || 'Staff member'} · inactive` }]
+                                                    : []),
+                                            ]}
+                                            aria-label="Staff member"
+                                            data-testid="appt-staff"
+                                            style={{ width: '100%' }}
+                                        />
+                                    </div>
+                                )}
                                 {apptForm.isGroup ? (
                                     <div>
                                         <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Service</label>
@@ -3767,14 +3881,14 @@ const ProviderDashboard = () => {
                                             data-testid="appt-service-0"
                                             style={{ width: '100%' }}
                                         />
-                                        {myServices.length === 0 && <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.35rem' }}>{isStaff ? 'You have no services yet. Add yours under Services first.' : 'No services found. Add services in the Catalogue tab first.'}</p>}
+                                        {apptServices.length === 0 && <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.35rem' }}>{apptNoServicesMsg}</p>}
                                     </div>
                                 ) : (
                                     <div>
                                         <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Services</label>
                                         <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                                             {apptForm.services.map((row, i) => {
-                                                const rowSvc = myServices.find(s => s._id === row.serviceId);
+                                                const rowSvc = apptServiceById(row.serviceId);
                                                 return (
                                                     <div key={i} style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
                                                         <Select
@@ -3793,7 +3907,7 @@ const ProviderDashboard = () => {
                                                         />
                                                         {rowSvc && (
                                                             <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', whiteSpace: 'nowrap', flexShrink: 0 }}>
-                                                                {curSym} {rowSvc.price} · {rowSvc.duration}m
+                                                                {curSym} {rowSvc.price} · {formatDuration(rowSvc.duration)}
                                                             </span>
                                                         )}
                                                         {apptForm.services.length > 1 && (
@@ -3804,39 +3918,28 @@ const ProviderDashboard = () => {
                                             })}
                                             {!isStaff && <button type="button" onClick={() => setApptForm(f => ({ ...f, services: [...f.services, { serviceId: '' }] }))} style={{ alignSelf: 'flex-start', fontSize: '0.75rem', padding: '0.25rem 0.65rem', border: '1px solid var(--gold)', borderRadius: 'var(--radius-sm)', background: 'rgba(240,62,22,0.08)', color: 'var(--gold-dark)', cursor: 'pointer', fontWeight: '600' }}>+ Add service</button>}
                                         </div>
-                                        {myServices.length === 0 && <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.35rem' }}>{isStaff ? 'You have no services yet. Add yours under Services first.' : 'No services found. Add services in the Catalogue tab first.'}</p>}
+                                        {apptServices.length === 0 && <p style={{ fontSize: '0.75rem', color: '#dc2626', marginTop: '0.35rem' }}>{apptNoServicesMsg}</p>}
                                         {(() => {
-                                            const selected = apptForm.services.map(r => myServices.find(s => s._id === r.serviceId)).filter(Boolean);
+                                            const selected = apptForm.services.map(r => apptServiceById(r.serviceId)).filter(Boolean);
                                             if (selected.length === 0) return null;
                                             const total = selected.reduce((s, x) => s + (x.price || 0), 0);
                                             const totalDuration = selected.reduce((s, x) => s + (x.duration || 0), 0);
                                             return (
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '0.6rem', padding: '0.6rem 0.85rem', background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)' }}>
-                                                    <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: '600' }}>{totalDuration} min total</span>
+                                                    <span style={{ fontSize: '0.78rem', color: 'var(--text-secondary)', fontWeight: '600' }}>{formatDuration(totalDuration)} total</span>
                                                     <span style={{ fontSize: '0.92rem', fontWeight: '600', color: 'var(--charcoal)' }}>Total: {curSym} {total}</span>
                                                 </div>
                                             );
                                         })()}
                                     </div>
                                 )}
-                                {teamMembers.length > 0 && seesWholeTeam && (
-                                    <div>
-                                        <label style={{ display: 'block', fontSize: '0.78rem', fontWeight: '600', color: 'var(--text-secondary)', marginBottom: '0.4rem', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Staff member</label>
-                                        <Select
-                                            value={apptForm.teamMember}
-                                            onChange={e => setApptForm(f => ({ ...f, teamMember: e.target.value }))}
-                                            options={[
-                                                { value: '', label: 'Me / unassigned' },
-                                                ...teamMembers.filter(m => m.isActive !== false).map(m => ({ value: m._id, label: `${m.name}${m.role ? ` · ${m.role}` : ''}` })),
-                                                // Booking from an inactive member's lane (they can still hold
-                                                // appointments) must not show a raw id
-                                                ...(apptForm.teamMember && !teamMembers.some(m => String(m._id) === String(apptForm.teamMember) && m.isActive !== false)
-                                                    ? [{ value: apptForm.teamMember, label: `${teamMembers.find(m => String(m._id) === String(apptForm.teamMember))?.name || 'Staff member'} · inactive` }]
-                                                    : []),
-                                            ]}
-                                            aria-label="Staff member"
-                                            data-testid="appt-staff"
-                                            style={{ width: '100%' }}
+                                {!isStaff && apptPerformer && myServices.length > 0 && (
+                                    <div style={{ marginTop: '-0.4rem' }}>
+                                        <Switch
+                                            label={`Book ${apptPerformer.name.split(' ')[0]} for any service`}
+                                            checked={apptShowAll}
+                                            onChange={(all) => { setApptShowAll(all); if (!all) setApptPerformer(apptForm.teamMember, false); }}
+                                            data-testid="appt-show-all"
                                         />
                                     </div>
                                 )}
@@ -3933,7 +4036,7 @@ const ProviderDashboard = () => {
                                         // Group bookings only ever use services[0]; a multi-service booking
                                         // needs the FULL span (every row's duration) reserved so the slot
                                         // picker never offers a start time the whole chain can't fit into.
-                                        const selectedRowServices = apptForm.services.map(r => myServices.find(s => s._id === r.serviceId)).filter(Boolean);
+                                        const selectedRowServices = apptForm.services.map(r => apptServiceById(r.serviceId)).filter(Boolean);
                                         const duration = apptForm.isGroup
                                             ? (selectedRowServices[0]?.duration || 30)
                                             : (selectedRowServices.reduce((s, x) => s + (x.duration || 0), 0) || 30);
@@ -4453,7 +4556,7 @@ const ProviderDashboard = () => {
                                     ['Date',      apptDetailModal.appointmentDate ? new Date(apptDetailModal.appointmentDate).toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' }) : '—'],
                                     ['Time',      `${apptDetailModal.startTime} – ${apptDetailModal.endTime}`],
                                     ...(apptDetailModal.services?.length > 1 ? [] : [
-                                        ['Duration',  apptDetailModal.service?.duration ? `${apptDetailModal.service.duration} min` : '—'],
+                                        ['Duration',  apptDetailModal.service?.duration ? formatDuration(apptDetailModal.service.duration) : '—'],
                                         ['Price',     apptDetailModal.totalPrice ? `${curSym} ${apptDetailModal.totalPrice}` : '—'],
                                     ]),
                                     ['Booking ref', apptDetailModal.bookingReference || (apptDetailModal._id ? apptDetailModal._id.slice(-8).toUpperCase() : '—')],

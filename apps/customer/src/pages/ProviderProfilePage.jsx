@@ -12,11 +12,35 @@ import { Phone, MessageCircle, Mail, MapPin, ChevronLeft, ChevronRight, X, Share
 import { normalizeTown } from '../utils/namibiaTowns';
 import Seo from '../components/Seo';
 import { useToast } from '../components/Toast';
-import { useConfirm } from '@bookplus/ui';
+import { useConfirm, formatDuration } from '@bookplus/ui';
 
 // Circular translucent control that floats over the hero photo (back / share / like / ⋯).
 // The circle stays white in both themes, so the icon uses --ink (never flips)
 // rather than --charcoal (goes light in dark mode → white-on-white).
+// Who a client books a service with, and at what price.
+//
+// A service the owner performs is the business's own: shown at its own price.
+// One only a team member performs (the API marks it ownerPerforms:false and
+// lists its performers) is THEIRS — shown with their name and at their price,
+// never as the owner's. Several team performers → the lowest, as "from".
+const offerOf = (service) => {
+    const team = service?.ownerPerforms === false
+        ? (service.performers || []).filter((p) => p._id !== 'owner')
+        : null;
+    if (!team || team.length === 0) {
+        return { team: null, price: service?.price, duration: service?.duration, from: false, memberId: null };
+    }
+    const prices = team.map((p) => Number(p.price) || 0);
+    const price = Math.min(...prices);
+    return {
+        team,
+        price,
+        from: prices.some((p) => p !== price),
+        duration: Math.min(...team.map((p) => Number(p.duration) || 0)),
+        memberId: team.length === 1 ? team[0]._id : null,
+    };
+};
+
 const floatBtn = { pointerEvents: 'auto', width: '44px', height: '44px', borderRadius: '50%', background: 'rgba(255,255,255,0.92)', border: 'none', color: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', boxShadow: '0 2px 10px rgba(0,0,0,0.25)', flexShrink: 0 };
 
 const StarDisplay = ({ rating }) => (
@@ -268,7 +292,10 @@ const ProviderProfilePage = ({ providerId } = {}) => {
     const businessName = provider.businessProfile?.businessName || provider.name;
     const address = provider.address || provider.businessProfile?.address || '';
     const categoryKeys = Object.keys(categories);
-    const activeServices = categories[activeCategory]?.services || [];
+    // The business's own services first, then the ones only a team member
+    // performs — those are theirs, shown with their name and at their price.
+    const activeServices = [...(categories[activeCategory]?.services || [])]
+        .sort((a, b) => (a.ownerPerforms === false) - (b.ownerPerforms === false));
 
     const cur = currencySymbol(provider.currency);
     const isOwner = user?._id === provider._id;
@@ -278,7 +305,13 @@ const ProviderProfilePage = ({ providerId } = {}) => {
         Object.values(categories || {}).forEach(c => (c.services || []).forEach(s => { if (!seen.has(s._id)) { seen.add(s._id); out.push(s); } }));
         return out;
     })();
-    const minPrice = allServices.length ? Math.min(...allServices.map(s => Number(s.price) || 0)) : null;
+    // "from N$…" is the owner's own starting price (computed by the API, which
+    // knows who performs what). Older API responses lack it: fall back to the
+    // services the owner performs, never a team member's own service.
+    const ownerRows = allServices.filter(s => s.ownerPerforms !== false);
+    const minPrice = provider.minPrice !== undefined
+        ? provider.minPrice
+        : (ownerRows.length ? Math.min(...ownerRows.map(s => Number(s.price) || 0)) : null);
     const description = provider.businessProfile?.description || '';
 
     // ── SEO: per-provider title/description/OG + LocalBusiness structured data.
@@ -571,21 +604,32 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                             </div>
                         ) : (
                             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                {activeServices.map(service => (
-                                    <div key={service._id} className="provider-service-row" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+                                {activeServices.map((service, i) => {
+                                    const offer = offerOf(service);
+                                    const firstTeamRow = offer.team && (i === 0 || activeServices[i - 1].ownerPerforms !== false);
+                                    return (
+                                    <React.Fragment key={service._id}>
+                                    {firstTeamRow && (
+                                        <p data-testid="profile-team-services" style={{ margin: i === 0 ? '0 0 0.1rem' : '0.75rem 0 0.1rem', fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.04em' }}>Offered by the team</p>
+                                    )}
+                                    <div className="provider-service-row" data-testid="profile-service" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem 1.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
                                         <div style={{ flex: 1 }}>
                                             <h3 style={{ fontFamily: 'var(--font-body)', fontSize: '1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.25rem' }}>{service.name}</h3>
+                                            {offer.team && (
+                                                <p data-testid="profile-service-with" style={{ color: 'var(--gold-dark)', fontSize: '0.8rem', fontWeight: 600, margin: '0 0 0.3rem' }}>with {offer.team.map(p => p.name).join(', ')}</p>
+                                            )}
                                             <p style={{ color: 'var(--text-muted)', fontSize: '0.85rem', lineHeight: 1.5, marginBottom: '0.5rem' }}>{service.description}</p>
                                             <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
-                                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{service.duration} min</span>
+                                                <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>{formatDuration(offer.duration)}</span>
                                                 {service.location && <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>📍 {normalizeTown(service.location)}</span>}
                                             </div>
                                         </div>
                                         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.75rem', flexShrink: 0 }}>
-                                            <span style={{ fontFamily: 'var(--font-body)', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)' }}>{cur} {service.price}</span>
+                                            <span style={{ fontFamily: 'var(--font-body)', fontSize: '1.2rem', fontWeight: '600', color: 'var(--charcoal)' }}>{offer.from ? <span style={{ fontSize: '0.8rem', fontWeight: 500, color: 'var(--text-muted)' }}>from </span> : null}{cur} {offer.price}</span>
                                             {user?._id !== provider._id && (
                                                 <button
-                                                    onClick={() => navigate(`/book-appointment?serviceId=${service._id}&providerId=${provider._id}`)}
+                                                    // A service only one team member performs books straight with them.
+                                                    onClick={() => navigate(`/book-appointment?serviceId=${service._id}&providerId=${provider._id}${offer.memberId ? `&teamMemberId=${offer.memberId}` : ''}`)}
                                                     className="btn-primary"
                                                     style={{ padding: '0.5rem 1.25rem', fontSize: '0.85rem' }}
                                                 >
@@ -594,7 +638,9 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                                             )}
                                         </div>
                                     </div>
-                                ))}
+                                    </React.Fragment>
+                                    );
+                                })}
                             </div>
                         )}
                         </div>

@@ -1,17 +1,33 @@
 const Service = require('../models/Service');
+const { bookableMembersByProvider, hasPerformer } = require('../utils/serviceOffering');
 
 // The business a catalogue write/read acts on: the owner's own id, or a
 // services:edit (High tier) staff member's employer (staffOf). Ownership checks
 // and the create/list scope use this. null = detached staff (handlers 403).
 const businessScope = (req) => (req.user.role === 'staff' ? req.user.staffOf || null : req.user._id);
 
-// Public catalogue — returns every active service to anyone (no auth, no role filter).
+// Only the owner (or an admin) decides what the owner performs. A services:edit
+// team member manages the menu, but "what clients can book the owner for" is
+// the owner's own call — the same way only a member (or the owner) sets a
+// member's own services.
+const mayDecideOwnerPerforms = (req) => req.user.role === 'provider' || req.user.role === 'admin';
+
+// Public catalogue — every active service someone can actually be booked for
+// (no auth, no role filter). A service only a departed team member performed
+// has nobody to do it, so it is not offered to clients any more.
 exports.getAllServices = async (req, res) => {
     try {
-        const services = await Service.find({ isActive: true })
+        const all = await Service.find({ isActive: true })
             .populate('provider', 'name avatar')
             .populate('createdBy', 'name')
             .sort({ createdAt: -1 });
+        const providerIds = [...new Set(all.map((s) => s.provider?._id || s.provider).filter(Boolean).map(String))];
+        const membersBy = await bookableMembersByProvider(providerIds);
+        const services = all.filter((s) => {
+            const pid = s.provider?._id || s.provider;
+            if (!pid) return true; // a global (admin) service has no roster
+            return hasPerformer(s, membersBy.get(String(pid)) || []);
+        });
 
         res.status(200).json({ success: true, count: services.length, data: services });
     } catch (error) {
@@ -68,7 +84,7 @@ exports.createMyService = async (req, res) => {
     try {
         const providerId = businessScope(req);
         if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
-        const { name, description, price, duration, location, address, category, options, bufferBefore, bufferAfter } = req.body;
+        const { name, description, price, duration, location, address, category, options, bufferBefore, bufferAfter, ownerPerforms } = req.body;
 
         const service = await Service.create({
             name, description, price, duration,
@@ -78,6 +94,10 @@ exports.createMyService = async (req, res) => {
             options: sanitizeOptions(options) || [],
             bufferBefore: Math.min(120, Math.max(0, Number(bufferBefore) || 0)),
             bufferAfter: Math.min(120, Math.max(0, Number(bufferAfter) || 0)),
+            // The business's own menu: the owner offers it unless THEY say
+            // otherwise ("Only my team does this"). Stored explicitly, never left
+            // to the legacy absent-means-true reading.
+            ownerPerforms: !(mayDecideOwnerPerforms(req) && ownerPerforms === false),
             createdBy: req.user._id,      // audit: the actual author (staff or owner)
             provider: providerId,          // the business the service belongs to
         });
@@ -109,8 +129,11 @@ exports.updateService = async (req, res) => {
             }
         }
 
-        const { name, description, price, duration, location, address, isActive, category, options, bufferBefore, bufferAfter } = req.body;
+        const { name, description, price, duration, location, address, isActive, category, options, bufferBefore, bufferAfter, ownerPerforms } = req.body;
         const allowedUpdates = { name, description, price, duration, location, address };
+        // "I offer this" — the owner's own switch. Ignored for a services:edit
+        // team member, who edits the menu but doesn't decide what the owner does.
+        if (typeof ownerPerforms === 'boolean' && mayDecideOwnerPerforms(req)) allowedUpdates.ownerPerforms = ownerPerforms;
         if (category !== undefined) allowedUpdates.category = category || null;
         if (options !== undefined) allowedUpdates.options = sanitizeOptions(options) || [];
         if (bufferBefore !== undefined) allowedUpdates.bufferBefore = Math.min(120, Math.max(0, Number(bufferBefore) || 0));

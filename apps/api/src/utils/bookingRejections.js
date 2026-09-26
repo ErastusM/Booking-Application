@@ -31,6 +31,7 @@ const REASON_LABELS = {
     no_staff_available: 'no staff member available',
     not_bookable: 'the staff member not taking online bookings',
     staff_service_mismatch: 'the staff member not offering that service',
+    no_performer: 'nobody on the team offering that service',
     unknown_member: 'the chosen staff member not being available',
     blocked: 'blocked time',
     slot_taken: 'the slot already being taken',
