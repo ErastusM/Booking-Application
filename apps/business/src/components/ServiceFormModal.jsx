@@ -4,21 +4,18 @@ import { NAMIBIAN_TOWNS } from '../utils/namibiaTowns';
 import { useAuthContext } from '../context/AuthContext';
 import { useToast } from './Toast';
 import { currencySymbol } from '../utils/currency';
-import { Select } from '@bookplus/ui';
+import { Select, formatDuration } from '@bookplus/ui';
 import { X, Plus, Trash2, Clock } from 'lucide-react';
+import Switch from './Switch';
 
 // Preset durations (minutes) for the dropdown; a service's saved value is added
 // if it isn't one of these.
 const DURATIONS = [5, 10, 15, 20, 30, 45, 60, 75, 90, 120, 150, 180, 240];
-const fmtDur = (m) => {
-    const n = Number(m);
-    if (!n) return '';
-    if (n < 60) return `${n} min`;
-    const h = Math.floor(n / 60), r = n % 60;
-    return r ? `${h} hr ${r} min` : `${h} hr`;
-};
+// Durations read the same everywhere, in both apps: "45 min", "1 hr", "2 hr 30 min".
+const fmtDur = formatDuration;
 
-const blank = { name: '', category: '', description: '', priceType: 'fixed', price: '', duration: 60, bufferBefore: '', bufferAfter: '', location: '', address: '', options: [] };
+// ownerPerforms: new menu items are the owner's own by default ("I offer this").
+const blank = { name: '', category: '', description: '', priceType: 'fixed', price: '', duration: 60, bufferBefore: '', bufferAfter: '', location: '', address: '', options: [], ownerPerforms: true };
 
 const sectionTitle = { fontFamily: 'var(--font-display)', fontSize: '1.15rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 1rem' };
 const label = { display: 'block', fontSize: '0.9rem', fontWeight: 600, color: 'var(--charcoal)', marginBottom: '0.45rem' };
@@ -33,6 +30,7 @@ const field = { marginBottom: '1.5rem' };
  */
 const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, onCategoriesChanged }) => {
     const { user } = useAuthContext();
+    const isOwner = user?.role === 'provider' || user?.role === 'admin';
     const toast = useToast();
     const curSym = currencySymbol(user?.businessProfile?.currency);
     const [form, setForm] = useState(blank);
@@ -58,6 +56,7 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                 location: editing.location || '',
                 address: editing.address || '',
                 options: editing.options || [],
+                ownerPerforms: editing.ownerPerforms !== false,
             });
             setShowExtra(!!(editing.bufferBefore || editing.bufferAfter));
         } else {
@@ -106,6 +105,8 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                 price: Number(o.price) || 0, duration: Number(o.duration) || Number(form.duration) || 30,
             })),
         };
+        // Only the owner decides what clients can book THEM for.
+        if (isOwner) payload.ownerPerforms = form.ownerPerforms !== false;
         try {
             if (editing) await providerServiceService.updateMyService(editing._id, payload);
             else await providerServiceService.createMyService(payload);
@@ -216,6 +217,20 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                             options={durationOptions.map((m) => ({ value: m, label: fmtDur(m) }))} searchable={false}
                             aria-label="Duration" data-testid="service-duration" />
                     </div>
+
+                    {isOwner && (
+                        <div style={{ ...field, background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.9rem 1rem' }}>
+                            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
+                                <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--charcoal)' }}>You offer this service</span>
+                                <Switch label={form.ownerPerforms !== false ? 'Yes' : 'No'} checked={form.ownerPerforms !== false} onChange={(v) => set({ ownerPerforms: v })} data-testid="service-owner-performs" />
+                            </div>
+                            <p style={helper}>
+                                {form.ownerPerforms !== false
+                                    ? 'Clients can book you for it, at this price.'
+                                    : 'Only the team members who offer it can be booked for it — it won’t appear under your name.'}
+                            </p>
+                        </div>
+                    )}
 
                     {/* Extra time (buffers) */}
                     {showExtra ? (

@@ -198,6 +198,25 @@ const performsService = (member, serviceId) => {
     return list.length === 0 || list.includes(String(serviceId));
 };
 
+// Does the OWNER perform this service? The owner's equivalent of performsService.
+//
+// The owner used to be assumed to perform the whole catalogue. But the catalogue
+// also holds the services team members add for THEMSELVES (a driver's "Long trip"
+// on a barbershop's menu), priced at the member's own price — so the owner's
+// tile showed every one of them, at the member's price, and clients could book
+// the owner for work only the member does. Service.ownerPerforms is now the
+// owner's own list; absent (legacy rows) reads as true, which is exactly what
+// every existing business did before.
+const ownerPerforms = (svc) => !!svc && svc.ownerPerforms !== false;
+
+// "Nobody offers this": no bookable member performs it and the owner doesn't
+// either. Used where the old code assumed the owner as the fallback performer.
+const NO_PERFORMER = {
+    status: 400,
+    error: 'Nobody here offers that service at the moment.',
+    reason: 'no_performer',
+};
+
 const UNAVAILABLE_MESSAGES = {
     outside_hours: "That time is outside this staff member's working hours.",
     off_shift: "That staff member isn't rostered on at that time.",
@@ -418,9 +437,12 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
     const roster = await TeamMember.find({ provider: providerId, isActive: true }).sort({ createdAt: 1 });
     const bookableRoster = roster.filter(m => m.bookable !== false);
 
-    // Zero-staff business — legacy provider-level behavior, untouched.
+    // Zero-staff business — the owner is the only professional. A client can
+    // still only book them for something they actually offer: a service a
+    // (since departed) team member added for themselves has nobody to do it.
     if (!roster.length) {
         if (requestedTeamMember) return { status: 400, error: 'Unknown team member', reason: 'unknown_member' };
+        if (isCustomer && !ownerPerforms(svc)) return NO_PERFORMER;
         return { teamMember: null };
     }
 
@@ -446,7 +468,16 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
     // enforce business hours, blocked time and the owner's own (unassigned)
     // bookings against that null column, so resolve straight to it and skip the
     // "any available" staff pick below.
+    //
+    // Held to the same rule as a named member: the owner must perform the
+    // service. Without it a client could book the owner for a service only a
+    // team member offers — at that member's price, landing on the owner's own
+    // calendar. The owner themselves keeps the walk-in override (their own
+    // column is theirs to fill), exactly as for hours and blocks.
     if (requestedTeamMember && String(requestedTeamMember) === 'owner') {
+        if (isCustomer && !ownerPerforms(svc)) {
+            return { status: 400, error: 'That professional does not offer this service', reason: 'staff_service_mismatch' };
+        }
         return { teamMember: null };
     }
 
@@ -475,7 +506,8 @@ async function resolveBookingStaff({ svc, providerId, appointmentDate, startTime
 
     // Customer, no pick, staff exist → "any available".
     const performers = bookableRoster.filter(m => performsService(m, svc._id));
-    if (!performers.length) return { teamMember: null }; // nobody performs it => the owner does
+    // No team member performs it: the owner does — but only if they offer it.
+    if (!performers.length) return ownerPerforms(svc) ? { teamMember: null } : NO_PERFORMER;
 
     // Batched, in-memory equivalent of an isMemberFree loop — one Promise.all of
     // $in queries for the whole roster instead of ~6 sequential queries per member
@@ -521,7 +553,14 @@ async function anyAvailableBusy({ providerId, svc, date, appointments }) {
     const roster = await TeamMember.find({ provider: providerId, isActive: true }).sort({ createdAt: 1 });
     const bookableRoster = roster.filter(m => m.bookable !== false);
     const performers = bookableRoster.filter(m => performsService(m, svc._id));
-    if (!performers.length) return { applied: false };
+    if (!performers.length) {
+        // The owner-column fallback only exists when the owner offers the
+        // service; otherwise nobody can take any slot (resolveBookingStaff
+        // refuses with no_performer), so say so instead of advertising the
+        // owner's free time.
+        if (ownerPerforms(svc)) return { applied: false };
+        return { applied: true, busy: [{ startTime: '00:00', endTime: hhmmOf(DAY_END), kind: 'off_shift' }] };
+    }
 
     const soloOwner = bookableRoster.length === 1;
     const ids = performers.map(m => m._id);
@@ -601,7 +640,7 @@ async function anyAvailableBusy({ providerId, svc, date, appointments }) {
 }
 
 module.exports = {
-    resolveBookingStaff, isMemberFree, firstFreePerformer, performsService, staffHoursReason,
+    resolveBookingStaff, isMemberFree, firstFreePerformer, performsService, ownerPerforms, staffHoursReason,
     memberBusyIntervals, memberBusyIntervalsBuffered, bufferMapForAppointments,
     memberInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy,
     pickRotationWeek, scheduleDayIntervals, withinSchedule,

@@ -13,6 +13,7 @@ import RecurrenceFields from '../components/RecurrenceFields';
 import StatusOverlay from '../components/StatusOverlay';
 import AuthPrompt from '../components/AuthPrompt';
 import { track } from '../services/client';
+import { formatDuration } from '@bookplus/ui';
 
 // The API answers a signed-out request with "No token, authorization denied".
 // That's server-speak for "you're signed out" — never show it. Anything else
@@ -804,7 +805,7 @@ const BookAppointment = () => {
                                         <Clock size={16} strokeWidth={2} style={{ color: 'var(--gold-dark)', flexShrink: 0 }} />
                                         <span style={{ fontFamily: 'var(--font-body)', color: 'var(--charcoal)', fontWeight: '500' }}>
                                             {formData.startTime}-{formData.endTime}
-                                            <span style={{ color: 'var(--text-muted)', fontWeight: '400' }}> ({totalDuration} min)</span>
+                                            <span style={{ color: 'var(--text-muted)', fontWeight: '400' }}> ({formatDuration(totalDuration)})</span>
                                         </span>
                                     </div>
                                 </div>
@@ -815,7 +816,7 @@ const BookAppointment = () => {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', paddingBottom: '1rem', borderBottom: '1px solid var(--border)', marginBottom: '1rem' }}>
                                     <div>
                                         <div style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem' }}>{selectedService?.name}{selectedOption ? ` — ${selectedOption.name}` : ''}</div>
-                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{effectiveDuration} min{providerInfo ? ` with ${providerInfo.name}` : ''}</div>
+                                        <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{formatDuration(effectiveDuration)}{providerInfo ? ` with ${providerInfo.name}` : ''}</div>
                                     </div>
                                     <span style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)' }}>{curSym} {effectivePrice}</span>
                                 </div>
@@ -823,7 +824,7 @@ const BookAppointment = () => {
                                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', paddingBottom: '0.75rem', borderBottom: i < selectedAddOns.length - 1 ? '1px solid var(--border)' : 'none', marginBottom: i < selectedAddOns.length - 1 ? '0.75rem' : 0 }}>
                                         <div>
                                             <div style={{ fontFamily: 'var(--font-body)', fontWeight: '500', color: 'var(--charcoal)', fontSize: '0.9rem' }}>{addOn.name}</div>
-                                            {addOn.duration > 0 && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>+{addOn.duration} min</div>}
+                                            {addOn.duration > 0 && <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>+{formatDuration(addOn.duration)}</div>}
                                         </div>
                                         <span style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)' }}>{curSym} {addOn.price}</span>
                                     </div>
@@ -1099,7 +1100,7 @@ const BookAppointment = () => {
                                                 <div style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.92rem', marginBottom: '0.4rem', paddingRight: sel ? '1.5rem' : 0 }}>{service.name}</div>
                                                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
                                                     <span className="price" style={{ color: 'var(--gold-dark)', fontWeight: '600' }}>{curSym} {priceFor(service)}</span>
-                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{durationFor(service)} min</span>
+                                                    <span style={{ color: 'var(--text-muted)', fontSize: '0.75rem' }}>{formatDuration(durationFor(service))}</span>
                                                 </div>
                                             </button>
                                         );
@@ -1134,7 +1135,7 @@ const BookAppointment = () => {
                                                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                                                     <input type="checkbox" checked={checked} onChange={() => toggleAddOn(addOn)} style={{ accentColor: 'var(--gold)', width: '16px', height: '16px' }} />
                                                     <span style={{ fontWeight: '500', color: 'var(--charcoal)', fontSize: '0.9rem', fontFamily: 'var(--font-body)' }}>{addOn.name}</span>
-                                                    {addOn.duration > 0 && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>+{addOn.duration} min</span>}
+                                                    {addOn.duration > 0 && <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>+{formatDuration(addOn.duration)}</span>}
                                                 </div>
                                                 <span style={{ color: 'var(--gold-dark)', fontWeight: '600', fontFamily: 'var(--font-body)' }}>+{curSym} {addOn.price}</span>
                                             </label>
@@ -1296,7 +1297,7 @@ const BookAppointment = () => {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem', marginBottom: '1.5rem' }}>
                             {[
                                 { label: 'Service', value: selectedService?.name || '—' },
-                                { label: 'Duration', value: selectedService ? `${totalDuration} min` : '—' },
+                                { label: 'Duration', value: selectedService ? formatDuration(totalDuration) : '—' },
                                 { label: 'Date', value: formattedDate || '—' },
                                 { label: 'Time', value: formData.startTime ? `${formData.startTime} - ${formData.endTime}` : '—' },
                             ].map(({ label, value }) => (
@@ -1372,7 +1373,7 @@ const BookAppointment = () => {
                 <div className="booking-mobile-bar">
                     <div style={{ flexShrink: 0 }}>
                         <div style={{ fontWeight: '600', fontSize: '1.1rem', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}>{curSym} {totalPrice}</div>
-                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>{1 + selectedAddOns.length} {selectedAddOns.length ? 'items' : 'item'} · {totalDuration} min</div>
+                        <div style={{ fontSize: '0.75rem', color: 'var(--text-muted)', fontFamily: 'var(--font-body)' }}>{1 + selectedAddOns.length} {selectedAddOns.length ? 'items' : 'item'} · {formatDuration(totalDuration)}</div>
                     </div>
                     {selectedSlotBooked && formData.startTime ? (
                         <button
@@ -1422,7 +1423,7 @@ const BookAppointment = () => {
                             >
                                 <div style={{ flex: 1 }}>
                                     <div style={{ fontWeight: '600', color: 'var(--charcoal)', fontFamily: 'var(--font-body)', fontSize: '0.95rem' }}>{opt.name}</div>
-                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{opt.duration} min</div>
+                                    <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '2px' }}>{formatDuration(opt.duration)}</div>
                                     {opt.description && <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)', marginTop: '4px', lineHeight: 1.5 }}>{opt.description}</div>}
                                     <div style={{ fontWeight: '600', color: 'var(--charcoal)', marginTop: '6px', fontFamily: 'var(--font-body)' }}>{curSym} {opt.price}</div>
                                 </div>
@@ -1434,7 +1435,7 @@ const BookAppointment = () => {
                         <div>
                             <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>from </span>
                             <span style={{ fontWeight: '600', color: 'var(--charcoal)', fontFamily: 'var(--font-body)' }}>{curSym} {Math.min(...optionSheet.options.map(o => o.price))}</span>
-                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>{Math.min(...optionSheet.options.map(o => o.duration))} – {Math.max(...optionSheet.options.map(o => o.duration))} min</span>
+                            <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginLeft: '0.4rem' }}>{formatDuration(Math.min(...optionSheet.options.map(o => o.duration)))} – {formatDuration(Math.max(...optionSheet.options.map(o => o.duration)))}</span>
                         </div>
                         {/* This footer button never applied a selection — each option row
                             above already selects + closes on tap (handleOptionConfirm). Label

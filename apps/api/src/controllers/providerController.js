@@ -7,7 +7,8 @@ const TeamMember = require('../models/TeamMember');
 const Availability = require('../models/Availability');
 const Shift = require('../models/Shift');
 const TimeOff = require('../models/TimeOff');
-const { pickRotationWeek } = require('../utils/staffBooking');
+const { pickRotationWeek, ownerPerforms } = require('../utils/staffBooking');
+const { bookableMembersByProvider, performersOf, offeringSummary } = require('../utils/serviceOffering');
 const { photoPresentation } = require('../utils/photoEdits');
 const { memberSlugMap, findMemberIdBySlug } = require('../utils/memberLink');
 
@@ -97,16 +98,32 @@ exports.getProviderStaff = async (req, res) => {
         // 'owner' sentinel id, which the booking flow maps to teamMember:null. Solo
         // businesses (no staff) keep the owner-implicit flow and need no tile.
         const staffCount = await TeamMember.countDocuments({ provider: req.params.id, isActive: true, bookable: { $ne: false } });
-        if (staffCount > 0) {
+        // What the OWNER offers: their own list, exactly like a member's — not the
+        // whole catalogue. The tile used to say offersAllServices:true, which
+        // listed every service a team member had added for themselves under the
+        // owner, at that member's price (a driver's N$20 000 "Long trip" above the
+        // owner's N$70 trim). The client's performs() check reads this list, so
+        // the owner's step now shows only what the owner does, at the owner's price.
+        const catalogue = mongoose.isValidObjectId(req.params.id)
+            ? await Service.find({ provider: req.params.id, isActive: true }).select('_id ownerPerforms').lean()
+            : [];
+        const ownerServiceIds = catalogue.filter(ownerPerforms).map((s) => String(s._id));
+        const ownerOffersIt = !req.query.serviceId || ownerServiceIds.includes(String(req.query.serviceId));
+        // An owner who offers nothing themselves (they manage, the team performs)
+        // gets no tile — picking them would lead to an empty list.
+        const ownerOffersAnything = ownerServiceIds.length > 0 || catalogue.length === 0;
+        if (staffCount > 0 && ownerOffersIt && ownerOffersAnything) {
             const owner = await User.findById(req.params.id).select('name businessProfile.ownerTitle avatar');
             data.unshift(withRating({
                 _id: 'owner', isOwner: true,
                 // The owner's own set job title (e.g. "Barber"); "Owner" only as a fallback.
                 name: owner?.name || 'Owner', role: owner?.businessProfile?.ownerTitle?.trim() || 'Owner',
-                color: '#f03e16', services: [], serviceOverrides: [], isPrimary: false,
+                color: '#f03e16', services: ownerServiceIds, serviceOverrides: [], isPrimary: false,
                 photoUrl: owner?.avatar || null,
                 bio: '', pronouns: '', languages: [], // owner tile keeps the same public shape
-                offersAllServices: true, // the owner covers anything their business books
+                // The owner's services are the ones listed — their price is the
+                // Service's own price, so no overrides are needed.
+                offersAllServices: false,
             }, 'owner'));
         }
         res.status(200).json({ success: true, data });
@@ -313,7 +330,10 @@ exports.getAllProviders = async (req, res) => {
         const allServices = await Service.find({
             provider: { $in: providerIds },
             isActive: true,
-        }).select('provider name price location');
+        }).select('provider name price duration location ownerPerforms');
+        // …and every bookable team member, so each card can tell the owner's own
+        // offering apart from services only a team member performs.
+        const membersByProvider = await bookableMembersByProvider(providerIds);
 
         // Batch: fetch all reviews for those services in ONE query
         const serviceIds = allServices.map(s => s._id);
@@ -336,7 +356,12 @@ exports.getAllProviders = async (req, res) => {
             reviewsByService[sid].push(r.rating);
         });
 
-        const enriched = providers.map(p => {
+        // A business only appears when a client could actually book something.
+        const summaryById = new Map(providers.map((p) => [
+            p._id.toString(),
+            offeringSummary(servicesByProvider[p._id.toString()] || [], membersByProvider.get(p._id.toString()) || []),
+        ]));
+        const enriched = providers.filter((p) => summaryById.get(p._id.toString()).bookable.length > 0).map(p => {
             const services = servicesByProvider[p._id.toString()] || [];
             const ratings = services.flatMap(s => reviewsByService[s._id.toString()] || []);
 
@@ -344,7 +369,11 @@ exports.getAllProviders = async (req, res) => {
                 ? parseFloat((ratings.reduce((s, r) => s + r, 0) / ratings.length).toFixed(1))
                 : null;
 
-            const prices = services.map(s => s.price);
+            // "Starting at N$…" and "N services available" describe the OWNER's
+            // own offering at the owner's prices. They used to span the whole
+            // catalogue, so a team member adding a N$15 service of their own
+            // became the business's advertised starting price.
+            const offering = summaryById.get(p._id.toString());
             const locations = [...new Set(services.map(s => s.location).filter(Boolean))];
 
             return {
@@ -361,11 +390,11 @@ exports.getAllProviders = async (req, res) => {
                 createdAt: p.createdAt,
                 providerCategory: p.providerCategory || null,
                 currency: p.businessProfile?.currency || 'NAD',
-                serviceCount: services.length,
+                serviceCount: offering.serviceCount,
                 reviewCount: ratings.length,
                 avgRating,
-                minPrice: prices.length ? Math.min(...prices) : null,
-                maxPrice: prices.length ? Math.max(...prices) : null,
+                minPrice: offering.minPrice,
+                maxPrice: offering.maxPrice,
                 // Prefer a service location; fall back to the provider's saved business address
                 location: locations[0] || p.businessProfile?.address || '',
                 address: p.businessProfile?.address || '',
@@ -388,6 +417,19 @@ async function buildProviderProfilePayload(provider) {
         isActive: true,
     }).populate('category', 'name order').sort({ createdAt: -1 });
 
+    // What clients can book here, and from whom. A service only a team member
+    // performs is still on the business's page — clients find Erastus's car wash
+    // here — but it is marked as his (ownerPerforms:false + performers) and
+    // priced at his price, never presented as the owner's. A service nobody
+    // performs any more is not offered at all.
+    const members = (await bookableMembersByProvider([provider._id])).get(String(provider._id)) || [];
+    const offering = offeringSummary(services, members);
+    const bookableServices = offering.bookable.map((s) => ({
+        ...(s.toObject ? s.toObject() : s),
+        ownerPerforms: ownerPerforms(s),
+        performers: performersOf(s, members, provider.name),
+    }));
+
     // Get their categories
     const categories = await Category.find({ provider: provider._id }).sort({ order: 1 });
 
@@ -406,13 +448,13 @@ async function buildProviderProfilePayload(provider) {
     const avgRating = avgResult ? parseFloat(avgResult.avg.toFixed(1)) : null;
     const reviewCount = avgResult?.count || 0;
 
-    // Group services by category — Featured shows ALL services
+    // Group services by category — Featured shows every bookable service
     const grouped = {
-        featured: { name: 'Featured', services: services.map(s => s.toObject ? s.toObject() : s) },
+        featured: { name: 'Featured', services: bookableServices },
     };
 
     categories.forEach(cat => {
-        const catServices = services.filter(s => {
+        const catServices = bookableServices.filter(s => {
             if (!s.category) return false;
             const catId = s.category._id ? s.category._id.toString() : s.category.toString();
             return catId === cat._id.toString();
@@ -456,7 +498,10 @@ async function buildProviderProfilePayload(provider) {
             likesCount: Math.max(0, provider.businessProfile?.likesCount || 0),
             avgRating,
             reviewCount,
-            serviceCount: services.length,
+            // The owner's own offering (see utils/serviceOffering.offeringSummary)
+            // — the "N services available from N$…" bar.
+            serviceCount: offering.serviceCount,
+            minPrice: offering.minPrice,
             // Notice a customer must give to cancel/reschedule (0 = anytime).
             cancellationWindowHours: provider.bookingPolicy?.cancellationWindowHours ?? 24,
         },

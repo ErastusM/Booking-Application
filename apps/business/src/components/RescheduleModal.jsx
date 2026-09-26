@@ -2,6 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { availabilityService, appointmentService } from '../services';
 import { buildTimeSlots } from '../utils/bookingSlots';
 import { X } from 'lucide-react';
+import { formatDuration } from '@bookplus/ui';
 
 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
 const fmtDate = (d) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
@@ -98,7 +99,7 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                 <div style={{ padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
                     <div style={{ minWidth: 0 }}>
                         <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.25rem', fontWeight: '600', color: 'var(--charcoal)', margin: 0 }}>Reschedule</h2>
-                        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.15rem 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{appointment?.service?.name} · {duration} min</p>
+                        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.15rem 0 0', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{appointment?.service?.name} · {formatDuration(duration)}</p>
                     </div>
                     <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.25rem', flexShrink: 0 }}><X size={20} /></button>
                 </div>

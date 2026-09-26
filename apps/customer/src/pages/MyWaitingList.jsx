@@ -3,7 +3,7 @@ import { useSearchParams } from 'react-router-dom';
 import { waitingListService } from '../services';
 import { apptLocalDate } from '../utils/date';
 import { useToast } from '../components/Toast';
-import { useConfirm } from '@bookplus/ui';
+import { useConfirm, formatDuration } from '@bookplus/ui';
 
 const MyWaitingList = () => {
     const [searchParams] = useSearchParams();
@@ -247,7 +247,7 @@ const MyWaitingList = () => {
                                             🕐 {entry.startTime} — {entry.endTime}
                                         </span>
                                         <span style={{ color: 'var(--gold-dark)', fontSize: '0.85rem', fontWeight: '600' }}>
-                                            ${entry.service?.price} · {entry.service?.duration} min
+                                            ${entry.service?.price} · {formatDuration(entry.service?.duration)}
                                         </span>
                                     </div>
                                     {entry.position === 1 && (

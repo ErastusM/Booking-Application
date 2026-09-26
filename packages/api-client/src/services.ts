@@ -286,9 +286,11 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         // offersAllServices:true → performs everything; false → only `services` (empty = none).
         // Omit to leave the flag untouched.
         // Give ONE member a service of their own (name + their price and minutes).
-        // Reuses a same-named service on the menu rather than duplicating it.
-        addMemberService: (id: string, name: string, price?: number, duration?: number) =>
-            API.post(`/team/${id}/services`, { name, price, duration }),
+        // Reuses a same-named service on the menu rather than duplicating it. It is
+        // the member's, not the owner's — unless the owner says they offer it too
+        // (ownerPerforms: true; honoured for the owner only).
+        addMemberService: (id: string, name: string, price?: number, duration?: number, ownerPerforms?: boolean) =>
+            API.post(`/team/${id}/services`, ownerPerforms === undefined ? { name, price, duration } : { name, price, duration, ownerPerforms }),
         setMemberServices: (id: string, services: string[], offersAllServices?: boolean) =>
             API.put(`/team/${id}/services`, offersAllServices === undefined ? { services } : { services, offersAllServices }),
         // Per-member price/duration overrides: [{ service, price?, duration? }].

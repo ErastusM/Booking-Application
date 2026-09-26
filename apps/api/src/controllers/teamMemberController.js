@@ -1355,7 +1355,17 @@ exports.setMyServices = async (req, res) => {
 // independent: Erastus adding Car wash at N$100 and John adding Car wash at
 // N$150 leaves each on his own price, and the owner later editing the catalogue
 // row can't silently reprice either of them.
-const addServiceForMember = async ({ providerId, member, userId, body }) => {
+//
+// A service added this way is the MEMBER's, not the owner's: a new row is
+// written with ownerPerforms:false, so it never appears under the owner's tile,
+// on the business's "Starting at" price, or in the owner's own New Appointment
+// list. The member's typed price becomes the row's base price only because the
+// model needs one — it is the member's price, and nobody else's. Only the owner
+// can say they offer it too (`ownerAlsoOffers`, the Team card's "I offer this
+// too"). A name that matches an existing row reuses it and leaves its price and
+// its ownerPerforms exactly as they are — a member adding "Trim" at N$90 never
+// reprices, or re-assigns, the owner's N$70 Trim.
+const addServiceForMember = async ({ providerId, member, userId, body, ownerMayDecide = false }) => {
     const name = String(body.name || '').trim();
     if (!name) return { status: 400, message: 'A service name is required' };
     if (name.length > 100) return { status: 400, message: 'That service name is too long' };
@@ -1363,6 +1373,7 @@ const addServiceForMember = async ({ providerId, member, userId, body }) => {
     const hasDuration = body.duration !== undefined && body.duration !== null && body.duration !== '';
     const price = Math.max(0, Number(body.price) || 0);
     const duration = Math.max(5, Number(body.duration) || 30);
+    const ownerAlsoOffers = ownerMayDecide && body.ownerPerforms === true;
 
     // Case-insensitive exact match on the business's existing menu, including
     // retired rows — a second "Trim" row splits bookings across records that
@@ -1378,12 +1389,21 @@ const addServiceForMember = async ({ providerId, member, userId, body }) => {
             price,
             duration,
             provider: providerId,
+            // The member's own service — not something the owner offers.
+            ownerPerforms: ownerAlsoOffers,
             createdBy: userId,
         });
     } else if (service.isActive === false) {
         // Reviving a retired row by name is better than a duplicate — but it has
-        // to be live, or the person it was added for still can't be booked.
+        // to be live, or the person it was added for still can't be booked. It
+        // comes back as THIS member's: the owner had stopped selling it, so it
+        // must not reappear under the owner at the owner's old price.
         service.isActive = true;
+        service.ownerPerforms = ownerAlsoOffers;
+        await service.save();
+    } else if (ownerAlsoOffers && service.ownerPerforms === false) {
+        // The owner, adding it for a member, says they do it too.
+        service.ownerPerforms = true;
         await service.save();
     }
 
@@ -1435,7 +1455,10 @@ exports.addTeamMemberService = async (req, res) => {
         if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const member = await TeamMember.findOne({ _id: req.params.id, provider: providerId });
         if (!member) return res.status(404).json({ success: false, message: 'Team member not found' });
-        const r = await addServiceForMember({ providerId, member, userId: req.user._id, body: req.body });
+        // Only the owner (or an admin) can say "I offer this too" — a manager adds
+        // services for colleagues, not for the owner.
+        const ownerMayDecide = req.user.role === 'provider' || req.user.role === 'admin';
+        const r = await addServiceForMember({ providerId, member, userId: req.user._id, body: req.body, ownerMayDecide });
         if (r.message) return res.status(r.status).json({ success: false, message: r.message });
         res.status(r.status).json({
             success: true,

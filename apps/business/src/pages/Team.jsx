@@ -635,7 +635,12 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
     // A member's services are their OWN. What the owner types here becomes that
     // person's service at their own price and minutes — it is not picked from, or
     // inherited from, the rest of the business's menu.
-    const [newSvc, setNewSvc] = useState({ name: '', price: '', duration: '' });
+    //
+    // It is NOT added to the owner's own services: it won't appear under the
+    // owner's name or at the owner's price — unless the owner ticks "I offer this
+    // too" (owner-only; a manager adds for colleagues, not for the owner).
+    const [newSvc, setNewSvc] = useState({ name: '', price: '', duration: '', ownerToo: false });
+    const ownerCanOptIn = user?.role === 'provider';
     const [addedHere, setAddedHere] = useState([]); // services created on this card, until the parent reloads
     const addOwnService = async () => {
         const name = newSvc.name.trim();
@@ -646,6 +651,7 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                 member._id, name,
                 newSvc.price === '' ? undefined : Number(newSvc.price),
                 newSvc.duration === '' ? undefined : Number(newSvc.duration),
+                ownerCanOptIn && newSvc.ownerToo ? true : undefined,
             );
             const d = res?.data?.data || {};
             if (d.service) setAddedHere(prev => prev.some(x => String(x._id) === String(d.service._id)) ? prev : [...prev, d.service]);
@@ -654,8 +660,15 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
             setOverrides(Object.fromEntries((d.serviceOverrides || []).map(o => [String(o.service?._id || o.service), {
                 price: o.price ?? '', duration: o.duration ?? '',
             }])));
-            setNewSvc({ name: '', price: '', duration: '' });
-            flash(d.reused ? `${name} is already on your menu — ${member.name.split(' ')[0]} now offers it` : `Added ${name} for ${member.name.split(' ')[0]}`);
+            setNewSvc({ name: '', price: '', duration: '', ownerToo: false });
+            const who = member.name.split(' ')[0];
+            // Say plainly whose it is: a service added here is the member's.
+            const ownerOffers = d.service?.ownerPerforms !== false;
+            flash(d.reused
+                ? `${name} is already on your menu — ${who} now offers it${ownerOffers ? ', and so do you' : ''}`
+                : ownerOffers
+                    ? `Added ${name} for ${who} — you offer it too`
+                    : `Added ${name} for ${who} — only ${who} offers it; it won’t appear under your name`);
             onChanged?.();
         } catch (err) {
             flash(err?.response?.data?.message || 'Could not add that service');
@@ -1239,6 +1252,12 @@ const MemberCard = ({ member, services, colleagues, onChanged }) => {
                                                             {busy === 'add-service' ? 'Adding…' : 'Add'}
                                                         </button>
                                                     </div>
+                                                    {ownerCanOptIn && (
+                                                        <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem', marginTop: '0.45rem', fontSize: '0.78rem', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                                                            <input type="checkbox" checked={newSvc.ownerToo} onChange={e => setNewSvc(v => ({ ...v, ownerToo: e.target.checked }))} data-testid="member-add-service-owner-too" />
+                                                            I offer this too
+                                                        </label>
+                                                    )}
 
                                                     {/* The rest of the menu is tucked away, not laid out as the member's
                                                         options: a washer's card shouldn't open on a wall of haircuts. It

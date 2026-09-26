@@ -1,4 +1,4 @@
-// @bookplus/ui — shared component library for the customer + business apps.
+// @bookplus/ui — shared helpers and components for the customer + business apps.
 //
 // App-styled replacements for the controls the browser would otherwise draw
 // itself (native select lists, date/time pickers, confirm/alert boxes), themed
@@ -18,3 +18,6 @@ export { ConfirmProvider, useConfirm, useAlert } from './Confirm';
 export type { ConfirmOptions, AlertOptions, ConfirmInput, AlertInput, ConfirmFn, AlertFn } from './Confirm';
 
 export type { PickerChangeEvent } from './internal/event';
+
+// Durations read the same in both apps: "45 min", "1 hr", "2 hr 30 min".
+export { formatDuration } from './formatDuration';

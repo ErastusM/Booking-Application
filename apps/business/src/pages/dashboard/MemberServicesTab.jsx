@@ -3,7 +3,7 @@ import { myServicesService } from '../../services';
 import { useToast } from '../../components/Toast';
 import { ChromeModal, CloseButton } from './primitives';
 // App-styled confirm dialog in place of window.confirm.
-import { useConfirm } from '@bookplus/ui';
+import { useConfirm, formatDuration } from '@bookplus/ui';
 
 // A team member's own services, in the owner's "Service menu" layout: search,
 // one card per service with THEIR price and time, Edit, Remove, "+ Add Service".
@@ -78,7 +78,7 @@ const MemberServicesTab = ({ curSym = 'N$', businessName = 'your business' }) =>
     const remove = async (s) => {
         if (!(await confirm({
             title: `Remove ${s.name} from your services?`,
-            message: `Clients won't be able to book it with you. ${businessName} keeps it on its menu.`,
+            message: `Clients won't be able to book it with you. It stays in ${businessName}'s catalogue, and only the people who offer it can be booked for it.`,
             confirmLabel: 'Remove',
             danger: true,
         }))) return;
@@ -138,7 +138,7 @@ const MemberServicesTab = ({ curSym = 'N$', businessName = 'your business' }) =>
                                 <div key={s._id} data-testid="member-service" style={{ ...cardStyle, borderLeft: '3px solid var(--gold)', padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
                                     <div style={{ minWidth: 0 }}>
                                         <p style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem', marginBottom: '0.2rem' }}>{s.name}</p>
-                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{s.myDuration} min</p>
+                                        <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{formatDuration(s.myDuration)}</p>
                                     </div>
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.6rem', flexShrink: 0 }}>
                                         <span style={{ fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem', whiteSpace: 'nowrap' }}>{curSym} {s.myPrice}</span>
