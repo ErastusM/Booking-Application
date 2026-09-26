@@ -644,7 +644,7 @@ const buildAppointmentScope = async (req) => {
         // booking/availability math attributes work to them. A bare
         // `teamMember: member._id` dropped bookings where a colleague was primary
         // but this member ran one segment.
-        return { query: { provider: req.user.staffOf, ...memberInvolvedFilter(member._id) } };
+        return { query: { provider: req.user.staffOf, ...memberInvolvedFilter(member._id) }, memberId: member._id };
     }
     if (req.user.role === 'provider') return { query: { provider: req.user._id } };
     // admin / other: bare fall-through — the whole platform (unchanged).
@@ -667,10 +667,43 @@ const appointmentInvolvesMember = (appointment, memberId) => {
         && appointment.services.some((s) => s.teamMember && String(s.teamMember._id || s.teamMember) === mid);
 };
 
+// Is EVERY part of a loaded appointment this member's — the top-level performer
+// and every multi-service segment? A shared ticket (a colleague or the owner
+// does one of the segments) is not wholly theirs.
+const appointmentWhollyMember = (appointment, memberId) => {
+    const mid = String(memberId);
+    const top = appointment.teamMember ? String(appointment.teamMember._id || appointment.teamMember) : '';
+    if (top !== mid) return false;
+    return !Array.isArray(appointment.services)
+        || appointment.services.every((s) => s.teamMember && String(s.teamMember._id || s.teamMember) === mid);
+};
+
+// "Respect blocks" for a booking made FOR a client (by the owner or a team
+// member): once either the client or the business owner has blocked the other,
+// nobody books between them. createAppointment applies the same rule to a
+// customer's own booking. Returns true when any of the clients is blocked.
+const BLOCKED_BETWEEN_MESSAGE = 'Booking is unavailable between this client and the business.';
+const anyClientBlocked = async (providerId, clientIds) => {
+    const ids = [...new Set((clientIds || []).filter(Boolean).map(String))];
+    if (!providerId || !ids.length) return false;
+    const [prov, clients] = await Promise.all([
+        User.findById(providerId).select('blockedUsers').lean(),
+        User.find({ _id: { $in: ids } }).select('blockedUsers').lean(),
+    ]);
+    const blockedByOwner = new Set((prov?.blockedUsers || []).map(String));
+    return ids.some((id) => blockedByOwner.has(id))
+        || clients.some((c) => (c.blockedUsers || []).map(String).includes(String(providerId)));
+};
+
+const SHARED_BOOKING_MESSAGE = 'Part of this booking is with someone else — ask the owner to change it.';
+
 // Authorize a staff principal to act on a specific booking of THEIR business.
-// `unscoped` (e.g. bookings:status) grants any booking; `selfScoped` (e.g.
-// bookings:status:self) grants only bookings they perform. Returns false for a
-// non-staff user (callers handle admin/provider/customer separately).
+// `unscoped` (e.g. bookings:status — the owner's) grants any booking;
+// `selfScoped` (e.g. bookings:status:self) grants only a booking that is wholly
+// theirs: moving or cancelling a shared multi-service ticket would move or
+// cancel a colleague's (or the owner's) segment too. Returns true, false, or
+// 'shared' (they perform part of it, but not all) so the caller can say why.
+// Always false for a non-staff user (callers handle admin/provider/customer).
 const staffCanActOnAppointment = async (user, appointment, { unscoped, selfScoped }) => {
     if (!user || user.role !== 'staff' || !user.staffOf) return false;
     const ownerId = appointment.provider?.toString() || appointment.service?.provider?.toString();
@@ -678,7 +711,8 @@ const staffCanActOnAppointment = async (user, appointment, { unscoped, selfScope
     if (can(user, unscoped)) return true;
     if (can(user, selfScoped)) {
         const m = await staffMemberOf(user);
-        return !!(m && appointmentInvolvesMember(appointment, m._id));
+        if (!m || !appointmentInvolvesMember(appointment, m._id)) return false;
+        return appointmentWhollyMember(appointment, m._id) ? true : 'shared';
     }
     return false;
 };
@@ -746,6 +780,23 @@ const staffWindowError = async ({ req, svc, providerId, appointmentDate, startTi
     return null;
 };
 
+// What a team member may see of a booking's money: on a shared multi-service
+// ticket, only THEIR segments' prices, and totalPrice as their own share — never
+// a colleague's (or the owner's) price or the ticket total. Single-performer
+// bookings in their scope are wholly theirs and pass through unchanged.
+const redactForMember = (appointment, memberId) => {
+    if (!memberId || !Array.isArray(appointment.services) || appointment.services.length === 0) return appointment;
+    const mid = String(memberId);
+    const isMine = (seg) => seg.teamMember && String(seg.teamMember._id || seg.teamMember) === mid;
+    let share = 0;
+    const services = appointment.services.map((seg) => {
+        if (isMine(seg)) { share += Number(seg.price) || 0; return seg; }
+        const { price, ...rest } = seg; // eslint-disable-line no-unused-vars
+        return rest;
+    });
+    return { ...appointment, services, totalPrice: share };
+};
+
 exports.getAllAppointments = async (req, res) => {
     try {
         const scope = await buildAppointmentScope(req);
@@ -784,8 +835,9 @@ exports.getAllAppointments = async (req, res) => {
             .populate('services.teamMember', 'name color')
             .sort({ appointmentDate: -1 });
 
+        const shape = (list) => (scope.memberId ? list.map((a) => redactForMember(a, scope.memberId)) : list);
         if (fetchAll) {
-            const appointments = await base();
+            const appointments = shape(await base());
             return res.status(200).json({
                 success: true, count: appointments.length, total: appointments.length,
                 page: 1, pages: 1, data: appointments,
@@ -796,10 +848,11 @@ exports.getAllAppointments = async (req, res) => {
         const limit = Math.min(50, Math.max(1, parseInt(req.query.limit) || 20));
         const skip = (page - 1) * limit;
 
-        const [appointments, total] = await Promise.all([
+        const [pageRows, total] = await Promise.all([
             base().skip(skip).limit(limit),
             Appointment.countDocuments(query),
         ]);
+        const appointments = shape(pageRows);
         res.status(200).json({
             success: true,
             count: appointments.length,
@@ -1759,6 +1812,9 @@ exports.createMultiServiceAppointment = async (req, res) => {
                 return res.status(403).json({ success: false, message: 'You can only book on behalf of an existing client. Use a walk-in for a first-time client.' });
             }
             bookingClient = client;
+            if (await anyClientBlocked(providerId, [customerId])) {
+                return res.status(403).json({ success: false, message: BLOCKED_BETWEEN_MESSAGE });
+            }
         } else if (!bookingClient.name) {
             return res.status(400).json({ success: false, message: 'Choose a client or enter a walk-in name.' });
         }
@@ -2167,6 +2223,9 @@ exports.updateAppointmentStatus = async (req, res) => {
         const staffAllowed = !isOwnerOrAdmin && await staffCanActOnAppointment(req.user, appointment, {
             unscoped: 'bookings:status', selfScoped: 'bookings:status:self',
         });
+        if (staffAllowed === 'shared') {
+            return res.status(403).json({ success: false, code: 'shared_booking', message: SHARED_BOOKING_MESSAGE });
+        }
         if (!isOwnerOrAdmin && !staffAllowed) {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
@@ -2314,6 +2373,9 @@ exports.providerRescheduleAppointment = async (req, res) => {
             unscoped: 'bookings:reschedule',
             selfScoped: 'bookings:reschedule:self',
         });
+        if (staffAllowed === 'shared') {
+            return res.status(403).json({ success: false, code: 'shared_booking', message: SHARED_BOOKING_MESSAGE });
+        }
         if (!isOwner && !staffAllowed) {
             return res.status(403).json({ success: false, message: 'Not authorized' });
         }
@@ -2996,6 +3058,9 @@ exports.createGroupBooking = async (req, res) => {
                     });
                 }
             }
+        }
+        if (await anyClientBlocked(providerId || businessId, namedClientIds)) {
+            return res.status(403).json({ success: false, message: BLOCKED_BETWEEN_MESSAGE });
         }
 
         // Double-booking guard, mirroring createAppointment. A group legitimately

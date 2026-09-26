@@ -160,9 +160,20 @@ const ProviderDashboard = () => {
         if (String(a.teamMember?._id || a.teamMember || '') === mid) return true;
         return Array.isArray(a.services) && a.services.some((x) => String(x?.teamMember?._id || x?.teamMember || '') === mid);
     };
-    // Booking actions a member may take on THIS booking: their own bookings only.
-    const canChangeApptStatus = (a) => !isStaff || (hasCap('bookings:status:self') && apptIsMine(a));
-    const canRescheduleAppt = (a) => !isStaff || (hasCap('bookings:reschedule:self') && apptIsMine(a));
+    // Is ALL of this booking mine — the booking and every multi-service segment?
+    // A shared ticket (a colleague or the owner does a segment) is the owner's to
+    // move or cancel: changing it would change their part too.
+    const apptWhollyMine = (a) => {
+        if (!a || !myMemberId) return false;
+        const mid = String(myMemberId);
+        if (String(a.teamMember?._id || a.teamMember || '') !== mid) return false;
+        return !Array.isArray(a.services) || a.services.every((x) => String(x?.teamMember?._id || x?.teamMember || '') === mid);
+    };
+    const apptIsShared = (a) => isStaff && apptIsMine(a) && !apptWhollyMine(a);
+    // Booking actions a member may take on THIS booking: their own bookings only,
+    // and only when the whole booking is theirs (the server refuses the rest).
+    const canChangeApptStatus = (a) => !isStaff || (hasCap('bookings:status:self') && apptWhollyMine(a));
+    const canRescheduleAppt = (a) => !isStaff || (hasCap('bookings:reschedule:self') && apptWhollyMine(a));
     const tabAllowed = (t) => user?.role !== 'staff' || (!!STAFF_TAB_CAPS[t] && hasCap(STAFF_TAB_CAPS[t]));
     // Route ALL programmatic tab switches through the whitelist too — in-app
     // buttons (e.g. "View in History", "Message") must not let a staff member open
@@ -4536,6 +4547,11 @@ const ProviderDashboard = () => {
                                             <button onClick={() => openClientProfile(cust)} style={{ flexShrink: 0, fontSize: '0.72rem', fontWeight: 600, color: 'var(--gold-dark)', background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', borderRadius: 'var(--radius-sm)', padding: '0.4rem 0.6rem', cursor: 'pointer', fontFamily: 'var(--font-body)', whiteSpace: 'nowrap', minHeight: '36px' }}>Profile</button>
                                         )}
                                     </div>
+                                    {apptIsShared(apptDetailModal) && (
+                                        <p data-testid="appt-shared-note" style={{ margin: '0 0 0.75rem', padding: '0.55rem 0.75rem', borderRadius: 'var(--radius-sm)', background: 'var(--surface-sunken)', color: 'var(--text-secondary)', fontSize: '0.8rem' }}>
+                                            Part of this booking is with someone else — ask the owner to change it.
+                                        </p>
+                                    )}
                                     {/* Contact row: Call · Email · Message · Actions ▾ */}
                                     <div style={{ display: 'flex', alignItems: 'stretch', gap: '0.5rem' }}>
                                         <div style={{ flex: 1, minWidth: 0 }}>
