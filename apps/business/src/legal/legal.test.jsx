@@ -164,7 +164,18 @@ describe('Terms of Service content', () => {
         expect(t).toContain(operatorName());
         expect(t).toMatch(/Reviews/);
         const ids = termsOfService('customer').sections.map((s) => s.id);
-        expect(ids).toEqual(expect.arrayContaining(['wallet', 'cancellations', 'liability', 'law', 'disputes', 'termination', 'acceptable-use', 'reviews']));
+        expect(ids).toEqual(expect.arrayContaining(['wallet', 'cancellations', 'responsibility', 'law', 'disputes', 'termination', 'acceptable-use', 'reviews']));
+    });
+
+    it('has no liability cap or exclusion (removed pending legal advice), but keeps the platform role and consumer rights', () => {
+        for (const audience of ['customer', 'business']) {
+            const t = textOf(termsOfService(audience));
+            expect(t).not.toMatch(/N\$1,000|total liability|limited to direct loss/i);
+            expect(t).not.toMatch(/not liable|as is|indirect or consequential|not responsible for/i);
+            expect(t).toMatch(/Nothing in these Terms takes away any right/);
+        }
+        expect(textOf(termsOfService('customer'))).toMatch(/The business provides the service, not Bookplus/);
+        expect(textOf(termsOfService('business'))).toMatch(/You provide your services to your clients; Bookplus does not/);
     });
 
     it('business terms keep the anchor the privacy policy links to', () => {

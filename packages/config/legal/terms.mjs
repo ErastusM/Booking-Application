@@ -57,7 +57,7 @@ const customerSections = () => [
             '**Your cancellations.** Each business sets how much notice it needs, from “any time” up to several days. That notice is shown before you book. You can cancel or reschedule in the app, or from the link in your confirmation email, until the notice period starts. After that, contact the business.',
             '**If the business cancels**, we tell you by email and any wallet amount held for the booking is released back to your available balance.',
             '**No-shows.** Bookplus does not charge a no-show fee, and any wallet amount held for a booking you missed is released. A business may decide not to accept further bookings from clients who repeatedly miss appointments.',
-            'Refunds for a service you are unhappy with are a matter between you and the business under its own policy and the law. We may help you contact the business, but we are not responsible for the outcome.',
+            'Refunds for a service you are unhappy with are a matter between you and the business under its own policy and the law. We may help you contact the business.',
         ] },
     ] },
     { id: 'wallet', title: 'The prepaid wallet', blocks: [
@@ -88,14 +88,12 @@ const customerSections = () => [
     { id: 'content', title: 'Your content and our intellectual property', blocks: [
         'Content you upload (photos, reviews, messages) stays yours. You give us a non-exclusive licence to host, show and process it to run Bookplus, for as long as it is on the platform. The Bookplus name, logo and software belong to us.',
     ] },
-    { id: 'liability', title: 'Liability', blocks: [
-        'We work to keep Bookplus available and accurate, but it is provided “as is”, and business listings, prices and availability are supplied by the businesses.',
-        { list: [
-            'We are not liable for the services a business provides, or for what a business or another user does or fails to do.',
-            'We are not liable for indirect or consequential loss, or for loss of profit, data or opportunity.',
-            'Our total liability to you for any claim about Bookplus is limited to direct loss, up to the greater of what you paid Bookplus in the 12 months before the claim or N$1,000.',
-        ] },
-        'Nothing in these Terms limits liability for fraud, for death or injury caused by our negligence, or any other liability or consumer right that the law does not allow to be limited.',
+    // Liability limits and exclusions were removed on the owner's instruction
+    // (September 2026) pending legal advice. Do not add a cap or exclusion here
+    // without the lawyer's sign-off.
+    { id: 'responsibility', title: 'Who is responsible for what', blocks: [
+        'Business listings, prices and availability are supplied by the businesses. **The business provides the service, not Bookplus** (see “Our role” above).',
+        'Nothing in these Terms takes away any right you have under consumer-protection or other law.',
     ] },
     { id: 'termination', title: 'Suspending or closing accounts', blocks: [
         'You can close your account at any time. We may suspend or close an account, or remove content, if it breaks these Terms, puts other users at risk, or where the law requires. Where we reasonably can, we tell you why first and give you a chance to respond. If your account is closed, contact the businesses you hold wallet balances with about those balances.',
@@ -181,8 +179,11 @@ const businessSections = () => [
     { id: 'content', title: 'Content and intellectual property', blocks: [
         'Content you upload stays yours. You give us a non-exclusive licence to host, show and process it to run Bookplus and to show your listing on the marketplace. The Bookplus name, logo and software belong to us.',
     ] },
-    { id: 'liability', title: 'Liability and indemnity', blocks: [
-        'Bookplus is provided “as is”. We are not liable for your services, for the acts of your clients or staff, or for indirect or consequential loss, including lost bookings, revenue or data. Our total liability to you is limited to direct loss, up to the greater of the fees you paid Bookplus in the 12 months before the claim or N$1,000. Nothing limits liability that the law does not allow to be limited.',
+    // Liability limits and exclusions were removed on the owner's instruction
+    // (September 2026) pending legal advice. Do not add a cap or exclusion here
+    // without the lawyer's sign-off.
+    { id: 'responsibility', title: 'Responsibility for your services', blocks: [
+        'You provide your services to your clients; Bookplus does not (see “Our role” above). Nothing in these Terms takes away any right that the law gives you.',
         'You agree to compensate Bookplus for claims and losses caused by your services, your breach of these Terms, or your handling of your clients’ information or wallet balances.',
     ] },
     { id: 'termination', title: 'Suspending or closing accounts', blocks: [
