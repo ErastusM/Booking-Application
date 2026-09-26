@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import client from '../services/client';
 
 // The build id baked into this bundle (Vite `define` in the shared vite preset).
 const CURRENT = typeof __BUILD_ID__ !== 'undefined' ? __BUILD_ID__ : '';
@@ -18,6 +19,10 @@ const AppUpdater = () => {
 
         const check = async () => {
             if (stopped || document.hidden) return;
+            // Never reload under someone filling in an emailed-link page (accept
+            // invite / reset password): it would wipe what they typed. The next
+            // check after they leave the page picks the update up.
+            if (client.isPublicTokenPath(window.location.pathname)) return;
             try {
                 const res = await fetch(`/version.json?ts=${Date.now()}`, { cache: 'no-store' });
                 if (!res.ok) return;
