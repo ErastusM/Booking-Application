@@ -5,6 +5,7 @@ import { useAuthContext } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import PushToggle from '../components/PushToggle';
 import AccountDangerZone from '../components/AccountDangerZone';
+import YourDataCard from '../components/YourDataCard';
 import { openConsentSettings } from '@bookplus/api-client';
 import MapPicker, { MAPS_KEY, reverseGeocode } from '../components/MapPicker';
 import LocationsManager from '../components/LocationsManager';
@@ -823,6 +824,7 @@ const ProviderAccount = () => {
                                     </div>
 
                                     {/* Closing the business's account is the owner's; a member's login is managed by the owner. */}
+                                    <YourDataCard note={isStaff ? 'To delete your login, ask the business owner to remove you from the team.' : undefined} />
                                     {!isStaff && <AccountDangerZone />}
                                 </div>
                             </div>

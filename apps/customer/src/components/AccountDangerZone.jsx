@@ -109,7 +109,7 @@ const ConfirmModal = ({ confirm, busy, error, password, setPassword, onCancel, o
                         : 'You’ll be signed out. Sign in again whenever you like to reactivate your account.'}
                 </p>
                 {confirm === 'delete' && (
-                    <input aria-label="Confirm your password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Confirm your password (if you have one)" className="input" style={{ width: '100%', marginBottom: '1rem' }} autoComplete="current-password" />
+                    <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Your password (or your email, if you sign in with Google)" aria-label="Confirm with your password, or your email if you sign in with Google" className="input" style={{ width: '100%', marginBottom: '1rem' }} autoComplete="current-password" />
                 )}
                 {error && <p style={{ color: 'var(--danger-fg)', fontSize: '0.85rem', margin: '0 0 0.75rem' }}>{error}</p>}
                 <div style={{ display: 'flex', gap: '0.5rem', justifyContent: 'flex-end' }}>

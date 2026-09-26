@@ -8,6 +8,7 @@ import { cloudinaryAvatar } from '../utils/cloudinary';
 import PushToggle from '../components/PushToggle';
 import MarketingEmailsToggle from '../components/MarketingEmailsToggle';
 import AccountDangerZone from '../components/AccountDangerZone';
+import YourDataCard from '../components/YourDataCard';
 import { User, Lock, Bell, Globe, Info, Sun, Moon, Calendar, HelpCircle, ChevronRight, LogOut, Cookie } from 'lucide-react';
 import { Field } from '@bookplus/ui';
 import { openConsentSettings } from '@bookplus/api-client';
@@ -274,6 +275,7 @@ const Profile = () => {
                     <SettingRow icon={LogOut} label="Log out" danger onClick={handleLogout} trailing={null} isLast />
                 </Card>
 
+                <YourDataCard />
                 <AccountDangerZone />
             </div>
         </div>

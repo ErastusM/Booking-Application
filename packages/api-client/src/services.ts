@@ -37,7 +37,10 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         renewStaffInvite: (token: string) => API.post(`/auth/staff-invite/${encodeURIComponent(token)}/renew`),
         requestStaffInvite: (email: string) => API.post('/auth/staff-invite/request', { email }),
         deactivateAccount: () => API.post('/auth/deactivate'),
+        // Confirmed with the password — or, for a Google-only account, the email.
         deleteAccount: (password: string) => API.delete('/auth/account', { data: { password } }),
+        // "Download my data": the full JSON export of this account.
+        exportAccount: () => API.get('/auth/account/export', { responseType: 'blob' }),
         getBlockedUsers: () => API.get('/auth/blocked-users'),
         // Promotional email ("Book again", offers) — opt-in, account settings switch.
         setMarketingEmails: (optIn: boolean) => API.put('/auth/marketing', { optIn }),

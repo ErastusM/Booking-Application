@@ -1162,18 +1162,52 @@ exports.deactivateAccount = async (req, res) => {
 };
 
 /**
+ * GET /api/auth/account/export — "Download my data": a JSON copy of everything
+ * held about the signed-in person (utils/accountData.exportAccount).
+ */
+exports.exportAccount = async (req, res) => {
+    try {
+        const data = await require('../utils/accountData').exportAccount(req.user._id);
+        if (!data) return res.status(404).json({ success: false, message: 'User not found' });
+        const day = new Date().toISOString().slice(0, 10);
+        res.set('Cache-Control', 'no-store');
+        res.set('Content-Disposition', `attachment; filename="bookplus-my-data-${day}.json"`);
+        return res.status(200).json(data);
+    } catch (error) {
+        return res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
  * Self-service account deletion (irreversible). We anonymise personal data and
  * disable sign-in rather than hard-deleting the row, so existing bookings keep
- * their integrity. Local accounts must confirm with their password.
+ * their integrity. Confirmed with the password (or, for a Google-only account,
+ * the email address). Team members are removed by their owner instead.
  */
 exports.deleteAccount = async (req, res) => {
     try {
         const user = await User.findById(req.user._id).select('+password');
         if (!user) return res.status(404).json({ success: false, message: 'User not found' });
 
+        // A team member's login belongs to the business: the owner removes them
+        // from the team (Team → Remove), which deletes the login and its data.
+        if (user.role === 'staff') {
+            return res.status(403).json({
+                success: false, code: 'staff_delete_via_owner',
+                message: 'Your login is managed by your business. Ask the owner to remove you from the team — that deletes your login and personal details.',
+            });
+        }
+
+        // Confirm it is really them: the password, or — for a Google-only account,
+        // which has none — the account's email address typed out.
         if (user.password) {
             const ok = req.body.password && await user.matchPassword(req.body.password);
             if (!ok) return res.status(401).json({ success: false, message: 'Password is incorrect' });
+        } else {
+            const typed = String(req.body.confirmEmail || req.body.password || '').trim().toLowerCase();
+            if (!typed || typed !== String(user.email).toLowerCase()) {
+                return res.status(401).json({ success: false, code: 'confirm_email', message: 'Type your account email address to confirm.' });
+            }
         }
 
         // Cancel the user's upcoming appointments (whether they're the customer or
@@ -1205,21 +1239,10 @@ const { ApptPhrase } = require('../utils/apptCopy');
             console.error('Account deletion cleanup failed:', cleanupErr.message);
         }
 
-        const anonEmail = `deleted_${crypto.randomBytes(8).toString('hex')}@deleted.bookplus`;
-        await User.updateOne({ _id: user._id }, {
-            $set: {
-                name: 'Deleted user', email: anonEmail, phone: 'deleted',
-                avatar: null, googleId: null, isActive: false, deletedAt: new Date(),
-                favorites: [], blockedUsers: [],
-            },
-            $unset: { password: '', refreshTokenJtis: '', verificationToken: '', passwordResetToken: '' },
-            $inc: { tokenVersion: 1 },
-        });
-
-        // A deleted provider should no longer appear in the marketplace.
-        if (user.role === 'provider') {
-            try { await require('../models/Service').updateMany({ provider: user._id }, { isActive: false }); } catch (_) {}
-        }
+        // Remove / anonymise every personal record (see utils/accountData for
+        // exactly what goes and what is kept anonymised for the other party).
+        await require('../utils/accountData').purgeAccount(user);
+        clearRefreshCookie(res);
 
         res.status(200).json({ success: true, message: 'Your account has been deleted.' });
     } catch (error) {
