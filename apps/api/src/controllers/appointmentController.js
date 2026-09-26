@@ -1424,6 +1424,11 @@ exports.createAppointment = async (req, res) => {
             guestName: isGuest ? bookingClient.name : null,
             guestEmail: isGuest ? bookingClient.email : null,
             guestPhone: isGuest ? (bookingClient.phone || null) : null,
+            // The guest's own marketing-email choice (unticked by default). No
+            // account means no settings page — this box is their only consent.
+            ...(isGuest && req.body.marketingOptIn === true ? {
+                guestMarketing: { optIn: true, at: new Date(), source: 'guest_booking', everOptedIn: true },
+            } : {}),
             // Walk-in name only when a provider (or a capability-holding staff member
             // logging their own walk-in) didn't pick a registered client.
             walkInName: (isProviderBooking || isStaffWalkIn) && !customerId ? (walkInName?.trim() || null) : null,
@@ -2331,11 +2336,21 @@ exports.updateAppointmentStatus = async (req, res) => {
                 await sendAppointmentConfirmed(customerEmail, customerName, serviceName, date, time, gcalUrl);
             } else if (status === 'completed') {
                 await sendAppointmentCompleted(customerEmail, customerName, serviceName);
-                // Send rebooking prompt
+                // "Book again" is PROMOTIONAL: only for people who opted in to
+                // marketing email (account setting, or the guest's own tick on this
+                // booking), and it always carries a one-click unsubscribe.
                 try {
-                    const providerId = appointment.provider;
-                    const providerDoc = providerId ? await require('../models/User').findById(providerId).select('name') : null;
-                    await sendRebookingPrompt(customerEmail, customerName, serviceName, providerDoc?.name || 'your provider', providerId);
+                    const { marketingRecipientFor } = require('../utils/marketing');
+                    const User = require('../models/User');
+                    const withConsent = appointment.customer?._id
+                        ? { customer: await User.findById(appointment.customer._id).select('name email marketingEmails deletedAt') }
+                        : appointment;
+                    const to = marketingRecipientFor(withConsent);
+                    if (to) {
+                        const providerId = appointment.provider;
+                        const providerDoc = providerId ? await User.findById(providerId).select('name') : null;
+                        await sendRebookingPrompt(to.email, customerName, serviceName, providerDoc?.name || 'your provider', providerId, { unsubscribeToken: to.unsubscribeToken });
+                    }
                 } catch (_) { /* non-critical */ }
             } else if (status === 'cancelled') {
                 await sendAppointmentCancelled(customerEmail, customerName, serviceName, date);

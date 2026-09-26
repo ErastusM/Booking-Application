@@ -36,6 +36,7 @@ const TermsOfService = lazy(() => import('./pages/TermsOfService'));
 const About = lazy(() => import('./pages/About'));
 const ManageBooking = lazy(() => import('./pages/ManageBooking'));
 const Wallet = lazy(() => import('./pages/Wallet'));
+const Unsubscribe = lazy(() => import('./pages/Unsubscribe'));
 
 // The footer only belongs on the two "website" pages — everywhere else the
 // app chrome stays clean (bottom nav on mobile, nothing on desktop).
@@ -90,6 +91,8 @@ function AppRoutes() {
                     <Route path="/privacy-policy" element={<PrivacyPolicy />} />
                     <Route path="/terms" element={<TermsOfService />} />
                     <Route path="/manage/:token" element={<ManageBooking />} />
+                    {/* One-click marketing-email unsubscribe (public, signed token). */}
+                    <Route path="/unsubscribe/:token" element={<Unsubscribe />} />
 
                     {/* Public: guest checkout. BookAppointment handles signed-in vs.
                         guest (contact details captured at the confirm step) itself. */}

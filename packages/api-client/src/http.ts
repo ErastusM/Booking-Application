@@ -18,11 +18,12 @@ export interface ApiClientOptions {
     publicTokenPaths?: string[];
 }
 
-/** Pages whose URL carries a one-time emailed token (see ApiClientOptions). */
-export const PUBLIC_TOKEN_PATHS: string[] = ['/accept-invite', '/reset-password', '/verify-email'];
+/** Pages whose URL carries a one-time emailed token (see ApiClientOptions).
+ *  An entry ending in "/" matches every path under it (/unsubscribe/<token>). */
+export const PUBLIC_TOKEN_PATHS: string[] = ['/accept-invite', '/reset-password', '/verify-email', '/unsubscribe/'];
 
 export const isPublicTokenPath = (pathname: string, paths: string[] = PUBLIC_TOKEN_PATHS): boolean =>
-    paths.some((p) => pathname === p || pathname === `${p}/`);
+    paths.some((p) => (p.endsWith('/') ? pathname.startsWith(p) : pathname === p || pathname === `${p}/`));
 
 export const inferApiBase = (explicit?: string): string => {
     if (explicit) return explicit;

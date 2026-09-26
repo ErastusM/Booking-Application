@@ -39,8 +39,17 @@ export const makeServices = (API: AxiosInstance, accountType?: 'customer' | 'bus
         deactivateAccount: () => API.post('/auth/deactivate'),
         deleteAccount: (password: string) => API.delete('/auth/account', { data: { password } }),
         getBlockedUsers: () => API.get('/auth/blocked-users'),
+        // Promotional email ("Book again", offers) — opt-in, account settings switch.
+        setMarketingEmails: (optIn: boolean) => API.put('/auth/marketing', { optIn }),
         blockUser: (userId: string) => API.post('/auth/block', { userId }),
         unblockUser: (userId: string) => API.delete(`/auth/block/${userId}`),
+    },
+
+    // One-click unsubscribe from marketing email. Public: the signed token from
+    // the email is the only credential, no sign-in needed.
+    marketingService: {
+        unsubscribe: (token: string) => API.post(`/marketing/unsubscribe/${encodeURIComponent(token)}`),
+        resubscribe: (token: string) => API.post(`/marketing/resubscribe/${encodeURIComponent(token)}`),
     },
 
     serviceService: {

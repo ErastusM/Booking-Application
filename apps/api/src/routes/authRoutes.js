@@ -34,6 +34,7 @@ const {
     blockUser,
     unblockUser,
     getBlockedUsers,
+    setMarketingEmails,
 } = require('../controllers/authController');
 const { auth } = require('../middleware/auth');
 const { createInviteRequestLimiter } = require('../middleware/authRateLimit');
@@ -77,6 +78,7 @@ router.put('/change-password', auth, changePassword);
 router.post('/deactivate', auth, deactivateAccount);
 router.delete('/account', auth, deleteAccount);
 router.get('/blocked-users', auth, getBlockedUsers);
+router.put('/marketing', auth, setMarketingEmails);
 router.post('/block', auth, blockUser);
 router.delete('/block/:userId', auth, unblockUser);
 router.post('/forgot-password', accountProbeLimiter, forgotPassword);

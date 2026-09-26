@@ -24,4 +24,5 @@ export const {
     walletService,
     giftCardService,
     formService,
+    marketingService,
 } = client.services;

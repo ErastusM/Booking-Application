@@ -83,7 +83,7 @@ const readRefreshCookie = (req) => {
  */
 exports.register = async (req, res) => {
     try {
-        const { name, email: rawEmail, password, phone, role, providerCategory } = req.body;
+        const { name, email: rawEmail, password, phone, role, providerCategory, marketingOptIn } = req.body;
         const email = rawEmail?.trim().toLowerCase();
 
         // Validate input
@@ -159,6 +159,12 @@ exports.register = async (req, res) => {
             verificationToken,
             verificationTokenExpiry,
             consentedAt: new Date(), // consent captured at sign-up (gated in the UI)
+            // Promotional email only with the (unticked) sign-up box ticked.
+            marketingEmails: { optIn: marketingOptIn === true, at: new Date(), source: 'register' },
+            consentLog: [
+                { kind: 'terms_privacy', value: true, source: 'register', at: new Date() },
+                { kind: 'marketing_emails', value: marketingOptIn === true, source: 'register', at: new Date() },
+            ],
             signupSurveyPending: true, // prompt the one-time friction survey for this new account
         });
 
@@ -1216,6 +1222,27 @@ const { ApptPhrase } = require('../utils/apptCopy');
         }
 
         res.status(200).json({ success: true, message: 'Your account has been deleted.' });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
+ * PUT /api/auth/marketing { optIn } — the account-settings switch for promotional
+ * email ("Book again" reminders and offers). Recorded with time and source.
+ */
+exports.setMarketingEmails = async (req, res) => {
+    try {
+        if (typeof req.body.optIn !== 'boolean') {
+            return res.status(400).json({ success: false, message: 'optIn must be true or false' });
+        }
+        const optIn = req.body.optIn;
+        const at = new Date();
+        await User.updateOne({ _id: req.user._id }, {
+            $set: { marketingEmails: { optIn, at, source: 'settings' } },
+            $push: { consentLog: { $each: [{ kind: 'marketing_emails', value: optIn, source: 'settings', at }], $slice: -50 } },
+        });
+        res.status(200).json({ success: true, data: { marketingEmails: { optIn, at, source: 'settings' } } });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
     }

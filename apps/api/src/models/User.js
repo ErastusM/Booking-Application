@@ -118,6 +118,27 @@ const userSchema = new mongoose.Schema(
         // isn't here is rejected (rotated-away / forged). undefined = legacy, untracked.
         refreshTokenJtis: { type: [String], default: undefined, select: false },
         consentedAt: { type: Date, default: null }, // when the user accepted Terms + Privacy Policy
+        // Promotional email ("Book again" etc.). OFF unless the person ticks the
+        // (unticked) box at sign-up or turns it on in account settings; every
+        // marketing email carries a one-click unsubscribe. `source` records where
+        // the choice was made (register / settings / unsubscribe_link / google_signup).
+        marketingEmails: {
+            optIn: { type: Boolean, default: false },
+            at: { type: Date, default: null },
+            source: { type: String, default: null },
+        },
+        // Audit trail of consent changes (marketing emails, age, terms), newest
+        // last, capped at 50. Part of "Download my data".
+        consentLog: {
+            type: [{
+                _id: false,
+                kind: { type: String, required: true },
+                value: { type: mongoose.Schema.Types.Mixed },
+                source: { type: String, default: null },
+                at: { type: Date, default: Date.now },
+            }],
+            default: [],
+        },
         providerSetupComplete: { type: Boolean, default: false },
         googleCalendarEmbedUrl: { type: String, default: '' },
         businessProfile: {

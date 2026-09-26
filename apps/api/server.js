@@ -46,6 +46,7 @@ const providerWalletRoutes = require('./src/routes/providerWalletRoutes');
 const sitemapRoutes = require('./src/routes/sitemapRoutes');
 const clientErrorRoutes = require('./src/routes/clientErrorRoutes');
 const eventRoutes = require('./src/routes/eventRoutes');
+const marketingRoutes = require('./src/routes/marketingRoutes');
 const startReminderJob = require('./src/utils/reminderService');
 const startWalletExpiryJob = require('./src/utils/walletExpiryService');
 const startAutoCompleteJob = require('./src/utils/autoCompleteService');
@@ -245,6 +246,8 @@ app.use('/api/seo', readLimiter, sitemapRoutes);
 app.use('/api/client-errors', clientErrorRoutes);
 // Product-analytics event pipe (own rate limit + optional auth inside the router).
 app.use('/api/events', eventRoutes);
+// Marketing-email unsubscribe (public, signed token; own rate limit inside).
+app.use('/api/marketing', marketingRoutes);
 
 
 // Health check — includes DB connectivity

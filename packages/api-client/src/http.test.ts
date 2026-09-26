@@ -38,13 +38,19 @@ const dispatched = () => win.dispatchEvent.mock.calls.map((c) => (c[0] as Event)
 
 describe('isPublicTokenPath', () => {
     it('matches the emailed-link pages exactly (and a trailing slash)', () => {
-        expect(PUBLIC_TOKEN_PATHS).toEqual(['/accept-invite', '/reset-password', '/verify-email']);
+        expect(PUBLIC_TOKEN_PATHS).toEqual(['/accept-invite', '/reset-password', '/verify-email', '/unsubscribe/']);
         expect(isPublicTokenPath('/accept-invite')).toBe(true);
         expect(isPublicTokenPath('/accept-invite/')).toBe(true);
         expect(isPublicTokenPath('/reset-password')).toBe(true);
         expect(isPublicTokenPath('/verify-email')).toBe(true);
         expect(isPublicTokenPath('/accept-invite-lookalike')).toBe(false);
         expect(isPublicTokenPath('/dashboard')).toBe(false);
+    });
+
+    it('treats an entry ending in "/" as a prefix (the unsubscribe link carries its token in the path)', () => {
+        expect(isPublicTokenPath('/unsubscribe/abc.def')).toBe(true);
+        expect(isPublicTokenPath('/unsubscribe')).toBe(false);
+        expect(isPublicTokenPath('/unsubscribed-lookalike')).toBe(false);
     });
 });
 
