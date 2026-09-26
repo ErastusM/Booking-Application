@@ -4,7 +4,7 @@ import { FEATURES } from '@bookplus/config/features.mjs';
 import ComingSoon from '../components/ComingSoon';
 import { createPortal } from 'react-dom';
 import { Link, useLocation, useNavigate } from 'react-router-dom';
-import CalendarGrid from '../components/CalendarGrid';
+import CalendarGrid, { visibleDateKeys } from '../components/CalendarGrid';
 import { appointmentService, availabilityService, providerServiceService, categoryService, blockedTimeService, clientCRMService, messageService, packageService, teamService, waitingListService, earningsService, analyticsService, walletService, providerWalletService, authService, myAvailabilityService, myServicesService, providerMarketService } from '../services';
 import StaffReadinessBanner from '../components/StaffReadinessBanner';
 import { useAuthContext } from '../context/AuthContext';
@@ -1328,6 +1328,7 @@ const ProviderDashboard = () => {
                 await myAvailabilityService.set(availability);
                 setMemberHadHours(WEEK_DAYS.some((d) => availability[d]?.enabled));
                 setStaffCalendarHours(availability);
+                setCalHoursNonce((n) => n + 1); // the calendar's shading reads the saved hours
                 setAvailabilitySuccess(WEEK_DAYS.some((d) => availability[d]?.enabled) ? 'Your hours are saved. Clients can book you in these hours.' : 'Saved. You have no working days, so clients can’t book you.');
                 setTimeout(() => setAvailabilitySuccess(''), 4000);
                 return;
@@ -1336,6 +1337,7 @@ const ProviderDashboard = () => {
             const badDay = WEEK_DAYS.find((d) => availability[d]?.enabled && (availability[d].slots || []).some((sl) => !(sl?.start && sl?.end && sl.start < sl.end)));
             if (badDay) { toast(`${badDay[0].toUpperCase()}${badDay.slice(1)}: the closing time must be after the opening time`, 'error'); return; }
             await availabilityService.updateMyAvailability(availability);
+            setCalHoursNonce((n) => n + 1); // the calendar's shading reads the saved hours
             setAvailabilitySuccess('Working hours saved. New Appointment and your booking page now use these hours.');
             setTimeout(() => setAvailabilitySuccess(''), 3000);
         } catch {
@@ -1779,6 +1781,62 @@ const ProviderDashboard = () => {
     // nothing over the normal calendar, so hide the option (and fall back to the
     // normal grid below if 'staff' was somehow still selected).
     const showStaffView = !isStaff && activeTeamMembers.length > 1;
+
+    // ── Each person's own hours, for the calendar's shading ─────────────────
+    // (the owner's answer: "Own hours"). ONE request for the day or days on
+    // screen — never one per lane, and never on the 25-second live refresh:
+    //   Staff view → everyone's hours that day (the owner's lane = the
+    //   business's Working Hours); a member's own calendar → their hours for the
+    //   days shown; the owner's calendar filtered to exactly one member → that
+    //   member's. Anything else keeps the business's Working Hours. Until the
+    //   hours arrive the calendar keeps the shading it had, so nothing flashes
+    //   "closed" while loading.
+    const [calHours, setCalHours] = useState(null); // { key, data }
+    const [calHoursNonce, setCalHoursNonce] = useState(0);
+    const calHoursFetchedAt = useRef(0);
+    const onlyLane = calendarStaffFilter.size === 1 ? [...calendarStaffFilter][0] : null;
+    const calHoursReq = (() => {
+        if (activeTab !== 'calendar' || calendarView === 'month') return null;
+        if (calendarView === 'staff' && showStaffView) { const k = ymd(currentDate); return { from: k, to: k }; }
+        const keys = visibleDateKeys(calendarView, currentDate);
+        const range = { from: keys[0], to: keys[keys.length - 1] };
+        if (isStaff) return { ...range, ids: ['mine'] };
+        if (onlyLane && onlyLane !== 'unassigned') return { ...range, ids: [onlyLane] };
+        return null;
+    })();
+    const calHoursKey = calHoursReq ? `${calHoursReq.from}|${calHoursReq.to}|${(calHoursReq.ids || ['*']).join(',')}` : '';
+    useEffect(() => {
+        if (!calHoursReq) return undefined;
+        let stale = false;
+        calHoursFetchedAt.current = Date.now();
+        teamService.getTeamHours(calHoursReq.from, calHoursReq.to, calHoursReq.ids)
+            .then((r) => { if (!stale) setCalHours({ key: calHoursKey, data: r.data.data }); })
+            .catch(() => { /* shading is best-effort: the business's hours stay shown */ });
+        return () => { stale = true; };
+    }, [calHoursKey, calHoursNonce]); // eslint-disable-line react-hooks/exhaustive-deps
+    // Hours also change elsewhere (a Team card, a member's own screen, another
+    // device), so look again when the app comes back to the foreground.
+    useEffect(() => {
+        const again = () => {
+            if (document.visibilityState === 'hidden' || Date.now() - calHoursFetchedAt.current < 15000) return;
+            setCalHoursNonce((n) => n + 1);
+        };
+        window.addEventListener('focus', again);
+        document.addEventListener('visibilitychange', again);
+        return () => { window.removeEventListener('focus', again); document.removeEventListener('visibilitychange', again); };
+    }, []);
+    const calHoursData = calHours && calHours.key === calHoursKey ? calHours.data : null;
+    // Staff view: { laneId: dayHours } for the day shown ('unassigned' = the owner).
+    const laneHours = calHoursData && calendarView === 'staff' ? (() => {
+        const k = ymd(currentDate);
+        const out = { unassigned: calHoursData.owner?.[k] };
+        Object.entries(calHoursData.members || {}).forEach(([id, byDate]) => { out[id] = byDate?.[k]; });
+        return out;
+    })() : null;
+    // One person's calendar: { date: dayHours }.
+    const hoursByDate = calHoursData && calendarView !== 'staff'
+        ? (isStaff ? calHoursData.members?.[calHoursData.mine] : calHoursData.members?.[onlyLane]) || null
+        : null;
     const calendarViewOptions = [['day', 'Day'], ['3day', '3 Day'], ['week', 'Week'], ...(showStaffView ? [['staff', 'Staff']] : [])];
     const calendarViewLabel = (calendarViewOptions.find(([v]) => v === calendarView) || ['', calendarView])[1];
     const viewMenu = (
@@ -2936,6 +2994,7 @@ const ProviderDashboard = () => {
                                     appointments={appointments}
                                     blockedTimes={calendarBlockedTimes}
                                     availability={isStaff ? staffCalendarHours : availability}
+                                    laneHours={laneHours}
                                     statusColors={statusCalendarColors}
                                     height="100%"
                                     headerControl={viewMenu}
@@ -2962,6 +3021,7 @@ const ProviderDashboard = () => {
                                     ownerName={ownerName}
                                     staffFilter={calendarStaffFilter}
                                     availability={isStaff ? staffCalendarHours : availability}
+                                    hoursByDate={hoursByDate}
                                     height="100%"
                                     headerControl={viewMenu}
                                     onEventClick={openApptDetail}

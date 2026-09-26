@@ -55,6 +55,23 @@ test.describe('Per-staff calendar lanes', () => {
         await expect(page.getByText('Guest Wanda').last()).toBeVisible();
     });
 
+    // The owner's answer: each member's lane is shaded by their OWN hours. The
+    // seed gives Billie 08:00–18:00 and Alex none of his own, so Alex's whole
+    // lane is closed and says why, while Billie's is open in her hours.
+    test('each lane is shaded by that person\'s own hours', async ({ page }) => {
+        await openCalendarView(page, 'Staff');
+        const laneHeaders = page.getByTestId('staff-lane-header');
+        await expect(laneHeaders.filter({ hasText: 'Alex Rivera' })).toContainText('No working hours');
+        await expect(laneHeaders.filter({ hasText: 'Billie Chen' })).not.toContainText('No working hours');
+        // Alex's lane: one band, top to bottom. Billie's: only outside 08:00–18:00.
+        const alexLane = page.locator('[data-lane-id]').nth(await laneHeaders.evaluateAll((els) => els.findIndex((e) => e.textContent.includes('Alex Rivera'))));
+        const bands = alexLane.getByTestId('staff-lane-off');
+        await expect(bands).toHaveCount(1);
+        const laneBox = await alexLane.boundingBox();
+        const bandBox = await bands.first().boundingBox();
+        expect(Math.round(bandBox.height)).toBe(Math.round(laneBox.height));
+    });
+
     test('filtering the Staff view narrows it to a single lane', async ({ page }) => {
         await openCalendarView(page, 'Staff');
         await chip(page, 'Alex Rivera').click();

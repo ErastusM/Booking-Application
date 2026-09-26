@@ -1700,6 +1700,75 @@ exports.getMemberDayHours = async (req, res) => {
 };
 
 /**
+ * GET /api/team/hours?from=YYYY-MM-DD&to=YYYY-MM-DD[&ids=owner,mine,<memberId>,…]
+ * Several people's working hours over up to 7 days in ONE request, by the same
+ * rules as GET /api/team/:id/hours (staffBooking.resolveDayHours) — what the
+ * calendar shades each lane with, so the Staff view costs one request per day
+ * rather than one per lane per render.
+ *
+ * Scoped to the caller's business:
+ *   - the owner: themselves ('owner') and any of their members; no `ids` = the
+ *     owner plus every member (active or not — an archived member with a booking
+ *     that day still has a lane);
+ *   - a team member: only themselves ('mine' or their own id) and 'owner' —
+ *     never a colleague (their calendar shows only their own column);
+ *   - an admin: only with ?provider=<id>.
+ * An id that isn't a member of this business is left out, never an error that
+ * would say whether it exists elsewhere.
+ * data: { from, to, owner?: { [date]: dayHours }, members: { [id]: { [date]: dayHours } } }
+ */
+exports.getTeamDayHours = async (req, res) => {
+    try {
+        const { from, to } = req.query;
+        if (!isRealDateKey(from) || !isRealDateKey(to)) {
+            return res.status(400).json({ success: false, message: 'from and to must be YYYY-MM-DD' });
+        }
+        const span = Math.round((new Date(`${to}T00:00:00.000Z`) - new Date(`${from}T00:00:00.000Z`)) / 86400000);
+        if (span < 0 || span > 6) {
+            return res.status(400).json({ success: false, message: 'from and to must be a range of at most 7 days' });
+        }
+        const mongoose = require('mongoose');
+        const { teamDayHours } = require('../utils/staffBooking');
+        const u = req.user;
+        let providerId = null;
+        let mine = null;
+        if (u.role === 'staff') {
+            providerId = u.staffOf || null;
+            mine = await myMemberDoc(req);
+        } else if (u.role === 'provider') {
+            providerId = u._id;
+        } else if (u.role === 'admin' && mongoose.isValidObjectId(req.query.provider)) {
+            providerId = req.query.provider;
+        }
+        if (!providerId) return res.status(403).json({ success: false, message: 'Not authorized' });
+
+        const asked = req.query.ids === undefined
+            ? null
+            : String(req.query.ids).split(',').map((x) => x.trim()).filter(Boolean).slice(0, 100);
+        if (asked && asked.some((x) => x !== 'owner' && x !== 'mine' && !mongoose.isValidObjectId(x))) {
+            return res.status(400).json({ success: false, message: 'ids must be member ids, "owner" or "mine"' });
+        }
+        let includeOwner = !asked || asked.includes('owner');
+        let memberIds;
+        if (u.role === 'staff') {
+            // Themselves and the owner's column — never a colleague.
+            const self = mine ? String(mine._id) : null;
+            const wantsSelf = !asked || asked.includes('mine') || (self && asked.includes(self));
+            memberIds = wantsSelf && self ? [self] : [];
+        } else {
+            if (asked && asked.includes('mine')) return res.status(400).json({ success: false, message: '"mine" is for team members' });
+            memberIds = asked
+                ? asked.filter((x) => x !== 'owner')
+                : (await TeamMember.find({ provider: providerId }).select('_id').lean()).map((m) => String(m._id));
+        }
+        const hours = await teamDayHours({ providerId, memberIds, includeOwner, from, to });
+        res.status(200).json({ success: true, data: { from, to, ...hours, ...(u.role === 'staff' && mine ? { mine: String(mine._id) } : {}) } });
+    } catch (error) {
+        res.status(500).json({ success: false, message: 'Internal server error' });
+    }
+};
+
+/**
  * GET /api/team/:id/availability  (provider/admin, or staff-self)
  * data: null means "no hours of their own" — they can't be booked until some
  * are set (nothing is inherited from the business's hours).

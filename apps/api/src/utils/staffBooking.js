@@ -895,6 +895,65 @@ async function memberDayHours({ providerId, member, date }) {
     return resolveDayHours({ key, member, businessSchedule, leaves, shift, staffAv });
 }
 
+/** 'YYYY-MM-DD' keys from `from` to `to` inclusive (UTC day steps). */
+const dateKeysBetween = (from, to) => {
+    const out = [];
+    for (let d = new Date(`${from}T00:00:00.000Z`); d.toISOString().slice(0, 10) <= to; d.setUTCDate(d.getUTCDate() + 1)) {
+        out.push(d.toISOString().slice(0, 10));
+    }
+    return out;
+};
+
+/**
+ * Batch memberDayHours: several people's hours over a short range in ONE
+ * Promise.all of $in queries — the calendar shades every lane from this, and
+ * must not cost a request (or ~5 queries) per lane per render. `memberIds` must
+ * already be scoped to `providerId`'s roster by the caller; any id that isn't a
+ * member of this business is dropped here as well.
+ *
+ * Returns { owner: { [key]: dayHours } | undefined, members: { [id]: { [key]: dayHours } } }.
+ */
+async function teamDayHours({ providerId, memberIds = [], includeOwner = true, from, to }) {
+    const keys = dateKeysBetween(from, to);
+    const [availabilityDoc, members] = await Promise.all([
+        Availability.findOne({ provider: providerId }).select('schedule').lean(),
+        memberIds.length
+            ? TeamMember.find({ provider: providerId, _id: { $in: memberIds } }).select('_id').lean()
+            : [],
+    ]);
+    const ids = members.map((m) => m._id);
+    const [shifts, leaves, staffAvs] = ids.length ? await Promise.all([
+        Shift.find({ teamMember: { $in: ids }, date: { $gte: from, $lte: to } }).select('teamMember date slots breaks').lean(),
+        TimeOff.find({
+            teamMember: { $in: ids }, status: 'approved', startDate: { $lte: to }, endDate: { $gte: from },
+        }).select('teamMember startDate endDate allDay startTime endTime').lean(),
+        StaffAvailability.find({ teamMember: { $in: ids } }).select('teamMember schedule rotation').lean(),
+    ]) : [[], [], []];
+    const businessSchedule = availabilityDoc?.schedule || null;
+    const shiftBy = {}; shifts.forEach((s) => { shiftBy[`${s.teamMember}|${s.date}`] = s; });
+    const avBy = {}; staffAvs.forEach((a) => { avBy[String(a.teamMember)] = a; });
+
+    const out = { members: {} };
+    if (includeOwner) {
+        out.owner = {};
+        keys.forEach((key) => { out.owner[key] = resolveDayHours({ key, member: null, businessSchedule }); });
+    }
+    members.forEach((m) => {
+        const k = String(m._id);
+        const mine = leaves.filter((lv) => String(lv.teamMember) === k);
+        out.members[k] = {};
+        keys.forEach((key) => {
+            out.members[k][key] = resolveDayHours({
+                key, member: m, businessSchedule,
+                leaves: mine.filter((lv) => lv.startDate <= key && lv.endDate >= key),
+                shift: shiftBy[`${k}|${key}`] || null,
+                staffAv: avBy[k] || null,
+            });
+        });
+    });
+    return out;
+}
+
 // ── Readiness: can this member be booked at all? ─────────────────────────────
 // "Has hours" = weekly hours with at least one working period on some day (in
 // any week of an active rotation), or a shift with a working period today or
@@ -940,7 +999,7 @@ async function membersHoursReadiness(memberIds, { today } = {}) {
 }
 
 module.exports = {
-    memberDayHours, resolveDayHours, membersHoursReadiness, availabilityHasHours,
+    memberDayHours, resolveDayHours, teamDayHours, dateKeysBetween, membersHoursReadiness, availabilityHasHours,
     resolveBookingStaff, isMemberFree, firstFreePerformer, performsService, ownerPerforms, staffHoursReason,
     memberBusyIntervals, memberBusyIntervalsBuffered, wholeSpanBuffered, bufferMapForAppointments,
     memberInvolvedFilter, ownerInvolvedFilter, laneInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy,

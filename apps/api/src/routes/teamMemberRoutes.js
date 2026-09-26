@@ -7,7 +7,7 @@ const {
     removeTeamMember,
     inviteTeamMember, setTeamMemberServices, setTeamMemberPricing, setTeamMemberPrimary,
     handoverUpcomingBookings,
-    getTeamMemberAvailability, updateTeamMemberAvailability, getMemberDayHours,
+    getTeamMemberAvailability, updateTeamMemberAvailability, getMemberDayHours, getTeamDayHours,
     getMyServices, setMyServices, addMyService, addTeamMemberService, setMyPricing,
     getMyProfile, setMyProfile, getMyAvailability, setMyAvailability,
     getMyStats, getCalendarRoster,
@@ -51,6 +51,12 @@ router.get('/mine/stats', auth, getMyStats);
 // owner and whole-calendar members see everyone, a Service provider only
 // themselves. Before '/:id/*' so 'mine' isn't read as a member id.
 router.get('/mine/calendar', auth, allow({ roles: ['provider'], capability: 'calendar:view' }), getCalendarRoster);
+// Several people's hours over a few days in one request — what the calendar
+// shades each lane and a single person's columns with. Explicitly auth-only:
+// the controller scopes it to the caller's business (a team member gets only
+// themselves and the owner's column; an admin must name the provider). Before
+// '/:id/*' for readability; it can't clash (one segment, no GET '/:id').
+router.get('/hours', auth, getTeamDayHours);
 
 // From here down, every route was previously gated by a single blanket
 // `authorize('provider','admin')`. Phase 3c opens the OPERATIONAL roster
