@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import React, { useState } from 'react';
 import { render, screen, within, fireEvent, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
-import ClientPicker, { HEAD_H, ROW_H, matchesClient } from './ClientPicker';
+import ClientPicker, { HEAD_H, ROW_H, matchesClient, fmtDayMonth } from './ClientPicker';
 
 /**
  * The New Appointment client list. jsdom has no layout, so the list renders
@@ -13,8 +13,11 @@ import ClientPicker, { HEAD_H, ROW_H, matchesClient } from './ClientPicker';
 const row = (id, name, extra = {}) => ({
     customer: { _id: id, name, email: extra.email ?? `${id}@mail.test`, phone: extra.phone ?? null, avatar: extra.avatar ?? null },
     isWalkIn: !!extra.isWalkIn,
-    visits: extra.visits ?? 1,
-    lastVisit: extra.lastVisit ?? '2024-03-04T10:00:00.000Z',
+    completedVisits: extra.visits ?? 1,
+    lastCompletedVisit: 'last' in extra ? extra.last : '2024-03-04T10:00:00.000Z',
+    // Every booking, cancelled and upcoming too — the picker must not show these.
+    visits: 99,
+    lastVisit: '2031-01-01T10:00:00.000Z',
 });
 
 const ROSTER = [
@@ -22,7 +25,7 @@ const ROSTER = [
     row('u2', 'Émile Zola', { phone: '+264 81 555 0000' }),
     row('u3', 'Adriel Nangolo', { avatar: 'https://res.cloudinary.com/demo/image/upload/v1/a.jpg', visits: 12 }),
     row('u4', 'Bruno Mars'),
-    row('u5', 'Carla Bruni'),
+    row('u5', 'Carla Bruni', { visits: 0, last: null }),
     row('u6', 'Mia Wallace'),
     row('u7', 'Marcus Aurelius'),
     row('u8', 'Zed Zulu'),
@@ -76,7 +79,13 @@ describe('ClientPicker', () => {
         expect(img).toHaveAttribute('loading', 'lazy');
         expect(img.getAttribute('src')).toContain('c_fill');
         expect(adriel).toHaveTextContent('12 visits');
-        expect(adriel).toHaveTextContent('last visit Mar 4, 2024');
+        expect(adriel).toHaveTextContent('last visit 4 Mar 2024');
+        expect(adriel).not.toHaveTextContent('99');
+        expect(adriel).not.toHaveTextContent('2031');
+        // No completed booking yet (only upcoming / cancelled ones).
+        const carla = screen.getByTestId('appt-client-option-u5');
+        expect(carla).toHaveTextContent('No visits yet');
+        expect(carla).not.toHaveTextContent('last visit');
 
         const amber = screen.getByTestId('appt-client-option-u1');
         expect(amber.querySelector('img')).toBeNull();
@@ -118,6 +127,15 @@ describe('ClientPicker', () => {
         await user.click(screen.getByTestId('appt-client-clear'));
         expect(screen.getAllByRole('option')).toHaveLength(ROSTER.length);
         expect(screen.getByTestId('appt-client-rail')).toBeInTheDocument();
+    });
+
+    it('writes dates day-month, adding the year only when it is not this year', () => {
+        const now = new Date(2026, 8, 26);
+        expect(fmtDayMonth(new Date(2026, 4, 26, 10), now)).toBe('26 May');
+        expect(fmtDayMonth(new Date(2026, 8, 1, 10), now)).toBe('1 Sep');
+        expect(fmtDayMonth(new Date(2025, 11, 31, 10), now)).toBe('31 Dec 2025');
+        expect(fmtDayMonth(null, now)).toBeNull();
+        expect(fmtDayMonth('not a date', now)).toBeNull();
     });
 
     it('matchesClient ignores a short digit run and matches phone digits', () => {

@@ -8,7 +8,9 @@ import { cloudinaryAvatar } from '../utils/cloudinary';
 // down the right edge that jumps (tap) or scrubs (drag) to a letter.
 //
 // Takes the CRM roll-up rows from GET /api/crm/clients as they are
-// ({ customer: { _id, name, email, phone, avatar }, isWalkIn, visits, lastVisit })
+// ({ customer: { _id, name, email, phone, avatar }, isWalkIn, completedVisits,
+// lastCompletedVisit }). Visits are completed bookings only — not the roster's
+// `visits` / `lastVisit`, which also count cancelled, no-show and upcoming ones.
 // and keeps the app's one client order (utils/clientSort: A–Z, case- and
 // accent-blind, nameless last). onChange gets the picked client's id; a walk-in
 // keeps its "walkin:<name>" id, which utils/bookingClient turns into a name.
@@ -50,12 +52,14 @@ const initialsOf = (c) => {
     const last = parts.length > 1 ? [...parts[parts.length - 1]][0] || '' : '';
     return (first + last).toUpperCase();
 };
-const fmtDate = (d) => {
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+// Day-month, as the app writes dates: "26 May" this year, "26 May 2025" before.
+// Built by hand so no device locale turns it into "May 26" (or "Sept").
+export const fmtDayMonth = (d, now = new Date()) => {
     const t = d ? new Date(d) : null;
     if (!t || Number.isNaN(t.getTime())) return null;
-    // "Sep 19" this year, "Sep 19, 2025" before — short enough for a phone row.
-    const sameYear = t.getFullYear() === new Date().getFullYear();
-    return t.toLocaleDateString('en-US', sameYear ? { month: 'short', day: 'numeric' } : { month: 'short', day: 'numeric', year: 'numeric' });
+    const dm = `${t.getDate()} ${MONTHS[t.getMonth()]}`;
+    return t.getFullYear() === now.getFullYear() ? dm : `${dm} ${t.getFullYear()}`;
 };
 
 // Name, phone (as typed or digits only) or email.
@@ -426,8 +430,8 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
                                     const c = it.client;
                                     const id = String(c.customer._id);
                                     const isSel = String(value ?? '') === id;
-                                    const visits = Number(c.visits) || 0;
-                                    const last = fmtDate(c.lastVisit);
+                                    const visits = Number(c.completedVisits) || 0;
+                                    const last = visits ? fmtDayMonth(c.lastCompletedVisit) : null;
                                     const sub = c.customer.phone || (c.isWalkIn ? '' : c.customer.email) || '';
                                     return (
                                         <div
@@ -456,8 +460,12 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
                                                 {sub ? <span className="cp-phone">{sub}</span> : null}
                                             </span>
                                             <span className="cp-meta">
-                                                <span className="cp-visits">{visits} {visits === 1 ? 'visit' : 'visits'}</span>
-                                                {last ? <span className="cp-last"> · last visit {last}</span> : null}
+                                                {visits ? (
+                                                    <>
+                                                        <span className="cp-visits">{visits} {visits === 1 ? 'visit' : 'visits'}</span>
+                                                        {last ? <span className="cp-last"> · last visit {last}</span> : null}
+                                                    </>
+                                                ) : <span className="cp-none">No visits yet</span>}
                                             </span>
                                         </span>
                                         <span className="cp-radio" aria-hidden="true" />

@@ -119,3 +119,82 @@ describe('GET /api/crm/clients — the fields the New Appointment client list re
         expect(owner.body.data.map((c) => c.customer.name).sort()).toEqual(['My Pic Client', 'Their Pic Client']);
     });
 });
+
+// "N visits" and "last visit" in the New Appointment client list count visits
+// that happened: completed bookings only. They are NEW fields (completedVisits,
+// lastCompletedVisit); visits / lastVisit keep counting every booking, as the
+// Clients tab reads them.
+describe('GET /api/crm/clients — completedVisits / lastCompletedVisit', () => {
+    const day = (offset) => new Date(Date.now() + offset * 864e5);
+    let slot = 0;
+    const at = () => { slot += 1; const h = String(8 + (slot % 10)).padStart(2, '0'); return { startTime: `${h}:00`, endTime: `${h}:30` }; };
+
+    it('counts only completed bookings, dates the latest one, and leaves visits / lastVisit as they were', async () => {
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id);
+        const kim = await makeUser({ name: 'Kim Counted' });
+        const newbie = await makeUser({ name: 'Nia New' });
+        const doneOld = day(-30);
+        const doneNew = day(-5);
+        const upcoming = day(6);
+        await makeAppointment(kim._id, svc._id, provider._id, { status: 'completed', appointmentDate: doneOld, ...at() });
+        await makeAppointment(kim._id, svc._id, provider._id, { status: 'completed', appointmentDate: doneNew, ...at() });
+        await makeAppointment(kim._id, svc._id, provider._id, { status: 'cancelled', appointmentDate: day(-2), ...at() });
+        await makeAppointment(kim._id, svc._id, provider._id, { status: 'no-show', appointmentDate: day(-1), ...at() });
+        await makeAppointment(kim._id, svc._id, provider._id, { status: 'confirmed', appointmentDate: upcoming, ...at() });
+        await makeAppointment(newbie._id, svc._id, provider._id, { status: 'confirmed', appointmentDate: day(3), ...at() });
+        await Appointment.create({
+            customer: provider._id, service: svc._id, provider: provider._id,
+            appointmentDate: day(-4), ...at(), totalPrice: 50, status: 'completed', walkInName: 'Wendy Walk-in',
+        });
+
+        const res = await request(app).get('/api/crm/clients').set(authHeader(provider));
+        expect(res.status).toBe(200);
+        const by = (name) => res.body.data.find((c) => c.customer.name === name);
+
+        const k = by('Kim Counted');
+        expect(k.completedVisits).toBe(2);
+        expect(new Date(k.lastCompletedVisit).getTime()).toBe(doneNew.getTime());
+        // Unchanged: every booking, and the latest date of any of them.
+        expect(k.visits).toBe(5);
+        expect(new Date(k.lastVisit).getTime()).toBe(upcoming.getTime());
+
+        const n = by('Nia New');
+        expect(n.completedVisits).toBe(0);
+        expect(n.lastCompletedVisit).toBeNull();
+        expect(n.visits).toBe(1);
+
+        const w = by('Wendy Walk-in');
+        expect(w.completedVisits).toBe(1);
+        expect(w.lastCompletedVisit).toBeTruthy();
+    });
+
+    it('a team member counts only the completed visits they performed; the owner counts all of them', async () => {
+        const TeamMember = require('../../models/TeamMember');
+        const provider = await makeProvider();
+        const svc = await makeService(provider._id);
+        const memberUser = await makeUser({ role: 'staff', staffOf: provider._id, staffPermissions: ['calendar:self', 'clients:assigned'] });
+        const mine = await TeamMember.create({ provider: provider._id, name: 'Mine', user: memberUser._id });
+        const other = await TeamMember.create({ provider: provider._id, name: 'Other' });
+        const shared = await makeUser({ name: 'Shared Client' });
+        const onlyTheirs = await makeUser({ name: 'Their Client' });
+        const mineDone = day(-20);
+        const otherDone = day(-3);
+        await makeAppointment(shared._id, svc._id, provider._id, { status: 'completed', teamMember: mine._id, appointmentDate: mineDone, ...at() });
+        await makeAppointment(shared._id, svc._id, provider._id, { status: 'completed', teamMember: other._id, appointmentDate: otherDone, ...at() });
+        await makeAppointment(shared._id, svc._id, provider._id, { status: 'completed', teamMember: other._id, appointmentDate: day(-10), ...at() });
+        await makeAppointment(onlyTheirs._id, svc._id, provider._id, { status: 'completed', teamMember: other._id, appointmentDate: day(-8), ...at() });
+
+        const member = await request(app).get('/api/crm/clients').set(authHeader(memberUser));
+        expect(member.status).toBe(200);
+        expect(member.body.data.map((c) => c.customer.name)).toEqual(['Shared Client']);
+        expect(member.body.data[0].completedVisits).toBe(1);
+        expect(new Date(member.body.data[0].lastCompletedVisit).getTime()).toBe(mineDone.getTime());
+
+        const owner = await request(app).get('/api/crm/clients').set(authHeader(provider));
+        const s = owner.body.data.find((c) => c.customer.name === 'Shared Client');
+        expect(s.completedVisits).toBe(3);
+        expect(new Date(s.lastCompletedVisit).getTime()).toBe(otherDone.getTime());
+        expect(owner.body.data.map((c) => c.customer.name).sort()).toEqual(['Shared Client', 'Their Client']);
+    });
+});
