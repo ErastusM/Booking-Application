@@ -154,6 +154,29 @@ const outbox = [];
         appointmentDate: twoDaysAgo, startTime: '09:00', endTime: '09:45', status: 'completed', totalPrice: 120,
     });
 
+    // Past clients of the owner, across the alphabet, for the Clients tab spec
+    // (clients-tab.spec): enough of them that the list shows its A–Z rail. Each
+    // has completed visits weeks ago (never on the calendar's "today", never in
+    // a slot a booking spec wants) and no team member, so Pat never sees them.
+    const PAST_CLIENTS = [
+        ['Amara Iipinge', 1, 100], ['Bertha Nangombe', 2, 100], ['Dawid Botha', 1, 150],
+        ['Hilma Shikongo', 2, 150], ['Johannes Amukoto', 3, 100], ['Martha Nghidinwa', 1, 250],
+        ['Petrus Hamutenya', 2, 100], ['Saara Kapolo', 3, 120], ['Zacharias Uushona', 1, 100],
+    ];
+    for (const [i, [name, visits, price]] of PAST_CLIENTS.entries()) {
+        const client = await User.create({
+            name, email: `e2e-client-${i}@bookplus.dev`, password: 'Password1!',
+            phone: `+26481100${String(i).padStart(4, '0')}`, role: 'customer', isVerified: true, provider: 'local',
+        });
+        for (let v = 0; v < visits; v += 1) {
+            const day = new Date(today); day.setDate(day.getDate() - (20 + i * 3 + v * 7));
+            await Appointment.create({
+                service: service._id, provider: provider._id, customer: client._id,
+                appointmentDate: day, startTime: '08:00', endTime: '08:30', status: 'completed', totalPrice: price,
+            });
+        }
+    }
+
     // One email holding BOTH a customer and a business account (same password),
     // for the login destination-chooser and cross-app hand-off specs.
     await User.create({

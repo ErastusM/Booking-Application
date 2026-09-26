@@ -345,10 +345,6 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
 ::-webkit-scrollbar-track { background: var(--warm-gray); }
 ::-webkit-scrollbar-thumb { background: var(--gold); border-radius: 3px; }
 
-/* Dual-width dates (clients table): full form by default, compact on phones —
-   the mobile swap lives in the max-width: 900px block below. */
-.date-compact, .lbl-compact { display: none; }
-
 /* Tablet / narrow desktop: stack booking layout before the sidebar crowds the form */
 @media (max-width: 900px) {
   /* NO `body { overflow-x: hidden }` here — the global rule above already clips
@@ -460,40 +456,6 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
   .clients-grid { grid-template-columns: 1fr !important; }
   .clients-grid.has-selection .clients-list { display: none; }
   .client-detail-panel { position: static !important; top: auto !important; }
-
-  /* Clients table on phones: ONE LINE PER CLIENT. Five columns can't fit a
-     phone, so the row is compacted rather than wrapped — the email moves to the
-     detail panel (tap the row), the View button goes (the whole row is already
-     tappable), dates use the compact form, and the name truncates. Nothing
-     wraps, so every client is exactly one line with no sideways scrolling. */
-  .clients-table { font-size: 0.8rem !important; table-layout: fixed; width: 100%; }
-  /* Only the DATA cells are forced onto one line — the header labels may wrap,
-     so a long caption like "TOTAL SPEND" can't push the table wider than the
-     screen and get clipped. */
-  .clients-table td { white-space: nowrap !important; }
-  .clients-table th,
-  .clients-table td { padding: 0.7rem 0.4rem !important; }
-  .clients-table th { white-space: normal; }
-  .clients-table .client-email { display: none; }
-  .clients-table .col-view,
-  .clients-table th:nth-child(5) { display: none; }
-  /* Name takes the remaining space (and ellipsizes); the numeric columns get
-     fixed room sized to their longest realistic value, so nothing is cut off at
-     the right edge. */
-  .clients-table th:nth-child(1) { width: auto; }
-  .clients-table th:nth-child(2) { width: 3.8rem; }
-  .clients-table th:nth-child(3) { width: 5.4rem; }
-  .clients-table th:nth-child(4) { width: 6.6rem; }
-  .clients-table .client-name {
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-  }
-  .clients-table-wrap { overflow-x: hidden !important; }
-  .clients-table .date-full,
-  .clients-table .lbl-full { display: none; }
-  .clients-table .date-compact,
-  .clients-table .lbl-compact { display: inline; }
 
   /* Messages: iOS-style single pane. Show the list, or the open thread with a
      back button — never both squeezed side by side. */
@@ -1293,9 +1255,10 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
   .sheet-panel { border-radius: 20px !important; }
 }
 
-/* ── ClientPicker (components/ClientPicker.jsx) — the New Appointment client
-   list: search, contact-style rows, A–Z rail. Tokens only, so dark mode
-   follows; the selected row and radio use the brand orange (--gold). ── */
+/* ── ClientPicker (components/ClientPicker.jsx) — the app's client list (New
+   Appointment's client step, the Clients tab): search, contact-style rows, A–Z
+   rail. Tokens only, so dark mode follows; the selected row and radio use the
+   brand orange (--gold). ── */
 .cp { display: flex; flex-direction: column; gap: var(--space-2); font-family: var(--font-body); }
 .cp-search-wrap { position: relative; }
 .cp-search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
@@ -1402,6 +1365,34 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
 @media (max-width: 480px) {
   .cp-letter { font-size: 0.7rem; }
   .cp-rail { flex-basis: 34px; }
+}
+/* Browse mode (the Clients tab): each row is a button that opens the client,
+   with their total spend on the right of the name line — no radio. */
+.cp-slot { position: absolute; left: 0; right: 0; }
+/* The <button> reset has zero specificity (:where), so the row's own rules —
+   bottom border, hover, the open client's tint — still apply over it. */
+:where(.cp-slot > .cp-row) {
+  top: 0; bottom: 0; width: 100%; margin: 0; border: 0; border-radius: 0;
+  background: transparent; color: inherit; font: inherit; text-align: left;
+}
+/* Inside the list's clipped scroller, so the ring sits inside the row. */
+.cp-slot > .cp-row:focus-visible { outline: 2px solid var(--gold-dark); outline-offset: -2px; }
+.cp-top { display: flex; align-items: baseline; gap: var(--space-2); min-width: 0; }
+.cp-top .cp-name { flex: 1; min-width: 0; }
+.cp-spend {
+  flex: none; font-family: var(--font-body); font-weight: 600; font-size: 0.85rem; line-height: 1.25;
+  color: var(--gold-dark); white-space: nowrap; font-variant-numeric: tabular-nums;
+}
+/* The Clients tab's card (ProviderDashboard): the same list set flush in the
+   card — the search sits in the card's padding, the rows run edge to edge, and
+   the list fills the screen down to the bottom nav (height="fill"). */
+.clients-cp { gap: 0; }
+.clients-cp .cp-search-wrap { margin: var(--space-3) var(--space-4); }
+.clients-cp .cp-body { border: 0; border-top: 1px solid var(--border); border-radius: 0; background: transparent; }
+@media (max-width: 480px) {
+  /* A wider rail for the thumb: each letter is a taller target on the taller list. */
+  .clients-cp .cp-rail { flex-basis: 38px; }
+  .clients-cp .cp-letter { font-size: 0.72rem; }
 }
 
 /* Photo editor stage (tabIndex=0, arrow keys move the crop): an inset ring in

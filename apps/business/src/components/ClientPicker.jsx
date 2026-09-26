@@ -2,34 +2,63 @@ import React, { forwardRef, useCallback, useEffect, useId, useImperativeHandle, 
 import { sortClients } from '../utils/clientSort';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 
-// The New Appointment "who is this for?" list — a phone-contacts style roster:
-// search box on top, one row per client (picture or initials, name, phone,
-// visits, last visit, a radio), alphabetical section headers and an A–Z rail
-// down the right edge that jumps (tap) or scrubs (drag) to a letter.
+// The app's client list — a phone-contacts style roster: search box on top, one
+// row per client (picture or initials, name, phone, visits, last visit),
+// alphabetical section headers and an A–Z rail down the right edge that jumps
+// (tap) or scrubs (drag) to a letter. Two modes, one list:
+//
+//   mode="pick" (default) — New Appointment's "who is this for?": each row has a
+//     radio, and tapping one picks that client (onChange gets the id).
+//   mode="browse" — the Clients tab: no radio; each row shows the client's total
+//     spend (formatSpend) and tapping it (or Enter) opens the client (onOpen gets
+//     the whole row). `value` marks the client that is open.
 //
 // Takes the CRM roll-up rows from GET /api/crm/clients as they are
 // ({ customer: { _id, name, email, phone, avatar }, isWalkIn, completedVisits,
-// lastCompletedVisit }). Visits are completed bookings only — not the roster's
-// `visits` / `lastVisit`, which also count cancelled, no-show and upcoming ones.
-// and keeps the app's one client order (utils/clientSort: A–Z, case- and
-// accent-blind, nameless last). onChange gets the picked client's id; a walk-in
-// keeps its "walkin:<name>" id, which utils/bookingClient turns into a name.
+// lastCompletedVisit, totalSpend }). Visits are completed bookings only — not
+// the roster's `visits` / `lastVisit`, which also count cancelled, no-show and
+// upcoming ones — and the list keeps the app's one client order
+// (utils/clientSort: A–Z, case- and accent-blind, nameless last). onChange gets
+// the picked client's id; a walk-in keeps its "walkin:<name>" id, which
+// utils/bookingClient turns into a name.
 //
 // Built for a roster of thousands on a phone: rows have fixed heights and only
 // the ones near the viewport are rendered (a few dozen at a time), pictures load
 // lazily, and the list scrolls inside itself (overscroll contained) so the page
-// behind the modal never moves.
+// behind the modal never moves. height="fill" makes the list run from where it
+// starts down to the bottom of the screen, above the phone's bottom nav.
 //
-// Accessibility: the list is a single-select listbox (one tab stop,
-// aria-activedescendant). Arrow keys / Home / End / PageUp / PageDown move,
-// Enter or Space picks, typing a letter jumps to that letter's section (again
-// cycles within it). The rail is a vertical toolbar of labelled letter buttons.
+// Accessibility: in pick mode the list is a single-select listbox (one tab stop,
+// aria-activedescendant). In browse mode it is a list of buttons with a roving
+// tab stop (one row is tabbable; focus moves with the keys). Either way arrow
+// keys / Home / End / PageUp / PageDown move, Enter or Space picks / opens,
+// typing a letter jumps to that letter's section (again cycles within it). The
+// rail is a vertical toolbar of labelled letter buttons.
 
 export const ROW_H = 72;
 export const HEAD_H = 28;
 const OVERSCAN = 6 * ROW_H;
 const FALLBACK_VIEWPORT = 480; // before layout / in jsdom
 const TYPEAHEAD_MS = 700;
+const NAV_KEYS = new Set(['ArrowDown', 'ArrowUp', 'PageDown', 'PageUp', 'Home', 'End']);
+// height="fill": never shorter than this (a small phone scrolls the page a
+// little instead), and at least this far above the window's bottom edge.
+const FILL_MIN = 280;
+const FILL_GAP = 24;
+
+// height="fill": the room the page keeps below the list — the padding and
+// borders of the boxes it sits at the bottom of (its card, the page container),
+// or, on phones and tablets, the room kept for the bottom nav and its "+" (the
+// body's bottom padding, which the fixed nav floats over), whichever is more.
+const spaceBelow = (el) => {
+    let boxes = 0;
+    for (let n = el.parentElement; n && n !== document.body; n = n.parentElement) {
+        const cs = getComputedStyle(n);
+        boxes += (parseFloat(cs.paddingBottom) || 0) + (parseFloat(cs.borderBottomWidth) || 0);
+    }
+    const navRoom = parseFloat(getComputedStyle(document.body).paddingBottom) || 0;
+    return Math.max(boxes, navRoom, FILL_GAP);
+};
 // '#' leads: names starting with a digit or symbol sort before "A" (clientSort).
 export const LETTERS = ['#', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'];
 const NO_NAME = 'No name'; // nameless clients (shown by email) sort last, off the rail
@@ -116,7 +145,17 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
         searchPlaceholder = 'Name, phone or email',
         height = 'min(52dvh, 440px)',
         emptyText = 'No clients yet.',
+        mode = 'pick',
+        onOpen,
+        formatSpend,
+        className,
+        // Optional: hold the search text outside (the Clients tab keeps it when
+        // you switch tabs and come back).
+        searchQuery,
+        onSearchChange,
     } = props;
+    const browse = mode === 'browse';
+    const fill = height === 'fill';
 
     const baseId = useId();
     const listId = `${baseId}-list`;
@@ -126,8 +165,18 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
     const typeahead = useRef({ buf: '', at: 0 });
     const dragging = useRef(false);
 
-    const [query, setQuery] = useState('');
-    const [scrollTop, setScrollTop] = useState(0);
+    const [ownQuery, setOwnQuery] = useState('');
+    const query = searchQuery ?? ownQuery;
+    const setQuery = (q) => (onSearchChange ? onSearchChange(q) : setOwnQuery(q));
+    const [scrollTop, setScrollTopState] = useState(0);
+    const scrollRef = useRef(0); // the last scrollTop we rendered for
+    const setScrollTop = useCallback((y) => { scrollRef.current = y; setScrollTopState(y); }, []);
+    const bodyRef = useRef(null);
+    const [fillH, setFillH] = useState(null);
+    // Browse mode: move DOM focus to the active row after the next render
+    // (it may not be rendered until then).
+    const [focusReq, setFocusReq] = useState(0);
+    const requestFocus = () => setFocusReq((n) => n + 1);
     const [viewport, setViewport] = useState(FALLBACK_VIEWPORT);
     const [active, setActive] = useState(-1); // index into `rows`
     const [bubble, setBubble] = useState(null); // letter shown while scrubbing the rail
@@ -173,7 +222,14 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
     useLayoutEffect(() => {
         const el = listRef.current;
         if (!el) return undefined;
-        const measure = () => { if (el.clientHeight) setViewport(el.clientHeight); };
+        const measure = () => {
+            if (!el.clientHeight) return;
+            setViewport(el.clientHeight);
+            // Hidden and shown again (the Clients tab hides the list while a
+            // client is open on a phone), the browser forgets the scroll
+            // position: put the list back where it was.
+            if (Math.abs(el.scrollTop - scrollRef.current) > 1) el.scrollTop = scrollRef.current;
+        };
         measure();
         if (typeof ResizeObserver === 'undefined') return undefined;
         const ro = new ResizeObserver(measure);
@@ -181,19 +237,52 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
         return () => ro.disconnect();
     }, []);
 
+    // height="fill": from the top of the list to the bottom of the window, less
+    // the room the page keeps below it (spaceBelow) — so the page itself doesn't
+    // scroll and the rail stays clear of the bottom nav. Re-measured when anything
+    // above it changes size (a banner closes), on resize / rotation, and when the
+    // list is shown again. The measuring runs on the next frame so a size change
+    // never re-enters the observer in the same frame (no "ResizeObserver loop"
+    // errors).
+    useLayoutEffect(() => {
+        if (!fill) return undefined;
+        const el = bodyRef.current;
+        if (!el) return undefined;
+        let raf = 0;
+        const measure = () => {
+            raf = 0;
+            if (!el.getClientRects().length) return; // display: none
+            const top = el.getBoundingClientRect().top + window.scrollY;
+            const h = Math.floor(window.innerHeight - top - spaceBelow(el));
+            setFillH(Math.max(FILL_MIN, h));
+        };
+        const schedule = () => { if (!raf) raf = requestAnimationFrame(measure); };
+        measure();
+        window.addEventListener('resize', schedule);
+        // Something above the list changing size (a banner closing) resizes one
+        // of the boxes it sits in, so watching those catches it.
+        const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule);
+        for (let n = el; n && ro; n = n.parentElement) ro.observe(n);
+        return () => {
+            window.removeEventListener('resize', schedule);
+            ro?.disconnect();
+            if (raf) cancelAnimationFrame(raf);
+        };
+    }, [fill]);
+
     // A new search starts at the top of its results.
     useEffect(() => {
         if (listRef.current) listRef.current.scrollTop = 0;
         setScrollTop(0);
         setActive(-1);
-    }, [query]);
+    }, [query, setScrollTop]);
 
     const scrollListTo = useCallback((y) => {
         const max = Math.max(0, total - viewport);
         const top = Math.max(0, Math.min(max, y));
         if (listRef.current) listRef.current.scrollTop = top;
         setScrollTop(top); // render the target window now, not on the scroll event
-    }, [total, viewport]);
+    }, [total, viewport, setScrollTop]);
 
     // Keep row i on screen (for the keyboard).
     const reveal = useCallback((i) => {
@@ -216,8 +305,15 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
         const c = rows[i];
         if (!c) return;
         setActive(i);
+        if (browse) { onOpen?.(c); return; }
         if (String(c.customer._id) !== String(value ?? '')) onChange?.(String(c.customer._id));
     };
+
+    // Browse mode: focus follows the keys (the row is rendered by now).
+    useLayoutEffect(() => {
+        if (!focusReq || !browse || active < 0) return;
+        document.getElementById(optId(active))?.focus({ preventScroll: true });
+    }, [focusReq]); // eslint-disable-line react-hooks/exhaustive-deps
 
     // The letter's section, or the nearest one after it (then before it).
     const targetLetter = useCallback((letter) => {
@@ -260,6 +356,11 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
 
     const onListKeyDown = (e) => {
         const cur = active >= 0 ? active : (selectedIndex >= 0 ? selectedIndex : -1);
+        // Browse rows are buttons: Enter / Space click the focused one natively.
+        if (browse && (e.key === 'Enter' || e.key === ' ')) return;
+        // Browse mode: a key that moves also moves focus to the row it lands on.
+        const follow = browse && (NAV_KEYS.has(e.key) || (e.key.length === 1 && !e.ctrlKey && !e.metaKey && !e.altKey && /\S/.test(e.key)));
+        if (follow) requestFocus();
         switch (e.key) {
             case 'ArrowDown': e.preventDefault(); moveTo(cur + 1); break;
             case 'ArrowUp': e.preventDefault(); moveTo(cur < 0 ? 0 : cur - 1); break;
@@ -288,15 +389,20 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
         }
     };
 
+    // Into the list from the search box: the listbox takes focus (pick mode), or
+    // the row itself does (browse mode).
+    const enterList = (i) => {
+        if (browse) requestFocus(); else listRef.current?.focus();
+        moveTo(i);
+    };
     const onSearchKeyDown = (e) => {
         if (e.key === 'ArrowDown') {
             e.preventDefault();
-            listRef.current?.focus();
-            moveTo(active >= 0 ? active : 0);
+            enterList(active >= 0 ? active : 0);
         } else if (e.key === 'Enter') {
             e.preventDefault(); // Enter in the search box must not book the appointment
             if (rows.length === 1) pick(0);
-            else if (rows.length) { listRef.current?.focus(); moveTo(0); }
+            else if (rows.length) enterList(0);
         } else if (e.key === 'Escape' && query) {
             e.preventDefault();
             e.stopPropagation(); // clear the search, don't close the modal
@@ -359,13 +465,17 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
     const stickyLetter = topItem && scrollTop > 0 ? topItem.letter : null;
 
     const showRail = !query && rows.length >= 8;
-    const activeId = active >= 0 && rows[active] ? optId(active) : undefined;
+    const activeId = !browse && active >= 0 && rows[active] ? optId(active) : undefined;
+    // Browse mode's one tab stop: the active row, else the first row in view.
+    const tabStop = active >= 0 ? active
+        : (visible.find((it) => it.kind === 'row' && it.top >= scrollTop) || visible.find((it) => it.kind === 'row'))?.index ?? -1;
     const selected = selectedIndex >= 0 ? rows[selectedIndex] : sorted.find((c) => String(c.customer._id) === String(value ?? ''));
 
     return (
         <div
-            className="cp"
+            className={className ? `cp ${className}` : 'cp'}
             data-testid={testId}
+            data-mode={mode}
             data-value={value ?? ''}
             data-invalid={invalid || undefined}
         >
@@ -395,23 +505,23 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
                 ) : null}
             </div>
 
-            <div className="cp-body" style={{ height }}>
+            <div ref={bodyRef} className="cp-body" style={{ height: fill ? (fillH ?? 'min(60dvh, 560px)') : height }}>
                 <div className="cp-col">
                     <div
                         ref={listRef}
                         id={listId}
                         className="cp-list"
-                        role="listbox"
-                        tabIndex={0}
+                        role={browse ? 'list' : 'listbox'}
+                        tabIndex={browse ? undefined : 0}
                         aria-label={ariaLabel}
-                        aria-required={required || undefined}
-                        aria-invalid={invalid || undefined}
+                        aria-required={(!browse && required) || undefined}
+                        aria-invalid={(!browse && invalid) || undefined}
                         aria-describedby={ariaDescribedBy}
                         aria-activedescendant={activeId}
                         data-testid={`${testId}-list`}
                         onScroll={(e) => setScrollTop(e.currentTarget.scrollTop)}
                         onKeyDown={onListKeyDown}
-                        onFocus={onListFocus}
+                        onFocus={browse ? undefined : onListFocus}
                     >
                         {rows.length === 0 ? (
                             <div className="cp-empty" role="presentation">
@@ -433,6 +543,61 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
                                     const visits = Number(c.completedVisits) || 0;
                                     const last = visits ? fmtDayMonth(c.lastCompletedVisit) : null;
                                     const sub = c.customer.phone || (c.isWalkIn ? '' : c.customer.email) || '';
+                                    const details = (
+                                        <>
+                                            <span className="cp-sub">
+                                                {c.isWalkIn ? <span className="cp-tag">Walk-in</span> : null}
+                                                {sub ? <span className="cp-phone">{sub}</span> : null}
+                                            </span>
+                                            <span className="cp-meta">
+                                                {visits ? (
+                                                    <>
+                                                        <span className="cp-visits">{visits} {visits === 1 ? 'visit' : 'visits'}</span>
+                                                        {last ? <span className="cp-last"> · last visit {last}</span> : null}
+                                                    </>
+                                                ) : <span className="cp-none">No visits yet</span>}
+                                            </span>
+                                        </>
+                                    );
+                                    if (browse) {
+                                        return (
+                                            <div
+                                                key={it.key}
+                                                role="listitem"
+                                                className="cp-slot"
+                                                aria-setsize={rows.length}
+                                                aria-posinset={it.index + 1}
+                                                style={{ top: it.top, height: ROW_H }}
+                                            >
+                                                <button
+                                                    type="button"
+                                                    id={optId(it.index)}
+                                                    className="cp-row"
+                                                    tabIndex={it.index === tabStop ? 0 : -1}
+                                                    aria-current={isSel || undefined}
+                                                    data-active={it.index === active || undefined}
+                                                    data-selected={isSel || undefined}
+                                                    data-testid={`${testId}-row-${id}`}
+                                                    data-letter={it.letter}
+                                                    onFocus={() => { if (active !== it.index) setActive(it.index); }}
+                                                    onClick={() => pick(it.index)}
+                                                >
+                                                    <Avatar client={c} />
+                                                    <span className="cp-main">
+                                                        <span className="cp-top">
+                                                            <span className="cp-name">{labelOf(c)}</span>
+                                                            {formatSpend ? (
+                                                                <span className="cp-spend" data-testid={`${testId}-spend-${id}`}>
+                                                                    <span className="cp-sr">Total spend </span>{formatSpend(c.totalSpend)}
+                                                                </span>
+                                                            ) : null}
+                                                        </span>
+                                                        {details}
+                                                    </span>
+                                                </button>
+                                            </div>
+                                        );
+                                    }
                                     return (
                                         <div
                                             key={it.key}
@@ -448,27 +613,16 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
                                             data-letter={it.letter}
                                             style={{ top: it.top, height: ROW_H }}
                                             // While typing a search, keep focus (and the phone keyboard) in the
-                                        // search box; otherwise a click focuses the list, so arrows work next.
-                                        onMouseDown={(e) => { if (document.activeElement?.classList.contains('cp-search')) e.preventDefault(); }}
+                                            // search box; otherwise a click focuses the list, so arrows work next.
+                                            onMouseDown={(e) => { if (document.activeElement?.classList.contains('cp-search')) e.preventDefault(); }}
                                             onClick={() => pick(it.index)}
                                         >
                                             <Avatar client={c} />
                                             <span className="cp-main">
-                                            <span className="cp-name">{labelOf(c)}</span>
-                                            <span className="cp-sub">
-                                                {c.isWalkIn ? <span className="cp-tag">Walk-in</span> : null}
-                                                {sub ? <span className="cp-phone">{sub}</span> : null}
+                                                <span className="cp-name">{labelOf(c)}</span>
+                                                {details}
                                             </span>
-                                            <span className="cp-meta">
-                                                {visits ? (
-                                                    <>
-                                                        <span className="cp-visits">{visits} {visits === 1 ? 'visit' : 'visits'}</span>
-                                                        {last ? <span className="cp-last"> · last visit {last}</span> : null}
-                                                    </>
-                                                ) : <span className="cp-none">No visits yet</span>}
-                                            </span>
-                                        </span>
-                                        <span className="cp-radio" aria-hidden="true" />
+                                            <span className="cp-radio" aria-hidden="true" />
                                         </div>
                                     );
                                 })}
@@ -519,7 +673,7 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
             </div>
 
             <span className="cp-sr" role="status" aria-live="polite">{announce}</span>
-            {selected ? (
+            {!browse && selected ? (
                 <div className="cp-picked" data-testid={`${testId}-picked`}>
                     Booking for <strong>{labelOf(selected)}</strong>
                 </div>
