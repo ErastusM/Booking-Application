@@ -1649,6 +1649,7 @@ exports.createAppointment = async (req, res) => {
                 const clientBase = primaryOrigin() || '';
                 const extras = {
                     price: basePrice,
+                    currency: providerDoc?.businessProfile?.currency || 'NAD',
                     bookingRef: String(appointment._id).slice(-8).toUpperCase(),
                     manageUrl: appointment.manageToken ? `${clientBase}/manage/${appointment.manageToken}` : undefined,
                     directionsUrl: address ? `https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(address)}` : undefined,

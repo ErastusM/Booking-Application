@@ -290,14 +290,17 @@ exports.sendWelcomeEmail = async (email, name, role) => {
 };
 
 exports.sendAppointmentConfirmed = async (email, name, serviceName, date, time, gcalUrl, extras = {}) => {
-    const { staff, price, bookingRef, manageUrl, directionsUrl, venue, address, ics } = extras;
+    const { staff, price, currency, bookingRef, manageUrl, directionsUrl, venue, address, ics } = extras;
     const rows = [
         ['Service', escapeHtml(serviceName) + (staff ? ` · ${escapeHtml(staff)}` : '')],
         ['When', `${date}, ${time}`],
     ];
     if (venue) rows.push(['Venue', escapeHtml(venue)]);
     if (bookingRef) rows.push(['Booking ref', bookingRef]);
-    const total = price != null ? ['Total', `NAD ${price}`] : null;
+    // The business's pricing currency (ISO code) — a business can price in any of
+    // the supported currencies, so the receipt must not assume NAD.
+    const code = /^[A-Z]{3}$/.test(String(currency || '')) ? currency : 'NAD';
+    const total = price != null ? ['Total', `${code} ${price}`] : null;
     await safeSend({
         from: FROM, to: email, subject: 'Your appointment is confirmed',
         attachments: ics ? [icsAttachment(ics)] : undefined,
