@@ -79,26 +79,28 @@ test.describe('A team member manages their own services', () => {
         await expect(page).toHaveURL(/\/dashboard/);
         await expect(page.getByTestId('calendar-view-menu')).toBeVisible();
 
-        // Their Services screen is the owner's "Service menu" layout, scoped to them.
+        // Their Catalogue is the owner's "Service menu" screen, scoped to them,
+        // and adding a service opens the owner's full sheet with its Duration picker.
         await page.goto('/dashboard?tab=services');
-        const services = page.getByTestId('member-services');
+        const services = page.getByTestId('service-menu');
         await expect(services).toBeVisible();
 
-        await services.getByTestId('member-add-service').click();
-        await page.getByTestId('member-service-name').fill('Beard oil');
-        await page.getByTestId('member-service-price').fill('80');
-        await page.getByTestId('member-service-duration').fill('20');
+        await services.getByTestId('add-service').click();
+        await page.getByTestId('service-name').fill('Beard oil');
+        await page.getByTestId('service-price').fill('80');
+        await page.getByTestId('service-duration').click();
+        await page.getByTestId('service-duration-popup').locator('[data-value="20"]').click();
         const [priced] = await Promise.all([
             page.waitForResponse((r) => r.url().includes('/team/mine/pricing') && r.request().method() === 'PUT'),
-            page.getByTestId('member-service-save').click(),
+            page.getByRole('button', { name: /^save$/i }).click(),
         ]);
         expect(priced.ok()).toBeTruthy();
-        const card = services.getByTestId('member-service').filter({ hasText: 'Beard oil' });
+        const card = services.getByTestId('catalogue-service').filter({ hasText: 'Beard oil' });
         await expect(card).toContainText('80');
         await expect(card).toContainText('20 min');
 
         // Survives a reload — it was saved, not just local state.
         await page.reload();
-        await expect(page.getByTestId('member-service').filter({ hasText: 'Beard oil' })).toContainText('80');
+        await expect(page.getByTestId('catalogue-service').filter({ hasText: 'Beard oil' })).toContainText('80');
     });
 });

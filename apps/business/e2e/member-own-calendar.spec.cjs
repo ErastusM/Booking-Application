@@ -63,19 +63,20 @@ test.describe('A Service provider blocks their own time', () => {
         expect(body.data.teamMember).toBeTruthy();
         expect(body.data.ownerOnly).toBe(false);
 
-        // It shows under their own "Blocked time" on the Hours screen, where the
-        // owner keeps "Blocked Times".
+        // It shows under Blocked Times on their Availability screen — the owner's
+        // screen, over their own column.
         await page.goto('/dashboard?tab=availability');
-        const blocks = page.getByTestId('member-blocks');
-        await expect(blocks).toBeVisible();
-        await expect(blocks.getByTestId('member-block').filter({ hasText: 'E2E own block' })).toBeVisible();
+        const screen = page.getByTestId('availability');
+        await expect(screen).toBeVisible();
+        const row = screen.getByTestId('blocked-time-row').filter({ hasText: 'E2E own block' });
+        await expect(row).toBeVisible();
 
         // …and they can remove it again.
         const [removed] = await Promise.all([
             page.waitForResponse((r) => r.url().includes('/api/blocked-times/') && r.request().method() === 'DELETE'),
-            blocks.getByTestId('member-block').filter({ hasText: 'E2E own block' }).getByRole('button', { name: /unblock/i }).click(),
+            row.getByRole('button', { name: /delete/i }).click(),
         ]);
         expect(removed.status()).toBe(200);
-        await expect(blocks.getByTestId('member-block').filter({ hasText: 'E2E own block' })).toHaveCount(0);
+        await expect(screen.getByTestId('blocked-time-row').filter({ hasText: 'E2E own block' })).toHaveCount(0);
     });
 });

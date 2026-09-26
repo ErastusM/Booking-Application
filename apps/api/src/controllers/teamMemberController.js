@@ -1388,9 +1388,10 @@ exports.getMyServices = async (req, res) => {
         const member = await myMemberDoc(req);
         if (!member) return res.status(404).json({ success: false, message: 'No staff profile found' });
         // ownerPerforms rides along so a whole-calendar member booking the
-        // owner's column is offered only what the owner performs.
+        // owner's column is offered only what the owner performs; the category
+        // name so their Catalogue groups services under the owner's headings.
         const services = await Service.find({ provider: req.user.staffOf, isActive: { $ne: false } })
-            .select('name price duration ownerPerforms').sort({ name: 1 });
+            .select('name price duration ownerPerforms category').populate('category', 'name').sort({ name: 1 });
         res.status(200).json({
             success: true,
             data: {
