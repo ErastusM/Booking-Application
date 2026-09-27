@@ -107,6 +107,11 @@ p, li, label, input, textarea, select, button, a {
 .btn-primary:hover { background: #1c1c1e; transform: translateY(-1px); box-shadow: var(--shadow-md); }
 .btn-primary:active { transform: translateY(0) scale(0.98); }
 .btn-primary:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+/* Dark mode: an ink button on a near-black card all but disappears (the
+   client panel's "Book Appointment" read as black on black). Primary buttons
+   take the brand orange with ink text there (5.25:1), like the "+" button. */
+body.dark-mode .btn-primary { background: var(--gold); color: var(--ink); }
+body.dark-mode .btn-primary:hover { background: var(--gold-light); }
 
 .btn-outline {
   display: inline-flex;
