@@ -76,6 +76,7 @@ const ManageBooking = () => {
                 const own = (pairs.find(([l]) => l === rOwnLane) || [])[1] || {};
                 setRDay({
                     shiftWindow: own.shiftWindow ?? null,
+                    memberWindow: own.memberWindow ?? null,
                     hoursSource: own.hoursSource || null,
                     openings: Array.isArray(own.openings) ? own.openings : [],
                     memberHasHours: own.memberHasHours !== false,
@@ -196,12 +197,15 @@ const ManageBooking = () => {
                                                 const span = toMin(appt.endTime) - toMin(appt.startTime);
                                                 const duration = (span > 0 ? span : 0) || appt.service?.duration || 30;
                                                 // The professional's day, as the server checks the move: a
-                                                // shift replaces the business's hours; no hours of their own
-                                                // that day (or away) means nothing can be offered.
+                                                // shift replaces their weekly hours; their own weekly periods
+                                                // widen the business's day (a member may work past closing, or
+                                                // on a day it is closed); no hours of their own that day (or
+                                                // away) means nothing can be offered.
                                                 const noHoursThatDay = rDay && (rDay.hoursSource === 'none' || rDay.hoursSource === 'leave');
+                                                const periods = (list) => (list || []).filter((sl) => sl?.start && sl?.end).map((sl) => ({ start: toMin(sl.start), end: toMin(sl.end) })).filter((b) => b.end > b.start);
                                                 const blocks = rDay?.shiftWindow
-                                                    ? rDay.shiftWindow.filter((sl) => sl?.start && sl?.end).map((sl) => ({ start: toMin(sl.start), end: toMin(sl.end) })).filter((b) => b.end > b.start)
-                                                    : blocksFor(rDate, appt.schedule);
+                                                    ? periods(rDay.shiftWindow)
+                                                    : [...blocksFor(rDate, appt.schedule), ...periods(rDay?.memberWindow)];
                                                 const minStart = rDate === today ? (new Date().getHours() * 60 + new Date().getMinutes()) : -1;
                                                 const toRanges = (list) => (list || []).map((b) => ({ start: toMin(b.startTime), end: toMin(b.endTime), kind: b.kind }));
                                                 const bookedRanges = Object.values(rBusyByLane).flatMap(toRanges);

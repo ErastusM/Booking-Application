@@ -1450,7 +1450,7 @@ const MemberCard = ({ member, displayColor, services, colleagues, onChanged }) =
                                 </div>
                             </Section>
 
-                            <Section icon={Clock} title="Working hours">
+                            <Section icon={Clock} title="Working hours" hint="(their own — clients can book them in these hours, even on days the business is closed)">
                                 {schedule === null && <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.85rem' }}>Loading…</p>}
                                 {schedule === 'none' && (
                                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexWrap: 'wrap' }}>

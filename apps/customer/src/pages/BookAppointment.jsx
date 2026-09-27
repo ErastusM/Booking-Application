@@ -67,10 +67,15 @@ const BookAppointment = () => {
     const [availabilityError, setAvailabilityError] = useState('');
     const [bookedSlots, setBookedSlots] = useState([]); // [{startTime, endTime}]
     // The selected member's shift working window for the chosen date, or null for
-    // "no shift — use business hours". A shift REPLACES business hours for that
-    // date (models/Shift), so when present it becomes the slot picker's base
-    // window and can extend past published closing. Empty array = rostered day off.
+    // "no shift". A shift REPLACES every other hours for that date (models/Shift),
+    // so when present it becomes the slot picker's base window and can extend
+    // past published closing. Empty array = rostered day off.
     const [shiftWindow, setShiftWindow] = useState(null);
+    // The selected member's own WEEKLY periods for the chosen date (booked-slots
+    // `memberWindow`), or null. A member's hours are their own, never the
+    // business's: they may run past the published closing, or fall on a day the
+    // business (the owner) is closed — so they widen the picker's base window.
+    const [memberWindow, setMemberWindow] = useState(null);
     // "Any professional" only: the exact start ranges where ONE person can do the
     // whole booking (server-computed per performer, at their own length). null =
     // not given — the busy list alone decides.
@@ -139,6 +144,7 @@ const BookAppointment = () => {
         setSelectedOption(null);
         setSelectedAddOns([]);
         setShiftWindow(null);
+        setMemberWindow(null);
         setHoursSource(null);
         setFormData(prev => ({ ...prev, service: '', startTime: '', endTime: '' }));
     };
@@ -292,15 +298,15 @@ const BookAppointment = () => {
         ? { duration: totalDuration || undefined, option: selectedOption?.name || undefined }
         : undefined;
     useEffect(() => {
-        if (!effectiveProviderId || !formData.appointmentDate) { setBookedSlots([]); setShiftWindow(null); setOpenStarts(null); setHoursSource(null); setDayOpenings([]); return; }
+        if (!effectiveProviderId || !formData.appointmentDate) { setBookedSlots([]); setShiftWindow(null); setMemberWindow(null); setOpenStarts(null); setHoursSource(null); setDayOpenings([]); return; }
         let stale = false;
         // The service id makes the "any professional" view staff-aware: the server
         // unions the availability of everyone who performs it, so the picker only
         // shows slots the booking will actually accept (and stops greying an hour
         // where one member is booked but a colleague is free).
         appointmentService.getBookedSlots(effectiveProviderId, formData.appointmentDate, selectedStaff?._id || undefined, selectedService?._id || undefined, anyViewOpts)
-            .then(res => { if (!stale) { setBookedSlots(res.data.data || []); setShiftWindow(res.data.shiftWindow ?? null); setOpenStarts(res.data.openStarts ?? null); setHoursSource(res.data.hoursSource || null); setDayOpenings(res.data.openings || []); } })
-            .catch(() => { if (!stale) { setBookedSlots([]); setShiftWindow(null); setOpenStarts(null); setHoursSource(null); setDayOpenings([]); } });
+            .then(res => { if (!stale) { setBookedSlots(res.data.data || []); setShiftWindow(res.data.shiftWindow ?? null); setMemberWindow(res.data.memberWindow ?? null); setOpenStarts(res.data.openStarts ?? null); setHoursSource(res.data.hoursSource || null); setDayOpenings(res.data.openings || []); } })
+            .catch(() => { if (!stale) { setBookedSlots([]); setShiftWindow(null); setMemberWindow(null); setOpenStarts(null); setHoursSource(null); setDayOpenings([]); } });
         return () => { stale = true; };
     }, [effectiveProviderId, formData.appointmentDate, selectedStaff, selectedService?._id, anyViewOpts?.duration, anyViewOpts?.option]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -320,6 +326,7 @@ const BookAppointment = () => {
                 if (slotKeyRef.current !== key) return; // a newer day/member/service is selected — drop this
                 setBookedSlots(res.data.data || []);
                 setShiftWindow(res.data.shiftWindow ?? null);
+                setMemberWindow(res.data.memberWindow ?? null);
                 setOpenStarts(res.data.openStarts ?? null);
                 setHoursSource(res.data.hoursSource || null);
                 setDayOpenings(res.data.openings || []);
@@ -360,18 +367,22 @@ const BookAppointment = () => {
     };
 
     useEffect(() => {
-        // A chosen member's shift is authoritative for its date and can run past
-        // business hours, so validate the picked time against the shift window
-        // rather than the published hours — otherwise a legitimately bookable
-        // late-shift slot would be flagged as "outside working hours" and, via
-        // canReview, block the booking the server would accept. Empty window is a
-        // rostered day off: nothing that day is valid.
-        if (selectedStaff && shiftWindow !== null) {
+        // A chosen member's own hours (shift, else weekly) are authoritative and
+        // can run past business hours or fall on a day the business is closed, so
+        // validate the picked time against their window rather than the published
+        // hours — otherwise a legitimately bookable slot would be flagged as
+        // "outside working hours" and, via canReview, block the booking the server
+        // would accept. Empty window = not working that day: nothing is valid.
+        const ownWindow = selectedStaff ? (shiftWindow ?? memberWindow) : null;
+        if (ownWindow !== null) {
             if (!formData.appointmentDate || !formData.startTime) { setAvailabilityError(''); return; }
-            const within = shiftWindow.some(s => formData.startTime >= s.start && formData.startTime < s.end);
+            const within = ownWindow.some(s => formData.startTime >= s.start && formData.startTime < s.end);
             setAvailabilityError(within ? '' : 'That staff member is not rostered on at this time. Please pick another slot.');
             return;
         }
+        // "Any professional" with the server's per-performer view: the team's own
+        // hours decide (openStarts), not the business's published ones.
+        if (!selectedStaff && Array.isArray(openStarts)) { setAvailabilityError(''); return; }
         if (!providerAvailability || !formData.appointmentDate || !formData.startTime) {
             setAvailabilityError('');
             return;
@@ -399,7 +410,7 @@ const BookAppointment = () => {
             return;
         }
         setAvailabilityError('');
-    }, [providerAvailability, formData.appointmentDate, formData.startTime, selectedStaff, shiftWindow]);
+    }, [providerAvailability, formData.appointmentDate, formData.startTime, selectedStaff, shiftWindow, memberWindow, openStarts]);
 
     // Re-runs whenever the ?providerId query param itself changes (not just on mount) —
     // e.g. navigating from one business's booking link to another's, or to the generic
@@ -713,6 +724,18 @@ const BookAppointment = () => {
         .filter(b => b.end > b.start)
         .sort((a, b) => a.start - b.start);
 
+    // The complement of the "nobody rostered" (off_shift) ranges across the day.
+    const rosteredFromBusy = (busy) => {
+        const hmm = (t) => { const [h, m] = String(t).split(':').map(Number); return h * 60 + m; };
+        const off = (busy || []).filter(b => b.kind === 'off_shift')
+            .map(b => ({ start: hmm(b.startTime), end: b.endTime === '23:59' ? 24 * 60 : hmm(b.endTime) }))
+            .sort((a, b) => a.start - b.start);
+        const out = []; let cursor = 0;
+        off.forEach(({ start, end }) => { if (start > cursor) out.push({ start: cursor, end: start }); cursor = Math.max(cursor, end); });
+        if (cursor < 24 * 60) out.push({ start: cursor, end: 24 * 60 });
+        return out;
+    };
+
     const generateTimeSlots = (dateStr) => {
         const duration = totalDuration || 30;
         // A chosen professional with no working hours that day (none of their
@@ -722,10 +745,12 @@ const BookAppointment = () => {
 
         // Working blocks for the day — supports multiple slots (e.g. 09:00–12:00, 13:00–17:00)
         let blocks = [{ start: 8 * 60, end: 20 * 60 }];
-        // A chosen member with a shift for this date: their shift REPLACES business
-        // hours (models/Shift), and may run past closing. An empty window is a
-        // rostered day off. This is what lets a customer self-book a late/early
-        // shift the published hours don't cover — the server already accepts it.
+        // A chosen member with a shift for this date: their shift REPLACES the
+        // weekly hours (models/Shift), and may run past closing. An empty window
+        // is a rostered day off. Without a shift, their own weekly periods widen
+        // the business's day (they may run past closing, or fall on a day the
+        // business — the owner — is closed); the busy list marks the rest.
+        const anyView = !selectedStaff && Array.isArray(openStarts);
         if (selectedStaff && shiftWindow !== null) {
             blocks = toBlocks(shiftWindow);
             if (blocks.length === 0) return [];
@@ -733,8 +758,13 @@ const BookAppointment = () => {
             const [y, m, d] = dateStr.split('-').map(Number);
             const dayNames = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
             const daySchedule = providerAvailability[dayNames[new Date(y, m - 1, d).getDay()]];
-            if (!daySchedule?.enabled || !Array.isArray(daySchedule.slots) || daySchedule.slots.length === 0) return [];
-            blocks = toBlocks(daySchedule.slots);
+            const open = daySchedule?.enabled && Array.isArray(daySchedule.slots) ? toBlocks(daySchedule.slots) : [];
+            // "Any professional": the team works its own hours, so the time the
+            // server doesn't mark as nobody-rostered counts too — past closing,
+            // or on a day the business is closed.
+            const teamTime = anyView ? rosteredFromBusy(bookedSlots)
+                : selectedStaff && Array.isArray(memberWindow) ? toBlocks(memberWindow) : [];
+            blocks = [...open, ...teamTime];
             if (blocks.length === 0) return [];
         }
 
