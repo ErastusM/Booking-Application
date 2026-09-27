@@ -78,4 +78,57 @@ async function openCalendarView(page, label) {
     await page.getByRole('menuitem', { name: label, exact: true }).click();
 }
 
-module.exports = { SEED, login, CUSTOMER_URL, expectProviderDashboard, openCalendarView };
+// Distance from the bottom of the top bar to the first laid-out content inside
+// <main>: text, controls, and boxes with their own background, border or shadow.
+// Fixed layers (bottom nav, overlays, the calendar frame) don't count; hidden
+// (visibility / opacity 0) ones don't either, so a box that only reserves space
+// shows up as a gap.
+const measureTopGap = () => {
+    const main = document.getElementById('main-content');
+    const bar = document.querySelector('nav[aria-label="Main"]');
+    const barBottom = bar ? bar.getBoundingClientRect().bottom : 0;
+    const pageBg = getComputedStyle(document.body).backgroundColor;
+    const hidden = (el) => {
+        for (let a = el; a && a !== main.parentElement; a = a.parentElement) {
+            const cs = getComputedStyle(a);
+            if (cs.position === 'fixed' || cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) return true;
+        }
+        return false;
+    };
+    let top = Infinity; let what = '';
+    // A box that runs up under the bar (a dark page header) starts at the bar.
+    const consider = (r, el) => {
+        if (r.width < 2 || r.height < 2 || r.bottom <= barBottom + 1) return;
+        const t = Math.max(r.top, barBottom);
+        if (t < top) { top = t; what = `${el.tagName.toLowerCase()} "${(el.innerText || el.getAttribute('aria-label') || '').trim().slice(0, 40)}"`; }
+    };
+    const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (n.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT) });
+    const range = document.createRange();
+    for (let n; (n = walker.nextNode());) {
+        const el = n.parentElement;
+        if (!el || el.closest('style,script') || hidden(el)) continue;
+        range.selectNodeContents(n);
+        for (const r of range.getClientRects()) consider(r, el);
+    }
+    for (const el of main.querySelectorAll('*')) {
+        const cs = getComputedStyle(el);
+        const painted = /^(img|svg|input|select|textarea|button|canvas|video)$/i.test(el.tagName)
+            || (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== pageBg)
+            || cs.backgroundImage !== 'none' || cs.boxShadow !== 'none' || parseFloat(cs.borderTopWidth) > 0;
+        if (painted && !hidden(el)) consider(el.getBoundingClientRect(), el);
+    }
+    return { barBottom: Math.round(barBottom), gap: Math.round(top - barBottom), what };
+};
+
+// Let the page load and its entrance animations (fade-ins) finish; a spinner's
+// endless animation is ignored.
+async function settle(page) {
+    await page.waitForLoadState('networkidle').catch(() => {});
+    await page.waitForFunction(() => document.getAnimations().every((a) => {
+        const t = a.effect && a.effect.getTiming && a.effect.getTiming();
+        return a.playState !== 'running' || (t && t.iterations === Infinity);
+    }), null, { timeout: 5_000 }).catch(() => {});
+    await page.evaluate(() => window.scrollTo(0, 0));
+}
+
+module.exports = { SEED, login, CUSTOMER_URL, expectProviderDashboard, openCalendarView, measureTopGap, settle };
