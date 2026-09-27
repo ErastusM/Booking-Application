@@ -458,8 +458,6 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
      stuck at the top overlapping the profile content underneath it. */
   .provider-account-sidebar { position: relative !important; top: auto !important; }
 
-  .catalogue-grid { grid-template-columns: 1fr !important; }
-
   .profile-grid { grid-template-columns: 1fr !important; }
   .profile-sticky { position: relative !important; top: auto !important; }
 
@@ -1295,12 +1293,6 @@ html.ios-vp-fix .vp-cover { bottom: calc(-1 * var(--vp-gap, 0px)) !important; }
    never this wide). */
 .cal-frame { bottom: calc(52px + env(safe-area-inset-bottom, 0px) - var(--vp-gap, 0px)); }
 @media (min-width: 1024px) { .cal-frame { bottom: 0; padding-bottom: env(safe-area-inset-bottom, 0px); } }
-/* Services tab: each category group keeps 1.5rem under itself, so the last one's
-   margin stacked on the page's bottom room (61px above the "+", 24px more than
-   every other tab). A member's "From the menu" card after the grid keeps the 2rem
-   gap it had (its own 0.5rem plus that margin). */
-.catalogue-grid > :last-child > :last-child { margin-bottom: 0 !important; }
-.catalogue-grid + * { margin-top: 2rem !important; }
 /* The cross-app "Customer site" pill duplicates the dropdown's "Go to customer
    site", so it is dropped on tighter desktop widths to keep the bar breathing. */
 @media (max-width: 1120px) { .nav-cross-app { display: none !important; } }
@@ -1491,6 +1483,157 @@ html.ios-vp-fix .vp-cover { bottom: calc(-1 * var(--vp-gap, 0px)) !important; }
   .clients-cp .cp-rail { flex-basis: 38px; }
   .clients-cp .cp-letter { font-size: 0.72rem; }
 }
+
+/* ── Services tab (components/ServiceMenu.jsx) — the same screen for the owner
+   and every team member: title + "+ Add", search, one scrolling row of category
+   chips, then each category's services in one card of divided rows (the
+   Clients list's visual language). Single column on every width, at most 760px
+   wide, left-aligned like the other tabs. Spacing between blocks only (margin-
+   top), so nothing stacks on the page's own top/bottom room (--page-pad-*).
+   Tokens only, so dark mode follows. ── */
+.sm { max-width: 760px; min-width: 0; font-family: var(--font-body); }
+.sm-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); min-width: 0; }
+.sm-title { margin: 0; min-width: 0; font-family: var(--font-display); font-size: 1.3rem; font-weight: 600; line-height: 1.25; color: var(--charcoal); }
+/* One line, never wraps: a compact pill, 44px tall for the thumb. */
+.sm-add { flex: none; gap: 0.3rem; min-height: 44px; padding: 0 1.1rem; font-size: 0.875rem; font-weight: 600; white-space: nowrap; }
+.sm-sub { margin: 2px 0 0; font-size: 0.875rem; line-height: 1.4; color: var(--text-muted); }
+.sm-search { position: relative; margin-top: var(--space-4); }
+.sm-search-icon { position: absolute; left: 0.875rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
+.sm .sm-search .input { height: 44px; padding: 0 2.75rem 0 2.5rem; font-size: 16px; /* 16px: iOS doesn't zoom on focus */ }
+/* The chip bar: the category filters in one row that scrolls sideways (never
+   wraps, never widens the page), then the owner's "Categories" button, which
+   never scrolls away. The scroller's 4px padding keeps the chips' focus rings
+   (and their taller hit areas, below) inside its clip; a fade on the side
+   with more chips (data-fade, set by ServiceMenu) says the row scrolls, and
+   scroll-padding keeps a chip brought into view on focus clear of that fade. */
+.sm-chipbar { display: flex; align-items: center; gap: var(--space-2); min-width: 0; margin-top: var(--space-2); }
+.sm-chips {
+  flex: 1 1 auto; min-width: 0;
+  display: flex; flex-wrap: nowrap; gap: var(--space-2);
+  margin: 0 -4px; padding: 4px;
+  overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  scroll-padding-inline: 28px;
+}
+.sm-chips::-webkit-scrollbar { display: none; }
+.sm-chips[data-fade="end"] { -webkit-mask-image: linear-gradient(to right, var(--ink) calc(100% - 28px), transparent); mask-image: linear-gradient(to right, var(--ink) calc(100% - 28px), transparent); }
+.sm-chips[data-fade="start"] { -webkit-mask-image: linear-gradient(to right, transparent, var(--ink) 28px); mask-image: linear-gradient(to right, transparent, var(--ink) 28px); }
+.sm-chips[data-fade="start end"] { -webkit-mask-image: linear-gradient(to right, transparent, var(--ink) 28px, var(--ink) calc(100% - 28px), transparent); mask-image: linear-gradient(to right, transparent, var(--ink) 28px, var(--ink) calc(100% - 28px), transparent); }
+.sm-chip {
+  position: relative; flex: none; display: inline-flex; align-items: center; gap: 0.3rem;
+  min-height: 36px; padding: 0 0.85rem; border-radius: var(--radius-pill);
+  border: 1px solid var(--border); background: var(--card-bg); color: var(--text-secondary);
+  font-family: var(--font-body); font-size: 0.8rem; font-weight: 600; white-space: nowrap;
+  cursor: pointer; -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease, color var(--dur-fast) ease;
+}
+/* A 44px-tall target for the thumb around the 36px pill (the inset is from
+   inside its 1px border; the scroller's 4px padding keeps it unclipped). */
+.sm-chip::before { content: ''; position: absolute; inset: -5px 0; }
+.sm-chip-count { font-weight: 500; color: var(--text-muted); }
+/* The chosen filter is a solid pill (like .btn-primary), not just a tint, so
+   it doesn't rest on hue alone. */
+.sm-chip[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--on-ink); }
+body.dark-mode .sm-chip[aria-pressed="true"] { border-color: var(--gold); background: var(--gold); color: var(--ink); }
+.sm-chip[aria-pressed="true"] .sm-chip-count { color: inherit; }
+@media (hover: hover) { .sm-chip:not([aria-pressed="true"]):hover { border-color: var(--border-input); } }
+.sm-chip-manage { flex: none; color: var(--charcoal); border-style: dashed; border-color: var(--border-input); }
+@media (max-width: 559px) {
+  .sm-chip-manage { justify-content: center; width: 44px; padding: 0; }
+  .sm-chip-manage-label { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+}
+.sm-group { margin-top: var(--space-4); }
+.sm-group-head { margin: 0 0 var(--space-2); font-family: var(--font-display); font-size: 0.85rem; font-weight: 700; letter-spacing: 0.01em; color: var(--text-secondary); }
+.sm-card {
+  list-style: none; margin: 0; padding: 0;
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius);
+  box-shadow: var(--shadow-sm); overflow: hidden;
+}
+.sm-item { margin: 0; }
+.sm-item + .sm-item { border-top: 1px solid var(--border); }
+.sm-row {
+  display: flex; align-items: center; gap: var(--space-3); box-sizing: border-box;
+  width: 100%; min-height: 56px; margin: 0; padding: 10px var(--space-3) 10px var(--space-4);
+  border: 0; border-radius: 0; background: transparent; color: inherit;
+  font: inherit; text-align: left; -webkit-tap-highlight-color: transparent;
+  transition: background-color var(--dur-fast) ease;
+}
+button.sm-row { cursor: pointer; }
+@media (hover: hover) { button.sm-row:hover { background: color-mix(in srgb, var(--text-primary) 4%, transparent); } }
+button.sm-row:active { background: color-mix(in srgb, var(--text-primary) 7%, transparent); }
+/* Inside the card's clip, so the ring sits inside the row. */
+button.sm-row:focus-visible { outline: 2px solid var(--gold-dark); outline-offset: -2px; }
+.sm-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 2px; }
+.sm-name {
+  font-family: var(--font-display); font-weight: 600; font-size: 0.95rem; line-height: 1.3; color: var(--text-primary);
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+/* The meta line wraps (between its parts) rather than cutting off who
+   performs a service or where: nothing is lost on a 320px phone. */
+.sm-meta { font-size: 0.78rem; line-height: 1.35; color: var(--text-muted); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.sm-meta-part { white-space: nowrap; }
+.sm-meta[data-nobody] { color: var(--danger-fg); font-weight: 600; }
+/* A service just added from the menu, where it now sits in the list. */
+button.sm-row[data-flash] { animation: sm-row-added 1.6s var(--ease-out) both; }
+@keyframes sm-row-added {
+  0%, 35% { background: color-mix(in srgb, var(--gold) 14%, transparent); }
+  100% { background: transparent; }
+}
+.sm-price { flex: none; font-weight: 600; font-size: 0.92rem; color: var(--text-primary); white-space: nowrap; font-variant-numeric: tabular-nums; }
+.sm-chev { flex: none; color: var(--text-muted); }
+/* 36px drawn, 44px to the thumb (the row's padding holds the extra). */
+.sm-add-menu { position: relative; flex: none; gap: 0.25rem; min-height: 36px; padding: 0 0.85rem; font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
+.sm-add-menu::before { content: ''; position: absolute; inset: -6px 0; }
+.sm-add-menu[aria-disabled="true"] { opacity: 0.55; cursor: default; transform: none; }
+.sm-empty {
+  margin-top: var(--space-4); padding: var(--space-8) var(--space-5); text-align: center;
+  background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm);
+}
+.sm-empty-title { margin: 0; font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; color: var(--text-primary); overflow-wrap: anywhere; }
+.sm-empty-text { margin: var(--space-1) 0 0; font-size: 0.875rem; color: var(--text-muted); }
+.sm-empty-btn { gap: 0.3rem; margin-top: var(--space-4); min-height: 44px; padding: 0 1.25rem; font-size: 0.875rem; font-weight: 600; }
+/* A member's "Also on …'s menu". */
+.sm-menu { margin-top: var(--space-8); }
+.sm-menu-title { margin: 0; font-family: var(--font-display); font-size: 1.05rem; font-weight: 600; color: var(--charcoal); }
+.sm-menu-hint { margin: 2px 0 var(--space-3); font-size: 0.82rem; color: var(--text-muted); }
+/* The owner's Categories sheet: a bottom sheet on phones, a centred dialog from
+   900px (.sheet-overlay / .sheet-panel above). Portalled to <body>, over the
+   top bar and the bottom nav. */
+.sm-sheet-overlay {
+  position: fixed; inset: 0; z-index: 1100; display: flex; align-items: flex-end; justify-content: center;
+  background: color-mix(in srgb, var(--ink) 60%, transparent);
+}
+.sm-sheet {
+  display: flex; flex-direction: column; width: 100%; max-width: 440px; max-height: 85dvh; box-sizing: border-box;
+  background: var(--card-bg); color: var(--text-primary); border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+  box-shadow: var(--shadow-lg); padding-bottom: env(safe-area-inset-bottom, 0px); outline: none;
+  font-family: var(--font-body);
+}
+.sm-sheet-head { display: flex; align-items: center; justify-content: space-between; gap: var(--space-3); padding: var(--space-4) var(--space-3) var(--space-1) var(--space-5); }
+.sm-sheet-title { margin: 0; font-family: var(--font-display); font-size: 1.2rem; font-weight: 600; color: var(--charcoal); }
+.sm-sheet-close {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px;
+  padding: 0; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--text-muted); cursor: pointer;
+}
+.sm-sheet-hint { margin: 0 var(--space-5) var(--space-3); font-size: 0.82rem; line-height: 1.4; color: var(--text-muted); }
+.sm-sheet-list {
+  flex: 0 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain;
+  list-style: none; margin: 0 var(--space-5); padding: 0;
+  border: 1px solid var(--border); border-radius: var(--radius);
+}
+.sm-cat { display: flex; align-items: center; gap: var(--space-3); min-height: 52px; padding: 0 var(--space-1) 0 var(--space-4); }
+.sm-cat + .sm-cat { border-top: 1px solid var(--border); }
+.sm-cat-name { flex: 1; min-width: 0; font-weight: 600; font-size: 0.92rem; color: var(--text-primary); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.sm-cat-count { flex: none; font-size: 0.78rem; color: var(--text-muted); font-variant-numeric: tabular-nums; }
+.sm-cat-del {
+  flex: none; display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px;
+  padding: 0; border: 0; border-radius: var(--radius-pill); background: transparent; color: var(--text-muted); cursor: pointer;
+}
+@media (hover: hover) { .sm-cat-del:hover { color: var(--danger-fg); background: var(--danger-bg); } }
+.sm-sheet-empty { margin: 0 var(--space-5); padding: var(--space-4); text-align: center; font-size: 0.85rem; color: var(--text-muted); border: 1px dashed var(--border); border-radius: var(--radius); }
+.sm-sheet-add { display: flex; gap: var(--space-2); padding: var(--space-4) var(--space-5) var(--space-5); }
+.sm-sheet .sm-sheet-add .input { flex: 1; min-width: 0; height: 44px; padding: 0 0.9rem; font-size: 16px; }
+.sm-sheet-add .btn-primary { flex: none; min-height: 44px; padding: 0 1.1rem; font-size: 0.875rem; font-weight: 600; white-space: nowrap; }
 
 /* Photo editor stage (tabIndex=0, arrow keys move the crop): an inset ring in
    bright --gold, which reads on the near-black stage (2.4.7). */

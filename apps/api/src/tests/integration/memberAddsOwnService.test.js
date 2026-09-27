@@ -128,3 +128,35 @@ describe('POST /api/team/mine/services — a member adds their own trade', () =>
         expect(await Service.countDocuments({ provider: stranger._id })).toBe(0);
     });
 });
+
+describe('GET /api/team/mine/services — the menu a member sees', () => {
+    it('carries each service\'s category name and place on the owner\'s menu, so both see the same order', async () => {
+        const Category = require('../../models/Category');
+        const { owner, haircut, user } = await setup();
+        const cuts = await Category.create({ name: 'Cuts', provider: owner._id, order: 2 });
+        await Service.updateOne({ _id: haircut._id }, { category: cuts._id });
+
+        const res = await request(app).get('/api/team/mine/services').set(authHeader(user));
+
+        expect(res.status).toBe(200);
+        const svc = res.body.data.services.find((s) => String(s._id) === String(haircut._id));
+        expect(svc.category).toMatchObject({ _id: String(cuts._id), name: 'Cuts', order: 2 });
+        expect(svc.category.createdAt).toBeTruthy();
+        // Still no provider id or anything else of the owner's on it.
+        expect(svc.category.provider).toBeUndefined();
+    });
+
+    it('carries each service\'s town, so a member\'s rows read like the owner\'s', async () => {
+        const { haircut, user } = await setup();
+        await Service.updateOne({ _id: haircut._id }, { location: 'Windhoek', address: '1 Owner Street' });
+
+        const res = await request(app).get('/api/team/mine/services').set(authHeader(user));
+
+        expect(res.status).toBe(200);
+        const svc = res.body.data.services.find((s) => String(s._id) === String(haircut._id));
+        expect(svc.location).toBe('Windhoek');
+        // The town only: not the street address or the owner's own fields.
+        expect(svc.address).toBeUndefined();
+        expect(svc.provider).toBeUndefined();
+    });
+});

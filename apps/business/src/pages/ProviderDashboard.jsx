@@ -20,7 +20,7 @@ const ApptFormsView = lazy(() => import('../components/ApptFormsView'));
 import EnablePushBanner from '../components/EnablePushBanner';
 import SetupChecklistNudge from '../components/SetupChecklistNudge';
 const ServiceFormModal = lazy(() => import('../components/ServiceFormModal'));
-import { Calendar, History, CalendarClock, Clock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, CalendarPlus, Ban, Wallet as WalletIcon, ChevronDown, ChevronLeft, Send, X, Trophy, Download } from 'lucide-react';
+import { Calendar, History, CalendarClock, Clock, LayoutDashboard, TrendingUp, BarChart3, Users, ClipboardList, MessageSquare, Ticket, CalendarPlus, Ban, Wallet as WalletIcon, ChevronDown, ChevronLeft, Send, Trophy, Download } from 'lucide-react';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 import { NAMIBIAN_TOWNS, normalizeTown } from '../utils/namibiaTowns';
 import { useLiveRefresh } from '../hooks/useLiveRefresh';
@@ -35,9 +35,10 @@ import ClientPicker from '../components/ClientPicker';
 import MiniCalendar from '../components/MiniCalendar';
 import RecurrenceFields from '../components/RecurrenceFields';
 import { currencySymbol, formatMoney } from '../utils/currency';
-import { servicesFor, ownerPerforms, teamPerformers } from '../utils/performerServices';
+import { servicesFor } from '../utils/performerServices';
 import { MEMBER_PALETTE, memberColorMap, sameColor } from '../utils/memberColors';
 import Switch from '../components/Switch';
+import ServiceMenu from '../components/ServiceMenu';
 import { useToast } from '../components/Toast';
 // App-styled replacements for the native <select>, date/time inputs and
 // window.confirm, so every picker and prompt wears the app's colours (and times
@@ -67,27 +68,6 @@ const csvCell = (c) => {
 // Trigger label for the custom-range date pickers ("Mar 10, 2026"). The picker's
 // default adds the weekday, which gets cut off in these half-width phone fields.
 const rangeDateLabel = (d) => new Date(`${d}T00:00:00`).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
-
-// Clear (✕) button for a search field. Sits at the right edge of the input, so
-// the parent must be position:relative and the input needs right padding to
-// keep its text from running underneath.
-const SearchClear = ({ onClear, label = 'Clear search' }) => (
-    <button
-        type="button"
-        onClick={onClear}
-        aria-label={label}
-        title={label}
-        style={{
-            position: 'absolute', right: '0.4rem', top: '50%', transform: 'translateY(-50%)',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            width: '2rem', height: '2rem', padding: 0, borderRadius: '50%',
-            border: 'none', background: 'var(--surface-sunken)', color: 'var(--text-secondary)',
-            cursor: 'pointer', lineHeight: 1,
-        }}
-    >
-        <X size={14} strokeWidth={2.5} />
-    </button>
-);
 
 // The calendar pulls bookings from this many days back by default. All FUTURE
 // bookings are always fetched; only history beyond this floor is left to the
@@ -252,14 +232,6 @@ const ProviderDashboard = () => {
     const [showServiceForm, setShowServiceForm] = useState(false);
     const [editingService, setEditingService] = useState(null);
     const [categories, setCategories] = useState([]);
-    const [newCategoryName, setNewCategoryName] = useState('');
-    const [showCategoryForm, setShowCategoryForm] = useState(false);
-    const [catalogueCategory, setCatalogueCategory] = useState('all');
-    const [catalogueSearch, setCatalogueSearch] = useState('');
-    // Service menu filter: everything, the services YOU offer, or the ones only
-    // your team does ('all' | 'mine' | 'team').
-    const [catalogueWho, setCatalogueWho] = useState('all');
-    const [ownerToggleBusy, setOwnerToggleBusy] = useState('');
     const [currentDate, setCurrentDate] = useState(new Date());
     const [calendarView, setCalendarView] = useState('3day');
     const [viewMenuOpen, setViewMenuOpen] = useState(false); // compact view-switcher dropdown in the calendar header
@@ -440,6 +412,9 @@ const ProviderDashboard = () => {
     // calendar and Staff lanes use, so a dot always matches its bookings).
     const teamColors = useMemo(() => memberColorMap(teamMembers), [teamMembers]);
     const [loadingTeam, setLoadingTeam] = useState(false);
+    // The roster has loaded at least once (the Services tab says who performs
+    // each service only then, so a team-only service never flashes "Nobody").
+    const [teamLoaded, setTeamLoaded] = useState(false);
     const [showTeamForm, setShowTeamForm] = useState(false);
     const [editingMember, setEditingMember] = useState(null);
     // Job title is NOT prefilled: it's what clients see when picking a
@@ -1262,10 +1237,14 @@ const ProviderDashboard = () => {
                 const res = await teamService.getCalendarRoster();
                 setTeamMembers(res.data.data?.members || []);
                 setStaffOwnerName(res.data.data?.owner?.name || '');
+                setTeamLoaded(true);
                 return;
             }
             const res = await teamService.getMyTeam();
             setTeamMembers(res.data.data);
+            // Only a roster that really arrived: if it failed, the Services tab
+            // names no performers rather than wrongly saying "Nobody offers this".
+            setTeamLoaded(true);
         } catch { /* ignore */ } finally { setLoadingTeam(false); }
     };
 
@@ -1487,22 +1466,9 @@ const ProviderDashboard = () => {
         setShowServiceForm(true);
     };
 
-    // "I offer this" — the owner's own list of what clients can book THEM for.
-    // Off = only the team members who perform it; it leaves the owner's tile,
-    // their starting price and their own New Appointment list.
-    const handleToggleOwnerPerforms = async (svc, next) => {
-        setOwnerToggleBusy(svc._id);
-        setMyServices(prev => prev.map(s => s._id === svc._id ? { ...s, ownerPerforms: next } : s));
-        try {
-            const res = await providerServiceService.updateMyService(svc._id, { ownerPerforms: next });
-            const saved = res?.data?.data;
-            if (saved) setMyServices(prev => prev.map(s => s._id === svc._id ? { ...s, ownerPerforms: saved.ownerPerforms } : s));
-            toast(next ? `Clients can book you for ${svc.name}.` : `${svc.name} is now only offered by your team.`, 'success');
-        } catch (err) {
-            setMyServices(prev => prev.map(s => s._id === svc._id ? { ...s, ownerPerforms: svc.ownerPerforms } : s));
-            toast(err.response?.data?.message || 'Could not update the service', 'error');
-        } finally { setOwnerToggleBusy(''); }
-    };
+    // "I offer this" (Service.ownerPerforms — what clients can book the OWNER
+    // for) is the "You offer this service" switch in the service editor, saved
+    // with the service (PUT /services/:id; the server lets only the owner set it).
 
     // A team member's Catalogue edits THEIR list: their own price and time for a
     // service (serviceOverrides on their roster row), never the business's menu.
@@ -1522,60 +1488,73 @@ const ProviderDashboard = () => {
         // service already on the menu at a different price.
         await myServicesService.setPricing(memberOverridesWith(id, price, duration));
     };
+    // Each resolves true once the service is gone, so the editor can close.
     const removeMemberService = async (s) => {
         if (!(await confirm({
             title: `Remove ${s.name} from your services?`,
             message: `Clients won't be able to book it with you. ${businessName} keeps it on its menu.`,
             confirmLabel: 'Remove',
             danger: true,
-        }))) return;
+        }))) return false;
         try {
             await myServicesService.set(myServices.map((x) => String(x._id)).filter((id) => id !== String(s._id)), false);
             toast(`${s.name} removed`, 'success');
             await fetchMyServices();
-        } catch (err) { toast(err.response?.data?.message || 'Could not remove the service', 'error'); }
+            return true;
+        } catch (err) { toast(err.response?.data?.message || 'Could not remove the service', 'error'); return false; }
     };
+    // Resolves true once added. No toast: it would sit over the list being
+    // worked in — the Services tab highlights the new row where it now is.
     const addMemberServiceFromMenu = async (s) => {
         try {
             await myServicesService.set([...myServices.map((x) => String(x._id)), String(s._id)], false);
-            toast(`${s.name} added — set your price if it differs`, 'success');
             await fetchMyServices();
-        } catch (err) { toast(err.response?.data?.message || 'Could not add the service', 'error'); }
+            return true;
+        } catch (err) { toast(err.response?.data?.message || 'Could not add the service', 'error'); return false; }
     };
+    // The business's services a member doesn't do yet ("Also on …’s menu").
+    const memberMyIds = new Set(myServices.map((x) => String(x._id)));
+    const memberMenuRest = isStaff ? (memberServicesData?.services || []).filter((x) => !memberMyIds.has(String(x._id))) : [];
 
     const handleDeleteService = async (id) => {
-        if (await confirm({ title: 'Delete this service?', confirmLabel: 'Delete', danger: true })) {
-            try {
-                await providerServiceService.deleteMyService(id);
-                setMyServices(myServices.filter(s => s._id !== id));
-            } catch {
-                setError('Failed to delete service');
-            }
+        if (!(await confirm({ title: 'Delete this service?', confirmLabel: 'Delete', danger: true }))) return false;
+        try {
+            await providerServiceService.deleteMyService(id);
+            setMyServices(prev => prev.filter(s => s._id !== id));
+            toast('Service deleted.', 'success');
+            fetchMyServices();
+            return true;
+        } catch {
+            toast('Could not delete the service — please try again.', 'error');
+            return false;
         }
     };
 
-    const handleAddCategory = async (e) => {
-        e.preventDefault();
-        if (!newCategoryName.trim()) return;
+    // The Services tab's Categories sheet (owner only). Errors are toasts: the
+    // sheet sits over the page's error banner.
+    const handleAddCategory = async (name) => {
+        const n = String(name || '').trim();
+        if (!n) return false;
         try {
-            await categoryService.createCategory(newCategoryName);
+            await categoryService.createCategory(n);
             await fetchCategories();
-            setNewCategoryName('');
-            setShowCategoryForm(false);
-            toast('Category added.', 'success');
+            return true;
         } catch {
-            setError('Failed to add category');
+            toast('Could not add the category — please try again.', 'error');
+            return false;
         }
     };
 
     const handleDeleteCategory = async (id) => {
-        if (await confirm({ title: 'Delete this category?', message: 'Services will become uncategorized.', confirmLabel: 'Delete', danger: true })) {
-            try {
-                await categoryService.deleteCategory(id);
-                await fetchCategories();
-            } catch {
-                setError('Failed to delete category');
-            }
+        if (!(await confirm({ title: 'Delete this category?', message: `Its services move to “Other services”.`, confirmLabel: 'Delete', danger: true }))) return false;
+        try {
+            await categoryService.deleteCategory(id);
+            // Its services are now uncategorised on the server: reload both.
+            await Promise.all([fetchCategories(), fetchMyServices()]);
+            return true;
+        } catch {
+            toast('Could not delete the category — please try again.', 'error');
+            return false;
         }
     };
 
@@ -2092,48 +2071,29 @@ const ProviderDashboard = () => {
                     </>
                 )}
 
-                {/* Catalogue — the owner's Service menu. A team member gets the same
-                    screen over THEIR services, at their own prices and times. */}
+                {/* Catalogue — the Services tab. The owner and every team member get
+                    the same screen (components/ServiceMenu): the owner over the
+                    business's menu, a member over THEIR services at their own prices
+                    and times (#228: never the business's menu or prices). Tapping a
+                    row opens the editor, which also holds "You offer this service"
+                    (owner) and Delete / "Remove from my services". */}
                 {activeTab === 'services' && (
-                    <div data-testid="service-menu">
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                            <div>
-                                <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>Service menu</h2>
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>{isStaff ? 'The services clients can book you for, at your prices' : 'View and manage the services offered by your business'}</p>
-                            </div>
-                            <button onClick={() => { setEditingService(null); setShowServiceForm(true); }} className="btn-primary" data-testid="add-service" style={{ padding: '0.65rem 1.25rem', fontSize: '0.875rem' }}>
-                                + Add Service
-                            </button>
-                        </div>
-
-                        <div style={{ marginBottom: '1.5rem' }}>
-                            <div style={{ position: 'relative', maxWidth: '360px' }}>
-                                <svg
-                                    width="16" height="16" viewBox="0 0 24 24" fill="none"
-                                    stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
-                                    aria-hidden="true"
-                                    style={{ position: 'absolute', left: '0.875rem', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', pointerEvents: 'none' }}
-                                >
-                                    <circle cx="11" cy="11" r="8" />
-                                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                                </svg>
-                                <input value={catalogueSearch} onChange={e => setCatalogueSearch(e.target.value)} placeholder="Search service name" aria-label="Search services" className="input" style={{ paddingLeft: '2.5rem', paddingRight: catalogueSearch ? '2.6rem' : undefined }} />
-                                {catalogueSearch && <SearchClear onClear={() => setCatalogueSearch('')} label="Clear service search" />}
-                            </div>
-                            {/* Your own services vs the ones only your team performs — the
-                                owner's equivalent of a team member's "My services". */}
-                            {!isStaff && <div role="group" aria-label="Who performs it" style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap', marginTop: '0.75rem' }}>
-                                {[['all', 'All services'], ['mine', 'You offer'], ['team', 'Team only']].map(([k, lbl]) => {
-                                    const on = catalogueWho === k;
-                                    return (
-                                        <button key={k} type="button" aria-pressed={on} onClick={() => setCatalogueWho(k)} data-testid={`catalogue-who-${k}`}
-                                            style={{ minHeight: '36px', padding: '0 0.9rem', borderRadius: '999px', border: `1px solid ${on ? 'var(--gold)' : 'var(--border)'}`, background: on ? 'rgba(240,62,22,0.1)' : 'var(--card-bg)', color: on ? 'var(--gold-dark)' : 'var(--text-secondary)', fontWeight: 600, fontSize: '0.8rem', cursor: 'pointer', fontFamily: 'var(--font-body)' }}>
-                                            {lbl}{k === 'all' ? '' : ` (${myServices.filter(s => (k === 'mine') === ownerPerforms(s)).length})`}
-                                        </button>
-                                    );
-                                })}
-                            </div>}
-                        </div>
+                    <>
+                        <ServiceMenu
+                            role={isStaff ? 'member' : 'owner'}
+                            services={myServices}
+                            categories={isStaff ? [] : categories}
+                            teamMembers={isStaff ? null : (teamLoaded ? teamMembers : null)}
+                            currency={curCode}
+                            businessName={businessName}
+                            menuServices={isStaff ? memberMenuRest : []}
+                            editing={showServiceForm ? (editingService?._id ? String(editingService._id) : 'new') : null}
+                            onAdd={() => { setEditingService(null); setShowServiceForm(true); }}
+                            onEdit={handleEditService}
+                            onAddFromMenu={isStaff ? addMemberServiceFromMenu : undefined}
+                            onAddCategory={isStaff ? undefined : handleAddCategory}
+                            onDeleteCategory={isStaff ? undefined : handleDeleteCategory}
+                        />
 
                         {showServiceForm && (
                             <Suspense fallback={null}>
@@ -2146,150 +2106,15 @@ const ProviderDashboard = () => {
                                     onCategoriesChanged={fetchCategories}
                                     memberSave={isStaff ? saveMemberService : null}
                                     businessName={businessName}
+                                    onDelete={async (svc) => {
+                                        const gone = isStaff ? await removeMemberService(svc) : await handleDeleteService(svc._id);
+                                        if (gone) { setShowServiceForm(false); setEditingService(null); }
+                                    }}
+                                    deleteLabel={isStaff ? 'Remove from my services' : 'Delete service'}
                                 />
                             </Suspense>
                         )}
-
-                        <div className="catalogue-grid" style={{ display: 'grid', gridTemplateColumns: '260px 1fr', gap: '1.5rem', alignItems: 'start' }}>
-                            {(() => {
-                                // A member's headings are the menu categories their own services
-                                // sit in (the category list itself is the owner's to manage).
-                                const menuCategories = isStaff
-                                    ? [...new Map(myServices.filter(s => s.category?._id).map(s => [s.category._id, { _id: s.category._id, name: s.category.name }])).values()]
-                                    : categories;
-                                                                const catalogueFiltered = myServices
-                                    .filter(s => !catalogueSearch || (s.name || '').toLowerCase().includes(catalogueSearch.toLowerCase()))
-                                    .filter(s => catalogueWho === 'all' || (catalogueWho === 'mine' ? ownerPerforms(s) : !ownerPerforms(s)));
-                                const servicesInCategory = (catId) => catalogueFiltered.filter(s => {
-                                    const sCat = s.category?._id || s.category || null;
-                                    return catId === 'featured' ? !sCat : sCat === catId;
-                                });
-                                const sidebarItems = [
-                                    { id: 'all', name: 'All categories', count: catalogueFiltered.length },
-                                    ...menuCategories.map(c => ({ id: c._id, name: c.name, count: servicesInCategory(c._id).length })),
-                                    { id: 'featured', name: 'Featured', count: servicesInCategory('featured').length },
-                                ];
-                                const groups = catalogueCategory === 'all'
-                                    ? [...menuCategories.map(c => ({ id: c._id, name: c.name })), { id: 'featured', name: 'Featured' }]
-                                    : [{ id: catalogueCategory, name: catalogueCategory === 'featured' ? 'Featured' : (menuCategories.find(c => c._id === catalogueCategory)?.name || 'Category') }];
-                                return (
-                                    <>
-                                        {/* Categories sidebar */}
-                                        <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.25rem' }}>
-                                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '1rem' }}>Categories</h3>
-                                            {sidebarItems.map(item => {
-                                                const active = catalogueCategory === item.id;
-                                                return (
-                                                    <div key={item.id} style={{ display: 'flex', alignItems: 'center', marginBottom: '0.25rem' }}>
-                                                        <button onClick={() => setCatalogueCategory(item.id)} style={{
-                                                            flex: 1, display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-                                                            padding: '0.6rem 0.75rem', borderRadius: 'var(--radius-sm)', border: 'none', cursor: 'pointer', textAlign: 'left',
-                                                            background: active ? 'rgba(240,62,22,0.1)' : 'transparent',
-                                                            color: active ? 'var(--gold-dark)' : 'var(--text-secondary)',
-                                                            fontWeight: active ? '600' : '400', fontFamily: 'var(--font-body)', fontSize: '0.875rem',
-                                                        }}>
-                                                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.name}</span>
-                                                            <span style={{ color: 'var(--text-muted)', fontSize: '0.8rem', marginLeft: '0.5rem' }}>{item.count}</span>
-                                                        </button>
-                                                        {!isStaff && item.id !== 'all' && item.id !== 'featured' && (
-                                                            <button onClick={() => handleDeleteCategory(item.id)} title="Delete category" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1rem', lineHeight: 1, padding: '0 0.25rem' }}>×</button>
-                                                        )}
-                                                    </div>
-                                                );
-                                            })}
-                                            {!isStaff && <div style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border)' }}>
-                                                {showCategoryForm ? (
-                                                    <form onSubmit={handleAddCategory} style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                                                        <input aria-label="Category name" value={newCategoryName} onChange={e => setNewCategoryName(e.target.value)} placeholder="Category name" className="input" autoFocus />
-                                                        <div style={{ display: 'flex', gap: '0.5rem' }}>
-                                                            <button type="submit" className="btn-primary" style={{ flex: 1, padding: '0.5rem', fontSize: '0.8rem' }}>Add</button>
-                                                            <button type="button" onClick={() => { setShowCategoryForm(false); setNewCategoryName(''); }} style={{ flex: 1, padding: '0.5rem', fontSize: '0.8rem', background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--text-secondary)', fontFamily: 'var(--font-body)' }}>Cancel</button>
-                                                        </div>
-                                                    </form>
-                                                ) : (
-                                                    <button onClick={() => setShowCategoryForm(true)} style={{ background: 'none', border: 'none', color: 'var(--gold-dark)', cursor: 'pointer', fontSize: '0.85rem', fontWeight: '600', fontFamily: 'var(--font-body)', padding: 0 }}>+ Add category</button>
-                                                )}
-                                            </div>}
-                                        </div>
-
-                                        {/* Services list grouped by category */}
-                                        <div>
-                                            {catalogueFiltered.length === 0 ? (
-                                                <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', padding: '4rem 2rem', textAlign: 'center' }}>
-                                                    <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>🗂️</div>
-                                                    <p style={{ fontFamily: 'var(--font-body)', fontSize: '1.1rem', color: 'var(--charcoal)', marginBottom: '0.35rem' }}>{catalogueSearch ? 'No services match your search' : 'No services yet'}</p>
-                                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem' }}>{catalogueSearch ? 'Try a different name' : 'Add your first service to start receiving bookings'}</p>
-                                                </div>
-                                            ) : (
-                                                groups.map(group => {
-                                                    const svcs = servicesInCategory(group.id);
-                                                    if (svcs.length === 0) return null;
-                                                    return (
-                                                        <div key={group.id} style={{ marginBottom: '1.5rem' }}>
-                                                            <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.75rem' }}>{group.name}</h3>
-                                                            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                                                                {svcs.map(s => {
-                                                                    const mine = ownerPerforms(s);
-                                                                    // A member's own list: who else performs it is the owner's view.
-                                                                    const team = teamPerformers(s, teamMembers);
-                                                                    const nobody = !mine && team.length === 0;
-                                                                    return (
-                                                                    <div key={s._id} data-testid="catalogue-service" style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', borderLeft: `3px solid ${mine || isStaff ? 'var(--gold)' : 'var(--border)'}`, padding: '1rem 1.25rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem', flexWrap: 'wrap' }}>
-                                                                        <div style={{ minWidth: 0 }}>
-                                                                            <p style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem', marginBottom: '0.2rem' }}>{s.name}</p>
-                                                                            <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem' }}>{formatDuration(s.duration)}{s.location ? ` · 📍 ${s.location}` : ''}</p>
-                                                                            {/* Who clients can book for it. A service only your team
-                                                                                performs is theirs: it never shows under you, and its
-                                                                                price here is theirs. */}
-                                                                            {!isStaff && <p data-testid="catalogue-performers" style={{ fontSize: '0.75rem', marginTop: '0.3rem', color: nobody ? 'var(--danger-fg, #dc2626)' : 'var(--text-muted)' }}>
-                                                                                {nobody
-                                                                                    ? 'Nobody offers this — clients can’t book it'
-                                                                                    : mine
-                                                                                        ? `You${team.length ? ` · ${team.map(m => m.name.split(' ')[0]).join(' · ')}` : ''}`
-                                                                                        : `Only ${team.map(m => m.name.split(' ')[0]).join(' · ')}`}
-                                                                            </p>}
-                                                                        </div>
-                                                                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', flexShrink: 0, flexWrap: 'wrap' }}>
-                                                                            <span style={{ fontFamily: 'var(--font-body)', fontWeight: '600', color: 'var(--charcoal)', fontSize: '0.95rem', whiteSpace: 'nowrap' }}>{curSym} {s.price}</span>
-                                                                            {!isStaff && <Switch label="I offer this" checked={mine} disabled={ownerToggleBusy === s._id} onChange={(v) => handleToggleOwnerPerforms(s, v)} data-testid="catalogue-owner-performs" />}
-                                                                            <button onClick={() => handleEditService(s)} style={{ background: 'rgba(240,62,22,0.1)', border: '1px solid rgba(240,62,22,0.3)', color: 'var(--gold-dark)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>Edit</button>
-                                                                            <button onClick={() => (isStaff ? removeMemberService(s) : handleDeleteService(s._id))} style={{ background: '#fee2e2', border: '1px solid #fca5a5', color: 'var(--danger-fg)', padding: '0.35rem 0.875rem', borderRadius: 'var(--radius-sm)', cursor: 'pointer', fontSize: '0.8rem', fontWeight: '600', fontFamily: 'var(--font-body)' }}>{isStaff ? 'Remove' : 'Delete'}</button>
-                                                                        </div>
-                                                                    </div>
-                                                                    );
-                                                                })}
-                                                            </div>
-                                                        </div>
-                                                    );
-                                                })
-                                            )}
-                                        </div>
-                                    </>
-                                );
-                            })()}
-                        </div>
-
-                        {/* A member can take on a service the business already sells. */}
-                        {isStaff && (() => {
-                            const mineIds = new Set(myServices.map((x) => String(x._id)));
-                            const menuRest = (memberServicesData?.services || []).filter((x) => !mineIds.has(String(x._id)));
-                            if (menuRest.length === 0) return null;
-                            return (
-                                <div style={{ background: 'var(--card-bg)', borderRadius: 'var(--radius)', border: '1px solid var(--border)', boxShadow: 'var(--shadow-sm)', padding: '1.1rem 1.25rem', marginTop: '0.5rem' }}>
-                                    <h3 style={{ fontFamily: 'var(--font-display)', fontSize: '1.05rem', fontWeight: '600', color: 'var(--charcoal)', marginBottom: '0.2rem' }}>From {businessName}’s menu</h3>
-                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.82rem', marginBottom: '0.8rem' }}>Add one you also do. You can set your own price after.</p>
-                                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
-                                        {menuRest.map((x) => (
-                                            <button key={x._id} type="button" onClick={() => addMemberServiceFromMenu(x)} data-testid="menu-add-service"
-                                                style={{ minHeight: '40px', padding: '0 0.9rem', borderRadius: '999px', border: '1px solid var(--border)', background: 'var(--card-bg)', color: 'var(--charcoal)', fontFamily: 'var(--font-body)', fontSize: '0.85rem', cursor: 'pointer' }}>
-                                                + {x.name}
-                                            </button>
-                                        ))}
-                                    </div>
-                                </div>
-                            );
-                        })()}
-                    </div>
+                    </>
                 )}
 
                 {/* Availability tab — the owner's Working Hours + Blocked Times. A team

@@ -84,8 +84,8 @@ test.describe('A team member manages their own services', () => {
         await expect(page).toHaveURL(/\/dashboard/);
         await expect(page.getByTestId('calendar-view-menu')).toBeVisible();
 
-        // Their Catalogue is the owner's "Service menu" screen, scoped to them,
-        // and adding a service opens the owner's full sheet with its Duration picker.
+        // Their Catalogue is the owner's Services screen, scoped to them, and
+        // "+ Add" opens the owner's full sheet with its Duration picker.
         await page.goto('/dashboard?tab=services');
         const services = page.getByTestId('service-menu');
         await expect(services).toBeVisible();

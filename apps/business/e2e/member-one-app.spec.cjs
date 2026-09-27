@@ -78,9 +78,12 @@ test.describe('A team member gets the owner\'s app', () => {
         const menu = page.getByTestId('service-menu');
         const row = menu.getByTestId('catalogue-service').filter({ hasText: SEED.serviceName });
         await expect(row).toContainText('45 min');
-        await expect(row).toContainText('120');
+        await expect(row).toContainText('N$ 120');
+        // Every team member sees the owner's Services screen: no "who performs
+        // it" line (that's the owner's), and the row itself opens the editor.
+        await expect(row.getByTestId('catalogue-performers')).toHaveCount(0);
 
-        await row.getByRole('button', { name: 'Edit' }).click();
+        await row.click();
         await expect(page.getByRole('heading', { name: 'Edit service' })).toBeVisible();
         // The owner's Duration picker, not a "Minutes" box.
         const duration = page.getByTestId('service-duration');
@@ -95,7 +98,7 @@ test.describe('A team member gets the owner\'s app', () => {
         await expect(menu.getByTestId('catalogue-service').filter({ hasText: SEED.serviceName })).toContainText('1 hr 15 min');
 
         // Put it back to 45 min so the booking below reads as seeded.
-        await menu.getByTestId('catalogue-service').filter({ hasText: SEED.serviceName }).getByRole('button', { name: 'Edit' }).click();
+        await menu.getByRole('button', { name: `Edit ${SEED.serviceName}` }).click();
         await page.getByTestId('service-duration').click();
         await page.getByTestId('service-duration-popup').locator('[data-value="45"]').click();
         await Promise.all([

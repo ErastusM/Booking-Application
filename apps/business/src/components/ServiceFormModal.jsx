@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useId, useRef } from 'react';
 import { providerServiceService, categoryService } from '../services';
 import { NAMIBIAN_TOWNS } from '../utils/namibiaTowns';
 import { useAuthContext } from '../context/AuthContext';
@@ -7,6 +7,7 @@ import { currencySymbol } from '../utils/currency';
 import { Select, formatDuration, Field } from '@bookplus/ui';
 import { X, Plus, Trash2, Clock } from 'lucide-react';
 import Switch from './Switch';
+import { useModalChrome, trapTab } from '../hooks/useModalChrome';
 
 // Preset durations (minutes) for the dropdown; a service's saved value is added
 // if it isn't one of these.
@@ -34,9 +35,25 @@ const field = { marginBottom: '1.5rem' };
  * what is theirs to set: the name when adding, the price and the Duration. The
  * business's catalogue fields (category, description, extra time, options,
  * location) stay the owner's.
+ *
+ * Editing an existing service, `onDelete` adds a destructive text button at the
+ * bottom (`deleteLabel`: the owner's "Delete service", a member's "Remove from
+ * my services"). onDelete(service) does the asking, and closes this sheet
+ * once the service is gone (ProviderDashboard).
+ *
+ * It is a modal dialog: Escape closes it, Tab stays inside, and focus goes back
+ * to what opened it. Adding starts in the name; editing starts on the dialog
+ * itself, so opening a service to look at it doesn't bring up the keyboard.
  */
-const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, onCategoriesChanged, memberSave = null, businessName = '' }) => {
+const ServiceFormModal = (props) => (props.open ? <ServiceFormDialog {...props} /> : null);
+
+const ServiceFormDialog = ({ open, editing, categories = [], onClose, onSaved, onCategoriesChanged, memberSave = null, businessName = '', onDelete = null, deleteLabel = 'Delete service' }) => {
     const memberMode = typeof memberSave === 'function';
+    const titleId = useId();
+    const panelRef = useModalChrome(onClose);
+    const nameRef = useRef(null);
+    // What had focus when it opened (the row, or "+ Add").
+    const returnTo = useRef(typeof document !== 'undefined' ? document.activeElement : null);
     const { user } = useAuthContext();
     const isOwner = user?.role === 'provider' || user?.role === 'admin';
     const toast = useToast();
@@ -48,6 +65,7 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
     const [addingCat, setAddingCat] = useState(false);
     const [newCat, setNewCat] = useState('');
     const [catSaving, setCatSaving] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     useEffect(() => {
         if (!open) return;
@@ -74,9 +92,18 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
         setError('');
         setAddingCat(false);
         setNewCat('');
+        setDeleting(false);
     }, [open, editing]);
 
-    if (!open) return null;
+    useEffect(() => {
+        if (!editing && nameRef.current) nameRef.current.focus({ preventScroll: true });
+        else panelRef.current?.focus({ preventScroll: true });
+        return () => {
+            const el = returnTo.current;
+            if (el && el !== document.body && el.isConnected && typeof el.focus === 'function') el.focus({ preventScroll: true });
+        };
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, []);
 
     const set = (patch) => setForm((f) => ({ ...f, ...patch }));
     const setOption = (i, patch) => setForm((f) => ({ ...f, options: f.options.map((o, idx) => idx === i ? { ...o, ...patch } : o) }));
@@ -86,14 +113,15 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
     // A saved category that isn't in the list yet (still loading, or deleted)
     // shows its populated name rather than a raw id; kept hidden from the list.
     const categoryOptions = [
-        { value: '', label: 'Featured (uncategorized)' },
+        { value: '', label: 'Other services (no category)' },
         ...categories.map((c) => ({ value: c._id, label: c.name })),
         ...(form.category && !categories.some((c) => c._id === form.category)
-            ? [{ value: form.category, label: (editing?.category?._id === form.category && editing.category.name) || 'Featured (uncategorized)', hidden: true }]
+            ? [{ value: form.category, label: (editing?.category?._id === form.category && editing.category.name) || 'Other services (no category)', hidden: true }]
             : []),
     ];
 
     const submit = async () => {
+        if (saving) return;
         if (!form.name.trim()) { setError('Please add a service name'); return; }
         setSaving(true);
         setError('');
@@ -128,6 +156,12 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
         }
     };
 
+    const remove = async () => {
+        if (!onDelete || !editing || deleting || saving) return;
+        setDeleting(true);
+        try { await onDelete(editing); } finally { setDeleting(false); }
+    };
+
     const createCategory = async () => {
         if (catSaving || !newCat.trim()) return; // guard against a double-click creating duplicate categories
         setCatSaving(true);
@@ -152,13 +186,22 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
     // .vp-cover: in the iPhone home-screen app it runs down to the real bottom
     // edge with the bottom nav (index.css "iPhone home-screen app").
     return (
-        <div className="vp-cover" style={{ position: 'fixed', inset: 0, zIndex: 2400, background: 'var(--off-white)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)', animation: 'fadeIn var(--dur) var(--ease-out) both' }}>
+        <div
+            ref={panelRef}
+            className="vp-cover"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby={titleId}
+            tabIndex={-1}
+            onKeyDown={(e) => trapTab(e, panelRef.current)}
+            style={{ position: 'fixed', inset: 0, zIndex: 2400, background: 'var(--off-white)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)', animation: 'fadeIn var(--dur) var(--ease-out) both', outline: 'none' }}
+        >
             {/* Header */}
             <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
-                <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 600, color: 'var(--charcoal)', margin: 0 }}>
+                <h1 id={titleId} style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 600, color: 'var(--charcoal)', margin: 0 }}>
                     {editing ? 'Edit service' : 'New service'}
                 </h1>
-                <button onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.4rem', display: 'flex' }}>
+                <button type="button" onClick={onClose} aria-label="Close" style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', padding: '0.4rem', display: 'flex' }}>
                     <X size={24} />
                 </button>
             </div>
@@ -175,7 +218,7 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                             <label htmlFor="svc-name" style={label}>Service name</label>
                             <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>{form.name.length}/255</span>
                         </div>
-                        <input id="svc-name" className="input" maxLength={255} value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="Add a service name, e.g. 60-min consultation" style={{ fontSize: '1rem' }} autoFocus={!(memberMode && editing)} readOnly={memberMode && !!editing} data-testid="service-name" />
+                        <input id="svc-name" className="input" maxLength={255} value={form.name} onChange={(e) => set({ name: e.target.value })} placeholder="Add a service name, e.g. 60-min consultation" style={{ fontSize: '1rem' }} ref={nameRef} readOnly={memberMode && !!editing} data-testid="service-name" />
                         {memberMode && editing && <p style={helper}>The name is on {businessName || 'the business'}’s menu. Your price and time are yours.</p>}
                     </div>
 
@@ -238,7 +281,7 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                         <div style={{ ...field, background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.9rem 1rem' }}>
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: '1rem' }}>
                                 <span style={{ fontSize: '0.9rem', fontWeight: 600, color: 'var(--charcoal)' }}>You offer this service</span>
-                                <Switch label={form.ownerPerforms !== false ? 'Yes' : 'No'} checked={form.ownerPerforms !== false} onChange={(v) => set({ ownerPerforms: v })} data-testid="service-owner-performs" />
+                                <Switch label={form.ownerPerforms !== false ? 'Yes' : 'No'} ariaLabel="You offer this service" checked={form.ownerPerforms !== false} onChange={(v) => set({ ownerPerforms: v })} data-testid="service-owner-performs" />
                             </div>
                             <p style={helper}>
                                 {form.ownerPerforms !== false
@@ -326,13 +369,25 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                     </>}
 
                     {error && <p role="alert" style={{ marginTop: '1.25rem', color: 'var(--danger-fg, #dc2626)', fontSize: '0.85rem' }}>{error}</p>}
+
+                    {editing && typeof onDelete === 'function' && (
+                        <div style={{ marginTop: '2rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                            {/* aria-disabled, not disabled, while it asks: a disabled
+                                button drops focus to the page, so Cancel had nowhere to
+                                bring it back to. remove() ignores repeat presses. */}
+                            <button type="button" onClick={remove} aria-disabled={deleting || saving || undefined} data-testid="service-delete"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', minHeight: '44px', padding: '0 0.25rem', background: 'none', border: 'none', cursor: deleting ? 'default' : 'pointer', color: 'var(--danger-fg)', fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: '0.9rem', opacity: deleting ? 0.6 : 1 }}>
+                                <Trash2 size={16} aria-hidden="true" /> {deleteLabel}
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
             {/* Sticky footer */}
             <div style={{ flexShrink: 0, padding: '1rem 1.25rem calc(1rem + env(safe-area-inset-bottom, 0px))', borderTop: '1px solid var(--border)', background: 'var(--off-white)' }}>
                 <div style={{ maxWidth: '560px', margin: '0 auto' }}>
-                    <button type="button" onClick={submit} disabled={saving} className="btn-primary" style={{ width: '100%', padding: '0.95rem', fontSize: '1rem' }}>
+                    <button type="button" onClick={submit} aria-disabled={saving || undefined} className="btn-primary" style={{ width: '100%', padding: '0.95rem', fontSize: '1rem', opacity: saving ? 0.6 : 1, cursor: saving ? 'default' : 'pointer' }}>
                         {saving ? 'Saving…' : editing ? 'Save changes' : 'Save'}
                     </button>
                 </div>
