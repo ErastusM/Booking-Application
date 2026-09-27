@@ -186,9 +186,11 @@ const OnboardingWizard = ({ user, onComplete }) => {
     // z 2450: above all app chrome and modals (the highest, ServiceFormModal, is
     // 2400) but below the @bookplus/ui picker popups (2500), which render into
     // document.body — at the old 9999 the currency and time pickers opened
-    // hidden behind this screen.
+    // hidden behind this screen. .vp-cover: in the iPhone home-screen app it runs
+    // down to the real bottom edge with the bottom nav (index.css "iPhone
+    // home-screen app").
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 2450, background: 'var(--off-white)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
+        <div className="vp-cover" style={{ position: 'fixed', inset: 0, zIndex: 2450, background: 'var(--off-white)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)' }}>
             {/* Progress bar */}
             <div style={{ height: '4px', background: 'var(--border)', flexShrink: 0 }}>
                 <div style={{ height: '100%', width: `${progress}%`, background: 'var(--gold)', transition: 'width 0.4s ease' }} />

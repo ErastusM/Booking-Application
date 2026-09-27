@@ -149,8 +149,10 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
     // viewport and expose edge gaps); reduced-motion neutralizes it globally.
     // z 2400: above the app chrome and PhotoEditor (2000), but below the
     // @bookplus/ui picker layer (2500) so its dropdowns open on top, and below toasts.
+    // .vp-cover: in the iPhone home-screen app it runs down to the real bottom
+    // edge with the bottom nav (index.css "iPhone home-screen app").
     return (
-        <div style={{ position: 'fixed', inset: 0, zIndex: 2400, background: 'var(--off-white)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)', animation: 'fadeIn var(--dur) var(--ease-out) both' }}>
+        <div className="vp-cover" style={{ position: 'fixed', inset: 0, zIndex: 2400, background: 'var(--off-white)', display: 'flex', flexDirection: 'column', paddingTop: 'env(safe-area-inset-top, 0px)', animation: 'fadeIn var(--dur) var(--ease-out) both' }}>
             {/* Header */}
             <div style={{ flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '1.1rem 1.25rem', borderBottom: '1px solid var(--border)' }}>
                 <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 600, color: 'var(--charcoal)', margin: 0 }}>

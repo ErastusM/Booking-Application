@@ -627,7 +627,11 @@ const Navbar = () => {
             bottom edge with a top border (matches the calendar design mock). */}
         {inSuite && createPortal(
             <nav aria-label="Bottom navigation" className="nav-mobile" style={{
-                position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
+                // bottom is 0 except in the iPhone home-screen app when iOS leaves the
+                // viewport short of the screen: --vp-gap then drops the bar by the
+                // missing height onto the real bottom edge (@bookplus/ui
+                // standaloneViewport, index.css "iPhone home-screen app").
+                position: 'fixed', left: 0, right: 0, bottom: 'calc(-1 * var(--vp-gap, 0px))', zIndex: 999,
                 display: 'flex', justifyContent: 'center',
                 pointerEvents: 'none',
                 // Portalled to <body> so no ancestor can ever become its containing
@@ -643,7 +647,9 @@ const Navbar = () => {
                 // uses the browser's normal fixed-position path and stays put. The solid
                 // (non-backdrop-filter) background below is the other half of the fix.
             }}>
-                <div style={{
+                {/* .bnav-bar: its colour also runs on below the bar, off-screen unless
+                    the bar is ever left above the real bottom edge (index.css). */}
+                <div className="bnav-bar" style={{
                     pointerEvents: 'auto', width: '100%',
                     display: 'flex', justifyContent: 'space-around', alignItems: 'center',
                     // Solid (NOT backdrop-filter): a backdrop-filtered fixed bar is exactly

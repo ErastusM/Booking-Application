@@ -619,6 +619,17 @@ body.dark-mode [style*="border-radius: 50%"][style*="background: white"] {
 body.dark-mode .bottom-nav {
   box-shadow: 0 -4px 20px rgba(0,0,0,0.35);
 }
+/* The bar's own colour carries on 120px below it (Navbar, .bnav-bar), so if the
+   iPhone home-screen app ever leaves the bar above the real bottom edge in a way
+   the viewport fix can't catch ("iPhone home-screen app" below), the strip
+   under it is the bar, not bare grey. It starts at the bar's bottom, the
+   viewport's bottom edge, so anywhere else it is off-screen: a fixed bar's
+   overflow never scrolls, and pointer-events: none keeps it out of taps. */
+.bnav-bar { position: relative; }
+.bnav-bar::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 120px;
+  background: inherit; pointer-events: none;
+}
 
 /* Sticky bottom bars respect the safe area too */
 .booking-confirm-mobile,
@@ -1203,12 +1214,41 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
    over content the body already reserves that room (body.has-bottom-nav, 0 here).
    --page-min-h is a full screen less what <main> (and the body, with the bottom
    nav) already add, for a page that must fill the screen: a 100dvh page inside
-   them was always taller than the screen, so even a short page scrolled. */
+   them was always taller than the screen, so even a short page scrolled. The
+   + --vp-gap is 0 except in the iPhone home-screen app case below. */
 :root {
   --page-pad-top: calc(56px + var(--space-3));
   --page-sticky-top: calc(56px + env(safe-area-inset-top, 0px) + var(--space-3));
   --page-pad-bottom: var(--space-6);
-  --page-min-h: calc(100dvh - env(safe-area-inset-top, 0px));
+  --page-min-h: calc(100dvh + var(--vp-gap, 0px) - env(safe-area-inset-top, 0px));
+}
+
+/* iPhone home-screen app, short viewport. There iOS gives a page that is no
+   taller than the screen (Clients, Calendar) a viewport short by the status-bar
+   inset, so the bottom nav sat ~59pt above the real bottom over a grey strip;
+   pages that scroll (Services) get the whole screen. The @bookplus/ui helper
+   (standaloneViewport, installed in main.jsx) spots that and tags <html> with
+   .ios-vp-fix and --app-full-h, the screen's height: the document is then at
+   least screen-high, like the pages that were always flush. If the viewport
+   stays short anyway, --vp-gap is the missing height: the bottom nav drops by it
+   to the real edge (Navbar) and the full-screen fills (--page-min-h, the
+   calendar frame, the client list) grow by it. Neither is ever set in a
+   browser, so there this is all + 0px. */
+html.ios-vp-fix { min-height: var(--app-full-h); }
+/* The phone's other layers that sit on the bottom edge drop with it: full-screen
+   modals (New Appointment) and the appointment / block-time bottom sheet. So do
+   the layers that cover the screen (scrims, the menu drawer, bottom sheets, the
+   full-screen forms marked .vp-cover): stopping at the short viewport's bottom
+   would leave the dropped nav's lower part uncovered and tappable below them. */
+html.ios-vp-fix .scrim-in,
+html.ios-vp-fix .sheet-overlay,
+html.ios-vp-fix .mobile-drawer,
+html.ios-vp-fix .vp-cover { bottom: calc(-1 * var(--vp-gap, 0px)) !important; }
+@media (max-width: 768px) {
+  html.ios-vp-fix .modal-center { bottom: calc(-1 * var(--vp-gap, 0px)) !important; max-height: calc(100dvh + var(--vp-gap, 0px)) !important; }
+}
+@media (max-width: 640px) {
+  html.ios-vp-fix .block-time-panel { bottom: calc(-1 * var(--vp-gap, 0px)) !important; }
 }
 
 /* Desktop nav links — pill hover/active */
@@ -1243,15 +1283,17 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
   body.has-bottom-nav {
     padding-bottom: calc(96px + env(safe-area-inset-bottom, 0px));
     --page-pad-bottom: 0px;
-    --page-min-h: calc(100dvh - env(safe-area-inset-top, 0px) - 96px - env(safe-area-inset-bottom, 0px));
+    --page-min-h: calc(100dvh + var(--vp-gap, 0px) - env(safe-area-inset-top, 0px) - 96px - env(safe-area-inset-bottom, 0px));
   }
 }
 /* The full-screen calendar frame stops above the bottom nav — only where there is
    one. At >= 1024px the nav is hidden, so the frame runs to the bottom edge
    instead of leaving a 52px empty strip under the grid; its padding keeps the
    grid clear of the home indicator (an iPad in the installed app, 20px) while
-   the card colour still runs under it. 0 in a desktop browser. */
-.cal-frame { bottom: calc(52px + env(safe-area-inset-bottom, 0px)); }
+   the card colour still runs under it. 0 in a desktop browser. Under the nav it
+   drops by --vp-gap with it (iPhone home-screen app, above; never an iPad, so
+   never this wide). */
+.cal-frame { bottom: calc(52px + env(safe-area-inset-bottom, 0px) - var(--vp-gap, 0px)); }
 @media (min-width: 1024px) { .cal-frame { bottom: 0; padding-bottom: env(safe-area-inset-bottom, 0px); } }
 /* Services tab: each category group keeps 1.5rem under itself, so the last one's
    margin stacked on the page's bottom room (61px above the "+", 24px more than

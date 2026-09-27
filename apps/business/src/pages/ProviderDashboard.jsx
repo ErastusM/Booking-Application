@@ -42,7 +42,7 @@ import { useToast } from '../components/Toast';
 // App-styled replacements for the native <select>, date/time inputs and
 // window.confirm, so every picker and prompt wears the app's colours (and times
 // are always 24-hour, whatever the device's locale).
-import { Select, DatePicker, TimePicker, useConfirm, formatDuration, Field } from '@bookplus/ui';
+import { Select, DatePicker, TimePicker, useConfirm, formatDuration, Field, viewportGap, VIEWPORT_EVENT } from '@bookplus/ui';
 import { statusConfig, ContactActions, ChromeModal, CloseButton, StatsSkeleton, RowsSkeleton, Avatar, fmtConvTime } from './dashboard/primitives';
 // Lazy — wallet modals open only from the Wallet tab; keep them off the initial chunk.
 const ProviderAccountTopUpModal = lazy(() => import('./dashboard/WalletModals').then(m => ({ default: m.ProviderAccountTopUpModal })));
@@ -275,6 +275,9 @@ const ProviderDashboard = () => {
     // window after mount because the setup-nudge / suggestion cards above the calendar
     // load in asynchronously and shift its top down — a single measure at first paint
     // would lock in the wrong height. Also recomputed on every viewport resize.
+    // viewportGap() is 0 except in the iPhone home-screen app when iOS leaves the
+    // window short of the screen and the bottom nav drops by that much onto the
+    // real bottom edge (@bookplus/ui standaloneViewport); the calendar follows it.
     useEffect(() => {
         if (calendarView === 'month') return; // month grid keeps its natural height
         const recompute = () => {
@@ -282,15 +285,17 @@ const ProviderDashboard = () => {
             if (!el) return;
             const absTop = el.getBoundingClientRect().top + window.scrollY;
             const bottomReserve = window.innerWidth <= 768 ? 84 : 32; // flat fixed bottom nav (~tab height + safe-area) on phones
-            setCalHeight(Math.max(460, Math.round(window.innerHeight - absTop - bottomReserve)));
+            setCalHeight(Math.max(460, Math.round(window.innerHeight + viewportGap() - absTop - bottomReserve)));
         };
         // Re-measure at a few points so late-rendering content above the calendar
         // (nudge cards) can't leave it stuck at the initial-paint height.
         const timers = [0, 200, 500, 1000, 1600].map((ms) => setTimeout(recompute, ms));
         window.addEventListener('resize', recompute);
+        window.addEventListener(VIEWPORT_EVENT, recompute);
         return () => {
             timers.forEach(clearTimeout);
             window.removeEventListener('resize', recompute);
+            window.removeEventListener(VIEWPORT_EVENT, recompute);
         };
     }, [calendarView]);
     const [blockedTimes, setBlockedTimes] = useState([]);
