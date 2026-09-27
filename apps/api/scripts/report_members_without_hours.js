@@ -9,9 +9,9 @@
  * hold (those bookings stand; clients just can't move them to a new time until
  * hours are set) — so the owner can be told to set their hours.
  *
- * A business's ONLY bookable member keeps working the business's hours when
- * they have weekly hours of their own (staffBooking.weeklyHoursFor), so they are
- * not in this report unless they have none.
+ * Every member works only their own hours (staffBooking.weeklyHoursFor) —
+ * a business's only bookable member included — so anyone without hours of
+ * their own is in this report.
  *
  * Counts only: a business id and numbers. Never a name, email or phone — the
  * deploy log is not the place for people's details. It writes nothing.

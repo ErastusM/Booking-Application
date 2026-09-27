@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
-import { availabilityService, appointmentService } from '../services';
+import { availabilityService, appointmentService, providerMarketService } from '../services';
 import { buildTimeSlots, bookingParts, partsOpenStarts } from '../utils/bookingSlots';
 import { useModalChrome } from '../hooks/useModalChrome';
 import { X } from 'lucide-react';
@@ -45,7 +45,13 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
     // or 'leave'. The owner's column is the business's hours.
     // `memberHasHours` false: they have no working hours on ANY day (no weekly
     // hours, no shift ahead), so no date can work — say so, not "try another".
-    const [dayInfo, setDayInfo] = useState({ shiftWindow: null, hoursSource: null, openings: [], memberHasHours: true });
+    // `memberWindow`: their own weekly periods that day (never capped by the
+    // business's — a member may work past closing, or on a day it is closed).
+    const [dayInfo, setDayInfo] = useState({ shiftWindow: null, memberWindow: null, hoursSource: null, openings: [], memberHasHours: true });
+    // A member's booking: the days THEY work over the next 28 (their shifts,
+    // else their own weekly hours) — null until known, or for the owner's column.
+    const [memberDays, setMemberDays] = useState(null);
+    const memberLane = !parts && lane !== 'owner';
     const [busy, setBusy] = useState(false);
     const [error, setError] = useState('');
     const [pendingTime, setPendingTime] = useState(null); // slot awaiting a confirm tap
@@ -66,18 +72,34 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
             .finally(() => setScheduleLoaded(true));
     }, [providerId]);
 
-    // Next 28 days, limited to days the provider works (when the schedule is known).
+    useEffect(() => {
+        if (!providerId || !memberLane) { setMemberDays(null); return undefined; }
+        let stale = false;
+        const start = new Date(); start.setHours(0, 0, 0, 0);
+        const end = new Date(start); end.setDate(start.getDate() + 27);
+        providerMarketService.getProviderStaffShiftDays(providerId, lane, fmtDate(start), fmtDate(end))
+            .then((res) => { if (!stale) { const d = res.data.data || {}; setMemberDays({ working: new Set(d.working || []), off: new Set(d.off || []) }); } })
+            .catch(() => { if (!stale) setMemberDays({ working: new Set(), off: new Set() }); });
+        return () => { stale = true; };
+    }, [providerId, lane, memberLane]);
+    const daysReady = scheduleLoaded && (!memberLane || memberDays !== null);
+
+    // Next 28 days, limited to days the professional works: a team member's own
+    // days (they may work a day the business is closed), else the business's.
     const days = useMemo(() => {
         const out = [];
         const today = new Date(); today.setHours(0, 0, 0, 0);
         for (let i = 0; i < 28; i++) {
             const d = new Date(today); d.setDate(today.getDate() + i);
+            const key = fmtDate(d);
             const cfg = schedule?.[DAY_NAMES[d.getDay()]];
-            const works = !schedule || (cfg?.enabled && (cfg.slots || []).some((s) => s?.start && s?.end));
+            let works = !schedule || (cfg?.enabled && (cfg.slots || []).some((s) => s?.start && s?.end));
+            if (memberDays?.working.has(key)) works = true;
+            else if (memberDays?.off.has(key)) works = false;
             if (works) out.push(d);
         }
         return out;
-    }, [schedule]);
+    }, [schedule, memberDays]);
 
     const selectDate = (dateStr) => {
         setSelectedDate(dateStr);
@@ -93,9 +115,9 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
                     setBusyByLane(Object.fromEntries(pairs.map(([l, body]) => [l, body?.data || []])));
                     setBookedSlots(pairs.flatMap(([, body]) => body?.data || []));
                     const own = (pairs.find(([l]) => l === lane) || [])[1] || {};
-                    setDayInfo({ shiftWindow: own.shiftWindow ?? null, hoursSource: own.hoursSource || null, openings: own.openings || [], memberHasHours: own.memberHasHours !== false });
+                    setDayInfo({ shiftWindow: own.shiftWindow ?? null, memberWindow: own.memberWindow ?? null, hoursSource: own.hoursSource || null, openings: own.openings || [], memberHasHours: own.memberHasHours !== false });
                 })
-                .catch(() => { if (reqId === bookedReqRef.current) { setBusyByLane({}); setBookedSlots([]); setDayInfo({ shiftWindow: null, hoursSource: null, openings: [], memberHasHours: true }); } });
+                .catch(() => { if (reqId === bookedReqRef.current) { setBusyByLane({}); setBookedSlots([]); setDayInfo({ shiftWindow: null, memberWindow: null, hoursSource: null, openings: [], memberHasHours: true }); } });
         }
     };
 
@@ -103,19 +125,23 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
     // lands on the ready-to-book state — highlighted chip, filled date field and
     // a time list — instead of a blank "Or pick a date" box and no times.
     useEffect(() => {
-        if (didAutoSelect.current || !scheduleLoaded || !days.length) return;
+        if (didAutoSelect.current || !daysReady || !days.length) return;
         didAutoSelect.current = true;
         selectDate(fmtDate(days[0]));
         // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [scheduleLoaded, days]);
+    }, [daysReady, days]);
 
     const slots = useMemo(() => {
         if (!selectedDate) return [];
         // Their professional has no hours that day (none of their own, or away).
         if (dayInfo.hoursSource === 'none' || dayInfo.hoursSource === 'leave') return [];
         let blocks = [{ start: 8 * 60, end: 20 * 60 }];
+        const ownWeekly = (dayInfo.memberWindow || [])
+            .filter((s) => s?.start && s?.end)
+            .map((s) => ({ start: toMin(s.start), end: toMin(s.end) }))
+            .filter((b) => b.end > b.start);
         if (dayInfo.shiftWindow) {
-            // A shift replaces the business's hours for its date and may run past them.
+            // A shift replaces the weekly hours for its date and may run past closing.
             blocks = dayInfo.shiftWindow
                 .filter((s) => s?.start && s?.end)
                 .map((s) => ({ start: toMin(s.start), end: toMin(s.end) }))
@@ -124,16 +150,20 @@ const RescheduleModal = ({ appointment, onClose, onDone }) => {
         } else if (schedule) {
             const [y, m, d] = selectedDate.split('-').map(Number);
             const cfg = schedule[DAY_NAMES[new Date(y, m - 1, d).getDay()]];
-            if (!cfg?.enabled || !Array.isArray(cfg.slots)) return [];
-            blocks = cfg.slots
+            const open = cfg?.enabled && Array.isArray(cfg.slots) ? cfg.slots
                 .filter((s) => s?.start && s?.end)
                 .map((s) => {
                     const [sh, sm] = s.start.split(':').map(Number);
                     const [eh, em] = s.end.split(':').map(Number);
                     return { start: sh * 60 + sm, end: eh * 60 + em };
                 })
-                .filter((b) => b.end > b.start);
+                .filter((b) => b.end > b.start) : [];
+            // A member's own weekly periods widen the business's day: their hours
+            // are their own (past closing, or on a day the business is closed).
+            blocks = [...open, ...ownWeekly];
             if (!blocks.length) return [];
+        } else if (ownWeekly.length) {
+            blocks = ownWeekly;
         }
         // Includes provider-blocked time as well as real bookings — `kind` marks which.
         const bookedRanges = bookedSlots.map((b) => {

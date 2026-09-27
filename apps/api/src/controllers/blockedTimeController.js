@@ -20,8 +20,8 @@ const ownLaneOnly = (req) => req.user.role === 'staff' && !can(req.user, 'calend
 
 const OWN_LANE_MESSAGE = 'You can only block time in your own calendar.';
 
-// Is this (loaded) block in the member's own lane? Business-wide (teamMember
-// null), owner-only and colleagues' blocks are not.
+// Is this (loaded) block in the member's own lane? The owner's (teamMember
+// null — owner-only or a legacy "business-wide" row) and colleagues' are not.
 const isOwnLaneBlock = (blocked, memberId) =>
     !!(memberId && blocked.teamMember && String(blocked.teamMember) === String(memberId) && !blocked.ownerOnly);
 
@@ -75,20 +75,18 @@ exports.getMyBlockedTimes = async (req, res) => {
         const providerId = businessScope(req);
         if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
         const query = { provider: providerId };
-        // ?teamMember=<id> → only that member's blocks; ?teamMember=business →
-        // only business-wide blocks; absent → everything (existing behavior).
-        if (req.query.teamMember === 'business') query.teamMember = null;
+        // ?teamMember=<id> → only that member's blocks; ?teamMember=business (or
+        // owner) → only the owner's blocks (teamMember null); absent → everything.
+        if (req.query.teamMember === 'business' || req.query.teamMember === 'owner') query.teamMember = null;
         else if (req.query.teamMember) query.teamMember = req.query.teamMember;
         // A team member who sees only their own calendar gets only the blocks that
-        // apply to them: their own, and business-wide closures — never a
-        // colleague's or the owner's personal (ownerOnly) blocks.
+        // apply to them: their own. The owner's blocks (every teamMember:null
+        // block, legacy "business-wide" rows included) never apply to a member,
+        // and a colleague's are not theirs to see.
         if (req.user.role === 'staff' && !can(req.user, 'calendar:view_all')) {
             const memberId = await myMemberId(req, providerId);
-            query.$or = [
-                ...(memberId ? [{ teamMember: memberId }] : []),
-                { teamMember: null, ownerOnly: { $ne: true } },
-            ];
-            delete query.teamMember;
+            if (!memberId) return res.status(200).json({ success: true, data: [] });
+            query.teamMember = memberId;
         }
         const blocked = await BlockedTime.find(query)
             .sort({ date: 1, startTime: 1 });
@@ -102,7 +100,7 @@ exports.createBlockedTime = async (req, res) => {
     try {
         const providerId = businessScope(req);
         if (!providerId) return res.status(403).json({ success: false, message: 'No business context for this account.' });
-        const { date, startTime, endTime, reason, isRecurring, recurrenceType, recurrenceEndDate, teamMember, ownerOnly } = req.body;
+        const { date, startTime, endTime, reason, isRecurring, recurrenceType, recurrenceEndDate, teamMember } = req.body;
 
         if (!date || !startTime || !endTime) {
             return res.status(400).json({ success: false, message: 'date, startTime and endTime are required' });
@@ -111,15 +109,17 @@ exports.createBlockedTime = async (req, res) => {
             return res.status(400).json({ success: false, message: 'endTime must be after startTime' });
         }
 
-        // Scope: a specific staff member, the owner alone (ownerOnly), or — only
-        // when neither is set — business-wide. A member id wins over ownerOnly.
-        // The member must belong to this provider.
+        // Scope: a specific staff member's lane, else the OWNER's own time. There
+        // is no business-wide block any more (the owner's decision: the owner's
+        // blocked times never apply to team members), so a block without a member
+        // is always stored ownerOnly, whatever the client sent. The member must
+        // belong to this provider.
         let teamMemberId = null;
         if (ownLaneOnly(req)) {
-            // A Service provider blocks time in THEIR lane only: never business-wide
-            // (no teamMember), never owner-only, never a colleague's. Refused rather
-            // than silently re-scoped, so a request meaning "close the business"
-            // can't quietly become "close my column".
+            // A Service provider blocks time in THEIR lane only: never the owner's
+            // (no teamMember), never a colleague's. Refused rather than silently
+            // re-scoped, so a request meaning "block the owner" can't quietly
+            // become "close my column".
             const mine = await myMemberId(req, providerId);
             if (!mine) {
                 return res.status(403).json({ success: false, code: 'own_lane_only', message: "You're not on this business's team roster." });
@@ -135,7 +135,7 @@ exports.createBlockedTime = async (req, res) => {
             }
             teamMemberId = member._id;
         }
-        const ownerScoped = !teamMemberId && !!ownerOnly;
+        const ownerScoped = !teamMemberId;
 
         if (isRecurring && recurrenceType) {
             const groupId = randomUUID();

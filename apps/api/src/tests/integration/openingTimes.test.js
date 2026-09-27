@@ -57,16 +57,16 @@ describe('booked-slots tells the time list each period\'s opening time', () => {
         expect((await slots(ctx.provider, { teamMember: 'owner' })).openings).toEqual(['08:30', '14:30']);
     });
 
-    it('a member\'s own weekly periods, within the business\'s', async () => {
+    it('a member\'s own weekly periods — their own, not capped by the business\'s', async () => {
         const provider = await makeProvider();
         await Availability.create({ provider: provider._id, schedule: everyDayHours('08:00', '18:00') });
         const erastus = await TeamMember.create({ provider: provider._id, name: 'Erastus' });
         await giveHours(erastus, split('07:00', '12:00', '14:15', '19:00'));
-        // A colleague: the business's ONLY bookable member works its hours instead.
         await giveHours(await TeamMember.create({ provider: provider._id, name: 'Hilda' }));
         const body = await slots(provider, { teamMember: erastus._id.toString() });
-        // 07:00 is before the business opens, so his first period opens at 08:00.
-        expect(body.openings).toEqual(['08:00', '14:15']);
+        // 07:00 is before the business (owner) opens — his own day starts then.
+        expect(body.openings).toEqual(['07:00', '14:15']);
+        expect(body.memberWindow).toEqual([{ start: '07:00', end: '12:00' }, { start: '14:15', end: '19:00' }]);
         expect(body.hoursSource).toBe('weekly');
     });
 
@@ -85,7 +85,7 @@ describe('booked-slots tells the time list each period\'s opening time', () => {
         expect((await slots(provider, { teamMember: john._id.toString() })).openings).toEqual([]);
     });
 
-    it('"any professional": every performer\'s openings, within the business\'s hours', async () => {
+    it('"any professional": every performer\'s own openings (the business\'s hours are the owner\'s)', async () => {
         const ctx = await splitShop();
         const a = await TeamMember.create({ provider: ctx.provider._id, name: 'A' });
         const b = await TeamMember.create({ provider: ctx.provider._id, name: 'B' });
@@ -93,7 +93,7 @@ describe('booked-slots tells the time list each period\'s opening time', () => {
         await giveHours(b, everyDayHours('08:00', '18:00'));
         const body = await slots(ctx.provider, { service: ctx.svc._id.toString() });
         expect(body.hoursSource).toBe('any');
-        expect(body.openings).toEqual(['08:30', '08:45', '14:30', '15:10']);
+        expect(body.openings).toEqual(['08:00', '08:45', '15:10']);
     });
 });
 

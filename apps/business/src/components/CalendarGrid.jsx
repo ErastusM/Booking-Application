@@ -211,10 +211,10 @@ const CalendarGrid = ({
             const k = toDateStr(b.date);
             if (!buckets[k]) return;
             const tmId = String(b.teamMember?._id || b.teamMember || '');
-            // Business-wide blocks show always; member blocks respect the filter;
-            // owner-only blocks belong to the owner ('unassigned') lane.
-            if (tmId) { if (!matchesStaff(tmId)) return; }
-            else if (b.ownerOnly) { if (!matchesStaff('unassigned')) return; }
+            // Member blocks respect the filter; every block without a member is
+            // the owner's own ('unassigned' lane) — it never applies to a team
+            // member, so a view filtered to a member doesn't show it.
+            if (!matchesStaff(tmId || 'unassigned')) return;
             const startMin = minutesOf(b.startTime);
             const endMin = Math.max(minutesOf(b.endTime), startMin + 15);
             buckets[k].blocks.push({ raw: b, startMin, endMin, label: b.reason || b.title || 'Blocked', isRecurring: !!b.isRecurring });

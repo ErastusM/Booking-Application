@@ -83,7 +83,7 @@ const StaffLanesDay = ({
     teamMembers,             // full roster (active + inactive)
     staffFilter,             // 'all' | 'unassigned' | teamMember _id — narrows the lanes shown
     appointments,            // ALL appointments (any day); filtered here
-    blockedTimes,            // ALL blocked times (any day); business-wide ones span every lane
+    blockedTimes,            // ALL blocked times (any day); ones without a member are the owner's lane's
     availability,            // business hours { monday: { enabled, slots: [{start,end}] }, … } —
                              // the shading until laneHours arrives
     laneHours,               // { [laneId]: { slots, busy, source } } for this day — each person's
@@ -152,7 +152,7 @@ const StaffLanesDay = ({
         .filter((s) => s?.start && s?.end);
 
     // Each lane's own hours for the day, once they have loaded: a member's shift,
-    // else their weekly hours (within the business's), else none — closed, since
+    // else their own weekly hours (never capped by the business's), else none — closed, since
     // nothing comes from the business's hours; the owner's lane is the business's
     // Working Hours. `slots` null = no hours known to hold them to (no shading).
     // Until the hours arrive every lane keeps the business-hours shading it has
@@ -251,14 +251,14 @@ const StaffLanesDay = ({
         });
         dayBlocks.forEach((b) => {
             const tmId = String(b.teamMember?._id || b.teamMember || '');
-            const ownerOnly = !tmId && !!b.ownerOnly;
-            const wholeBusiness = !tmId && !b.ownerOnly;
             const startMin = minutesOf(b.startTime);
             const endMin = Math.max(minutesOf(b.endTime), startMin + 15);
-            const entry = { raw: b, startMin, endMin, wholeBusiness };
-            if (tmId) { if (buckets[tmId]) buckets[tmId].blocks.push(entry); }
-            else if (ownerOnly) { if (buckets['unassigned']) buckets['unassigned'].blocks.push(entry); } // owner's own lane
-            else lanes.forEach((l) => buckets[l.id].blocks.push(entry)); // business-wide → every lane
+            const entry = { raw: b, startMin, endMin };
+            // A member's block sits in their lane; every block without a member
+            // is the owner's own (older "whole business" rows too) — the owner's
+            // lane only, never a team member's.
+            const laneId = tmId || 'unassigned';
+            if (buckets[laneId]) buckets[laneId].blocks.push(entry);
         });
         Object.values(buckets).forEach((bucket) => { bucket.appts = layoutLane(bucket.appts); });
         return buckets;
@@ -481,7 +481,7 @@ const StaffLanesDay = ({
                                             opacity: 0.85, cursor: 'pointer',
                                         }}
                                     >
-                                        {blk.raw.reason || blk.raw.title || 'Blocked'}{blk.wholeBusiness && lane.id !== 'unassigned' ? ' · whole business' : ''}
+                                        {blk.raw.reason || blk.raw.title || 'Blocked'}
                                     </div>
                                 ))}
 

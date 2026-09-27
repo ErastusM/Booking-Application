@@ -173,30 +173,36 @@ describe('#2 existing service buffers are enforced against the next booking', ()
     });
 });
 
-// ── #4 a lone member's reschedule gets the business hours, like create ──────
-// A business's only bookable member who has weekly hours of their own is booked
-// over the business's hours (staffBooking.weeklyHoursFor, #121) — on create and on
-// reschedule alike. (With no hours of their own they aren't bookable at all.)
-describe('#4 a lone member: reschedule matches create for after-hours slots', () => {
+// ── #4 a lone member's reschedule follows their own hours, like create ──────
+// A business's only bookable member is booked over THEIR OWN hours — on create
+// and on reschedule alike — never the business's (the owner's). (#121 used to
+// hold them to the business's hours; the owner asked for "only their own".)
+describe('#4 a lone member: reschedule matches create — their own hours', () => {
     const setupSolo = async () => {
         const provider = await makeProvider();
         const customer = await makeUser();
         const svc = await makeService(provider._id, { duration: 30 });
         const member = await TeamMember.create({ provider: provider._id, name: 'Owner-staff' });
         await Availability.create({ provider: provider._id, schedule: everyDay('08:00', '20:00') });
-        // A leftover custom weekly schedule narrower than business hours (09–17).
+        // Their own weekly hours, narrower than the business's (09–17).
         await StaffAvailability.create({ provider: provider._id, teamMember: member._id, schedule: everyDay('09:00', '17:00') });
         return { provider, customer, svc, member };
     };
 
-    it('lets the customer book an 18:00 slot AND reschedule it to another evening slot', async () => {
+    it('refuses an 18:00 slot on create AND on reschedule; moves within their own hours', async () => {
         const ctx = await setupSolo();
-        const booked = await request(app).post('/api/appointments').set(authHeader(ctx.customer))
+        const evening = await request(app).post('/api/appointments').set(authHeader(ctx.customer))
             .send({ service: ctx.svc._id.toString(), appointmentDate: DATE, startTime: '18:00', endTime: '18:30', teamMember: ctx.member._id.toString() });
+        expect(evening.status).toBe(400);
+        const booked = await request(app).post('/api/appointments').set(authHeader(ctx.customer))
+            .send({ service: ctx.svc._id.toString(), appointmentDate: DATE, startTime: '10:00', endTime: '10:30', teamMember: ctx.member._id.toString() });
         expect(booked.status).toBe(201);
 
-        const res = await request(app).put(`/api/appointments/${booked.body.data._id}/reschedule`)
+        const late = await request(app).put(`/api/appointments/${booked.body.data._id}/reschedule`)
             .set(authHeader(ctx.customer)).send({ appointmentDate: DATE, startTime: '18:30' });
+        expect(late.status).toBe(400);
+        const res = await request(app).put(`/api/appointments/${booked.body.data._id}/reschedule`)
+            .set(authHeader(ctx.customer)).send({ appointmentDate: DATE, startTime: '16:00' });
         expect(res.status).toBe(200);
     });
 });

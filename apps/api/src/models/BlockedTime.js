@@ -7,20 +7,23 @@ const blockedTimeSchema = new mongoose.Schema({
         required: true,
         index: true,
     },
-    // Scope of the block:
-    //   teamMember set              → blocks only that staff member's lane.
-    //   teamMember null, ownerOnly  → blocks only the OWNER (the "unassigned" lane).
-    //   teamMember null, !ownerOnly → business-wide: blocks everyone.
-    // `teamMember: null` alone used to mean "business-wide", which conflated the
-    // owner's personal blocks with everyone's — so an owner blocking their own
-    // lunch closed the whole team. ownerOnly separates the two.
+    // Scope of the block — whose time it closes:
+    //   teamMember set   → only that staff member's lane.
+    //   teamMember null  → only the OWNER (the "unassigned" lane).
+    // The owner's blocked times never apply to team members (the owner's
+    // decision): a member is closed only by blocks in their own lane. There is no
+    // business-wide block. New owner blocks are always saved ownerOnly:true;
+    // older rows saved "business-wide" (ownerOnly false) used to close every
+    // member too — they are now read as the owner's own, and
+    // scripts/migrate_owner_blocks_owner_only.js marks them ownerOnly:true.
     teamMember: {
         type: mongoose.Schema.Types.ObjectId,
         ref: 'TeamMember',
         default: null,
         index: true,
     },
-    // Only meaningful when teamMember is null. true = the owner's own time only.
+    // Only meaningful when teamMember is null: always true for new rows. Every
+    // null-scoped block is treated as the owner's own either way.
     ownerOnly: { type: Boolean, default: false },
     date: { type: String, required: true },         // 'YYYY-MM-DD'
     startTime: { type: String, required: true },    // 'HH:MM'

@@ -56,8 +56,7 @@ exports.joinWaitingList = async (req, res) => {
             // Someone with no working hours of their own that day can never be
             // booked then, so a place in line for them would never turn into a
             // booking — say so now rather than leave the client waiting.
-            // (Only 'no_hours' matters here, so the lone-member lookup is skipped.)
-            if (await staffHoursReason({ member, date: appointmentDate, startTime, endTime: endTime || startTime, providerId: provider, lone: false }) === 'no_hours') {
+            if (await staffHoursReason({ member, date: appointmentDate, startTime, endTime: endTime || startTime }) === 'no_hours') {
                 return res.status(400).json({ success: false, message: 'That professional has no working hours set for that day.' });
             }
             waitingFor = member._id;

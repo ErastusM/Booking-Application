@@ -138,11 +138,13 @@ describe('GET /api/team/:id/hours — one person\'s hours on a date', () => {
         expect(res.body.data).toMatchObject({ source: 'weekly', slots: [] });
     });
 
-    it('a member\'s weekly hours are capped by the business\'s (what bookings accept)', async () => {
+    it('a member\'s weekly hours are their own — not capped by the business\'s (what bookings accept)', async () => {
         const { owner, erastus } = await team();
         const res = await hours(owner, erastus._id, MON).expect(200);
         expect(res.body.data.own).toEqual([{ start: '08:00', end: '17:00' }]);
-        expect(res.body.data.slots).toEqual([{ start: '08:30', end: '17:00' }]);
+        expect(res.body.data.slots).toEqual([{ start: '08:00', end: '17:00' }]);
+        // The business's (owner's) hours still come back alongside, for display.
+        expect(res.body.data.business).toEqual([{ start: '08:30', end: '18:00' }]);
     });
 
     // The owner's answer: a member with no hours of their own is NOT bookable —
@@ -173,7 +175,7 @@ describe('GET /api/team/:id/hours — one person\'s hours on a date', () => {
     it('a member reads their own hours as "mine"', async () => {
         const { staffUser } = await team();
         const res = await hours(staffUser, 'mine', MON).expect(200);
-        expect(res.body.data.slots).toEqual([{ start: '08:30', end: '17:00' }]);
+        expect(res.body.data.slots).toEqual([{ start: '08:00', end: '17:00' }]);
     });
 
     it('never reads another business\'s member, and checks the date', async () => {

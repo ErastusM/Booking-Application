@@ -1664,7 +1664,8 @@ const canTouchStaffAvailability = (reqUser, member) =>
 /**
  * GET /api/team/:id/hours?date=YYYY-MM-DD  (owner/admin, or anyone on the team)
  * One person's working hours on one date, as the booking validator reads them
- * (leave → shift → weekly hours capped by business hours; neither = no hours,
+ * (leave → shift → their own weekly hours, never capped by the business's;
+ * neither = no hours,
  * source 'none', closed). The New Appointment time list uses it, so the times
  * offered for a team member are that member's hours rather than the business's.
  * :id is a member id, 'mine' (the signed-in member) or 'owner' (the owner's own

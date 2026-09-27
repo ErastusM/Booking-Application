@@ -272,8 +272,8 @@ const ProviderDashboard = () => {
     }, [calendarView]);
     const [blockedTimes, setBlockedTimes] = useState([]);
     // A team member's calendar shows only the blocked time that is theirs (lane =
-    // myMemberId, above) or closes the whole business, never a colleague's or the
-    // owner's personal blocks.
+    // myMemberId, above) — never a colleague's, and never the owner's: every
+    // block without a member is the owner's own and doesn't apply to the team.
     // The business a team member works for — their screens say "Vido Barber", not "your business".
     const [staffBusinessName, setStaffBusinessName] = useState('');
     // …and the owner's own name, so the owner's column and bookings are labelled
@@ -285,8 +285,7 @@ const ProviderDashboard = () => {
         if (!isStaff) return blockedTimes;
         return blockedTimes.filter((b) => {
             const tm = String(b.teamMember?._id || b.teamMember || '');
-            if (tm) return !!myMemberId && tm === String(myMemberId);
-            return !b.ownerOnly;
+            return !!tm && !!myMemberId && tm === String(myMemberId);
         });
     }, [blockedTimes, isStaff, myMemberId]); // eslint-disable-line react-hooks/exhaustive-deps
     // The Availability screen's Blocked Times: the owner's are all of the
@@ -666,14 +665,14 @@ const ProviderDashboard = () => {
                 isRecurring: item.isRecurring,
                 recurrenceType: item.recurrenceType || 'weekly',
                 recurrenceEndDate: item.recurrenceEndDate || '',
-                teamMember: String(item.teamMember?._id || item.teamMember || (item.ownerOnly ? 'owner' : '')),
+                // No member = the owner's own time (older "whole business" rows too).
+                teamMember: String(item.teamMember?._id || item.teamMember || 'owner'),
             });
         } else {
             setEditingBlockedTime(null);
-            // Default new blocks to the person making them, so a personal block
-            // never fans out onto the whole team — business-wide is a deliberate
-            // choice. For the owner that's their own (owner-only) time; for a team
-            // member it's their own lane ('owner' would block the OWNER's column).
+            // Default new blocks to the person making them. For the owner that's
+            // their own time (the owner's blocks never apply to the team); for a
+            // team member it's their own lane ('owner' would block the OWNER's column).
             setBlockedTimeForm({ blockType: 'Custom', title: '', date: new Date().toISOString().split('T')[0], startTime: '', endTime: '', reason: '', isRecurring: false, recurrenceType: 'weekly', recurrenceEndDate: '', teamMember: myBlockDefaultScope() });
         }
         setShowBlockedTimeForm(true);
@@ -686,8 +685,8 @@ const ProviderDashboard = () => {
         if (canEditBlock(block)) { openBlockedTimeForm(block); return; }
         const lane = String(block?.teamMember?._id || block?.teamMember || '');
         const mine = !!lane && !!myMemberId && lane === String(myMemberId);
-        toast(!lane && !block?.ownerOnly
-            ? `This time is closed for all of ${businessName}. Only the owner can change it.`
+        toast(!lane
+            ? `This is ${ownerName || 'the owner'}’s own blocked time. Only the owner can change it.`
             : mine
                 ? 'Your access is view only — ask the owner to change your blocked time.'
                 : 'This blocked time isn’t yours to change.', 'info');
@@ -730,10 +729,10 @@ const ProviderDashboard = () => {
 
     const saveBlockedTime = async (mode) => {
         setSavingBlockedTime(true);
-        // Scope: 'owner' → the owner alone (ownerOnly), '' → business-wide,
-        // an id → that member. Split into the two fields the API expects. A
-        // team member may only block their own lane — pin it whatever the
-        // form holds (the server refuses anything else).
+        // Scope: an id → that member's lane; anything else → the owner's own
+        // time (ownerOnly). There is no "everyone" block: the owner's blocked
+        // times never apply to team members. A team member may only block their
+        // own lane — pin it whatever the form holds (the server refuses anything else).
         if (!canBlockOwn && blockedTimeForm.teamMember === MY_LANE_PENDING) {
             setSavingBlockedTime(false);
             toast('Choose who this block applies to.', 'error');
@@ -741,7 +740,7 @@ const ProviderDashboard = () => {
         }
         const scopeVal = canBlockOwn ? String(myMemberId) : blockedTimeForm.teamMember;
         const scopeTeamMember = (scopeVal && scopeVal !== 'owner') ? scopeVal : undefined;
-        const scopeOwnerOnly = scopeVal === 'owner';
+        const scopeOwnerOnly = !scopeTeamMember;
         // Optimistic update: close the panel and show the block immediately
         const optimisticEntry = {
             _id: 'tmp_' + Date.now(),
@@ -1566,17 +1565,14 @@ const ProviderDashboard = () => {
         return staffFilterShows(tmId ? String(tmId) : 'unassigned');
     };
 
-    // A block is one of three kinds:
-    //   - owner-only (ownerOnly:true, teamMember null): the owner's OWN block — it
-    //     belongs to the owner's column ('unassigned' = "…(me)") only, NEVER a staff
-    //     member. Missing this check leaked the owner's blocks onto every staffer.
-    //   - business-wide (teamMember null, not ownerOnly): closes every column.
+    // A block is one of two kinds:
+    //   - the owner's (teamMember null — ownerOnly, or an older "whole business"
+    //     row): belongs to the owner's column ('unassigned' = "…(me)") only, NEVER
+    //     a team member. The owner's blocked times don't apply to the team.
     //   - member-scoped (teamMember set): shown only when that member is in view.
     const blockMatchesStaffFilter = (b) => {
-        if (b.ownerOnly) return staffFilterShows('unassigned');
         const tmId = b.teamMember?._id || b.teamMember || null;
-        if (!tmId) return true; // business-wide → blocks everyone, always shown
-        return staffFilterShows(String(tmId));
+        return staffFilterShows(tmId ? String(tmId) : 'unassigned');
     };
 
     const activeTeamMembers = teamMembers.filter(m => m.isActive !== false);
@@ -2125,7 +2121,7 @@ const ProviderDashboard = () => {
                         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
                             <div>
                                 <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.3rem', fontWeight: '600', color: 'var(--charcoal)' }}>Working Hours</h2>
-                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>Set the days and hours you are available for bookings</p>
+                                <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>{!isStaff && activeTeamMembers.length > 0 ? 'Set the days and hours you are available for bookings. Your team members are booked on their own hours (Team), not these.' : 'Set the days and hours you are available for bookings'}</p>
                             </div>
                             <button onClick={handleSaveAvailability} disabled={savingAvailability || !availability} className="btn-primary" data-testid="save-hours" style={{ padding: '0.65rem 1.5rem', fontSize: '0.875rem' }}>
                                 {savingAvailability ? 'Saving...' : 'Save Changes'}
@@ -2170,7 +2166,7 @@ const ProviderDashboard = () => {
                             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
                                 <div>
                                     <h2 style={{ fontFamily: 'var(--font-display)', fontSize: '1.1rem', fontWeight: '600', color: 'var(--charcoal)' }}>Blocked Times</h2>
-                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.825rem', marginTop: '0.2rem' }}>Block off time when you're unavailable</p>
+                                    <p style={{ color: 'var(--text-muted)', fontSize: '0.825rem', marginTop: '0.2rem' }}>{!isStaff && activeTeamMembers.length > 0 ? 'Block off time when you’re unavailable — your blocks are yours alone; your team keeps their own hours' : 'Block off time when you’re unavailable'}</p>
                                 </div>
                                 {!showBlockedTimeForm && canBlock && (
                                     <button onClick={() => openBlockedTimeForm()} className="btn-outline" data-testid="add-blocked-time" style={{ padding: '0.55rem 1.1rem', fontSize: '0.825rem' }}>+ Add blocked time</button>
@@ -4188,8 +4184,8 @@ const ProviderDashboard = () => {
                                         // Hours screen saved and bookings are checked against:
                                         //   the owner's own column ("Me") → the business's Working Hours;
                                         //   a team member (picked by the owner, or the member themself) →
-                                        //   that member's hours that day (shift, else their weekly hours
-                                        //   within the business's), from the API. A member with neither
+                                        //   that member's hours that day (shift, else their own weekly
+                                        //   hours — never capped by the business's), from the API. A member with neither
                                         //   has NO hours (source 'none'): nothing comes from the
                                         //   business's, so they can't be booked — only the owner's
                                         //   "Book outside working hours" override offers times.
@@ -4223,9 +4219,9 @@ const ProviderDashboard = () => {
                                         );
                                         // Lane matching mirrors StaffLanesDay: an appointment/block with no team
                                         // member (or one that's since left the roster) sits in the owner's
-                                        // "unassigned" lane; a scoped block also blocks every other lane so it
-                                        // can't be booked around, but a specific member's own bookings never
-                                        // conflict with a DIFFERENT member's or the owner's slot.
+                                        // "unassigned" lane (the owner's blocks never reach a member's lane),
+                                        // and a specific member's own bookings never conflict with a
+                                        // DIFFERENT member's or the owner's slot.
                                         const rosterIds = new Set(teamMembers.map(m => String(m._id)));
                                         // A team member always books into their OWN column (the server forces
                                         // it), so their lane is their member id and their own bookings and
@@ -4256,8 +4252,7 @@ const ProviderDashboard = () => {
                                                 if (toDateString(b.date) !== apptForm.date) return false;
                                                 const tm = String(b.teamMember?._id || b.teamMember || '');
                                                 if (tm) return tm === selectedLane;        // member block → that lane
-                                                if (b.ownerOnly) return selectedLane === ''; // owner-only → owner (unassigned) lane
-                                                return true;                                 // business-wide → every lane
+                                                return selectedLane === '';                  // the owner's block → the owner's lane only
                                             }).map(b => ({ start: toMinutes(b.startTime), end: toMinutes(b.endTime) })),
                                         ];
                                         let minStart = -1;
@@ -4432,8 +4427,9 @@ const ProviderDashboard = () => {
                                 </div>
                             </div>
 
-                            {/* Who does this block apply to? Business-wide (blocks every lane) or one
-                                staff member. The update API can't move a block between staff, so when
+                            {/* Who does this block apply to? The owner's own time, or one team
+                                member's lane. There is no "everyone": the owner's blocks never apply
+                                to the team. The update API can't move a block between staff, so when
                                 editing we show the scope read-only. */}
                             <div>
                                 <label htmlFor="block-scope-select" style={{ fontSize: '0.72rem', fontWeight: '600', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', display: 'block', marginBottom: '0.4rem' }}>Applies to</label>
@@ -4444,7 +4440,6 @@ const ProviderDashboard = () => {
                                         onChange={e => setBlockedTimeForm(p => ({ ...p, teamMember: e.target.value }))}
                                         options={[
                                                 { value: 'owner', label: `Only me${user?.name ? ` (${user.name.split(' ')[0]})` : ' (owner)'}` },
-                                                { value: '', label: 'Whole business (everyone)' },
                                                 ...activeTeamMembers.map(m => ({ value: m._id, label: `${m.name}${m.role ? ` · ${m.role}` : ''} only` })),
                                             ...(blockedTimeForm.teamMember && blockedTimeForm.teamMember !== 'owner' && String(blockedTimeForm.teamMember) !== String(myMemberId || '') && !activeTeamMembers.some(m => String(m._id) === String(blockedTimeForm.teamMember))
                                                 ? [{ value: blockedTimeForm.teamMember, label: `${teamMembers.find(m => String(m._id) === String(blockedTimeForm.teamMember))?.name || 'Staff member'} · inactive` }]
@@ -4465,9 +4460,9 @@ const ProviderDashboard = () => {
                                         ? `Only me${mineName ? ` (${mineName.split(' ')[0]})` : ''}`
                                         : isMemberScope
                                             ? `${teamMembers.find(m => String(m._id) === scope)?.name || 'Staff member'} only`
-                                            : scope === 'owner'
-                                                ? `Only me${user?.name ? ` (${user.name.split(' ')[0]})` : ''}`
-                                                : (activeTeamMembers.length > 0 || isStaff ? 'Whole business (everyone)' : (user?.name || 'Only me'));
+                                            : isStaff
+                                                ? `${ownerName || 'Owner'} only`
+                                                : `Only me${user?.name ? ` (${user.name.split(' ')[0]})` : ''}`;
                                     // The signed-in person's avatar stands for "me": the owner's own
                                     // time, or a team member's own lane.
                                     const showMyAvatar = !!user?.avatar && (isStaff ? isMine : !isMemberScope);

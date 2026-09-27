@@ -300,6 +300,45 @@ const outbox = [];
         });
         res.json({ providerId: String(owner._id), serviceId: String(braids._id), tino: String(tino._id), selma: String(selma._id) });
     });
+    // A fresh business for the lone-member spec (business e2e): the owner's
+    // report — "Moses didn't set blocked times but he's getting the times of the
+    // business owner". The business (the owner) is CLOSED on `date`'s weekday;
+    // Moses, its only team member, works 09:00–17:00 every day of his own; and
+    // the owner has an old "business-wide" block (ownerOnly false) that day.
+    let loneSeq = 0;
+    outer.post('/__e2e/lone-member-fixture', async (req, res) => {
+        const StaffAvailability = require('./src/models/StaffAvailability');
+        const BlockedTime = require('./src/models/BlockedTime');
+        const { date } = req.body || {};
+        if (!/^\d{4}-\d{2}-\d{2}$/.test(String(date || ''))) return res.status(400).json({ ok: false });
+        loneSeq += 1;
+        const email = `e2e-lone-${loneSeq}-${Date.now()}@bookplus.dev`;
+        const owner = await User.create({
+            name: 'Lone Owner', email, password: 'Password1!',
+            phone: '+264810000010', role: 'provider', providerCategory: 'Home services',
+            isVerified: true, provider: 'local', providerSetupComplete: true,
+        });
+        await Service.create({
+            name: 'Cut', description: 'One hour', price: 150, duration: 60,
+            provider: owner._id, createdBy: owner._id, isActive: true, location: 'Windhoek',
+        });
+        const DAYS = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
+        const closedDay = DAYS[new Date(`${date}T00:00:00.000Z`).getUTCDay()];
+        const open = { enabled: true, slots: [{ start: '08:00', end: '18:00' }] };
+        const schedule = Object.fromEntries(DAYS.map((d) => [d, d === closedDay ? { enabled: false, slots: [] } : open]));
+        await Availability.create({ provider: owner._id, schedule });
+        const moses = await TeamMember.create({ provider: owner._id, name: 'Moses Hamalwa', role: 'Barber', offersAllServices: true });
+        const own = { enabled: true, slots: [{ start: '09:00', end: '17:00' }] };
+        await StaffAvailability.create({
+            provider: owner._id, teamMember: moses._id,
+            schedule: Object.fromEntries(DAYS.map((d) => [d, own])),
+        });
+        await BlockedTime.create({
+            provider: owner._id, teamMember: null, ownerOnly: false,
+            date, startTime: '12:00', endTime: '13:00', reason: 'Owner errand',
+        });
+        res.json({ email, password: 'Password1!', providerId: String(owner._id), moses: String(moses._id) });
+    });
     outer.use(app);
 
     outer.listen(PORT, () => {

@@ -1,9 +1,11 @@
 /**
  * Availability-first provider search — "who can actually take me on <date>
  * (around <time>)?". For each candidate provider the day is computed as:
- * business hours ∩ (union of the bookable staff columns — each over their OWN
- * hours, none of their own = closed — plus the owner column when the owner
- * offers anything) − blocked time (business-wide + per-staff) − existing bookings.
+ * the union of the bookable staff columns — each over their OWN hours only
+ * (never capped by the business's; none of their own = closed) — plus the owner
+ * column over the business (owner's) hours when the owner offers anything; each
+ * column minus its own blocked time (the owner's blocks close only the owner's
+ * column) and its own existing bookings.
  * Buffers are intentionally ignored here: search promises an OPENING; the
  * booking flow re-validates the exact slot (incl. buffers + races) on create.
  */
@@ -148,8 +150,10 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
     const results = [];
     for (const pid of candidateIds) {
         const businessSchedule = availByProvider.get(pid) || null;
+        // The business's (owner's) hours: the owner's own column only. A member
+        // can work a day the owner is closed, so a closed business day no
+        // longer hides the business when a member works it.
         const businessBlocks = blocksFor(businessSchedule, date);
-        if (businessBlocks.length === 0) continue; // closed that day
 
         const roster = membersByProvider.get(pid) || [];
         // Columns: each bookable staff member, plus the owner's own column when
@@ -172,12 +176,10 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
             blocked.forEach(b => {
                 if (b.provider.toString() !== pid) return;
                 const scope = b.teamMember ? b.teamMember.toString() : null;
-                // Owner-only blocks (null scope + ownerOnly) apply only to the owner
-                // column (memberId === null); business-wide blocks apply to all.
-                const applies = scope === memberId
-                    || (scope === null && !b.ownerOnly)
-                    || (scope === null && b.ownerOnly && memberId === null);
-                if (applies) busy.push({ start: toMin(b.startTime), end: toMin(b.endTime) });
+                // A block closes only its own column: a member's block that
+                // member's, and every null-scoped block the owner's alone (legacy
+                // "business-wide" rows included — they never close a member).
+                if (scope === memberId) busy.push({ start: toMin(b.startTime), end: toMin(b.endTime) });
             });
 
             // Working windows, honouring the booking validator's precedence for a
@@ -204,10 +206,6 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
                         const ownDoc = staffAvailByMember.get(memberId);
                         if (!availabilityHasHours(ownDoc)) {
                             blocks = [];                    // no hours of their own: not bookable
-                        } else if (roster.length === 1) {
-                            // The business's only bookable member works the
-                            // business's hours (staffBooking.weeklyHoursFor).
-                            blocks = businessBlocks;
                         } else {
                             // Rotation-aware: the week that applies on THIS date (or
                             // the flat schedule when the member has no rotation).
@@ -221,11 +219,15 @@ async function searchAvailability({ date, time, q, duration = 30, maxOpenings = 
             return { blocks, busy };
         });
 
+        // Search every window SOMEONE works: the union of the columns' hours.
+        const dayWindows = mergeBlocks(columns.flatMap(col => col.blocks.map(b => ({ ...b }))));
+        if (dayWindows.length === 0) continue; // nobody works that day
+
         const openings = [];
-        for (const block of businessBlocks) {
+        for (const block of dayWindows) {
             // Candidate starts: the grid, plus every working period's exact opening
-            // time inside this block — the business's own (08:30) and each
-            // column's (a member starting 08:15, or 14:30 after a split day's
+            // time inside this block — each column's, the owner's (08:30) and each
+            // member's (a member starting 08:15, or 14:30 after a split day's
             // break). The owner's answer: an opening time is always offered when
             // the service fits, even off the grid.
             const fits = (t) => t >= block.start && t >= minStart && t + duration <= block.end;

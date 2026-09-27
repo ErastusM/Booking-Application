@@ -131,7 +131,7 @@ StaffAvailability {
 
 ### 3.4 `BlockedTime` — optional per-staff scope
 ```js
-teamMember: { type: ObjectId, ref: 'TeamMember', default: null }  // null = business-wide (today's behavior)
+teamMember: { type: ObjectId, ref: 'TeamMember', default: null }  // null = the OWNER's own time (never a team member's); an id = that member's lane
 ```
 
 ### 3.5 `Appointment` — already staff-aware; formalize
@@ -139,12 +139,12 @@ teamMember: { type: ObjectId, ref: 'TeamMember', default: null }  // null = busi
 
 ### 3.6 Availability resolution (the new booking math)
 For staff **S**, service **V**, date **D**, a slot is bookable iff it is:
-1. within **business hours** (`Availability` for the provider on D), **and**
-2. within **staff hours** (S's `Shift` for D, else `StaffAvailability` for S; neither = S is not bookable on D — no business-hours fallback. A business's ONLY bookable member who has weekly hours of their own is held to the business hours instead, as since #121), **and**
-3. not inside a **business-wide** `BlockedTime` (`teamMember: null`) **nor** a staff `BlockedTime` (`teamMember: S`), **and**
-4. free of overlapping `Appointment`s for `(provider, teamMember: S)` including `Service.bufferBefore/After`, **and**
-5. long enough for `V.duration + buffers`.
-"Any available" = union of steps 1–5 across all staff who perform V (`TeamMember.services` empty or includes V), returning the earliest-available staff per slot.
+1. within **S's own hours only** (S's `Shift` for D, else `StaffAvailability` for S, rotation-aware; approved leave closes; neither = S is not bookable on D). The business hours (`Availability` — the owner's) neither extend nor cap them: S may work a day the owner is closed, and a business's only member is no exception (the #121 lone-member rule is gone), **and**
+2. not inside a staff `BlockedTime` for S (`teamMember: S`). A `BlockedTime` with `teamMember: null` is the owner's own and never closes a member, **and**
+3. free of overlapping `Appointment`s for `(provider, teamMember: S)` including `Service.bufferBefore/After`, **and**
+4. long enough for `V.duration + buffers`.
+The owner's own column (`teamMember: null`) is held to the business hours and the owner's blocks.
+"Any available" = union of steps 1–4 across all staff who perform V (`TeamMember.services` empty or includes V), returning the earliest-available staff per slot.
 
 ### 3.7 Migration & back-compat
 - Existing appointments with `teamMember: null` remain valid = "the owner performs it." Owner is implicitly staff-index-0.

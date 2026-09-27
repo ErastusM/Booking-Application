@@ -314,7 +314,7 @@ describe('GET/PUT /api/team/:id/availability', () => {
 });
 
 describe('Blocked times — staff scope', () => {
-    it('creates business-wide and staff-scoped blocks; list filters by scope', async () => {
+    it('creates owner (no member — stored ownerOnly) and staff-scoped blocks; list filters by scope', async () => {
         const owner = await makeProvider();
         const member = await makeMember(owner);
 
@@ -324,6 +324,7 @@ describe('Blocked times — staff scope', () => {
             .send({ date: '2026-08-03', startTime: '09:00', endTime: '10:00' });
         expect(businessWide.status).toBe(201);
         expect(businessWide.body.data.teamMember).toBeNull();
+        expect(businessWide.body.data.ownerOnly).toBe(true);
 
         const staffOnly = await request(app)
             .post('/api/blocked-times')
