@@ -17,8 +17,10 @@ export const COMPANY = {
     entityType: 'Close corporation registered in Namibia',
     registrationNumber: 'CC/2026/06325',
     registrationAuthority: 'Business and Intellectual Property Authority (BIPA), Namibia',
-    registeredOffice: 'Erf 1442 Mahetago, Iipumbu Yashilongo Street, Swakopmund, Namibia',
-    postalAddress: 'P.O. Box 906, Swakopmund, Namibia',
+    // No street or postal address is published. The address on the founding
+    // statement is a private home, so written contact goes to the email below
+    // (owner's instruction, September 2026). Don't add one back unless it is a
+    // business address the owner has asked to show.
     // Support lines, in the order shown. Each entry is guarded on its own: a
     // placeholder entry is hidden (and warned about at build time).
     phones: ['+264 81 684 4677', '+264 81 281 9840'],
@@ -37,8 +39,6 @@ export const REQUIRED_FIELDS = [
     ['legalName', 'Legal entity name'],
     ['entityType', 'Type of entity'],
     ['registrationNumber', 'Registration number'],
-    ['registeredOffice', 'Registered office'],
-    ['postalAddress', 'Postal address'],
     ['phones', 'Phone'],
     ['email', 'Email'],
     ['privacyContact', 'Privacy contact'],

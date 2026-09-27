@@ -5,7 +5,7 @@
 import { COMPANY, operatorName, companyValue, companyPhones, telHref } from './company.mjs';
 import { FEATURES } from '../features.mjs';
 
-export const NOTICE_LAST_UPDATED = '26 September 2026';
+export const NOTICE_LAST_UPDATED = '27 September 2026';
 
 export const legalNotice = (audience = 'customer') => {
     const op = operatorName(COMPANY);
