@@ -10,12 +10,19 @@ import App from './App';
 import ErrorBoundary from './components/ErrorBoundary';
 import { initFreshBuildReload } from './utils/freshBuild';
 import { initErrorReporter } from './utils/errorReporter';
+import { installStandaloneViewportFix } from '@bookplus/ui';
 
 // Capture uncaught JS errors + unhandled promise rejections (production only).
 initErrorReporter();
 
 // Reload long-lived tabs/PWAs onto the newest build when the user returns.
 initFreshBuildReload([]);
+
+// iPhone home-screen app only: iOS can hand a page that fits the screen a
+// viewport short by the status-bar inset, lifting the bottom nav off the
+// bottom edge. Set up before the first render (details in @bookplus/ui
+// standaloneViewport); does nothing in a browser.
+installStandaloneViewportFix();
 
 // Backstop: armed BEFORE render so the opaque splash can never trap the UI, even
 // if render() throws synchronously. The normal, prettier fade runs below on success.
