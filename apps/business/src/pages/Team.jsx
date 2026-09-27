@@ -1637,7 +1637,7 @@ const Team = () => {
     };
 
     return (
-        <div className="container" style={{ paddingTop: 'calc(56px + 2rem)', paddingBottom: '4rem', maxWidth: '760px' }}>
+        <div className="container" style={{ paddingTop: 'var(--page-pad-top)', paddingBottom: 'var(--page-pad-bottom)', maxWidth: '760px' }}>
             <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: 600, color: 'var(--charcoal)', margin: '0 0 0.35rem' }}>Team</h1>
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.92rem', margin: '0 0 1.75rem' }}>
                 Invite staff to log in, set who performs which services, and give anyone their own working hours. Clients can pick their professional when booking.

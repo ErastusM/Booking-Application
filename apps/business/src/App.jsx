@@ -3,7 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'r
 import { AuthProvider, useAuthContext } from './context/AuthContext';
 import { ToastProvider } from './components/Toast';
 import { ConfirmProvider } from '@bookplus/ui';
-import { ThemeProvider } from './context/ThemeContext';
+import { ThemeProvider, useTheme } from './context/ThemeContext';
 import Navbar from './components/Navbar';
 import Footer from './components/Footer';
 import ProtectedRoute from './components/ProtectedRoute';
@@ -129,10 +129,15 @@ function AppRoutes() {
 // emailed one-time link (accept invite, reset password, verify email) those
 // calls ran against whatever dead session the device held, and their 401 →
 // failed refresh → forceLogout navigated the invitee away from their form.
-// Those pages are standalone screens: no chrome, no background calls.
+// Those pages are standalone screens: no chrome, no background calls — only the
+// navbar's dark backdrop behind the status bar, so its white text stays legible
+// if one is opened in the installed app (0px tall in a normal browser).
 function AppChrome() {
     const { pathname } = useLocation();
-    if (client.isPublicTokenPath(pathname)) return null;
+    const { darkMode } = useTheme();
+    if (client.isPublicTokenPath(pathname)) {
+        return <div aria-hidden="true" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'env(safe-area-inset-top, 0px)', background: darkMode ? '#0a0a0b' : '#040505', zIndex: 1300, pointerEvents: 'none' }} />;
+    }
     return <Navbar />;
 }
 

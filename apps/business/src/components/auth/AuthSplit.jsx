@@ -8,7 +8,7 @@ import { Link } from 'react-router-dom';
  */
 export const AuthSplit = ({ side, sideBody, children, testId }) => (
     <div data-testid={testId} style={{
-        minHeight: '100dvh',
+        minHeight: 'var(--page-min-h)',
         display: 'grid',
         gridTemplateColumns: '1fr 1fr',
         background: 'var(--off-white)',
@@ -65,7 +65,9 @@ export const AuthSplit = ({ side, sideBody, children, testId }) => (
             </div>
         </div>
 
-        <div className="auth-right" style={{
+        {/* auth-right-bare: these emailed-link pages have no navbar (App.jsx
+            AppChrome), so on phones the form starts near the top, not 56px down. */}
+        <div className="auth-right auth-right-bare" style={{
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',

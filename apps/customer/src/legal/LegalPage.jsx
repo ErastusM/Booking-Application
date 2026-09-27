@@ -28,7 +28,7 @@ const LegalPage = ({ doc, path, description }) => {
     }, [hash]);
 
     return (
-        <div className="container" style={{ paddingTop: 'clamp(4rem, 8vw, 7rem)', paddingBottom: '4rem', maxWidth: '820px' }}>
+        <div className="container" style={{ paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '4rem', maxWidth: '820px' }}>
             <Seo
                 title={`${doc.title} | Bookplus`}
                 description={description}

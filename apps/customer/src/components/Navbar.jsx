@@ -143,8 +143,11 @@ const Navbar = () => {
     return (
     <>
         {/* Dark backdrop behind the status bar so its white text stays legible in light mode too (installed PWA).
-            Height is the safe-area inset, so it collapses to nothing in a normal browser. */}
-        <div aria-hidden="true" className="app-statusbar-bg" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'env(safe-area-inset-top, 0px)', background: darkMode ? '#0a0a0b' : '#040505', zIndex: 1300, pointerEvents: 'none', display: hideTopNav ? 'none' : 'block' }} />
+            Height is the safe-area inset, so it collapses to nothing in a normal browser.
+            Kept on the provider profile too, where the top bar is hidden: <main> still
+            reserves the status-bar strip there, and without this it was left light grey
+            above the dark hero photo, under the white status-bar text. */}
+        <div aria-hidden="true" className="app-statusbar-bg" style={{ position: 'fixed', top: 0, left: 0, right: 0, height: 'env(safe-area-inset-top, 0px)', background: darkMode ? '#0a0a0b' : '#040505', zIndex: 1300, pointerEvents: 'none' }} />
         <nav aria-label="Main" className="app-topnav" style={{ ...navStyles, display: hideTopNav ? 'none' : 'block' }}>
             <div className="container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '56px' }}>
 

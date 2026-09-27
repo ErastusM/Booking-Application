@@ -37,7 +37,9 @@ const Unsubscribe = () => {
     const p = { color: 'var(--text-secondary)', fontSize: '0.92rem', lineHeight: 1.6, margin: '0 0 1.25rem', fontFamily: 'var(--font-body)' };
 
     return (
-        <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 'calc(56px + 1.5rem) 1rem 2rem', background: 'var(--off-white)' }}>
+        // Top-aligned under the navbar like every other page; centred in a
+        // full-height column the card floated mid-screen under a big empty band.
+        <div style={{ minHeight: 'var(--page-min-h)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 'var(--page-hero-pad-top) 1rem 2rem', background: 'var(--off-white)' }}>
             <div style={card} data-testid="unsubscribe-card" data-state={state}>
                 {state === 'working' && <p style={p}>One moment…</p>}
                 {state === 'unsubscribed' && (

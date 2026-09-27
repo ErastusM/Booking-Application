@@ -274,7 +274,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
     if (loading) return (
         // Content-shaped skeleton that mirrors the real page (hero photo, header
         // block, services strip) so space is reserved and content doesn't jump in.
-        <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+        <div style={{ background: 'var(--off-white)', minHeight: 'var(--page-min-h)' }}>
             <div className="skeleton" style={{ width: '100%', aspectRatio: '4 / 3', maxHeight: 'min(75vw, 480px)', borderRadius: 0 }} />
             <div className="container" style={{ paddingTop: '1.25rem' }}>
                 <div className="skeleton skeleton-title" style={{ width: '70%', height: '32px', marginBottom: '0.7rem' }} />
@@ -391,7 +391,7 @@ const ProviderProfilePage = ({ providerId } = {}) => {
     ].filter(Boolean);
 
     return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+        <div style={{ background: 'var(--off-white)', minHeight: 'var(--page-min-h)' }}>
             <Seo
                 title={seoTitle}
                 description={seoDescription}
@@ -534,7 +534,9 @@ const ProviderProfilePage = ({ providerId } = {}) => {
                 )}
             </div>
 
-            <div className="container" style={{ paddingTop: '1.5rem', paddingBottom: 'calc(4rem + 84px)' }}>
+            {/* Bottom room (index.css .provider-profile-body): the fixed "Book now"
+                bar's clearance only on phones, where that bar shows. */}
+            <div className={`container provider-profile-body${isOwner ? '' : ' has-book-bar'}`} style={{ paddingTop: '1.5rem' }}>
                 <div className="provider-profile-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 320px', gap: '2rem', alignItems: 'start' }}>
 
                     {/* Left — About, Services, Team, Reviews (Fresha page order) */}

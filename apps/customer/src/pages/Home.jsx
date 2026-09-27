@@ -501,7 +501,9 @@ const Home = () => {
     };
 
     return (
-        <div style={{ background: 'var(--off-white)', paddingTop: 'var(--page-hero-pad-top)' }}>
+        // The sticky search below adds its own 0.75rem above the pill, so the page
+        // pads that much less: the pill sits the standard distance under the bar.
+        <div style={{ background: 'var(--off-white)', paddingTop: 'calc(var(--page-hero-pad-top) - 0.75rem)' }}>
             <Seo
                 title="Bookplus — Book local services online"
                 description="Discover and book local businesses — beauty, health, fitness, automotive, home services and more. Real-time availability, instant confirmation and reviews from real bookings."

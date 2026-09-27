@@ -141,6 +141,16 @@ const Navbar = () => {
         return () => { document.body.style.overflow = ''; };
     }, [menuOpen]);
 
+    // Tag <body> while the bottom nav is shown (the business suite; not admins or
+    // signed-out pages, and not the admin sign-in, where the navbar is hidden) so
+    // index.css keeps room for it only then. A class, not :has(), which did not
+    // apply on iOS Safari (index.css).
+    const showBottomNav = inSuite && location.pathname !== '/bkplus-command/login';
+    useEffect(() => {
+        document.body.classList.toggle('has-bottom-nav', showBottomNav);
+        return () => document.body.classList.remove('has-bottom-nav');
+    }, [showBottomNav]);
+
     const handleLogout = () => { setMenuOpen(false); logout(); navigate('/'); };
     const isActive = (path) => location.pathname === path;
 

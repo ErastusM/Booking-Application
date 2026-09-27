@@ -145,7 +145,7 @@ const ManageBooking = () => {
     );
 
     return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100dvh', paddingTop: '3.75rem', paddingBottom: '4rem' }}>
+        <div style={{ background: 'var(--off-white)', minHeight: 'var(--page-min-h)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: 'var(--page-pad-bottom)' }}>
             <div style={{ width: '100%', maxWidth: '440px', margin: '0 auto', padding: '0 1rem' }}>
                 <div style={{ textAlign: 'center', marginBottom: '1.5rem' }}>
                     <Link to="/" style={{ textDecoration: 'none', fontFamily: 'var(--font-display)', fontSize: '1.5rem', fontWeight: '600', color: 'var(--gold)' }}>

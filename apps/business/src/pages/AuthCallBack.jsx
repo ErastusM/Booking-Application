@@ -71,7 +71,7 @@ const AuthCallback = () => {
     }
 
     return (
-        <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--off-white)' }}>
+        <div style={{ minHeight: 'var(--page-min-h)', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--off-white)' }}>
             <div style={{ textAlign: 'center' }}>
                 {error ? (
                     <>

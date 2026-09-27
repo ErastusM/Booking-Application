@@ -51,7 +51,7 @@ const MyWaitingList = () => {
     };
 
     if (loading) return (
-        <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ minHeight: 'var(--page-min-h)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <div style={{ textAlign: 'center' }}>
                 <div style={{
                     width: '40px', height: '40px',
@@ -68,13 +68,13 @@ const MyWaitingList = () => {
     );
 
     return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+        <div style={{ background: 'var(--off-white)', minHeight: 'var(--page-min-h)' }}>
 
             {/* Header */}
             <div style={{
                 background: 'var(--ink)',
                 paddingTop: 'var(--page-hero-pad-top)',
-                paddingBottom: '3rem',
+                paddingBottom: 'var(--page-hero-pad-bottom)',
                 position: 'relative',
                 overflow: 'hidden',
             }}>
@@ -98,7 +98,7 @@ const MyWaitingList = () => {
                 </div>
             </div>
 
-            <div className="container" style={{ paddingTop: '3rem', paddingBottom: '5rem', maxWidth: '760px' }}>
+            <div className="container" style={{ paddingTop: 'var(--page-body-pad-top)', paddingBottom: 'var(--page-pad-bottom)', maxWidth: '760px' }}>
 
                 {justJoined && (
                     <div style={{

@@ -111,7 +111,7 @@ const Register = () => {
 
     return (
         <div style={{
-            minHeight: '100dvh',
+            minHeight: 'var(--page-min-h)',
             display: 'grid',
             gridTemplateColumns: '1fr 1fr',
             background: 'var(--off-white)',

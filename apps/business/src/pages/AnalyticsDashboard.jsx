@@ -144,7 +144,7 @@ const AnalyticsDashboard = () => {
     };
 
     if (loading) return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+        <div style={{ background: 'var(--off-white)' }}>
             {/* Hero placeholder — mirrors the ink header so the page doesn't jump */}
             <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem' }}>
                 <div className="container">
@@ -152,7 +152,7 @@ const AnalyticsDashboard = () => {
                     <div className="skeleton" style={{ width: '190px', height: '38px', background: 'rgba(255,255,255,0.12)' }} />
                 </div>
             </div>
-            <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
+            <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: 'var(--page-pad-bottom)' }}>
                 {[0, 1].map((row) => (
                     <div key={row} className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: row === 1 ? '2rem' : '1.5rem' }}>
                         {[0, 1, 2, 3].map((i) => (
@@ -172,7 +172,7 @@ const AnalyticsDashboard = () => {
     );
 
     if (error) return (
-        <div style={{ minHeight: '100dvh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ minHeight: 'var(--page-min-h)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
             <p style={{ color: '#991b1b' }}>{error}</p>
         </div>
     );
@@ -187,7 +187,7 @@ const AnalyticsDashboard = () => {
     const cancelledCount = appointments.byStatus.find(s => s._id === 'cancelled')?.count || 0;
 
     return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+        <div style={{ background: 'var(--off-white)' }}>
 
             {/* Header */}
             <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
@@ -205,7 +205,7 @@ const AnalyticsDashboard = () => {
                 </div>
             </div>
 
-            <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
+            <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: 'var(--page-pad-bottom)' }}>
 
                 {/* ── Booking KPIs ── */}
                 <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '1rem', marginBottom: '1.5rem' }}>

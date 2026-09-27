@@ -209,15 +209,15 @@ const MyAppointments = () => {
     const labelStyle = { fontSize: '0.7rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.25rem' };
 
     if (loading) return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+        <div style={{ background: 'var(--off-white)', minHeight: 'var(--page-min-h)' }}>
             {/* Header — matches the real dark hero so the layout doesn't jump on load */}
-            <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: 'var(--page-hero-pad-bottom)', position: 'relative', overflow: 'hidden' }}>
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Your Schedule</p>
                     <h1 style={{ fontFamily: 'var(--font-display)', fontSize: 'clamp(2rem, 4vw, 3rem)', fontWeight: '600', color: 'white' }}>My Appointments</h1>
                 </div>
             </div>
-            <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
+            <div className="container" style={{ paddingTop: 'var(--page-body-pad-top)', paddingBottom: 'var(--page-pad-bottom)' }}>
                 {/* Filter-tab placeholder */}
                 <div style={{ display: 'flex', gap: '0.75rem', marginBottom: '2rem' }} aria-hidden="true">
                     {[0, 1, 2, 3].map(i => <div key={i} className="skeleton" style={{ width: '84px', height: '20px', borderRadius: '6px' }} />)}
@@ -255,7 +255,7 @@ const MyAppointments = () => {
         : 'Appointment booked!';
 
     return (
-        <div style={{ background: 'var(--off-white)', minHeight: '100dvh' }}>
+        <div style={{ background: 'var(--off-white)', minHeight: 'var(--page-min-h)' }}>
 
             {cancelledOverlay && (
                 <StatusOverlay
@@ -275,7 +275,7 @@ const MyAppointments = () => {
             )}
 
             {/* Header */}
-            <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: '3rem', position: 'relative', overflow: 'hidden' }}>
+            <div style={{ background: 'var(--ink)', paddingTop: 'var(--page-hero-pad-top)', paddingBottom: 'var(--page-hero-pad-bottom)', position: 'relative', overflow: 'hidden' }}>
                 <div style={{ position: 'absolute', inset: 0, backgroundImage: 'radial-gradient(ellipse at 80% 50%, rgba(240,62,22,0.045) 0%, transparent 60%)', pointerEvents: 'none' }} />
                 <div className="container" style={{ position: 'relative' }}>
                     <p style={{ color: 'var(--gold)', fontSize: '0.75rem', fontWeight: '600', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: '0.75rem' }}>Your Schedule</p>
@@ -283,7 +283,7 @@ const MyAppointments = () => {
                 </div>
             </div>
 
-            <div className="container" style={{ paddingTop: '2.5rem', paddingBottom: '5rem' }}>
+            <div className="container" style={{ paddingTop: 'var(--page-body-pad-top)', paddingBottom: 'var(--page-pad-bottom)' }}>
 
                 <EnablePushBanner />
 
