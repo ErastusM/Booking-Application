@@ -16,7 +16,9 @@ const { SEED, login } = require('./helpers.cjs');
  * navigator.standalone (iOS-only) and a screen 59px taller than the window.
  * Chromium's window never grows to fit, so it is the fallback that shows: the
  * nav sits 59px below the window's bottom edge, where the phone's real bottom
- * edge would be. The same page without the dressing-up must get none of it.
+ * edge would be. The layers that cover the screen (menu, suggestion panel,
+ * New Appointment) run down with it. The same page without the dressing-up
+ * must get none of it.
  */
 const PHONE = { viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true };
 const GAP = 59;
@@ -46,6 +48,8 @@ const measure = () => {
     return {
         fixClass: html.classList.contains('ios-vp-fix'),
         appFullH: html.style.getPropertyValue('--app-full-h'),
+        // The fix itself on an iPhone: the document at least screen-high.
+        htmlMinH: getComputedStyle(html).minHeight,
         vpGap: html.style.getPropertyValue('--vp-gap'),
         navBottomCss: nav ? getComputedStyle(nav).bottom : null,
         navBottom: nav ? nav.getBoundingClientRect().bottom : null,
@@ -61,6 +65,11 @@ const measure = () => {
         scrollW: html.scrollWidth,
     };
 };
+// The computed bottom of the first element matching each selector.
+const bottomsOf = (sels) => sels.map((sel) => {
+    const el = document.querySelector(sel);
+    return el ? getComputedStyle(el).bottom : null;
+});
 
 test.describe('iPhone home-screen app — bottom nav on the real bottom edge', () => {
     test.use(PHONE);
@@ -76,6 +85,7 @@ test.describe('iPhone home-screen app — bottom nav on the real bottom edge', (
         expect(plain.fixClass).toBe(false);
         expect(plain.appFullH).toBe('');
         expect(plain.vpGap).toBe('');
+        expect(plain.htmlMinH).toBe('0px');
         expect(plain.navBottomCss).toBe('0px');
         expect(Math.round(plain.navBottom)).toBe(plain.innerH);
         // The page fits the screen exactly: nothing to scroll either way.
@@ -85,6 +95,10 @@ test.describe('iPhone home-screen app — bottom nav on the real bottom edge', (
         expect(plain.underBg).toBe(plain.barBg);
         expect(plain.underH).toBe('120px');
         expect(plain.listBottom).toBeLessThanOrEqual(plain.barTop);
+        // The menu's scrim and drawer keep their place too.
+        await page.getByRole('button', { name: 'Open menu' }).click();
+        await expect(page.locator('.mobile-drawer')).toBeVisible();
+        expect(await page.evaluate(bottomsOf, ['.mobile-drawer', '.scrim-in'])).toEqual(['0px', '0px']);
 
         await page.goto('/dashboard');
         await expect(page.locator('.fc-bookplus-wrapper')).toBeVisible();
@@ -102,6 +116,7 @@ test.describe('iPhone home-screen app — bottom nav on the real bottom edge', (
         const app = await page.evaluate(measure);
         expect(app.fixClass).toBe(true);
         expect(app.appFullH).toBe(`${PHONE.viewport.height + GAP}px`);
+        expect(app.htmlMinH).toBe(`${PHONE.viewport.height + GAP}px`);
         expect(app.navBottomCss).toBe(`-${GAP}px`);
         expect(Math.round(app.navBottom)).toBe(app.innerH + GAP);
         expect(app.scrollW).toBeLessThanOrEqual(app.innerW);
@@ -109,6 +124,15 @@ test.describe('iPhone home-screen app — bottom nav on the real bottom edge', (
         // The client list still ends just above the bar, the same distance as in
         // the browser — it ran on down with the nav instead of stopping 59px short.
         expect(Math.abs((app.barTop - app.listBottom) - (plain.barTop - plain.listBottom))).toBeLessThanOrEqual(1);
+        // What covers the screen runs down with the nav, so none of it shows
+        // (or takes taps) below them: the menu's scrim and drawer, the
+        // suggestion panel.
+        await page.getByRole('button', { name: 'Open menu' }).click();
+        await expect(page.locator('.mobile-drawer')).toBeVisible();
+        expect(await page.evaluate(bottomsOf, ['.mobile-drawer', '.scrim-in'])).toEqual([`-${GAP}px`, `-${GAP}px`]);
+        await page.goto('/dashboard?tab=clients');
+        await page.getByRole('button', { name: 'Send a suggestion' }).click();
+        expect(await page.evaluate(bottomsOf, ['.vp-cover'])).toEqual([`-${GAP}px`]);
 
         await page.goto('/dashboard');
         await expect(page.locator('.fc-bookplus-wrapper')).toBeVisible();
@@ -116,11 +140,17 @@ test.describe('iPhone home-screen app — bottom nav on the real bottom edge', (
         await settle(page);
         const appCal = await page.evaluate(measure);
         expect(appCal.fixClass).toBe(true);
+        expect(appCal.htmlMinH).toBe(`${PHONE.viewport.height + GAP}px`);
         expect(appCal.navBottomCss).toBe(`-${GAP}px`);
         // The calendar frame drops with the nav: same place above it as in a browser.
         expect(Math.round(appCal.calBottom - plainCal.calBottom)).toBe(GAP);
         expect(Math.round(appCal.barTop - appCal.calBottom)).toBe(Math.round(plainCal.barTop - plainCal.calBottom));
         expect(appCal.scrollW).toBeLessThanOrEqual(appCal.innerW);
         expect(appCal.scrollH - appCal.innerH).toBeLessThanOrEqual(GAP);
+
+        // The phone's full-screen New Appointment modal and its scrim drop too.
+        await page.goto('/dashboard?new=1');
+        await expect(page.locator('.modal-center')).toBeVisible();
+        expect(await page.evaluate(bottomsOf, ['.modal-center', '.scrim-in'])).toEqual([`-${GAP}px`, `-${GAP}px`]);
     });
 });

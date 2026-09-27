@@ -72,10 +72,13 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
             )}
 
             {/* Drawer overlay — stays mounted so its opacity can fade in/out in sync
-                with the panel slide instead of blinking on/off. */}
+                with the panel slide instead of blinking on/off. .vp-cover (with the
+                panel's): in the iPhone home-screen app both run down to the real
+                bottom edge with the bottom nav (index.css "iPhone home-screen app"). */}
             <div
                 onClick={doClose}
                 aria-hidden="true"
+                className="vp-cover"
                 style={{
                     position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.35)', zIndex: 1001, backdropFilter: 'blur(2px)',
                     opacity: open ? 1 : 0, visibility: open ? 'visible' : 'hidden',
@@ -87,7 +90,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
             {/* Slide-in panel — when closed, visibility:hidden + pointer-events:none +
                 aria-hidden pull its controls out of the tab order and the a11y tree,
                 so keyboard/SR users can't land on the off-screen form. */}
-            <div aria-hidden={!open} style={{
+            <div aria-hidden={!open} className="vp-cover" style={{
                 position: 'fixed', top: 0, right: 0, bottom: 0,
                 width: '420px', maxWidth: '95vw',
                 background: 'var(--card-bg)', boxShadow: '-8px 0 40px rgba(0,0,0,0.18)',
