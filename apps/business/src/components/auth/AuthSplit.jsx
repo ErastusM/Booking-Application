@@ -66,7 +66,8 @@ export const AuthSplit = ({ side, sideBody, children, testId }) => (
         </div>
 
         {/* auth-right-bare: these emailed-link pages have no navbar (App.jsx
-            AppChrome), so on phones the form starts near the top, not 56px down. */}
+            AppChrome), so on phones the form is centred in the whole screen,
+            with 32px of air above rather than 56px + for a bar. */}
         <div className="auth-right auth-right-bare" style={{
             display: 'flex',
             alignItems: 'center',

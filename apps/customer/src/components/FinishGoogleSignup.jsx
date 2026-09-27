@@ -40,8 +40,8 @@ const FinishGoogleSignup = ({ code, onDone, onCancel, showMarketing = false }) =
     const link = { color: 'var(--gold-dark)', textDecoration: 'underline' };
 
     return (
-        // Top-aligned under the navbar, like the other sign-up steps.
-        <div style={{ minHeight: 'var(--page-min-h)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'var(--off-white)', padding: 'var(--page-hero-pad-top) 1rem 2rem' }}>
+        // Centred on phones (index.css .auth-page), top-aligned on desktop.
+        <div className="auth-page" style={{ minHeight: 'var(--page-min-h)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'var(--off-white)', padding: 'var(--page-hero-pad-top) 1rem 2rem' }}>
             <form onSubmit={submit} data-testid="finish-signup" style={{ width: '100%', maxWidth: '420px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '0.9rem' }}>
                 <h1 style={{ fontFamily: 'var(--font-display)', fontSize: '1.4rem', fontWeight: 600, color: 'var(--charcoal)', margin: 0 }}>Finish signing up</h1>
                 <p style={{ color: 'var(--text-muted)', fontSize: '0.88rem', margin: 0, fontFamily: 'var(--font-body)' }}>

@@ -441,15 +441,18 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
   /* Tighter header on mobile */
 
   .auth-left { display: none !important; }
-  /* One column on phones: the form starts just under the top bar. Centred in a
-     full-height column it floated mid-screen under a big empty band. */
+  /* One column on phones, the form centred in the screen under the top bar (the
+     owner's call). The top padding keeps it clear of the bar; a taller form
+     starts under it and the page scrolls. */
   .auth-right {
     grid-column: 1 / -1 !important;
-    align-items: flex-start !important;
     padding: var(--page-pad-top) 1.25rem 2rem !important;
     width: 100% !important;
   }
   .auth-right.auth-right-bare { padding-top: var(--space-8) !important; }
+  /* Single-card pages (verify email, finish sign-up…): same, centred on phones;
+     desktop keeps them top-aligned. */
+  .auth-page { align-items: center !important; }
 
   .booking-grid { grid-template-columns: 1fr !important; }
   .booking-summary { display: none !important; }
