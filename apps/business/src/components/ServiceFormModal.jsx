@@ -34,8 +34,13 @@ const field = { marginBottom: '1.5rem' };
  * what is theirs to set: the name when adding, the price and the Duration. The
  * business's catalogue fields (category, description, extra time, options,
  * location) stay the owner's.
+ *
+ * Editing an existing service, `onDelete` adds a destructive text button at the
+ * bottom (`deleteLabel`: the owner's "Delete service", a member's "Remove from
+ * my services"). onDelete(service) does the asking, and closes this sheet
+ * once the service is gone (ProviderDashboard).
  */
-const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, onCategoriesChanged, memberSave = null, businessName = '' }) => {
+const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, onCategoriesChanged, memberSave = null, businessName = '', onDelete = null, deleteLabel = 'Delete service' }) => {
     const memberMode = typeof memberSave === 'function';
     const { user } = useAuthContext();
     const isOwner = user?.role === 'provider' || user?.role === 'admin';
@@ -48,6 +53,7 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
     const [addingCat, setAddingCat] = useState(false);
     const [newCat, setNewCat] = useState('');
     const [catSaving, setCatSaving] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     useEffect(() => {
         if (!open) return;
@@ -74,6 +80,7 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
         setError('');
         setAddingCat(false);
         setNewCat('');
+        setDeleting(false);
     }, [open, editing]);
 
     if (!open) return null;
@@ -86,10 +93,10 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
     // A saved category that isn't in the list yet (still loading, or deleted)
     // shows its populated name rather than a raw id; kept hidden from the list.
     const categoryOptions = [
-        { value: '', label: 'Featured (uncategorized)' },
+        { value: '', label: 'Other services (no category)' },
         ...categories.map((c) => ({ value: c._id, label: c.name })),
         ...(form.category && !categories.some((c) => c._id === form.category)
-            ? [{ value: form.category, label: (editing?.category?._id === form.category && editing.category.name) || 'Featured (uncategorized)', hidden: true }]
+            ? [{ value: form.category, label: (editing?.category?._id === form.category && editing.category.name) || 'Other services (no category)', hidden: true }]
             : []),
     ];
 
@@ -126,6 +133,12 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
         } finally {
             setSaving(false);
         }
+    };
+
+    const remove = async () => {
+        if (!onDelete || !editing || deleting) return;
+        setDeleting(true);
+        try { await onDelete(editing); } finally { setDeleting(false); }
     };
 
     const createCategory = async () => {
@@ -326,6 +339,15 @@ const ServiceFormModal = ({ open, editing, categories = [], onClose, onSaved, on
                     </>}
 
                     {error && <p role="alert" style={{ marginTop: '1.25rem', color: 'var(--danger-fg, #dc2626)', fontSize: '0.85rem' }}>{error}</p>}
+
+                    {editing && typeof onDelete === 'function' && (
+                        <div style={{ marginTop: '2rem', paddingTop: '1rem', borderTop: '1px solid var(--border)' }}>
+                            <button type="button" onClick={remove} disabled={deleting || saving} data-testid="service-delete"
+                                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.45rem', minHeight: '44px', padding: '0 0.25rem', background: 'none', border: 'none', cursor: deleting ? 'default' : 'pointer', color: 'var(--danger-fg)', fontFamily: 'var(--font-body)', fontWeight: 600, fontSize: '0.9rem', opacity: deleting ? 0.6 : 1 }}>
+                                <Trash2 size={16} aria-hidden="true" /> {deleteLabel}
+                            </button>
+                        </div>
+                    )}
                 </div>
             </div>
 
