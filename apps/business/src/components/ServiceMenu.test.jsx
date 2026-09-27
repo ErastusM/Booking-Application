@@ -73,7 +73,7 @@ describe('ServiceMenu — the owner', () => {
 
     it('says who clients can book for each service', () => {
         renderOwner();
-        expect(within(rowOf('Haircut')).getByTestId('catalogue-performers')).toHaveTextContent(/^You · Moses · Hilda$/);
+        expect(within(rowOf('Haircut')).getByTestId('catalogue-performers')).toHaveTextContent(/^You · Hilda · Moses$/);
         expect(within(rowOf('Beard trim')).getByTestId('catalogue-performers')).toHaveTextContent(/^Only Moses$/);
         // Inactive (Paul) and not-bookable (Lina) members are never named.
         expect(rowOf('Car wash')).not.toHaveTextContent('Paul');
@@ -98,7 +98,7 @@ describe('ServiceMenu — the owner', () => {
         const { onEdit } = renderOwner();
         const haircut = rowOf('Haircut');
         expect(haircut).toHaveAttribute('data-testid', 'catalogue-service');
-        expect(haircut.querySelector('.sm-meta')).toHaveTextContent('45 min · You · Moses · Hilda · 📍 Windhoek');
+        expect(haircut.querySelector('.sm-meta')).toHaveTextContent('45 min · You · Hilda · Moses · 📍 Windhoek');
         expect(haircut.querySelector('.sm-price')).toHaveTextContent('N$ 120');
         expect(rowOf('Car wash').querySelector('.sm-price')).toHaveTextContent('N$ 856.50');
         expect(rowOf('Car wash').querySelector('.sm-meta')).toHaveTextContent('1 hr 15 min');
@@ -257,7 +257,7 @@ describe('ServiceMenu — the owner', () => {
         expect(screen.getByRole('button', { name: 'Washing, 1 service' })).toBeInTheDocument();
         expect(screen.getByRole('heading', { level: 3, name: 'Cuts, 2 services' })).toBeInTheDocument();
         expect(screen.getByRole('heading', { level: 3, name: `${OTHER_NAME}, 1 service` })).toBeInTheDocument();
-        expect(rowOf('Haircut')).toHaveAccessibleDescription('45 min, You, Moses, Hilda, in Windhoek. N$ 120');
+        expect(rowOf('Haircut')).toHaveAccessibleDescription('45 min, You, Hilda, Moses, in Windhoek. N$ 120');
         expect(rowOf('Beard trim')).toHaveAccessibleDescription('20 min, Only Moses. N$ 60');
     });
 
@@ -484,7 +484,7 @@ describe('ServiceMenu helpers', () => {
     });
 
     it('reads performers as the owner row says them', () => {
-        expect(performersLine({ _id: 's1' }, TEAM).text).toBe('You · Moses · Hilda');
+        expect(performersLine({ _id: 's1' }, TEAM).text).toBe('You · Hilda · Moses');
         expect(performersLine({ _id: 's9', ownerPerforms: false }, TEAM).text).toBe('Only Moses');
         expect(performersLine({ _id: 's9', ownerPerforms: false }, []).nobody).toBe(true);
         expect(performersLine({ _id: 's9' }, null)).toBeNull();
