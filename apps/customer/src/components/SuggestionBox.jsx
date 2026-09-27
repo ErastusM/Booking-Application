@@ -1,6 +1,10 @@
 import React, { useState } from 'react';
 import { suggestionService } from '../services';
 import { cloudinaryAvatar } from '../utils/cloudinary';
+import { companyValue } from '@bookplus/config/legal/company.mjs';
+
+// Suggestions are emailed to the company inbox; shown so users know where they go.
+const SUGGESTIONS_TO = companyValue('email') || 'info@bookplus.pro';
 
 const CATEGORIES = ['Feature Request', 'Bug Report', 'Improvement', 'Compliment', 'General'];
 
@@ -168,9 +172,15 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>{message.length}/2000</span>
                             </div>
 
-                            {/* Sender info (read-only if logged in) */}
+                            {/* Where it goes, and who it's from (the signed-in account, read-only).
+                                The API emails it to the company inbox (suggestionController). */}
+                            <div data-testid="suggestion-to" style={{ border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '0.65rem 1rem', marginBottom: '0.6rem', display: 'flex', alignItems: 'baseline', gap: '0.6rem', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                                <span style={{ fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: '0.68rem', minWidth: '2.6rem' }}>To</span>
+                                <span style={{ color: 'var(--charcoal)', overflowWrap: 'anywhere' }}>Bookplus team · <a href={`mailto:${SUGGESTIONS_TO}`} style={{ color: 'inherit' }}>{SUGGESTIONS_TO}</a></span>
+                            </div>
                             {user && (
                                 <div style={{ background: 'var(--warm-gray)', borderRadius: 'var(--radius-sm)', padding: '0.75rem 1rem', marginBottom: '1.25rem', display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                                    <span style={{ fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase', fontSize: '0.68rem', color: 'var(--text-muted)', minWidth: '2.6rem' }}>From</span>
                                     <div style={{ width: '34px', height: '34px', borderRadius: '50%', background: 'var(--ink)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--gold)', fontWeight: '600', fontSize: '0.85rem', flexShrink: 0 }}>
                                         {user.avatar ? <img src={cloudinaryAvatar(user.avatar)} alt="" style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }} /> : user.name?.[0]?.toUpperCase()}
                                     </div>
@@ -190,7 +200,7 @@ const SuggestionBox = ({ user, open: openProp, onClose }) => {
                             </button>
 
                             <p style={{ textAlign: 'center', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '0.75rem' }}>
-                                Sent directly to the Bookplus team &bull; We reply to all feedback
+                                We reply to all feedback
                             </p>
                         </form>
                     )}
