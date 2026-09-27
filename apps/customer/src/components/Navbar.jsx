@@ -469,7 +469,14 @@ const Navbar = () => {
             (hidden on the booking flow, which has its own bottom CTA bar) */}
         {showBottomNav && createPortal(
             <nav aria-label="Bottom navigation" className="show-mobile" style={{
-                position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 999,
+                // bottom is 0 except in the iPhone home-screen app when iOS leaves the
+                // viewport short of the screen: --vp-gap then drops the bar by the
+                // missing height, back to its place above the real bottom edge
+                // (@bookplus/ui standaloneViewport, index.css "iPhone home-screen app").
+                // Unlike the business app's full-width bar, this one floats over the
+                // page, so what shows under it is the page colour, which the <html>
+                // canvas already paints in both themes: it needs no extra paint below.
+                position: 'fixed', left: 0, right: 0, bottom: 'calc(-1 * var(--vp-gap, 0px))', zIndex: 999,
                 display: 'flex', justifyContent: 'center',
                 padding: '0 12px calc(3px + env(safe-area-inset-bottom, 0))',
                 pointerEvents: 'none',

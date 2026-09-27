@@ -732,6 +732,17 @@ body.dark-mode .booking-confirm-mobile {
   background: var(--card-bg);
   border-top-color: var(--border);
 }
+/* The booking bars' colour carries on 120px below them, so if the iPhone
+   home-screen app ever leaves one above the real bottom edge in a way the
+   viewport fix can't catch ("iPhone home-screen app" below), the strip under
+   it is the bar, not bare background. It starts at the bar's bottom, the
+   viewport's bottom edge, so anywhere else it is off-screen: a fixed bar's
+   overflow never scrolls, and pointer-events: none keeps it out of taps. */
+.booking-mobile-bar::after,
+.booking-confirm-mobile::after {
+  content: ''; position: absolute; left: 0; right: 0; top: 100%; height: 120px;
+  background: inherit; pointer-events: none;
+}
 
 /* ──────────────────────────────────────────────────
    FullCalendar — Bookplus overrides
@@ -1211,19 +1222,39 @@ body.dark-mode .skeleton::after { background: linear-gradient(90deg, transparent
      only a little more.
    --page-min-h: a full screen less what <main> (the status-bar inset) and the
      body (the bottom nav's room) already add. A 100dvh page inside them was
-     always taller than the screen, so even a short page scrolled into blank. */
+     always taller than the screen, so even a short page scrolled into blank.
+     The + --vp-gap is 0 except in the iPhone home-screen app case below. */
 :root {
   --page-hero-pad-bottom: 3rem;
   --page-body-pad-top: 3rem;
   --page-pad-bottom: 5rem;
-  --page-min-h: calc(100dvh - var(--safe-top, 0px));
+  --page-min-h: calc(100dvh + var(--vp-gap, 0px) - var(--safe-top, 0px));
 }
 @media (max-width: 768px) {
   :root { --page-hero-pad-bottom: 1.75rem; --page-body-pad-top: 1.25rem; }
   body.has-bottom-nav {
     --page-pad-bottom: 1rem;
-    --page-min-h: calc(100dvh - var(--safe-top, 0px) - 96px - env(safe-area-inset-bottom, 0px));
+    --page-min-h: calc(100dvh + var(--vp-gap, 0px) - var(--safe-top, 0px) - 96px - env(safe-area-inset-bottom, 0px));
   }
+}
+
+/* iPhone home-screen app, short viewport. There iOS gives a page that is no
+   taller than the screen a viewport short by the status-bar inset, so the
+   bottom nav (and the booking flow's Continue / Confirm bar) sat ~59pt above
+   the real bottom; pages that scroll get the whole screen. The @bookplus/ui
+   helper (standaloneViewport, installed in main.jsx) spots that and tags <html>
+   with .ios-vp-fix and --app-full-h, the screen's height: the document is then
+   at least screen-high, like the pages that were always flush. If the viewport
+   stays short anyway, --vp-gap is the missing height: the bottom bars drop by
+   it to the real edge (the nav in Navbar, the booking bars here) and the
+   full-screen fills (--page-min-h) grow by it. Neither is ever set in a
+   browser, so there this is all + 0px. */
+html.ios-vp-fix { min-height: var(--app-full-h); }
+html.ios-vp-fix .booking-mobile-bar,
+html.ios-vp-fix .booking-confirm-mobile { bottom: calc(-1 * var(--vp-gap, 0px)) !important; }
+/* Phone full-screen modals (the booking intake form) run to the real edge too. */
+@media (max-width: 768px) {
+  html.ios-vp-fix .modal-center { bottom: calc(-1 * var(--vp-gap, 0px)) !important; max-height: calc(100dvh + var(--vp-gap, 0px)) !important; }
 }
 
 /* Desktop nav links — pill hover/active */
