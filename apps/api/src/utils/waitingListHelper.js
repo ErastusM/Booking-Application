@@ -56,8 +56,8 @@ const slotIsFree = async (providerId, appointmentDate, startTime, endTime, teamM
     if (existing.some(a => overlapsAny(nStart, nEnd, memberBusyIntervalsBuffered(a, teamMember || null, bufferByService)))) return false;
 
     // Honour the assigned member's roster: leave → shift → their own weekly
-    // hours (none of their own = not bookable; a business's only bookable member
-    // works the business's hours, as on create). The create path refuses a booking
+    // hours (none of their own = not bookable; never the business's hours, as on
+    // create). The create path refuses a booking
     // onto a rostered day off, an off-shift hour, a break or a member with no
     // hours, and promotion must refuse it too — otherwise cancelling a booking
     // auto-promotes the next person in line straight onto a slot that member no
@@ -68,7 +68,7 @@ const slotIsFree = async (providerId, appointmentDate, startTime, endTime, teamM
         const { staffHoursReason } = require('./staffBooking');
         const reason = await staffHoursReason({
             member: { _id: teamMember }, date: appointmentDate,
-            startTime, endTime: endTime || startTime, providerId,
+            startTime, endTime: endTime || startTime,
         });
         if (reason) return false;
     }

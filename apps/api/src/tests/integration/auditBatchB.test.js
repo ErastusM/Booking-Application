@@ -4,8 +4,8 @@
  *      shifts, surfacing openings the booking flow then rejects. It now mirrors the
  *      booking validator's precedence (leave → shift replaces weekly → weekly).
  *   2. getBookedSlots' "any professional" view re-emitted OWNER-ONLY blocks as
- *      'blocked', greying out slots the team can still take. Now only business-wide
- *      blocks are re-emitted.
+ *      'blocked', greying out slots the team can still take. Now none of the
+ *      owner's blocks are re-emitted (they never close a team member).
  *   (The availability-search past-slot floor is also computed in Namibia local time
  *   now, not server-UTC — not unit-tested here as it depends on wall-clock "now".)
  */
@@ -83,13 +83,13 @@ describe('B1 — availability search honours approved leave and shifts', () => {
     });
 });
 
-describe('B2 — any-professional slot view does not leak owner-only blocks', () => {
-    it('re-emits a business-wide block but not an owner-only block', async () => {
+describe('B2 — any-professional slot view does not leak the owner\'s blocks', () => {
+    it('re-emits neither an owner-only block nor a legacy business-wide one — the owner\'s blocks never close the team', async () => {
         const { provider, svc } = await shopWithAlice();
         const date = soon();
-        // Owner-only block (the owner's personal time) must NOT close the team's slots.
+        // The owner's personal time must NOT close the team's slots…
         await BlockedTime.create({ provider: provider._id, date, teamMember: null, ownerOnly: true, startTime: '12:00', endTime: '13:00' });
-        // Business-wide block DOES close every column.
+        // …and neither does a legacy "business-wide" row: it is the owner's too.
         await BlockedTime.create({ provider: provider._id, date, teamMember: null, ownerOnly: false, startTime: '14:00', endTime: '15:00' });
 
         const res = await request(app).get('/api/appointments/booked-slots')
@@ -97,7 +97,7 @@ describe('B2 — any-professional slot view does not leak owner-only blocks', ()
         expect(res.status).toBe(200);
 
         const blockedStarts = res.body.data.filter(d => d.kind === 'blocked').map(d => d.startTime);
-        expect(blockedStarts).toContain('14:00');   // business-wide surfaced
-        expect(blockedStarts).not.toContain('12:00'); // owner-only NOT leaked
+        expect(blockedStarts).not.toContain('14:00');
+        expect(blockedStarts).not.toContain('12:00');
     });
 });

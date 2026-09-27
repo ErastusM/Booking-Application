@@ -56,8 +56,8 @@ const setup = async ({ erastusCut } = {}) => {
         provider: provider._id, name: 'Erastus', offersAllServices: true, user: erastusUser._id,
         serviceOverrides: erastusCut ? [{ service: cut._id, duration: erastusCut, price: 170 }] : [],
     });
-    // Hours of their own (all day, so the business's 08:00–18:00 is the limit):
-    // a member with none can't be booked.
+    // Hours of their own (all day — their own hours are the only limit, the
+    // business's 08:00–18:00 is the owner's): a member with none can't be booked.
     await giveHours(hilda);
     await giveHours(erastus);
     return { provider, customer, other, cut, braids, hilda, erastus, erastusUser };
@@ -231,13 +231,17 @@ describe('blocked time, breaks and leave count for the whole service', () => {
         expect((await book(ctx.other, { service: ctx.braids._id, teamMember: String(ctx.hilda._id), startTime: '14:00', endTime: '16:00' })).status).toBe(201);
     });
 
-    it("an owner-only block closes the owner's column, not the team's; a business-wide block closes both", async () => {
+    it("an owner block closes the owner's column, never the team's — a legacy business-wide row included; a member's own block closes theirs", async () => {
         const ctx = await setup();
         await BlockedTime.create({ provider: ctx.provider._id, date: DATE, startTime: '15:00', endTime: '16:00', teamMember: null, ownerOnly: true });
         expect((await book(ctx.customer, { service: ctx.braids._id, teamMember: 'owner', startTime: '14:00', endTime: '16:00' })).status).toBe(400);
         expect((await book(ctx.customer, { service: ctx.braids._id, teamMember: String(ctx.hilda._id), startTime: '14:00', endTime: '16:00' })).status).toBe(201);
+        // A legacy "business-wide" row (ownerOnly false) is the owner's own too.
         await BlockedTime.create({ provider: ctx.provider._id, date: DATE, startTime: '11:00', endTime: '12:00', teamMember: null });
-        expect((await book(ctx.other, { service: ctx.braids._id, teamMember: String(ctx.erastus._id), startTime: '10:00', endTime: '12:00' })).status).toBe(400);
+        expect((await book(ctx.other, { service: ctx.braids._id, teamMember: String(ctx.erastus._id), startTime: '10:00', endTime: '12:00' })).status).toBe(201);
+        expect((await book(ctx.other, { service: ctx.braids._id, teamMember: 'owner', startTime: '10:00', endTime: '12:00' })).status).toBe(400);
+        await BlockedTime.create({ provider: ctx.provider._id, date: DATE, startTime: '08:00', endTime: '09:00', teamMember: ctx.erastus._id });
+        expect((await book(ctx.other, { service: ctx.braids._id, teamMember: String(ctx.erastus._id), startTime: '07:30', endTime: '09:30' })).status).toBe(400);
     });
 
     it('a shift break and approved leave at 15:00 stop a 2-hour 14:00', async () => {

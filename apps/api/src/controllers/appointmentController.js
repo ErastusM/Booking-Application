@@ -21,8 +21,8 @@ const {
     sendStaffBookingAlert,
 } = require('../utils/emailService');
 const calendarHelper = require('../utils/calendarHelper');
-const { resolveBookingStaff, staffHoursReason, memberBusyIntervalsBuffered, wholeSpanBuffered, bufferMapForAppointments, memberInvolvedFilter, laneInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy, performsService, pickRotationWeek, overlapsAny, performerMinutes, scheduleDayIntervals, periodOpenings, isLoneBookable, availabilityHasHours, withinPeriods, membersHoursReadiness } = require('../utils/staffBooking');
-const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, findBusinessWideBlocksForDate, toDateKey, BLOCKED_MESSAGE } = require('../utils/blockedTime');
+const { resolveBookingStaff, staffHoursReason, memberBusyIntervalsBuffered, wholeSpanBuffered, bufferMapForAppointments, memberInvolvedFilter, laneInvolvedFilter, UNAVAILABLE_MESSAGES, anyAvailableBusy, performsService, pickRotationWeek, overlapsAny, performerMinutes, scheduleDayIntervals, periodOpenings, availabilityHasHours, withinPeriods, membersHoursReadiness } = require('../utils/staffBooking');
+const { overlapsBlockedTime, findBlocksForDate, findBlocksForDates, toDateKey, BLOCKED_MESSAGE } = require('../utils/blockedTime');
 const { overrideFor } = require('../utils/memberPricing');
 const { recordBookingRejection, rejectionsSummary } = require('../utils/bookingRejections');
 const { resolveBookingLocation } = require('../utils/locationResolver');
@@ -114,23 +114,17 @@ const getProviderSchedule = async (providerId) => {
 };
 
 /**
- * Does a specific member have a date-specific shift for this day?
+ * Is a booking in a team member's lane (rather than the owner's own column)?
  *
- * A Shift REPLACES business hours for that member on that date (models/Shift
- * precedence: shift → weekly pattern → business hours). So when a booking
- * targets a specific member who has a shift for the date, the business-wide
- * hours gate must stand down and let the per-staff check (staffHoursReason) be
- * the authority — otherwise a member rostered to cover a Sunday or work a late
- * evening can never be booked, which is the entire reason a shift exists. The
- * per-staff check still enforces the shift's own slots and breaks, so standing
- * the gate down never opens a slot the shift itself doesn't cover. "Any
- * available" (no member picked) keeps the business-hours gate as its funnel.
+ * A member works ONLY their own hours — their shift for the date, else their
+ * weekly hours (staffBooking.staffHoursReason) — never the business's (the
+ * owner's) hours: the owner asked that a member be bookable exactly when THEY
+ * say, even on a day the owner is closed. So for a member's booking the
+ * business-hours gate stands down and the per-staff check is the only hours
+ * authority; it never opens a time the member doesn't work. The owner's own
+ * column (null / 'owner') keeps the business-hours gate.
  */
-const shiftGovernsHours = async (teamMemberId, appointmentDate) => {
-    if (!teamMemberId) return false;
-    const Shift = require('../models/Shift');
-    return !!(await Shift.exists({ teamMember: teamMemberId, date: toDateKey(appointmentDate) }));
-};
+const memberLane = (teamMemberId) => !!teamMemberId && String(teamMemberId) !== 'owner';
 
 // Every distinct team member a booking should alert, resolved to their own login
 // (+ email + name). A booking assigned to members who have their own logins pings
@@ -385,10 +379,6 @@ const filterBookableOccurrences = async ({
     }, {});
     const blocksByDate = bucket(blocks, b => b.date);
     const apptsByDate = bucket(appts, a => toDateKey(a.appointmentDate));
-    // The business's only bookable member works the business's hours when they
-    // have weekly hours of their own (staffBooking.weeklyHoursFor), exactly as a
-    // one-off booking — so a series doesn't skip evenings a single booking takes.
-    const lone = enforceHoursAndBlocks && teamMember ? await isLoneBookable(providerId) : false;
 
     const start = parseTimeToMinutes(startTime);
     const end = parseTimeToMinutes(endTime);
@@ -415,7 +405,9 @@ const filterBookableOccurrences = async ({
         // The first occurrence already passed the full booking checks above; never
         // drop it here, or a series could come back empty.
         if (i > 0) {
-            const closedThatDay = enforceHoursAndBlocks && schedule
+            // The business's hours close the owner's own column only; a member
+            // is held to their own hours (below), not the owner's.
+            const closedThatDay = enforceHoursAndBlocks && schedule && !teamMember
                 && !isTimeWithinSchedule(schedule, d, startTime, duration);
             // Off-shift, on a rostered day off, or on a break for the assigned
             // member. A single booking is gated by staffHoursReason; a series
@@ -424,7 +416,7 @@ const filterBookableOccurrences = async ({
             // the two can't drift. Only for a specific member — null is the
             // owner's own column, which staff hours don't govern.
             const offForStaff = enforceHoursAndBlocks && teamMember
-                ? await staffHoursReason({ member: { _id: teamMember }, date: d, startTime, endTime, providerId, lone, businessSchedule: schedule || null })
+                ? await staffHoursReason({ member: { _id: teamMember }, date: d, startTime, endTime })
                 : null;
             if (closedThatDay || offForStaff || clashes(blocksByDate[key]) || apptClashes(apptsByDate[key])) {
                 skipped.push(key);
@@ -457,9 +449,10 @@ exports.getBookedSlots = async (req, res) => {
         }
         // 'owner' is the sentinel for the owner's own column (stored unassigned,
         // teamMember:null). It's a real, single professional — NOT "any available"
-        // — so it scopes busy times to the owner's own bookings + business-wide /
-        // owner-only blocks, over business hours (the owner has no StaffAvailability
-        // or shift). memberId is the real staff id, or null for the owner column.
+        // — so it scopes busy times to the owner's own bookings + the owner's
+        // blocks (every teamMember:null block), over business hours (the owner has
+        // no StaffAvailability or shift). memberId is the real staff id, or null
+        // for the owner column. A named member sees only their own blocks.
         const ownerColumn = teamMember === 'owner';
         const memberId = ownerColumn ? null : (teamMember || null);
         const start = new Date(date);
@@ -530,21 +523,13 @@ exports.getBookedSlots = async (req, res) => {
             // their own length.
             const anyView = await anyAvailableBusy({ providerId, svc: incomingSvc, date, appointments, duration, optionName: option });
             if (anyView.applied) {
-                // Re-emit ONLY business-wide blocks — NOT the owner's own
-                // (ownerOnly) blocks. `blocks` above was fetched with a null
-                // scope, which also matches owner-only blocks; re-emitting those
-                // here greyed out slots the team can still take (the owner isn't
-                // a performer in this view, and anyAvailableBusy already excludes
-                // owner-only blocks from the columns for the same reason).
-                const bizBlocks = await findBusinessWideBlocksForDate(providerId, date);
+                // The owner's blocks (every teamMember:null block) are NOT
+                // re-emitted: the owner isn't a performer in this view, and the
+                // owner's blocks never close a team member's time — each
+                // member's own blocks are already inside anyView.busy.
                 return res.status(200).json({
                     success: true,
-                    data: [
-                        ...anyView.busy,
-                        // Business-wide blocks close every column; re-emitted with
-                        // their own kind so the client can label them "Unavailable".
-                        ...bizBlocks.map(b => ({ startTime: b.startTime, endTime: b.endTime, kind: 'blocked' })),
-                    ],
+                    data: anyView.busy,
                     shiftWindow: null,
                     hoursSource: 'any',
                     // Exact start ranges (inclusive) where one performer can take
@@ -604,8 +589,7 @@ exports.getBookedSlots = async (req, res) => {
         });
 
         // Whose hours this day is read from, so the client can say WHY a day has no
-        // times: 'business' (the owner's column, no one named, or a business's
-        // only bookable member — staffBooking.weeklyHoursFor), 'shift', 'weekly',
+        // times: 'business' (the owner's column, or no one named), 'shift', 'weekly',
         // 'leave', or 'none' — a member with no hours of their own that day, who
         // can't be booked then.
         let hoursSource = memberId ? null : 'business';
@@ -613,8 +597,8 @@ exports.getBookedSlots = async (req, res) => {
         // shift from today on)? false = nobody can book them on any day, so a
         // reschedule screen says so instead of "try another day".
         let memberHasHours = memberId ? true : undefined;
-        // The day's own working periods, for `openings` below: the shift's, the
-        // member's weekly ones, or (null) the business's.
+        // The day's own working periods, for `openings` and `memberWindow` below:
+        // the shift's, the member's weekly ones, or (null) the business's.
         let ownPeriods = null;
 
         // Breaks and off-shift hours have to come back as BUSY, not just be
@@ -652,9 +636,9 @@ exports.getBookedSlots = async (req, res) => {
             // business day on a day the member doesn't work and the booking is then
             // refused ("outside working hours"). A member with NO weekly hours of their
             // own has no hours at all: nothing is inherited from the business, so the
-            // whole day is off (the validator refuses them with 'no_hours'). The
-            // business's only bookable member, when they do have weekly hours, works
-            // the business's hours — the base window the client already uses.
+            // whole day is off (the validator refuses them with 'no_hours'). Their
+            // own hours are never capped by the business's, and a business's only
+            // member is no exception.
             const StaffAvailability = require('../models/StaffAvailability');
             const av = await StaffAvailability.findOne({ teamMember: memberId }).select('schedule rotation').lean();
             // Rotation-aware: the week that applies on THIS date (or the flat
@@ -665,8 +649,6 @@ exports.getBookedSlots = async (req, res) => {
                 hoursSource = 'none';
                 busy.push({ startTime: '00:00', endTime: '23:59', kind: 'off_shift' });
                 memberHasHours = (await membersHoursReadiness([memberId])).get(String(memberId)) === true;
-            } else if (await isLoneBookable(providerId)) {
-                hoursSource = 'business';
             } else {
                 hoursSource = 'weekly';
                 const DAY_NAMES = ['sunday', 'monday', 'tuesday', 'wednesday', 'thursday', 'friday', 'saturday'];
@@ -696,16 +678,25 @@ exports.getBookedSlots = async (req, res) => {
         // day's break) is always offered when the service fits — the owner's
         // answer. The client only learns the day's periods from the business's
         // hours and the busy list above, so it is told their starts explicitly:
-        // a shift's periods (which may run past closing), a member's weekly
-        // periods within the business's, or the business's own.
+        // a member's own periods (a shift's, else their weekly ones — never capped
+        // by the business's), or the business's own for the owner's column.
         let openings = [];
         if (hoursSource !== 'none' && hoursSource !== 'leave') {
-            const availabilityDoc = await Availability.findOne({ provider: providerId }).select('schedule').lean();
-            const businessDay = availabilityDoc?.schedule ? scheduleDayIntervals(availabilityDoc.schedule, date) : null;
-            if (hoursSource === 'shift') openings = periodOpenings(ownPeriods);
-            else if (ownPeriods) openings = periodOpenings(ownPeriods, businessDay);
-            else if (businessDay) openings = periodOpenings(businessDay);
+            if (ownPeriods) openings = periodOpenings(ownPeriods);
+            else {
+                const availabilityDoc = await Availability.findOne({ provider: providerId }).select('schedule').lean();
+                const businessDay = availabilityDoc?.schedule ? scheduleDayIntervals(availabilityDoc.schedule, date) : null;
+                if (businessDay) openings = periodOpenings(businessDay);
+            }
         }
+        // A named member's own working periods for the day (shift or weekly), as
+        // the base window a slot picker should offer times from. The business's
+        // published hours are the OWNER's: a member may work a day or an hour the
+        // owner doesn't (the owner's answer: "only their own"). null = not a
+        // member, or no hours that day (the busy list already closes it).
+        const memberWindow = memberId && ownPeriods && hoursSource !== 'none' && hoursSource !== 'leave'
+            ? ownPeriods.map(([a, b]) => ({ start: minToHHMM(a), end: b >= 24 * 60 ? '23:59' : minToHHMM(b) }))
+            : null;
 
         res.status(200).json({
             success: true,
@@ -721,7 +712,7 @@ exports.getBookedSlots = async (req, res) => {
             shiftWindow: shift ? (shift.slots || []).map((s) => ({ start: s.start, end: s.end })) : null,
             hoursSource,
             openings,
-            ...(memberId ? { memberHasHours } : {}),
+            ...(memberId ? { memberHasHours, memberWindow } : {}),
         });
     } catch (error) {
         res.status(500).json({ success: false, message: 'Internal server error' });
@@ -861,8 +852,8 @@ const staffBookingScope = async (req, providerId, { customerIds = [] } = {}) => 
 /**
  * Everything a team member's booking is held to for one window — exactly what
  * createAppointment holds them to (a member never gets the owner's override):
- * not in the past, inside the business's published hours (unless the
- * performer's date-specific shift governs the day), the performer bookable,
+ * not in the past, inside the business's published hours when it lands on the
+ * owner's column (a member is held to their OWN hours instead), the performer bookable,
  * offering the service and free (their own hours, leave, blocks and bookings,
  * via resolveBookingStaff's customer path), and clear of blocked time.
  * Returns null when the window is fine, else { status, message }.
@@ -873,8 +864,7 @@ const staffWindowError = async ({ req, svc, providerId, appointmentDate, startTi
     }
     const availabilityDoc = await Availability.findOne({ provider: providerId });
     const schedule = availabilityDoc?.schedule || null;
-    const shiftGoverns = performer && await shiftGovernsHours(performer, appointmentDate);
-    if (schedule && !shiftGoverns
+    if (schedule && !memberLane(performer)
         && !isTimeWithinSchedule(schedule, appointmentDate, startTime, parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime))) {
         return { status: 400, message: 'Selected time is outside the provider availability schedule' };
     }
@@ -1403,24 +1393,29 @@ exports.createAppointment = async (req, res) => {
         // Enforce the provider's published availability for customer bookings. Providers
         // may book outside hours (walk-ins/overrides). Only enforced when availability
         // has actually been set, so providers who never published hours aren't blocked.
+        // These are the OWNER's hours: they gate a booking that lands on the owner's
+        // own column. A team member is held to their own hours only (memberLane) —
+        // resolveBookingStaff enforces them for a named member and picks "any
+        // available" by them — so the gate runs once the performer is known.
         let providerSchedule = null; // reused by the recurring-series filter below
+        const outsideOwnerHours = (performer) => {
+            if (!providerSchedule || memberLane(performer)) return false;
+            const bookingDuration = parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime);
+            return !isTimeWithinSchedule(providerSchedule, appointmentDate, startTime, bookingDuration);
+        };
+        const refuseOutsideHours = () => {
+            // The owner-side smoke detector: refused customer attempts are
+            // recorded (fire-and-forget) so a misconfigured schedule surfaces
+            // as a bell alert instead of via a client's screenshot.
+            recordBookingRejection({ providerId, reason: 'outside_hours', date: appointmentDate, startTime });
+            return res.status(400).json({ success: false, message: 'Selected time is outside the provider availability schedule' });
+        };
         if (isCustomerLike && providerId) {
             const availabilityDoc = await Availability.findOne({ provider: providerId });
             providerSchedule = availabilityDoc?.schedule || null;
-            // A shift for a specifically-requested member overrides business hours
-            // for that date (see shiftGovernsHours); the per-staff check inside
-            // resolveBookingStaff then enforces the shift's own slots and breaks.
-            const shiftGoverns = effectiveTeamMember && effectiveTeamMember !== 'owner' && await shiftGovernsHours(effectiveTeamMember, appointmentDate);
-            if (providerSchedule && !shiftGoverns) {
-                const bookingDuration = parseTimeToMinutes(endTime) - parseTimeToMinutes(startTime);
-                if (!isTimeWithinSchedule(providerSchedule, appointmentDate, startTime, bookingDuration)) {
-                    // The owner-side smoke detector: refused customer attempts are
-                    // recorded (fire-and-forget) so a misconfigured schedule surfaces
-                    // as a bell alert instead of via a client's screenshot.
-                    recordBookingRejection({ providerId, reason: 'outside_hours', date: appointmentDate, startTime });
-                    return res.status(400).json({ success: false, message: 'Selected time is outside the provider availability schedule' });
-                }
-            }
+            // A named professional is known now: the owner's column is gated
+            // here, a member not at all (their own hours are checked below).
+            if (effectiveTeamMember && outsideOwnerHours(effectiveTeamMember)) return refuseOutsideHours();
         }
 
         // Per-staff resolution (spec §3.6): validates a requested member
@@ -1449,6 +1444,9 @@ exports.createAppointment = async (req, res) => {
                 return res.status(resolution.status).json({ success: false, message: resolution.error });
             }
             resolvedTeamMember = resolution.teamMember;
+            // "Any available" that fell to the owner's own column (no member
+            // performs it, or a zero-staff business) is held to the owner's hours.
+            if (isCustomerLike && !effectiveTeamMember && outsideOwnerHours(resolvedTeamMember)) return refuseOutsideHours();
             // "Any available" picked someone: book THEIR length (so the window
             // checked and stored is the whole service for them). The price stays
             // the business default the client was quoted — see above.
@@ -2152,8 +2150,10 @@ exports.updateAppointment = async (req, res) => {
                 if (duration <= 0) {
                     return res.status(400).json({ success: false, message: 'End time must be after the start time' });
                 }
+                // The business's hours are the owner's column's; a member's move is
+                // held to their own hours (staffUnavailableMessage below).
                 const schedule = await getProviderSchedule(providerId);
-                if (!isTimeWithinSchedule(schedule, newDate, newStart, duration)) {
+                if (!memberLane(appointment.teamMember) && !isTimeWithinSchedule(schedule, newDate, newStart, duration)) {
                     return res.status(400).json({ success: false, message: 'Selected time is outside the availability schedule' });
                 }
                 if (await hasConflictingAppointment(providerId, newDate, newStart, newEnd, appointment._id, conflictScope(appointment))) {
@@ -2573,9 +2573,6 @@ exports.providerRescheduleAppointment = async (req, res) => {
 
         const providerId = appointment.provider;
         const schedule = await getProviderSchedule(providerId);
-        if (!isTimeWithinSchedule(schedule, appointmentDate, startTime, duration)) {
-            return res.status(400).json({ success: false, message: 'Selected time is outside your availability schedule' });
-        }
 
         // Snapshot the ORIGINAL slot — INCLUDING teamMember — BEFORE any
         // reassignment, so a raced rollback below restores the booking's true prior
@@ -2641,20 +2638,25 @@ exports.providerRescheduleAppointment = async (req, res) => {
                 }
                 duration = need;
                 endTime = minutesToTime(startMinutes + need);
-                if (!isTimeWithinSchedule(schedule, appointmentDate, startTime, duration)) {
-                    return res.status(400).json({ success: false, message: 'Selected time is outside your availability schedule' });
-                }
             }
         }
 
-        // A team member moving a booking in a member's column: a member with no
-        // working hours of their own can't be booked (the owner's answer), and a
-        // move is a new time — refused here as it is on create (staffWindowError)
-        // and on a client's reschedule. Only that: a member WITH hours keeps
-        // moving their own bookings as before, and the owner keeps the override.
-        if (!isOwner && appointment.teamMember) {
+        // Whose hours the move is held to — the lane it ends up in. The owner's
+        // own column: the business's (owner's) published hours. A team member's
+        // lane: never the owner's hours — a member can take work on a day the
+        // owner is closed. Moving a booking on the calendar is a deliberate act,
+        // so it keeps the override it always had over a member's own hours, with
+        // one exception: a team member with no working hours of their own can't
+        // be booked (the owner's answer), and a move is a new time — refused here
+        // as it is on create (staffWindowError) and on a client's reschedule. The
+        // owner keeps the override.
+        if (!memberLane(appointment.teamMember)) {
+            if (!isTimeWithinSchedule(schedule, appointmentDate, startTime, duration)) {
+                return res.status(400).json({ success: false, message: 'Selected time is outside your availability schedule' });
+            }
+        } else if (!isOwner) {
             const reason = await staffHoursReason({
-                member: { _id: appointment.teamMember }, date: appointmentDate, startTime, endTime, providerId,
+                member: { _id: appointment.teamMember }, date: appointmentDate, startTime, endTime,
             });
             if (reason === 'no_hours') return res.status(400).json({ success: false, message: UNAVAILABLE_MESSAGES.no_hours });
         }
@@ -2807,7 +2809,9 @@ exports.providerBatchReschedule = async (req, res) => {
             // own calendar IS the deliberate act — matching what the existing
             // single-booking provider path already allows. The flag stays because
             // the default is strict and any future caller must opt in explicitly.
-            if (!allowOutsideHours && !isTimeWithinSchedule(schedule, m.appointmentDate, m.startTime, duration)) {
+            // (Only the owner's own column is held to the business's hours; a
+            // member's booking follows the member's own hours, never the owner's.)
+            if (!allowOutsideHours && !memberLane(appt.teamMember) && !isTimeWithinSchedule(schedule, m.appointmentDate, m.startTime, duration)) {
                 return res.status(400).json({ success: false, message: 'Selected time is outside your availability schedule' });
             }
 
@@ -3026,12 +3030,11 @@ const staffUnavailableMessage = async (appointment, appointmentDate, startTime, 
     if (!tmId) return null;                      // owner's own column
     const member = await TeamMember.findById(tmId).select('_id');
     if (!member) return null;
-    // Their own hours (shift, else weekly — a business's only bookable member
-    // works the business's hours) — the same rule as on create, so a member with
-    // no hours of their own can't take a moved booking either. The booking itself
-    // is never touched; only the move is refused.
-    const providerId = appointment.provider?._id || appointment.provider || appointment.service?.provider || null;
-    const reason = await staffHoursReason({ member, date: appointmentDate, startTime, endTime, providerId });
+    // Their own hours (shift, else weekly — never the business's) — the same
+    // rule as on create, so a member with no hours of their own can't take a
+    // moved booking either. The booking itself is never touched; only the move
+    // is refused.
+    const reason = await staffHoursReason({ member, date: appointmentDate, startTime, endTime });
     return reason ? (UNAVAILABLE_MESSAGES[reason] || 'That staff member is not available then.') : null;
 };
 
@@ -3084,11 +3087,10 @@ exports.rescheduleAppointment = async (req, res) => {
         const providerId = appointment.provider || appointment.service?.provider;
         if (providerId) {
             const schedule = await getProviderSchedule(providerId);
-            // A shift for the assigned member overrides business hours for that
-            // date; staffUnavailableMessage below (staffHoursReason) then enforces
-            // the shift's own slots/breaks, so this can't open an uncovered slot.
-            const shiftGoverns = await shiftGovernsHours(appointment.teamMember, appointmentDate);
-            if (!shiftGoverns && !isTimeWithinSchedule(schedule, appointmentDate, startTime, duration)) {
+            // The business's hours are the owner's column's. A member's booking is
+            // held to the member's own hours (staffUnavailableMessage below), never
+            // the owner's, so this can't open a time the member doesn't work.
+            if (!memberLane(appointment.teamMember) && !isTimeWithinSchedule(schedule, appointmentDate, startTime, duration)) {
                 return res.status(400).json({ success: false, message: 'Selected time is outside the provider availability schedule' });
             }
             const conflict = await hasConflictingAppointment(providerId, appointmentDate, startTime, endTime, appointment._id, conflictScope(appointment));
@@ -3564,10 +3566,9 @@ exports.rescheduleAppointmentByToken = async (req, res) => {
         const providerId = appt.provider;
         if (providerId) {
             const availabilityDoc = await Availability.findOne({ provider: providerId });
-            // A shift for the assigned member overrides business hours for that
-            // date; staffUnavailableMessage below still enforces the shift itself.
-            const shiftGoverns = await shiftGovernsHours(appt.teamMember, appointmentDate);
-            if (availabilityDoc?.schedule && !shiftGoverns
+            // The business's hours are the owner's column's; a member's booking is
+            // held to the member's own hours (staffUnavailableMessage below).
+            if (availabilityDoc?.schedule && !memberLane(appt.teamMember)
                 && !isTimeWithinSchedule(availabilityDoc.schedule, appointmentDate, startTime, duration)) {
                 return res.status(400).json({ success: false, message: 'That time is outside the provider availability schedule.' });
             }

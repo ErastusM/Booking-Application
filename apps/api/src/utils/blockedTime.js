@@ -23,39 +23,21 @@ const toMinutes = (t) => {
 // code paths always agree on which calendar day a booking falls on.
 const toDateKey = (d) => (typeof d === 'string' ? d.slice(0, 10) : new Date(d).toISOString().slice(0, 10));
 
-// Business-wide blocks (teamMember null, !ownerOnly) always apply. A member's
-// own block applies only to bookings on that member; an owner-only block
-// (teamMember null, ownerOnly) applies only to the owner's own bookings — the
-// ones with no teamMember. Otherwise a single person's block would close the
-// whole business.
-//   - booking on a member  → business-wide + that member (NOT owner-only)
-//   - booking on the owner → every teamMember:null block (business-wide + owner-only)
-const scopeFilter = (teamMember) => (teamMember
-    ? [{ teamMember: null, ownerOnly: { $ne: true } }, { teamMember }]
-    : [{ teamMember: null }]);
-
-/**
- * BUSINESS-WIDE blocks only (teamMember null, NOT ownerOnly) — the ones that
- * close every column. The "any professional" slot view uses this so an owner's
- * OWN personal block doesn't grey out a slot the team can still take: the owner
- * isn't one of the performers there, and anyAvailableBusy excludes owner-only
- * blocks for the same reason. (findBlocksForDate(..., null) can't be reused —
- * its null scope matches owner-only blocks too, and the select drops ownerOnly.)
- */
-const findBusinessWideBlocksForDate = (providerId, appointmentDate) =>
-    BlockedTime.find({
-        provider: providerId,
-        date: toDateKey(appointmentDate),
-        teamMember: null,
-        ownerOnly: { $ne: true },
-    }).select('startTime endTime reason -_id').lean();
+// Whose time a block closes (the owner's decision: "the owner's blocked times
+// never apply to members"):
+//   - booking on a member  → only that member's own blocks (teamMember = them)
+//   - booking on the owner → every teamMember:null block — the owner's own.
+// A block with teamMember null is ALWAYS the owner's, whether or not it carries
+// ownerOnly: older rows saved as "business-wide" (ownerOnly false) used to close
+// every member's time too, which made a team member follow the owner's days off.
+const scopeFilter = (teamMember) => (teamMember ? { teamMember } : { teamMember: null });
 
 /** Every block covering `appointmentDate` that applies to this booking's scope. */
 const findBlocksForDate = (providerId, appointmentDate, teamMember = null) =>
     BlockedTime.find({
         provider: providerId,
         date: toDateKey(appointmentDate),
-        $or: scopeFilter(teamMember),
+        ...scopeFilter(teamMember),
     }).select('startTime endTime reason -_id').lean();
 
 /**
@@ -67,7 +49,7 @@ const findBlocksForDates = (providerId, dateKeys, teamMember = null) =>
     BlockedTime.find({
         provider: providerId,
         date: { $in: dateKeys },
-        $or: scopeFilter(teamMember),
+        ...scopeFilter(teamMember),
     }).select('date startTime endTime -_id').lean();
 
 /**
@@ -89,6 +71,6 @@ async function overlapsBlockedTime({ providerId, appointmentDate, startTime, end
 const BLOCKED_MESSAGE = 'That time is not available. Please choose another slot.';
 
 module.exports = {
-    overlapsBlockedTime, findBlocksForDate, findBlocksForDates, findBusinessWideBlocksForDate,
+    overlapsBlockedTime, findBlocksForDate, findBlocksForDates,
     toMinutes, toDateKey, BLOCKED_MESSAGE,
 };

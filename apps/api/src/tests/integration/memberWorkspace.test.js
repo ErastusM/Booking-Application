@@ -30,7 +30,9 @@ const staff = async (provider, tier, extra = {}) => {
 };
 
 describe('GET /api/blocked-times for a team member', () => {
-    test('a Low member sees their own blocks and business-wide closures only', async () => {
+    // The owner's blocks — a legacy "business-wide" row included — never apply
+    // to a member, so they are not in the member's list either.
+    test('a Low member sees their own blocks only — never a colleague\'s or the owner\'s', async () => {
         const owner = await makeProvider();
         const { login, member } = await staff(owner, 'low');
         const { member: colleague } = await staff(owner, 'low');
@@ -42,7 +44,7 @@ describe('GET /api/blocked-times for a team member', () => {
         ]);
         const res = await request(app).get('/api/blocked-times').set(authHeader(login));
         expect(res.status).toBe(200);
-        expect(res.body.data.map((b) => b.reason).sort()).toEqual(['mine', 'public holiday']);
+        expect(res.body.data.map((b) => b.reason).sort()).toEqual(['mine']);
     });
 
     // There are no access levels any more: a former View-only member blocks

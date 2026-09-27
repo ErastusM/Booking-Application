@@ -17,7 +17,9 @@ const breakSchema = new mongoose.Schema({
  * StaffAvailability is the weekly pattern — "Moses works 9–6 on Tuesdays". A
  * Shift is the exception for a single date: he came in late, covered a Sunday,
  * or takes lunch at 13:00 that day. It exists because a business is open while
- * an individual is not, and the pattern alone can't express that.
+ * an individual is not, and the pattern alone can't express that. (A member's
+ * hours are only ever their own: neither a shift nor the weekly pattern is
+ * capped by the business's — the owner's — hours.)
  *
  * PRECEDENCE, and this is the whole contract:
  *

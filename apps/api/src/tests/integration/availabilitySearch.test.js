@@ -13,7 +13,7 @@ jest.mock('../../utils/emailService', () => ({
 
 const app = require('../../../server');
 const testDb = require('../helpers/testDb');
-const { makeUser, makeProvider, makeService, giveHours } = require('../helpers/factories');
+const { makeUser, makeProvider, makeService, giveHours, everyDayHours } = require('../helpers/factories');
 const Availability = require('../../models/Availability');
 const Appointment = require('../../models/Appointment');
 const BlockedTime = require('../../models/BlockedTime');
@@ -97,24 +97,43 @@ describe('single-column (no roster) providers', () => {
 
 describe('staffed providers — union semantics', () => {
     // The owner doesn't perform the service here, so only the staff columns count.
-    it('a slot stays open while ANY staff column is free; business-wide blocks close it', async () => {
+    it('a slot stays open while ANY staff column is free; the owner\'s blocks never close a member\'s column', async () => {
         const p = await makeProvider();
         const svc = await makeService(p._id, { ownerPerforms: false });
         const customer = await makeUser();
         await hours(p, 'wednesday', [{ start: '10:00', end: '12:00' }]);
         const a = await TeamMember.create({ provider: p._id, name: 'Alice' });
         const b = await TeamMember.create({ provider: p._id, name: 'Bob' });
-        await giveHours(a); await giveHours(b);
+        await giveHours(a, everyDayHours('10:00', '12:00')); await giveHours(b, everyDayHours('10:00', '12:00'));
         await appt(p, customer, svc, '10:00', '10:30', a._id); // Alice busy, Bob free
 
         let res = await search({ date: DATE });
         let hit = res.body.data.find(r => r.provider === p._id.toString());
         expect(hit.openings).toContain('10:00'); // Bob covers it
 
+        // The owner's block (a legacy "business-wide" row) is the owner's alone.
         await BlockedTime.create({ provider: p._id, date: DATE, startTime: '10:00', endTime: '11:00' });
         res = await search({ date: DATE });
         hit = res.body.data.find(r => r.provider === p._id.toString());
-        expect(hit.openings[0]).toBe('11:00'); // business-wide block hits every column
+        expect(hit.openings[0]).toBe('10:00');
+
+        // Bob's own block closes his column — now nobody is free until Alice's
+        // booking ends at 10:30.
+        await BlockedTime.create({ provider: p._id, teamMember: b._id, date: DATE, startTime: '10:00', endTime: '11:00' });
+        res = await search({ date: DATE });
+        hit = res.body.data.find(r => r.provider === p._id.toString());
+        expect(hit.openings[0]).toBe('10:30');
+    });
+
+    it('a member who works a day the business (owner) is closed still makes it findable', async () => {
+        const p = await makeProvider();
+        await makeService(p._id, { ownerPerforms: false });
+        await hours(p, 'thursday', [{ start: '10:00', end: '12:00' }]); // closed on DATE's weekday
+        const a = await TeamMember.create({ provider: p._id, name: 'Alice' });
+        await giveHours(a, everyDayHours('13:00', '15:00'));
+        const res = await search({ date: DATE });
+        const hit = res.body.data.find(r => r.provider === p._id.toString());
+        expect(hit.openings[0]).toBe('13:00');
     });
 
     it('vanishes entirely when every column is blocked all day', async () => {
@@ -122,7 +141,7 @@ describe('staffed providers — union semantics', () => {
         await makeService(p._id, { ownerPerforms: false });
         await hours(p, 'wednesday', [{ start: '10:00', end: '11:00' }]);
         const a = await TeamMember.create({ provider: p._id, name: 'Alice' });
-        await giveHours(a);
+        await giveHours(a, everyDayHours('10:00', '11:00'));
         await BlockedTime.create({ provider: p._id, teamMember: a._id, date: DATE, startTime: '10:00', endTime: '11:00' });
 
         const res = await search({ date: DATE });

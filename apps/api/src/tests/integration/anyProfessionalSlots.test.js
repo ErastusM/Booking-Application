@@ -117,7 +117,7 @@ describe('leave and blocked time', () => {
         expect((await bookAny(ctx, '10:00', '10:30')).status).toBe(400);
     });
 
-    it("a member's own block defers to the colleague; a business-wide block closes the window", async () => {
+    it("a member's own block defers to the colleague; the owner's block (a legacy business-wide row) closes nothing for the team", async () => {
         const ctx = await setup();
         await BlockedTime.create({ provider: ctx.provider._id, teamMember: ctx.alice._id, date: DATE, startTime: '10:00', endTime: '11:00' });
         let data = await slots(ctx);
@@ -126,9 +126,15 @@ describe('leave and blocked time', () => {
 
         await BlockedTime.create({ provider: ctx.provider._id, date: DATE, startTime: '12:00', endTime: '13:00' });
         data = await slots(ctx);
-        expect(busyAt(data, ['blocked'], mins('12:00'), mins('13:00'))).toBe(true);
+        expect(busyAt(data, ['blocked', 'off_shift', 'appointment'], mins('12:00'), mins('13:00'))).toBe(false);
+        expect((await bookAny(ctx, '12:00', '12:30')).status).toBe(201);
+        // Both members' own blocks close the window for "any professional".
+        await BlockedTime.create({ provider: ctx.provider._id, teamMember: ctx.alice._id, date: DATE, startTime: '15:00', endTime: '16:00' });
+        await BlockedTime.create({ provider: ctx.provider._id, teamMember: ctx.bob._id, date: DATE, startTime: '15:00', endTime: '16:00' });
+        data = await slots(ctx);
+        expect(busyAt(data, ['off_shift'], mins('15:00'), mins('16:00'))).toBe(true);
         // Closed-for-everyone is "Unavailable", never "Taken" — no waitlist bait.
-        expect(busyAt(data, ['appointment'], mins('12:00'), mins('13:00'))).toBe(false);
+        expect(busyAt(data, ['appointment'], mins('15:00'), mins('16:00'))).toBe(false);
     });
 });
 
@@ -146,10 +152,10 @@ describe('fallbacks', () => {
         expect(data.some((b) => b.kind === 'off_shift')).toBe(false); // legacy view has no union entries
     });
 
-    // The business's ONLY bookable member, with weekly hours of their own, works
-    // the business's hours (#121 — staffBooking.weeklyHoursFor): the view and
-    // the validator agree on it. With NO hours of their own: see the next test.
-    it("the only bookable member: business hours govern — their narrow weekly pattern doesn't close the evening (#121 parity)", async () => {
+    // The business's ONLY bookable member works THEIR OWN hours, like anyone
+    // (no longer the business's — #121 is gone): the view and the validator
+    // agree on it. With NO hours of their own: see the next test.
+    it("the only bookable member: their own hours govern — the evening past them is closed, and booking there is refused", async () => {
         const provider = await makeProvider();
         const customer = await makeUser();
         const svc = await makeService(provider._id, { duration: 30 });
@@ -158,8 +164,10 @@ describe('fallbacks', () => {
         await StaffAvailability.create({ provider: provider._id, teamMember: solo._id, schedule: everyDay('09:00', '17:00') });
 
         const data = await slots({ provider, svc });
-        expect(busyAt(data, ['off_shift', 'appointment'], mins('08:00'), mins('19:00'))).toBe(false);
-        expect((await bookAny({ customer, svc }, '18:00', '18:30')).status).toBe(201);
+        expect(busyAt(data, ['off_shift', 'appointment'], mins('09:00'), mins('17:00'))).toBe(false);
+        expect(busyAt(data, ['off_shift'], mins('17:00'), mins('19:00'))).toBe(true);
+        expect((await bookAny({ customer, svc }, '18:00', '18:30')).status).toBe(400);
+        expect((await bookAny({ customer, svc }, '16:00', '16:30')).status).toBe(201);
     });
 
     it('performers with no hours of their own leave the whole day unavailable — and booking is refused', async () => {
@@ -192,11 +200,11 @@ describe('owner-only blocked time never touches a team member', () => {
         expect((await bookMember(ctx, ctx.alice, '10:00', '10:30')).status).toBe(201);
     });
 
-    it('a business-wide block (no ownerOnly) still closes the window for a member', async () => {
+    it('a legacy business-wide block (no ownerOnly) is the owner\'s too — it never closes a member', async () => {
         const ctx = await setup();
         await BlockedTime.create({ provider: ctx.provider._id, teamMember: null, date: DATE, startTime: '10:00', endTime: '11:00' });
         const data = await memberSlots(ctx, ctx.alice);
-        expect(busyAt(data, ['blocked'], mins('10:00'), mins('11:00'))).toBe(true);
-        expect((await bookMember(ctx, ctx.alice, '10:00', '10:30')).status).toBe(400);
+        expect(busyAt(data, ['blocked'], mins('10:00'), mins('11:00'))).toBe(false);
+        expect((await bookMember(ctx, ctx.alice, '10:00', '10:30')).status).toBe(201);
     });
 });

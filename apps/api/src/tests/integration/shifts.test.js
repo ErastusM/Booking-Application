@@ -236,10 +236,10 @@ describe('a member\'s shift days for the customer calendar', () => {
 
         const res = await shiftDays(provider, member, DATE, OTHER_DATE);
 
-        // Never the out-of-range shift. (The business's only bookable member,
-        // with weekly hours of their own, works the business's days — nothing
-        // narrowed, as before.)
-        expect(res.body.data.working).toEqual([]);
+        // Never the out-of-range shift. Days inside the range come from the
+        // member's own weekly hours (09:00–17:00 every day) — their own, even as
+        // the business's only bookable member.
+        expect(res.body.data.working).toEqual([DATE, OTHER_DATE]);
         expect(res.body.data.working).not.toContain(futureDate(19));
         expect(res.body.data.off).toEqual([]);
     });

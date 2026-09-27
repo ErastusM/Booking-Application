@@ -34,6 +34,10 @@
  * one. Erring this way is deliberate — the alternative silently costs the whole
  * team its availability, which is the bug being fixed.
  *
+ * SINCE SUPERSEDED for the rows it keeps: the owner has since decided their
+ * blocks never apply to team members at all, so every null-scoped row is read as
+ * the owner's own and scripts/migrate_owner_blocks_owner_only.js marks the rest.
+ *
  * Run locally:   node scripts/migrate_blocked_time_scope.js
  * In Docker:     docker compose exec -T server node scripts/migrate_blocked_time_scope.js
  */

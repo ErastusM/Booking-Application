@@ -440,6 +440,13 @@ jobs:
             # business-wide because `ownerOnly` did not exist before 2026-09-01)
             # so they stop closing every team member's day. Prints what it changed.
             docker compose exec -T server node scripts/migrate_blocked_time_scope.js || { echo "DEPLOY FAILED: migrate_blocked_time_scope.js exited non-zero" >&2; exit 1; }
+            # The owner's blocked times are the owner's alone: every old
+            # "business-wide" block (teamMember null, not ownerOnly) is marked as
+            # the owner's own, so it can never close a team member's day. After
+            # migrate_blocked_time_scope. Prints a count per business id and a
+            # one-line rollback. It must NEVER fail the deploy: the script always
+            # exits 0, and the `|| echo` covers exec itself failing.
+            docker compose exec -T server node scripts/migrate_owner_blocks_owner_only.js || echo "WARNING: migrate_owner_blocks_owner_only.js did not run — owner blocks left as they were (non-fatal; the app already reads them as the owner's own)"
             # A team member's own services are not the owner's: decide, for every
             # service that predates Service.ownerPerforms, whether the owner offers
             # it — team-only only where the data plainly says a member added it,

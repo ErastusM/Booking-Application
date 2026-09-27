@@ -106,8 +106,9 @@ exports.everyDayHours = (start = '00:00', end = '23:59') => Object.fromEntries(
  * Give a team member working hours of their own. Nothing is inherited from the
  * business's hours: a member with no hours of their own can't be booked (the
  * owner's decision), so any test that books a member needs this. The default —
- * every day, all day — leaves the business's hours, blocks and bookings as the
- * only limits, which is what a test not ABOUT hours wants.
+ * every day, all day — leaves the member's own blocks and bookings as the only
+ * limits (the business's hours are the owner's and never cap a member), which is
+ * what a test not ABOUT hours wants.
  */
 exports.giveHours = (member, schedule = exports.everyDayHours()) => StaffAvailability.create({
     provider: member.provider, teamMember: member._id, schedule,
