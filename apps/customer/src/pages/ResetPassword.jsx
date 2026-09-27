@@ -41,7 +41,8 @@ const ResetPassword = () => {
 
     if (!token) {
         return (
-            <div style={{ minHeight: 'var(--page-min-h)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'var(--off-white)', paddingTop: 'var(--page-hero-pad-top)' }}>
+            // Centred on phones (index.css .auth-page), top-aligned on desktop.
+            <div className="auth-page" style={{ minHeight: 'var(--page-min-h)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'var(--off-white)', paddingTop: 'var(--page-hero-pad-top)' }}>
                 <div style={{ textAlign: 'center', maxWidth: '400px', padding: '0 2rem 2rem' }}>
                     <div style={{ fontSize: '3rem', marginBottom: '1rem' }}>⚠️</div>
                     <h2 style={{ fontFamily: 'var(--font-body)', color: 'var(--charcoal)', marginBottom: '1rem' }}>Invalid reset link</h2>

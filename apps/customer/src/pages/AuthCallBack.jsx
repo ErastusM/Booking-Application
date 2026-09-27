@@ -106,7 +106,8 @@ const AuthCallback = () => {
 
     if (choice) {
         return (
-            <div style={{ minHeight: 'var(--page-min-h)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'var(--off-white)', padding: 'var(--page-hero-pad-top) 1rem 2rem' }}>
+            // Centred on phones (index.css .auth-page), top-aligned on desktop.
+            <div className="auth-page" style={{ minHeight: 'var(--page-min-h)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', background: 'var(--off-white)', padding: 'var(--page-hero-pad-top) 1rem 2rem' }}>
                 <div data-testid="destination-chooser" style={{ width: '100%', maxWidth: '380px', background: 'var(--card-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '1.75rem', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                     <p style={{ color: 'var(--charcoal)', fontSize: '1.05rem', fontWeight: 600, margin: 0, fontFamily: 'var(--font-display)' }}>
                         Where would you like to go?

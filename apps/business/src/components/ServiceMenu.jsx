@@ -85,7 +85,9 @@ export const groupServices = (services, categories) => {
 export const performersLine = (svc, teamMembers) => {
     if (!Array.isArray(teamMembers)) return null;
     const mine = ownerPerforms(svc);
-    const team = teamPerformers(svc, teamMembers).map((m) => String(m.name || '').trim().split(/\s+/)[0]).filter(Boolean);
+    // A–Z, so the line reads the same on every load (the team list's order isn't fixed).
+    const team = teamPerformers(svc, teamMembers).map((m) => String(m.name || '').trim().split(/\s+/)[0]).filter(Boolean)
+        .sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
     if (!mine && team.length === 0) return { nobody: true, text: 'Nobody offers this — clients can’t book it' };
     return { nobody: false, text: mine ? ['You', ...team].join(' · ') : `Only ${team.join(' · ')}` };
 };

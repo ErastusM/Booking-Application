@@ -11,6 +11,9 @@ const { SEED, login, measureTopGap, settle } = require('./helpers.cjs');
  * Clients list and every other tab. A plain browser has no inset, so the phone
  * runs twice: as a browser, and with an iPhone's safe-area insets emulated.
  * The rule itself is index.css "Page spacing" (--page-pad-top: 56px + 12px).
+ * Sign-in and the password / invite / verify pages are the exception (the
+ * owner's call): their card sits in the middle of the screen under the bar
+ * (.auth-right / .auth-page), and a short one doesn't scroll.
  * measureTopGap / settle live in helpers.cjs (the Services tab spec uses them too).
  */
 const MAX_GAP = 24;
@@ -24,6 +27,70 @@ async function expectContentUnderBar(page, path) {
     expect(m.gap, `${path}: first content (${m.what}) starts ${m.gap}px below the top bar`).toBeLessThanOrEqual(MAX_GAP);
 }
 
+// Where the card sits in the room it has: between the bottom of the top bar (or
+// of the status-bar inset <main> pads, with no bar) and the bottom of the screen,
+// less the body's room for the bottom nav. The card is `sel`, or else everything
+// laid out inside <main>. offset > 0: below the middle.
+const measureCentring = (sel) => {
+    const main = document.getElementById('main-content');
+    const bar = document.querySelector('nav[aria-label="Main"]');
+    const mr = main.getBoundingClientRect();
+    const top = Math.max(bar ? bar.getBoundingClientRect().bottom : 0, mr.top + parseFloat(getComputedStyle(main).paddingTop));
+    const bottom = window.innerHeight - parseFloat(getComputedStyle(document.body).paddingBottom);
+    let r;
+    if (sel) r = document.querySelector(sel).getBoundingClientRect();
+    else {
+        const pageBg = getComputedStyle(document.body).backgroundColor;
+        const hidden = (el) => {
+            for (let a = el; a && a !== main.parentElement; a = a.parentElement) {
+                const cs = getComputedStyle(a);
+                if (cs.position === 'fixed' || cs.display === 'none' || cs.visibility === 'hidden' || Number(cs.opacity) === 0) return true;
+            }
+            return false;
+        };
+        r = { top: Infinity, bottom: -Infinity };
+        const add = (b) => { if (b.width >= 2 && b.height >= 2) { r.top = Math.min(r.top, b.top); r.bottom = Math.max(r.bottom, b.bottom); } };
+        const walker = document.createTreeWalker(main, NodeFilter.SHOW_TEXT, { acceptNode: (n) => (n.nodeValue.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT) });
+        const range = document.createRange();
+        for (let n; (n = walker.nextNode());) {
+            if (!n.parentElement || n.parentElement.closest('style,script') || hidden(n.parentElement)) continue;
+            range.selectNodeContents(n);
+            for (const b of range.getClientRects()) add(b);
+        }
+        for (const el of main.querySelectorAll('*')) {
+            const cs = getComputedStyle(el);
+            const painted = /^(img|svg|input|select|textarea|button|canvas|video)$/i.test(el.tagName)
+                || (cs.backgroundColor !== 'rgba(0, 0, 0, 0)' && cs.backgroundColor !== pageBg)
+                || cs.backgroundImage !== 'none' || cs.boxShadow !== 'none' || parseFloat(cs.borderTopWidth) > 0;
+            if (painted && !hidden(el)) add(el.getBoundingClientRect());
+        }
+    }
+    return {
+        offset: Math.round((r.top + r.bottom) / 2 - (top + bottom) / 2),
+        above: Math.round(r.top - top),
+        below: Math.round(bottom - r.bottom),
+        tall: r.bottom - r.top > bottom - top,
+        // <main> running past the screen = the page scrolls (sign-in and sign-up
+        // have the footer after it, on purpose).
+        scroll: Math.round(mr.bottom - bottom),
+    };
+};
+
+async function expectCardCentred(page, path, sel) {
+    await page.goto(path);
+    await settle(page);
+    const m = await page.evaluate(measureCentring, sel || null);
+    const where = `${path}: card ${m.above}px under the bar, ${m.below}px above the bottom`;
+    if (m.tall) {
+        // Taller than the screen (business sign-up): starts under the bar, scrolls.
+        expect(m.above, where).toBeGreaterThanOrEqual(0);
+        expect(m.above, where).toBeLessThanOrEqual(MAX_GAP);
+        return;
+    }
+    expect(Math.abs(m.offset), `${where} (${m.offset}px off centre)`).toBeLessThanOrEqual(MAX_GAP);
+    expect(m.scroll, `${path}: page scrolls by ${m.scroll}px`).toBeLessThanOrEqual(1);
+}
+
 const OWNER_SCREENS = [
     '/dashboard?tab=clients',
     '/dashboard?tab=earnings',
@@ -33,7 +100,17 @@ const OWNER_SCREENS = [
     '/account?section=settings',
     '/team',
 ];
-const SIGNED_OUT_SCREENS = ['/login', '/forgot-password', '/terms'];
+const SIGNED_OUT_SCREENS = ['/terms'];
+// [path, the card (default: everything in <main>)]. Reset password, invite and
+// verify email have no top bar: centred in the whole screen under the inset.
+const AUTH_SCREENS = [
+    ['/login'],
+    ['/register'],
+    ['/forgot-password'],
+    ['/reset-password?token=nope'],
+    ['/accept-invite?token=nope'],
+    ['/verify-email?token=nope'],
+];
 
 for (const variant of ['browser', 'iPhone app (safe-area insets)']) {
     test.describe(`Page spacing on a 390x844 phone — ${variant}`, () => {
@@ -56,6 +133,10 @@ for (const variant of ['browser', 'iPhone app (safe-area insets)']) {
 
         test('signed-out screens start just under the top bar', async ({ page }) => {
             for (const path of SIGNED_OUT_SCREENS) await expectContentUnderBar(page, path);
+        });
+
+        test('sign-in and password pages sit in the middle of the screen', async ({ page }) => {
+            for (const [path, sel] of AUTH_SCREENS) await expectCardCentred(page, path, sel);
         });
     });
 }

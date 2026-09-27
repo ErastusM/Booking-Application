@@ -135,8 +135,8 @@ const Register = () => {
                 ))}
             </div>
 
-            {/* .register-step-body: top-aligned on phones (index.css), centred on desktop. */}
-            <div className="register-step-body" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
+            {/* The step card, centred in the rest of the screen (phones too). */}
+            <div data-testid="register-step" style={{ flex: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '2rem 1rem' }}>
 
                 {/* Step 1 — Role selection */}
                 {step === 1 && (

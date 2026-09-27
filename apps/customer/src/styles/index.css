@@ -434,17 +434,22 @@ select option { font-family: var(--font-body); color: var(--text-primary); backg
   .provider-service-row > div:last-child { width: 100% !important; align-items: flex-start !important; }
 
   .auth-left { display: none !important; }
-  /* One column on phones: the form starts just under the top bar, like every
-     other page. Centred in a full-height column it floated mid-screen under a
-     big empty band (Login, Forgot and Reset password). */
+  /* One column on phones, the form centred in the screen under the top bar (the
+     owner's call). The top padding keeps it clear of the bar; a taller form
+     starts under it and the page scrolls. */
   .auth-right {
     grid-column: 1 / -1 !important;
-    align-items: flex-start !important;
     padding: var(--page-hero-pad-top) 1.25rem 2rem !important;
     width: 100% !important;
   }
-  /* Sign-up steps: start under the progress dots rather than centred below them. */
-  .register-step-body { align-items: flex-start !important; padding-top: 1.1rem !important; }
+  /* Single-card pages (verify email, unsubscribe, list your business…): same,
+     centred on phones with 1rem of air above and below, so a card that fits
+     between the bar and the bottom nav doesn't scroll. Desktop: top-aligned. */
+  .auth-page {
+    align-items: center !important;
+    padding-top: calc(56px + 1rem) !important;
+    padding-bottom: 1rem !important;
+  }
 
   .booking-grid { grid-template-columns: 1fr !important; }
   .booking-summary { display: none !important; }

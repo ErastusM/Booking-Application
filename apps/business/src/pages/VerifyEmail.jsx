@@ -77,9 +77,9 @@ const VerifyEmail = () => {
     const { Icon } = current;
 
     return (
-        // Top-aligned: centred in a full-height column the card floated mid-screen
-        // under a big empty band. No navbar on this emailed-link page (App.jsx).
-        <div style={{ minHeight: 'var(--page-min-h)', background: 'var(--off-white)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 'var(--space-8) 1rem 2rem' }}>
+        // Centred on phones (index.css .auth-page), top-aligned on desktop.
+        // No navbar on this emailed-link page (App.jsx).
+        <div className="auth-page" style={{ minHeight: 'var(--page-min-h)', background: 'var(--off-white)', display: 'flex', alignItems: 'flex-start', justifyContent: 'center', padding: 'var(--space-8) 1rem 2rem' }}>
             <div style={{ width: '100%', maxWidth: '480px', textAlign: 'center' }} className="fade-up">
 
                 <Link to="/" style={{ fontFamily: 'var(--font-display)', fontSize: '1.8rem', fontWeight: '600', color: 'var(--charcoal)', textDecoration: 'none', display: 'block', marginBottom: '2.5rem' }}>
