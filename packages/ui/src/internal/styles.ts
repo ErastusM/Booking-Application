@@ -64,6 +64,9 @@ body.dark-mode .bp-trigger[aria-invalid="true"] { border-color: var(--danger) !i
   animation: bp-rise var(--dur-slow) var(--ease-out) backwards;
   transition: transform var(--dur) var(--ease-out);
 }
+/* iPhone home-screen app with a viewport short of the screen (standaloneViewport):
+   the sheet drops by the missing height onto the real bottom edge. 0 elsewhere. */
+html.ios-vp-fix .bp-sheet { bottom: calc(-1 * var(--vp-gap, 0px)); }
 .bp-sheet-grab { flex: none; padding: 10px 16px 6px; touch-action: none; cursor: grab; }
 .bp-handle { width: 40px; height: 5px; margin: 0 auto; border-radius: var(--radius-pill); background: var(--border); }
 .bp-sheet-head { position: relative; display: flex; align-items: center; justify-content: center; min-height: 40px; margin-top: 4px; padding: 0 44px; }

@@ -26,6 +26,11 @@ export { formatDuration } from './formatDuration';
 export { Field } from './Field';
 export type { FieldProps } from './Field';
 
+// iPhone home-screen app: the viewport can come back short by the status-bar
+// inset on pages that fit the screen, lifting the bottom bars off the bottom
+// edge. Installed once in each app's main.jsx; a no-op everywhere else.
+export { installStandaloneViewportFix, viewportGap, VIEWPORT_EVENT, VIEWPORT_FIX_CLASS } from './standaloneViewport';
+
 // Legal pages (Privacy Policy, Terms, legal notice) rendered from the structured
 // text in @bookplus/config/legal, so both apps show one source.
 export { LegalDocument, LegalText, CompanyDetails, isLegalPlaceholder } from './Legal';

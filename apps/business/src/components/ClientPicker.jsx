@@ -1,4 +1,5 @@
 import React, { forwardRef, useCallback, useEffect, useId, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { viewportGap, VIEWPORT_EVENT } from '@bookplus/ui';
 import { sortClients } from '../utils/clientSort';
 import { cloudinaryAvatar } from '../utils/cloudinary';
 
@@ -243,7 +244,10 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
     // above it changes size (a banner closes), on resize / rotation, and when the
     // list is shown again. The measuring runs on the next frame so a size change
     // never re-enters the observer in the same frame (no "ResizeObserver loop"
-    // errors).
+    // errors). viewportGap() is 0 except in the iPhone home-screen app when iOS
+    // leaves the window short of the screen: the bottom nav then sits that much
+    // lower (on the real bottom edge), so the list runs that much further down
+    // to stay just above it (@bookplus/ui standaloneViewport).
     useLayoutEffect(() => {
         if (!fill) return undefined;
         const el = bodyRef.current;
@@ -253,18 +257,20 @@ const ClientPicker = forwardRef(function ClientPicker(props, ref) {
             raf = 0;
             if (!el.getClientRects().length) return; // display: none
             const top = el.getBoundingClientRect().top + window.scrollY;
-            const h = Math.floor(window.innerHeight - top - spaceBelow(el));
+            const h = Math.floor(window.innerHeight + viewportGap() - top - spaceBelow(el));
             setFillH(Math.max(FILL_MIN, h));
         };
         const schedule = () => { if (!raf) raf = requestAnimationFrame(measure); };
         measure();
         window.addEventListener('resize', schedule);
+        window.addEventListener(VIEWPORT_EVENT, schedule);
         // Something above the list changing size (a banner closing) resizes one
         // of the boxes it sits in, so watching those catches it.
         const ro = typeof ResizeObserver === 'undefined' ? null : new ResizeObserver(schedule);
         for (let n = el; n && ro; n = n.parentElement) ro.observe(n);
         return () => {
             window.removeEventListener('resize', schedule);
+            window.removeEventListener(VIEWPORT_EVENT, schedule);
             ro?.disconnect();
             if (raf) cancelAnimationFrame(raf);
         };
