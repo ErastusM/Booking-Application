@@ -145,4 +145,18 @@ describe('GET /api/team/mine/services — the menu a member sees', () => {
         // Still no provider id or anything else of the owner's on it.
         expect(svc.category.provider).toBeUndefined();
     });
+
+    it('carries each service\'s town, so a member\'s rows read like the owner\'s', async () => {
+        const { haircut, user } = await setup();
+        await Service.updateOne({ _id: haircut._id }, { location: 'Windhoek', address: '1 Owner Street' });
+
+        const res = await request(app).get('/api/team/mine/services').set(authHeader(user));
+
+        expect(res.status).toBe(200);
+        const svc = res.body.data.services.find((s) => String(s._id) === String(haircut._id));
+        expect(svc.location).toBe('Windhoek');
+        // The town only: not the street address or the owner's own fields.
+        expect(svc.address).toBeUndefined();
+        expect(svc.provider).toBeUndefined();
+    });
 });

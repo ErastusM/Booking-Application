@@ -1237,11 +1237,15 @@ const ProviderDashboard = () => {
                 const res = await teamService.getCalendarRoster();
                 setTeamMembers(res.data.data?.members || []);
                 setStaffOwnerName(res.data.data?.owner?.name || '');
+                setTeamLoaded(true);
                 return;
             }
             const res = await teamService.getMyTeam();
             setTeamMembers(res.data.data);
-        } catch { /* ignore */ } finally { setLoadingTeam(false); setTeamLoaded(true); }
+            // Only a roster that really arrived: if it failed, the Services tab
+            // names no performers rather than wrongly saying "Nobody offers this".
+            setTeamLoaded(true);
+        } catch { /* ignore */ } finally { setLoadingTeam(false); }
     };
 
     const fetchHistory = async (page = 1) => {
@@ -1499,12 +1503,14 @@ const ProviderDashboard = () => {
             return true;
         } catch (err) { toast(err.response?.data?.message || 'Could not remove the service', 'error'); return false; }
     };
+    // Resolves true once added. No toast: it would sit over the list being
+    // worked in — the Services tab highlights the new row where it now is.
     const addMemberServiceFromMenu = async (s) => {
         try {
             await myServicesService.set([...myServices.map((x) => String(x._id)), String(s._id)], false);
-            toast(`${s.name} added — set your price if it differs`, 'success');
             await fetchMyServices();
-        } catch (err) { toast(err.response?.data?.message || 'Could not add the service', 'error'); }
+            return true;
+        } catch (err) { toast(err.response?.data?.message || 'Could not add the service', 'error'); return false; }
     };
     // The business's services a member doesn't do yet ("Also on …’s menu").
     const memberMyIds = new Set(myServices.map((x) => String(x._id)));
@@ -2081,6 +2087,7 @@ const ProviderDashboard = () => {
                             currency={curCode}
                             businessName={businessName}
                             menuServices={isStaff ? memberMenuRest : []}
+                            editing={showServiceForm ? (editingService?._id ? String(editingService._id) : 'new') : null}
                             onAdd={() => { setEditingService(null); setShowServiceForm(true); }}
                             onEdit={handleEditService}
                             onAddFromMenu={isStaff ? addMemberServiceFromMenu : undefined}

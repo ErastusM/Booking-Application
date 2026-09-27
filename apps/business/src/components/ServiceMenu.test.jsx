@@ -1,6 +1,6 @@
 import { describe, it, expect, vi } from 'vitest';
 import React from 'react';
-import { render, screen, within } from '@testing-library/react';
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import ServiceMenu, { groupServices, categoriesFromServices, matchesService, performersLine, OTHER_NAME } from './ServiceMenu';
 
@@ -237,6 +237,92 @@ describe('ServiceMenu — the owner', () => {
         expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
     });
 
+    it('keeps the Categories button outside the scrolling chip row, so it is never cut off', () => {
+        renderOwner();
+        const group = screen.getByRole('group', { name: 'Show a category' });
+        expect(within(group).queryByRole('button', { name: 'Categories' })).not.toBeInTheDocument();
+        expect(within(group).getAllByTestId('category-chip')).toHaveLength(4);
+        expect(screen.getByRole('button', { name: 'Categories' })).toBeInTheDocument();
+    });
+
+    it('with fewer than two groups there is no category filter group, only the Categories button', () => {
+        renderOwner({ services: OWNER_SERVICES.filter((s) => s.category === 'c-cuts') });
+        expect(screen.queryByRole('group', { name: 'Show a category' })).not.toBeInTheDocument();
+        expect(screen.getByRole('button', { name: 'Categories' })).toBeInTheDocument();
+    });
+
+    it('names chips, headings and rows in words, without the dots and pin', () => {
+        renderOwner();
+        expect(screen.getByRole('button', { name: 'All, 4 services' })).toHaveAttribute('aria-pressed', 'true');
+        expect(screen.getByRole('button', { name: 'Washing, 1 service' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 3, name: 'Cuts, 2 services' })).toBeInTheDocument();
+        expect(screen.getByRole('heading', { level: 3, name: `${OTHER_NAME}, 1 service` })).toBeInTheDocument();
+        expect(rowOf('Haircut')).toHaveAccessibleDescription('45 min, You, Moses, Hilda, in Windhoek. N$ 120');
+        expect(rowOf('Beard trim')).toHaveAccessibleDescription('20 min, Only Moses. N$ 60');
+    });
+
+    it('lets the meta line wrap instead of cutting performers or the town off', () => {
+        renderOwner();
+        const parts = Array.from(rowOf('Haircut').querySelectorAll('.sm-meta-part')).map((p) => p.textContent);
+        expect(parts).toEqual(['45 min', '📍 Windhoek']);
+    });
+
+    it('says how many services a search found, once typing pauses', async () => {
+        renderOwner();
+        await userEvent.type(screen.getByRole('searchbox', { name: 'Search services' }), 'hair');
+        const status = screen.getByTestId('service-menu-status');
+        expect(status).toHaveAttribute('role', 'status');
+        await waitFor(() => expect(status).toHaveTextContent('1 service match “hair”'), { timeout: 2000 });
+    });
+
+    it('keeps focus in the search box when either clear button empties it', async () => {
+        renderOwner();
+        const search = screen.getByRole('searchbox', { name: 'Search services' });
+        await userEvent.type(search, 'hair');
+        await userEvent.click(screen.getByRole('button', { name: 'Clear service search' }));
+        expect(search).toHaveFocus();
+        await userEvent.type(search, 'zzz');
+        await userEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+        expect(search).toHaveValue('');
+        expect(search).toHaveFocus();
+    });
+
+    it('returns focus to the Categories button even when a tap did not focus it (Safari)', async () => {
+        renderOwner();
+        const open = screen.getByRole('button', { name: 'Categories' });
+        fireEvent.click(open); // a click that leaves focus where it was
+        expect(open).not.toHaveFocus();
+        await userEvent.keyboard('{Escape}');
+        expect(screen.queryByRole('dialog')).not.toBeInTheDocument();
+        expect(open).toHaveFocus();
+    });
+
+    it('brings focus back to the row after the editor closes, or to the next row when it was deleted', () => {
+        const props = { role: 'owner', categories: CATS, teamMembers: TEAM, onEdit: vi.fn() };
+        const { rerender } = render(<ServiceMenu {...props} services={OWNER_SERVICES} editing={null} />);
+        rerender(<ServiceMenu {...props} services={OWNER_SERVICES} editing="s2" />);
+        document.body.focus();
+        rerender(<ServiceMenu {...props} services={OWNER_SERVICES} editing={null} />);
+        expect(rowOf('Beard trim')).toHaveFocus();
+
+        // Beard trim is deleted: the next row (Haircut) takes focus.
+        rerender(<ServiceMenu {...props} services={OWNER_SERVICES} editing="s2" />);
+        document.body.focus();
+        rerender(<ServiceMenu {...props} services={OWNER_SERVICES.filter((s) => s._id !== 's2')} editing={null} />);
+        expect(rowOf('Haircut')).toHaveFocus();
+
+        // The last service gone: the title.
+        const one = [OWNER_SERVICES[3]];
+        rerender(<ServiceMenu {...props} services={one} editing="s4" />);
+        rerender(<ServiceMenu {...props} services={[]} editing={null} />);
+        expect(screen.getByRole('heading', { level: 2, name: 'Services' })).toHaveFocus();
+
+        // Back from adding: "+ Add".
+        rerender(<ServiceMenu {...props} services={OWNER_SERVICES} editing="new" />);
+        rerender(<ServiceMenu {...props} services={OWNER_SERVICES} editing={null} />);
+        expect(screen.getByTestId('add-service')).toHaveFocus();
+    });
+
     it('has an empty state that offers to add the first service', async () => {
         const { onAdd } = renderOwner({ services: [] });
         expect(screen.queryByTestId('service-menu-count')).not.toBeInTheDocument();
@@ -280,10 +366,54 @@ describe('ServiceMenu — a team member', () => {
         expect(rowNames()).toEqual(['Car wash']);
     });
 
-    it('never manages categories', () => {
-        renderMember();
+    it('never manages categories, even when handed the handlers', () => {
+        // The role gates it, not whether the parent happened to pass handlers.
+        renderMember({ onAddCategory: vi.fn(), onDeleteCategory: vi.fn() });
         expect(screen.queryByRole('button', { name: 'Categories' })).not.toBeInTheDocument();
         expect(screen.queryByTestId('manage-categories')).not.toBeInTheDocument();
+    });
+
+    it('shows each service\'s town, as the owner\'s rows do', () => {
+        renderMember({ services: [{ ...MEMBER_SERVICES[0], location: 'Windhoek' }] });
+        expect(rowOf('Car wash').querySelector('.sm-meta')).toHaveTextContent('45 min · 📍 Windhoek');
+        expect(rowOf('Car wash')).toHaveAccessibleDescription('45 min, in Windhoek. N$ 150');
+    });
+
+    it('with no services of their own, a search that finds nothing says so and offers to clear it', async () => {
+        renderMember({ services: [] });
+        const search = screen.getByRole('searchbox', { name: 'Search services' });
+        await userEvent.type(search, 'zzz');
+        expect(screen.queryByText('No services yet')).not.toBeInTheDocument();
+        expect(screen.getByText('No services match “zzz”')).toBeInTheDocument();
+        expect(screen.queryByTestId('menu-services')).not.toBeInTheDocument();
+        await userEvent.click(screen.getByRole('button', { name: 'Clear search' }));
+        expect(search).toHaveValue('');
+        expect(search).toHaveFocus();
+        expect(screen.getByText('No services yet')).toBeInTheDocument();
+    });
+
+    it('keeps focus on "+ Add" while adding from the menu, then moves it to the new row', async () => {
+        let finish;
+        const onAddFromMenu = vi.fn(() => new Promise((r) => { finish = r; }));
+        const { rerender } = render(<ServiceMenu role="member" services={MEMBER_SERVICES} menuServices={MENU_REST} businessName="Vido Barber" onAddFromMenu={onAddFromMenu} />);
+        const add = screen.getByRole('button', { name: 'Add Polish to my services' });
+        await userEvent.click(add);
+        // Busy, but still focusable (a disabled button drops focus to the page).
+        expect(add).toHaveFocus();
+        expect(add).not.toBeDisabled();
+        expect(add).toHaveAttribute('aria-disabled', 'true');
+        expect(add).toHaveAttribute('aria-busy', 'true');
+        await userEvent.click(screen.getByRole('button', { name: 'Add Beard trim to my services' }));
+        expect(onAddFromMenu).toHaveBeenCalledTimes(1);
+
+        const polish = { ...MENU_REST[1], price: 999 };
+        await act(async () => {
+            rerender(<ServiceMenu role="member" services={[...MEMBER_SERVICES, polish]} menuServices={[MENU_REST[0]]} businessName="Vido Barber" onAddFromMenu={onAddFromMenu} />);
+            finish(true);
+        });
+        await waitFor(() => expect(rowOf('Polish')).toHaveFocus());
+        expect(rowOf('Polish')).toHaveAttribute('data-flash', 'true');
+        expect(screen.getByTestId('service-menu-status')).toHaveTextContent('Polish added to your services');
     });
 
     it('opens the editor from a row', async () => {

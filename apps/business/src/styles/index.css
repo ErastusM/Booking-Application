@@ -1500,28 +1500,48 @@ html.ios-vp-fix .vp-cover { bottom: calc(-1 * var(--vp-gap, 0px)) !important; }
 .sm-search { position: relative; margin-top: var(--space-4); }
 .sm-search-icon { position: absolute; left: 0.875rem; top: 50%; transform: translateY(-50%); color: var(--text-muted); pointer-events: none; }
 .sm .sm-search .input { height: 44px; padding: 0 2.75rem 0 2.5rem; font-size: 16px; /* 16px: iOS doesn't zoom on focus */ }
-/* One row that scrolls sideways (never wraps, never widens the page). The 4px
-   padding keeps the chips' focus rings inside the scroller's clip. */
+/* The chip bar: the category filters in one row that scrolls sideways (never
+   wraps, never widens the page), then the owner's "Categories" button, which
+   never scrolls away. The scroller's 4px padding keeps the chips' focus rings
+   (and their taller hit areas, below) inside its clip; a fade on the side
+   with more chips (data-fade, set by ServiceMenu) says the row scrolls, and
+   scroll-padding keeps a chip brought into view on focus clear of that fade. */
+.sm-chipbar { display: flex; align-items: center; gap: var(--space-2); min-width: 0; margin-top: var(--space-2); }
 .sm-chips {
+  flex: 1 1 auto; min-width: 0;
   display: flex; flex-wrap: nowrap; gap: var(--space-2);
-  margin: var(--space-2) -4px 0; padding: 4px;
+  margin: 0 -4px; padding: 4px;
   overflow-x: auto; overflow-y: hidden; overscroll-behavior-x: contain;
   -webkit-overflow-scrolling: touch; scrollbar-width: none;
+  scroll-padding-inline: 28px;
 }
 .sm-chips::-webkit-scrollbar { display: none; }
+.sm-chips[data-fade="end"] { -webkit-mask-image: linear-gradient(to right, var(--ink) calc(100% - 28px), transparent); mask-image: linear-gradient(to right, var(--ink) calc(100% - 28px), transparent); }
+.sm-chips[data-fade="start"] { -webkit-mask-image: linear-gradient(to right, transparent, var(--ink) 28px); mask-image: linear-gradient(to right, transparent, var(--ink) 28px); }
+.sm-chips[data-fade="start end"] { -webkit-mask-image: linear-gradient(to right, transparent, var(--ink) 28px, var(--ink) calc(100% - 28px), transparent); mask-image: linear-gradient(to right, transparent, var(--ink) 28px, var(--ink) calc(100% - 28px), transparent); }
 .sm-chip {
-  flex: none; display: inline-flex; align-items: center; gap: 0.3rem;
+  position: relative; flex: none; display: inline-flex; align-items: center; gap: 0.3rem;
   min-height: 36px; padding: 0 0.85rem; border-radius: var(--radius-pill);
   border: 1px solid var(--border); background: var(--card-bg); color: var(--text-secondary);
   font-family: var(--font-body); font-size: 0.8rem; font-weight: 600; white-space: nowrap;
   cursor: pointer; -webkit-tap-highlight-color: transparent;
   transition: background-color var(--dur-fast) ease, border-color var(--dur-fast) ease, color var(--dur-fast) ease;
 }
+/* A 44px-tall target for the thumb around the 36px pill (the inset is from
+   inside its 1px border; the scroller's 4px padding keeps it unclipped). */
+.sm-chip::before { content: ''; position: absolute; inset: -5px 0; }
 .sm-chip-count { font-weight: 500; color: var(--text-muted); }
-.sm-chip[aria-pressed="true"] { border-color: var(--gold); background: color-mix(in srgb, var(--gold) 10%, var(--card-bg)); color: var(--gold-dark); }
+/* The chosen filter is a solid pill (like .btn-primary), not just a tint, so
+   it doesn't rest on hue alone. */
+.sm-chip[aria-pressed="true"] { border-color: var(--ink); background: var(--ink); color: var(--on-ink); }
+body.dark-mode .sm-chip[aria-pressed="true"] { border-color: var(--gold); background: var(--gold); color: var(--ink); }
 .sm-chip[aria-pressed="true"] .sm-chip-count { color: inherit; }
-@media (hover: hover) { .sm-chip:hover { border-color: var(--border-input); } }
-.sm-chip-manage { color: var(--charcoal); border-style: dashed; border-color: var(--border-input); }
+@media (hover: hover) { .sm-chip:not([aria-pressed="true"]):hover { border-color: var(--border-input); } }
+.sm-chip-manage { flex: none; color: var(--charcoal); border-style: dashed; border-color: var(--border-input); }
+@media (max-width: 559px) {
+  .sm-chip-manage { justify-content: center; width: 44px; padding: 0; }
+  .sm-chip-manage-label { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+}
 .sm-group { margin-top: var(--space-4); }
 .sm-group-head { margin: 0 0 var(--space-2); font-family: var(--font-display); font-size: 0.85rem; font-weight: 700; letter-spacing: 0.01em; color: var(--text-secondary); }
 .sm-card {
@@ -1548,13 +1568,23 @@ button.sm-row:focus-visible { outline: 2px solid var(--gold-dark); outline-offse
   font-family: var(--font-display); font-weight: 600; font-size: 0.95rem; line-height: 1.3; color: var(--text-primary);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
-.sm-meta { font-size: 0.78rem; line-height: 1.35; color: var(--text-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; font-variant-numeric: tabular-nums; }
-/* Nobody performs it: the warning may take a second line rather than be cut. */
-.sm-meta[data-nobody] { color: var(--danger-fg); font-weight: 600; white-space: normal; }
+/* The meta line wraps (between its parts) rather than cutting off who
+   performs a service or where: nothing is lost on a 320px phone. */
+.sm-meta { font-size: 0.78rem; line-height: 1.35; color: var(--text-muted); overflow-wrap: anywhere; font-variant-numeric: tabular-nums; }
+.sm-meta-part { white-space: nowrap; }
+.sm-meta[data-nobody] { color: var(--danger-fg); font-weight: 600; }
+/* A service just added from the menu, where it now sits in the list. */
+button.sm-row[data-flash] { animation: sm-row-added 1.6s var(--ease-out) both; }
+@keyframes sm-row-added {
+  0%, 35% { background: color-mix(in srgb, var(--gold) 14%, transparent); }
+  100% { background: transparent; }
+}
 .sm-price { flex: none; font-weight: 600; font-size: 0.92rem; color: var(--text-primary); white-space: nowrap; font-variant-numeric: tabular-nums; }
 .sm-chev { flex: none; color: var(--text-muted); }
-.sm-add-menu { flex: none; gap: 0.25rem; min-height: 36px; padding: 0 0.85rem; font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
-.sm-add-menu:disabled { opacity: 0.55; cursor: default; transform: none; }
+/* 36px drawn, 44px to the thumb (the row's padding holds the extra). */
+.sm-add-menu { position: relative; flex: none; gap: 0.25rem; min-height: 36px; padding: 0 0.85rem; font-size: 0.82rem; font-weight: 600; white-space: nowrap; }
+.sm-add-menu::before { content: ''; position: absolute; inset: -6px 0; }
+.sm-add-menu[aria-disabled="true"] { opacity: 0.55; cursor: default; transform: none; }
 .sm-empty {
   margin-top: var(--space-4); padding: var(--space-8) var(--space-5); text-align: center;
   background: var(--card-bg); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow-sm);

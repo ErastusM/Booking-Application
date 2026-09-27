@@ -62,3 +62,24 @@ export const useModalChrome = (onClose) => {
 
     return panelRef;
 };
+
+// Keeps Tab inside a modal panel: from the last control it wraps to the first,
+// and back. Call it from the panel's onKeyDown. A key pressed in something the
+// panel renders elsewhere (a picker's popup, portalled to <body>) is left to it.
+const TABBABLE = 'button:not([disabled]), [href], input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+export const trapTab = (e, panel) => {
+    if (e.key !== 'Tab' || !panel) return;
+    const at = document.activeElement;
+    if (at && at !== document.body && !panel.contains(at)) return;
+    const nodes = Array.from(panel.querySelectorAll(TABBABLE));
+    if (!nodes.length) { e.preventDefault(); return; }
+    const first = nodes[0];
+    const last = nodes[nodes.length - 1];
+    if (e.shiftKey && (at === first || at === panel || at === document.body)) {
+        e.preventDefault();
+        last.focus();
+    } else if (!e.shiftKey && (at === last || at === document.body)) {
+        e.preventDefault();
+        first.focus();
+    }
+};

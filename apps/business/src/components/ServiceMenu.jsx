@@ -1,11 +1,11 @@
-import React, { useEffect, useId, useMemo, useRef, useState } from 'react';
-import { createPortal } from 'react-dom';
+import React, { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { createPortal, flushSync } from 'react-dom';
 import { ChevronRight, Pencil, Plus, Search, X } from 'lucide-react';
 import { formatDuration } from '@bookplus/ui';
 import SearchClear from './SearchClear';
 import { formatMoney } from '../utils/currency';
 import { ownerPerforms, teamPerformers } from '../utils/performerServices';
-import { useModalChrome } from '../hooks/useModalChrome';
+import { useModalChrome, trapTab } from '../hooks/useModalChrome';
 
 /**
  * The Services tab ("Catalogue") — ONE screen for the owner and for every team
@@ -92,39 +92,51 @@ export const performersLine = (svc, teamMembers) => {
 
 const priceText = (price, currency) => (Number(price) > 0 ? formatMoney(price, currency) : 'Free');
 
-function ServiceRow({ svc, isOwner, teamMembers, currency, onEdit }) {
+// Effects that measure or move focus after the DOM is in place (no-op on a server).
+const useIsoLayoutEffect = typeof window !== 'undefined' ? useLayoutEffect : useEffect;
+const prefersReducedMotion = () => typeof window !== 'undefined' && !!window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+
+function ServiceRow({ svc, isOwner, teamMembers, currency, onEdit, flash }) {
     const id = useId();
     const duration = formatDuration(svc.duration);
     const who = isOwner ? performersLine(svc, teamMembers) : null;
+    const price = priceText(svc.price, currency);
+    // The meta line wraps between its parts rather than cutting any of them off
+    // (the non-breaking space keeps each "·" with the part before it).
     const meta = [
-        duration,
+        <span key="d" className="sm-meta-part">{duration}</span>,
         who ? <span key="who" data-testid="catalogue-performers">{who.text}</span> : null,
-        svc.location ? `📍 ${svc.location}` : null,
+        svc.location ? <span key="loc" className="sm-meta-part"><span aria-hidden="true">📍</span> {svc.location}</span> : null,
     ].filter(Boolean);
+    // The same facts in words for a screen reader, after "Edit Haircut" (no
+    // middle dots or pushpin read out).
+    const said = [duration, who ? who.text.split(' · ').join(', ') : null, svc.location ? `in ${svc.location}` : null]
+        .filter(Boolean).join(', ');
     return (
         <li className="sm-item">
             <button
                 type="button"
                 className="sm-row"
                 aria-label={`Edit ${svc.name}`}
-                aria-describedby={`${id}-meta ${id}-price`}
+                aria-describedby={`${id}-said`}
                 data-testid="catalogue-service"
+                data-service-id={String(svc._id)}
+                data-flash={flash || undefined}
                 onClick={() => onEdit?.(svc)}
             >
                 <span className="sm-main">
                     <span className="sm-name">{svc.name}</span>
-                    <span id={`${id}-meta`} className="sm-meta" data-nobody={who?.nobody || undefined}>
-                        {meta.map((part, i) => <React.Fragment key={i}>{i > 0 ? ' · ' : ''}{part}</React.Fragment>)}
+                    <span className="sm-meta" data-nobody={who?.nobody || undefined}>
+                        {meta.map((part, i) => <React.Fragment key={i}>{i > 0 ? '\u00a0· ' : ''}{part}</React.Fragment>)}
                     </span>
                 </span>
-                <span id={`${id}-price`} className="sm-price">{priceText(svc.price, currency)}</span>
+                <span className="sm-price">{price}</span>
                 <ChevronRight className="sm-chev" size={18} aria-hidden="true" />
             </button>
+            <span id={`${id}-said`} hidden>{`${said}. ${price}`}</span>
         </li>
     );
 }
-
-const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 /**
  * The owner's "Categories" sheet: every category on the menu (empty ones too)
@@ -132,10 +144,11 @@ const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select
  * tap outside close it; Tab stays inside; focus goes back to the button that
  * opened it.
  */
-function CategoriesSheet({ categories, counts, onClose, onAdd, onDelete }) {
+function CategoriesSheet({ categories, counts, onClose, onAdd, onDelete, returnFocusRef }) {
     const titleId = useId();
     const panelRef = useModalChrome(onClose);
-    // Where focus was when the sheet opened (the "Categories" button).
+    // Where focus goes back to: the "Categories" button (passed in, since a tap
+    // doesn't focus a button in Safari), else whatever had focus on opening.
     const returnTo = useRef(typeof document !== 'undefined' ? document.activeElement : null);
     const [name, setName] = useState('');
     const [busy, setBusy] = useState(false);
@@ -144,9 +157,9 @@ function CategoriesSheet({ categories, counts, onClose, onAdd, onDelete }) {
     const [status, setStatus] = useState('');
 
     useEffect(() => () => {
-        const el = returnTo.current;
+        const el = returnFocusRef?.current || returnTo.current;
         if (el && el.isConnected && typeof el.focus === 'function') el.focus({ preventScroll: true });
-    }, []);
+    }, [returnFocusRef]);
 
     // A deleted category's row takes the focused × with it: keep focus inside
     // (only when it was lost — never taken from a confirm dialog on top).
@@ -162,21 +175,7 @@ function CategoriesSheet({ categories, counts, onClose, onAdd, onDelete }) {
         });
     };
 
-    const onKeyDown = (e) => {
-        if (e.key !== 'Tab' || !panelRef.current) return;
-        const nodes = Array.from(panelRef.current.querySelectorAll(FOCUSABLE));
-        if (!nodes.length) return;
-        const first = nodes[0];
-        const last = nodes[nodes.length - 1];
-        const at = document.activeElement;
-        if (e.shiftKey && (at === first || at === panelRef.current || !panelRef.current.contains(at))) {
-            e.preventDefault();
-            last.focus();
-        } else if (!e.shiftKey && (at === last || !panelRef.current.contains(at))) {
-            e.preventDefault();
-            first.focus();
-        }
-    };
+    const onKeyDown = (e) => trapTab(e, panelRef.current);
 
     const add = async (e) => {
         e.preventDefault();
@@ -263,6 +262,10 @@ export default function ServiceMenu({
     currency = 'NAD',
     businessName = '',
     menuServices = [],
+    // The service the editor is open on (its id, 'new' while adding, null when
+    // closed): when it closes, focus comes back to that row (or, when it was
+    // deleted, the next one) instead of the top of the page.
+    editing = null,
     onAdd,
     onEdit,
     onAddFromMenu,
@@ -274,7 +277,18 @@ export default function ServiceMenu({
     const [groupId, setGroupId] = useState('all');
     const [sheetOpen, setSheetOpen] = useState(false);
     const [adding, setAdding] = useState(null);
+    // A row just added from the menu, briefly highlighted where it now sits.
+    const [flashId, setFlashId] = useState(null);
+    const [, setAddedTick] = useState(0);
+    // Said to screen readers: search results, and "added" from the menu.
+    const [status, setStatus] = useState('');
     const menuHeadId = useId();
+    const rootRef = useRef(null);
+    const titleRef = useRef(null);
+    const addRef = useRef(null);
+    const searchRef = useRef(null);
+    const chipsRef = useRef(null);
+    const manageRef = useRef(null);
 
     const menuCategories = useMemo(() => (isOwner ? categories || [] : categoriesFromServices(services)), [isOwner, categories, services]);
     const matching = useMemo(() => (services || []).filter((s) => matchesService(s, query)), [services, query]);
@@ -295,23 +309,142 @@ export default function ServiceMenu({
     const showChips = groups.length >= 2;
     const activeId = showChips && groups.some((g) => g.id === groupId) ? groupId : 'all';
     const shown = activeId === 'all' ? groups : groups.filter((g) => g.id === activeId);
+    // The role decides; the handlers only wire it up.
     const manageCategories = isOwner && typeof onAddCategory === 'function';
 
     const subtitle = total === 0 ? null
         : isOwner ? `${plural(total, 'service')} on your menu`
             : `${plural(total, 'service')} clients can book you for`;
 
+    const rowFor = (id) => Array.from(rootRef.current?.querySelectorAll('[data-testid="catalogue-service"]') || [])
+        .find((b) => b.dataset.serviceId === String(id));
+
+    // Back from the editor: to the row it was opened from, or — when that
+    // service is gone — the next row (else the one before, else the title).
+    const rowIds = shown.flatMap((g) => g.services.map((s) => String(s._id)));
+    const rowIdsRef = useRef(rowIds);
+    rowIdsRef.current = rowIds;
+    const openedRef = useRef(null);
+    useEffect(() => {
+        if (editing != null) {
+            if (!openedRef.current) openedRef.current = { id: String(editing), order: rowIdsRef.current };
+            return;
+        }
+        const was = openedRef.current;
+        openedRef.current = null;
+        if (!was) return;
+        if (was.id === 'new') { addRef.current?.focus(); return; }
+        const i = was.order.indexOf(was.id);
+        const tryOrder = [was.id, ...was.order.slice(i + 1), ...was.order.slice(0, Math.max(i, 0)).reverse()];
+        for (const id of tryOrder) {
+            const row = rowFor(id);
+            if (row) { row.focus(); return; }
+        }
+        titleRef.current?.focus();
+    }, [editing]);
+
+    // A service added from the menu: once its row is in the list, move focus
+    // there (the "+ Add" it came from is gone), bring it on screen and
+    // highlight it — the confirmation sits where the service now is.
+    const pendingRef = useRef(null);
+    useEffect(() => {
+        const p = pendingRef.current;
+        if (!p) return;
+        if (Date.now() > p.until) { pendingRef.current = null; return; }
+        const row = rowFor(p.id);
+        if (!row) {
+            // Filtered out by a category chip: show everything again.
+            if (activeId !== 'all' && (services || []).some((s) => String(s._id) === p.id)) setGroupId('all');
+            return;
+        }
+        pendingRef.current = null;
+        row.focus({ preventScroll: true });
+        const r = row.getBoundingClientRect();
+        if (r.top < 72 || r.bottom > window.innerHeight - 72) {
+            row.scrollIntoView?.({ block: 'center', behavior: prefersReducedMotion() ? 'auto' : 'smooth' });
+        }
+        setFlashId(p.id);
+    });
+    useEffect(() => {
+        if (!flashId) return undefined;
+        const t = setTimeout(() => setFlashId(null), 1600);
+        return () => clearTimeout(t);
+    }, [flashId]);
+
     const addFromMenu = async (svc) => {
         if (adding) return;
-        setAdding(String(svc._id));
-        try { await onAddFromMenu?.(svc); } finally { setAdding(null); }
+        const id = String(svc._id);
+        setAdding(id);
+        setStatus(`Adding ${svc.name}…`);
+        let ok = false;
+        try { ok = (await onAddFromMenu?.(svc)) !== false; } finally { setAdding(null); }
+        if (ok) {
+            pendingRef.current = { id, until: Date.now() + 4000 };
+            setStatus(`${svc.name} added to your services`);
+            setAddedTick((n) => n + 1);
+        } else {
+            setStatus('');
+        }
     };
 
+    // Search results, said once typing pauses.
+    useEffect(() => {
+        if (!q) return undefined;
+        const t = setTimeout(() => {
+            const n = matching.length;
+            const more = !isOwner && menuRest.length ? `, ${menuRest.length} more on ${businessName || 'the business'}’s menu` : '';
+            setStatus(`${n ? `${plural(n, 'service')} match` : 'No services match'} “${q}”${more}`);
+        }, 700);
+        return () => clearTimeout(t);
+    }, [q, matching.length, menuRest.length, isOwner, businessName]);
+
+    // Clearing the search removes the button that did it: keep focus in the box
+    // (or on "+ Add" when the box goes too).
+    const clearSearch = () => {
+        flushSync(() => setQuery(''));
+        (searchRef.current?.isConnected ? searchRef.current : addRef.current)?.focus();
+    };
+
+    // The chip row scrolls sideways; a fade on the side(s) with more chips says so.
+    const updateFade = useCallback(() => {
+        const el = chipsRef.current;
+        if (!el) return;
+        const max = el.scrollWidth - el.clientWidth;
+        const fade = [el.scrollLeft > 2 && 'start', el.scrollLeft < max - 2 && 'end'].filter(Boolean).join(' ');
+        if (fade) el.setAttribute('data-fade', fade); else el.removeAttribute('data-fade');
+    }, []);
+    useIsoLayoutEffect(() => { updateFade(); });
+    useEffect(() => {
+        const el = chipsRef.current;
+        if (!el || typeof ResizeObserver === 'undefined') return undefined;
+        const ro = new ResizeObserver(() => updateFade());
+        ro.observe(el);
+        if (el.firstElementChild) ro.observe(el.firstElementChild);
+        return () => ro.disconnect();
+    }, [showChips, updateFade]);
+    // A chip reached with Tab (or tapped half off the edge) scrolls fully into view.
+    const revealChip = (e) => e.currentTarget.scrollIntoView?.({ block: 'nearest', inline: 'nearest' });
+
+    const chip = (id, name, n) => (
+        <button
+            key={id}
+            type="button"
+            className="sm-chip"
+            aria-pressed={activeId === id}
+            aria-label={`${name}, ${plural(n, 'service')}`}
+            onClick={() => setGroupId(id)}
+            onFocus={revealChip}
+            data-testid="category-chip"
+        >
+            {name} <span className="sm-chip-count" aria-hidden="true">· {n}</span>
+        </button>
+    );
+
     return (
-        <div className="sm" data-testid="service-menu" data-role={role}>
+        <div className="sm" data-testid="service-menu" data-role={role} ref={rootRef}>
             <div className="sm-head">
-                <h2 className="sm-title">Services</h2>
-                <button type="button" className="btn-primary sm-add" onClick={() => onAdd?.()} aria-label="Add service" data-testid="add-service">
+                <h2 className="sm-title" ref={titleRef} tabIndex={-1}>Services</h2>
+                <button ref={addRef} type="button" className="btn-primary sm-add" onClick={() => onAdd?.()} aria-label="Add service" data-testid="add-service">
                     <Plus size={16} strokeWidth={2.5} aria-hidden="true" /> Add
                 </button>
             </div>
@@ -321,6 +454,7 @@ export default function ServiceMenu({
                 <div className="sm-search">
                     <Search className="sm-search-icon" size={16} aria-hidden="true" />
                     <input
+                        ref={searchRef}
                         className="input"
                         type="text"
                         inputMode="search"
@@ -333,33 +467,31 @@ export default function ServiceMenu({
                         autoComplete="off"
                         data-testid="service-search"
                     />
-                    {query ? <SearchClear onClear={() => setQuery('')} label="Clear service search" /> : null}
+                    {query ? <SearchClear onClear={clearSearch} label="Clear service search" /> : null}
                 </div>
             ) : null}
 
+            {/* The category filters scroll in their own row; the owner's
+                "Categories" button stays put at its end, always in full. */}
             {showChips || manageCategories ? (
-                <div className="sm-chips" role="group" aria-label="Show a category">
+                <div className="sm-chipbar">
                     {showChips ? (
-                        <>
-                            <button type="button" className="sm-chip" aria-pressed={activeId === 'all'} onClick={() => setGroupId('all')} data-testid="category-chip">
-                                All <span className="sm-chip-count">· {matching.length}</span>
-                            </button>
-                            {groups.map((g) => (
-                                <button key={g.id} type="button" className="sm-chip" aria-pressed={activeId === g.id} onClick={() => setGroupId(g.id)} data-testid="category-chip">
-                                    {g.name} <span className="sm-chip-count">· {g.services.length}</span>
-                                </button>
-                            ))}
-                        </>
+                        <div ref={chipsRef} className="sm-chips" role="group" aria-label="Show a category" onScroll={updateFade}>
+                            {chip('all', 'All', matching.length)}
+                            {groups.map((g) => chip(g.id, g.name, g.services.length))}
+                        </div>
                     ) : null}
                     {manageCategories ? (
-                        <button type="button" className="sm-chip sm-chip-manage" aria-haspopup="dialog" onClick={() => setSheetOpen(true)} data-testid="manage-categories">
-                            <Pencil size={13} aria-hidden="true" /> Categories
+                        <button ref={manageRef} type="button" className="sm-chip sm-chip-manage" aria-haspopup="dialog" onClick={() => setSheetOpen(true)} title="Categories" data-testid="manage-categories">
+                            {/* On a phone just the pencil (the word stays for screen
+                                readers), so the filters beside it get the room. */}
+                            <Pencil size={15} aria-hidden="true" /> <span className="sm-chip-manage-label">Categories</span>
                         </button>
                     ) : null}
                 </div>
             ) : null}
 
-            {total === 0 ? (
+            {total === 0 && !q ? (
                 <div className="sm-empty" data-testid="service-menu-empty">
                     <p className="sm-empty-title">No services yet</p>
                     <p className="sm-empty-text">Add your first service so clients can book you</p>
@@ -370,15 +502,15 @@ export default function ServiceMenu({
             ) : matching.length === 0 ? (
                 <div className="sm-empty" data-testid="service-menu-no-match">
                     <p className="sm-empty-title">No services match “{q}”</p>
-                    <button type="button" className="btn-outline sm-empty-btn" onClick={() => setQuery('')}>Clear search</button>
+                    <button type="button" className="btn-outline sm-empty-btn" onClick={clearSearch}>Clear search</button>
                 </div>
             ) : (
                 shown.map((g) => (
                     <section key={g.id} className="sm-group" data-testid="service-group">
-                        <h3 className="sm-group-head">{g.name} · {g.services.length}</h3>
+                        <h3 className="sm-group-head" aria-label={`${g.name}, ${plural(g.services.length, 'service')}`}>{g.name} · {g.services.length}</h3>
                         <ul className="sm-card">
                             {g.services.map((s) => (
-                                <ServiceRow key={s._id} svc={s} isOwner={isOwner} teamMembers={teamMembers} currency={currency} onEdit={onEdit} />
+                                <ServiceRow key={s._id} svc={s} isOwner={isOwner} teamMembers={teamMembers} currency={currency} onEdit={onEdit} flash={flashId === String(s._id)} />
                             ))}
                         </ul>
                     </section>
@@ -401,11 +533,14 @@ export default function ServiceMenu({
                                             <span className="sm-name">{x.name}</span>
                                             <span className="sm-meta">{formatDuration(x.duration)}</span>
                                         </span>
+                                        {/* aria-disabled, not disabled: a disabled button
+                                            drops keyboard focus to the page. */}
                                         <button
                                             type="button"
                                             className="btn-outline sm-add-menu"
                                             onClick={() => addFromMenu(x)}
-                                            disabled={!!adding}
+                                            aria-disabled={adding ? true : undefined}
+                                            aria-busy={busy || undefined}
                                             aria-label={`Add ${x.name} to my services`}
                                             data-testid="menu-add-service"
                                         >
@@ -419,6 +554,8 @@ export default function ServiceMenu({
                 </section>
             ) : null}
 
+            <p className="sr-only" role="status" data-testid="service-menu-status">{status}</p>
+
             {sheetOpen && manageCategories ? (
                 <CategoriesSheet
                     categories={categories || []}
@@ -426,6 +563,7 @@ export default function ServiceMenu({
                     onClose={() => setSheetOpen(false)}
                     onAdd={onAddCategory}
                     onDelete={onDeleteCategory}
+                    returnFocusRef={manageRef}
                 />
             ) : null}
         </div>

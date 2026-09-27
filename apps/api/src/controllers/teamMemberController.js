@@ -1345,9 +1345,10 @@ exports.getMyServices = async (req, res) => {
         // owner's column is offered only what the owner performs; the category
         // name and place on the menu (order, then age — the owner's own sort) so
         // their Services tab groups them under the owner's headings, in the
-        // owner's order.
+        // owner's order; the town, which their Services rows show as the
+        // owner's do (it is on the public booking page already).
         const services = await Service.find({ provider: req.user.staffOf, isActive: { $ne: false } })
-            .select('name price duration ownerPerforms category').populate('category', 'name order createdAt').sort({ name: 1 });
+            .select('name price duration ownerPerforms category location').populate('category', 'name order createdAt').sort({ name: 1 });
         res.status(200).json({
             success: true,
             data: {

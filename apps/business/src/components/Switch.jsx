@@ -17,7 +17,10 @@ import React from 'react';
 // accessible name (WCAG 4.1.2) and clicking the text toggles it too. The input
 // is invisible, so its keyboard focus ring is drawn on the track instead
 // (.bp-switch-input:focus-visible + [data-track] in index.css).
-const Switch = ({ checked, onChange, disabled, label, 'data-testid': testId }) => (
+//
+// `ariaLabel` names the switch when the words beside it (`label`) are only its
+// state ("Yes" / "No") and what it controls is written elsewhere.
+const Switch = ({ checked, onChange, disabled, label, ariaLabel, 'data-testid': testId }) => (
     <label style={{ display: 'inline-flex', alignItems: 'center', gap: '0.55rem', cursor: disabled ? 'not-allowed' : 'pointer' }}>
         <span style={{
             fontSize: '0.78rem', fontWeight: 650, whiteSpace: 'nowrap',
@@ -27,6 +30,7 @@ const Switch = ({ checked, onChange, disabled, label, 'data-testid': testId }) =
             <input
                 type="checkbox"
                 role="switch"
+                aria-label={ariaLabel}
                 className="bp-switch-input"
                 checked={checked}
                 disabled={disabled}

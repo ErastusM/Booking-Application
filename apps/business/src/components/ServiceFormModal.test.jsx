@@ -1,6 +1,6 @@
 import React from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { render, screen } from '@testing-library/react';
+import { act, render, screen } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 
 /**
@@ -53,6 +53,29 @@ describe('ServiceFormModal — the owner', () => {
         expect(screen.queryByTestId('service-delete')).not.toBeInTheDocument();
     });
 
+    it('names the "You offer this service" switch by what it controls, not "Yes"', () => {
+        renderModal();
+        expect(screen.getByRole('switch', { name: 'You offer this service' })).toBeChecked();
+    });
+
+    it('keeps the delete button focusable while it asks, and ignores repeat presses', async () => {
+        let answer;
+        const onDelete = vi.fn(() => new Promise((r) => { answer = r; }));
+        renderModal({ onDelete });
+        const del = screen.getByRole('button', { name: 'Delete service' });
+        await userEvent.click(del);
+        expect(del).not.toBeDisabled();
+        expect(del).toHaveAttribute('aria-disabled', 'true');
+        expect(del).toHaveFocus();
+        await userEvent.click(del);
+        expect(onDelete).toHaveBeenCalledTimes(1);
+        // Cancelled (the editor stays): the button works again.
+        await act(async () => { answer(false); });
+        expect(del).not.toHaveAttribute('aria-disabled');
+        await userEvent.click(del);
+        expect(onDelete).toHaveBeenCalledTimes(2);
+    });
+
     it('calls a service with no category "Other services", as the customer app does', () => {
         renderModal();
         expect(screen.getByTestId('service-category')).toHaveTextContent('Other services (no category)');
@@ -71,5 +94,53 @@ describe('ServiceFormModal — a team member', () => {
         await userEvent.click(screen.getByRole('button', { name: 'Remove from my services' }));
         expect(onDelete).toHaveBeenCalledWith(HAIRCUT);
         expect(svc.updateMyService).not.toHaveBeenCalled();
+    });
+});
+
+describe('ServiceFormModal — a modal dialog', () => {
+    it('is a dialog named by its title, and Escape closes it', async () => {
+        const { onClose } = renderModal();
+        const dialog = screen.getByRole('dialog', { name: 'Edit service' });
+        expect(dialog).toHaveAttribute('aria-modal', 'true');
+        await userEvent.keyboard('{Escape}');
+        expect(onClose).toHaveBeenCalled();
+    });
+
+    it('opens an existing service on the dialog itself, and a new one in the name', () => {
+        const { unmount } = render(<ServiceFormModal open editing={HAIRCUT} categories={[]} onClose={vi.fn()} onSaved={vi.fn()} />);
+        expect(screen.getByRole('dialog')).toHaveFocus();
+        expect(screen.getByTestId('service-name')).not.toHaveFocus();
+        unmount();
+        render(<ServiceFormModal open editing={null} categories={[]} onClose={vi.fn()} onSaved={vi.fn()} />);
+        expect(screen.getByTestId('service-name')).toHaveFocus();
+    });
+
+    it('a team member\'s editor opens on the dialog, not on the page behind it', () => {
+        auth.user = { role: 'staff', businessProfile: {} };
+        renderModal({ memberSave: vi.fn(), deleteLabel: 'Remove from my services' });
+        expect(screen.getByRole('dialog')).toHaveFocus();
+    });
+
+    it('keeps Tab inside: from Save round to Close, and back', async () => {
+        renderModal();
+        const close = screen.getByRole('button', { name: 'Close' });
+        const save = screen.getByRole('button', { name: 'Save changes' });
+        save.focus();
+        await userEvent.tab();
+        expect(close).toHaveFocus();
+        await userEvent.tab({ shift: true });
+        expect(save).toHaveFocus();
+    });
+
+    it('gives focus back to what opened it when it closes', () => {
+        const opener = document.createElement('button');
+        opener.textContent = 'Edit Haircut';
+        document.body.appendChild(opener);
+        opener.focus();
+        const { unmount } = render(<ServiceFormModal open editing={HAIRCUT} categories={[]} onClose={vi.fn()} onSaved={vi.fn()} />);
+        expect(opener).not.toHaveFocus();
+        unmount();
+        expect(opener).toHaveFocus();
+        opener.remove();
     });
 });
